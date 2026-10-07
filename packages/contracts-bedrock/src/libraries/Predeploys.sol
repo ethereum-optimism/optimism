@@ -437,7 +437,7 @@ library Predeploys {
         records_[16] = PredeployRecord({
             proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             variants: _variants(
-                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 2_602_000
+                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 2_110_000
             ),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,

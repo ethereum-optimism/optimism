@@ -14,6 +14,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger
@@ -21,6 +23,13 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+    /// @notice Thrown when `relayUndeliveredMessage` is not called by another chain's L1CrossDomainMessenger in this
+    ///         chain's interop cluster, relaying a withdrawal from that chain's L2ToL2CrossDomainMessenger.
+    error L1CrossDomainMessenger_NotInteropMessenger();
+
+    /// @notice Gas limit for L2ToL2CrossDomainMessenger.expireMessage on L2, which uses about 40k gas.
+    uint32 internal constant EXPIRE_MESSAGE_GAS_LIMIT = 100_000;
+
     /// @custom:legacy
     /// @custom:spacer superchainConfig
     /// @notice Spacer taking up the legacy `superchainConfig` slot.
@@ -36,8 +45,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.11.1
-    string public constant version = "2.11.1";
+    /// @custom:semver 2.12.0
+    string public constant version = "2.12.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
@@ -77,6 +86,37 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @custom:legacy
     function PORTAL() external view returns (IOptimismPortal) {
         return portal;
+    }
+
+    /// @notice Passes on word from another chain in this chain's interop cluster that a message from this chain had
+    ///         not been relayed there by `_undeliveredAt`. This chain's L2ToL2CrossDomainMessenger marks the message
+    ///         expired if that is past the message expiry window. The caller must be:
+    ///         - a real L1CrossDomainMessenger: its portal's SystemConfig names it as the chain's messenger. A contract
+    ///           that names a real portal as its own fails this;
+    ///         - of a chain in this chain's cluster: its portal is authorized by this chain's ETHLockbox. Every such
+    ///           chain can already withdraw this chain's ETH, so trusting its word adds no trust;
+    ///         - relaying a withdrawal from that chain's L2ToL2CrossDomainMessenger, which sends this call only for a
+    ///           message to that chain that it has not relayed.
+    ///         The word is sent on as this contract, which no relayed message can be (see `_isUnsafeTarget`), so L2 can
+    ///         trust it. If this runs out of gas, the call lands in the caller's failed messages and can be replayed.
+    /// @param _messageHash   Hash of the message.
+    /// @param _undeliveredAt Timestamp on the message's destination at which it had not been relayed.
+    function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
+        IOptimismPortal callerPortal = IL1CrossDomainMessenger(msg.sender).portal();
+        if (
+            callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender
+                || !portal.ethLockbox().authorizedPortals(callerPortal)
+                || IL1CrossDomainMessenger(msg.sender).xDomainMessageSender()
+                    != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
+        ) {
+            revert L1CrossDomainMessenger_NotInteropMessenger();
+        }
+
+        this.sendMessage({
+            _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            _message: abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt)),
+            _minGasLimit: EXPIRE_MESSAGE_GAS_LIMIT
+        });
     }
 
     /// @inheritdoc CrossDomainMessenger

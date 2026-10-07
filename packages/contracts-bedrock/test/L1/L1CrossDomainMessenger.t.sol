@@ -19,6 +19,9 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 /// @title L1CrossDomainMessenger_Encoding_Harness
 /// @notice A harness contract for testing internal functions of the Encoding library.
@@ -1237,5 +1240,149 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         assertEq(address(this).balance, balanceBeforeThis);
         // The balance of the messenger contract is unchanged.
         assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
+    }
+}
+
+/// @title L1CrossDomainMessenger_RelayUndeliveredMessage_Test
+/// @notice Tests the `relayUndeliveredMessage` function of the `L1CrossDomainMessenger` contract.
+contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMessenger_TestInit {
+    bytes32 internal constant MESSAGE_HASH = keccak256("message");
+    uint256 internal constant UNDELIVERED_AT = 1_000_000;
+
+    /// @notice This chain's lockbox.
+    address internal lockbox;
+
+    /// @notice Another chain in this chain's cluster: its messenger, portal and SystemConfig.
+    address internal otherMessenger;
+    address internal otherPortal;
+    address internal otherConfig;
+
+    function setUp() public override {
+        super.setUp();
+        lockbox = _mockContract("lockbox");
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(lockbox));
+        (otherMessenger, otherPortal, otherConfig) = _mockChain("other");
+    }
+
+    /// @notice Tests that word from a cluster chain's L2ToL2CrossDomainMessenger is deposited into
+    ///         this chain's L2ToL2CrossDomainMessenger, sent as this messenger.
+    function test_relayUndeliveredMessage_succeeds() external {
+        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
+        vm.expectCall(
+            address(optimismPortal2),
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    0,
+                    l1CrossDomainMessenger.baseGas(expire, 100_000),
+                    false,
+                    Encoding.encodeCrossDomainMessage(
+                        nonce,
+                        address(l1CrossDomainMessenger),
+                        Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+                        0,
+                        100_000,
+                        expire
+                    )
+                )
+            )
+        );
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(l1CrossDomainMessenger), expire, nonce, 100_000
+        );
+
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a contract naming a cluster chain's portal as its own is rejected: the
+    ///         portal's SystemConfig names only the real messenger.
+    function test_relayUndeliveredMessage_borrowedPortal_reverts() external {
+        address fake = _mockContract("fake");
+        vm.mockCall(fake, abi.encodeCall(IL1CrossDomainMessenger.portal, ()), abi.encode(otherPortal));
+        vm.mockCall(
+            fake,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(fake);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that the messenger of a chain outside this chain's cluster is rejected.
+    function test_relayUndeliveredMessage_otherCluster_reverts() external {
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(otherPortal)))),
+            abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word relayed from any L2 sender but the L2ToL2CrossDomainMessenger is
+    ///         rejected.
+    function testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts(address _l2Sender) external {
+        vm.assume(_l2Sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.mockCall(
+            otherMessenger, abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()), abi.encode(_l2Sender)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that an account that is not a messenger cannot call it.
+    function test_relayUndeliveredMessage_notMessenger_reverts() external {
+        vm.expectRevert();
+        vm.prank(alice);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a chain without a lockbox accepts no word.
+    function test_relayUndeliveredMessage_noLockbox_reverts() external {
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(0)));
+
+        vm.expectRevert();
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Creates a labelled address with code, so calls to it can be mocked.
+    function _mockContract(string memory _name) internal returns (address addr_) {
+        addr_ = makeAddr(_name);
+        vm.etch(addr_, hex"01");
+    }
+
+    /// @notice Mocks a chain in this chain's cluster whose messenger is relaying a withdrawal from
+    ///         its L2ToL2CrossDomainMessenger.
+    function _mockChain(string memory _name)
+        internal
+        returns (address messenger_, address portal_, address systemConfig_)
+    {
+        messenger_ = _mockContract(string.concat(_name, "Messenger"));
+        portal_ = _mockContract(string.concat(_name, "Portal"));
+        systemConfig_ = _mockContract(string.concat(_name, "Config"));
+        vm.mockCall(messenger_, abi.encodeCall(IL1CrossDomainMessenger.portal, ()), abi.encode(portal_));
+        vm.mockCall(
+            messenger_,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+        );
+        vm.mockCall(portal_, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig_));
+        vm.mockCall(systemConfig_, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(messenger_));
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(portal_)))),
+            abi.encode(true)
+        );
     }
 }

@@ -14,14 +14,6 @@ import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-
-// Contracts
-import { MessageExpiryHub } from "src/L1/MessageExpiryHub.sol";
 
 /// @title SuperchainETHBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainETHBridge` tests.
@@ -196,14 +188,6 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
 
     IL2ToL2CrossDomainMessenger internal messenger =
         IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-    address internal hub = makeAddr("hub");
-
-    /// @notice Sets the messenger's expiry hub.
-    function setUp() public override {
-        super.setUp();
-        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
-        messenger.setExpiryHub(hub);
-    }
 
     /// @notice Sends ETH from `_from` and returns the send's message nonce and hash.
     function _send(address _from, address _to, uint256 _amount) internal returns (uint256 nonce_, bytes32 hash_) {
@@ -213,13 +197,14 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         hash_ = superchainETHBridge.sendETH{ value: _amount }(_to, DESTINATION);
     }
 
-    /// @notice Marks a message expired, as the hub's fact relayed by the L2CrossDomainMessenger.
+    /// @notice Marks a message expired, as word from the L1CrossDomainMessenger relayed by the
+    ///         L2CrossDomainMessenger.
     function _expire(bytes32 _messageHash) internal {
         uint256 undeliveredAt = messenger.sentMessageTimestamps(_messageHash) + messenger.MESSAGE_EXPIRY_WINDOW() + 1;
         vm.mockCall(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(hub)
+            abi.encode(address(l2CrossDomainMessenger.otherMessenger()))
         );
         vm.prank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         messenger.expireMessage(_messageHash, undeliveredAt);
@@ -277,120 +262,5 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.refundETH(DESTINATION, nonce, sender, bob, 1 ether);
 
         assertEq(sender.balance, 1 ether);
-    }
-
-    /// @notice Tests the whole refund path across chain IDs: the destination exports that the send
-    ///         was never relayed, the hub records it and forwards it to the source, the source marks
-    ///         the message expired once the window has passed, and the sender is refunded.
-    function test_refundETH_endToEnd_succeeds() external {
-        uint256 source = block.chainid;
-        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
-
-        // L1: a hub, and the two chains of one cluster.
-        MessageExpiryHub l1Hub = new MessageExpiryHub();
-        address lockbox = _mockL1Contract("lockbox");
-        (, address destinationMessenger) = _mockL1Chain("destination", DESTINATION, lockbox);
-        (address sourceConfig, address sourceMessenger) = _mockL1Chain("source", source, lockbox);
-        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
-        messenger.setExpiryHub(address(l1Hub));
-
-        // Destination, after the window: the message was never relayed, so it exports that.
-        vm.chainId(DESTINATION);
-        vm.warp(block.timestamp + messenger.MESSAGE_EXPIRY_WINDOW() + 1);
-        bytes memory toHub = _exportUndelivered(address(l1Hub), source, nonce, messageHash);
-
-        // L1: the withdrawal is relayed to the hub, then forwarded to the source.
-        vm.prank(destinationMessenger);
-        (bool ok,) = address(l1Hub).call(toHub);
-        assertTrue(ok);
-        bytes memory toSource =
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (messageHash, block.timestamp));
-        bytes memory deposit = abi.encodeCall(
-            ICrossDomainMessenger.sendMessage, (Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, toSource, 200_000)
-        );
-        vm.mockCall(sourceMessenger, deposit, "");
-        vm.expectCall(sourceMessenger, deposit);
-        l1Hub.forwardUndeliveredMessage(ISystemConfig(sourceConfig), messageHash, block.timestamp, 200_000);
-
-        // Source: the deposit is relayed by the L2CrossDomainMessenger, from the hub.
-        vm.chainId(source);
-        vm.mockCall(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(address(l1Hub))
-        );
-        vm.prank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        (ok,) = address(messenger).call(toSource);
-        assertTrue(ok);
-        assertTrue(messenger.expiredMessages(messageHash));
-
-        uint256 balanceBefore = alice.balance;
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
-        assertEq(alice.balance, balanceBefore + 1 ether);
-    }
-
-    /// @notice Exports the send of 1 ether from alice to bob as undelivered, on the destination, and
-    ///         returns the hub call it sends through the L2CrossDomainMessenger.
-    function _exportUndelivered(
-        address _hub,
-        uint256 _source,
-        uint256 _nonce,
-        bytes32 _messageHash
-    )
-        internal
-        returns (bytes memory toHub_)
-    {
-        toHub_ = abi.encodeCall(MessageExpiryHub.receiveUndeliveredMessage, (_messageHash, _source, block.timestamp));
-        vm.expectCall(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(ICrossDomainMessenger.sendMessage, (_hub, toHub_, 100_000))
-        );
-        bytes32 exported = messenger.exportUndeliveredMessage(
-            _source,
-            _nonce,
-            address(superchainETHBridge),
-            address(superchainETHBridge),
-            abi.encodeCall(ISuperchainETHBridge.relayETH, (alice, bob, 1 ether)),
-            100_000
-        );
-        assertEq(exported, _messageHash);
-    }
-
-    /// @notice Creates a labelled address with code, so calls to it can be mocked.
-    function _mockL1Contract(string memory _name) internal returns (address addr_) {
-        addr_ = makeAddr(_name);
-        vm.etch(addr_, hex"01");
-    }
-
-    /// @notice Mocks an L1 chain whose SystemConfig, messenger and portal point at each other, in the
-    ///         cluster of `_lockbox`, whose messenger relays from the L2ToL2CrossDomainMessenger.
-    function _mockL1Chain(
-        string memory _name,
-        uint256 _chainId,
-        address _lockbox
-    )
-        internal
-        returns (address systemConfig_, address messenger_)
-    {
-        systemConfig_ = _mockL1Contract(string.concat(_name, "Config"));
-        messenger_ = _mockL1Contract(string.concat(_name, "Messenger"));
-        address portal = _mockL1Contract(string.concat(_name, "Portal"));
-        vm.mockCall(systemConfig_, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(messenger_));
-        vm.mockCall(systemConfig_, abi.encodeCall(ISystemConfig.optimismPortal, ()), abi.encode(portal));
-        vm.mockCall(systemConfig_, abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(_chainId));
-        vm.mockCall(messenger_, abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()), abi.encode(systemConfig_));
-        vm.mockCall(
-            messenger_,
-            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-        );
-        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig_));
-        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(_lockbox));
-        vm.mockCall(portal, abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()), abi.encode(makeAddr("asr")));
-        vm.mockCall(
-            _lockbox,
-            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(portal)))),
-            abi.encode(true)
-        );
     }
 }

@@ -7,14 +7,11 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
-// Contracts
-import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
-
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { IMessageExpiryHub } from "interfaces/L1/IMessageExpiryHub.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 
 /// @notice Thrown when attempting to relay a message where payload origin is not L2ToL2CrossDomainMessenger.
 error IdOriginNotL2ToL2CrossDomainMessenger();
@@ -40,11 +37,8 @@ error InvalidMessage();
 /// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger.
 error MessageTargetL2CrossDomainMessenger();
 
-/// @notice Thrown when attempting to export an undelivered message before the expiry hub is set.
-error ExpiryHubNotSet();
-
-/// @notice Thrown when a message is marked expired by anything but the expiry hub, through the L2CrossDomainMessenger.
-error NotExpiryHub();
+/// @notice Thrown when a message is marked expired by anything but this chain's L1CrossDomainMessenger.
+error NotOtherMessenger();
 
 /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed past the expiry window.
 error MessageNotExpired();
@@ -55,7 +49,7 @@ error MessageNotExpired();
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyAdminOwnedBase {
+contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -106,9 +100,6 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     ///         Applications read this to undo a send.
     mapping(bytes32 => bool) public expiredMessages;
 
-    /// @notice Address of the MessageExpiryHub on L1, which carries undelivered-message facts between chains.
-    address public expiryHub;
-
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -118,16 +109,6 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     event SentMessage(
         uint256 indexed destination, address indexed target, uint256 indexed messageNonce, address sender, bytes message
     );
-
-    /// @notice Emitted when the expiry hub is set.
-    /// @param expiryHub Address of the MessageExpiryHub on L1.
-    event ExpiryHubSet(address expiryHub);
-
-    /// @notice Emitted when this chain exports that a message to it has not been relayed.
-    /// @param messageHash   Hash of the message.
-    /// @param source        Chain ID of the source chain.
-    /// @param undeliveredAt Timestamp at which the message had not been relayed.
-    event UndeliveredMessageExported(bytes32 indexed messageHash, uint256 indexed source, uint256 undeliveredAt);
 
     /// @notice Emitted when a message sent from this chain is marked expired.
     /// @param messageHash   Hash of the message.
@@ -240,8 +221,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
         // Assert invariants on the message
         if (destination != block.chainid) revert MessageDestinationNotRelayChain();
 
-        // The expiry hub trusts withdrawals this contract sends through the L2CrossDomainMessenger, so a relayed
-        // message must never be able to send one.
+        // L1CrossDomainMessengers trust the undelivered-message word this contract sends through the
+        // L2CrossDomainMessenger, so a relayed message must never be able to send through it.
         if (target == Predeploys.L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2CrossDomainMessenger();
 
         uint256 source = _id.chainId;
@@ -275,28 +256,22 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
         _storeMessageMetadata(0, address(0));
     }
 
-    /// @notice Sets the MessageExpiryHub on L1. Only the ProxyAdmin owner, who can upgrade this contract anyway, can
-    ///         set it. Until it is set, undelivered messages cannot be exported and no message can expire.
-    /// @param _expiryHub Address of the MessageExpiryHub.
-    function setExpiryHub(address _expiryHub) external {
-        _assertOnlyProxyAdminOwner();
-        expiryHub = _expiryHub;
-        emit ExpiryHubSet(_expiryHub);
-    }
-
-    /// @notice Exports to the expiry hub, through the withdrawal path, that a message to this chain has not been
-    ///         relayed by now. Anyone can call it, and since it is not an executing message it can be forced in as a
-    ///         deposit. The message hash is computed with this chain as the destination, so a chain can only speak for
-    ///         messages to itself. The fact marks the message expired on its source chain only if now is past the
-    ///         message's send time plus the expiry window, from when the protocol rejects any relay of it.
-    /// @param _source      Chain ID of the source chain.
-    /// @param _nonce       Nonce of the message.
-    /// @param _sender      Address that sent the message.
-    /// @param _target      Target contract or wallet address.
-    /// @param _message     Message payload.
-    /// @param _minGasLimit Minimum gas limit for the expiry hub call on L1.
+    /// @notice Tells the source chain, through the withdrawal path, that a message to this chain has not been relayed
+    ///         by now. Anyone can call it, and since it is not an executing message it can be forced in as a deposit.
+    ///         The message hash is computed with this chain as the destination, so a chain can only speak for messages
+    ///         to itself. The source chain marks the message expired only if now is past the message's send time plus
+    ///         the expiry window, from when the protocol rejects any relay of it.
+    /// @param _sourceMessenger The source chain's L1CrossDomainMessenger. If it is wrong, nothing happens and the
+    ///                         message can be exported again.
+    /// @param _source          Chain ID of the source chain.
+    /// @param _nonce           Nonce of the message.
+    /// @param _sender          Address that sent the message.
+    /// @param _target          Target contract or wallet address.
+    /// @param _message         Message payload.
+    /// @param _minGasLimit     Minimum gas limit for the call on L1.
     /// @return messageHash_ Hash of the message.
     function exportUndeliveredMessage(
+        address _sourceMessenger,
         uint256 _source,
         uint256 _nonce,
         address _sender,
@@ -307,9 +282,6 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
         external
         returns (bytes32 messageHash_)
     {
-        address hub = expiryHub;
-        if (hub == address(0)) revert ExpiryHubNotSet();
-
         messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
             _destination: block.chainid,
             _source: _source,
@@ -322,27 +294,24 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
         if (successfulMessages[messageHash_]) revert MessageAlreadyRelayed();
 
         ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage({
-            _target: hub,
-            _message: abi.encodeCall(
-                IMessageExpiryHub.receiveUndeliveredMessage, (messageHash_, _source, block.timestamp)
-            ),
+            _target: _sourceMessenger,
+            _message: abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (messageHash_, block.timestamp)),
             _minGasLimit: _minGasLimit
         });
-
-        emit UndeliveredMessageExported(messageHash_, _source, block.timestamp);
     }
 
-    /// @notice Marks a message sent from this chain expired, on a fact from the expiry hub that its destination had
-    ///         not relayed it by `_undeliveredAt`. Only the destination can have produced the fact, since it computed
-    ///         the message hash with its own chain ID.
+    /// @notice Marks a message sent from this chain expired, on word from this chain's L1CrossDomainMessenger that
+    ///         its destination had not relayed it by `_undeliveredAt`. Only the destination can have produced that
+    ///         word, since it computed the message hash with its own chain ID.
     /// @param _messageHash   Hash of the message.
     /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
     function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
         if (
             msg.sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER
-                || ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender() != expiryHub
+                || ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()
+                    != address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
         ) {
-            revert NotExpiryHub();
+            revert NotOtherMessenger();
         }
 
         uint256 sentAt = sentMessageTimestamps[_messageHash];
