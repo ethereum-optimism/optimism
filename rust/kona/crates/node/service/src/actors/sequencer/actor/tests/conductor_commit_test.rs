@@ -1,8 +1,11 @@
 use super::{super::*, test_actor};
-use crate::actors::MockConductor;
+use crate::actors::{
+    MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
+};
 use alloy_consensus::{Block, TxEnvelope};
 use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatusEnum};
 use alloy_transport::{RpcError, TransportErrorKind};
+use kona_derive::test_utils::TestAttributesBuilder;
 use mockall::Sequence;
 use rstest::rstest;
 
@@ -11,6 +14,35 @@ fn sealed_payload(timestamp: u64) -> OpExecutionPayloadEnvelope {
     block.header.number = 1;
     block.header.timestamp = timestamp;
     OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block))
+}
+
+type TestActor = SequencerActor<
+    TestAttributesBuilder,
+    MockConductor,
+    MockOriginSelector,
+    MockSequencerEngineClient,
+    MockUnsafePayloadGossipClient,
+>;
+
+/// Returns a started test actor with `pending_handle()` waiting to be sealed on the next tick and
+/// no L1 origin available for the build job that follows a successful seal.
+fn actor_with_pending_handle() -> TestActor {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.next_payload_to_seal = Some(pending_handle());
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .returning(|_, _| Err(L1OriginSelectorError::NotEnoughData(BlockInfo::default())));
+    actor
+}
+
+/// Runs one build tick.
+async fn tick(actor: &mut TestActor) {
+    actor.build_ticker.reset_immediately();
+    actor.step().await.unwrap();
 }
 
 fn pending_handle() -> UnsealedPayloadHandle {
@@ -67,7 +99,7 @@ async fn commit_failure_withholds_canonicalization_gossip_and_next_build(#[case]
 
 #[tokio::test]
 async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization_and_gossip() {
-    let mut actor = test_actor();
+    let mut actor = actor_with_pending_handle();
     let mut sequence = Sequence::new();
     let mut conductor = MockConductor::new();
     for (timestamp, succeeds) in [(2, false), (3, true)] {
@@ -112,18 +144,17 @@ async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization
         .in_sequence(&mut sequence)
         .return_once(|_| Ok(()));
 
-    let handle = pending_handle();
-    assert!(matches!(
-        actor.seal_and_commit_payload_if_applicable(&handle).await,
-        Err(SequencerActorError::ConductorCommit(_))
-    ));
-    actor.seal_and_commit_payload_if_applicable(&handle).await.unwrap();
+    tick(&mut actor).await;
     assert!(actor.pending_canonicalization_payload.is_none());
+    assert!(actor.next_payload_to_seal.is_some());
+    tick(&mut actor).await;
+    assert!(actor.pending_canonicalization_payload.is_none());
+    assert!(actor.next_payload_to_seal.is_none());
 }
 
 #[tokio::test]
 async fn canonicalization_retry_keeps_the_committed_payload() {
-    let mut actor = test_actor();
+    let mut actor = actor_with_pending_handle();
     let payload = sealed_payload(2);
     let mut sequence = Sequence::new();
     let sealed = payload.clone();
@@ -172,11 +203,12 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
         .in_sequence(&mut sequence)
         .return_once(|_| Ok(()));
 
-    let handle = pending_handle();
-    assert!(actor.seal_and_commit_payload_if_applicable(&handle).await.is_err());
+    tick(&mut actor).await;
     assert!(actor.pending_canonicalization_payload.is_some());
-    actor.seal_and_commit_payload_if_applicable(&handle).await.unwrap();
+    assert!(actor.next_payload_to_seal.is_some());
+    tick(&mut actor).await;
     assert!(actor.pending_canonicalization_payload.is_none());
+    assert!(actor.next_payload_to_seal.is_none());
 }
 
 #[rstest]
@@ -211,7 +243,7 @@ async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
 #[tokio::test]
 async fn sequencing_without_a_conductor_canonicalizes_before_gossip() {
     let payload = sealed_payload(2);
-    let mut actor = test_actor();
+    let mut actor = actor_with_pending_handle();
     let mut sequence = Sequence::new();
     let sealed = payload.clone();
     actor
@@ -233,7 +265,8 @@ async fn sequencing_without_a_conductor_canonicalizes_before_gossip() {
         .times(1)
         .in_sequence(&mut sequence)
         .return_once(|_| Ok(()));
-    actor.seal_and_commit_payload_if_applicable(&pending_handle()).await.unwrap();
+    tick(&mut actor).await;
+    assert!(actor.next_payload_to_seal.is_none());
 }
 
 #[tokio::test]
