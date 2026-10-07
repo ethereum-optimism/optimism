@@ -126,37 +126,22 @@ Drop each draft PR that one of those commits backported, because the previous re
 already shipped it. `op-contracts/v8.0.0` listed #20919, which `op-contracts/v7.0.0` had
 already shipped as #20925.
 
-## Onchain state does not decide
+## op-contracts and op-deployer
 
-An op-contracts or op-deployer note describes every change between the previous release
-tag and this one. The note can be written before or after the upgrade activates. So do not
-cut or keep a change because of whether the upgrade is active or a chain has deployed it.
+The op-contracts note gets what changes onchain. The op-deployer note gets what changes for
+a user of the tool, including changes to the contract scripts it runs. A PR that does both
+gets an entry in each note. The op-deployer note links to the op-contracts release and does
+not repeat its changes.
 
-The `DevFeatures` check still applies: a dev feature is off in production unless the
-release hard-codes it on.
+For op-contracts, `LINKED` means a contract under `src/` or the candidate L2 upgrade bundle
+changed. Keep every bundle change: `op-core/nuts` snapshots it for the fork, and op-node and
+kona execute it. Drop a change that only bumps a contract's version. `DEPS` means
+`foundry.toml` or a `lib/` pin changed; read each one, because it can change the deployed
+bytecode.
 
-## op-contracts
-
-`LINKED` rows changed a contract under `src/` or the L2 upgrade bundle. Drop a row when the
-change is:
-
-- natspec, comments or a version bump only
-- confined to a `DevFeatures` bit that the release does not hard-code on
-- a test-driven change to a contract that no production path calls
-
-Keep every change to what the contract does onchain, its ABI, its storage layout or its
-access control. Keep every change to the candidate upgrade bundle. `op-core/nuts` snapshots
-it for the fork, and op-node and kona execute that snapshot on every chain.
-
-`DEPS` rows changed `foundry.toml` or a `lib/` pin. Read each one: a compiler, optimizer or
-library change can change the deployed bytecode.
-
-## op-deployer
-
-`LINKED` rows from shared Go packages need the normal judgment pass. Rows that list contract
-scripts need one more check: a script change that only moves a test configuration value
-does not change what op-deployer does. The contract side of a PR belongs in the
-op-contracts note, not here.
+For op-deployer, `LINKED` also covers the contract scripts that its Go code runs, and their
+imports, from `forge tree`. The import graph comes from the current checkout, so a script
+deleted during the release range does not match; check such a row by hand.
 
 ## Dependency and security bumps
 
