@@ -1,6 +1,8 @@
 //! Utility functions for task execution.
 
-use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
+use super::{
+    BuildSealCoupling, BuildTaskError, EngineTaskExt, SealTask, SealTaskError, start_build,
+};
 use crate::{EngineClient, EngineState, ImportedBlockSink};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
@@ -20,7 +22,7 @@ pub(in crate::task_queue) enum BuildAndSealError {
 /// Builds and seals a payload in sequence.
 ///
 /// This is a utility function that:
-/// 1. Creates and executes a [`BuildTask`] to initiate block building
+/// 1. Starts block building with [`start_build`]
 /// 2. Creates and executes a [`SealTask`] to seal the block, referencing the initiated payload
 ///
 /// This pattern is commonly used for Holocene deposits-only fallback and other scenarios
@@ -42,15 +44,8 @@ pub(in crate::task_queue) async fn build_and_seal(
     is_attributes_derived: bool,
     block_sink: Arc<dyn ImportedBlockSink>,
 ) -> Result<(), BuildAndSealError> {
-    // Execute the build task
-    let payload_id = BuildTask::new(
-        engine.clone(),
-        cfg.clone(),
-        attributes.clone(),
-        None, // Build task doesn't send the payload yet
-    )
-    .execute(state)
-    .await?;
+    // Start the build.
+    let payload_id = start_build(engine.as_ref(), &cfg, state, attributes.clone()).await?;
 
     // Execute the seal task with the payload ID from the build.
     SealTask::new(

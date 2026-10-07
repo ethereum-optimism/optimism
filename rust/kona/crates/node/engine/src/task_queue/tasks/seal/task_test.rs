@@ -151,19 +151,7 @@ async fn payload_fetch_selects_version_and_decodes_reply(
         );
         OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
     };
-    let attributes = TestAttributesBuilder::new().with_timestamp(timestamp).build();
-    let client = Arc::new(client);
-    let task = SealTask::new(
-        client.clone(),
-        cfg.clone(),
-        id,
-        attributes.clone(),
-        false,
-        Detached,
-        None,
-        Arc::new(crate::NoopBlockSink),
-    );
-    let actual = task.seal_payload(&cfg, &client, id, attributes).await.unwrap();
+    let actual = super::task::get_payload(&client, &cfg, id, timestamp).await.unwrap();
     assert_eq!(actual, expected);
     l1.assert_finished();
     l2.assert_finished();
