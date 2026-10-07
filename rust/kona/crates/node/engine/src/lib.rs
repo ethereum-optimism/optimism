@@ -32,7 +32,6 @@
 //!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
 //! - **Kinds** - Engine client type identification via [`EngineKind`]
-//! - **Query** - Engine query interface via [`EngineQueries`]
 //! - **Metrics** - Optional Prometheus metrics collection via [`Metrics`]
 
 #[macro_use]
@@ -64,9 +63,6 @@ pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
 
 mod kinds;
 pub use kinds::EngineKind;
-
-mod query;
-pub use query::{EngineQueries, EngineQueriesError, EngineQuerySender};
 
 mod metrics;
 pub use metrics::Metrics;
