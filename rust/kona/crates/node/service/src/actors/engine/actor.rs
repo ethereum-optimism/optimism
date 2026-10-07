@@ -38,9 +38,8 @@ pub enum EngineActorRequest {
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
 #[derive(Debug)]
-pub struct EngineActor<EngineClient_, DerivationClient>
+pub struct EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient,
     DerivationClient: EngineDerivationClient,
 {
     /// The client used to send messages to the [`crate::DerivationActor`].
@@ -58,9 +57,9 @@ where
     /// The [`RollupConfig`] used to build tasks.
     rollup: Arc<RollupConfig>,
     /// An [`EngineClient`] used for creating engine tasks.
-    client: Arc<EngineClient_>,
+    client: Arc<EngineClient>,
     /// The [`Engine`] task queue.
-    engine: Engine<EngineClient_>,
+    engine: Engine,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
     /// Where to hand every imported block, so the derivation providers can read it locally
@@ -76,17 +75,16 @@ where
     retry_delay: Duration,
 }
 
-impl<EngineClient_, DerivationClient> EngineActor<EngineClient_, DerivationClient>
+impl<DerivationClient> EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient + 'static,
     DerivationClient: EngineDerivationClient + 'static,
 {
     /// Constructs a new [`EngineActor`] from the params.
     pub fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
-        engine: Engine<EngineClient_>,
+        engine: Engine,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -259,9 +257,8 @@ where
 }
 
 #[async_trait]
-impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
+impl<DerivationClient> NodeActor for EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient + 'static,
     DerivationClient: EngineDerivationClient + 'static,
 {
     type Error = EngineError;

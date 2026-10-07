@@ -54,10 +54,7 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{
-    EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,
-    OpEngineClient,
-};
+pub use client::{EngineClient, EngineClientBuilder, EngineClientError, EngineQueryClient};
 
 mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};

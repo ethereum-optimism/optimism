@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
+use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -25,9 +26,9 @@ use tokio::sync::mpsc;
 ///
 /// [`EngineBuildError`]: crate::EngineBuildError
 #[derive(Debug, Clone, Constructor)]
-pub struct BuildTask<EngineClient_: EngineClient> {
+pub struct BuildTask {
     /// The engine API client.
-    pub engine: Arc<EngineClient_>,
+    pub engine: Arc<EngineClient>,
     /// The [`RollupConfig`].
     pub cfg: Arc<RollupConfig>,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
@@ -37,7 +38,7 @@ pub struct BuildTask<EngineClient_: EngineClient> {
     pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
 }
 
-impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
+impl BuildTask {
     /// Validates the provided [`PayloadStatusEnum`] according to the rules listed below.
     ///
     /// ## Observed [`PayloadStatusEnum`] Variants
@@ -85,7 +86,7 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
     pub(super) async fn start_build(
         &self,
         state: &EngineState,
-        engine_client: &EngineClient_,
+        engine_client: &EngineClient,
         attributes_envelope: OpAttributesWithParent,
     ) -> Result<PayloadId, BuildTaskError> {
         // Sanity check if the head is behind the finalized head. If it is, this is a critical
@@ -151,7 +152,7 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
+impl EngineTaskExt for BuildTask {
     type Output = PayloadId;
 
     type Error = BuildTaskError;

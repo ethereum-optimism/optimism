@@ -34,9 +34,9 @@ pub(in crate::task_queue) enum BuildAndSealError {
 /// * `attributes` - The payload attributes to build
 /// * `is_attributes_derived` - Whether the attributes were derived or created by the sequencer
 /// * `block_sink` - Where to hand the built block once the engine has canonicalized it
-pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
+pub(in crate::task_queue) async fn build_and_seal(
     state: &mut EngineState,
-    engine: Arc<EngineClient_>,
+    engine: Arc<EngineClient>,
     cfg: Arc<RollupConfig>,
     attributes: OpAttributesWithParent,
     is_attributes_derived: bool,

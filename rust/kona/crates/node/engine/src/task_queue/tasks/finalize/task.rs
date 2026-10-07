@@ -14,9 +14,9 @@ use std::sync::Arc;
 /// The [`FinalizeTask`] fetches the [`L2BlockInfo`] identified by `block_id`, updates the
 /// [`EngineState`], and dispatches a forkchoice update to finalize the block.
 #[derive(Debug, Clone, Constructor)]
-pub struct FinalizeTask<EngineClient_: EngineClient> {
+pub struct FinalizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The rollup config.
     pub cfg: Arc<RollupConfig>,
     /// Identifier of the L2 block to finalize.
@@ -24,7 +24,7 @@ pub struct FinalizeTask<EngineClient_: EngineClient> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> {
+impl EngineTaskExt for FinalizeTask {
     type Output = ();
 
     type Error = FinalizeTaskError;

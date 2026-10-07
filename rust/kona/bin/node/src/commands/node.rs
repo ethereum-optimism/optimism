@@ -7,19 +7,16 @@ use crate::{
         SequencerArgs,
     },
 };
-use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
-use alloy_transport_http::Http;
 use anyhow::{Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::{HyperAuthClient, OpEngineClient};
+use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
-use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
@@ -237,18 +234,11 @@ impl NodeCommand {
     pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
         let jwt_secret = self.l2_jwt_secret()?;
 
-        let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
-            self.l2_client_args.l2_engine_rpc.clone(),
-            jwt_secret,
-        );
+        let engine =
+            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
 
         let exchange = || async {
-            match <RootProvider<Optimism> as OpEngineApi<
-                Optimism,
-                Http<HyperAuthClient>,
-            >>::exchange_capabilities(&engine, vec![])
-            .await
-            {
+            match engine.exchange_capabilities(vec![]).await {
                 Ok(_) => {
                     debug!("Successfully exchanged capabilities with engine");
                     Ok(jwt_secret)

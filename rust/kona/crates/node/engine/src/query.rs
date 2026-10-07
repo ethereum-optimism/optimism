@@ -12,7 +12,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OutputRoot, Predeploys};
 use tokio::sync::oneshot::Sender;
 
-use crate::{EngineClientError, EngineRpcClient, EngineState};
+use crate::{EngineClientError, EngineQueryClient, EngineState};
 
 /// Channel sender for submitting [`EngineQueries`] to the engine.
 pub type EngineQuerySender = tokio::sync::mpsc::Sender<EngineQueries>;
@@ -67,11 +67,11 @@ pub enum EngineQueriesError {
 
 impl EngineQueries {
     /// Handles the engine query request.
-    pub async fn handle<EngineRpcClient_: EngineRpcClient + ?Sized>(
+    pub async fn handle(
         self,
         state_recv: &tokio::sync::watch::Receiver<EngineState>,
         queue_length_recv: &tokio::sync::watch::Receiver<usize>,
-        client: &Arc<EngineRpcClient_>,
+        client: &EngineQueryClient,
         rollup_config: &Arc<RollupConfig>,
     ) -> Result<(), EngineQueriesError> {
         let state = *state_recv.borrow();
