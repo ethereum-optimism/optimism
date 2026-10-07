@@ -2,9 +2,8 @@
 use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    InsertTask,
     InsertTaskError::{self},
-    task_queue::handle_rejected_attributes,
+    task_queue::{handle_rejected_attributes, insert_payload},
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -145,6 +144,7 @@ impl SealTask {
 
     /// Inserts a payload into the engine. If the engine rejects it, [`handle_rejected_attributes`]
     /// decides whether a deposits-only block replaces it.
+
     ///
     /// Returns the inserted block information, or an error if insertion fails.
     async fn insert_payload(
@@ -153,14 +153,14 @@ impl SealTask {
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
-        let new_block_ref = match InsertTask::new(
-            Arc::clone(&self.engine),
-            self.cfg.clone(),
+        let new_block_ref = match insert_payload(
+            self.engine.as_ref(),
+            &self.cfg,
+            state,
             payload,
             self.is_attributes_derived,
-            Arc::clone(&self.block_sink),
+            self.block_sink.as_ref(),
         )
-        .execute(state)
         .await
         {
             Err(err @ InsertTaskError::UnexpectedPayloadStatus(_)) => {
