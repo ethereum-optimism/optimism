@@ -1,7 +1,7 @@
 [
   {
     "inputs": [],
-    "name": "MESSAGE_EXPIRY_WINDOW",
+    "name": "EXPIRY_PERIOD",
     "outputs": [
       {
         "internalType": "uint256",
@@ -91,55 +91,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_sourceMessenger",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_source",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_nonce",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "_sender",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_target",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_message",
-        "type": "bytes"
-      },
-      {
-        "internalType": "uint32",
-        "name": "_minGasLimit",
-        "type": "uint32"
-      }
-    ],
-    "name": "exportUndeliveredMessage",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "messageHash_",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -442,12 +393,12 @@
   },
   {
     "inputs": [],
-    "name": "MessageTargetL2CrossDomainMessenger",
+    "name": "MessageTargetL2ToL2CrossDomainMessenger",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "MessageTargetL2ToL2CrossDomainMessenger",
+    "name": "MessageTargetUnsafe",
     "type": "error"
   },
   {

@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
+// Libraries
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+
+/// @custom:proxied true
+/// @custom:predeploy 0x420000000000000000000000000000000000002E
+/// @title UndeliveredMessageExporter
+/// @notice Tells a message's source chain, through the withdrawal path, that the message has not been relayed on this
+///         chain. The source chain's L1CrossDomainMessenger trusts withdrawals from this predeploy and passes the word
+///         on to the source chain's L2ToL2CrossDomainMessenger, which marks the message expired once its expiry period
+///         has passed. This predeploy's proxy had no implementation before it, so nothing could ever send a
+///         withdrawal from this address, and it never calls arbitrary targets, so no withdrawal from it can predate it
+///         or say anything else.
+contract UndeliveredMessageExporter is ISemver {
+    /// @notice Thrown when exporting a message that was relayed on this chain.
+    error UndeliveredMessageExporter_MessageRelayed();
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
+    /// @notice Tells the source chain that a message to this chain has not been relayed by now. Anyone can call it, and
+    ///         since it is not an executing message it can be forced in as a deposit. The message hash is computed with
+    ///         this chain as the destination, so a chain can only speak for messages to itself.
+    /// @param _sourceMessenger The source chain's L1CrossDomainMessenger. If it is wrong, nothing happens and the
+    ///                         message can be exported again.
+    /// @param _source          Chain ID of the source chain.
+    /// @param _nonce           Nonce of the message.
+    /// @param _sender          Address that sent the message.
+    /// @param _target          Target contract or wallet address.
+    /// @param _message         Message payload.
+    /// @param _minGasLimit     Minimum gas limit for the call on L1.
+    /// @return messageHash_ Hash of the message.
+    function exportUndeliveredMessage(
+        address _sourceMessenger,
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        bytes calldata _message,
+        uint32 _minGasLimit
+    )
+        external
+        returns (bytes32 messageHash_)
+    {
+        messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
+            _destination: block.chainid,
+            _source: _source,
+            _nonce: _nonce,
+            _sender: _sender,
+            _target: _target,
+            _message: _message
+        });
+
+        if (IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).successfulMessages(messageHash_)) {
+            revert UndeliveredMessageExporter_MessageRelayed();
+        }
+
+        ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage({
+            _target: _sourceMessenger,
+            _message: abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (messageHash_, block.timestamp)),
+            _minGasLimit: _minGasLimit
+        });
+    }
+}

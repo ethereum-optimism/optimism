@@ -202,14 +202,15 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 }
 
 // WithdrawalFromReceipt adopts an already-included L2 transaction that emitted a
-// MessagePassed event as a Withdrawal, so it can be proven and finalized like one initiated
-// by InitiateWithdrawal. Use it for withdrawals initiated by a contract call (e.g. an
-// L2CrossDomainMessenger.sendMessage) rather than by a plain transfer to the message passer.
+// MessagePassed event as a Withdrawal (its first, if it emitted more), so it can be proven and
+// finalized like one initiated by InitiateWithdrawal. Use it for withdrawals initiated by a
+// contract call (e.g. an L2CrossDomainMessenger.sendMessage) rather than by a plain transfer to
+// the message passer.
 func (b *StandardBridge) WithdrawalFromReceipt(rcpt *types.Receipt) *Withdrawal {
 	b.require.NotNil(rcpt, "withdrawal receipt must not be nil")
 	b.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "withdrawal-initiating transaction failed")
 	_, err := withdrawals.ParseMessagePassed(rcpt)
-	b.require.NoError(err, "receipt does not contain exactly one MessagePassed event")
+	b.require.NoError(err, "receipt does not contain a MessagePassed event")
 	return &Withdrawal{
 		commonImpl:  commonFromT(b.t),
 		bridge:      b,
@@ -786,7 +787,10 @@ func (w *Withdrawal) WaitForDisputeGameResolvedWithin(timeout time.Duration) {
 		bindings.WithTest(w.t))
 	w.require.Eventually(func() bool {
 		status, err := contractio.Read(gameContract.Status(), w.ctx)
-		w.require.NoError(err, "failed to get game status")
+		if err != nil {
+			w.log.Warn("Failed to get dispute game status, retrying", "err", err)
+			return false
+		}
 		w.log.Info("Waiting for dispute game to resolve", "currentStatus", status)
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
 	}, timeout, 100*time.Millisecond, "wait for dispute game resolved")

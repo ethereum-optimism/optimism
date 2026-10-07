@@ -37,6 +37,26 @@ func TestDependencySet(t *testing.T) {
 		)
 	})
 
+	t.Run("expiry window override above the protocol window", func(t *testing.T) {
+		deps := map[eth.ChainID]*StaticConfigDependency{eth.ChainIDFromUInt64(900): {}}
+		_, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop+1)
+		require.Error(t, err)
+		var ds StaticConfigDependencySet
+		require.Error(t, json.Unmarshal([]byte(`{"dependencies":{"900":{}},"overrideMessageExpiryWindow":604801}`), &ds))
+		_, err = toml.Decode("override_message_expiry_window = 604801\n[dependencies.900]\n", &ds)
+		require.Error(t, err)
+
+		ok, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop)
+		require.NoError(t, err)
+		require.Equal(t, MessageExpiryTimeSecondsInterop, ok.MessageExpiryWindow())
+	})
+
+	// kona-genesis pins the same 7 days (MESSAGE_EXPIRY_WINDOW); L2ToL2CrossDomainMessenger.sol's
+	// EXPIRY_PERIOD is this window plus a day of margin.
+	t.Run("protocol expiry window is 7 days", func(t *testing.T) {
+		require.Equal(t, uint64(604800), MessageExpiryTimeSecondsInterop)
+	})
+
 	t.Run("invalid TOML", func(t *testing.T) {
 		bad := []byte(`dependencies = { bad = 1 }`)
 		var ds StaticConfigDependencySet

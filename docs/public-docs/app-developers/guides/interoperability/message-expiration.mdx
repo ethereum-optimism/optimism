@@ -16,7 +16,7 @@ The expiry window is an offchain constant that defines how long a cross-chain me
 
 ## Undoing an expired message
 
-Once the expiry window has passed, anyone can call `exportUndeliveredMessage` on the destination chain's `L2ToL2CrossDomainMessenger`. It checks that the message was not relayed there and tells the source chain, through L1. When that arrives, the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, and applications can undo the send: the `SuperchainETHBridge` returns the ETH to the sender with `refundETH`.
+Once 8 days have passed since the message was sent (the expiry window plus a day of margin), anyone can call `exportUndeliveredMessage` on the destination chain's `UndeliveredMessageExporter` predeploy (`0x420000000000000000000000000000000000002E`). It checks that the message was not relayed there and tells the source chain, through L1. When that arrives, the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, and applications can undo the send: the `SuperchainETHBridge` returns the ETH to the sender with `refundETH`.
 
 ## Next steps
 
