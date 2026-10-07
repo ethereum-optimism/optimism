@@ -75,6 +75,7 @@ interface IOPContractsManagerMigrator {
 
     /// @notice Thrown when the chains being migrated disagree on the dispute game finality delay.
     error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+    error OPContractsManagerMigrator_WithdrawalDelayMismatch();
 
     error SemverComp_InvalidSemverParts();
 
