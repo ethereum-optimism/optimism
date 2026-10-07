@@ -29,8 +29,8 @@ base:
   config: rwx/base 1.2.0
   arch: x86_64
 
-# Cache-only vault: no publishing credentials. During the pilot, only develop
-# and codex/rwx-ci-pilot may write. Remove the temporary pilot grant at promotion.
+# Cache-only vault: no publishing credentials. Only develop may write;
+# PRs restore the protected shared baseline and compile changes locally.
 tool-cache:
   vault: optimism-op-reth-shadow
 

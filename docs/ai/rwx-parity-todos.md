@@ -224,12 +224,13 @@ gate cutover items above.
 - [ ] Measure Rust target-layer transfer separately in future performance work;
   the first corrected namespace uploaded 57,315 MiB in 292 seconds. Keep the
   selected configuration for this stage.
-- [x] Store full-test Cargo targets as compressed compiler snapshots and transfer
-  the producer snapshot through an artifact dependency. Retain executable
-  fingerprints and incremental work; exclude raw targets and test reports from
-  reusable layers. The real Linux fixture proves unchanged reuse, a committed
-  source rebuild, corrupt-snapshot failure reporting and fresh verdicts. Retain
-  final cold/warm hosted observations separately in the evidence collection.
+- [x] Restrict the shared cache vault to `develop` writers; PRs, including the
+  pilot branch, restore its baseline read-only. Retain the before/after grants.
+- [ ] Validate full-test caches with individual target files, excluding the
+  compressed transfer artifact and test reports from reusable layers. Keep the
+  immutable producer artifact for empty runtime caches. Retain exact tree sizes,
+  layer totals, unchanged reuse, source rebuild, failure and fresh-verdict evidence.
+  Protected warming of the new namespace starts after merge on `develop`.
 - [ ] Investigate the filesystem root cause of restored-rmeta `ESTALE` with RWX.
   Publish independent metadata files as the pilot workaround; retain both
   original failures and label breakpoint observations as diagnostic. Do not

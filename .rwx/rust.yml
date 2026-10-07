@@ -25,8 +25,8 @@ base:
   config: rwx/base 1.2.0
   arch: x86_64
 
-# Cache-only vault: no publishing credentials. During the pilot, only develop
-# and codex/rwx-ci-pilot may write. Remove the temporary pilot grant at promotion.
+# Cache-only vault: no publishing credentials. Only develop may write;
+# PRs restore the protected shared baseline and compile changes locally.
 tool-cache:
   vault: optimism-op-reth-shadow
 
@@ -198,9 +198,9 @@ tasks:
     env: &incremental-rust-env
       <<: *rust-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
-    # Separate compiler modes: mixing legacy targets and incremental outputs
-    # exceeded RWX's 100 GiB filesystem-layer limit in the hosted trial.
-    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    # Retain individual files in a format-specific namespace. Source timestamps
+    # survive restoration; dependency/toolchain changes select a new baseline.
+    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
     timeout: 90m
     # Warm dependencies occupy 88.37 GB; RWX also requires 20 GB of scratch.
     runner: &test-runner
@@ -208,9 +208,9 @@ tasks:
       memory: 32gb
       disk: 150gb
     outputs:
-      filesystem: &packed-compiler-output
+      filesystem: &test-compiler-output
         filter:
-          workspace: [.ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          workspace: [rust/target, .ci/rust-cache, '!.ci/rust-cache/target-cache.tar.zst', rust/op-reth/crates/chainspec/res/superchain-configs.tar]
           system: []
       artifacts:
         - key: report
@@ -235,11 +235,11 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
     timeout: 90m
     runner: *test-runner
     outputs:
-      filesystem: *packed-compiler-output
+      filesystem: *test-compiler-output
       test-results:
         - path: .ci/rust-workspace/tests/junit.xml
         - path: .ci/rust-workspace/tests/beacon.junit.xml

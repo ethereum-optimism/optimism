@@ -340,3 +340,32 @@ compiler snapshots use compressed PAX archives and artifact-only producer
 transfer. Retrieve their `cache-restore`/`cache-pack` logs, stage timings and
 terminal engine records. Keep the read-only cache-size probe labeled diagnostic;
 it executes no tests and is separate from untouched hosted reuse.
+## Protected baseline and file cache transition
+
+The 2026-10-07 cache publication probe and its original logs are outside Git in
+`../rwx-ci-pilot-evidence/2026-10-07-cache-contract`. Both writers restored the
+same seed; B finished first and A finished last. The next reader restored A
+without B's marker. This observes competing task inputs, not Git ancestry or
+a general server ordering guarantee.
+
+The cache vault's pilot grant was revoked on 2026-10-07. Retain before/after
+`rwx vaults access list --vault optimism-op-reth-shadow --json` results and the
+revocation result in `../rwx-ci-pilot-evidence/2026-10-07-target-baseline`.
+Only `ethereum-optimism/optimism:refs/heads/develop` may write. Keep RPC grants
+separate. A missing cache is a cold baseline; do not widen grants to seed it.
+
+The immutable full-test compiler artifact from task
+`8344202bce407bac7cf69433127fa646`, source `4047caccc5`, contains 72,244 regular
+files and 14,082 hardlink aliases. Its decoded payload is 54.24 GiB, or 59.26 GiB
+counting aliases, versus 11.44 GiB compressed. Retain the exact byte counts,
+directory/extension breakdowns, source fingerprint and decode result. The artifact
+stays outside Git. A separate read-only RWX lookup missed this cache; retain
+that diagnostic failure separately from the artifact measurement.
+
+New workspace reports retain `cache-size.json` for target, Cargo and sccache
+file bytes. Their engine records establish the total inherited/output layer size
+and publication result; tree bytes alone do not establish remaining capacity.
+Full-test file caches use explicit `files` namespaces. Producer transfer archives
+remain artifacts but are excluded from reusable filesystem outputs, and verdicts
+do not repack targets. Validate cold publication and untouched native-file reuse
+separately. Until merge, PR validation cannot populate the protected namespace.

@@ -366,7 +366,9 @@ class ConfigurationTests(unittest.TestCase):
             self.assertIn('test-cache-identity', tasks[key]['use'])
             self.assertEqual(tasks[key]['runner'], {'cpus': 16, 'memory': '32gb', 'disk': '150gb'})
             output = tasks[key]['outputs']['filesystem']['filter']['workspace']
-            self.assertNotIn('rust/target', output)
+            self.assertIn('rust/target', output)
+            self.assertIn('!.ci/rust-cache/target-cache.tar.zst', output)
+            self.assertIn('-files-incremental-', tasks[key]['tool-cache'])
         self.assertNotIn('tests-build', tasks['tests']['use'])
         self.assertEqual(tasks['tests']['env']['COMPILED_TARGET'],
                          '${{ tasks.tests-build.artifacts.compiler-cache }}')
@@ -393,8 +395,7 @@ class ConfigurationTests(unittest.TestCase):
                 for nonce in ('RWX_RUN_ID', 'RWX_TASK_ATTEMPT_NUMBER'):
                     self.assertEqual(task['env'][nonce]['cache-key'], 'included')
                 output = task['outputs']['filesystem']['filter']['workspace']
-                if task['key'] != 'tests':
-                    self.assertIn('rust/target', output)
+                self.assertIn('rust/target', output)
                 self.assertNotIn('.ci/rust-workspace', output)
         self.assertIn('head-source', actual['tests']['use'])
 
@@ -461,14 +462,15 @@ pub fn compile_only() {}
             self.assertTrue(any((root / 'rust/target/fast-build/incremental').iterdir()))
             packed = root / '.ci/rust-cache/target-cache.tar.zst'
             self.assertTrue(packed.is_file())
-            shutil.rmtree(root / 'rust/target')
+            before = json.loads((root / '.ci/rust-workspace/tests-build/cache-size.json').read_text())
+            self.assertGreater(before['target']['bytes'], 0)
+            # RWX restores individual files, with the archive excluded from its
+            # tool-cache output. An unchanged compiler run uses those files.
             unchanged = run('tests-build')
             self.assertEqual(unchanged.returncode, 0, unchanged.stdout + unchanged.stderr)
             self.assertNotIn('Compiling kona-providers-alloy',
                              (root / '.ci/rust-workspace/tests-build/archive.log').read_text())
-            self.assertIn('"restored": true',
-                          (root / '.ci/rust-workspace/tests-build/cache-restore.log').read_text())
-            shutil.rmtree(root / 'rust/target')
+            self.assertFalse((root / '.ci/rust-workspace/tests-build/cache-restore.log').exists())
             bundle_stamp = bundle.stat().st_mtime_ns
             os.utime(bundle, ns=(time.time_ns(), time.time_ns()))
             # Recompile from the restored snapshot after a real
@@ -506,9 +508,15 @@ pub fn compile_only() {}
             self.assertEqual(json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())['exit_code'], mismatch.returncode)
             first = run('tests')
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            self.assertFalse(packed.exists(), 'verdict must not repack the compiler cache')
+            self.assertFalse((root / '.ci/rust-workspace/tests/cache-pack.log').exists())
+            # A subsequent verdict prefers its native target files. It must not
+            # read the transfer archive, even when that artifact is unavailable.
+            native = run('tests', {'COMPILED_TARGET': str(root / 'unavailable-transfer.tar.zst')})
+            self.assertEqual(native.returncode, 0, native.stdout + native.stderr)
+            self.assertFalse((root / '.ci/rust-workspace/tests/cache-restore.log').exists())
             self.assertNotIn('Compiling kona-providers-alloy',
                              (root / '.ci/rust-workspace/tests/beacon-list.log').read_text())
-            self.assertTrue(packed.is_file())
             failed = run('tests', {'RWX_FIXTURE_FAIL': '1'})
             self.assertNotEqual(failed.returncode, 0)
             final = json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())

@@ -3,7 +3,7 @@
 Maintain this guide, the [86-job checklist](rwx-parity-todos.md), and
 [evidence retrieval instructions](rwx-evidence-index.md). Historical closeouts,
 benchmark samples and earlier inventories are archived outside Git. Implementation
-stays in [draft PR #23151](https://github.com/ethereum-optimism/optimism/pull/23151)
+stays in [PR #23151](https://github.com/ethereum-optimism/optimism/pull/23151)
 on `codex/rwx-ci-pilot`, targeting `develop`.
 
 ## Authority and rollout
@@ -146,8 +146,13 @@ Gate receipts bind actual selected caller states, attempts and source. Failed,
 canceled or missing selected verdicts fail; successful diagnostic retries do not
 erase original failures.
 
-Cache-only vaults permit writes from `develop` and the temporary pilot branch.
-Remove the pilot grant at promotion. The separate test-only archive-RPC vault
+The shared cache-only vault permits writes only from `refs/heads/develop`.
+PRs, including the pilot branch, restore this baseline read-only and compile their
+changes locally. The pilot cache grant was revoked on 2026-10-07. Verify the
+repository grants with `rwx vaults access list --vault optimism-op-reth-shadow
+--json`; the only repository grant must be `ethereum-optimism/optimism` on
+`refs/heads/develop`. New namespaces start cold until a protected `develop` run
+warms them. The separate test-only archive-RPC vault
 supplies Go runtime and contract archive inputs. Availability checks precede
 expensive builds. Values stay in preflight/runtime tasks, outside tool setup,
 compilation, package arguments and retained evidence. No production publishing
@@ -178,16 +183,27 @@ build script. Its producer still owns checksum verification. A cold build may
 materialize it after preparation; successful compilation records its actual
 timestamp. Later restores preserve that timestamp when its bytes are unchanged.
 
-Full-test build/runtime tasks store Cargo targets in
-`.ci/rust-cache/target-cache.tar.zst`; raw `rust/target` is excluded from their
+Full-test build/runtime tool caches retain individual `rust/target` files in
+`files` namespaces. Keep compiler binaries, fingerprints and incremental state;
+remove nextest reports before publication. RWX can reuse unchanged filesystem
+files without retaining another full compressed snapshot on every update.
+The complete producer artifact at `4047caccc5` measured 54.24 GiB of regular-file
+payload (59.26 GiB counting hardlink aliases), versus 11.44 GiB compressed.
+This is a current-tree measurement, not the complete RWX layer total.
+Successful workspace runs retain `cache-size.json` with regular-file bytes,
+allocated bytes, hardlink counts and directory breakdowns for targets, Cargo
+and sccache. These sizes describe the current tree; the engine's layer accounting
+also includes inherited and superseded layers.
+
+The producer still exports `.ci/rust-cache/target-cache.tar.zst` as an immutable
+artifact for an empty runtime cache. This archive is excluded from both tasks'
 filesystem outputs. GNU tar's PAX format preserves nanosecond timestamps and
-permissions. Retain compiler binaries, fingerprints and incremental state so
-an unchanged crate does not rebuild because an executable is missing. Remove
-nextest reports before packing. The verdict receives the current producer's
-snapshot through `COMPILED_TARGET`, an artifact dependency, and prefers its own
-runtime tool cache on later runs. It does not inherit the producer's target-cache
-layer history. Other workspace jobs retain their existing raw target outputs.
-Retain `cache-restore` and `cache-pack` original logs and stage timings.
+permissions during that transfer. The verdict receives it through
+`COMPILED_TARGET`, prefers its own raw target baseline when present, and does not
+repack targets after tests. It does not inherit the producer's target-cache layer
+history. Other workspace jobs retain their existing raw target outputs.
+Retain cold `cache-restore`, producer `cache-pack`, and size evidence separately
+from native cache-network transport timings.
 
 Raw target layers exceeded the cap even after executable pruning: at
 `d233b6c244`, 73.5 GiB inherited plus 26.6 GiB added failed publication after
@@ -219,8 +235,9 @@ Target contents grew from 996 MB to 1,173 MB for checks and from 1,053 MB to
 measures a small crate edit, not full-workspace runtime or cost; local tar timings
 do not measure RWX cache-network transfer. Cold seeds are excluded from samples.
 
-The pilot-readiness rehearsal verified locked RPC/cache vaults allow only the
-pilot branch and `develop`. A patched CLI run with `branch: develop` was denied
+The historical pilot-readiness rehearsal allowed the pilot branch and `develop`
+in both vaults. Cache writes are now restricted to `develop`; the test-only RPC
+vault still permits the pilot branch. A patched CLI run with `branch: develop` was denied
 the RPC vault before execution; a harmless cache-write probe ran but declared no
 protected tool-cache version. A separate running task was canceled and returned
 `aborted/cancelled`, `failed`. Routing and gate fixtures cover safe skips,

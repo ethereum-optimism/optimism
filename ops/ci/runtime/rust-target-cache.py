@@ -98,12 +98,38 @@ def detach_metadata(target):
     return {'detached_metadata_files': count, 'detached_metadata_bytes': size}
 
 
-def snapshot(phase, target, archive):
-    """Pack compiler output; restore its original permissions and nanosecond mtimes.
+def size(directory):
+    """Measure regular file bytes once per inode, without following symlinks."""
+    seen = set()
+    result = {'files': 0, 'hardlink_aliases': 0, 'bytes': 0, 'allocated_bytes': 0,
+              'by_directory': {}}
+    for parent, _, names in os.walk(directory):
+        for name in names:
+            path = Path(parent) / name
+            entry = path.lstat()
+            if not stat.S_ISREG(entry.st_mode):
+                continue
+            result['files'] += 1
+            identity = (entry.st_dev, entry.st_ino)
+            if identity in seen:
+                result['hardlink_aliases'] += 1
+                continue
+            seen.add(identity)
+            result['bytes'] += entry.st_size
+            result['allocated_bytes'] += entry.st_blocks * 512
+            parts = path.relative_to(directory).parts
+            group = '/'.join(parts[:2]) if len(parts) > 2 else parts[0] if len(parts) > 1 else '.'
+            result['by_directory'][group] = result['by_directory'].get(group, 0) + entry.st_size
+    return result
 
-    RWX owns cache byte transport. Cargo owns source/compiler invalidation.
+
+def snapshot(phase, target, archive):
+    """Transfer compiler output with original permissions and nanosecond mtimes.
+
+    RWX tool caches retain individual target files, not this transfer archive.
+    A first verdict can seed its empty target from the current producer artifact.
     The caller removes test reports before packing. A failed pack leaves the
-    previous snapshot intact; an unreadable snapshot fails before compilation.
+    previous artifact intact; an unreadable artifact fails before compilation.
     """
     if phase == 'restore':
         if not archive.exists():
@@ -211,5 +237,10 @@ if __name__ == '__main__':
         print(json.dumps(namespace(Path.cwd()), sort_keys=True))
     elif sys.argv[1] in ('pack', 'restore'):
         snapshot(sys.argv[1], Path(os.environ['CARGO_TARGET_DIR']), Path(sys.argv[2]))
+    elif sys.argv[1] == 'size':
+        directories = {'target': os.environ['CARGO_TARGET_DIR']}
+        directories.update({key: os.environ[name] for key, name in
+                            (('cargo', 'CARGO_HOME'), ('sccache', 'SCCACHE_DIR')) if name in os.environ})
+        print(json.dumps({key: size(Path(path)) for key, path in directories.items()}, sort_keys=True))
     else:
         manage(sys.argv[1], Path.cwd(), Path(os.environ['CARGO_TARGET_DIR']))

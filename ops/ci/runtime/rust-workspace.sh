@@ -60,6 +60,7 @@ finish() {
     sccache --stop-server >"$report/sccache-stop.log" 2>&1 || diagnostics=$?
     if [[ "$status" == 0 ]]; then
       python3 "$HELPERS/rust-target-cache.py" commit >"$report/cache-publication.json" || diagnostics=$?
+      python3 "$HELPERS/rust-target-cache.py" size | tee "$report/cache-size.json" || diagnostics=$?
       if [[ "$diagnostics" == 0 && -n "${packed_target:-}" ]]; then
         stage_at . cache-pack python3 "$HELPERS/rust-target-cache.py" pack "$packed_target" || diagnostics=$?
       fi
@@ -77,13 +78,18 @@ stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"
 json_stage() { python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" "$@"; }
 if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   case "$job" in
-    tests-build|tests)
+    tests-build)
       packed_target="$ROOT/.ci/rust-cache/target-cache.tar.zst"
-      # Runtime tool caches are independent of producer layers. A first verdict
-      # uses the current producer artifact; later verdicts restore their cache.
-      restore_target="$packed_target"
-      if [[ ! -f "$restore_target" ]]; then restore_target="${COMPILED_TARGET:-$packed_target}"; fi
-      stage_at . cache-restore python3 "$HELPERS/rust-target-cache.py" restore "$restore_target"
+      # This immutable artifact seeds a first verdict. RWX retains the individual
+      # target files; the archive is excluded from filesystem cache outputs.
+      ;;
+    tests)
+      # Prefer the runtime's protected baseline. Seed an empty target from the
+      # current producer, without inheriting the producer's cache layer history.
+      if [[ ! -f "$CARGO_TARGET_DIR/.rwx-source-fingerprint.json" &&
+            ! -f "$CARGO_TARGET_DIR/.rwx-source-pending.json" ]]; then
+        stage_at . cache-restore python3 "$HELPERS/rust-target-cache.py" restore "${COMPILED_TARGET:?COMPILED_TARGET must identify the producer artifact}"
+      fi
       ;;
   esac
   python3 "$HELPERS/op-reth-report.py" prepare-superchain "$report"

@@ -33,7 +33,7 @@ on:
       build-probe: ""
       target-cache-mode: keep
 
-# Cache-only vault, writable by develop and the temporary pilot branch.
+# Shared cache baseline: only develop may write; PRs restore it read-only.
 tool-cache:
   vault: optimism-op-reth-shadow
 

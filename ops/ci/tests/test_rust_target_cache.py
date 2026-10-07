@@ -35,6 +35,25 @@ class RustTargetCacheTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             CACHE.manage(phase, self.root, self.target)
 
+    def test_size_counts_file_bytes_once_per_inode_and_does_not_follow_symlinks(self):
+        binary = self.target / 'debug/deps/test-binary'
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b'compiled executable')
+        os.link(binary, self.target / 'debug/test-binary')
+        external = self.root / 'external'
+        external.mkdir()
+        (external / 'large-file').write_bytes(b'outside cache')
+        (self.target / 'external').symlink_to(external, target_is_directory=True)
+        (self.target / 'linked-file').symlink_to(binary)
+        state = self.target / '.rwx-source-fingerprint.json'
+        state.write_bytes(b'{}')
+        result = CACHE.size(self.target)
+        self.assertEqual(result['files'], 3)
+        self.assertEqual(result['hardlink_aliases'], 1)
+        self.assertEqual(result['bytes'], binary.stat().st_size + state.stat().st_size)
+        self.assertEqual(sum(result['by_directory'].values()), result['bytes'])
+        self.assertEqual(result['allocated_bytes'], (binary.stat().st_blocks + state.stat().st_blocks) * 512)
+
     @unittest.skipUnless(ARCHIVE_TOOLS, 'requires GNU tar and zstd')
     def test_snapshot_restores_compiler_bytes_modes_and_nanosecond_mtimes(self):
         binary = self.target / 'debug/deps/test-binary'
