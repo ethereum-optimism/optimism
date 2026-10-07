@@ -8,34 +8,34 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::EngineState;
+use kona_engine::{EngineQueries, EngineQuerySender, EngineState};
 use kona_genesis::RollupConfig;
 use kona_protocol::SyncStatus;
-use std::fmt::Debug;
+use tokio::sync::oneshot;
 
 use crate::{
-    EngineRpcClient, L1State, L1WatcherQueries, OutputResponse, RollupNodeApiServer,
-    SafeHeadResponse, l1_watcher::L1WatcherQuerySender,
+    L1State, L1WatcherQueries, OutputResponse, RollupNodeApiServer, SafeHeadResponse,
+    l1_watcher::L1WatcherQuerySender,
 };
 
 /// `RollupRpc`
 ///
 /// This is a server implementation of [`crate::RollupNodeApiServer`].
 #[derive(Debug)]
-pub struct RollupRpc<EngineRpcClient_> {
+pub struct RollupRpc {
     /// The channel to send [`kona_engine::EngineQueries`]s.
-    pub engine_client: EngineRpcClient_,
+    pub engine_query_sender: EngineQuerySender,
     /// The channel to send [`crate::L1WatcherQueries`]s.
     pub l1_watcher_sender: L1WatcherQuerySender,
 }
 
-impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
+impl RollupRpc {
     /// Constructs a new [`RollupRpc`] given a sender channel.
     pub const fn new(
-        engine_client: EngineRpcClient_,
+        engine_query_sender: EngineQuerySender,
         l1_watcher_sender: L1WatcherQuerySender,
     ) -> Self {
-        Self { engine_client, l1_watcher_sender }
+        Self { engine_query_sender, l1_watcher_sender }
     }
 
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
@@ -59,21 +59,31 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
 }
 
 #[async_trait]
-impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
-    for RollupRpc<EngineRpcClient_>
-{
+impl RollupNodeApiServer for RollupRpc {
     async fn op_output_at_block(&self, block_num: BlockNumberOrTag) -> RpcResult<OutputResponse> {
-        let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
+        let (l1_sync_status_send, l1_sync_status_recv) = oneshot::channel();
+        let (output_tx, output_rx) = oneshot::channel();
 
-        let ((l2_block_info, output_root, l2_sync_status), l1_sync_status) =
-            tokio::try_join!(self.engine_client.output_at_block(block_num), async {
+        let ((l2_block_info, output_root, l2_sync_status), l1_sync_status) = tokio::try_join!(
+            async {
+                self.engine_query_sender
+                    .send(EngineQueries::OutputAtBlock { block: block_num, sender: output_tx })
+                    .await
+                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+                output_rx.await.map_err(|_| {
+                    error!(target: "block_engine", "Failed to receive output at block from engine rpc");
+                    ErrorObject::from(ErrorCode::InternalError)
+                })
+            },
+            async {
                 self.l1_watcher_sender
                     .send(L1WatcherQueries::L1State(l1_sync_status_send))
                     .await
                     .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
                 l1_sync_status_recv.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-            })?;
+            }
+        )?;
 
         let sync_status = Self::sync_status_from_actor_queries(l1_sync_status, l2_sync_status);
 
@@ -90,7 +100,8 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     }
 
     async fn op_sync_status(&self) -> RpcResult<SyncStatus> {
-        let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
+        let (l1_sync_status_send, l1_sync_status_recv) = oneshot::channel();
+        let (state_tx, state_rx) = oneshot::channel();
 
         let (l1_sync_status, l2_sync_status) = tokio::try_join!(
             async {
@@ -100,7 +111,16 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
                     .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
                 l1_sync_status_recv.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
             },
-            self.engine_client.get_state()
+            async {
+                self.engine_query_sender
+                    .send(EngineQueries::State(state_tx))
+                    .await
+                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+                state_rx.await.map_err(|_| {
+                    error!(target: "block_engine", "Failed to receive state from engine rpc");
+                    ErrorObject::from(ErrorCode::InternalError)
+                })
+            }
         )
         .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
@@ -108,12 +128,44 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     }
 
     async fn op_rollup_config(&self) -> RpcResult<RollupConfig> {
-        self.engine_client.get_config().await
+        let (config_tx, config_rx) = oneshot::channel();
+        self.engine_query_sender
+            .send(EngineQueries::Config(config_tx))
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        config_rx.await.map_err(|_| {
+            error!(target: "block_engine", "Failed to receive config from engine rpc");
+            ErrorObject::from(ErrorCode::InternalError)
+        })
     }
 
     async fn op_version(&self) -> RpcResult<String> {
         const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
 
         return Ok(RPC_VERSION.to_string());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::mpsc;
+
+    #[tokio::test]
+    async fn rollup_config_uses_engine_query_channel() {
+        let (engine_tx, mut engine_rx) = mpsc::channel(1);
+        let (l1_tx, _l1_rx) = mpsc::channel(1);
+        let module = RollupRpc::new(engine_tx, l1_tx).into_rpc();
+        let config = RollupConfig { block_time: 11, ..Default::default() };
+        let (result, ()) = tokio::join!(
+            module.call::<_, RollupConfig>("optimism_rollupConfig", Vec::<u8>::new()),
+            async {
+                let EngineQueries::Config(reply) = engine_rx.recv().await.unwrap() else {
+                    panic!("expected rollup config query");
+                };
+                reply.send(config.clone()).unwrap();
+            }
+        );
+        assert_eq!(result.unwrap(), config);
     }
 }
