@@ -760,21 +760,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // If the game is disabled, we must have a 0 init bond.
-            if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            if (isSuperPermissionedGame && _cfg.disputeGameConfigs[i].initBond != 0) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            // If game is enabled, we must have a non-zero init bond, except
-            // SUPER_PERMISSIONED which does not use bonds.
-            if (
-                !isSuperPermissionedGame && _cfg.disputeGameConfigs[i].enabled
-                    && _cfg.disputeGameConfigs[i].initBond == 0
-            ) {
+            // Init bond validation. This used to be three separate checks:
+            //   1. A disabled game must have a 0 init bond.
+            //   2. SUPER_PERMISSIONED must have a 0 init bond, it never uses bonds.
+            //   3. An enabled game other than SUPER_PERMISSIONED must have a non-zero init bond.
+            // They are folded into a single equality to keep OPCM under the EIP-170 size limit.
+            // The combined rule: a game uses a bond exactly when it is enabled and is not
+            // SUPER_PERMISSIONED, and the init bond must be non-zero exactly when the game uses a
+            // bond. The two ways to violate it are:
+            //   usesBond == true  && initBond == 0 -> enabled bonded game without a bond (check 3)
+            //   usesBond == false && initBond != 0 -> disabled or bondless game with a bond (checks 1, 2)
+            bool usesBond = _cfg.disputeGameConfigs[i].enabled && !isSuperPermissionedGame;
+            if (usesBond == (_cfg.disputeGameConfigs[i].initBond == 0)) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
