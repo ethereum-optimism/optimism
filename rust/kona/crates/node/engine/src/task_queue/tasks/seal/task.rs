@@ -12,7 +12,7 @@ use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// How a [`SealTask`] is coupled to the build that produced its payload.
@@ -224,7 +224,6 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         state: &mut EngineState,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         // Fetch the payload just inserted from the EL and import it into the engine.
-        let block_import_start_time = Instant::now();
         let new_payload = self
             .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
             .await?;
@@ -232,13 +231,10 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         // Insert the payload into the engine and reuse its decoded block information.
         let new_block_ref = self.insert_payload(state, new_payload.clone()).await?;
 
-        let block_import_duration = block_import_start_time.elapsed();
-
         info!(
             target: "engine",
             l2_number = new_block_ref.block_info.number,
             l2_time = new_block_ref.block_info.timestamp,
-            block_import_duration = ?block_import_duration,
             "Built and imported new {} block",
             if self.is_attributes_derived { "safe" } else { "unsafe" },
         );

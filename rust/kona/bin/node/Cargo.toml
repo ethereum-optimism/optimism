@@ -25,13 +25,13 @@ kona-interop = { workspace = true, features = ["serde"] }
 kona-protocol.workspace = true
 
 kona-cli = { workspace = true, features = ["secrets"] }
-kona-gossip = { workspace = true, features = ["metrics"] }
-kona-disc = { workspace = true, features = ["metrics"] }
+kona-gossip.workspace = true
+kona-disc.workspace = true
 kona-derive = { workspace = true, features = ["metrics"] }
-kona-engine = { workspace = true, features = ["metrics"] }
+kona-engine.workspace = true
 kona-registry = { workspace = true, features = ["tabled"] }
 kona-sources = { workspace = true }
-kona-node-service = { workspace = true, features = ["metrics"] }
+kona-node-service.workspace = true
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
 kona-providers-local = { workspace = true, features = ["metrics"] }
 

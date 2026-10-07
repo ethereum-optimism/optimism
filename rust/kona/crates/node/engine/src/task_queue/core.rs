@@ -140,7 +140,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         );
         synchronize.execute(&mut self.state).await?;
 
-        kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
+        metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)
     }

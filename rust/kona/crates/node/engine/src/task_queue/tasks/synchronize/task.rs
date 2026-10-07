@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
-use tokio::time::Instant;
 
 /// Internal task for execution layer forkchoice synchronization.
 ///
@@ -111,8 +110,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
             ));
         }
 
-        let fcu_time_start = Instant::now();
-
         // Send the forkchoice update through the input.
         let forkchoice = new_sync_state.create_forkchoice_state();
 
@@ -142,10 +139,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         // Apply the new sync state to the engine state.
         state.sync_state = new_sync_state;
 
-        let fcu_duration = fcu_time_start.elapsed();
         debug!(
             target: "engine",
-            fcu_duration = ?fcu_duration,
             forkchoice = ?forkchoice,
             response = ?valid_response,
             "Forkchoice updated"
