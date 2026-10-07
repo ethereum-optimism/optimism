@@ -1,8 +1,8 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
+    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError,
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -92,9 +92,9 @@ impl EngineTaskExt for InsertTask {
                 .map_err(InsertTaskError::L2BlockInfoConstruction)?;
 
         // Send a FCU to canonicalize the imported block.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            self.rollup_config.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate {
                 unsafe_head: Some(new_unsafe_ref),
                 local_safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
@@ -102,7 +102,6 @@ impl EngineTaskExt for InsertTask {
                 ..Default::default()
             },
         )
-        .execute(state)
         .await?;
 
         // The block is now canonical, so anything reading the L2 chain locally can rely on it.
