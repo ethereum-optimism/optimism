@@ -11,7 +11,8 @@ import (
 // predeploy.
 type L2ToL2CrossDomainMessenger struct {
 	// Read-only functions
-	ExpiredMessages func(messageHash [32]byte) TypedCall[bool] `sol:"expiredMessages"`
+	ExpiredMessages       func(messageHash [32]byte) TypedCall[bool]     `sol:"expiredMessages"`
+	SentMessageTimestamps func(messageHash [32]byte) TypedCall[*big.Int] `sol:"sentMessageTimestamps"`
 
 	// Write functions
 	ExportUndeliveredMessage func(sourceMessenger common.Address, source eth.ChainID, nonce *big.Int, sender common.Address, target common.Address, message []byte, minGasLimit uint32) TypedCall[eth.Bytes32] `sol:"exportUndeliveredMessage"`
