@@ -109,7 +109,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHImpl",
                 target: EIP1967Helper.getImplementation(address(delayedWeth)),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (IETHLockbox(payable(address(0)))))
+                initCalldata: abi.encodeCall(
+                    delayedWeth.initialize, (IETHLockbox(payable(address(0))), delayedWeth.delay())
+                )
             })
         );
         // DelayedWETHProxy
@@ -117,7 +119,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHProxy",
                 target: address(delayedWeth),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (IETHLockbox(payable(address(0)))))
+                initCalldata: abi.encodeCall(
+                    delayedWeth.initialize, (IETHLockbox(payable(address(0))), delayedWeth.delay())
+                )
             })
         );
 
