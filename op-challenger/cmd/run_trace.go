@@ -72,10 +72,10 @@ var (
 		Name: "run",
 		Usage: "Specify a trace to run. Format is gameType/name/prestateHash where " +
 			"gameType is the game type to use with the prestate (one of " + openum.EnumStringer(gameTypes.TraceGameTypes) + "), " +
-			"name is an arbitrary name for the prestate to use when reporting metrics and" +
+			"name is an arbitrary name for the prestate to use when reporting metrics and " +
 			"prestateHash is the hex encoded absolute prestate commitment to use. " +
-			"If name is omitted the game type name is used." +
-			"If the prestateHash is omitted, the absolute prestate hash used for new games on-chain.",
+			"If name is omitted the game type name is used. " +
+			"If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "RUN"),
 	}
 	VMTimeoutFlag = &cli.DurationFlag{

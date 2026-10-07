@@ -232,9 +232,11 @@ the fault proofs virtual machine used by the trace provider.
 
 The same CLI options as `op-challenger` itself are supported to configure the trace providers. The additional `--run`
 option allows specifying which prestates to use. The format is `gameType/name/prestateHash` where gameType is the
-game type to use with the prestate (e.g cannon or cannon-kona), name is an arbitrary name for the prestate to use
-when reporting metrics and prestateHash is the hex encoded absolute prestate commitment to use. If name is omitted the
-game type name is used. If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.
+game type to use with the prestate (one of `cannon`, `cannon-kona` or `super-cannon-kona`; other game types are
+rejected), name is an arbitrary name for the prestate to use when reporting metrics and prestateHash is the hex encoded
+absolute prestate commitment to use. If name is omitted the game type name is used. If the prestateHash is omitted,
+the absolute prestate hash used for new games on-chain is used. Without `--run`, every configured game type that
+run-trace can execute is traced with its on-chain prestate, and other game types are skipped with a warning.
 
 For example to run both the production cannon prestate and a custom
 prestate, use `--run cannon,cannon/next-prestate/0x03c1f0d45248190f80430a4c31e24f8108f05f80ff8b16ecb82d20df6b1b43f3`.
