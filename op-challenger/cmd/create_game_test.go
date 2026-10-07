@@ -19,7 +19,8 @@ func TestParseGameType(t *testing.T) {
 		{value: "super-permissioned", expected: gameTypes.SuperPermissionedGameType},
 		{value: GameTypeFlag.Value, expected: gameTypes.CannonGameType},
 		{value: "zkk", expected: gameTypes.UnknownGameType, err: gameTypes.ErrUnknownGameType},
-		{value: "4294967296", expected: gameTypes.UnknownGameType, err: gameTypes.ErrUnknownGameType},
+		{value: "2", expected: gameTypes.UnknownGameType, err: gameTypes.ErrUnknownGameType},
+		{value: "op-succinct", expected: gameTypes.UnknownGameType, err: gameTypes.ErrUnknownGameType},
 	}
 	for _, test := range tests {
 		t.Run(test.value, func(t *testing.T) {
@@ -30,13 +31,24 @@ func TestParseGameType(t *testing.T) {
 	}
 }
 
-// Both inputs would otherwise silently become 0 and create a game that loses its bond. No
-// --l1-eth-rpc is given, so each must fail before any RPC call.
-func TestCreateGameRejectsZeroingArgs(t *testing.T) {
-	run := func(args ...string) error {
-		app := &cli.App{Commands: []*cli.Command{CreateGameCommand}}
-		return app.Run(append([]string{"op-challenger", "create-game", "--game-type", "zk"}, args...))
+// Out-of-range or misplaced --parent-index and zero --l2-chain-id fail before any RPC call.
+func TestCreateGameRejectsInvalidSuperArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		err  string
+	}{
+		{name: "ZKMissingChainID", args: []string{"--game-type", "zk"}, err: "--l2-chain-id must be a non-zero chain ID for game type zk"},
+		{name: "SuperCannonKonaMissingChainID", args: []string{"--game-type", "super-cannon-kona"}, err: "--l2-chain-id must be a non-zero chain ID for game type super-cannon-kona"},
+		{name: "SuperPermissionedMissingChainID", args: []string{"--game-type", "super-permissioned"}, err: "--l2-chain-id must be a non-zero chain ID for game type super-permissioned"},
+		{name: "ParentIndexAboveUint32", args: []string{"--game-type", "zk", "--l2-chain-id", "10", "--parent-index", "4294967296"}, err: "parent index 4294967296 exceeds uint32 max"},
+		{name: "ParentIndexForNonZKGame", args: []string{"--game-type", "super-cannon-kona", "--l2-chain-id", "10", "--parent-index", "3"}, err: "--parent-index is only valid for game type zk"},
 	}
-	require.ErrorContains(t, run("--l2-chain-id", "10", "--parent-index", "4294967296"), "parent index 4294967296 exceeds uint32 max")
-	require.ErrorContains(t, run(), "--l2-chain-id must be a non-zero chain ID for game type zk")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app := &cli.App{Commands: []*cli.Command{CreateGameCommand}}
+			err := app.Run(append([]string{"op-challenger", "create-game"}, test.args...))
+			require.ErrorContains(t, err, test.err)
+		})
+	}
 }

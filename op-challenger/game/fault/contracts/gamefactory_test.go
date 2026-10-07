@@ -501,7 +501,7 @@ func TestCreateTx(t *testing.T) {
 	for _, version := range factoryVersions {
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			gameType := uint32(123)
+			gameType := uint32(gameTypes.PermissionedGameType)
 			outputRoot := common.Hash{0x01}
 			l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
 			bond := big.NewInt(49284294829)
@@ -577,6 +577,14 @@ func TestCreateTxZKGame(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Game types op-challenger cannot encode fail before any call, instead of being sent with
+// output root extra data. The stub RPC fails the test on any unexpected call.
+func TestCreateTxRejectsUnsupportedGameType(t *testing.T) {
+	_, factory := setupDisputeGameFactoryTest(t, factoryVersions[0])
+	_, err := factory.CreateTx(context.Background(), uint32(gameTypes.OPSuccinctGameType), common.Hash{0x01}, 456, 10, math.MaxUint32)
+	require.ErrorIs(t, err, ErrUnsupportedGameType)
 }
 
 func setupDisputeGameFactoryTest(t *testing.T, version factoryContractVersion) (*batchingTest.AbiBasedRpc, *DisputeGameFactoryContract) {

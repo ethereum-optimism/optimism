@@ -96,8 +96,7 @@ used in production and are intended to provide convenient manual testing.
   <SIGNER_ARGS>
 ```
 
-Starts a new fault dispute game that disputes the latest output proposal
-in the L2 output oracle.
+Creates a dispute game via the dispute game factory.
 
 * `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
@@ -106,11 +105,11 @@ in the L2 output oracle.
 * `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
 
 `--game-type` selects the game type to create, as a decimal number or a name (`cannon`, `super-cannon-kona`, `zk`, ...).
-It defaults to `cannon`; unknown values are rejected.
+It defaults to `cannon`. Only game types op-challenger supports are accepted; other names and numbers are rejected.
 
 For super and ZK games, `L2_BLOCK_NUM` is the super root timestamp, and `OUTPUT_ROOT` is encoded with `--l2-chain-id`
-into a single-chain super root proof. ZK games also take `--parent-index`, the factory index of the parent ZK game.
-It defaults to uint32 max, which builds on the anchor state:
+(required, non-zero) into a single-chain super root proof. ZK games also take `--parent-index`, the factory index of
+the parent ZK game, which is rejected for other game types. It defaults to uint32 max, which builds on the anchor state:
 
 ```shell
 ./bin/op-challenger create-game \

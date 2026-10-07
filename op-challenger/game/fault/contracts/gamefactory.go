@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -295,12 +296,15 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 }
 
 func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64, parentIndex uint32) (txmgr.TxCandidate, error) {
+	rootClaim, extraData, err := createGameParams(gameType, outputRoot, l2BlockNum, l2ChainID, parentIndex)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodInitBonds, gameType))
 	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("failed to fetch init bond: %w", err)
 	}
 	initBond := result.GetBigInt(0)
-	rootClaim, extraData := createGameParams(gameType, outputRoot, l2BlockNum, l2ChainID, parentIndex)
 	call := f.contract.Call(methodCreateGame, gameType, rootClaim, extraData)
 	candidate, err := call.ToTxCandidate()
 	if err != nil {
@@ -310,18 +314,22 @@ func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint
 	return candidate, err
 }
 
-func createGameParams(gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64, parentIndex uint32) (common.Hash, []byte) {
-	switch gameTypes.GameType(gameType) {
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
-		extraData := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
-		return crypto.Keccak256Hash(extraData), extraData
-	case gameTypes.ZKDisputeGameType:
-		proof := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
-		extraData := binary.BigEndian.AppendUint32(make([]byte, 0, 4+len(proof)), parentIndex)
-		return crypto.Keccak256Hash(proof), append(extraData, proof...)
-	default:
-		return outputRoot, common.BigToHash(new(big.Int).SetUint64(l2BlockNum)).Bytes()
+// createGameParams encodes the root claim and extra data for the game types op-challenger supports.
+// Other game types (e.g. OP Succinct, Kailua) use extra data layouts it does not know.
+func createGameParams(gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64, parentIndex uint32) (common.Hash, []byte, error) {
+	t := gameTypes.GameType(gameType)
+	if !slices.Contains(gameTypes.SupportedLifecycleGameTypes, t) {
+		return common.Hash{}, nil, fmt.Errorf("%w: cannot create games of type %v", ErrUnsupportedGameType, t)
 	}
+	if !t.UsesSuperRoots() {
+		return outputRoot, common.BigToHash(new(big.Int).SetUint64(l2BlockNum)).Bytes(), nil
+	}
+	proof := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
+	if t != gameTypes.ZKDisputeGameType {
+		return crypto.Keccak256Hash(proof), proof, nil
+	}
+	extraData := binary.BigEndian.AppendUint32(make([]byte, 0, 4+len(proof)), parentIndex)
+	return crypto.Keccak256Hash(proof), append(extraData, proof...), nil
 }
 
 func encodeSuperRootProof(timestamp uint64, l2ChainID uint64, outputRoot common.Hash) []byte {

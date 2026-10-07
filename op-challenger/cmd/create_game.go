@@ -22,7 +22,7 @@ import (
 var (
 	GameTypeFlag = &cli.StringFlag{
 		Name:    "game-type",
-		Usage:   "Game type to create, as a decimal number or a name (e.g. cannon, super-cannon-kona, zk).",
+		Usage:   "Game type to create, as a decimal number or a name (e.g. cannon, super-cannon-kona, zk). Must be a game type op-challenger supports.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "TRACE_TYPE"),
 		Value:   gameTypes.CannonGameType.String(),
 	}
@@ -55,30 +55,10 @@ var (
 	}
 )
 
-// namedGameTypes lists every game type with a name, so create-game can target any factory
-// implementation by name, not only the types op-challenger plays.
-var namedGameTypes = []gameTypes.GameType{
-	gameTypes.CannonGameType,
-	gameTypes.PermissionedGameType,
-	gameTypes.AsteriscGameType,
-	gameTypes.AsteriscKonaGameType,
-	gameTypes.SuperPermissionedGameType,
-	gameTypes.OPSuccinctGameType,
-	gameTypes.SuperAsteriscKonaGameType,
-	gameTypes.CannonKonaGameType,
-	gameTypes.SuperCannonKonaGameType,
-	gameTypes.ZKDisputeGameType,
-	gameTypes.FastGameType,
-	gameTypes.AlphabetGameType,
-	gameTypes.KailuaGameType,
-}
-
+// parseGameType accepts the decimal number or the name of a game type that create-game can encode.
 func parseGameType(value string) (gameTypes.GameType, error) {
-	if number, err := strconv.ParseUint(value, 10, 32); err == nil {
-		return gameTypes.GameType(number), nil
-	}
-	for _, gameType := range namedGameTypes {
-		if gameType.String() == value {
+	for _, gameType := range gameTypes.SupportedLifecycleGameTypes {
+		if value == gameType.String() || value == strconv.FormatUint(uint64(gameType), 10) {
 			return gameType, nil
 		}
 	}
@@ -93,13 +73,13 @@ func CreateGame(ctx *cli.Context) error {
 	outputRoot := common.HexToHash(ctx.String(OutputRootFlag.Name))
 	l2BlockNum := ctx.Uint64(L2BlockNumFlag.Name)
 	l2ChainID := ctx.Uint64(L2ChainIDFlag.Name)
-	switch gameType {
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType, gameTypes.ZKDisputeGameType:
-		// The contracts do not check the chain ID in the super root proof, so a missing or
-		// non-numeric value (read as 0) would create a game that loses its bond.
-		if l2ChainID == 0 {
-			return fmt.Errorf("--%v must be a non-zero chain ID for game type %v", L2ChainIDFlag.Name, gameType)
-		}
+	// The contracts do not check the chain ID in the super root proof, so a missing or
+	// non-numeric value (read as 0) would create a game that loses its bond.
+	if gameType.UsesSuperRoots() && l2ChainID == 0 {
+		return fmt.Errorf("--%v must be a non-zero chain ID for game type %v", L2ChainIDFlag.Name, gameType)
+	}
+	if ctx.IsSet(CreateGameParentIndexFlag.Name) && gameType != gameTypes.ZKDisputeGameType {
+		return fmt.Errorf("--%v is only valid for game type %v", CreateGameParentIndexFlag.Name, gameTypes.ZKDisputeGameType)
 	}
 	parentIndex := uint32(ctx.Uint64(CreateGameParentIndexFlag.Name))
 
@@ -112,7 +92,7 @@ func CreateGame(ctx *cli.Context) error {
 	}
 
 	creator := tools.NewGameCreator(contract, txMgr)
-	gameAddr, err := creator.CreateGame(ctx.Context, outputRoot, uint64(gameType), l2BlockNum, l2ChainID, parentIndex)
+	gameAddr, err := creator.CreateGame(ctx.Context, outputRoot, gameType, l2BlockNum, l2ChainID, parentIndex)
 	if err != nil {
 		return fmt.Errorf("failed to create game: %w", err)
 	}
