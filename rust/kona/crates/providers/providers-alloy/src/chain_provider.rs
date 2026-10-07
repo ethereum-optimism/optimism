@@ -568,7 +568,7 @@ mod tests {
     use super::*;
     use alloy_consensus::{Eip658Value, ReceiptWithBloom};
     use alloy_eips::eip2718::Encodable2718;
-    use alloy_primitives::Bloom;
+    use alloy_primitives::{Address, Bloom, Log};
     use alloy_rpc_client::RpcClient;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use alloy_transport::mock::Asserter;
@@ -974,6 +974,108 @@ mod tests {
             PipelineErrorKind::from(error),
             PipelineErrorKind::Reset(ResetError::BlockNotFound(id)) if id == hash.into()
         ));
+        raw_mock.assert();
+        fallback_mock.assert();
+    }
+
+    #[tokio::test]
+    async fn fallback_converts_json_receipts_in_order() {
+        let block_hash = B256::repeat_byte(0xdb);
+        let tx_hashes = [B256::repeat_byte(0x01), B256::repeat_byte(0x02), B256::repeat_byte(0x03)];
+        let logs = [
+            Log::new_unchecked(
+                Address::repeat_byte(0x10),
+                vec![B256::repeat_byte(0x20), B256::repeat_byte(0x21)],
+                Bytes::from_static(&[0x01, 0x02]),
+            ),
+            Log::new_unchecked(
+                Address::repeat_byte(0x11),
+                vec![B256::repeat_byte(0x22)],
+                Bytes::new(),
+            ),
+            Log::new_unchecked(Address::repeat_byte(0x12), Vec::new(), Bytes::from_static(&[0xff])),
+        ];
+        let expected = vec![
+            Receipt {
+                status: Eip658Value::Eip658(true),
+                cumulative_gas_used: 46_000,
+                logs: logs[..2].to_vec(),
+            },
+            Receipt {
+                status: Eip658Value::Eip658(false),
+                cumulative_gas_used: 67_000,
+                logs: Vec::new(),
+            },
+            Receipt {
+                status: Eip658Value::Eip658(true),
+                cumulative_gas_used: 112_000,
+                logs: logs[2..].to_vec(),
+            },
+        ];
+
+        let mut log_index = 0;
+        let json_receipts: Vec<_> = expected
+            .iter()
+            .zip(["0x2", "0x0", "0x2"])
+            .enumerate()
+            .map(|(tx_index, (receipt, tx_type))| {
+                let json_logs: Vec<_> = receipt
+                    .logs
+                    .iter()
+                    .map(|log| {
+                        log_index += 1;
+                        serde_json::json!({
+                            "address": log.address,
+                            "topics": log.topics(),
+                            "data": log.data.data,
+                            "blockHash": block_hash,
+                            "blockNumber": "0x10",
+                            "transactionHash": tx_hashes[tx_index],
+                            "transactionIndex": format!("{tx_index:#x}"),
+                            "logIndex": format!("{:#x}", log_index - 1),
+                            "removed": false,
+                        })
+                    })
+                    .collect();
+                serde_json::json!({
+                    "type": tx_type,
+                    "status": if receipt.status.coerce_status() { "0x1" } else { "0x0" },
+                    "cumulativeGasUsed": format!("{:#x}", receipt.cumulative_gas_used),
+                    "logs": json_logs,
+                    "logsBloom": Bloom::ZERO,
+                    "transactionHash": tx_hashes[tx_index],
+                    "transactionIndex": format!("{tx_index:#x}"),
+                    "blockHash": block_hash,
+                    "blockNumber": "0x10",
+                    "gasUsed": "0x5208",
+                    "effectiveGasPrice": "0x3b9aca00",
+                    "from": Address::repeat_byte(0x30),
+                    "to": Address::repeat_byte(0x31),
+                    "contractAddress": null,
+                })
+            })
+            .collect();
+
+        let server = MockServer::start();
+        let raw_mock = server.mock(|when, then| {
+            when.method(POST).body_includes("debug_getRawReceipts");
+            then.status(200).header("content-type", "application/json").json_body(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "error": { "code": -32000, "message": "raw receipts unavailable" },
+                }),
+            );
+        });
+        let fallback_mock = server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockReceipts");
+            then.status(200).header("content-type", "application/json").json_body(
+                serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": json_receipts }),
+            );
+        });
+        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+
+        assert_eq!(provider.receipts_by_hash(block_hash).await.unwrap(), expected);
         raw_mock.assert();
         fallback_mock.assert();
     }
