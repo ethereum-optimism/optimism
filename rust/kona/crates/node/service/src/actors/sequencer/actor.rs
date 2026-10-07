@@ -45,6 +45,29 @@ struct UnsealedPayloadHandle {
     attributes_with_parent: OpAttributesWithParent,
 }
 
+/// A sequenced block that has been sealed and committed to the conductor, if one is configured,
+/// but not yet canonicalized and gossiped.
+#[derive(Debug)]
+struct CommittedBlock {
+    /// The committed payload. Retries must canonicalize this exact envelope.
+    pub envelope: OpExecutionPayloadEnvelope,
+    /// The unsafe head on which the block was built.
+    pub parent: L2BlockInfo,
+    /// The number of transactions in the block.
+    pub tx_count: u64,
+}
+
+/// The block the sequencer is working on between ticks.
+// The sequencer holds at most one of these, so the variants' size difference is irrelevant.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+enum InFlightBlock {
+    /// Built but not yet sealed. Commit failures retry the seal with this payload ID.
+    Building(UnsealedPayloadHandle),
+    /// Sealed and committed. Retries must canonicalize this exact envelope.
+    Committed(CommittedBlock),
+}
+
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
 /// and handing them to the [`SignerActor`](crate::SignerActor) to be signed and gossipped,
 /// extending the L2 chain with new blocks.
@@ -82,10 +105,8 @@ pub struct SequencerActor<
 
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
-    /// The handle for the payload built on the previous tick that is waiting to be sealed.
-    next_payload_to_seal: Option<UnsealedPayloadHandle>,
-    /// A committed payload awaiting canonicalization. Retries must import this exact payload.
-    pending_canonicalization_payload: Option<OpExecutionPayloadEnvelope>,
+    /// The block carried over from a previous tick, if any.
+    in_flight: Option<InFlightBlock>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
     last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
@@ -142,8 +163,7 @@ where
             rollup_config,
             unsafe_payload_gossip_client,
             build_ticker,
-            next_payload_to_seal: None,
-            pending_canonicalization_payload: None,
+            in_flight: None,
             last_seal_duration: Duration::from_secs(0),
             started: false,
         }
@@ -220,43 +240,47 @@ where
         Ok(())
     }
 
-    /// Seals the provided [`UnsealedPayloadHandle`], commits the resulting payload to the
-    /// conductor if one is configured, canonicalizes it, and schedules it for gossip.
-    ///
-    /// Returns how long the whole operation took.
-    async fn seal_commit_canonicalize_and_gossip(
-        &mut self,
-        to_seal: &UnsealedPayloadHandle,
-    ) -> Result<Duration, SequencerActorError> {
-        let seal_start = Instant::now();
-        if self.pending_canonicalization_payload.is_none() {
-            let seal_request_start = Instant::now();
-            let payload = self
-                .engine_client
-                .seal_block(to_seal.payload_id, to_seal.attributes_with_parent.clone())
-                .await?;
-            update_seal_duration_metrics(seal_request_start.elapsed());
+    /// Seals the provided [`UnsealedPayloadHandle`] and commits the resulting payload to the
+    /// conductor, if one is configured.
+    async fn seal_and_commit(
+        &self,
+        handle: &UnsealedPayloadHandle,
+    ) -> Result<CommittedBlock, SequencerActorError> {
+        let seal_request_start = Instant::now();
+        let envelope = self
+            .engine_client
+            .seal_block(handle.payload_id, handle.attributes_with_parent.clone())
+            .await?;
+        update_seal_duration_metrics(seal_request_start.elapsed());
 
-            if let Some(conductor) = &self.conductor {
-                let commitment_start = Instant::now();
-                let result = conductor.commit_unsafe_payload(&payload).await;
-                update_conductor_commitment_duration_metrics(commitment_start.elapsed());
-                // Retain the build job, not this uncommitted envelope. Like op-node, retry
-                // getPayload with the same payload ID on the next attempt.
-                result?;
-            }
-            self.pending_canonicalization_payload = Some(payload);
+        if let Some(conductor) = &self.conductor {
+            let commitment_start = Instant::now();
+            let result = conductor.commit_unsafe_payload(&envelope).await;
+            update_conductor_commitment_duration_metrics(commitment_start.elapsed());
+            // Retain the build job, not this uncommitted envelope. Like op-node, retry
+            // getPayload with the same payload ID on the next attempt.
+            result?;
         }
 
-        let payload = self.pending_canonicalization_payload.as_ref().expect("payload is sealed");
-        self.engine_client
-            .canonicalize_block(payload.clone(), to_seal.attributes_with_parent.parent)
-            .await?;
-        let payload = self.pending_canonicalization_payload.take().expect("payload is canonical");
-        update_total_transactions_sequenced(to_seal.attributes_with_parent.count_transactions());
+        Ok(CommittedBlock {
+            envelope,
+            parent: handle.attributes_with_parent.parent,
+            tx_count: handle.attributes_with_parent.count_transactions(),
+        })
+    }
 
-        self.unsafe_payload_gossip_client.schedule_execution_payload_gossip(payload).await?;
-        Ok(seal_start.elapsed())
+    /// Canonicalizes the provided [`CommittedBlock`] and schedules it for gossip.
+    async fn canonicalize_and_gossip(
+        &self,
+        block: &CommittedBlock,
+    ) -> Result<(), SequencerActorError> {
+        self.engine_client.canonicalize_block(block.envelope.clone(), block.parent).await?;
+        update_total_transactions_sequenced(block.tx_count);
+
+        self.unsafe_payload_gossip_client
+            .schedule_execution_payload_gossip(block.envelope.clone())
+            .await
+            .map_err(Into::into)
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -534,28 +558,29 @@ where
                     return Ok(());
                 }
                 info!(target: "sequencer", "Sequencing tick, building block");
-                // Move the pending payload out of self so the &mut self call below doesn't conflict
-                // with reads of it. It is restored if the seal must be retried.
-                let pending = self.next_payload_to_seal.take();
-                // Seal the last pending block, if one exists, then start the build job for the next
-                // L2 block on top of the current unsafe head.
-                let seal_res = match pending.as_ref() {
-                    Some(to_seal) => self.seal_commit_canonicalize_and_gossip(to_seal).await,
-                    None => Ok(Duration::default()),
+                // Advance the block carried over from the previous tick. A block that was already
+                // committed skips straight to canonicalization. On failure, keep the state the
+                // block was in when it failed so that a retry resumes from there.
+                let publish_start = self.in_flight.is_some().then(Instant::now);
+                let committed = match self.in_flight.take() {
+                    None => Ok(None),
+                    Some(InFlightBlock::Committed(block)) => Ok(Some(block)),
+                    Some(InFlightBlock::Building(handle)) => match self.seal_and_commit(&handle).await {
+                        Ok(block) => Ok(Some(block)),
+                        Err(err) => Err((err, InFlightBlock::Building(handle))),
+                    },
                 };
-                let res = match seal_res {
-                    Ok(seal_duration) => self
-                        .build_unsealed_payload()
+                let published = match committed {
+                    Ok(Some(block)) => self
+                        .canonicalize_and_gossip(&block)
                         .await
-                        .map(|unsealed_payload_handle| (unsealed_payload_handle, seal_duration)),
+                        .map_err(|err| (err, InFlightBlock::Committed(block))),
+                    Ok(None) => Ok(()),
                     Err(err) => Err(err),
                 };
-                match res {
-                    Ok((unsealed_payload_handle, seal_duration)) => {
-                        self.next_payload_to_seal = unsealed_payload_handle;
-                        self.last_seal_duration = seal_duration;
-                    }
-                    Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
+                match published {
+                    Ok(()) => {}
+                    Err((SequencerActorError::EngineError(EngineClientError::SealError(err)), in_flight)) => {
                         if is_seal_task_err_fatal(&err) {
                             error!(target: "sequencer", err=?err, "Critical seal task error occurred");
                             return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
@@ -567,31 +592,41 @@ where
                                 )
                             ))
                         {
-                            self.pending_canonicalization_payload = None;
-                            self.next_payload_to_seal = None;
+                            // Drop the block and rebuild on the next tick.
+                            self.build_ticker.reset_immediately();
                         } else {
                             // Retry temporary insertion failures with the exact committed
                             // envelope. Failed getPayload jobs above must be rebuilt: the EL
                             // may have expired or discarded that payload ID.
-                            self.next_payload_to_seal = pending;
+                            self.in_flight = Some(in_flight);
                             self.build_ticker.reset_after(Duration::from_secs(1));
-                            return Ok(());
                         }
+                        return Ok(());
                     }
-                    Err(SequencerActorError::ConductorCommit(err)) => {
+                    Err((SequencerActorError::ConductorCommit(err), in_flight)) => {
                         warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the build job before canonicalization or gossip");
-                        self.next_payload_to_seal = pending;
+                        self.in_flight = Some(in_flight);
                         self.build_ticker.reset_after(Duration::from_secs(1));
                         return Ok(());
                     }
-                    Err(other_err) => {
-                        error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
+                    Err((other_err, _)) => {
+                        error!(target: "sequencer", err = ?other_err, "Unexpected error sealing payload");
                         return Err(other_err);
                     }
                 }
+                self.last_seal_duration = publish_start.map_or(Duration::ZERO, |start| start.elapsed());
 
-                if let Some(payload) = self.next_payload_to_seal.as_ref() {
-                    let next_block_seconds = payload.attributes_with_parent.parent().block_info.timestamp.saturating_add(self.rollup_config.block_time);
+                // Start the build job for the next L2 block on top of the current unsafe head.
+                match self.build_unsealed_payload().await {
+                    Ok(handle) => self.in_flight = handle.map(InFlightBlock::Building),
+                    Err(err) => {
+                        error!(target: "sequencer", ?err, "Unexpected error building payload");
+                        return Err(err);
+                    }
+                }
+
+                if let Some(InFlightBlock::Building(handle)) = self.in_flight.as_ref() {
+                    let next_block_seconds = handle.attributes_with_parent.parent().block_info.timestamp.saturating_add(self.rollup_config.block_time);
                     // next block time is last + block_time - time it takes to seal.
                     let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) - self.last_seal_duration;
                     match next_block_time.duration_since(SystemTime::now()) {
