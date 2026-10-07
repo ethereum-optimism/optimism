@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 /// Input for consolidation - either derived attributes or safe L2 block
 #[derive(Debug, Clone)]
@@ -135,8 +135,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             "Apply safe head"
         );
 
-        let fcu_start = Instant::now();
-
         // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
@@ -158,13 +156,10 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             e
         })?;
 
-        let fcu_duration = fcu_start.elapsed();
-
         info!(
             target: "engine",
             hash = %safe_l2.block_info.hash,
             number = safe_l2.block_info.number,
-            fcu_duration = ?fcu_duration,
             "Updated safe head via follow safe"
         );
 
@@ -188,11 +183,8 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 
     /// Attempts consolidation on the engine state.
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
-        let global_start = Instant::now();
-
         // Fetch the unsafe L2 block
         let block_num = self.input.l2_block_number();
-        let fetch_start = Instant::now();
         let block = match self.client.l2_block_by_label(block_num.into()).await {
             Ok(Some(block)) => block,
             Ok(None) => {
@@ -204,7 +196,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
             }
         };
-        let block_fetch_duration = fetch_start.elapsed();
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
@@ -224,8 +215,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    let total_duration = global_start.elapsed();
-
                     // Apply a transient update to the safe head.
                     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
                         safe_head: Some(block_info),
@@ -237,8 +226,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         target: "engine",
                         hash = %block_info.block_info.hash,
                         number = block_info.block_info.number,
-                        ?total_duration,
-                        ?block_fetch_duration,
                         "Updated safe head via L1 consolidation"
                     );
 
@@ -247,8 +234,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 Ok(block_info) => {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
-
-                    let fcu_start = Instant::now();
 
                     SynchronizeTask::new(
                         Arc::clone(&self.client),
@@ -266,16 +251,10 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         e
                     })?;
 
-                    let fcu_duration = fcu_start.elapsed();
-                    let total_duration = global_start.elapsed();
-
                     info!(
                         target: "engine",
                         hash = %block_info.block_info.hash,
                         number = block_info.block_info.number,
-                        ?total_duration,
-                        ?block_fetch_duration,
-                        fcu_duration = ?fcu_duration,
                         "Updated safe head via L1 consolidation"
                     );
 
