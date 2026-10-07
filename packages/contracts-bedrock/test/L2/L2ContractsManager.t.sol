@@ -893,6 +893,21 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
             "UndeliveredMessageExporter should be upgraded"
         );
     }
+
+    /// @notice Tests that an upgrade installs the UndeliveredMessageExporter on a chain whose proxy at
+    ///         its address has no implementation yet, as on every chain before it ships.
+    function test_upgradeInstallsUndeliveredMessageExporter_whenProxyEmpty_succeeds() public {
+        EIP1967Helper.setImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(0));
+        assertEq(EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER), address(0));
+
+        _executeUpgrade();
+
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER),
+            _findImplByName("UndeliveredMessageExporter"),
+            "UndeliveredMessageExporter should be installed"
+        );
+    }
 }
 
 /// @title L2ContractsManager_Upgrade_InteropFlagDisabled_Test

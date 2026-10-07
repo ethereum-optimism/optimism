@@ -385,6 +385,29 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         // On L1, the destination's messenger relays the withdrawal into this chain's.
         IL1CrossDomainMessenger destinationMessenger = _destinationL1Messenger();
         uint256 depositNonce = l1CrossDomainMessenger.messageNonce();
+        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (messageHash, block.timestamp));
+        // This chain's portal deposits expireMessage for this chain's L2ToL2CrossDomainMessenger, sent by
+        // this chain's L1CrossDomainMessenger, with the gas it reserves for it.
+        vm.expectCall(
+            address(optimismPortal2),
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    0,
+                    l1CrossDomainMessenger.baseGas(expire, 100_000),
+                    false,
+                    Encoding.encodeCrossDomainMessage(
+                        depositNonce,
+                        address(l1CrossDomainMessenger),
+                        Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+                        0,
+                        100_000,
+                        expire
+                    )
+                )
+            )
+        );
         vm.prank(address(destinationMessenger.portal()));
         destinationMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
@@ -397,7 +420,6 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce + 1);
 
         // Here, the deposit expires the message, and the sender is refunded.
-        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (messageHash, block.timestamp));
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit MessageExpired(messageHash, block.timestamp);
         _relayToL2(depositNonce, expire, 1_000_000);
