@@ -178,12 +178,21 @@ build script. Its producer still owns checksum verification. A cold build may
 materialize it after preparation; successful compilation records its actual
 timestamp. Later restores preserve that timestamp when its bytes are unchanged.
 
-The test producer removes nextest's archived test executables from its compiler
-output after sealing the complete archive. Verdicts consume that archive;
-libraries, metadata and incremental work remain cached for Cargo to relink.
-Keeping full executables in cumulative cache layers also exceeded the cap on an
-ordinary rebuild (64.6 GiB inherited + 45.3 GiB added). Retain
-`cache-output.json` for the removed paths and bytes. Cache preparation
+Full-test build/runtime tasks store Cargo targets in
+`.ci/rust-cache/target-cache.tar.zst`; raw `rust/target` is excluded from their
+filesystem outputs. GNU tar's PAX format preserves nanosecond timestamps and
+permissions. Retain compiler binaries, fingerprints and incremental state so
+an unchanged crate does not rebuild because an executable is missing. Remove
+nextest reports before packing. The verdict receives the current producer's
+snapshot through `COMPILED_TARGET`, an artifact dependency, and prefers its own
+runtime tool cache on later runs. It does not inherit the producer's target-cache
+layer history. Other workspace jobs retain their existing raw target outputs.
+Retain `cache-restore` and `cache-pack` original logs and stage timings.
+
+Raw target layers exceeded the cap even after executable pruning: at
+`d233b6c244`, 73.5 GiB inherited plus 26.6 GiB added failed publication after
+successful compilation. Keep those original failure records outside Git.
+Cache preparation
 separates host `deps/*.rmeta` hardlinks from incremental metadata while preserving
 bytes, permissions and timestamps; retain `cache-publication.json`. The engine
 result, rather than this preparation record, proves filesystem publication. A restored

@@ -208,18 +208,21 @@ tasks:
       memory: 32gb
       disk: 150gb
     outputs:
-      filesystem: &compiler-output
+      filesystem: &packed-compiler-output
         filter:
-          workspace: [rust/target, .ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          workspace: [.ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
           system: []
       artifacts:
         - key: report
           path: .ci/rust-workspace/tests-build
+        - key: compiler-cache
+          path: .ci/rust-cache/target-cache.tar.zst
 
   # cache:false also disables tool caches. Include run/attempt identity instead
   # so every verdict executes while compiler-only layers remain reusable.
+  # Artifact references wait for compilation without inheriting its cache layers.
   - key: tests
-    use: [head-source, tests-build, test-cache-identity]
+    use: [head-source, test-cache-identity]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests
     env:
@@ -227,6 +230,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       TEST_ARCHIVE: ${{ tasks.tests-build.artifacts.report }}
+      COMPILED_TARGET: ${{ tasks.tests-build.artifacts.compiler-cache }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -235,7 +239,7 @@ tasks:
     timeout: 90m
     runner: *test-runner
     outputs:
-      filesystem: *compiler-output
+      filesystem: *packed-compiler-output
       test-results:
         - path: .ci/rust-workspace/tests/junit.xml
         - path: .ci/rust-workspace/tests/beacon.junit.xml
@@ -260,7 +264,10 @@ tasks:
       cpus: 16
       memory: 32gb
     outputs:
-      filesystem: *compiler-output
+      filesystem: &compiler-output
+        filter:
+          workspace: [rust/target, .ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          system: []
       test-results:
         - path: .ci/rust-workspace/doctest/doctests.junit.xml
       artifacts:

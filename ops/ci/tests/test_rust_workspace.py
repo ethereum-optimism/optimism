@@ -133,46 +133,6 @@ class ReportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'mismatch'):
                 REPORT.artifact(self.root, True)
 
-    def test_compiler_cache_prunes_only_tests_owned_by_the_archive(self):
-        target = self.root / 'target'
-        binary = target / 'debug/deps/local-test'
-        binary.parent.mkdir(parents=True)
-        binary.write_bytes(b'archived test executable')
-        library = binary.with_name('liblocal.rlib'); library.write_bytes(b'reusable library')
-        incremental = target / 'debug/incremental/work'; incremental.parent.mkdir(parents=True)
-        incremental.write_bytes(b'reusable incremental work')
-        metadata = {'rust-build-meta': {'target-directory': str(target)},
-                    'rust-binaries': {'local': {'binary-path': str(binary)}}}
-        with patch.dict(os.environ, {'CARGO_TARGET_DIR': str(target)}), \
-                patch.object(REPORT, 'command', return_value=json.dumps(metadata)) as command:
-            REPORT.prune_archived_tests(self.root)
-        self.assertIn('--occurrence=1', command.call_args.args)
-        self.assertFalse(binary.exists())
-        self.assertEqual(library.read_bytes(), b'reusable library')
-        self.assertEqual(incremental.read_bytes(), b'reusable incremental work')
-        output = json.loads((self.root / 'cache-output.json').read_text())
-        self.assertEqual(output['archived_test_binaries_removed'], {'debug/deps/local-test': 24})
-
-    def test_archive_cache_pruning_rejects_invalid_metadata_before_deletion(self):
-        target = self.root / 'target'
-        binary = target / 'debug/deps/local-test'; binary.parent.mkdir(parents=True)
-        binary.write_bytes(b'preserve until all paths validate')
-        outside = self.root / 'outside'; outside.write_bytes(b'outside target')
-        linked = binary.with_name('linked'); linked.symlink_to(binary)
-        for name, paths, target_directory in (
-                ('outside', [binary, outside], target), ('linked', [binary, linked], target),
-                ('duplicate', [binary, binary], target), ('empty', [], target),
-                ('wrong-target', [binary], self.root / 'other-target')):
-            with self.subTest(name=name):
-                metadata = {'rust-build-meta': {'target-directory': str(target_directory)},
-                            'rust-binaries': {str(i): {'binary-path': str(p)} for i, p in enumerate(paths)}}
-                with patch.dict(os.environ, {'CARGO_TARGET_DIR': str(target)}), \
-                        patch.object(REPORT, 'command', return_value=json.dumps(metadata)), \
-                        self.assertRaises(ValueError):
-                    REPORT.prune_archived_tests(self.root)
-                self.assertTrue(binary.exists())
-                self.assertTrue(outside.exists())
-
     def test_archive_rejects_incremental_mode_and_rustflags_changes(self):
         (self.root / 'tests.tar.zst').write_bytes(b'compiled tests')
         with patch.object(REPORT, 'command', return_value='pinned'), patch.object(REPORT, 'inputs', return_value={'source': 'same'}):
@@ -405,6 +365,11 @@ class ConfigurationTests(unittest.TestCase):
             self.assertIn('${{ tasks.test-cache-identity.values.namespace }}', tasks[key]['tool-cache'])
             self.assertIn('test-cache-identity', tasks[key]['use'])
             self.assertEqual(tasks[key]['runner'], {'cpus': 16, 'memory': '32gb', 'disk': '150gb'})
+            output = tasks[key]['outputs']['filesystem']['filter']['workspace']
+            self.assertNotIn('rust/target', output)
+        self.assertNotIn('tests-build', tasks['tests']['use'])
+        self.assertEqual(tasks['tests']['env']['COMPILED_TARGET'],
+                         '${{ tasks.tests-build.artifacts.compiler-cache }}')
         self.assertTrue(all('disk' not in t.get('runner', {}) for t in config['tasks']
                             if t['key'] not in ('tests-build', 'tests')))
         for trigger in ('cli', 'cache-rebuild'):
@@ -428,7 +393,8 @@ class ConfigurationTests(unittest.TestCase):
                 for nonce in ('RWX_RUN_ID', 'RWX_TASK_ATTEMPT_NUMBER'):
                     self.assertEqual(task['env'][nonce]['cache-key'], 'included')
                 output = task['outputs']['filesystem']['filter']['workspace']
-                self.assertIn('rust/target', output)
+                if task['key'] != 'tests':
+                    self.assertIn('rust/target', output)
                 self.assertNotIn('.ci/rust-workspace', output)
         self.assertIn('head-source', actual['tests']['use'])
 
@@ -493,13 +459,19 @@ pub fn compile_only() {}
             self.assertEqual(set(settings['profile_incremental'].values()), {'true'})
             self.assertTrue(any((root / 'rust/target/debug/incremental').iterdir()))
             self.assertTrue(any((root / 'rust/target/fast-build/incremental').iterdir()))
-            publication = json.loads((root / '.ci/rust-workspace/tests-build/cache-output.json').read_text())
-            self.assertTrue(publication['archived_test_binaries_removed'])
-            self.assertTrue(all(not (root / 'rust/target' / path).exists()
-                                for path in publication['archived_test_binaries_removed']))
+            packed = root / '.ci/rust-cache/target-cache.tar.zst'
+            self.assertTrue(packed.is_file())
+            shutil.rmtree(root / 'rust/target')
+            unchanged = run('tests-build')
+            self.assertEqual(unchanged.returncode, 0, unchanged.stdout + unchanged.stderr)
+            self.assertNotIn('Compiling kona-providers-alloy',
+                             (root / '.ci/rust-workspace/tests-build/archive.log').read_text())
+            self.assertIn('"restored": true',
+                          (root / '.ci/rust-workspace/tests-build/cache-restore.log').read_text())
+            shutil.rmtree(root / 'rust/target')
             bundle_stamp = bundle.stat().st_mtime_ns
             os.utime(bundle, ns=(time.time_ns(), time.time_ns()))
-            # Recompile/relink from the retained compiler cache after a real
+            # Recompile from the restored snapshot after a real
             # source edit. The next verdict still uses the complete new archive.
             source = root / 'rust/providers/src/lib.rs'
             source.write_text(source.read_text() + '\npub fn changed_crate() {}\n')
@@ -512,13 +484,31 @@ pub fn compile_only() {}
             self.assertTrue(freshness['source_changed'])
             self.assertEqual(freshness['restored_generated_files'], 1)
             self.assertEqual(bundle.stat().st_mtime_ns, bundle_stamp)
+            self.assertIn('Compiling kona-providers-alloy',
+                          (root / '.ci/rust-workspace/tests-build/archive.log').read_text())
+            # First runtime receives only the current compiler artifact. Its own
+            # tool cache is empty and raw producer targets are absent.
+            compiled = root / 'producer-cache.tar.zst'
+            packed.replace(compiled)
+            shutil.rmtree(root / 'rust/target')
+            env['COMPILED_TARGET'] = str(compiled)
             env['TEST_ARCHIVE'] = str(root / '.ci/rust-workspace/tests-build')
+            corrupt = root / 'corrupt-target.tar.zst'; corrupt.write_bytes(b'corrupt snapshot')
+            rejected = run('tests', {'COMPILED_TARGET': str(corrupt)})
+            self.assertNotEqual(rejected.returncode, 0)
+            final = json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())
+            self.assertEqual(final['exit_code'], rejected.returncode)
+            self.assertIn('tar', (root / '.ci/rust-workspace/tests/cache-restore.log').read_text())
+            self.assertFalse((root / '.ci/rust-workspace/tests/unit-list.json').exists())
             mismatch = run('tests', {'CI_RUST_INCREMENTAL': '0'})
             self.assertNotEqual(mismatch.returncode, 0)
             self.assertIn('mismatch', mismatch.stderr)
             self.assertEqual(json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())['exit_code'], mismatch.returncode)
             first = run('tests')
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            self.assertNotIn('Compiling kona-providers-alloy',
+                             (root / '.ci/rust-workspace/tests/beacon-list.log').read_text())
+            self.assertTrue(packed.is_file())
             failed = run('tests', {'RWX_FIXTURE_FAIL': '1'})
             self.assertNotEqual(failed.returncode, 0)
             final = json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())

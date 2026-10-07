@@ -98,6 +98,39 @@ def detach_metadata(target):
     return {'detached_metadata_files': count, 'detached_metadata_bytes': size}
 
 
+def snapshot(phase, target, archive):
+    """Pack compiler output; restore its original permissions and nanosecond mtimes.
+
+    RWX owns cache byte transport. Cargo owns source/compiler invalidation.
+    The caller removes test reports before packing. A failed pack leaves the
+    previous snapshot intact; an unreadable snapshot fails before compilation.
+    """
+    if phase == 'restore':
+        if not archive.exists():
+            print(json.dumps({'restored': False}))
+            return
+        if target.exists():
+            shutil.rmtree(target)
+        target.mkdir(parents=True, exist_ok=True)
+        subprocess.run(['tar', '--zstd', '--extract', '--file', str(archive),
+                        '--directory', str(target)], check=True)
+        print(json.dumps({'restored': True, 'archive_bytes': archive.stat().st_size}))
+    else:
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix='.target-cache-', dir=archive.parent)
+        os.close(fd)
+        temporary = Path(name)
+        try:
+            subprocess.run(['tar', '--use-compress-program=zstd -T0 -3', '--sort=name',
+                            '--format=pax', '--pax-option=delete=atime,delete=ctime',
+                            '--create', '--file', str(temporary), '--directory', str(target),
+                            '.'], check=True)
+            temporary.replace(archive)
+        finally:
+            temporary.unlink(missing_ok=True)
+        print(json.dumps({'archive_bytes': archive.stat().st_size}))
+
+
 def manage(phase, root, target):
     target.mkdir(parents=True, exist_ok=True)
     state = target / '.rwx-source-fingerprint.json'
@@ -176,5 +209,7 @@ def manage(phase, root, target):
 if __name__ == '__main__':
     if sys.argv[1] == 'namespace':
         print(json.dumps(namespace(Path.cwd()), sort_keys=True))
+    elif sys.argv[1] in ('pack', 'restore'):
+        snapshot(sys.argv[1], Path(os.environ['CARGO_TARGET_DIR']), Path(sys.argv[2]))
     else:
         manage(sys.argv[1], Path.cwd(), Path(os.environ['CARGO_TARGET_DIR']))

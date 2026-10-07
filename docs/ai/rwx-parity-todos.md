@@ -224,11 +224,12 @@ gate cutover items above.
 - [ ] Measure Rust target-layer transfer separately in future performance work;
   the first corrected namespace uploaded 57,315 MiB in 292 seconds. Keep the
   selected configuration for this stage.
-- [x] Narrow Rust compiler-cache outputs after the ordinary-rebuild layer-cap
-  failure. Complete archives retain every test executable; compiler caches retain
-  libraries and incremental work. The real Linux fixture rebuilds a committed
-  source edit and runs fresh verdicts from the archive. Retain final cold/warm
-  hosted observations separately in the evidence collection.
+- [x] Store full-test Cargo targets as compressed compiler snapshots and transfer
+  the producer snapshot through an artifact dependency. Retain executable
+  fingerprints and incremental work; exclude raw targets and test reports from
+  reusable layers. The real Linux fixture proves unchanged reuse, a committed
+  source rebuild, corrupt-snapshot failure reporting and fresh verdicts. Retain
+  final cold/warm hosted observations separately in the evidence collection.
 - [ ] Investigate the filesystem root cause of restored-rmeta `ESTALE` with RWX.
   Publish independent metadata files as the pilot workaround; retain both
   original failures and label breakpoint observations as diagnostic. Do not

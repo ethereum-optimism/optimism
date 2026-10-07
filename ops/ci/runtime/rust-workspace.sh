@@ -48,8 +48,6 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   mkdir -p "$CARGO_HOME" "$SCCACHE_DIR" "$CARGO_TARGET_DIR"
   sccache --start-server
   sccache --zero-stats
-  python3 "$HELPERS/op-reth-report.py" prepare-superchain "$report"
-  python3 "$HELPERS/rust-target-cache.py" prepare >"$report/cache-source.json"
 fi
 python3 "$HELPERS/rust-workspace-report.py" begin "$report" "$job"
 finish() {
@@ -62,6 +60,9 @@ finish() {
     sccache --stop-server >"$report/sccache-stop.log" 2>&1 || diagnostics=$?
     if [[ "$status" == 0 ]]; then
       python3 "$HELPERS/rust-target-cache.py" commit >"$report/cache-publication.json" || diagnostics=$?
+      if [[ "$diagnostics" == 0 && -n "${packed_target:-}" ]]; then
+        stage_at . cache-pack python3 "$HELPERS/rust-target-cache.py" pack "$packed_target" || diagnostics=$?
+      fi
     fi
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
@@ -74,6 +75,20 @@ trap 'exit 143' TERM
 stage() { python3 "$HELPERS/rust-workspace-report.py" stage "$report" "$@"; }
 stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"; }
 json_stage() { python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" "$@"; }
+if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+  case "$job" in
+    tests-build|tests)
+      packed_target="$ROOT/.ci/rust-cache/target-cache.tar.zst"
+      # Runtime tool caches are independent of producer layers. A first verdict
+      # uses the current producer artifact; later verdicts restore their cache.
+      restore_target="$packed_target"
+      if [[ ! -f "$restore_target" ]]; then restore_target="${COMPILED_TARGET:-$packed_target}"; fi
+      stage_at . cache-restore python3 "$HELPERS/rust-target-cache.py" restore "$restore_target"
+      ;;
+  esac
+  python3 "$HELPERS/op-reth-report.py" prepare-superchain "$report"
+  python3 "$HELPERS/rust-target-cache.py" prepare >"$report/cache-source.json"
+fi
 json_stage workspace cargo metadata --no-deps --locked --all-features --format-version 1
 docs() {
   stage doctests-list cargo test --doc --workspace --locked --all-features -- --list
@@ -100,11 +115,6 @@ case "$job" in
     stage beacon-build cargo test --profile fast-build --locked -p kona-providers-alloy \
       test_filtered_beacon_blobs_deserializes_on_small_stack --no-run
     python3 "$HELPERS/rust-workspace-report.py" artifact "$report"
-    if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
-      # The verified archive owns executable transfer. Retaining the same large
-      # test binaries in cumulative tool-cache layers exceeded RWX's 100 GiB cap.
-      python3 "$HELPERS/rust-workspace-report.py" prune-archived-tests "$report"
-    fi
     ;;
   tests)
     rm -f "$ROOT/rust/target/nextest/default/junit.xml"

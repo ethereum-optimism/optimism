@@ -13,6 +13,7 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location('rust_cache', Path(__file__).resolve().parents[1] / 'runtime' / 'rust-target-cache.py')
 CACHE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CACHE)
+ARCHIVE_TOOLS = shutil.which('zstd') and 'GNU tar' in subprocess.check_output(['tar', '--version'], text=True)
 
 
 class RustTargetCacheTest(unittest.TestCase):
@@ -33,6 +34,41 @@ class RustTargetCacheTest(unittest.TestCase):
     def run_phase(self, phase):
         with contextlib.redirect_stdout(io.StringIO()):
             CACHE.manage(phase, self.root, self.target)
+
+    @unittest.skipUnless(ARCHIVE_TOOLS, 'requires GNU tar and zstd')
+    def test_snapshot_restores_compiler_bytes_modes_and_nanosecond_mtimes(self):
+        binary = self.target / 'debug/deps/test-binary'
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b'compiled executable')
+        binary.chmod(0o755)
+        stamp = 1234567890123456789
+        os.utime(binary, ns=(stamp, stamp))
+        incremental = self.target / 'debug/incremental/work'
+        incremental.parent.mkdir(parents=True)
+        incremental.write_bytes(b'incremental compiler state')
+        archive = self.root / '.ci/rust-cache/target-cache.tar.zst'
+        CACHE.snapshot('pack', self.target, archive)
+        binary.write_bytes(b'partial failed rebuild')
+        leftover = self.target / 'partial-new-file'; leftover.touch()
+        CACHE.snapshot('restore', self.target, archive)
+        self.assertEqual(binary.read_bytes(), b'compiled executable')
+        self.assertEqual(binary.stat().st_mtime_ns, stamp)
+        self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(incremental.read_bytes(), b'incremental compiler state')
+        self.assertFalse(leftover.exists())
+
+    @unittest.skipUnless(ARCHIVE_TOOLS, 'requires GNU tar and zstd')
+    def test_corrupt_snapshot_fails_and_failed_pack_preserves_previous_cache(self):
+        archive = self.root / 'target.tar.zst'
+        archive.write_bytes(b'corrupt archive')
+        with self.assertRaises(subprocess.CalledProcessError):
+            CACHE.snapshot('restore', self.target, archive)
+        self.target.mkdir(exist_ok=True)
+        with patch.object(CACHE.subprocess, 'run', side_effect=subprocess.CalledProcessError(2, 'tar')):
+            with self.assertRaises(subprocess.CalledProcessError):
+                CACHE.snapshot('pack', self.target, archive)
+        self.assertEqual(archive.read_bytes(), b'corrupt archive')
+        self.assertFalse(list(self.root.glob('.target-cache-*')))
 
     def test_namespace_keeps_source_edits_but_resets_dependency_and_compiler_changes(self):
         manifest = self.root / 'rust/Cargo.toml'; manifest.write_text('[workspace]\n')

@@ -332,3 +332,11 @@ its 100 GB disk because dependency layers occupied 88.37 GB and required another
 20 GB of scratch space. Retain both attempt engine records and original reports;
 compare the subsequent 150 GB validation separately. Successful warm compilation
 does not establish a passing warm verdict.
+
+The 150 GB producer at `d233b6c244` compiled successfully, then failed the
+separate layer cap: 73.5 GiB inherited plus 26.6 GiB added. Executable pruning
+did not provide enough headroom for repeated updates. Subsequent full-test
+compiler snapshots use compressed PAX archives and artifact-only producer
+transfer. Retrieve their `cache-restore`/`cache-pack` logs, stage timings and
+terminal engine records. Keep the read-only cache-size probe labeled diagnostic;
+it executes no tests and is separate from untouched hosted reuse.
