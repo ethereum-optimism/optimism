@@ -14,8 +14,8 @@ pub use clock::{Clock, SystemClock};
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    EngineConfig, EngineDerivationClient, EngineError, QueuedEngineDerivationClient, ResetRequest,
+    SealRequest,
 };
 
 pub(crate) mod rpc;
