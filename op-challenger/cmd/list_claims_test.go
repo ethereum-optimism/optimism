@@ -10,12 +10,12 @@ import (
 
 func sampleReport() claimsReport {
 	return claimsReport{
-		Status:        "In Progress",
-		L2StartBlock:  100,
-		L2BlockNumber: 200,
-		SplitDepth:    30,
-		MaxDepth:      73,
-		ClaimCount:    3,
+		Status:                "In Progress",
+		L2StartSequenceNumber: 100,
+		L2EndSequenceNumber:   200,
+		SplitDepth:            30,
+		MaxDepth:              73,
+		ClaimCount:            3,
 		Claims: []claimRecord{
 			{
 				Index: 0, Move: "Attack", ParentIndex: -1, Depth: 0, TraceIndex: "1073741823",
@@ -84,7 +84,7 @@ func TestRenderText(t *testing.T) {
 	require.NoError(t, renderText(&buf, sampleReport(), false))
 	out := buf.String()
 
-	require.Contains(t, out, "Status: In Progress • L2 Blocks: 100 to 200 (Unchallenged)")
+	require.Contains(t, out, "Status: In Progress • L2 Sequence: 100 to 200 • Block Num Challenge: none")
 	require.Contains(t, out, "Idx Move")
 	require.Contains(t, out, "fa2c59..c571a7") // terminal (short) value in non-verbose
 	require.Contains(t, out, "0.08000000")     // 8-decimal bond preserved

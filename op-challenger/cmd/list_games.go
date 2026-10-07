@@ -27,7 +27,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var ColumnTypes = []string{"time", "claimCount", "l2BlockNum"}
+var ColumnTypes = []string{"time", "claimCount", "l2SequenceNum"}
 
 var (
 	SortByFlag = &cli.StringFlag{
@@ -94,11 +94,11 @@ func ListGames(ctx *cli.Context) error {
 
 type gameInfo struct {
 	types.GameMetadata
-	claimCount *uint64
-	l2BlockNum uint64
-	rootClaim  common.Hash
-	status     types.GameStatus
-	err        error
+	claimCount    *uint64
+	l2SequenceNum uint64
+	rootClaim     common.Hash
+	status        types.GameStatus
+	err           error
 }
 
 func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contracts.DisputeGameFactoryContract, block common.Hash, gameWindow time.Duration, sortBy, sortOrder, format string) error {
@@ -128,7 +128,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 				return
 			}
 			infos[idx].status = metadata.Status
-			infos[idx].l2BlockNum = metadata.L2SequenceNum
+			infos[idx].l2SequenceNum = metadata.L2SequenceNum
 			infos[idx].rootClaim = metadata.ProposedRoot
 			if fdg, ok := gameContract.(contracts.FaultDisputeGameContract); ok &&
 				types.GameType(game.GameType) != types.SuperPermissionedGameType {
@@ -156,12 +156,12 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 		slices.SortFunc(infos, func(i, j gameInfo) int {
 			return compareClaimCounts(i.claimCount, j.claimCount, sortOrder == "desc")
 		})
-	case "l2BlockNum":
+	case "l2SequenceNum":
 		slices.SortFunc(infos, func(i, j gameInfo) int {
 			if sortOrder == "desc" {
-				return cmp.Compare(j.l2BlockNum, i.l2BlockNum)
+				return cmp.Compare(j.l2SequenceNum, i.l2SequenceNum)
 			}
-			return cmp.Compare(i.l2BlockNum, j.l2BlockNum)
+			return cmp.Compare(i.l2SequenceNum, j.l2SequenceNum)
 		})
 	}
 
@@ -171,15 +171,15 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 			return game.err
 		}
 		records = append(records, gameRecord{
-			Index:         game.Index,
-			Game:          game.Proxy.Hex(),
-			GameType:      game.GameType,
-			Timestamp:     int64(game.Timestamp),
-			Created:       time.Unix(int64(game.Timestamp), 0).Format(time.RFC3339),
-			L2BlockNumber: game.l2BlockNum,
-			OutputRoot:    game.rootClaim.Hex(),
-			ClaimCount:    game.claimCount,
-			Status:        game.status.String(),
+			Index:            game.Index,
+			Game:             game.Proxy.Hex(),
+			GameType:         game.GameType,
+			Timestamp:        int64(game.Timestamp),
+			Created:          time.Unix(int64(game.Timestamp), 0).Format(time.RFC3339),
+			L2SequenceNumber: game.l2SequenceNum,
+			RootClaim:        game.rootClaim.Hex(),
+			ClaimCount:       game.claimCount,
+			Status:           game.status.String(),
 		})
 	}
 
@@ -210,20 +210,20 @@ func compareClaimCounts(a, b *uint64, desc bool) int {
 
 // gameRecord is the structured, machine-readable view of a single game.
 type gameRecord struct {
-	Index         uint64  `json:"index"`
-	Game          string  `json:"game"` // proxy address
-	GameType      uint32  `json:"gameType"`
-	Timestamp     int64   `json:"timestamp"` // unix seconds (creation)
-	Created       string  `json:"created"`   // RFC3339
-	L2BlockNumber uint64  `json:"l2BlockNumber"`
-	OutputRoot    string  `json:"outputRoot"`
-	ClaimCount    *uint64 `json:"claimCount,omitempty"` // unset for ZK and super-permissioned games
-	Status        string  `json:"status"`
+	Index            uint64  `json:"index"`
+	Game             string  `json:"game"` // proxy address
+	GameType         uint32  `json:"gameType"`
+	Timestamp        int64   `json:"timestamp"` // unix seconds (creation)
+	Created          string  `json:"created"`   // RFC3339
+	L2SequenceNumber uint64  `json:"l2SequenceNumber"`
+	RootClaim        string  `json:"rootClaim"`
+	ClaimCount       *uint64 `json:"claimCount,omitempty"` // unset for ZK and super-permissioned games
+	Status           string  `json:"status"`
 }
 
 func renderGamesText(out io.Writer, games []gameRecord) error {
 	lineFormat := "%3v %-42v %4v %-21v %14v %-66v %6v %-14v\n"
-	if _, err := fmt.Fprintf(out, lineFormat, "Idx", "Game", "Type", "Created (Local)", "L2 Block", "Output Root", "Claims", "Status"); err != nil {
+	if _, err := fmt.Fprintf(out, lineFormat, "Idx", "Game", "Type", "Created (Local)", "L2 Sequence", "Root Claim", "Claims", "Status"); err != nil {
 		return err
 	}
 	for _, g := range games {
@@ -233,7 +233,7 @@ func renderGamesText(out io.Writer, games []gameRecord) error {
 		}
 		if _, err := fmt.Fprintf(out, lineFormat,
 			g.Index, g.Game, g.GameType, time.Unix(g.Timestamp, 0).Format(time.DateTime),
-			g.L2BlockNumber, g.OutputRoot, claims, g.Status); err != nil {
+			g.L2SequenceNumber, g.RootClaim, claims, g.Status); err != nil {
 			return err
 		}
 	}
