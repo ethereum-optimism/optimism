@@ -52,6 +52,19 @@ it checked.
 "Pending" means a worker is still running, or the code it targets has not landed. Each subdirectory
 README is authoritative for its exact statement.
 
+## The off-chain rule: existing Dafny model
+
+The protocol rule that an executing message is valid only while
+`initTimestamp <= execTimestamp <= initTimestamp + messageExpiryWindow` already has a formal model in
+the repo:
+- `op-supernode/dafny-models/Interop.dfy`: `ValidExecutingMessage` (~:516-529) and the imperative
+  check returning `ErrMessageExpired` (~:1747-1750);
+- `Types.dfy`: `MESSAGE_EXPIRY_WINDOW`.
+
+The Lean and Quint relay rule (`t ≤ e + W`) matches its boundary exactly. Ours omits `init ≤ exec`,
+which only makes the models more permissive. `dafny/` proves the off-chain half of the expiry
+argument against that model's own definitions (in progress).
+
 ## Assumptions, all layers
 
 Each layer states which of these it assumes and which it checks:
@@ -84,3 +97,5 @@ Each layer states which of these it assumes and which it checks:
 | `kontrol/` | Kontrol (KEVM) proofs | in progress |
 | `invariants/` | Foundry stateful invariant harness | in progress |
 | `hevm/`, `window-differential/` | hevm equivalence; Go/Rust window rule differential | in progress |
+| `dafny/` | lemmas over the existing supernode Dafny model | in progress |
+| `rollout/` | rollout orderings and misconfigurations (Quint) | in progress |
