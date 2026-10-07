@@ -26,7 +26,8 @@ variable {cfg : Config Chain Body Hash}
 
 /-! ### Activation is derived, not assumed -/
 
-/-- In every configuration: each withdrawal whose recorded sender is the exporter, from a
+/-- In every configuration whose member governance keeps the standard exporter
+(`exporterGovernance`): each withdrawal whose recorded sender is the exporter, from a
 standard chain, was made by that chain's `exportUndelivered` step, earlier in this execution, at a
 state where the chain was already upgraded and the message was unrelayed there. So, within this
 action model, the exporter never spoke before its chain's upgrade, and nothing else can make it
@@ -34,27 +35,27 @@ speak. It is informative for the design (`cfg.trusted = .exporter`); with anothe
 `exportUndelivered` records that sender, and the statement is vacuous. It does not establish real
 deployment history: that is the "historical inertness" assumption (README). -/
 theorem exporterSilentBeforeUpgrade {s₀ s : State Chain Hash} (h0 : Init s₀)
-    (hr : Reach cfg s₀ s) (w : Withdrawal Chain Hash) (hw : s.withdrawals w)
+    (hgov : cfg.exporterGovernance = true) (hr : Reach cfg s₀ s) (w : Withdrawal Chain Hash) (hw : s.withdrawals w)
     (hsnd : w.sender = .exporter) (hstd : cfg.standard w.origin) :
     ∃ z b s₁ s₂, Reach cfg s₀ s₁ ∧ Step cfg (.exportUndelivered w.origin z b w.fact.toL1) s₁ s₂ ∧
       Reach cfg s₂ s ∧ s₁.upgraded w.origin = true ∧
       ¬ s₁.relayed w.origin (cfg.msgHash w.origin z b) ∧
       w.fact.hash = cfg.msgHash w.origin z b ∧ w.fact.time = s₁.clock w.origin := by
-  obtain ⟨z, b, s₁, s₂, h1, h2, h3, h4, h5⟩ := (histW_reach h0 hr).wd w hw hsnd hstd
+  obtain ⟨z, b, s₁, s₂, h1, h2, h3, h4, h5⟩ := (histW_reach h0 hgov hr).wd w hw hsnd hstd
   exact ⟨z, b, s₁, s₂, h1, h2, h3, h2.1.2.1, h2.1.2.2, h4, h5⟩
 
 /-- Lockbox membership changes need no history re-check: when a standard chain y is authorized
-(at any time, in any configuration), every exporter withdrawal y ever made is an honest export
+(at any time, in any configuration with `exporterGovernance`), every exporter withdrawal y ever made is an honest export
 made after y's own upgrade. -/
 theorem joinNeedsNoHistoryCheck {s₀ s s' : State Chain Hash} (h0 : Init s₀)
-    (hr : Reach cfg s₀ s) {z y : Chain} (hj : Step cfg (.join z y) s s') (hy : cfg.standard y)
+    (hgov : cfg.exporterGovernance = true) (hr : Reach cfg s₀ s) {z y : Chain} (hj : Step cfg (.join z y) s s') (hy : cfg.standard y)
     (w : Withdrawal Chain Hash) (hw : s'.withdrawals w) (ho : w.origin = y)
     (hsnd : w.sender = .exporter) :
     ∃ z' b s₁ s₂, Reach cfg s₀ s₁ ∧ Step cfg (.exportUndelivered y z' b w.fact.toL1) s₁ s₂ ∧
       Reach cfg s₂ s' ∧ s₁.upgraded y = true ∧ w.fact.hash = cfg.msgHash y z' b := by
   subst ho
   obtain ⟨z', b, s₁, s₂, h1, h2, h3, h4, _, h6, _⟩ :=
-    exporterSilentBeforeUpgrade h0 (Reach.tail _ hr hj) w hw hsnd hy
+    exporterSilentBeforeUpgrade h0 hgov (Reach.tail _ hr hj) w hw hsnd hy
   exact ⟨z', b, s₁, s₂, h1, h2, h3, h4, h6⟩
 
 /-! ### Safety -/
@@ -222,6 +223,10 @@ theorem messengerSilentAfterUpgrade (htr : cfg.targetRule = true)
     rcases hnew with hnew | rfl
     · exact (hold hnew).elim
     · exact (hg hstd).elim
+  | exporterGovernanceUpgrade y f =>
+    rcases hnew with hnew | rfl
+    · exact (hold hnew).elim
+    · cases hsnd
   | _ => exact (hold hnew).elim
 
 end Expiry

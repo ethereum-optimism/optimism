@@ -133,7 +133,7 @@ theorem callOut_sender {x : Chain} {c : Call Chain Hash} {w : Withdrawal Chain H
 /-! ### HistW: holds in every configuration -/
 
 theorem histW_reach {cfg : Config Chain Body Hash} {s₀ s : State Chain Hash} (h0 : Init s₀)
-    (hr : Reach cfg s₀ s) : HistW cfg s₀ s := by
+    (hgov : cfg.exporterGovernance = true) (hr : Reach cfg s₀ s) : HistW cfg s₀ s := by
   induction hr with
   | refl => exact ⟨fun w hw => (h0.withdrawals_empty w hw).elim⟩
   | @tail s₁ s₂ a hr' hs ih =>
@@ -157,6 +157,10 @@ theorem histW_reach {cfg : Config Chain Body Hash} {s₀ s : State Chain Hash} (
       rcases hw with hw | rfl
       · exact exportedBy_step (ih.wd w hw hsnd hstd) hs'
       · exact (hg hstd).elim
+    | exporterGovernanceUpgrade y f =>
+      rcases hw with hw | rfl
+      · exact exportedBy_step (ih.wd w hw hsnd hstd) hs'
+      · simp only [guard, hgov] at hg; cases hg
     | _ => exact exportedBy_step (ih.wd w hw hsnd hstd) hs'
 
 /-! ### Inv: preservation under the safe configuration -/
@@ -414,6 +418,8 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : Ch
     rcases hw with hw | rfl
     · exact hI.wd w hw h1 h2
     · exact (hg h2).elim
+  | exporterGovernanceUpgrade y f =>
+    simp only [guard, hc.exporterGovernance] at hg; cases hg
   | arbitraryEvent z h t =>
     refine ⟨hI.sent_le, hI.sent_up, ?_, ?_, ?_, hI.gov, hI.wd, hI.dep, hI.exp, hI.ref,
       hI.refunds_le, hI.refunds_zero⟩
@@ -499,11 +505,11 @@ theorem inv_reach (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : C
     (h0 : Init s₀) (hg : GovInit cfg s₀) (hr : Reach cfg s₀ s) :
     Inv cfg s ∧ HistW cfg s₀ s ∧ NoForgedFact cfg s₀ s := by
   induction hr with
-  | refl => exact ⟨inv_init h0 hg, histW_reach h0 (Reach.refl _),
+  | refl => exact ⟨inv_init h0 hg, histW_reach h0 hc.exporterGovernance (Reach.refl _),
       fun f hf => (h0.deposits_empty f hf).elim⟩
   | @tail s₁ s₂ a hr' hs ih =>
     obtain ⟨hI, hW, hD⟩ := ih
-    refine ⟨inv_step hc hinj hid hI hs, histW_reach h0 (Reach.tail a hr' hs), ?_⟩
+    refine ⟨inv_step hc hinj hid hI hs, histW_reach h0 hc.exporterGovernance (Reach.tail a hr' hs), ?_⟩
     intro f hf
     have hs' := hs
     obtain ⟨hgd, rfl⟩ := hs
@@ -522,6 +528,8 @@ theorem inv_reach (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : C
       rcases hgd with hgd | hgd | hgd <;> cases hgd
     | l1cdmSelfRelay f' =>
       simp only [guard, hc.unsafeTargetCheck] at hgd; cases hgd
+    | exporterGovernanceUpgrade y f' =>
+      simp only [guard, hc.exporterGovernance] at hgd; cases hgd
     | _ =>
       obtain ⟨y, hy, hx⟩ := hD f hf
       exact ⟨y, hy, exportedBy_step hx hs'⟩

@@ -1,9 +1,11 @@
-# Lean 4 proof: per-message interop expiry is safe (v2.1, exporter design)
+# Lean 4 proof: per-message interop expiry is safe (v2.2, exporter design)
 
-**What this certifies.** This proves the safety of the **exporter design**, which is pending on
-`karl/message-expiry-refunds` and not yet on the branch. In that design:
+**What this certifies.** This proves the safety of the **exporter design**. The design has landed on
+`karl/message-expiry-refunds` at tip `5992028e08`, and the formal branch merges it (merge commit
+`4cc498f516`). In that design:
 
-- `relayUndeliveredMessage` trusts only the new `UndeliveredMessageExporter` at 0x4200..002E;
+- `relayUndeliveredMessage` trusts only the `UndeliveredMessageExporter` at
+  `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`;
 - P_contract = 8 days;
 - W_protocol ≤ 7 days.
 
@@ -11,18 +13,40 @@ The theorem: under the stated hypotheses, ETH is never both delivered on a messa
 and refunded on its (standard) source. It holds for any number of chains, sources, messages and
 lockbox joins, any length of time, and any attacker-chosen relay targets.
 
-**The contracts at `37b44c48c7` are a different configuration.** They are
-`cfgMessengerTrusted` (`trusted = messenger`): `relayUndeliveredMessage` trusts 0x..23. That
-configuration is **not** covered. `cex_messengerTrusted` shows it double-spends without v1's
-activation premise ("no legacy forged withdrawal from 0x..23 on any lockbox chain").
+**Exporter address.** The model refers to the exporter only as `Sender.exporter`, never by a
+hardcoded address. At `5992028e08` the constant is
+`packages/contracts-bedrock/src/libraries/Predeploys.sol:118`
+(`UNDELIVERED_MESSAGE_EXPORTER = 0x4200…002E`). It is moving to the next free predeploy slot,
+likely `0x4200…0030`. Nothing in the proof depends on which slot it uses.
 
-The theorem applies to deployed code only once all of these land:
+**Where each design change is, at `5992028e08`.** All paths are under the repo root;
+`cb/` = `packages/contracts-bedrock/`.
 
-1. The `UndeliveredMessageExporter` predeploy at 0x4200..002E. Exports move out of the messenger.
-2. `L1CrossDomainMessenger.relayUndeliveredMessage` checks `xDomainMessageSender() == 0x4200..002E`, not 0x..23.
-3. The INTEROP feature gate in `relayUndeliveredMessage`.
-4. P_contract = 8 days in `L2ToL2CrossDomainMessenger` (today `MESSAGE_EXPIRY_WINDOW = 7 days`).
-5. A W_protocol ≤ 7-day cap on the dependency-set override, in both op-core (Go) and kona (Rust).
+1. **Exporter predeploy:** `cb/src/L2/UndeliveredMessageExporter.sol:23` (the contract), with
+   `exportUndeliveredMessage` at `:43-74`. It hashes with `_destination: block.chainid` (`:56`),
+   reverts if `successfulMessages(H)` (`:64-66`), and makes exactly one call:
+   `L2CrossDomainMessenger.sendMessage(_sourceMessenger, relayUndeliveredMessage(H, block.timestamp), _minGasLimit)`
+   (`:68-72`). It is registered in `Predeploys.sol:471`.
+2. **Sender check (c) moved to the exporter:** `cb/src/L1/L1CrossDomainMessenger.sol:114`
+   (`xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER` reverts). Checks (a) and
+   (b) are at `:112-113`.
+3. **INTEROP gate:** `cb/src/L1/L1CrossDomainMessenger.sol:108`
+   (`if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert`). This is the receiving chain's
+   own SystemConfig, which matches the model's `cfg.interop w.fact.toL1`.
+4. **P_contract = 8 days:** `cb/src/L2/L2ToL2CrossDomainMessenger.sol:75` (`EXPIRY_PERIOD = 8 days`),
+   with the strict check at `:273` (`if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert`).
+5. **W_protocol ≤ 7-day cap:**
+   - Go: `op-core/interop/depset/static_depset.go:141-142`, in `hydrate`, rejects an override above `MessageExpiryTimeSecondsInterop = 604800` (`:15`). The validity rule is at `op-core/interop/depset/links.go:73`.
+   - kona: `rust/kona/crates/protocol/genesis/src/interop/depset.rs:44-45` (`deserialize_override_window`) rejects an override above `MESSAGE_EXPIRY_WINDOW` (`constants.rs:5`, 7 days).
+
+**Defense in depth.** The messenger's unsafe-target rule now also rejects the
+L2ToL1MessagePasser: `_isUnsafeTarget` at `cb/src/L2/L2ToL2CrossDomainMessenger.sol:287-289`,
+used on send (`:172`) and relay (`:224`). Safety does not depend on it
+(`safety_without_targetRule`).
+
+**Older contracts are a different configuration.** The contracts at `37b44c48c7`, before the
+landing, are `cfgMessengerTrusted` (`trusted = messenger`). That configuration is **not** covered:
+`cex_messengerTrusted` shows it double-spends without v1's activation premise.
 
 The model mirrors `../quint/expiry.qnt`, with the same action and property names where they exist.
 
@@ -59,7 +83,7 @@ chain ID.
 `sender` is the L2 contract that called `L2CrossDomainMessenger.sendMessage`, which L1 exposes as
 `xDomainMessageSender()`:
 
-- `exporter`: 0x..2E;
+- `exporter`: `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`;
 - `messenger`: 0x..23;
 - `user a`: any other address.
 
@@ -137,7 +161,8 @@ Every hypothesis is an explicit argument or structure field.
 
 | Hypothesis | Lean | Real-world fact |
 | --- | --- | --- |
-| Exporter is trusted | `SafeConfig.trusted` | `relayUndeliveredMessage` checks `xDomainMessageSender() == 0x4200..002E` (pending). |
+| Exporter is trusted | `SafeConfig.trusted` | `relayUndeliveredMessage` checks `xDomainMessageSender() == Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (`L1CrossDomainMessenger.sol:114`). |
+| Member governance keeps the standard exporter | `SafeConfig.exporterGovernance` | Each cluster chain's L2 governance (its L2 ProxyAdmin owner) can upgrade its own exporter, and could thereby forge facts for any destination. The design trusts it not to. This is the same trust as the shared ETHLockbox: lockbox portals must share the proxy admin owner. Without it: `cex_exporterGovernanceUpgrade`. |
 | Real-messenger check | `SafeConfig.realMessengerCheck` | `IL1CDM(msg.sender).portal().systemConfig().l1CrossDomainMessenger() == msg.sender`. |
 | Lockbox check | `SafeConfig.lockboxCheck` | `portal.ethLockbox().authorizedPortals(callerPortal)`, read at L1 relay time. |
 | Sender check | `SafeConfig.senderCheck` | The `xDomainMessageSender()` comparison. |
@@ -158,18 +183,19 @@ defense in depth, and safety does not depend on it:
 - The rule's own property is `messengerSilentAfterUpgrade`: with the rule, an upgraded standard
   chain's 0x..23 never initiates a withdrawal.
 - `messengerSpeaks_without_targetRule` shows that property fails without the rule.
-- The L2ToL1MessagePasser path (0x..23 → passer) is not modeled as a sender here. It is checked on
-  bytecode by Halmos/Kontrol (`check_OnlyExportReachesL1_relay_passer_PENDING`,
-  `prove_relayMessage_neverMakesMessengerCallPasser_PENDING`, the `*_passer_PENDING` checks).
+- The L2ToL1MessagePasser path (0x..23 → passer) is not modeled as a sender here. Since
+  `5992028e08` the messenger rejects that target too (`_isUnsafeTarget`,
+  `L2ToL2CrossDomainMessenger.sol:287-289`). It is checked on bytecode by Halmos/Kontrol (the
+  `*_passer` checks, formerly `*_PENDING`).
 
-**Deployment assumption: historical inertness.** 0x4200..002E is not code-free before the upgrade.
+**Deployment assumption: historical inertness.** The exporter address is not code-free before the upgrade.
 `scripts/L2Genesis.s.sol:226-240` (`setPredeployProxies`) etches the `Proxy` at every proxied
 predeploy slot (admin = ProxyAdmin), and sets an implementation only for supported predeploys.
 With no implementation, every call reverts (`src/universal/Proxy.sol:124-126`, `_doProxyCall`:
 `require(impl != address(0))`). So the exporter is silent before its upgrade because its proxy has
 no implementation.
 
-The residual assumption is that **no ProxyAdmin action set an implementation at 0x..2E before the
+The residual assumption is that **no ProxyAdmin action set an implementation at the exporter address before the
 network upgrade, on any chain that is or becomes a lockbox member**. In the model, `Init` says no
 chain is upgraded at genesis, and for a standard chain `upgrade` is the only action that gives the
 exporter an implementation.
@@ -209,17 +235,18 @@ def ExportedBy cfg s₀ s y f := ∃ z b s₁ s₂, Reach cfg s₀ s₁ ∧
 def NoForgedFact cfg s₀ s := ∀ f, s.deposits f → ∃ y, cfg.standard y ∧ ExportedBy cfg s₀ s y f
 def withinWindow cfg s x z h t := ∃ e, s.events z h e ∧ t ≤ e + cfg.protocolWindow x
 
--- Silence derived within the model. Any configuration; needs only (h0 : Init s₀) (hr : Reach cfg s₀ s).
+-- Silence derived within the model. Any configuration with exporterGovernance; needs only
+-- (h0 : Init s₀) (hgov) (hr : Reach cfg s₀ s).
 -- Informative when cfg.trusted = .exporter; otherwise exportUndelivered records the other sender
 -- and the statement is vacuous.
-theorem exporterSilentBeforeUpgrade (w) (hw : s.withdrawals w) (hsnd : w.sender = .exporter)
+theorem exporterSilentBeforeUpgrade (hgov : cfg.exporterGovernance = true) (w) (hw : s.withdrawals w) (hsnd : w.sender = .exporter)
     (hstd : cfg.standard w.origin) :
     ∃ z b s₁ s₂, Reach cfg s₀ s₁ ∧ Step cfg (.exportUndelivered w.origin z b w.fact.toL1) s₁ s₂ ∧
       Reach cfg s₂ s ∧ s₁.upgraded w.origin = true ∧ ¬ s₁.relayed w.origin (cfg.hash w.origin z b) ∧
       w.fact.hash = cfg.hash w.origin z b ∧ w.fact.time = s₁.clock w.origin
 
 -- Joins need no history re-check (same scope as above).
-theorem joinNeedsNoHistoryCheck (h0 : Init s₀) (hr : Reach cfg s₀ s)
+theorem joinNeedsNoHistoryCheck (h0 : Init s₀) (hgov : cfg.exporterGovernance = true) (hr : Reach cfg s₀ s)
     (hj : Step cfg (.join z y) s s') (hy : cfg.standard y) (w) (hw : s'.withdrawals w)
     (ho : w.origin = y) (hsnd : w.sender = .exporter) :
     ∃ z' b s₁ s₂, Reach cfg s₀ s₁ ∧ Step cfg (.exportUndelivered y z' b w.fact.toL1) s₁ s₂ ∧
@@ -344,6 +371,7 @@ Each config is `base` with **one** field changed, with two exceptions:
 | `cex_noUnsafeTargetCheck` | L1CDM self-target rule | `l1cdmSelfRelay`: A's L1CDM sends `expireMessage` as itself. |
 | `cex_noSenderCheck` | Sender check | A user contract on B sends the forged fact. |
 | `cex_hashCollision` | Injectivity (`SafeConfig` holds) | C honestly exports a colliding hash after B relayed. |
+| `cex_exporterGovernanceUpgrade` | Member governance keeps the standard exporter | After B's upgrade, B's L2 ProxyAdmin owner replaces B's exporter with arbitrary code, which sends the forged fact as the exporter. B is a lockbox member, so A accepts it. |
 | `cex_duplicateChainId` | Unique chain IDs (`SafeConfig`, `HashInjective` and `GovInit` hold) | C is standard but has B's chain ID. B relays A's message; C joins A's lockbox and exports the same hash; expire and refund. |
 
 ## `#print axioms` (from `lake build`)
@@ -367,22 +395,17 @@ every other witness and cex_* theorem: [propext, Quot.sound]
 
 ## Where W and P are enforced
 
-The design change had **not** landed when this was written. The branch tip
-`karl/message-expiry-refunds`, fetched on 2026-10-07, is `37b44c48c7`. At that commit:
+See "Where each design change is" at the top. In short, at `5992028e08`:
 
-- **Contract period.** `packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol:75` has `MESSAGE_EXPIRY_WINDOW = 7 days`. The strict check is at `:319`.
-  - *Intended:* 8 days (P_contract).
-- **Protocol window, Go.** The default is `op-core/interop/depset/static_depset.go:15` (604800 s). The override is applied at `:165-170`; the validity rule is at `op-core/interop/depset/links.go:73`. The override is uncapped.
-  - *Intended:* reject overrides above 7 days.
-- **Protocol window, kona.** `rust/kona/crates/protocol/genesis/src/interop/constants.rs:5` and `rust/kona/crates/protocol/genesis/src/interop/depset.rs:30-35`. The override is uncapped.
-  - *Intended:* reject overrides above 7 days.
-- **L1 relay.** `src/L1/L1CrossDomainMessenger.sol:104-120` trusts 0x..23 and has no INTEROP gate.
-  - *Intended:* trust 0x..2E and add the gate.
+- **P:** `L2ToL2CrossDomainMessenger.sol:75` and `:273`.
+- **W cap:** Go `static_depset.go:141-142`, kona `depset.rs:44-45`.
+- **W validity rule:** Go `links.go:73`. The extra rule `init ≤ exec` is at `links.go:70` and is omitted, which only makes the model more permissive.
 
 ## Discharged outside Lean
 
-The proof names below are from the sibling directories. They target the 37b44c48c7 contracts and
-must be re-targeted to the exporter once it lands.
+The proof names below are from the sibling directories. They were first written against
+`37b44c48c7`; the formal branch now includes `5992028e08`, so check each sibling's README for the
+re-targeted names (exporter in place of 0x..23 for check (c) and for the export).
 
 | Obligation | Where |
 | --- | --- |
@@ -397,14 +420,15 @@ must be re-targeted to the exporter once it lands.
 | **P ≥ W cap.** | `check_contractWindowCoversProtocolCap`, `prove_expiryWindow_atLeastProtocolWindow` |
 | **Refund preimage binding.** Source = `block.chainid`, sender = target = bridge, `relayETH(from, to, amount)`, pays at most once. The model keeps the source binding and abstracts the rest as `isBridge`. | `prove_refundETH_preimageBinding`, `prove_refundETH_singleUse`, `check_refund_iff_effects_singleUse` |
 | **Nonce freshness.** | The `send` freshness guard, with `HashInjective` |
-| **Historical inertness of 0x..2E.** | Deployment assumption (above) |
+| **Historical inertness of the exporter address.** | Deployment assumption (above) |
+| **Member L2 governance keeps the standard exporter.** | Governance assumption, the `exporterGovernance` field (same trust as the shared ETHLockbox) |
 
 ## Named assumptions not modeled as transitions
 
 - **W activation and time-varying W.** The protocol rule `exec − init ≤ W_d` is enforced on a destination before that destination's exporter goes live. W_d never later rises above P. The model has fixed W_d from genesis; activation of the W rule and changes to W are not modeled.
-- **Preimage hardness of predeploy addresses.** No EOA, and no aliased L1 address (`AddressAliasHelper`), equals 0x..2E or 0x..23. This is why `userWithdrawal` can only record `user a` and never a predeploy as sender.
-- **Pre-Bedrock legacy withdrawals.** Legacy (pre-Bedrock) L2→L1 messages are irrelevant: none carries `relayUndeliveredMessage` from 0x..2E. The model's genesis is the Bedrock-era history.
-- **Historical inertness of 0x..2E** and the **governance assumptions** (standard-only joins, unique chain IDs, SystemConfig consistency): see "Hypotheses" above.
+- **Preimage hardness of predeploy addresses.** No EOA, and no aliased L1 address (`AddressAliasHelper`), equals `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` or 0x..23. This is why `userWithdrawal` can only record `user a` and never a predeploy as sender.
+- **Pre-Bedrock legacy withdrawals.** Legacy (pre-Bedrock) L2→L1 messages are irrelevant: none carries `relayUndeliveredMessage` from the exporter. The model's genesis is the Bedrock-era history.
+- **Historical inertness of the exporter address** and the **governance assumptions** (standard-only joins, unique chain IDs, SystemConfig consistency, member governance keeps the standard exporter): see "Hypotheses" above.
 
 ## Modeling choices and what is NOT modeled
 
@@ -444,4 +468,5 @@ must be re-targeted to the exporter once it lands.
 | v2 | Claude H1, astra, sol | Make clear what is certified | v2.1: first paragraph; 37b44c48c7 = `cfgMessengerTrusted`; list of code changes that must land |
 | v2.1 | coordinator (Karl's decision) | Keep the target rule as defense in depth; safety must not depend on it | v2.1: `safety_without_targetRule`, `messengerSilentAfterUpgrade`, `messengerSpeaks_without_targetRule`; passer path delegated to Halmos/Kontrol |
 | v2.1 | coordinator (Quint v2 review) | Chains are identified by chain ID only; duplicate IDs among lockbox members allow a double spend without any hash collision | v2.1: `Chain` separated from `chainId`; hash on chain IDs; hypothesis `ChainIdUnique`; `cex_duplicateChainId`; W activation, predeploy preimage hardness and pre-Bedrock withdrawals listed as named assumptions |
+| v2.2 | coordinator (design landed) | Cite the landed code; refer to the exporter by its constant; name the member-governance exporter-upgrade assumption; note the passer target rule | v2.2: citations at `5992028e08`; no hardcoded exporter address; `exporterGovernance` field, `exporterGovernanceUpgrade` action, `cex_exporterGovernanceUpgrade`; passer rule noted |
 | v2 | Claude L4 | "Every configuration" is vacuous when trusted ≠ exporter | v2.1: qualified in the docstring and README |

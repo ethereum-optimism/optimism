@@ -23,8 +23,9 @@ namespace Expiry
 /-- The L2 contract that called L2CrossDomainMessenger.sendMessage. On L1 it is the relaying
 L1CrossDomainMessenger's `xDomainMessageSender()`. -/
 inductive Sender where
-  /-- 0x4200..002E UndeliveredMessageExporter. Before its upgrade the address holds the genesis
-  Proxy with no implementation, which reverts every call (Proxy.sol `_doProxyCall`). -/
+  /-- `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (UndeliveredMessageExporter). Before its upgrade the
+  address holds the genesis Proxy with no implementation, which reverts every call
+  (Proxy.sol `_doProxyCall`). -/
   | exporter
   /-- 0x4200..0023 L2ToL2CrossDomainMessenger. -/
   | messenger
@@ -102,6 +103,9 @@ structure Config (Chain Body Hash : Type) where
   /-- Governance: for every portal authorized in a lockbox, `systemConfig.l1CrossDomainMessenger()`
   is that chain's real L1CDM. -/
   sysConfigConsistent : Bool
+  /-- Governance: no standard chain's L2 governance (its L2 ProxyAdmin owner) replaces its exporter
+  with other code. Same trust as the shared ETHLockbox. -/
+  exporterGovernance : Bool
   /-- Boundary mutation: `t ≥ sentAt + P` instead of `t > sentAt + P`. -/
   expireGe : Bool
   /-- The removed resendMessage, and whether it restarts the recorded timestamp. -/
@@ -169,6 +173,9 @@ inductive Action (Chain Body Hash : Type) where
   /-- L1: an L1CDM relays a withdrawal whose target is itself, calling its own sendMessage, so
   it becomes the L1 sender of an arbitrary expireMessage deposit. -/
   | l1cdmSelfRelay (f : Fact Chain Hash)
+  /-- Chain y's L2 governance upgrades its exporter to arbitrary code, which then sends any fact
+  as the exporter. -/
+  | exporterGovernanceUpgrade (y : Chain) (f : Fact Chain Hash)
   /-- A non-standard chain's bridge marks any hash refunded and pays out. -/
   | arbitraryRefund (z : Chain) (h : Hash)
   /-- Chain `f.toL1`: the deposit runs expireMessage. -/
@@ -224,6 +231,7 @@ def guard (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chai
       cfg.standard y ∧ s.upgraded y = true ∧ ¬ s.relayed y (cfg.msgHash y z b)
   | .userWithdrawal _ _ _, _ => True
   | .arbitraryCode y _ _, _ => ¬ cfg.standard y
+  | .exporterGovernanceUpgrade _ _, _ => cfg.exporterGovernance = false
   | .arbitraryEvent z _ _, _ => ¬ cfg.standard z
   | .l1Relay w, s =>
       s.withdrawals w ∧
@@ -269,6 +277,8 @@ def next (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chain
       { s with withdrawals := fun w => s.withdrawals w ∨ w = ⟨y, .user a, f⟩ }
   | .arbitraryCode y snd f, s =>
       { s with withdrawals := fun w => s.withdrawals w ∨ w = ⟨y, snd, f⟩ }
+  | .exporterGovernanceUpgrade y f, s =>
+      { s with withdrawals := fun w => s.withdrawals w ∨ w = ⟨y, .exporter, f⟩ }
   | .arbitraryEvent z h t, s =>
       { s with events := fun c h' e => s.events c h' e ∨ (c = z ∧ h' = h ∧ e = t) }
   | .l1Relay w, s => { s with deposits := fun f => s.deposits f ∨ f = w.fact }
@@ -335,6 +345,7 @@ structure SafeConfig (cfg : Config Chain Body Hash) : Prop where
   govCheck : cfg.govCheck = true
   unsafeTargetCheck : cfg.unsafeTargetCheck = true
   sysConfigConsistent : cfg.sysConfigConsistent = true
+  exporterGovernance : cfg.exporterGovernance = true
   /-- W_d < P with `≥`, W_d ≤ P with the strict check. -/
   window : ∀ d, cfg.protocolWindow d + (if cfg.expireGe then 1 else 0) ≤ cfg.contractPeriod
   resend : cfg.resend = false ∨ cfg.resendRestarts = true

@@ -70,6 +70,7 @@ def base : Config Nat Nat H where
   govCheck := true
   unsafeTargetCheck := true
   sysConfigConsistent := true
+  exporterGovernance := true
   expireGe := false
   resend := false
   resendRestarts := false
@@ -97,7 +98,7 @@ theorem s0_gov (cfg : Config Nat Nat H) (hstd : cfg.standard = fun c => c ≤ 2)
   intro z y h; rw [hstd]; simp only [s0] at h; show y ≤ 2; omega
 
 theorem base_safe : SafeConfig base :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩
 
 theorem inj_id : HashInjective (fun (d z b : Nat) => ((d, z, b) : H)) := by
   intro d z b d' z' b' h
@@ -177,11 +178,11 @@ theorem safe_variants :
     SafeConfig { base with protocolWindow := fun d => if d = 1 then 3 else 7 } ∧
     SafeConfig { base with resend := true, resendRestarts := true } ∧
     SafeConfig { base with expireGe := true } := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 7 by decide, Or.inl rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun d => ?_, Or.inl rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inr rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 1 ≤ 8 by decide, Or.inl rfl⟩⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 7 by decide, Or.inl rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun d => ?_, Or.inl rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inr rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 1 ≤ 8 by decide, Or.inl rfl⟩⟩
   show (if d = 1 then 3 else 7) + 0 ≤ 8
   split <;> decide
 
@@ -407,6 +408,7 @@ def cfgCollide : Config Nat Nat Unit where
   govCheck := true
   unsafeTargetCheck := true
   sysConfigConsistent := true
+  exporterGovernance := true
   expireGe := false
   resend := false
   resendRestarts := false
@@ -435,7 +437,7 @@ theorem cex_hashCollision :
     GovInit cfgCollide u0 ∧
     Reach cfgCollide u0 (run cfgCollide collideTrace u0) ∧
     ¬ NoDoubleSpend cfgCollide (run cfgCollide collideTrace u0) := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩, ?_, fun _ _ _ h => h,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩, ?_, fun _ _ _ h => h,
     ⟨fun _ => rfl, fun _ _ => rfl, fun _ _ _ h => h, fun _ _ h => h, fun _ h => h, fun _ h => h,
      fun _ _ h => h, fun _ _ h => h, fun _ _ => rfl⟩, ?_, reach_run _ _ _ ?_, ?_⟩
   · intro hinj
@@ -464,13 +466,32 @@ theorem cex_duplicateChainId :
   have hv : Valid cfgDupId dupTrace s0 := by
     simp [Valid, dupTrace, cfgDupId, guard, next, base, s0, upd1, upd2, withinWindow, expiredBy,
       fDup]
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
     inj_id, ?_, s0_init, s0_gov _ rfl, hv, reach_run _ _ _ hv, ?_⟩
   · intro hid
     exact absurd (hid 2 1 (show (2 : Nat) ≤ 2 by decide) rfl) (by decide)
   · intro h
     exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
       simp [run, dupTrace, cfgDupId, next, base, s0, upd1, upd2, fDup])
+
+/-- Member governance dropped: after B's upgrade, B's L2 ProxyAdmin owner replaces B's exporter
+with arbitrary code, which sends the forged fact as the exporter. B is a lockbox member, so A's
+L1CDM accepts it. Same trust as the shared ETHLockbox. -/
+def cfgNoExporterGov : Config Nat Nat H := { base with exporterGovernance := false }
+
+def govUpgradeTrace : List (Action Nat Nat H) :=
+  [.upgrade 0, .upgrade 1, .send 0 1 5, .relay 1 0 5, .exporterGovernanceUpgrade 1 fM,
+   .l1Relay ⟨1, .exporter, fM⟩, .expire fM, .refund 0 1 5]
+
+theorem cex_exporterGovernanceUpgrade : Cex cfgNoExporterGov govUpgradeTrace := by
+  have hv : Valid cfgNoExporterGov govUpgradeTrace s0 := by
+    simp [Valid, govUpgradeTrace, cfgNoExporterGov, guard, next, base, s0, upd1, upd2,
+      withinWindow, expiredBy, fM]
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.exporterGovernance),
+    hv, reach_run _ _ _ hv, ?_⟩
+  intro h
+  exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
+    simp [run, govUpgradeTrace, cfgNoExporterGov, next, base, s0, upd1, upd2, fM])
 
 /-! ### Defense in depth: the messenger's unsafe-target rule -/
 
@@ -484,7 +505,7 @@ theorem messengerSpeaks_without_targetRule :
     ∃ s s', Reach cfgNoTargetRule s0 s ∧ Step cfgNoTargetRule (.relay 1 0 9) s s' ∧
       s'.withdrawals wM ∧ ¬ s.withdrawals wM ∧ wM.sender = .messenger ∧
       cfgNoTargetRule.standard wM.origin ∧ s.upgraded wM.origin = true := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
     run cfgNoTargetRule [.upgrade 0, .upgrade 1, .send 0 1 9] s0,
     next cfgNoTargetRule (.relay 1 0 9) (run cfgNoTargetRule [.upgrade 0, .upgrade 1, .send 0 1 9] s0),
     reach_run _ _ _ ?_, ⟨?_, rfl⟩, ?_, ?_, rfl, show (1 : Nat) ≤ 2 by decide, ?_⟩
