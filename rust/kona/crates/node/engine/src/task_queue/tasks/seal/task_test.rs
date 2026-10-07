@@ -209,7 +209,6 @@ async fn rejected_payloads_are_replaced_only_if_derived_under_holocene(
     let invalid = PayloadStatus::from_status(PayloadStatusEnum::Invalid {
         validation_error: "invalid".into(),
     });
-    l2.expect("engine_getPayloadV3", payload.clone());
     l2.expect("engine_newPayloadV3", invalid.clone());
     if expected == Rejection::ReplacementFailed {
         let forkchoice = TestEngineStateBuilder::new()
@@ -225,22 +224,25 @@ async fn rejected_payloads_are_replaced_only_if_derived_under_holocene(
                 payload_id: Some(PayloadId::new([2; 8])),
             },
         );
-        l2.expect("engine_getPayloadV3", payload);
+        l2.expect("engine_getPayloadV3", payload.clone());
         l2.expect("engine_newPayloadV3", invalid);
     }
     let mut state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
-    let task = SealTask::new(
-        client.clone(),
-        cfg,
-        PayloadId::new([1u8; 8]),
-        attributes,
+    let envelope = op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V3 {
+        payload: payload.execution_payload,
+        parent_beacon_block_root: payload.parent_beacon_block_root,
+    };
+    let err = crate::task_queue::insert_payload_with_holocene_fallback(
+        client.as_ref(),
+        &cfg,
+        &mut state,
+        &attributes,
+        envelope,
         is_attributes_derived,
-        Atomic,
-        None,
-        Arc::new(crate::NoopBlockSink),
-    );
-
-    let err = task.execute(&mut state).await.expect_err("the engine rejects every payload");
+        &crate::NoopBlockSink,
+    )
+    .await
+    .expect_err("the engine rejects every payload");
 
     let rejection = match &err {
         SealTaskError::PayloadInsertionFailed(insert)
