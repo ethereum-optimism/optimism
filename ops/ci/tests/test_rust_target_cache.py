@@ -95,7 +95,10 @@ class RustTargetCacheTest(unittest.TestCase):
         with (self.root / '.git/info/exclude').open('a') as f: f.write(name + '\n')
         archive = self.root / name; archive.parent.mkdir(parents=True)
         archive.write_bytes(b'caller-verified generated input')
-        self.run_phase('prepare'); self.run_phase('commit')
+        os.utime(archive, ns=(1000000000000, 1000000000000))
+        self.run_phase('prepare')
+        self.assertEqual(archive.stat().st_mtime_ns, 1000000000000)
+        self.run_phase('commit')
         stamp = archive.stat().st_mtime_ns
         os.utime(archive, ns=(1000000000, 1000000000))
         self.run_phase('prepare')

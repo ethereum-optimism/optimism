@@ -120,6 +120,8 @@ def manage(phase, root, target):
         stamp = time.time_ns()
         restored = 0
         restored_generated = 0
+        refreshed_generated = 0
+        recorded_generated = 0
         for current, old_files in ((entries, old_entries), (generated, old_generated)):
             for name, entry in current.items():
                 old = old_files.get(name, {})
@@ -127,8 +129,15 @@ def manage(phase, root, target):
                     entry['mtime_ns'] = old['mtime_ns']
                     if current is entries: restored += 1
                     else: restored_generated += 1
+                elif current is generated and not old:
+                    # The producer owns a newly materialized asset's timestamp.
+                    # Record it without changing a checksum-matching bundle.
+                    entry['mtime_ns'] = (root / name).stat().st_mtime_ns
+                    recorded_generated += 1
+                    continue
                 else:
                     entry['mtime_ns'] = stamp
+                    if current is generated: refreshed_generated += 1
                 os.utime(root / name, ns=(entry['mtime_ns'], entry['mtime_ns']))
         if changed:
             state.unlink(missing_ok=True)
@@ -139,7 +148,8 @@ def manage(phase, root, target):
                           'restored_source_files': restored,
                           'refreshed_source_files': len(entries) - restored,
                           'restored_generated_files': restored_generated,
-                          'refreshed_generated_files': len(generated) - restored_generated}))
+                          'refreshed_generated_files': refreshed_generated,
+                          'recorded_generated_files': recorded_generated}))
     elif phase == 'commit':
         if not pending.exists():
             raise ValueError('Rust source changed during build or preparation is missing')
