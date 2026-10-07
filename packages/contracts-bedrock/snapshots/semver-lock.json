@@ -8,7 +8,7 @@
     "sourceCodeHash": "0x41d8b625f3be94379cc746ce19b068cec2f3b490d82f42c53350f2cf428f1766"
   },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
-    "initCodeHash": "0xa8081fc46d13bd3f28c58efbe62ff47384a85ba9784fa04a2d3fb4c8a335cfb8",
+    "initCodeHash": "0x0a8ab8d34dab2eb8440a301b5a967e2c8e8276f1e9e6184f5d500811a8ee22ed",
     "sourceCodeHash": "0xfc442f45ed05d1a63c092bd2c0978701d16e75c8a9f73dbf9e60960408d9e911"
   },
   "src/L1/L1ERC721Bridge.sol:L1ERC721Bridge": {
@@ -72,7 +72,7 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x2dc529777a7f0a5a4848b55a8f0952f493d1d5a4829089ad17fb7659110e6076",
+    "initCodeHash": "0xe8c834c14e9da5c25fdf2741857eacd0f6f351022dd0238393bd1ca7ee698caa",
     "sourceCodeHash": "0x5dcc738ab7671e73bd926ceb29469ca25b8d925ddd8f0212d66fc31abdaf933e"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
@@ -105,7 +105,7 @@
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
     "initCodeHash": "0x38ff7c906afa5ccb9b798df325a5b3e4c10725b276859389a0a59c59bec25c4f",
-    "sourceCodeHash": "0x4a438c3db3eed17d253d6be97916480050f3ba42bc31c48bb65ce4a9ac1ad6f0"
+    "sourceCodeHash": "0xeffdb6cf644ab2bdc3518795e737a72734a0bd4e57e854e469b238529c8cc32b"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
@@ -137,7 +137,7 @@
   },
   "src/L2/UndeliveredMessageExporter.sol:UndeliveredMessageExporter": {
     "initCodeHash": "0xf494b958b17120faa394d2ff1659db34e913172296008476f6bdf2fa3efd4253",
-    "sourceCodeHash": "0x9dcd0eb824649433ed30a3cf06d8630603fc7750a2ada59fc89a3e105048a964"
+    "sourceCodeHash": "0xa2b00dcbdfaf8bf83d5dd28d15931f55d4a7a086a724c96acd2a9f5bef50ca39"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
