@@ -201,6 +201,22 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 	}
 }
 
+// WithdrawalFromReceipt adopts an already-included L2 transaction that emitted a
+// MessagePassed event as a Withdrawal, so it can be proven and finalized like one initiated
+// by InitiateWithdrawal. Use it for withdrawals initiated by a contract call (e.g. an
+// L2CrossDomainMessenger.sendMessage) rather than by a plain transfer to the message passer.
+func (b *StandardBridge) WithdrawalFromReceipt(rcpt *types.Receipt) *Withdrawal {
+	b.require.NotNil(rcpt, "withdrawal receipt must not be nil")
+	b.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "withdrawal-initiating transaction failed")
+	_, err := withdrawals.ParseMessagePassed(rcpt)
+	b.require.NoError(err, "receipt does not contain exactly one MessagePassed event")
+	return &Withdrawal{
+		commonImpl:  commonFromT(b.t),
+		bridge:      b,
+		initReceipt: rcpt,
+	}
+}
+
 // ERC20Deposit performs an ERC20 deposit from L1 to L2
 func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr common.Address, amount eth.ETH, from *EOA) *Deposit {
 	// Use the l1StandardBridge to deposit ERC20 tokens
@@ -749,6 +765,13 @@ func (w *Withdrawal) Finalize(user *EOA) {
 }
 
 func (w *Withdrawal) WaitForDisputeGameResolved() {
+	w.WaitForDisputeGameResolvedWithin(60 * time.Second)
+}
+
+// WaitForDisputeGameResolvedWithin is WaitForDisputeGameResolved with a caller-chosen budget.
+// Tests that wait the game's chess clock out in wall-clock time (rather than skipping it with
+// time travel) need a budget larger than the game's max clock duration.
+func (w *Withdrawal) WaitForDisputeGameResolvedWithin(timeout time.Duration) {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
 
 	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
@@ -760,7 +783,7 @@ func (w *Withdrawal) WaitForDisputeGameResolved() {
 		w.require.NoError(err, "failed to get game status")
 		w.log.Info("Waiting for dispute game to resolve", "currentStatus", status)
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
-	}, 60*time.Second, 100*time.Millisecond, "wait for dispute game resolved")
+	}, timeout, 100*time.Millisecond, "wait for dispute game resolved")
 }
 
 func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
