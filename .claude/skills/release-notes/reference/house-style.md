@@ -227,6 +227,72 @@ the exact values, and say what happens to a node that upgrades late:
 Saying which chains are *not* affected matters as much as which are: most readers of the
 note operate a different chain and should be able to stop reading at that sentence.
 
+## op-contracts and op-deployer
+
+These notes follow the same shape and rules, with the differences below. Both releases are
+cut from the same `proposal/op-contracts/vX.Y.Z` branch. Each op-deployer release embeds
+the artifacts of one op-contracts release, and by default it deploys and upgrades to that
+release.
+
+### Which note gets which change
+
+- **op-contracts** gets what changes onchain: L1 contracts, the OPCM, dispute games, and the
+  L2 contracts that the L2 upgrade bundle installs.
+- **op-deployer** gets what changes for a user of the tool: commands, flags, intent and
+  state file fields, the deploy and upgrade pipeline, and the generated genesis. A change
+  to a contract deploy script is op-deployer behaviour, because op-deployer runs it.
+- A PR that does both gets an entry in each note, each described from its own reader's
+  side. The op-deployer note never repeats the contract changes; it links to the
+  op-contracts release instead.
+
+### The Overview sentence
+
+The recommendation vocabulary does not fit a contracts release. A chain does not choose to
+install it; a governance-approved upgrade does that. So the sentence names the upgrade
+instead, in an `> [!IMPORTANT]` callout:
+
+```markdown
+> [!IMPORTANT]
+> This is the op-contracts release for [Upgrade 20](<governance post>). It contains <what kind of changes>.
+```
+
+The op-deployer release that first ships an op-contracts release names both:
+
+```markdown
+> [!IMPORTANT]
+> This is the op-deployer release for [op-contracts/v8.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv8.0.0) ([Upgrade 20](<governance post>)). Use it to deploy new chains with, or upgrade chains to, op-contracts/v8.0.0. It contains <what kind of changes>.
+```
+
+A later op-deployer release for the same contracts uses the standard recommendation
+vocabulary and callout type, and still names the op-contracts release it embeds. Ask the
+release manager for the upgrade number and the governance post link.
+
+### Grouping
+
+For op-contracts, group `## Other changes` by contract area rather than the binary spine.
+`### OPCM`, `### Dispute games`, `### L1 contracts` and `### L2 contracts` cover most
+releases. For op-deployer, the standard spine applies, with domain headings such as
+`### Deploy` and `### Upgrade` where they carry meaning.
+
+### Breaking changes
+
+For op-contracts, a breaking change is an onchain interface change that breaks an
+integrator: a removed contract, function or event, or a changed signature. Name what is gone
+and what replaces it, if anything. For op-deployer, a breaking change is a removed command
+or flag, an intent or state file change that old files do not satisfy, or a dropped upgrade
+path from an earlier contracts release.
+
+### Contract versions
+
+An op-contracts note has a `## Contract versions` section after `## Other changes`. It holds
+the table from `scripts/contract-versions.sh`, unedited, so a reader can check deployed
+implementations against it. A `—` marks a contract added or removed in this release.
+
+### Tags and images
+
+There is no op-contracts image, so its note has no image line. The op-deployer note keeps
+the standard image line.
+
 ## Tags, links and images
 
 The release **title** is `<component> <version>`, with a space — `op-node v1.19.6`, not the

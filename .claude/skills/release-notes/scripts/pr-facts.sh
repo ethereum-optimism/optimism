@@ -15,13 +15,16 @@
 #   <tag>  #<number>  <author>  <n> files  <title>  <paths>
 #
 #   LINKED  changed a package compiled into the binary; <paths> lists just those
-#           packages — that is the reason the PR may belong in the notes
+#           packages — that is the reason the PR may belong in the notes. For op-contracts
+#           it means a contract under src/ or the L2 upgrade bundle changed, and <paths>
+#           lists them. For op-deployer it also covers the contract scripts it runs
 #   CONFIG  moved the embedded superchain registry (submodule pin, generated archive
 #           checksum, or kona's registry snapshots); read it by hand, a new activation time
 #           can make the release required. Appears as LINKED+CONFIG when the same PR also
 #           changed a compiled package
 #   DEPS    changed the dependency manifests (go.mod/go.sum, Cargo.toml/Cargo.lock) without
-#           touching a compiled package
+#           touching a compiled package. For op-contracts the manifests are foundry.toml and
+#           the lib/ submodule pins, and a change there can change the deployed bytecode
 #   --      touched nothing the binary compiles; <paths> shows what it did touch
 #   ?       no component given, dependencies could not be resolved, or the PR could not be
 #           fetched; <paths> shows everything touched and the call is yours
@@ -46,13 +49,14 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 : > "$workdir/deps"
 : > "$workdir/pkgmap"
+: > "$workdir/prefixes"
 mode=none
 
 # --- dependency sets -------------------------------------------------------------------
 # Which units of code end up in the component's binary. Empty leaves every row tagged '?'.
 
 resolve_go() {
-    for target in "./$component/cmd" "./$component/..."; do
+    for target in "./$component/cmd" "./$component/cmd/$component" "./$component/..."; do
         if (cd "$root" && go list -deps "$target" 2>/dev/null) |
             sed -n "s|^$MODULE/||p" | sort -u > "$workdir/deps" && [ -s "$workdir/deps" ]; then
             return 0
@@ -80,10 +84,22 @@ resolve_rust() {
     [ -s "$workdir/pkgmap" ]
 }
 
+# Solidity has no dependency resolver to ask, so contract files are matched by path.
+# op-deployer's contract scripts come from `just release-paths`, which stays the single
+# source of truth for that set.
+resolve_contract_scripts() {
+    (cd "$root" && just release-paths "$component") |
+        awk -F'\t' '$2 ~ /^packages\/contracts-bedrock\// { print $2 }' > "$workdir/prefixes"
+}
+
 case "$component" in
     '') ;;
+    op-contracts)
+        mode=contracts ;;
     kona-*|op-reth|op-zk-proposer)
         if resolve_rust; then mode=rust; fi ;;
+    op-deployer)
+        if resolve_go; then mode=go; resolve_contract_scripts; fi ;;
     *)
         if resolve_go; then mode=go; fi ;;
 esac
@@ -124,9 +140,11 @@ fi
 xargs -P "$JOBS" -n 2 bash -c 'fetch "$0" "$1"' < "$workdir/work"
 
 for f in "$workdir"/pr-*; do
-    awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" -v mode="$mode" '
+    awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" \
+        -v prefixfile="$workdir/prefixes" -v mode="$mode" '
         BEGIN {
             while ((getline dep < depfile) > 0) linked[dep] = 1
+            while ((getline line < prefixfile) > 0) prefixes[line] = 1
             while ((getline line < pkgfile) > 0) {
                 split(line, kv, "\t")
                 pkgdir[kv[1]] = kv[2]
@@ -135,6 +153,24 @@ for f in "$workdir"/pr-*; do
         # The compilation unit a changed file belongs to: its package directory for Go,
         # its owning workspace crate (longest matching member directory) for Rust.
         function unit(path,   d, best, rest) {
+            # An op-contracts release ships the contracts under src/, and the candidate L2
+            # upgrade bundle that op-core/nuts snapshots for the fork.
+            if (mode == "contracts") {
+                if (path ~ /^packages\/contracts-bedrock\/snapshots\/upgrades\//) {
+                    linked["upgrade-bundle"] = 1
+                    return "upgrade-bundle"
+                }
+                if (path !~ /^packages\/contracts-bedrock\/src\/.*\.sol$/) return ""
+                d = path; sub(/^.*\//, "", d); sub(/\.sol$/, "", d)
+                linked[d] = 1
+                return d
+            }
+            for (d in prefixes)
+                if (path ~ /\.sol$/ && (path == d || (d ~ /\/$/ && index(path, d) == 1))) {
+                    d = path; sub(/^packages\/contracts-bedrock\//, "", d)
+                    linked[d] = 1
+                    return d
+                }
             if (mode == "go") {
                 # Test files are not compiled into the binary, so a PR that only adds
                 # coverage to a linked package does not change what ships.
@@ -165,8 +201,11 @@ for f in "$workdir"/pr-*; do
             # file whose name contains "superchain-configs" cannot claim the tag.
             if ($0 == "superchain-registry" || $0 ~ /^superchain-registry\// ||
                 $0 ~ /superchain-configs\.(zip|tar)/ ||
-                $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = 1
-            if ($0 ~ /^(go\.(mod|sum)|rust\/Cargo\.(toml|lock))$/) { manifest = 1; next }
+                $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = (mode != "contracts")
+            if (mode == "contracts") {
+                # Compiler settings and library pins can change the deployed bytecode.
+                if ($0 ~ /^packages\/contracts-bedrock\/(foundry\.toml$|lib\/)/) { manifest = 1; next }
+            } else if ($0 ~ /^(go\.(mod|sum)|rust\/Cargo\.(toml|lock))$/) { manifest = 1; next }
             other_files++
             if (mode == "none") next
             u = unit($0)

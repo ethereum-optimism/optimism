@@ -13,6 +13,11 @@ only changes that reach the binary appear at all.
 The raw list is replaced, not annotated. Read `reference/house-style.md` before writing and
 `reference/triage.md` before pruning.
 
+`op-contracts` and `op-deployer` use the same house style, with the differences listed in
+the "op-contracts and op-deployer" section of `reference/house-style.md`. Both are released
+from a `proposal/op-contracts/vX.Y.Z` branch, and each op-deployer release embeds one
+op-contracts release.
+
 This skill does not create or finalize tags.
 
 ## 1. Establish the target
@@ -57,6 +62,10 @@ GITHUB_TOKEN=$(gh auth token) mise exec -- just release-notes <component> latest
 git-cliff is a mise-pinned tool and is not on `PATH`, so without `mise exec --` the recipe
 fails with `git: 'cliff' is not a git command`, which names neither git-cliff nor mise.
 
+For `op-contracts` and `op-deployer`, name both tags explicitly, with the previous
+**finalized** release as the base — `just release-notes op-contracts v7.0.0 v8.0.0`. The
+default `latest` base is wrong as soon as the release under work is finalized.
+
 More than one `## What's Changed in ...` section means earlier RCs were never published.
 Merge them under the final tag and dedupe by PR number.
 
@@ -72,6 +81,14 @@ Each PR is tagged `LINKED` (changed a package compiled into the binary, and whic
 (unresolvable, or the PR could not be fetched). The tags come from `go list -deps` and
 `cargo tree`, so linkage is exact — but it proves the package is compiled in, not that the
 changed function is on the component's runtime path.
+
+For `op-contracts`, `LINKED` means the PR changed a contract under `src/` or the L2 upgrade
+bundle, and the row lists the contracts. For `op-deployer`, `LINKED` also covers the
+contract script paths in `just release-paths op-deployer`.
+
+If every Go row comes back `?`, `go list` failed. In a fresh worktree the usual cause is the
+missing generated `op-core/superchain/superchain-configs.zip`; run
+`mise exec -- just build-superchain-go` and run the script again.
 
 ## 4. Triage
 
@@ -133,6 +150,13 @@ Order: `## Overview` → optional `## Breaking changes` → optional `## Chain C
 `## Other changes` with its subheadings → `**Full Changelog**` → image line → commented-out
 working notes. Write to `/tmp/<component>-notes.md`.
 
+An `op-contracts` note has no image line. It has a `## Contract versions` section after
+`## Other changes`, generated with:
+
+```bash
+.claude/skills/release-notes/scripts/contract-versions.sh op-contracts/<prev-finalized> op-contracts/<this>
+```
+
 ## 8. Retarget RC references when finalizing
 
 A draft generated against an RC carries `-rc.N` in its heading, compare link and image tag.
@@ -171,8 +195,9 @@ gh release create <tag> --draft --title '<component> <version>' --notes-file /tm
 ```
 
 The title takes a space, not the tag's slash — `op-node v1.19.6`. Add `--prerelease` for an
-RC. A draft's URL is an `untagged-<hash>` link until it is published — that is normal, and
-`gh release view <tag>` still resolves it.
+RC. Add `--latest=false` for `op-contracts`, because the latest release is kept for the
+non-contract components. A draft's URL is an `untagged-<hash>` link until it is published —
+that is normal, and `gh release view <tag>` still resolves it.
 
 Confirm with `gh release view <tag>` and report what changed.
 

@@ -112,6 +112,44 @@ Empty output means the bug never reached a release: keep the PR in the list, but
 it set the recommendation — and do not mention it in the note. "Both land in this release, so
 no published version is affected" is a triage conclusion, not something the reader needs.
 
+## Changes that already shipped
+
+A release cut from a `proposal/` branch compares against a tag on a different branch. A fix
+cherry-picked onto the previous release branch therefore appears again, as its original
+`develop` PR. List the commits that only the previous release has:
+
+```bash
+git log --format='%s' $(git merge-base <prev-tag> <this-tag>)..<prev-tag> -- <component paths>
+```
+
+Drop each draft PR that one of those commits backported, because the previous release
+already shipped it. `op-contracts/v8.0.0` listed #20919, which `op-contracts/v7.0.0` had
+already shipped as #20925.
+
+## op-contracts
+
+`LINKED` rows changed a contract under `src/` or the L2 upgrade bundle. Drop a row when the
+change is:
+
+- natspec, comments or a version bump only
+- confined to a contract that no deployment uses, or to a `DevFeatures` bit that is not on
+  by default
+- a test-driven change to a contract that no production path calls
+
+Keep every change to what the contract does onchain, its ABI, its storage layout or its
+access control. Keep every change to the candidate upgrade bundle. `op-core/nuts` snapshots
+it for the fork, and op-node and kona execute that snapshot on every chain.
+
+`DEPS` rows changed `foundry.toml` or a `lib/` pin. Read each one: a compiler, optimizer or
+library change can change the deployed bytecode.
+
+## op-deployer
+
+`LINKED` rows from shared Go packages need the normal judgment pass. Rows that list contract
+scripts need one more check: a script change that only moves a test configuration value
+does not change what op-deployer does. The contract side of a PR belongs in the
+op-contracts note, not here.
+
 ## Dependency and security bumps
 
 `DEPS` rows are usually noise, but a bump patching a CVE in a library the binary links is
