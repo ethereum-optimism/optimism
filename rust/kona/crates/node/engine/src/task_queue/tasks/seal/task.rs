@@ -1,47 +1,29 @@
-//! A task for importing a block that has already been started.
+//! A task for sealing a sequenced block and importing it.
 use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    InsertTaskError::{self},
-    task_queue::{build_and_seal, insert_payload},
+    task_queue::import_payload,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::OpAttributesWithParent;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-/// How a [`SealTask`] is coupled to the build that produced its payload.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BuildSealCoupling {
-    /// Build and seal run inside the same engine task, so no other task can advance the unsafe
-    /// head between them. The unsafe-head staleness check is skipped: a derivation-driven reorg
-    /// legitimately seals a payload whose parent differs from the current unsafe head.
-    Atomic,
-    /// The seal is enqueued as a task separate from its build, so another task may advance the
-    /// unsafe head in between, invalidating the built payload as stale.
-    Detached,
-}
-
-/// Task for block sealing and canonicalization.
+/// Task for sealing a sequenced block and canonicalizing it.
 ///
-/// The [`SealTask`] handles the following parts of the block building workflow:
+/// The [`SealTask`] handles the following parts of the sequencer's block building workflow:
 ///
-/// 1. **Payload Construction**: Retrieves the built payload using `engine_getPayload`
-/// 2. **Block Import**: Imports the payload using [`InsertTask`] for canonicalization
-///
-/// ## Error Handling
-///
-/// The task delegates to [`InsertTaskError`] for payload import failures.
-///
-/// [`InsertTask`]: crate::InsertTask
-/// [`InsertTaskError`]: crate::InsertTaskError
+/// 1. **Staleness Check**: The seal is enqueued separately from its build, so another task may have
+///    moved the unsafe head in between. If the build's parent is no longer the unsafe head, the
+///    seal is aborted with [`SealTaskError::UnsafeHeadChangedSinceBuild`].
+/// 2. **Payload Construction**: Retrieves the built payload using `engine_getPayload`
+/// 3. **Block Import**: Inserts the payload into the engine to canonicalize it
 #[derive(Debug, Clone, Constructor)]
-#[allow(clippy::too_many_arguments)] // the derived constructor takes one field each
 pub struct SealTask {
     /// The engine API client.
     pub engine: Arc<EngineClient>,
@@ -51,10 +33,6 @@ pub struct SealTask {
     pub payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
-    /// How this seal is coupled to the build that produced `payload_id`.
-    pub coupling: BuildSealCoupling,
     /// An optional sender to convey success/failure result of the built
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
@@ -64,83 +42,11 @@ pub struct SealTask {
 }
 
 impl SealTask {
-    /// Inserts a payload into the engine with Holocene fallback support.
-    ///
-    /// This function handles:
-    /// 1. Inserting the payload with [`insert_payload`]
-    /// 2. Handling deposits-only payload failures
-    /// 3. Holocene fallback via `build_and_seal` if needed
-    ///
-    /// Returns the inserted block information, or an error if insertion fails.
-    async fn insert_payload(
-        &self,
-        state: &mut EngineState,
-        payload: OpExecutionPayloadEnvelope,
-    ) -> Result<L2BlockInfo, SealTaskError> {
-        // Insert the new block into the engine.
-        let new_block_ref = match insert_payload(
-            self.engine.as_ref(),
-            &self.cfg,
-            state,
-            payload,
-            self.is_attributes_derived,
-            self.block_sink.as_ref(),
-        )
-        .await
-        {
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.attributes.is_deposits_only() =>
-            {
-                error!(target: "engine", error = ?e, "Critical: Deposit-only payload import failed");
-                return Err(SealTaskError::DepositOnlyPayloadFailed);
-            }
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.cfg.is_holocene_active(
-                    self.attributes.attributes().payload_attributes.timestamp,
-                ) =>
-            {
-                warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
-
-                // HOLOCENE: Re-attempt payload import with deposits only
-                // First build the deposits-only payload, then seal it
-                let deposits_only_attrs = self.attributes.as_deposits_only();
-
-                return match build_and_seal(
-                    state,
-                    self.engine.clone(),
-                    self.cfg.clone(),
-                    deposits_only_attrs.clone(),
-                    self.is_attributes_derived,
-                    self.block_sink.clone(),
-                )
-                .await
-                {
-                    Ok(_) => {
-                        info!(target: "engine", "Successfully imported deposits-only payload");
-                        Err(SealTaskError::HoloceneInvalidFlush)
-                    }
-                    Err(_) => Err(SealTaskError::DepositOnlyPayloadReattemptFailed),
-                };
-            }
-            Err(e) => {
-                error!(target: "engine", "Payload import failed: {e}");
-                return Err(Box::new(e).into());
-            }
-            Ok(new_block_ref) => {
-                info!(target: "engine", "Successfully imported payload");
-                new_block_ref
-            }
-        };
-
-        Ok(new_block_ref)
-    }
-
     /// Seals and canonicalizes the block by fetching the payload and importing it.
     ///
     /// This function handles:
     /// 1. Fetching the execution payload from the EL
     /// 2. Importing the payload into the engine with Holocene fallback support
-    /// 3. Sending the payload to the optional channel
     async fn seal_and_canonicalize_block(
         &self,
         state: &mut EngineState,
@@ -156,14 +62,23 @@ impl SealTask {
         .await?;
 
         // Insert the payload into the engine and reuse its decoded block information.
-        let new_block_ref = self.insert_payload(state, new_payload.clone()).await?;
+        let new_block_ref = import_payload(
+            self.engine.as_ref(),
+            &self.cfg,
+            state,
+            &self.attributes,
+            new_payload.clone(),
+            // The payload is sequenced, not derived.
+            false,
+            self.block_sink.as_ref(),
+        )
+        .await?;
 
         info!(
             target: "engine",
             l2_number = new_block_ref.block_info.number,
             l2_time = new_block_ref.block_info.timestamp,
-            "Built and imported new {} block",
-            if self.is_attributes_derived { "safe" } else { "unsafe" },
+            "Built and imported new unsafe block",
         );
 
         Ok(new_payload)
@@ -209,9 +124,8 @@ impl EngineTaskExt for SealTask {
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
 
-        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
-            (unsafe_block_info.hash != parent_block_info.hash ||
-                unsafe_block_info.number != parent_block_info.number);
+        let build_is_stale = unsafe_block_info.hash != parent_block_info.hash ||
+            unsafe_block_info.number != parent_block_info.number;
 
         let res = if build_is_stale {
             info!(

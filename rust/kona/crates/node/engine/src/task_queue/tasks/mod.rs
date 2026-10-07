@@ -18,7 +18,8 @@ pub(super) use build::start_build;
 pub use build::{BuildTask, BuildTaskError, EngineBuildError};
 
 mod seal;
-pub use seal::{BuildSealCoupling, SealTask, SealTaskError};
+pub(super) use seal::get_payload;
+pub use seal::{SealTask, SealTaskError};
 
 mod consolidate;
 pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
@@ -27,4 +28,4 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
-pub(super) use util::{BuildAndSealError, build_and_seal};
+pub(super) use util::{BuildAndImportError, build_and_import, import_payload};
