@@ -121,7 +121,7 @@ tasks:
   - key: build
     use: [code, toolchain]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase build
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase build --features test-config-fallback
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -162,7 +162,7 @@ tasks:
   - key: check
     use: [code, toolchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase checks --artifact "$SP1_GUEST_ARTIFACT"
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase checks --features test-config-fallback --artifact "$SP1_GUEST_ARTIFACT"
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}

@@ -10,7 +10,9 @@ import xml.etree.ElementTree as ET
 
 SPEC = importlib.util.spec_from_file_location('sp1_guest', Path(__file__).resolve().parents[1] / 'runtime' / 'sp1-guest.py')
 G = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(G)
-COMMON = ('source_sha', 'branch', 'suite', 'input_sha256', 'tools', 'programs',
+E_SPEC = importlib.util.spec_from_file_location('report_evidence', Path(__file__).with_name('report-evidence.py'))
+E = importlib.util.module_from_spec(E_SPEC); E_SPEC.loader.exec_module(E)
+COMMON = ('source_sha', 'branch', 'suite', 'input_sha256', 'tools', 'programs', 'features', 'elf_source_sha',
           'build_rustflags', 'check_rustflags', 'vkey_prover', 'incremental', 'rerun_fails')
 CACHE = {'sccache-start', 'sccache-zero', 'sccache-stats', 'sccache-stop', 'cache-prepare', 'cache-commit'}
 
@@ -31,13 +33,13 @@ def normalized(value, settings, metadata=None):
 def stages(directory, settings, phase):
     root, rust, sp1 = settings['workspace_root'], settings['workspace_root']+'/rust', settings['workspace_root']+'/rust/kona/sp1'
     expected = { 'install': (['bash', 'ops/ci/runtime/sp1-guest-toolchain.sh'], root) } if phase == 'toolchain' else {
-        'guest-workspace': (['cargo', 'metadata', '--manifest-path', G.GUEST, '--locked', '--format-version', '1'], rust),
+        'guest-workspace': (['cargo', 'metadata', '--manifest-path', G.GUEST, '--locked', '--all-features', '--format-version', '1'], rust),
         **{'vkey-'+n: (['cargo', 'prove', 'vkey', '--elf', 'elf/'+n+'-elf'], sp1) for n in settings['programs']}}
     if phase == 'build':
-        expected.update({'lock-before': (['just', 'check-sp1-guest-lock'], rust), 'build': (['just', 'build-elfs-native'], sp1)})
+        expected.update({'lock-before': (['just', 'check-sp1-guest-lock'], rust), 'build': (['just', 'build-elfs-native', settings['features']], sp1)})
     elif phase == 'checks':
         expected.update({
-            'guest-list': (['cargo', 'test', '--manifest-path', G.GUEST, '--workspace', '--locked', '--', '--list'], rust),
+            'guest-list': (['cargo', 'test', '--manifest-path', G.GUEST, '--workspace', '--locked', '--all-features', '--', '--list'], rust),
             'guest': (['just', 'test-sp1-guest'], rust), 'lint': (['just', 'lint-sp1-guest'], rust),
             'range-workspace': (['cargo', 'metadata', '--manifest-path', G.RANGE, '--locked', '--format-version', '1'], rust),
             'range-list': (['cargo', 'test', '--manifest-path', G.RANGE, '--locked', '--', '--list'], rust),
@@ -56,7 +58,7 @@ def stages(directory, settings, phase):
             raise ValueError('Failed original SP1 compiler-cache operation')
     if cache:
         record=G.read(directory/'cache-settings.json'); kind='elf' if phase=='build' else 'checks'
-        identity={'phase':kind,'tools':settings['tools'],'rustflags':'' if kind=='elf' else '-Dwarnings','incremental':'0'}
+        identity={'phase':kind,'features':settings['features'],'tools':settings['tools'],'rustflags':'' if kind=='elf' else '-Dwarnings','incremental':'0'}
         digest=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
         target=G.helper('sp1-guest-native-build').POLICY['target_directory'] if kind=='elf' else settings['workspace_root']+'/.ci/sp1-cache/checks-target'
         if (record['phase']!=kind or record['target_mode'] not in ('keep','sccache-only')
@@ -65,11 +67,18 @@ def stages(directory, settings, phase):
             raise ValueError('Wrong original SP1 compiler cache identity or configuration')
 
 
-def toolchain(directory, settings, circle):
+def verify_seals(directory, final, circle, empty):
+    hashes = final['original_sha256']
+    E.verify_files(directory, hashes, missing_empty=empty if circle else None,
+                   recoverable={n for n in hashes if n.endswith('.log')}, label=str(directory))
+    G.verify_seals(directory, final)
+
+
+def toolchain(directory, settings, circle, empty):
     final = G.read(directory/'final.json')
     if final['phase'] != 'toolchain' or final['exit_code'] or final['report_errors']:
         raise ValueError('Failed complete SP1 compiler setup')
-    G.verify_seals(directory, final, allow_circle_empty=circle)
+    verify_seals(directory, final, circle, empty)
     inputs = G.read(directory/'inputs.json')
     files = {str(p.relative_to(directory/'source')):G.S.digest(p)
              for p in (directory/'source').rglob('*') if p.is_file()}
@@ -82,7 +91,7 @@ def toolchain(directory, settings, circle):
 
 
 def report(directory, provider, sha):
-    circle = provider == 'circleci'
+    circle = provider == 'circleci'; empty = []
     final, settings = G.read(directory/'final.json'), G.read(directory/'settings.json')
     if (final['phase'] != 'checks' or final['exit_code'] or final['report_errors']
             or (settings['suite'], settings['phase'], settings['source_sha'], settings['provider']) != ('sp1-guest', 'checks', sha, provider)):
@@ -91,17 +100,17 @@ def report(directory, provider, sha):
         raise ValueError('Changed SP1 original environment or retry policy')
     if provider == 'rwx' and (not settings.get('rwx_run_id') or str(settings.get('rwx_task_attempt')) != '1'):
         raise ValueError('Missing native fresh execution identity or uninvestigated retry')
-    G.verify_seals(directory, final, allow_circle_empty=circle)
+    verify_seals(directory, final, circle, empty)
     producer = directory/'producer'; pf = G.read(producer/'final.json'); ps = G.read(producer/'settings.json')
     if pf['phase'] != 'build' or pf['exit_code'] or pf['report_errors'] or pf['tests'] != 0 or ps['phase'] != 'build':
         raise ValueError('Failed or false original SP1 ELF producer')
-    G.verify_seals(producer, pf, allow_circle_empty=circle)
+    verify_seals(producer, pf, circle, empty)
     if provider=='rwx':G.helper('sp1-guest-native-build').verify(producer,ps,settings['workspace_root'])
     if ps['provider'] != provider or any(ps[n] != settings[n] for n in COMMON):
         raise ValueError('SP1 producer provenance differs from its consumer')
     for path, original, phase in ((directory, settings, 'checks'), (producer, ps, 'build')):
         if G.read(path/'inputs-after.json') != original['input_sha256']: raise ValueError('Original SP1 job changed source inputs')
-        toolchain(path/'toolchain', original, circle)
+        toolchain(path/'toolchain', original, circle, empty)
         stages(path, original, phase)
     elfs = G.elf_record(settings, producer/'files')
     if elfs != G.read(producer/'elfs.json'): raise ValueError('ELF manifest differs from complete actual guest bytes')
@@ -123,7 +132,7 @@ def report(directory, provider, sha):
         metadata[phase] = normalized(meta, settings, meta)
     build_meta = G.read(producer/'guest-workspace.json')
     if normalized(build_meta, ps, build_meta) != metadata['guest']: raise ValueError('SP1 build/check dependency graphs differ')
-    return {'settings': settings, 'elfs': elfs, 'cases': cases, 'metadata': metadata,
+    return {'recovered_empty_originals':empty, 'settings': settings, 'elfs': elfs, 'cases': cases, 'metadata': metadata,
             'original_sha256': final['original_sha256'], 'producer_original_sha256': pf['original_sha256']}
 
 
@@ -134,7 +143,7 @@ def compare(directory, sha):
     for name in ('elfs', 'cases', 'metadata'):
         if a[name] != b[name]: raise ValueError('Complete original SP1 '+name+' differ')
     return {'source_sha': sha, 'verified_parity': True, 'native_run_id': b['settings']['rwx_run_id'],
-        'elfs': a['elfs'], 'cases': a['cases'], 'complete_dependency_graphs_equal': True,
+        'recovered_empty_originals':a['recovered_empty_originals'], 'elfs': a['elfs'], 'cases': a['cases'], 'complete_dependency_graphs_equal': True,
         'original_sha256': {p:r['original_sha256'] for p,r in [('circle',a),('rwx',b)]},
         'producer_original_sha256': {p:r['producer_original_sha256'] for p,r in [('circle',a),('rwx',b)]}}
 

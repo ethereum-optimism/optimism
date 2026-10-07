@@ -8104,7 +8104,9 @@ dependencies = [
 name = "kona-sp1-super-range-executor"
 version = "0.0.1"
 dependencies = [
+ "alloy-consensus 2.4.2",
  "alloy-primitives",
+ "alloy-rlp",
  "anyhow",
  "async-trait",
  "clap",
@@ -8115,6 +8117,7 @@ dependencies = [
  "kona-preimage",
  "kona-proof",
  "kona-protocol",
+ "kona-registry",
  "kona-sp1-client-utils",
  "kona-sp1-elfs",
  "kona-sp1-ethereum-client-utils",
@@ -8123,6 +8126,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-sdk",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

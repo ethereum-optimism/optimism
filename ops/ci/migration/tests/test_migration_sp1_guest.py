@@ -17,6 +17,25 @@ tempfile = T.tempfile
 time = T.time
 
 
+class MigrationEvidenceTests(unittest.TestCase):
+    def test_only_circle_empty_logs_are_recovered_and_audited(self):
+        spec = importlib.util.spec_from_file_location('compare_sp1', Path(__file__).resolve().parents[1] / 'compare-sp1-guest.py')
+        compare = importlib.util.module_from_spec(spec); spec.loader.exec_module(compare)
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp); empty = []
+            final = {'original_sha256':{'empty.log':G.hashlib.sha256(b'').hexdigest()}}
+            G.S.write(directory/'final.json',final)
+            with self.assertRaises((ValueError, FileNotFoundError)): compare.verify_seals(directory,final,False,empty)
+            self.assertFalse((directory/'empty.log').exists())
+            compare.verify_seals(directory,final,True,empty)
+            self.assertEqual((directory/'empty.log').read_bytes(),b'')
+            self.assertEqual(empty,[{'path':'empty.log','sha256':G.hashlib.sha256(b'').hexdigest(),'report':str(directory)}])
+            (directory/'empty.log').unlink()
+            final['original_sha256']={'empty.json':G.hashlib.sha256(b'').hexdigest()}
+            with self.assertRaises((ValueError, FileNotFoundError)): compare.verify_seals(directory,final,True,[])
+            self.assertFalse((directory/'empty.json').exists())
+
+
 @unittest.skipUnless(os.environ.get('RWX_LIVE_SP1_FIXTURE') == '1', 'Actual Cargo discovery, execution and production ELF fixtures')
 class LiveTests(T._LiveTestsFixtures, unittest.TestCase):
 

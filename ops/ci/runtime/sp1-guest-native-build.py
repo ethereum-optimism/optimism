@@ -25,7 +25,7 @@ def read(path):return json.loads(path.read_text())
 def seal(path):return {str(p.relative_to(path)):S.digest(p) for p in sorted(path.rglob('*')) if p.is_file()}
 
 
-def execute():
+def execute(features=""):
     cache=ROOT/'.ci/sp1-cache'
     staging=ROOT/'.ci/sp1-guest/native-workspace';shutil.rmtree(staging,ignore_errors=True);staging.mkdir(parents=True)
     output=ROOT/'.ci/sp1-guest/dependency';shutil.rmtree(output,ignore_errors=True)
@@ -54,7 +54,7 @@ def execute():
         status=S.stage(staging,'toolchain',['python3','ops/ci/runtime/sp1-guest.py','--provider','rwx','--phase','toolchain'],
                        cwd=str(WORKSPACE),stdin=subprocess.DEVNULL)
         if status:raise ValueError('Native SP1 canonical toolchain verification failed')
-        status=subprocess.call([sys.executable,'ops/ci/runtime/sp1-guest.py','--provider','rwx','--phase','build'],cwd=WORKSPACE,env=env)
+        status=subprocess.call([sys.executable,'ops/ci/runtime/sp1-guest.py','--provider','rwx','--phase','build','--features',features],cwd=WORKSPACE,env=env)
         after=M.inputs();S.write(staging/'inputs-after.json',after)
         if before!=after:raise ValueError('Native SP1 workspace preparation changed original sources')
     except Exception as error:

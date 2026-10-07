@@ -254,7 +254,7 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
             os.kill(os.getpid(), signal.SIGTERM)
         thread = threading.Thread(target=cancel)
         thread.start()
-        result, directory, final = self.executor([sys.executable, '-c', 'import pathlib,time;pathlib.Path(' + repr(str(marker)) + ").write_text('ready');print('original partial output',flush=True);time.sleep(30)"])
+        result, directory, final = self.executor([sys.executable, '-c', 'import pathlib,time;print("original partial output",flush=True);pathlib.Path(' + repr(str(marker)) + ").write_text('ready');time.sleep(30)"])
         thread.join()
         self.assertEqual(result, 143)
         self.assertEqual(final['exit_code'], 143)

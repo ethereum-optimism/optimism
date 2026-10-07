@@ -42,6 +42,44 @@ class SelectionTests(unittest.TestCase):
         for names in ('super-range', 'super-range super-aggregation super-range', ''):
             with self.assertRaises(ValueError): G.programs('\nbuild-elfs-native:\n    for name in '+names+'; do\n')
 
+    def test_parameterized_authoritative_program_loop(self):
+        source = '\nbuild-elfs-native features="":\n    for name in super-range super-aggregation future-program; do\n'
+        self.assertEqual(G.programs(source), ['super-range', 'super-aggregation', 'future-program'])
+        with self.assertRaisesRegex(ValueError, 'recipe'): G.programs('other-recipe:\n')
+
+    def test_runtime_does_not_recover_manifested_empty_logs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)
+            final = {'original_sha256':{'empty.log':G.hashlib.sha256(b'').hexdigest()}}
+            G.S.write(path/'final.json', final)
+            with self.assertRaisesRegex(ValueError, 'Missing'): G.verify_seals(path, final)
+            self.assertFalse((path/'empty.log').exists())
+
+    def test_guest_feature_markers_and_source_suffix_bind_actual_elf_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)
+            settings = {'programs':['super-range','super-aggregation'], 'source_sha':'a'*40,
+                        'tools':{'sp1-version':'6.0.0'}, 'features':'test-config-fallback',
+                        'elf_source_sha':'a'*40+'-test'}
+            def write(features, source):
+                (path/'vkeys.toml').write_text('git_sha="'+source+'"\nsp1_toolchain_tag="v6.0.0"\n'+
+                    ''.join(n+'="0x'+'b'*64+'"\n' for n in settings['programs']))
+                for n in settings['programs']:
+                    data = bytearray(64); data[:6] = b'\x7fELF\x02\x01'; G.struct.pack_into('<HH',data,16,2,243)
+                    data += ('KONA_SP1_BUILD{git_sha='+source+'}').encode()
+                    if features and n=='super-range': data += G.TEST_CONFIG_MARKER
+                    (path/(n+'-elf')).write_bytes(data)
+            write(True, settings['elf_source_sha'])
+            self.assertEqual(set(G.elf_record(settings,path)),set(settings['programs']))
+            write(False, settings['elf_source_sha'])
+            with self.assertRaisesRegex(ValueError, 'test-config'): G.elf_record(settings,path)
+            write(True, settings['source_sha'])
+            with self.assertRaisesRegex(ValueError, 'source'): G.elf_record(settings,path)
+            settings.update(features='', elf_source_sha=settings['source_sha'])
+            with self.assertRaisesRegex(ValueError, 'test-config'): G.elf_record(settings,path)
+            write(False, settings['source_sha'])
+            self.assertEqual(set(G.elf_record(settings,path)),set(settings['programs']))
+
     def test_report_seals_reject_missing_extra_corrupt_and_linked_originals(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp); original = path/'original.log'; original.write_bytes(b'original evidence\n')
@@ -101,11 +139,15 @@ class _LiveTestsFixtures:
 class LiveTests(_LiveTestsFixtures, unittest.TestCase):
 
     def test_complete_actual_discovery_zero_case_future_package_and_scoped_duplicate_names(self):
-        self.command('guest-list', ['cargo', 'test', '--workspace', '--locked', '--', '--list'])
-        self.command('guest', ['cargo', 'test', '--workspace', '--locked'])
+        manifest = self.root/'future/Cargo.toml'
+        manifest.write_text(manifest.read_text()+'[features]\nselected=[]\n')
+        source = self.root/'future/src/lib.rs'
+        source.write_text(source.read_text()+'#[cfg(feature="selected")] #[test] fn feature_selected() {}\n')
+        self.command('guest-list', ['cargo', 'test', '--workspace', '--locked', '--all-features', '--', '--list'])
+        self.command('guest', ['cargo', 'test', '--workspace', '--locked', '--all-features'])
         record = G.coverage(self.reports, 'guest', self.metadata, self.settings)
         self.assertEqual(record['packages'], ['empty', 'future', 'one', 'two'])
-        self.assertEqual(record['outcomes'], {'pass': 3, 'skip': 1})
+        self.assertEqual(record['outcomes'], {'pass': 4, 'skip': 1})
         self.assertEqual(len(record['targets']), 8)
         self.assertEqual(record['targets']['empty:empty:unit']['count'], 0)
         self.assertEqual(len({c['suite'] for c in record['cases'] if c['name'] == 'same_name'}), 3)
@@ -160,7 +202,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         shutil.copytree(original, artifact)
         with patch.object(G, 'SP1', self.root):
             G.restore_artifact(artifact, settings)
-            for name, value in [('source_sha', '0' * 40), ('branch', 'foreign-branch'), ('check_rustflags', 'changed'), ('tools', {})]:
+            for name, value in [('source_sha', '0' * 40), ('branch', 'foreign-branch'), ('features', 'foreign-feature'), ('elf_source_sha', '0'*40), ('check_rustflags', 'changed'), ('tools', {})]:
                 with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Stale'):
                     G.restore_artifact(artifact, {**settings, name: value})
             path = artifact / 'files' / (settings['programs'][0] + '-elf')

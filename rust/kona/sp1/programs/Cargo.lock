@@ -1906,7 +1906,6 @@ dependencies = [
  "kona-registry",
  "kona-sp1-client-utils",
  "revm",
- "serde_json",
  "spin 0.10.0",
 ]
 
@@ -1932,12 +1931,14 @@ name = "kona-sp1-super-range"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "kona-preimage",
  "kona-proof",
  "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
  "revm",
  "rkyv",
+ "serde_json",
  "sp1-zkvm",
 ]
 

@@ -341,3 +341,10 @@ failure reports; legitimate safe skips; and altered Circle prerequisites. The
 permanent import test and isolated native gate fixture run without Circle or
 migration files. Historical reports must be reproduced with their archived
 source, not interpreted with the version 4 receipt schema.
+
+The SP1 guest shadow follows Circle's `test-config-fallback` feature selection.
+Both providers record the feature and the `-test` ELF source marker, require the
+unsafe-test marker in the super-range guest, and discover guest tests with
+`--all-features`. Production publication retains its upstream marker rejection.
+SP1 runtime report verification is read-only; only the migration comparer can
+recover manifest-declared empty Circle logs, with an audit record.

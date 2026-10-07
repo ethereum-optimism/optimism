@@ -23,7 +23,6 @@ kona-registry.workspace = true
 # general
 anyhow.workspace = true
 async-trait.workspace = true
-serde_json.workspace = true
 spin.workspace = true
 
 # alloy
@@ -35,6 +34,7 @@ alloy-rlp.workspace = true
 revm.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 alloy-eips.workspace = true
 alloy-trie.workspace = true
 kona-interop = { workspace = true, features = ["test-utils"] }

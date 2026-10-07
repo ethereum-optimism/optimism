@@ -851,6 +851,16 @@ jobs:
             [ -s "${VKEYS}" ] || { echo "${VKEYS} is missing or empty" >&2; exit 1; }
             cat "${VKEYS}"
 
+            RC=0
+            grep -aqF 'KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}' elf/super-range-elf || RC=$?
+            if [ "${RC}" -eq 0 ]; then
+              echo "super-range ELF enables test-config-fallback; production prestates must not be published" >&2
+              exit 1
+            elif [ "${RC}" -ne 1 ]; then
+              echo "could not scan super-range ELF for test-config-fallback" >&2
+              exit 1
+            fi
+
             # Value of a top-level string key. Zero or duplicate matches give an
             # empty or multi-line value, which the checks below reject.
             toml_string() {

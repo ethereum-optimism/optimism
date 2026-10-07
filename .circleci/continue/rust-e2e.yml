@@ -205,6 +205,10 @@ jobs:
 
   # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
   kona-build-sp1-elfs:
+    parameters:
+      features:
+        type: string
+        default: ""
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
@@ -232,7 +236,7 @@ jobs:
       - run:
           name: Build SP1 guest ELFs with complete original artifact evidence
           no_output_timeout: 40m
-          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase build
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase build --features "<< parameters.features >>"
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:
@@ -242,7 +246,7 @@ jobs:
       - run:
           name: Run all original SP1 guest, lint and range-vkeys checks freshly
           no_output_timeout: 40m
-          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase checks
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase checks --features "<< parameters.features >>"
       - store_test_results:
           path: .ci/sp1-guest/run
       - store_artifacts:
@@ -457,7 +461,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # No kona-build-sp1-elfs here on purpose: main runs the identical job
-      # (same template, no parameters, same contexts) and gates it through
+      # (same template, features, and contexts) and gates it through
       # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
       # this workflow is duplicated work.
       # -----------------------------------------------------------------------
@@ -512,6 +516,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
       - kona-build-sp1-elfs:
+          features: test-config-fallback
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
