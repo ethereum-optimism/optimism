@@ -29,7 +29,7 @@ type TestActor = SequencerActor<
 fn actor_with_pending_handle() -> TestActor {
     let mut actor = test_actor();
     actor.started = true;
-    actor.next_payload_to_seal = Some(pending_handle());
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
     actor
@@ -64,7 +64,7 @@ fn pending_handle() -> UnsealedPayloadHandle {
 async fn commit_failure_withholds_canonicalization_gossip_and_next_build(#[case] timeout: bool) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.next_payload_to_seal = Some(pending_handle());
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
     actor
         .engine_client
         .expect_seal_block()
@@ -92,8 +92,10 @@ async fn commit_failure_withholds_canonicalization_gossip_and_next_build(#[case]
     for _ in 0..2 {
         actor.build_ticker.reset_immediately();
         actor.step().await.unwrap();
-        assert!(actor.pending_canonicalization_payload.is_none());
-        assert_eq!(actor.next_payload_to_seal.as_ref().unwrap().payload_id, PayloadId::new([1; 8]));
+        assert!(matches!(
+            &actor.in_flight,
+            Some(InFlightBlock::Building(handle)) if handle.payload_id == PayloadId::new([1; 8])
+        ));
     }
 }
 
@@ -145,11 +147,9 @@ async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization
         .return_once(|_| Ok(()));
 
     tick(&mut actor).await;
-    assert!(actor.pending_canonicalization_payload.is_none());
-    assert!(actor.next_payload_to_seal.is_some());
+    assert!(matches!(actor.in_flight, Some(InFlightBlock::Building(_))));
     tick(&mut actor).await;
-    assert!(actor.pending_canonicalization_payload.is_none());
-    assert!(actor.next_payload_to_seal.is_none());
+    assert!(actor.in_flight.is_none());
 }
 
 #[tokio::test]
@@ -204,11 +204,9 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
         .return_once(|_| Ok(()));
 
     tick(&mut actor).await;
-    assert!(actor.pending_canonicalization_payload.is_some());
-    assert!(actor.next_payload_to_seal.is_some());
+    assert!(matches!(actor.in_flight, Some(InFlightBlock::Committed(_))));
     tick(&mut actor).await;
-    assert!(actor.pending_canonicalization_payload.is_none());
-    assert!(actor.next_payload_to_seal.is_none());
+    assert!(actor.in_flight.is_none());
 }
 
 #[rstest]
@@ -218,8 +216,11 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
 async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.next_payload_to_seal = Some(pending_handle());
-    actor.pending_canonicalization_payload = Some(sealed_payload(2));
+    actor.in_flight = Some(InFlightBlock::Committed(CommittedBlock {
+        envelope: sealed_payload(2),
+        parent: L2BlockInfo::default(),
+        tx_count: 0,
+    }));
     actor.engine_client.expect_seal_block().times(0);
     actor.engine_client.expect_canonicalize_block().times(1).return_once(move |_, _| {
         Err(EngineClientError::SealError(if stale {
@@ -236,8 +237,7 @@ async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     actor.step().await.unwrap();
-    assert!(actor.pending_canonicalization_payload.is_none());
-    assert!(actor.next_payload_to_seal.is_none());
+    assert!(actor.in_flight.is_none());
 }
 
 #[tokio::test]
@@ -266,14 +266,14 @@ async fn sequencing_without_a_conductor_canonicalizes_before_gossip() {
         .in_sequence(&mut sequence)
         .return_once(|_| Ok(()));
     tick(&mut actor).await;
-    assert!(actor.next_payload_to_seal.is_none());
+    assert!(actor.in_flight.is_none());
 }
 
 #[tokio::test]
 async fn failed_payload_fetch_drops_the_expired_build_job() {
     let mut actor = test_actor();
     actor.started = true;
-    actor.next_payload_to_seal = Some(pending_handle());
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
     actor.engine_client.expect_seal_block().times(1).return_once(|_, _| {
         Err(EngineClientError::SealError(SealTaskError::GetPayloadFailed(
             RpcError::local_usage_str("unknown payload"),
@@ -284,6 +284,5 @@ async fn failed_payload_fetch_drops_the_expired_build_job() {
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     actor.step().await.unwrap();
-    assert!(actor.next_payload_to_seal.is_none());
-    assert!(actor.pending_canonicalization_payload.is_none());
+    assert!(actor.in_flight.is_none());
 }
