@@ -45,16 +45,6 @@ struct UnsealedPayloadHandle {
     attributes_with_parent: OpAttributesWithParent,
 }
 
-/// The return payload of the `seal_last_and_start_next` function. This allows the sequencer
-/// to make an informed decision about when to seal and build the next block.
-#[derive(Debug)]
-struct SealLastStartNextResult {
-    /// The [`UnsealedPayloadHandle`] that was built.
-    unsealed_payload_handle: Option<UnsealedPayloadHandle>,
-    /// How long it took to execute the seal operation.
-    seal_duration: Duration,
-}
-
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
 /// and handing them to the [`SignerActor`](crate::SignerActor) to be signed and gossipped,
 /// extending the L2 chain with new blocks.
@@ -230,43 +220,20 @@ where
         Ok(())
     }
 
-    /// Seals and commits the last pending block, if one exists and starts the build job for the
-    /// next L2 block, on top of the current unsafe head.
+    /// Seals the provided [`UnsealedPayloadHandle`], commits the resulting payload to the
+    /// conductor if one is configured, canonicalizes it, and schedules it for gossip.
     ///
-    /// If a new block was started, it will return the associated [`UnsealedPayloadHandle`] so
-    /// that it may be sealed and committed in a future call to this function.
-    async fn seal_last_and_start_next(
+    /// Returns how long the whole operation took.
+    async fn seal_commit_canonicalize_and_gossip(
         &mut self,
-        payload_to_seal: Option<&UnsealedPayloadHandle>,
-    ) -> Result<SealLastStartNextResult, SequencerActorError> {
-        let seal_duration = match payload_to_seal {
-            Some(to_seal) => {
-                let seal_start = Instant::now();
-                self.seal_and_commit_payload_if_applicable(to_seal).await?;
-                seal_start.elapsed()
-            }
-            None => Duration::default(),
-        };
-
-        let unsealed_payload_handle = self.build_unsealed_payload().await?;
-
-        Ok(SealLastStartNextResult { unsealed_payload_handle, seal_duration })
-    }
-
-    /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
-    /// gossiping the resulting block, if one is built.
-    async fn seal_and_commit_payload_if_applicable(
-        &mut self,
-        unsealed_payload_handle: &UnsealedPayloadHandle,
-    ) -> Result<(), SequencerActorError> {
+        to_seal: &UnsealedPayloadHandle,
+    ) -> Result<Duration, SequencerActorError> {
+        let seal_start = Instant::now();
         if self.pending_canonicalization_payload.is_none() {
             let seal_request_start = Instant::now();
             let payload = self
                 .engine_client
-                .seal_block(
-                    unsealed_payload_handle.payload_id,
-                    unsealed_payload_handle.attributes_with_parent.clone(),
-                )
+                .seal_block(to_seal.payload_id, to_seal.attributes_with_parent.clone())
                 .await?;
             update_seal_duration_metrics(seal_request_start.elapsed());
 
@@ -283,20 +250,13 @@ where
 
         let payload = self.pending_canonicalization_payload.as_ref().expect("payload is sealed");
         self.engine_client
-            .canonicalize_block(
-                payload.clone(),
-                unsealed_payload_handle.attributes_with_parent.parent,
-            )
+            .canonicalize_block(payload.clone(), to_seal.attributes_with_parent.parent)
             .await?;
         let payload = self.pending_canonicalization_payload.take().expect("payload is canonical");
-        update_total_transactions_sequenced(
-            unsealed_payload_handle.attributes_with_parent.count_transactions(),
-        );
+        update_total_transactions_sequenced(to_seal.attributes_with_parent.count_transactions());
 
-        self.unsafe_payload_gossip_client
-            .schedule_execution_payload_gossip(payload)
-            .await
-            .map_err(Into::into)
+        self.unsafe_payload_gossip_client.schedule_execution_payload_gossip(payload).await?;
+        Ok(seal_start.elapsed())
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -575,12 +535,25 @@ where
                 }
                 info!(target: "sequencer", "Sequencing tick, building block");
                 // Move the pending payload out of self so the &mut self call below doesn't conflict
-                // with the &self read of self.next_payload_to_seal.
+                // with reads of it. It is restored if the seal must be retried.
                 let pending = self.next_payload_to_seal.take();
-                match self.seal_last_and_start_next(pending.as_ref()).await {
-                    Ok(res) => {
-                        self.next_payload_to_seal = res.unsealed_payload_handle;
-                        self.last_seal_duration = res.seal_duration;
+                // Seal the last pending block, if one exists, then start the build job for the next
+                // L2 block on top of the current unsafe head.
+                let seal_res = match pending.as_ref() {
+                    Some(to_seal) => self.seal_commit_canonicalize_and_gossip(to_seal).await,
+                    None => Ok(Duration::default()),
+                };
+                let res = match seal_res {
+                    Ok(seal_duration) => self
+                        .build_unsealed_payload()
+                        .await
+                        .map(|unsealed_payload_handle| (unsealed_payload_handle, seal_duration)),
+                    Err(err) => Err(err),
+                };
+                match res {
+                    Ok((unsealed_payload_handle, seal_duration)) => {
+                        self.next_payload_to_seal = unsealed_payload_handle;
+                        self.last_seal_duration = seal_duration;
                     }
                     Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
                         if is_seal_task_err_fatal(&err) {
