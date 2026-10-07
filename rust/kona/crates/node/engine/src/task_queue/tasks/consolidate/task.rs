@@ -105,7 +105,7 @@ impl ConsolidateTask {
         Ok(())
     }
 
-    /// This provides symmetric fallback behavior to with `build_and_import`.
+    /// This provides symmetric fallback behavior with `build_and_import`.
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,

@@ -28,4 +28,6 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
-pub(super) use util::{BuildAndImportError, build_and_import, import_payload};
+pub(super) use util::{
+    BuildAndImportError, build_and_import, insert_payload_with_holocene_fallback,
+};
