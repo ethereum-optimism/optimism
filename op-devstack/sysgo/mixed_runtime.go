@@ -570,7 +570,6 @@ func startMixedKonaNode(
 		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
 		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
 		// kona only registers when admin is enabled. op-node's devstack node enables it too.
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),

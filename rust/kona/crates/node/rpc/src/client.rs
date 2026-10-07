@@ -7,7 +7,6 @@ use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OutputRoot};
 use std::fmt::Debug;
 use thiserror::Error;
-use tokio::sync::watch;
 
 /// Client trait wrapping RPC implementation for the `EngineActor`.
 #[async_trait]
@@ -24,14 +23,6 @@ pub trait EngineRpcClient: Debug + Send + Sync + Clone {
         &self,
         block: BlockNumberOrTag,
     ) -> RpcResult<(L2BlockInfo, OutputRoot, EngineState)>;
-    /// Development API: Get the current number of pending tasks in the queue.
-    async fn dev_get_task_queue_length(&self) -> RpcResult<usize>;
-    /// Development API: Subscribes to engine queue length updates managed by the returned
-    /// [`watch::Receiver`].
-    async fn dev_subscribe_to_engine_queue_length(&self) -> RpcResult<watch::Receiver<usize>>;
-    /// Development API: Subscribes to engine state updates managed by the returned
-    /// [`watch::Receiver`].
-    async fn dev_subscribe_to_engine_state(&self) -> RpcResult<watch::Receiver<EngineState>>;
 }
 
 /// Client trait wrapping RPC implementation for the Sequencer admin endpoints.

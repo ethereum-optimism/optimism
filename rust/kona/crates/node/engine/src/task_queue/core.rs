@@ -55,8 +55,6 @@ pub struct Engine {
     state: EngineState,
     /// A sender that can be used to notify the engine actor of state changes.
     state_sender: Sender<EngineState>,
-    /// A sender that can be used to notify the engine actor of task queue length changes.
-    task_queue_length: Sender<usize>,
     /// The task queue.
     tasks: BinaryHeap<QueuedTask>,
     next_sequence: u64,
@@ -67,15 +65,10 @@ pub struct Engine {
 
 impl Engine {
     /// Creates a new [`Engine`] with an empty task queue and the passed initial [`EngineState`].
-    pub fn new(
-        initial_state: EngineState,
-        state_sender: Sender<EngineState>,
-        task_queue_length: Sender<usize>,
-    ) -> Self {
+    pub fn new(initial_state: EngineState, state_sender: Sender<EngineState>) -> Self {
         Self {
             state: initial_state,
             state_sender,
-            task_queue_length,
             tasks: BinaryHeap::default(),
             active: None,
             next_sequence: 0,
@@ -92,19 +85,12 @@ impl Engine {
         self.state_sender.subscribe()
     }
 
-    /// Returns a receiver that can be used to listen to engine queue length updates.
-    pub fn queue_length_subscribe(&self) -> tokio::sync::watch::Receiver<usize> {
-        self.task_queue_length.subscribe()
-    }
-
     /// Enqueues a new [`EngineTask`] for execution.
-    /// Updates the queue length and notifies listeners of the change.
     pub fn enqueue(&mut self, task: EngineTask) {
         let sequence = self.next_sequence;
         self.next_sequence =
             self.next_sequence.checked_add(1).expect("engine task sequence exhausted");
         self.tasks.push(QueuedTask { sequence, task });
-        self.task_queue_length.send_replace(self.len());
     }
 
     /// Number of queued and active tasks, including work awaiting a retry.
@@ -149,7 +135,6 @@ impl Engine {
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.active = None;
-        self.task_queue_length.send_replace(0);
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
@@ -165,7 +150,6 @@ impl Engine {
             task.execute(&mut self.state).await?;
             self.state_sender.send_replace(self.state);
             self.active = None;
-            self.task_queue_length.send_replace(self.len());
         }
 
         Ok(())
@@ -216,8 +200,7 @@ mod recovery_tests {
         let client = Arc::new(client);
         l2.expect_error("engine_newPayloadV1");
         let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
-        let (queue_tx, queue_rx) = tokio::sync::watch::channel(0);
-        let mut engine = Engine::new(EngineState::default(), state_tx, queue_tx);
+        let mut engine = Engine::new(EngineState::default(), state_tx);
         engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
             client.clone(),
             config,
@@ -232,7 +215,6 @@ mod recovery_tests {
             .unwrap_err();
         assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
         assert_eq!(engine.len(), 1);
-        assert_eq!(*queue_rx.borrow(), 1);
         // Accumulate additional unsafe imports during the outage. Equal-priority heap
         // entries must remain FIFO; otherwise the final unsafe head can move backwards.
         for number in 1..=3 {
@@ -261,7 +243,6 @@ mod recovery_tests {
         }
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
-        assert_eq!(*queue_rx.borrow(), 0);
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
         l1.assert_finished();
         l2.assert_finished();
