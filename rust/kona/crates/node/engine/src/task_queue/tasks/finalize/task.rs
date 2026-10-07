@@ -45,7 +45,6 @@ impl EngineTaskExt for FinalizeTask {
             FinalizeBlockId::ByHash(id) => id.hash.into(),
             FinalizeBlockId::ByNumber(n) => n.into(),
         };
-
         let block = self
             .client
             .get_l2_block(lookup)
@@ -68,7 +67,6 @@ impl EngineTaskExt for FinalizeTask {
         }
 
         // Dispatch a forkchoice update.
-
         synchronize(
             self.client.as_ref(),
             state,

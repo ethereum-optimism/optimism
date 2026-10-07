@@ -2,7 +2,7 @@
 use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    task_queue::import_payload,
+    task_queue::insert_payload_with_holocene_fallback,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -52,7 +52,6 @@ impl SealTask {
         state: &mut EngineState,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         // Fetch the payload just inserted from the EL and import it into the engine.
-
         let new_payload = get_payload(
             self.engine.as_ref(),
             &self.cfg,
@@ -62,7 +61,7 @@ impl SealTask {
         .await?;
 
         // Insert the payload into the engine and reuse its decoded block information.
-        let new_block_ref = import_payload(
+        let new_block_ref = insert_payload_with_holocene_fallback(
             self.engine.as_ref(),
             &self.cfg,
             state,
