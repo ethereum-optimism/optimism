@@ -471,7 +471,7 @@ pub async fn launch_node(
         Ok(provider) if !provider.cached_storage_settings().is_v2() => {
             warn!(
                 target: "reth::cli",
-                "Storage V1 is deprecated and will be removed on 2027-01-04. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+                "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
             );
         }
         Ok(_) => {}
