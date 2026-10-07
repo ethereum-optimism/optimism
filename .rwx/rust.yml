@@ -202,11 +202,11 @@ tasks:
     # exceeded RWX's 100 GiB filesystem-layer limit in the hosted trial.
     tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
     timeout: 90m
-    # A compiler-cold incremental build fills the default 50 GB writable disk.
+    # Warm dependencies occupy 88.37 GB; RWX also requires 20 GB of scratch.
     runner: &test-runner
       cpus: 16
       memory: 32gb
-      disk: 100gb
+      disk: 150gb
     outputs:
       filesystem: &compiler-output
         filter:
@@ -219,7 +219,7 @@ tasks:
   # cache:false also disables tool caches. Include run/attempt identity instead
   # so every verdict executes while compiler-only layers remain reusable.
   - key: tests
-    use: [tests-build, head-source, test-cache-identity]
+    use: [head-source, tests-build, test-cache-identity]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests
     env:

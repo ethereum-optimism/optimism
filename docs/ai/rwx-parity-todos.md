@@ -233,3 +233,6 @@ gate cutover items above.
   Publish independent metadata files as the pilot workaround; retain both
   original failures and label breakpoint observations as diagnostic. Do not
   equate successful cold compilation with untouched warm-update proof.
+- [x] Size full Rust test build/runtime disks for restored dependencies and RWX's
+  scratch requirement. The 100 GB warm verdict failed before execution at
+  `75f51b1427`; use 150 GB while retaining 16 CPU / 32 GiB.

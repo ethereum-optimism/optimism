@@ -325,3 +325,10 @@ original report, terminal engine message and
 `rust-tests-build-d256ae4611-estale-debug-observations.json`. Keep subsequent
 unmodified cold/warm validation distinct from this diagnostic attempt. Retain
 `cache-output.json` and `cache-publication.json` with the corrective validation.
+
+At `75f51b1427`, the cold producer and fresh verdict passed, followed by an
+untouched warm producer retry. The warm verdict did not execute: RWX rejected
+its 100 GB disk because dependency layers occupied 88.37 GB and required another
+20 GB of scratch space. Retain both attempt engine records and original reports;
+compare the subsequent 150 GB validation separately. Successful warm compilation
+does not establish a passing warm verdict.

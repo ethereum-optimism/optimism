@@ -404,7 +404,7 @@ class ConfigurationTests(unittest.TestCase):
             self.assertIn('${{ init.cargo-incremental }}', tasks[key]['tool-cache'])
             self.assertIn('${{ tasks.test-cache-identity.values.namespace }}', tasks[key]['tool-cache'])
             self.assertIn('test-cache-identity', tasks[key]['use'])
-            self.assertEqual(tasks[key]['runner'], {'cpus': 16, 'memory': '32gb', 'disk': '100gb'})
+            self.assertEqual(tasks[key]['runner'], {'cpus': 16, 'memory': '32gb', 'disk': '150gb'})
         self.assertTrue(all('disk' not in t.get('runner', {}) for t in config['tasks']
                             if t['key'] not in ('tests-build', 'tests')))
         for trigger in ('cli', 'cache-rebuild'):

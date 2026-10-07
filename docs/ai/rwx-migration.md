@@ -122,11 +122,11 @@ sccache; registry dependencies remain eligible for compiler caching. Reports and
 test archives bind the effective profile settings. Test build/runtime cache names
 include the incremental mode: combining old nonincremental targets with the new
 outputs exceeded RWX's 100 GiB filesystem-layer limit in the first hosted trial.
-Only test build/runtime workers use 100 GB writable disks: a compiler-cold run
-exhausted the default 50 GB disk. This does not increase the separate 100 GiB
-filesystem-layer limit. At the 2026-10-06 [listed disk rate](https://www.rwx.com/docs/pricing),
-the extra disk costs $0.0000025 per second per task; CPU/memory resources stay
-unchanged. Feature cache names, shards and
+Only test build/runtime workers use 150 GB writable disks. A compiler-cold run
+exhausted the default 50 GB disk; a later warm verdict required 150 GB before
+execution because its dependencies occupied 88.37 GB and RWX requires 20 GB of
+scratch space. This does not increase the separate 100 GiB filesystem-layer
+limit. CPU/memory resources stay unchanged. Feature cache names, shards and
 selected commands remain. Circle, release/prestate builds
 and other Rust jobs retain their current incremental policy. Compare complete
 compile/cache-transfer timings before claiming a speed improvement.
