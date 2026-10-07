@@ -9,7 +9,7 @@ use op_alloy_provider::ext::engine::OpEngineApi;
 ///
 /// Engine tasks call this whenever they move the unsafe, safe, or finalized head, and the engine
 /// calls it during a reset to establish the initial forkchoice state. Forkchoice updates that
-/// start a block build are made by [`BuildTask`](crate::BuildTask) instead.
+/// start a block build are made by `start_build` instead.
 #[tracing::instrument(
     name = "synchronize",
     target = "engine",
@@ -86,8 +86,6 @@ pub(in crate::task_queue) async fn synchronize(
 
     // Apply the new sync state to the engine state.
     state.sync_state = new_sync_state;
-
-
 
     Ok(())
 }

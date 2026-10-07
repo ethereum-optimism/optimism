@@ -2,7 +2,7 @@
 use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    task_queue::import_payload,
+    task_queue::insert_payload_with_holocene_fallback,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -52,7 +52,6 @@ impl SealTask {
         state: &mut EngineState,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         // Fetch the payload just inserted from the EL and import it into the engine.
-
         let new_payload = get_payload(
             self.engine.as_ref(),
             &self.cfg,
@@ -62,7 +61,7 @@ impl SealTask {
         .await?;
 
         // Insert the payload into the engine and reuse its decoded block information.
-        let new_block_ref = import_payload(
+        let new_block_ref = insert_payload_with_holocene_fallback(
             self.engine.as_ref(),
             &self.cfg,
             state,
@@ -128,7 +127,6 @@ impl EngineTaskExt for SealTask {
         )
     )]
     async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
-
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
 
@@ -176,12 +174,12 @@ pub(in crate::task_queue) async fn get_payload(
     payload_id: PayloadId,
     payload_timestamp: u64,
 ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-
     let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
     let payload_envelope = match get_payload_version {
         EngineGetPayloadVersion::V5 => {
             // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-            let payload = engine.get_payload_v5(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+            let payload =
+                engine.get_payload_v5(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
 
             OpExecutionPayloadEnvelope::V4 {
                 parent_beacon_block_root: payload.parent_beacon_block_root,
@@ -189,7 +187,8 @@ pub(in crate::task_queue) async fn get_payload(
             }
         }
         EngineGetPayloadVersion::V4 => {
-            let payload = engine.get_payload_v4(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+            let payload =
+                engine.get_payload_v4(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
 
             OpExecutionPayloadEnvelope::V4 {
                 parent_beacon_block_root: payload.parent_beacon_block_root,
@@ -197,7 +196,8 @@ pub(in crate::task_queue) async fn get_payload(
             }
         }
         EngineGetPayloadVersion::V3 => {
-            let payload = engine.get_payload_v3(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+            let payload =
+                engine.get_payload_v3(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
 
             OpExecutionPayloadEnvelope::V3 {
                 parent_beacon_block_root: payload.parent_beacon_block_root,
@@ -205,7 +205,8 @@ pub(in crate::task_queue) async fn get_payload(
             }
         }
         EngineGetPayloadVersion::V2 => {
-            let payload = engine.get_payload_v2(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+            let payload =
+                engine.get_payload_v2(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
 
             match payload.execution_payload.into_payload() {
                 ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
