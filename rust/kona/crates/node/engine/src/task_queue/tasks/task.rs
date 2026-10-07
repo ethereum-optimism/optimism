@@ -4,8 +4,7 @@
 
 use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
 use crate::{
-    BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
-    InsertTaskError,
+    BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -91,22 +90,22 @@ impl EngineTaskError for EngineTaskErrors {
 ///
 /// [`Engine`]: crate::Engine
 #[derive(Debug, Clone)]
-pub enum EngineTask<EngineClient_: EngineClient> {
+pub enum EngineTask {
     /// Inserts an unsafe payload into the execution engine.
-    Insert(Box<InsertTask<EngineClient_>>),
+    Insert(Box<InsertTask>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
-    Build(Box<BuildTask<EngineClient_>>),
+    Build(Box<BuildTask>),
     /// Seals the block with the given payload ID and attributes, inserting it into the execution
     /// engine.
-    Seal(Box<SealTask<EngineClient_>>),
+    Seal(Box<SealTask>),
     /// Performs consolidation on the engine state, reverting to payload attribute processing
     /// via the [`BuildTask`] if consolidation fails.
-    Consolidate(Box<ConsolidateTask<EngineClient_>>),
+    Consolidate(Box<ConsolidateTask>),
     /// Finalizes an L2 block
-    Finalize(Box<FinalizeTask<EngineClient_>>),
+    Finalize(Box<FinalizeTask>),
 }
 
-impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
+impl EngineTask {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
@@ -143,7 +142,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     }
 }
 
-impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
+impl PartialEq for EngineTask {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
@@ -156,15 +155,15 @@ impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
     }
 }
 
-impl<EngineClient_: EngineClient> Eq for EngineTask<EngineClient_> {}
+impl Eq for EngineTask {}
 
-impl<EngineClient_: EngineClient> PartialOrd for EngineTask<EngineClient_> {
+impl PartialOrd for EngineTask {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
+impl Ord for EngineTask {
     fn cmp(&self, other: &Self) -> Ordering {
         // Order (descending): BuildBlock -> InsertUnsafe -> Consolidate -> Finalize
         //
@@ -205,7 +204,7 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
+impl EngineTaskExt for EngineTask {
     type Output = ();
 
     type Error = EngineTaskErrors;
@@ -228,7 +227,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::MockEngineClient;
+    use crate::test_utils::test_engine_client;
     use alloy_consensus::Block;
     use alloy_primitives::Bytes;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
@@ -268,18 +267,13 @@ mod tests {
             ..Default::default()
         });
         let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(config.clone())
-                .with_new_payload_v1_response(valid())
-                .with_fork_choice_updated_v2_response(
-                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
-                )
-                .with_fork_choice_updated_v3_response(
-                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
-                )
-                .build(),
+        let (client, l1, l2) = test_engine_client(config.clone());
+        l2.expect("engine_newPayloadV1", valid());
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
         );
+        let client = Arc::new(client);
 
         let sink = Arc::new(RecordingSink::default());
         let task = EngineTask::Insert(Box::new(InsertTask::new(
@@ -297,19 +291,21 @@ mod tests {
             &[(imported_hash, 0)],
             "a successfully imported block must reach the sink"
         );
+        l1.assert_finished();
+        l2.assert_finished();
     }
 
     #[tokio::test]
     async fn invalid_unsafe_payload_completes_without_retry() {
         let config = Arc::new(RollupConfig::default());
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(config.clone())
-                .with_new_payload_v1_response(PayloadStatus::from_status(
-                    PayloadStatusEnum::Invalid { validation_error: "invalid transaction".into() },
-                ))
-                .build(),
+        let (client, l1, l2) = test_engine_client(config.clone());
+        l2.expect(
+            "engine_newPayloadV1",
+            PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                validation_error: "invalid transaction".into(),
+            }),
         );
+        let client = Arc::new(client);
         let mut payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
         payload.transactions = vec![Bytes::from_static(&[0xff])];
         let task = EngineTask::Insert(Box::new(InsertTask::new(
@@ -324,5 +320,7 @@ mod tests {
             .await
             .expect("invalid unsafe payload task should not retry")
             .unwrap();
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

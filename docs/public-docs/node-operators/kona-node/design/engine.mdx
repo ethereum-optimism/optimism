@@ -56,7 +56,7 @@ This allows tasks to signal different recovery strategies based on the error typ
 
 ## Task Queue System
 
-The engine uses a priority-based task queue (a binary heap ordered by the `EngineTask` `Ord` implementation) where tasks are ordered according to OP Stack synchronization requirements. Tasks are generic over an `EngineClient` implementation.
+The engine uses a priority-based task queue (a binary heap ordered by the `EngineTask` `Ord` implementation) where tasks are ordered according to OP Stack synchronization requirements. Tasks use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
 
 ### Task Priority (Highest to Lowest)
 
@@ -75,9 +75,9 @@ Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs 
 Updates the execution layer's forkchoice state. It is invoked by the other tasks rather than queued directly:
 
 ```rust
-pub struct SynchronizeTask<EngineClient_: EngineClient> {
+pub struct SynchronizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The rollup config.
     pub rollup: Arc<RollupConfig>,
     /// The sync state update to apply to the engine state.
@@ -94,9 +94,9 @@ Handles:
 Starts building a new block in sequencer mode, producing a payload ID:
 
 ```rust
-pub struct BuildTask<EngineClient_: EngineClient> {
+pub struct BuildTask {
     /// The engine API client.
-    pub engine: Arc<EngineClient_>,
+    pub engine: Arc<EngineClient>,
     /// The RollupConfig.
     pub cfg: Arc<RollupConfig>,
     /// The OpAttributesWithParent to instruct the execution layer to build.
@@ -114,9 +114,9 @@ Handles payload building initiation with `engine_forkchoiceUpdated`.
 Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
 
 ```rust
-pub struct SealTask<EngineClient_: EngineClient> {
+pub struct SealTask {
     /// The engine API client.
-    pub engine: Arc<EngineClient_>,
+    pub engine: Arc<EngineClient>,
     /// The RollupConfig.
     pub cfg: Arc<RollupConfig>,
     /// The PayloadId being sealed.
@@ -136,9 +136,9 @@ pub struct SealTask<EngineClient_: EngineClient> {
 Inserts payloads (for example unsafe blocks received from gossip) into the execution engine:
 
 ```rust
-pub struct InsertTask<EngineClient_: EngineClient> {
+pub struct InsertTask {
     /// The engine client.
-    client: Arc<EngineClient_>,
+    client: Arc<EngineClient>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
     /// The network payload envelope.
@@ -153,9 +153,9 @@ pub struct InsertTask<EngineClient_: EngineClient> {
 Advances the safe chain through derivation:
 
 ```rust
-pub struct ConsolidateTask<EngineClient_: EngineClient> {
+pub struct ConsolidateTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The RollupConfig.
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
@@ -170,9 +170,9 @@ If consolidation fails, the task reverts to payload attribute processing via the
 Finalizes L2 blocks:
 
 ```rust
-pub struct FinalizeTask<EngineClient_: EngineClient> {
+pub struct FinalizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The rollup config.
     pub cfg: Arc<RollupConfig>,
     /// Identifier of the L2 block to finalize.
@@ -220,7 +220,7 @@ pub trait NodeActor: Send + 'static {
 
 ### Communication Channels
 
-The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it shares the engine client and a watch over the engine state and queue length, but is constrained to a read-only subset of the engine client so it cannot reach Engine API mutation methods.
+The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it uses an `EngineQueryClient` that shares the L2 RPC connection and exposes only block and storage-hash reads. The actor reads engine state and queue length through watches.
 
 ### Engine Queries
 
@@ -248,8 +248,7 @@ pub enum EngineQueries {
 ### Basic Engine Setup
 
 ```rust
-// Create an engine client. The `EngineClient` trait is implemented by
-// `OpEngineClient`, constructed through the `EngineClientBuilder`.
+// Create the concrete engine client through `EngineClientBuilder`.
 let client = EngineClientBuilder {
     l2: l2_engine_url,
     l2_jwt: jwt_secret,
