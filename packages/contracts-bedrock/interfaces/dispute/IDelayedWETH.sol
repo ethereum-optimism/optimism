@@ -6,6 +6,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 interface IDelayedWETH is IProxyAdminOwnedBase {
+    error DelayedWETH_InvalidDelay();
+    error DelayedWETH_InvalidDelayBounds();
     error ReinitializableBase_ZeroInitVersion();
 
     struct WithdrawalRequest {
@@ -13,6 +15,7 @@ interface IDelayedWETH is IProxyAdminOwnedBase {
         uint256 timestamp;
     }
 
+    event DelaySet(uint256 delay);
     event Initialized(uint8 version);
 
     fallback() external payable;
@@ -21,10 +24,13 @@ interface IDelayedWETH is IProxyAdminOwnedBase {
     function initVersion() external view returns (uint8);
     function ethLockbox() external view returns (IETHLockbox);
     function delay() external view returns (uint256);
+    function minDelay() external view returns (uint256);
+    function maxDelay() external view returns (uint256);
     function hold(address _guy) external;
     function hold(address _guy, uint256 _wad) external;
-    function initialize(IETHLockbox _ethLockbox) external;
+    function initialize(IETHLockbox _ethLockbox, uint256 _delay) external;
     function recover(uint256 _wad) external;
+    function setDelay(uint256 _delay) external;
     function unlock(address _guy, uint256 _wad) external;
     function withdraw(address _guy, uint256 _wad) external;
     function withdrawals(address, address) external view returns (uint256 amount, uint256 timestamp);
@@ -61,5 +67,5 @@ interface IDelayedWETH is IProxyAdminOwnedBase {
 
     function config() external view returns (ISuperchainConfig);
 
-    function __constructor__(uint256 _delay) external;
+    function __constructor__(uint256 _minDelay, uint256 _maxDelay) external;
 }

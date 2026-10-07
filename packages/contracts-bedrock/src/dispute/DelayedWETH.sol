@@ -20,8 +20,10 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         period before they can withdraw after the unlock function is triggered. DelayedWETH is designed to be used
 ///         by the DisputeGame contracts where unlock will only be triggered after a dispute is resolved. DelayedWETH
 ///         is meant to sit behind a proxy contract and has an owner address that can pull WETH from any account and
-///         can recover ETH from the contract itself. Variable and function naming vaguely follows the vibe of WETH9.
-///         Not the prettiest contract in the world, but it gets the job done.
+///         can recover ETH from the contract itself. The owner sets the delay at initialization and can change it
+///         afterwards through `setDelay`, within the bounds fixed by the implementation. Variable and function
+///         naming vaguely follows the vibe of WETH9. Not the prettiest contract in the world, but it gets the job
+///         done.
 contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase, WETH98, ISemver {
     /// @notice Represents a withdrawal request.
     struct WithdrawalRequest {
@@ -30,14 +32,17 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @notice Returns a withdrawal request for the given address.
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
 
-    /// @notice Withdrawal delay in seconds.
-    uint256 internal immutable DELAY_SECONDS;
+    /// @notice The lowest value that `delay` may be set to.
+    uint256 internal immutable MIN_DELAY_SECONDS;
+
+    /// @notice The highest value that `delay` may be set to.
+    uint256 internal immutable MAX_DELAY_SECONDS;
 
     /// @custom:legacy
     /// @custom:spacer systemConfig
@@ -47,32 +52,71 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @notice The ETHLockbox used as the pause identifier.
     IETHLockbox public ethLockbox;
 
-    /// @param _delay The delay for withdrawals in seconds.
-    constructor(uint256 _delay) ReinitializableBase(1) {
-        DELAY_SECONDS = _delay;
+    /// @notice Withdrawal delay in seconds. An unlocked withdrawal can only be executed once this much
+    ///         time has passed since the unlock. Bounded by `MIN_DELAY_SECONDS` and `MAX_DELAY_SECONDS`.
+    /// @custom:network-specific
+    uint256 public delay;
+
+    /// @notice Emitted when the withdrawal delay is set.
+    /// @param delay The new withdrawal delay in seconds.
+    event DelaySet(uint256 delay);
+
+    /// @notice Thrown when the withdrawal delay bounds are zero or inverted.
+    error DelayedWETH_InvalidDelayBounds();
+
+    /// @notice Thrown when a withdrawal delay is outside the configured bounds.
+    error DelayedWETH_InvalidDelay();
+
+    /// @param _minDelay The lowest withdrawal delay a chain may use, in seconds.
+    /// @param _maxDelay The highest withdrawal delay a chain may use, in seconds.
+    constructor(uint256 _minDelay, uint256 _maxDelay) ReinitializableBase(2) {
+        if (_minDelay == 0 || _minDelay > _maxDelay) {
+            revert DelayedWETH_InvalidDelayBounds();
+        }
+        MIN_DELAY_SECONDS = _minDelay;
+        MAX_DELAY_SECONDS = _maxDelay;
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _ethLockbox The address of the ETHLockbox contract.
-    function initialize(IETHLockbox _ethLockbox) external reinitializer(initVersion()) {
+    /// @param _delay The withdrawal delay in seconds.
+    function initialize(IETHLockbox _ethLockbox, uint256 _delay) external reinitializer(initVersion()) {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
         ethLockbox = _ethLockbox;
+
+        // Set the withdrawal delay. Bounds-checked and emits the same event as the setter.
+        _setDelay(_delay);
     }
 
-    /// @notice Returns the withdrawal delay in seconds.
-    /// @return The withdrawal delay in seconds.
-    function delay() external view returns (uint256) {
-        return DELAY_SECONDS;
+    /// @notice Returns the lowest value that the withdrawal delay may be set to.
+    /// @return The minimum withdrawal delay in seconds.
+    function minDelay() external view returns (uint256) {
+        return MIN_DELAY_SECONDS;
+    }
+
+    /// @notice Returns the highest value that the withdrawal delay may be set to.
+    /// @return The maximum withdrawal delay in seconds.
+    function maxDelay() external view returns (uint256) {
+        return MAX_DELAY_SECONDS;
     }
 
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function config() public view returns (ISuperchainConfig) {
         return ethLockbox.superchainConfig();
+    }
+
+    /// @notice Allows the ProxyAdmin owner to set the withdrawal delay. The new value applies to
+    ///         every pending withdrawal request, including requests unlocked before the change.
+    /// @param _delay The new withdrawal delay in seconds.
+    function setDelay(uint256 _delay) external {
+        // Only the ProxyAdmin owner can change the withdrawal delay.
+        _assertOnlyProxyAdminOwner();
+        _setDelay(_delay);
     }
 
     /// @notice Unlocks withdrawals for the sender's account, after a time delay.
@@ -103,7 +147,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
         WithdrawalRequest storage wd = withdrawals[msg.sender][_guy];
         require(wd.amount >= _wad, "DelayedWETH: insufficient unlocked withdrawal");
         require(wd.timestamp > 0, "DelayedWETH: withdrawal not unlocked");
-        require(wd.timestamp + DELAY_SECONDS <= block.timestamp, "DelayedWETH: withdrawal delay not met");
+        require(wd.timestamp + delay <= block.timestamp, "DelayedWETH: withdrawal delay not met");
         wd.amount -= _wad;
         super.withdraw(_wad);
     }
@@ -131,5 +175,15 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
         _allowance[_guy][msg.sender] = _wad;
         emit Approval(_guy, msg.sender, _wad);
         transferFrom(_guy, msg.sender, _wad);
+    }
+
+    /// @notice Sets the withdrawal delay after checking it against the configured bounds.
+    /// @param _delay The new withdrawal delay in seconds.
+    function _setDelay(uint256 _delay) internal {
+        if (_delay < MIN_DELAY_SECONDS || _delay > MAX_DELAY_SECONDS) {
+            revert DelayedWETH_InvalidDelay();
+        }
+        delay = _delay;
+        emit DelaySet(_delay);
     }
 }
