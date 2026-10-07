@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title IL2ToL2CrossDomainMessenger
 /// @notice Interface for the L2ToL2CrossDomainMessenger contract.
-interface IL2ToL2CrossDomainMessenger {
+interface IL2ToL2CrossDomainMessenger is IProxyAdminOwnedBase {
     /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
     error NotEntered();
 
@@ -33,6 +34,25 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
     error InvalidMessage();
 
+    /// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger.
+    error MessageTargetL2CrossDomainMessenger();
+
+    /// @notice Thrown when attempting to export an undelivered message before the expiry hub is set.
+    error ExpiryHubNotSet();
+
+    /// @notice Thrown when a message is marked expired by anything but the expiry hub.
+    error NotExpiryHub();
+
+    /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed past the expiry
+    ///         window.
+    error MessageNotExpired();
+
+    /// @notice Thrown when attempting to resend a message that expired.
+    error MessageAlreadyExpired();
+
+    /// @notice Thrown when anyone but the sender of a message attempts to resend it.
+    error ResendNotSender();
+
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -52,7 +72,62 @@ interface IL2ToL2CrossDomainMessenger {
         uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash, bytes32 returnDataHash
     );
 
+    /// @notice Emitted when the expiry hub is set.
+    /// @param expiryHub Address of the MessageExpiryHub on L1.
+    event ExpiryHubSet(address expiryHub);
+
+    /// @notice Emitted when this chain exports that a message to it has not been relayed.
+    /// @param messageHash   Hash of the message.
+    /// @param source        Chain ID of the source chain.
+    /// @param undeliveredAt Timestamp at which the message had not been relayed.
+    event UndeliveredMessageExported(bytes32 indexed messageHash, uint256 indexed source, uint256 undeliveredAt);
+
+    /// @notice Emitted when a message sent from this chain is marked expired.
+    /// @param messageHash   Hash of the message.
+    /// @param undeliveredAt Destination timestamp at which the message had not been relayed.
+    event MessageExpired(bytes32 indexed messageHash, uint256 undeliveredAt);
+
     function version() external view returns (string memory);
+
+    /// @notice How long after it is sent a message can still be relayed.
+    function MESSAGE_EXPIRY_WINDOW() external view returns (uint256);
+
+    /// @notice Mapping of message hashes to the timestamp of the block they were sent in.
+    function sentMessageTimestamps(bytes32) external view returns (uint256);
+
+    /// @notice Mapping of message hashes to whether they expired undelivered.
+    function expiredMessages(bytes32) external view returns (bool);
+
+    /// @notice Address of the MessageExpiryHub on L1.
+    function expiryHub() external view returns (address);
+
+    /// @notice Sets the MessageExpiryHub on L1. Only the ProxyAdmin owner can set it.
+    /// @param _expiryHub Address of the MessageExpiryHub.
+    function setExpiryHub(address _expiryHub) external;
+
+    /// @notice Exports to the expiry hub that a message to this chain has not been relayed by now.
+    /// @param _source      Chain ID of the source chain.
+    /// @param _nonce       Nonce of the message.
+    /// @param _sender      Address that sent the message.
+    /// @param _target      Target contract or wallet address.
+    /// @param _message     Message payload.
+    /// @param _minGasLimit Minimum gas limit for the expiry hub call on L1.
+    /// @return messageHash_ Hash of the message.
+    function exportUndeliveredMessage(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        bytes calldata _message,
+        uint32 _minGasLimit
+    )
+        external
+        returns (bytes32 messageHash_);
+
+    /// @notice Marks a message sent from this chain expired, on a fact from the expiry hub.
+    /// @param _messageHash   Hash of the message.
+    /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
+    function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
