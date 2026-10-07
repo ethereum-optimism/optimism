@@ -1,20 +1,19 @@
 use crate::{EngineError, EngineRpcRequest, NodeActor};
 use async_trait::async_trait;
-use kona_engine::{EngineRpcClient, EngineState};
+use kona_engine::{EngineQueryClient, EngineState};
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
 /// Handles [`EngineRpcRequest`]s by reading engine state and queue length via watches and
-/// dispatching the request through an [`EngineRpcClient`].
+/// dispatching the request through an [`EngineQueryClient`].
 ///
-/// The client type is constrained to [`EngineRpcClient`] — a read-only subset of
-/// [`kona_engine::EngineClient`] — so this actor cannot reach into Engine API mutation methods
-/// even by accident.
+/// The [`EngineQueryClient`] exposes only execution-layer reads, so this actor cannot call
+/// Engine API mutations.
 #[derive(Debug)]
-pub struct EngineRpcActor<EngineRpcClient_: EngineRpcClient> {
-    /// An [`EngineRpcClient`] used for handling engine queries.
-    engine_rpc_client: Arc<EngineRpcClient_>,
+pub struct EngineRpcActor {
+    /// An [`EngineQueryClient`] used for handling engine queries.
+    engine_rpc_client: EngineQueryClient,
     /// The [`RollupConfig`] used to handle queries.
     rollup_config: Arc<RollupConfig>,
     /// Receiver for [`EngineState`] updates.
@@ -25,10 +24,10 @@ pub struct EngineRpcActor<EngineRpcClient_: EngineRpcClient> {
     inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
 }
 
-impl<EngineRpcClient_: EngineRpcClient> EngineRpcActor<EngineRpcClient_> {
+impl EngineRpcActor {
     /// Constructs a new [`EngineRpcActor`].
     pub const fn new(
-        engine_rpc_client: Arc<EngineRpcClient_>,
+        engine_rpc_client: EngineQueryClient,
         rollup_config: Arc<RollupConfig>,
         engine_state_receiver: watch::Receiver<EngineState>,
         engine_queue_length_receiver: watch::Receiver<usize>,
@@ -64,10 +63,7 @@ impl<EngineRpcClient_: EngineRpcClient> EngineRpcActor<EngineRpcClient_> {
 }
 
 #[async_trait]
-impl<EngineRpcClient_> NodeActor for EngineRpcActor<EngineRpcClient_>
-where
-    EngineRpcClient_: EngineRpcClient + 'static,
-{
+impl NodeActor for EngineRpcActor {
     type Error = EngineError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {

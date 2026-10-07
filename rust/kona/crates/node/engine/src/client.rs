@@ -4,27 +4,22 @@ use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Address, B256, Bytes, StorageKey};
-use alloy_provider::{EthGetBlock, Provider, RootProvider, RpcWithBlock, ext::EngineApi};
+use alloy_primitives::{Address, B256, Bytes};
+use alloy_provider::{EthGetBlock, Provider, RootProvider, ext::EngineApi};
 use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::{ExecutionPayloadV1, JwtSecret, PayloadStatus};
-use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
+use alloy_rpc_types_eth::Block;
 use alloy_transport::{
     RpcError, TransportError, TransportErrorKind, TransportFut, TransportResult,
 };
 use alloy_transport_http::{
-    AuthLayer, AuthService, Http, HyperClient,
-    hyper_util::{
-        client::legacy::{Client, connect::HttpConnector},
-        rt::TokioExecutor,
-    },
+    AuthLayer, Http, HyperClient,
+    hyper_util::{client::legacy::Client, rt::TokioExecutor},
 };
-use async_trait::async_trait;
 use http_body_util::Full;
 use kona_genesis::RollupConfig;
 use kona_protocol::FromBlockError;
 use op_alloy_network::Optimism;
-use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction;
 use std::{
     sync::Arc,
@@ -111,125 +106,114 @@ pub enum EngineClientError {
     #[error("An error occurred while decoding the payload: {0}")]
     BlockInfoDecodeError(#[from] FromBlockError),
 }
-/// A Hyper HTTP client with a JWT authentication layer.
-pub type HyperAuthClient<B = Full<Bytes>> = HyperClient<B, AuthService<Client<HttpConnector, B>>>;
-
-/// Engine API client used to communicate with L1/L2 ELs.
-/// `EngineClient` trait that is very coupled to its only implementation.
-/// The main reason this exists is for mocking/unit testing.
-#[async_trait]
-pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sync {
-    /// Returns a reference to the inner [`RollupConfig`].
-    fn cfg(&self) -> &RollupConfig;
-
-    /// Fetches the L1 block with the provided `BlockId`.
-    fn get_l1_block(&self, block: BlockId) -> EthGetBlock<<Ethereum as Network>::BlockResponse>;
-
-    /// Fetches the L2 block with the provided `BlockId`.
-    fn get_l2_block(&self, block: BlockId) -> EthGetBlock<<Optimism as Network>::BlockResponse>;
-
-    /// Get the account and storage values of the specified account including the merkle proofs.
-    /// This call can be used to verify that the data has not been tampered with.
-    fn get_proof(
-        &self,
-        address: Address,
-        keys: Vec<StorageKey>,
-    ) -> RpcWithBlock<(Address, Vec<StorageKey>), EIP1186AccountProofResponse>;
-
-    /// Sends the given payload to the execution layer client, as specified for the Paris fork.
-    async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus>;
-
-    /// Fetches the [`Block<Transaction>`] for the given [`BlockNumberOrTag`].
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError>;
+/// Client for L1 reads and L2 Engine API calls. Providers erase their transport type, so tests
+/// use the same client with a mock transport. Task helpers select the Engine API version.
+#[derive(Clone, Debug)]
+pub struct EngineClient {
+    engine: RootProvider<Optimism>,
+    l1_provider: RootProvider,
+    cfg: Arc<RollupConfig>,
 }
 
-/// Read-only subset of [`EngineClient`] used by the engine RPC actor.
-///
-/// Exposes only the methods required to serve [`crate::EngineQueries`] — fetching an L2 block by
-/// label, and reading the L2-to-L1 message-passer storage hash. The engine RPC actor handles
-/// queries only and must not have any way to call state-mutating Engine API methods; constraining
-/// it to this trait prevents that at the type system level.
-#[async_trait]
-pub trait EngineRpcClient: Send + Sync {
-    /// Fetches the [`Block<Transaction>`] for the given [`BlockNumberOrTag`].
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError>;
+impl EngineClient {
+    /// Creates a client from existing providers.
+    pub const fn new(
+        l1_provider: RootProvider,
+        engine: RootProvider<Optimism>,
+        cfg: Arc<RollupConfig>,
+    ) -> Self {
+        Self { engine, l1_provider, cfg }
+    }
 
-    /// Returns the storage hash of `address` at the given block, used to compute the L2-to-L1
-    /// message-passer storage root pre-Isthmus. This is a narrower projection of `get_proof`'s
-    /// `storage_hash` field; callers needing the full account proof should not be using this
-    /// trait.
-    async fn get_storage_hash(
+    /// Returns the rollup configuration.
+    pub fn cfg(&self) -> &RollupConfig {
+        &self.cfg
+    }
+
+    /// Fetches an L1 block.
+    pub fn get_l1_block(
         &self,
-        address: Address,
         block: BlockId,
-    ) -> Result<B256, RpcError<TransportErrorKind>>;
-}
+    ) -> EthGetBlock<<Ethereum as Network>::BlockResponse> {
+        self.l1_provider.get_block(block)
+    }
 
-#[async_trait]
-impl<T: EngineClient + ?Sized> EngineRpcClient for T {
-    async fn l2_block_by_label(
+    /// Fetches an L2 block.
+    pub fn get_l2_block(
+        &self,
+        block: BlockId,
+    ) -> EthGetBlock<<Optimism as Network>::BlockResponse> {
+        self.engine.get_block(block)
+    }
+
+    /// Submits a Paris payload, whose method is provided by Alloy's Ethereum Engine API extension.
+    pub async fn new_payload_v1(
+        &self,
+        payload: ExecutionPayloadV1,
+    ) -> TransportResult<PayloadStatus> {
+        self.engine.new_payload_v1(payload).await
+    }
+
+    /// Fetches an L2 block with full transactions.
+    pub async fn l2_block_by_label(
         &self,
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<Transaction>>, EngineClientError> {
-        EngineClient::l2_block_by_label(self, numtag).await
+        Ok(self.engine.get_block_by_number(numtag).full().await?)
     }
 
-    async fn get_storage_hash(
+    /// Returns a restricted handle sharing this client's L2 connection.
+    pub fn query_client(&self) -> EngineQueryClient {
+        EngineQueryClient { engine: self.engine.clone() }
+    }
+
+    /// Creates an authenticated L2 provider with request timing and a deadline.
+    pub fn rpc_client(addr: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
+        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
+        let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
+        let http_hyper = Http::with_client(HyperClient::with_service(service), addr);
+        let rpc_client = ClientBuilder::default()
+            .layer(RequestDurationLayer)
+            .layer(MapFutureLayer::new(with_deadline))
+            .transport(http_hyper, false);
+        RootProvider::new(rpc_client)
+    }
+}
+
+/// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
+impl Provider<Optimism> for EngineClient {
+    fn root(&self) -> &RootProvider<Optimism> {
+        &self.engine
+    }
+}
+
+/// Read-only execution-layer handle for [`crate::EngineQueries`]. Its provider is private and it
+/// exposes no Engine API mutations.
+#[derive(Clone, Debug)]
+pub struct EngineQueryClient {
+    engine: RootProvider<Optimism>,
+}
+
+impl EngineQueryClient {
+    /// Fetches an L2 block with full transactions.
+    pub async fn l2_block_by_label(
+        &self,
+        numtag: BlockNumberOrTag,
+    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
+        Ok(self.engine.get_block_by_number(numtag).full().await?)
+    }
+
+    /// Returns the account's storage hash at the given block.
+    pub async fn get_storage_hash(
         &self,
         address: Address,
         block: BlockId,
     ) -> Result<B256, RpcError<TransportErrorKind>> {
-        Ok(self.get_proof(address, Default::default()).block_id(block).await?.storage_hash)
+        Ok(self.engine.get_proof(address, Default::default()).block_id(block).await?.storage_hash)
     }
 }
 
-/// An Engine API client that provides authenticated HTTP communication with an execution layer.
-///
-/// The [`OpEngineClient`] handles JWT authentication and manages connections to both L1 and L2
-/// execution layers. It automatically selects the appropriate Engine API version based on the
-/// rollup configuration and block timestamps.
-#[derive(Clone, Debug)]
-pub struct OpEngineClient<L1Provider, L2Provider>
-where
-    L1Provider: Provider,
-    L2Provider: Provider<Optimism>,
-{
-    /// The L2 engine provider for Engine API calls.
-    engine: L2Provider,
-    /// The L1 chain provider for reading L1 data.
-    l1_provider: L1Provider,
-    /// The [`RollupConfig`] for determining Engine API versions based on hardfork activations.
-    cfg: Arc<RollupConfig>,
-}
-
-impl<L1Provider, L2Provider> OpEngineClient<L1Provider, L2Provider>
-where
-    L1Provider: Provider,
-    L2Provider: Provider<Optimism>,
-{
-    /// Creates a new RPC client for the given address and JWT secret. Each request has a deadline.
-    pub fn rpc_client<N: Network>(addr: Url, jwt: JwtSecret) -> RootProvider<N> {
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-        let auth_layer = AuthLayer::new(jwt);
-        let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
-        let layer_transport = HyperClient::with_service(service);
-        let http_hyper = Http::with_client(layer_transport, addr);
-        let client = ClientBuilder::default();
-        // Time requests in full, including any that hit the deadline.
-        let client = client.layer(RequestDurationLayer);
-        let rpc_client =
-            client.layer(MapFutureLayer::new(with_deadline)).transport(http_hyper, false);
-        RootProvider::<N>::new(rpc_client)
-    }
-}
-
-/// The builder for the [`OpEngineClient`].
+/// Connection settings for an [`EngineClient`].
 #[derive(Debug, Clone)]
 pub struct EngineClientBuilder {
     /// The L2 Engine API endpoint URL.
@@ -238,77 +222,19 @@ pub struct EngineClientBuilder {
     pub l2_jwt: JwtSecret,
     /// The L1 RPC URL.
     pub l1_rpc: Url,
-    /// The [`RollupConfig`] for determining Engine API versions based on hardfork activations.
+    /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
 }
 
 impl EngineClientBuilder {
-    /// Creates a new [`OpEngineClient`] with authenticated HTTP connections.
-    ///
-    /// Sets up a JWT-authenticated connection to the L2 Engine API endpoint
-    /// along with an unauthenticated connection to the L1 chain. Each request on either
-    /// connection has a deadline.
-    pub fn build(self) -> OpEngineClient<RootProvider, RootProvider<Optimism>> {
-        let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
-            self.l2,
-            self.l2_jwt,
-        );
-
+    /// Connects to the authenticated L2 engine and unauthenticated L1 RPC. Each request has a
+    /// deadline.
+    pub fn build(self) -> EngineClient {
+        let engine = EngineClient::rpc_client(self.l2, self.l2_jwt);
         let l1_provider = RootProvider::new(
             ClientBuilder::default().layer(MapFutureLayer::new(with_deadline)).http(self.l1_rpc),
         );
-
-        OpEngineClient { engine, l1_provider, cfg: self.cfg }
-    }
-}
-
-#[async_trait]
-impl<L1Provider, L2Provider> EngineClient for OpEngineClient<L1Provider, L2Provider>
-where
-    L1Provider: Provider,
-    L2Provider: Provider<Optimism>,
-{
-    fn cfg(&self) -> &RollupConfig {
-        self.cfg.as_ref()
-    }
-
-    fn get_l1_block(&self, block: BlockId) -> EthGetBlock<<Ethereum as Network>::BlockResponse> {
-        self.l1_provider.get_block(block)
-    }
-
-    fn get_l2_block(&self, block: BlockId) -> EthGetBlock<<Optimism as Network>::BlockResponse> {
-        self.engine.get_block(block)
-    }
-
-    fn get_proof(
-        &self,
-        address: Address,
-        keys: Vec<StorageKey>,
-    ) -> RpcWithBlock<(Address, Vec<StorageKey>), EIP1186AccountProofResponse> {
-        self.engine.get_proof(address, keys)
-    }
-
-    async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
-        self.engine.new_payload_v1(payload).await
-    }
-
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
-        Ok(self.engine.get_block_by_number(numtag).full().await?)
-    }
-}
-
-/// Engine API calls on an [`OpEngineClient`] go to the L2 execution layer: with this, it gets
-/// [`OpEngineApi`] from the implementation for every [`Provider`].
-impl<L1Provider, L2Provider> Provider<Optimism> for OpEngineClient<L1Provider, L2Provider>
-where
-    L1Provider: Provider,
-    L2Provider: Provider<Optimism>,
-{
-    fn root(&self) -> &RootProvider<Optimism> {
-        self.engine.root()
+        EngineClient::new(l1_provider, engine, self.cfg)
     }
 }
 
@@ -430,16 +356,53 @@ mod deadline_tests {
 
         let engine = client.clone();
         fails_at_deadline(
-            async move {
-                EngineClient::l2_block_by_label(&*engine, BlockNumberOrTag::Latest).await.is_err()
-            },
+            async move { engine.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
             &mut answered,
         )
         .await;
         fails_at_deadline(
-            async move { EngineClient::get_l1_block(&*client, BlockId::latest()).await.is_err() },
+            async move { client.get_l1_block(BlockId::latest()).await.is_err() },
             &mut answered,
         )
         .await;
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::test_utils::test_engine_client;
+    use alloy_rpc_types_eth::EIP1186AccountProofResponse;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn query_handle_shares_l2_connection_and_reads_storage_hash() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let query = client.query_client();
+        l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), Option::<Block>::None);
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            json!(["latest", false]),
+            Option::<Block<Transaction>>::None,
+        );
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            json!(["safe", true]),
+            Option::<Block<Transaction>>::None,
+        );
+        let address = Address::repeat_byte(0x42);
+        let storage_hash = B256::repeat_byte(0x11);
+        l2.expect_params(
+            "eth_getProof",
+            json!([address, [], "0xa"]),
+            EIP1186AccountProofResponse { storage_hash, ..Default::default() },
+        );
+
+        assert!(client.get_l1_block(BlockId::latest()).await.unwrap().is_none());
+        assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
+        assert!(query.l2_block_by_label(BlockNumberOrTag::Safe).await.unwrap().is_none());
+        assert_eq!(query.get_storage_hash(address, 10.into()).await.unwrap(), storage_hash);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

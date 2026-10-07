@@ -9,14 +9,15 @@ use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_consensus::OpBlock;
+use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 
 /// The task to insert a payload into the execution engine.
 #[derive(Debug, Clone)]
-pub struct InsertTask<EngineClient_: EngineClient> {
+pub struct InsertTask {
     /// The engine client.
-    client: Arc<EngineClient_>,
+    client: Arc<EngineClient>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
     /// The complete execution payload envelope.
@@ -28,10 +29,10 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     block_sink: Arc<dyn ImportedBlockSink>,
 }
 
-impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
+impl InsertTask {
     /// Creates a new insert task.
     pub const fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
         is_attributes_derived: bool,
@@ -47,7 +48,7 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
+impl EngineTaskExt for InsertTask {
     type Output = L2BlockInfo;
 
     type Error = InsertTaskError;
