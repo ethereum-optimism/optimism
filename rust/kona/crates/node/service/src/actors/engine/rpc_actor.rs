@@ -1,11 +1,11 @@
-use crate::{EngineError, EngineRpcRequest, NodeActor};
+use crate::{EngineError, NodeActor};
 use async_trait::async_trait;
-use kona_engine::{EngineQueryClient, EngineState};
+use kona_engine::{EngineQueries, EngineQueryClient, EngineState};
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
-/// Handles [`EngineRpcRequest`]s by reading engine state via a watch and
+/// Handles [`EngineQueries`]s by reading engine state via a watch and
 /// dispatching the request through an [`EngineQueryClient`].
 ///
 /// The [`EngineQueryClient`] exposes only execution-layer reads, so this actor cannot call
@@ -19,7 +19,7 @@ pub struct EngineRpcActor {
     /// Receiver for [`EngineState`] updates.
     engine_state_receiver: watch::Receiver<EngineState>,
     /// The inbound request channel.
-    inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
+    inbound_request_rx: mpsc::Receiver<EngineQueries>,
 }
 
 impl EngineRpcActor {
@@ -28,13 +28,12 @@ impl EngineRpcActor {
         engine_rpc_client: EngineQueryClient,
         rollup_config: Arc<RollupConfig>,
         engine_state_receiver: watch::Receiver<EngineState>,
-        inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
+        inbound_request_rx: mpsc::Receiver<EngineQueries>,
     ) -> Self {
         Self { engine_rpc_client, rollup_config, engine_state_receiver, inbound_request_rx }
     }
 
-    async fn handle_rpc_request(&self, request: EngineRpcRequest) -> Result<(), EngineError> {
-        let EngineRpcRequest(req) = request;
+    async fn handle_rpc_request(&self, req: EngineQueries) -> Result<(), EngineError> {
         trace!(target: "engine", ?req, "Received engine query.");
 
         if let Err(e) = req
