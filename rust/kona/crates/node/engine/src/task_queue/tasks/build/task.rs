@@ -92,7 +92,6 @@ pub(in crate::task_queue) async fn start_build(
     state: &EngineState,
     attributes_envelope: OpAttributesWithParent,
 ) -> Result<PayloadId, BuildTaskError> {
-
     // Sanity check if the head is behind the finalized head. If it is, this is a critical error.
     if state.sync_state.unsafe_head().block_info.number <
         state.sync_state.finalized_head().block_info.number
@@ -153,13 +152,11 @@ pub(in crate::task_queue) async fn start_build(
         }
     }
 
-
     // Fetch the payload ID from the FCU. If no payload ID was returned, something went wrong - the
     // block building job on the EL should have been initiated.
     let payload_id = update
         .payload_id
         .ok_or(BuildTaskError::EngineBuildError(EngineBuildError::MissingPayloadId))?;
-
 
     Ok(payload_id)
 }
