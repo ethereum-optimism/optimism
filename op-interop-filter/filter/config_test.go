@@ -44,3 +44,19 @@ func TestConfigCheck_AssumeValidBefore(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigCheck_MessageExpiryWindow(t *testing.T) {
+	cfg := &Config{
+		L2RPCs:             []string{"http://localhost:8545"},
+		RollupConfigs:      map[eth.ChainID]*rollup.Config{eth.ChainIDFromUInt64(901): {}},
+		BackfillDuration:   168 * time.Hour,
+		PollInterval:       time.Second,
+		ValidationInterval: time.Second,
+		RPCConcurrency:     1,
+		FetchConcurrency:   1,
+	}
+	cfg.MessageExpiryWindow = uint64(DefaultMessageExpiryWindow.Seconds())
+	require.NoError(t, cfg.Check())
+	cfg.MessageExpiryWindow = uint64(DefaultMessageExpiryWindow.Seconds()) + 1
+	require.ErrorContains(t, cfg.Check(), "message-expiry-window must not exceed 7 days")
+}

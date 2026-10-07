@@ -74,6 +74,11 @@ func (c *Config) Check() error {
 	if c.MessageExpiryWindow == 0 {
 		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
 	}
+	// The protocol window is at most 7 days: L2ToL2CrossDomainMessenger marks messages expired, and
+	// apps refund them, on that assumption, so the filter must not admit older messages.
+	if c.MessageExpiryWindow > uint64(DefaultMessageExpiryWindow.Seconds()) {
+		result = errors.Join(result, errors.New("message-expiry-window must not exceed 7 days"))
+	}
 	if c.PollInterval <= 0 {
 		result = errors.Join(result, errors.New("poll-interval must be positive"))
 	}

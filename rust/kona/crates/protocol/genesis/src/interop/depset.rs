@@ -21,18 +21,34 @@ pub struct DependencySet {
     /// Dependencies information per chain.
     pub dependencies: BTreeMap<ChainId, ChainDependency>,
 
-    /// Override message expiry window to use for this dependency set.
+    /// Override message expiry window to use for this dependency set. It may only shorten the
+    /// window: `L2ToL2CrossDomainMessenger` marks a message expired, and apps refund it, a day after
+    /// [`MESSAGE_EXPIRY_WINDOW`] has passed, so a longer window could let an expired message still be
+    /// relayed. A dependency set that overrides it with more is rejected when it is parsed, as op-core
+    /// does.
+    #[cfg_attr(feature = "serde", serde(default, deserialize_with = "deserialize_override_window"))]
     pub override_message_expiry_window: Option<u64>,
 }
 
+/// Deserializes an override of the message expiry window, rejecting one above
+/// [`MESSAGE_EXPIRY_WINDOW`].
+#[cfg(feature = "serde")]
+fn deserialize_override_window<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let window = <Option<u64> as serde::Deserialize>::deserialize(deserializer)?;
+    if window.is_some_and(|window| window > MESSAGE_EXPIRY_WINDOW) {
+        return Err(serde::de::Error::custom("message expiry window override exceeds 7 days"));
+    }
+    Ok(window)
+}
+
 impl DependencySet {
-    /// Returns the message expiry window associated with this dependency set. An override may only
-    /// shorten the window: `L2ToL2CrossDomainMessenger` marks a message expired, and apps refund
-    /// it, a day after [`MESSAGE_EXPIRY_WINDOW`] has passed, so a longer window could let an
-    /// expired message still be relayed. op-core rejects such an override when it loads the set.
+    /// Returns the message expiry window associated with this dependency set.
     pub const fn get_message_expiry_window(&self) -> u64 {
         match self.override_message_expiry_window {
-            Some(window) if window > 0 && window <= MESSAGE_EXPIRY_WINDOW => window,
+            Some(window) if window > 0 => window,
             _ => MESSAGE_EXPIRY_WINDOW,
         }
     }
@@ -77,11 +93,20 @@ mod tests {
     }
 
     #[test]
-    fn test_get_message_expiry_window_override_above_window_ignored() {
-        let ds = create_dependency_set(BTreeMap::default(), MESSAGE_EXPIRY_WINDOW + 1);
-        assert_eq!(ds.get_message_expiry_window(), MESSAGE_EXPIRY_WINDOW);
-        let ds = create_dependency_set(BTreeMap::default(), MESSAGE_EXPIRY_WINDOW);
-        assert_eq!(ds.get_message_expiry_window(), MESSAGE_EXPIRY_WINDOW);
+    #[cfg(feature = "serde")]
+    fn depset_json_rejects_override_above_window() {
+        let parse = |window: u64| {
+            serde_json::from_str::<DependencySet>(&alloc::format!(
+                r#"{{"dependencies":{{}},"overrideMessageExpiryWindow":{window}}}"#
+            ))
+        };
+        assert!(parse(MESSAGE_EXPIRY_WINDOW + 1).is_err());
+        assert_eq!(
+            parse(MESSAGE_EXPIRY_WINDOW).unwrap().get_message_expiry_window(),
+            MESSAGE_EXPIRY_WINDOW
+        );
+        let missing: DependencySet = serde_json::from_str(r#"{"dependencies":{}}"#).unwrap();
+        assert_eq!(missing.override_message_expiry_window, None);
     }
 
     /// op-core pins the same 7 days (`MessageExpiryTimeSecondsInterop`);
