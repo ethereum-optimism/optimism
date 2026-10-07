@@ -123,7 +123,7 @@ where
         let topic_hash = topic.hash();
         let data = self.handler.encode(topic, payload, signature)?;
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
-        kona_macros::inc!(gauge, crate::Metrics::UNSAFE_BLOCK_PUBLISHED);
+        metrics::gauge!(crate::Metrics::UNSAFE_BLOCK_PUBLISHED).increment(1);
         Ok(id)
     }
 
@@ -237,7 +237,7 @@ where
         }
         let Some(multiaddr) = enr_to_multiaddr(&enr) else {
             debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr").increment(1);
             return;
         };
         self.dial_multiaddr(multiaddr);
@@ -259,7 +259,8 @@ where
 
         if self.swarm.connected_peers().any(|p| p == &peer_id) {
             debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
+                .increment(1);
             return;
         }
 
@@ -272,12 +273,13 @@ where
             Ok(_) => {
                 trace!(target: "gossip", peer=?addr, "Dialed peer");
                 self.connection_gate.dialed(&addr);
-                kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER);
+                metrics::gauge!(crate::Metrics::DIAL_PEER).increment(1);
             }
             Err(e) => {
                 error!(target: "gossip", "Failed to connect to peer: {:?}", e);
                 self.connection_gate.remove_dial(&peer_id);
-                kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error");
+                metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
+                    .increment(1);
             }
         }
     }
@@ -291,16 +293,13 @@ where
                 // If the peer is connected to gossip, record the connection duration.
                 if let Some(start_time) = self.peer_connection_start.get(&peer) {
                     let _ping_duration = start_time.elapsed();
-                    kona_macros::record!(
-                        histogram,
-                        crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
-                        _ping_duration.as_secs_f64()
-                    );
+                    metrics::histogram!(crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS)
+                        .record(_ping_duration.as_secs_f64());
                 }
 
                 // Record the peer score in the metrics if available.
                 if let Some(_peer_score) = self.behaviour_mut().gossipsub.peer_score(&peer) {
-                    kona_macros::record!(histogram, crate::Metrics::PEER_SCORES, _peer_score);
+                    metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
                 let pings = Arc::clone(&self.ping);
@@ -350,7 +349,7 @@ where
                 message,
             } => {
                 trace!(target: "gossip", "Received message with topic: {}", message.topic);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "message", "topic" => message.topic.to_string());
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "message", "topic" => message.topic.to_string()).increment(1);
                 if self.handler.topics().contains(&message.topic) {
                     let (status, payload) = self.handler.handle(message);
                     _ = self
@@ -363,19 +362,20 @@ where
             }
             libp2p::gossipsub::Event::Subscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} subscribed to topic: {:?}", peer_id, topic);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "subscribed", "topic" => topic.to_string());
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "subscribed", "topic" => topic.to_string()).increment(1);
             }
             libp2p::gossipsub::Event::Unsubscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} unsubscribed from topic: {:?}", peer_id, topic);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "unsubscribed", "topic" => topic.to_string());
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "unsubscribed", "topic" => topic.to_string()).increment(1);
             }
             libp2p::gossipsub::Event::SlowPeer { peer_id, .. } => {
                 trace!(target: "gossip", "Slow peer: {:?}", peer_id);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "slow_peer");
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "slow_peer").increment(1);
             }
             libp2p::gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 trace!(target: "gossip", "Peer: {:?} does not support gossipsub", peer_id);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "not_supported");
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "not_supported")
+                    .increment(1);
             }
         }
         None
@@ -390,8 +390,9 @@ where
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 let peer_count = self.swarm.connected_peers().count();
                 info!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected");
-                kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
+                    .increment(1);
+                metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
                 self.peer_connection_start.insert(peer_id, Instant::now());
             }
@@ -401,39 +402,31 @@ where
                 if let Some(peer_id) = _peer_id {
                     self.connection_gate.remove_dial(&peer_id);
                 }
-                kona_macros::inc!(
-                    gauge,
-                    crate::Metrics::GOSSIPSUB_CONNECTION,
-                    "type" => "outgoing_error"
-                );
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
+                    .increment(1);
             }
             SwarmEvent::IncomingConnectionError { error, .. } => {
                 debug!(target: "gossip", "Incoming connection error: {:?}", error);
-                kona_macros::inc!(
-                    gauge,
-                    crate::Metrics::GOSSIPSUB_CONNECTION,
-                    "type" => "incoming_error"
-                );
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "incoming_error")
+                    .increment(1);
             }
             SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                 let peer_count = self.swarm.connected_peers().count();
                 warn!(target: "gossip", ?peer_id, ?cause, peer_count, "Connection closed");
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed");
-                kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed")
+                    .increment(1);
+                metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
                 // Record the total connection duration.
                 if let Some(start_time) = self.peer_connection_start.remove(&peer_id) {
                     let _peer_duration = start_time.elapsed();
-                    kona_macros::record!(
-                        histogram,
-                        crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
-                        _peer_duration.as_secs_f64()
-                    );
+                    metrics::histogram!(crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS)
+                        .record(_peer_duration.as_secs_f64());
                 }
 
                 // Record the peer score in the metrics if available.
                 if let Some(_peer_score) = self.behaviour_mut().gossipsub.peer_score(&peer_id) {
-                    kona_macros::record!(histogram, crate::Metrics::PEER_SCORES, _peer_score);
+                    metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
                 let pings = Arc::clone(&self.ping);

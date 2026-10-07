@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// Task for building new blocks with automatic forkchoice synchronization.
@@ -166,13 +166,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
 
         // Start the build by sending an FCU call with the current forkchoice and the input
         // payload attributes.
-        let fcu_start_time = Instant::now();
         let payload_id = self.start_build(state, &self.engine, self.attributes.clone()).await?;
-        let fcu_duration = fcu_start_time.elapsed();
 
         info!(
             target: "engine_builder",
-            fcu_duration = ?fcu_duration,
             "block build started"
         );
 
