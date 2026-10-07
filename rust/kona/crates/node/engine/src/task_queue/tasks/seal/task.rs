@@ -2,9 +2,8 @@
 use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    InsertTask,
     InsertTaskError::{self},
-    task_queue::build_and_seal,
+    task_queue::{build_and_seal, insert_payload},
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -146,7 +145,7 @@ impl SealTask {
     /// Inserts a payload into the engine with Holocene fallback support.
     ///
     /// This function handles:
-    /// 1. Executing the `InsertTask` to import the payload
+    /// 1. Inserting the payload with [`insert_payload`]
     /// 2. Handling deposits-only payload failures
     /// 3. Holocene fallback via `build_and_seal` if needed
     ///
@@ -157,14 +156,14 @@ impl SealTask {
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
-        let new_block_ref = match InsertTask::new(
-            Arc::clone(&self.engine),
-            self.cfg.clone(),
+        let new_block_ref = match insert_payload(
+            self.engine.as_ref(),
+            &self.cfg,
+            state,
             payload,
             self.is_attributes_derived,
-            Arc::clone(&self.block_sink),
+            self.block_sink.as_ref(),
         )
-        .execute(state)
         .await
         {
             Err(InsertTaskError::UnexpectedPayloadStatus(e))
