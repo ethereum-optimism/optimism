@@ -244,17 +244,6 @@ upgrades to that release.
   side. The op-deployer note never repeats the contract changes; it links to the
   op-contracts release instead.
 
-### Every change since the last release
-
-The note describes every change between the previous release tag and this one. A
-contracts note can be written before or after the upgrade activates, so onchain state does
-not decide what goes in. Do not cut or keep a change because of whether the upgrade is
-active or whether a chain has deployed it.
-
-The `DevFeatures` check in "Proportionality" still applies. Every dev feature is off in
-production unless the release hard-codes it on, so a change confined to an off feature is
-cut.
-
 ### The Overview sentence
 
 The recommendation vocabulary does not fit a contracts release. A chain does not choose to

@@ -126,6 +126,15 @@ Drop each draft PR that one of those commits backported, because the previous re
 already shipped it. `op-contracts/v8.0.0` listed #20919, which `op-contracts/v7.0.0` had
 already shipped as #20925.
 
+## Onchain state does not decide
+
+An op-contracts or op-deployer note describes every change between the previous release
+tag and this one. The note can be written before or after the upgrade activates. So do not
+cut or keep a change because of whether the upgrade is active or a chain has deployed it.
+
+The `DevFeatures` check still applies: a dev feature is off in production unless the
+release hard-codes it on.
+
 ## op-contracts
 
 `LINKED` rows changed a contract under `src/` or the L2 upgrade bundle. Drop a row when the
@@ -134,9 +143,6 @@ change is:
 - natspec, comments or a version bump only
 - confined to a `DevFeatures` bit that the release does not hard-code on
 - a test-driven change to a contract that no production path calls
-
-Do not cut or keep a change because of onchain state. See "Every change since the last
-release" in `house-style.md`.
 
 Keep every change to what the contract does onchain, its ABI, its storage layout or its
 access control. Keep every change to the candidate upgrade bundle. `op-core/nuts` snapshots
