@@ -16,7 +16,7 @@ use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::RpcModule;
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineState, OpEngineClient};
+use kona_engine::{Engine, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
@@ -133,12 +133,7 @@ where
 }
 
 /// Concrete type of the engine actor used by `RollupNode`.
-type ConfiguredEngineActor =
-    EngineActor<OpEngineClient<RootProvider, RootProvider<Optimism>>, QueuedEngineDerivationClient>;
-
-/// Concrete type of the engine rpc actor used by `RollupNode`.
-type ConfiguredEngineRpcActor =
-    EngineRpcActor<OpEngineClient<RootProvider, RootProvider<Optimism>>>;
+type ConfiguredEngineActor = EngineActor<QueuedEngineDerivationClient>;
 
 /// Concrete type of the sequencer actor used by `RollupNode`.
 type ConfiguredSequencerActor = SequencerActor<
@@ -224,7 +219,7 @@ impl RollupNode {
         ))
     }
 
-    /// Builds both engine actors. They share a single [`kona_engine::EngineClient`] and a watch
+    /// Builds both engine actors. Their clients share the L2 RPC connection and a watch
     /// over the engine queue length / state, but otherwise run as independent peers.
     ///
     /// The non-rpc actor handles state-mutating requests (build, reset, seal, safe-signal
@@ -235,7 +230,7 @@ impl RollupNode {
         engine_rpc_request_rx: mpsc::Receiver<EngineRpcRequest>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
-    ) -> (ConfiguredEngineActor, ConfiguredEngineRpcActor) {
+    ) -> (ConfiguredEngineActor, EngineRpcActor) {
         // Engine-internal watches; not visible outside this helper.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
@@ -258,7 +253,7 @@ impl RollupNode {
         );
 
         let rpc_actor = EngineRpcActor::new(
-            engine_client,
+            engine_client.query_client(),
             self.config.clone(),
             engine_state_rx,
             engine_queue_length_rx,

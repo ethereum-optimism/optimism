@@ -1,9 +1,8 @@
 use crate::{
-    BuildTask, BuildTaskError, EngineBuildError, EngineClient, EngineForkchoiceVersion,
-    EngineState, EngineTaskExt,
+    BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion, EngineState,
+    EngineTaskExt,
     test_utils::{
-        MockEngineClientBuilder, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
-        test_engine_client_builder,
+        TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
 };
 use alloy_primitives::FixedBytes;
@@ -18,27 +17,6 @@ fn fcu_for_payload(payload_id: Option<PayloadId>, status: PayloadStatusEnum) -> 
     ForkchoiceUpdated {
         payload_status: PayloadStatus { status, latest_valid_hash: Some(FixedBytes([2u8; 32])) },
         payload_id,
-    }
-}
-
-fn configure_fcu(
-    b: MockEngineClientBuilder,
-    fcu_version: EngineForkchoiceVersion,
-    fcu_response: ForkchoiceUpdated,
-    cfg: &mut RollupConfig,
-    attributes_timestamp: u64,
-) -> MockEngineClientBuilder {
-    match fcu_version {
-        EngineForkchoiceVersion::V2 => {
-            // Ecotone not yet active
-            cfg.hardforks.ecotone_time = Some(attributes_timestamp + 1);
-            b.with_fork_choice_updated_v2_response(fcu_response)
-        }
-        EngineForkchoiceVersion::V3 => {
-            // Ecotone is active
-            cfg.hardforks.ecotone_time = Some(attributes_timestamp);
-            b.with_fork_choice_updated_v3_response(fcu_response)
-        }
     }
 }
 
@@ -61,10 +39,7 @@ enum TestErr {
 }
 
 // Wraps real errors, ignoring details so we can easily match on results.
-async fn wrapped_execute<EngineClient_: EngineClient>(
-    task: &BuildTask<EngineClient_>,
-    state: &mut EngineState,
-) -> Result<PayloadId, TestErr> {
+async fn wrapped_execute(task: &BuildTask, state: &mut EngineState) -> Result<PayloadId, TestErr> {
     match task.execute(state).await {
         Ok(payload_id) => Ok(payload_id),
         Err(BuildTaskError::EngineBuildError(e)) => match e {
@@ -108,18 +83,23 @@ async fn test_execute_variants(
 
     let mut cfg = RollupConfig::default();
 
-    // Configure client with FCU response. If none, it will err on call, which is also a test case.
-    let engine_client = fcu_status
-        .map_or_else(test_engine_client_builder, |status| {
-            configure_fcu(
-                test_engine_client_builder(),
-                fcu_version,
-                fcu_for_payload(payload_id, status),
-                &mut cfg,
-                attributes_timestamp,
-            )
-        })
-        .build();
+    let method = match fcu_version {
+        EngineForkchoiceVersion::V2 => {
+            cfg.hardforks.ecotone_time = Some(attributes_timestamp + 1);
+            "engine_forkchoiceUpdatedV2"
+        }
+        EngineForkchoiceVersion::V3 => {
+            cfg.hardforks.ecotone_time = Some(attributes_timestamp);
+            "engine_forkchoiceUpdatedV3"
+        }
+    };
+    let cfg = Arc::new(cfg);
+    let (engine_client, l1, l2) = test_engine_client(cfg.clone());
+    if let Some(status) = fcu_status {
+        l2.expect(method, fcu_for_payload(payload_id, status));
+    } else {
+        l2.expect_error(method);
+    }
 
     let attributes = TestAttributesBuilder::new()
         .with_parent(parent_block)
@@ -130,7 +110,7 @@ async fn test_execute_variants(
 
     let task = BuildTask::new(
         Arc::new(engine_client.clone()),
-        Arc::new(cfg),
+        cfg,
         attributes.clone(),
         with_channel.then_some(tx),
     );
@@ -162,4 +142,6 @@ async fn test_execute_variants(
             );
         }
     }
+    l1.assert_finished();
+    l2.assert_finished();
 }

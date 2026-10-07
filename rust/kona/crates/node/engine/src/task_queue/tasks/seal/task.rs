@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -42,9 +43,9 @@ pub enum BuildSealCoupling {
 /// [`InsertTaskError`]: crate::InsertTaskError
 #[derive(Debug, Clone, Constructor)]
 #[allow(clippy::too_many_arguments)] // the derived constructor takes one field each
-pub struct SealTask<EngineClient_: EngineClient> {
+pub struct SealTask {
     /// The engine API client.
-    pub engine: Arc<EngineClient_>,
+    pub engine: Arc<EngineClient>,
     /// The [`RollupConfig`].
     pub cfg: Arc<RollupConfig>,
     /// The [`PayloadId`] being sealed.
@@ -63,7 +64,7 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
-impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
+impl SealTask {
     /// Seals the execution payload in the EL, returning the execution envelope.
     ///
     /// ## Engine Method Selection
@@ -73,10 +74,10 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
     /// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
     /// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
-    async fn seal_payload(
+    pub(super) async fn seal_payload(
         &self,
         cfg: &RollupConfig,
-        engine: &EngineClient_,
+        engine: &EngineClient,
         payload_id: PayloadId,
         payload_attrs: OpAttributesWithParent,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
@@ -266,7 +267,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
+impl EngineTaskExt for SealTask {
     type Output = ();
 
     type Error = SealTaskError;
