@@ -20,6 +20,7 @@ src_validation = [
     "test/opcm/",                                             # OP Chain Manager tests - may have different structure
     "test/scripts/",                                          # Script tests - test deployment/utility scripts, not contracts
     "test/integration/",                                      # Integration tests - test multiple contracts together
+    "test/formal/",                                           # Formal models, symbolic checks and invariant harnesses
     "test/cannon/MIPS64Memory.t.sol",                         # Tests external MIPS implementation
     "test/dispute/lib/LibClock.t.sol",                        # Tests library utilities
     "test/dispute/lib/LibGameId.t.sol",                       # Tests library utilities
