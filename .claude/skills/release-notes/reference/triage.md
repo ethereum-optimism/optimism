@@ -132,10 +132,11 @@ already shipped as #20925.
 change is:
 
 - natspec, comments or a version bump only
+- confined to a `DevFeatures` bit that the release does not hard-code on
 - a test-driven change to a contract that no production path calls
 
-Do not cut a change because a chain has not deployed it or a feature is off. See "Every
-change since the last release" in `house-style.md`.
+Do not cut or keep a change because of onchain state. See "Every change since the last
+release" in `house-style.md`.
 
 Keep every change to what the contract does onchain, its ABI, its storage layout or its
 access control. Keep every change to the candidate upgrade bundle. `op-core/nuts` snapshots

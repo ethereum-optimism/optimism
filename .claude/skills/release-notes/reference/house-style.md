@@ -246,12 +246,14 @@ upgrades to that release.
 
 ### Every change since the last release
 
-The note describes every change between the previous release tag and this one. The
-liveness checks in "Proportionality" do not apply. A contracts release can be published
-before or after an upgrade activates it, and a feature can be deployed later. So do not cut
-a change because no chain runs it or because its `DevFeatures` bit is off by default. Keep
-it, and say which feature flag enables it. Cut only changes with no effect on the
-contracts or on op-deployer, as for other components.
+The note describes every change between the previous release tag and this one. A
+contracts note can be written before or after the upgrade activates, so onchain state does
+not decide what goes in. Do not cut or keep a change because of whether the upgrade is
+active or whether a chain has deployed it.
+
+The `DevFeatures` check in "Proportionality" still applies. Every dev feature is off in
+production unless the release hard-codes it on, so a change confined to an off feature is
+cut.
 
 ### The Overview sentence
 
