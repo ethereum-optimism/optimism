@@ -115,6 +115,8 @@ too_long_first_doc_paragraph = "allow"
 # END SHARED WORKSPACE LINTS
 
 [workspace.dependencies]
+kona-preimage = { path = "../../crates/proof/preimage", default-features = false }
+serde_json = { version = "1.0.149", default-features = false, features = ["alloc"] }
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
 kona-sp1-build-info = { path = "../crates/build-info" }

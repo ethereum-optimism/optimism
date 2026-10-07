@@ -24,15 +24,16 @@ use kona_sp1_client_utils::{
     },
 };
 
-use crate::super_range::{
-    fetch_l2_header, fetch_output_block_hash, load_dependency_set, load_l1_config,
-    load_rollup_configs, optimistic_chain_id_as_u64,
+use crate::{
+    chain_config::ChainConfigs,
+    super_range::{fetch_l2_header, fetch_output_block_hash, optimistic_chain_id_as_u64},
 };
 
-/// Builds consolidation-mode public outputs from typed inputs and an oracle-backed witness source.
+/// Builds consolidation outputs; `None` uses the embedded registry (see [`ChainConfigs`]).
 pub async fn build_consolidation_outputs<C>(
     inputs: SuperConsolidationInputs,
     oracle: Arc<C>,
+    configs: Option<&ChainConfigs>,
 ) -> anyhow::Result<SuperConsolidationOutputs>
 where
     C: CommsClient + Send + Sync + Debug + 'static,
@@ -44,10 +45,19 @@ where
     revm::precompile::install_crypto(CustomCrypto::default());
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
-    let dependency_set = load_dependency_set(&chain_ids, oracle.as_ref()).await?;
-    let rollup_configs = load_rollup_configs(&chain_ids, oracle.as_ref()).await?;
-    let l1_config = load_l1_config(&rollup_configs, oracle.as_ref()).await?;
-    let rollup_configs: RegistryHashMap<_, _> = rollup_configs.into_iter().collect();
+    let embedded_configs;
+    let configs = match configs {
+        Some(configs) => {
+            configs.validate(&chain_ids)?;
+            configs
+        }
+        None => {
+            embedded_configs = ChainConfigs::from_registry(&chain_ids)?;
+            &embedded_configs
+        }
+    };
+    let rollup_configs: RegistryHashMap<_, _> =
+        configs.rollup_configs.clone().into_iter().collect();
 
     let mut previous_super_root =
         fetch_super_root(oracle.as_ref(), inputs.previous_super_root).await?;
@@ -66,9 +76,9 @@ where
             previous_super_root,
             input.optimistic_blocks,
             &input.claimed_super_root_proof,
-            dependency_set.clone(),
+            configs.dependency_set.clone(),
             &rollup_configs,
-            &l1_config,
+            &configs.l1_config,
         )
         .await?;
         previous_super_root = input.claimed_super_root_proof.super_root;
@@ -285,7 +295,7 @@ mod tests {
     use kona_genesis::RollupConfig;
     use kona_interop::{ChainBuilder, ExecutingMessageBuilder};
     use kona_preimage::{
-        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
+        DEPENDENCY_SET_KEY, HintWriterClient, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
         PreimageOracleClient, errors::PreimageOracleResult,
     };
     use kona_proof::block_on;
@@ -298,7 +308,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
+    use crate::test_utils::{
+        b256, chain_configs, dependency_set, rollup_config, save_header, save_output_root,
+    };
 
     const INITIATING_CHAIN: u64 = u64::MAX - 1;
     const EXECUTING_CHAIN: u64 = u64::MAX;
@@ -319,21 +331,6 @@ mod tests {
 
     fn rollup_configs(chain_ids: &[u64]) -> RegistryHashMap<u64, RollupConfig> {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
-    }
-
-    fn save_fallback_chain_config(oracle: &mut PreimageStore, chain_id: u64) {
-        oracle
-            .save_preimage(
-                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
-                serde_json::to_vec(&dependency_set(&[chain_id], None)).unwrap(),
-            )
-            .unwrap();
-        oracle
-            .save_preimage(
-                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
-                serde_json::to_vec(&rollup_configs(&[chain_id])).unwrap(),
-            )
-            .unwrap();
     }
 
     #[derive(Clone, Debug)]
@@ -537,7 +534,7 @@ mod tests {
         };
         let mut oracle = PreimageStore::default();
         save_empty_trie(&mut oracle);
-        save_fallback_chain_config(&mut oracle, chain_id);
+        let configs = chain_configs(&[chain_id]);
 
         let previous_head_hash = save_header(&mut oracle, &previous_head);
         let first_head = Header {
@@ -599,8 +596,9 @@ mod tests {
         };
         let oracle = RecordingOracle::new(oracle);
 
-        let outputs = block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone())))
-            .expect("two-timestamp consolidation succeeds");
+        let outputs =
+            block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone()), Some(&configs)))
+                .expect("two-timestamp consolidation succeeds");
 
         assert_eq!(
             outputs.transitions.iter().map(|transition| transition.super_root).collect::<Vec<_>>(),
@@ -617,10 +615,42 @@ mod tests {
     }
 
     #[test]
+    fn consolidation_outputs_reject_untrusted_preimage_configs() {
+        let chain_id = u64::MAX;
+        let configs = chain_configs(&[chain_id]);
+        let inputs = SuperConsolidationInputs {
+            span: TimestampSpan::new(100, 100).unwrap(),
+            previous_super_root: b256(0x11),
+            transitions: vec![SuperConsolidationTransitionInput {
+                optimistic_blocks: vec![SuperOptimisticBlock {
+                    chain_id: U256::from(chain_id),
+                    block_hash: b256(0x22),
+                    output_root: b256(0x33),
+                }],
+                claimed_super_root_proof: SuperRootProof::new(
+                    100,
+                    vec![SuperOutputRoot { chain_id, output_root: b256(0x55) }],
+                ),
+            }],
+        };
+        let mut oracle = PreimageStore::default();
+        for (key, serialized) in [
+            (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
+            (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
+            (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config).unwrap()),
+        ] {
+            oracle.save_preimage(PreimageKey::new_local(key.to()), serialized).unwrap();
+        }
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), None))
+            .expect_err("guest-facing consolidation must reject witness configs");
+        assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn consolidation_outputs_reject_starting_root_before_span_predecessor() {
         let chain_id = u64::MAX;
         let mut oracle = PreimageStore::default();
-        save_fallback_chain_config(&mut oracle, chain_id);
+        let configs = chain_configs(&[chain_id]);
         let stale_super_root =
             SuperRoot::new(98, vec![SuperOutputRoot { chain_id, output_root: b256(0x44) }]);
         let stale_super_root_hash = save_super_root(&mut oracle, &stale_super_root);
@@ -640,8 +670,8 @@ mod tests {
             }],
         };
         inputs.validate().expect("typed consolidation timestamps are valid");
-
-        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle))).unwrap_err();
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), Some(&configs)))
+            .unwrap_err();
 
         assert!(
             err.to_string().contains(
