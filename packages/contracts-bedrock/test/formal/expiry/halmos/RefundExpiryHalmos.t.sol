@@ -169,7 +169,10 @@ contract RefundExpiryHalmos is Test {
     /// @notice NON-VACUITY (expected FAIL): the refund pays the destination-side recipient `to` (it must pay `from`).
     function check_FALSE_refund_paysTo(Env memory _e, Args memory _a) public {
         _world(_e, _a);
-        vm.assume(_a.to != _a.from && _a.to != BRIDGE && _a.to != LIQUIDITY);
+        // `to` is a realistic recipient distinct from `from` (not a SafeSend helper, bridge or liquidity) and the
+        // amount is positive, so the only way this can fail is that the refund pays `from`, not `to`.
+        _assumeRealisticFrom(_a.to);
+        vm.assume(_a.to != _a.from && _a.amount > 0);
         uint256 toBefore = _a.to.balance;
         bool ok = _refund(address(this), _a);
         if (ok) assert(_a.to.balance == toBefore + _a.amount);
@@ -186,9 +189,10 @@ contract RefundExpiryHalmos is Test {
 
     // ================================================================ send -> expire -> refund (composed)
 
-    /// @notice With the REAL L2ToL2CrossDomainMessenger at 0x..23 (fresh storage): sendETH from `from` succeeds, its
-    ///         message hash equals refundETH's recomputed H for (destination, nonce = messageNonce() before, from, to,
-    ///         amount), sentMessageTimestamps[H] == block.timestamp, refundETH reverts before expiry, and once
+    /// @notice With the REAL L2ToL2CrossDomainMessenger at 0x..23 (fresh storage except a SYMBOLIC prior nonce
+    ///         msgNonce < 2^240 - 1): sendETH from `from` succeeds, its message hash equals refundETH's recomputed H
+    /// for (destination, nonce = messageNonce() before, from, to, amount), sentMessageTimestamps[H] == block.timestamp,
+    /// refundETH reverts before expiry, and once
     ///         expiredMessages[H] is set (written directly: expireMessage itself is checked in L2ToL2ExpiryHalmos)
     ///         the refund succeeds and pays `from` exactly `amount`.
     function check_sendETH_then_refund(uint256 _chainId, uint256 _ts, uint256 _liq0, Args memory _a) public {
@@ -209,7 +213,9 @@ contract RefundExpiryHalmos is Test {
         vm.deal(_a.from, _a.from.balance + _a.amount);
         vm.deal(address(this), _a.amount);
 
-        _a.nonce = l2tol2.messageNonce();
+        vm.assume(_a.nonce < type(uint240).max); // symbolic prior nonce; the send increments it (checked arithmetic)
+        vm.store(L2_TO_L2, bytes32(uint256(1)), bytes32(_a.nonce)); // msgNonce (slot 1)
+        assert(l2tol2.messageNonce() == _a.nonce); // slot check (message version 0)
         vm.prank(_a.from);
         (bool sent, bytes memory ret) =
             BRIDGE.call{ value: _a.amount }(abi.encodeCall(bridge.sendETH, (_a.to, _a.destination)));

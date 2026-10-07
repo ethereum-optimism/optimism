@@ -10,9 +10,9 @@ account map `σ`, caller, value, depth, gas and permission, refines the abstract
 * `expireMessage_trace` — the whole symbolic execution, at the level of EquiVM's `RD` invariant.
 * `expireMessage_outcome` — the same at the level of `Ξ`'s result.
 * `expireMessage_success` — soundness: a successful run implies the conditions and the post-state.
-* `expireMessage_complete` — completeness: if the conditions hold (and the run is not static),
-  the run succeeds, unless it runs out of gas or one of its two calls to the
-  L2CrossDomainMessenger fails.
+* `expireMessage_revert_cause` — outcome classification under the conditions. **Not** a
+  completeness/liveness theorem (its `revert ∧ CallFailed` disjunct is satisfiable in essentially
+  every state); liveness evidence is the concrete run `Concrete.success_reachable`.
 * `expireMessage_no_other_error` — the run never ends in any other exceptional halt.
 
 Hypotheses common to all of them: `hcode` (the code is the pinned artifact), `hsel` (the
@@ -44,13 +44,15 @@ theorem expireMessage_trace {σ σ₀ : AccountMap} {A : Substate} {I : Executio
     refine ⟨hrev, Or.inl fun hc => hnot ⟨(hcdok.mpr hc.calldataLen).1, hc.noValue,
       (hcdok.mpr hc.calldataLen).2⟩⟩
   have hlen := hcdok.mp ⟨hlt, hcd⟩
-  rcases seg_call1 hO r with ⟨hrev, hwhy⟩ | ⟨hsrc, σ₁, aw1, k1, C1, hst1, hcd1, r1⟩
+  rcases seg_call1 hO r with ⟨hrev, hwhy⟩ |
+    ⟨hsrc, σ₁, o₁, j, aw1, k1, C1, hst1, hcd1, hcall1, hj5, hjb, r1⟩
   · left
     refine ⟨hrev, ?_⟩
     rcases hwhy with hne | hf
     · exact Or.inl fun hc => hne hc.callerIsL2cdm
     · exact Or.inr hf
-  rcases seg_call2 hX hst1 hcd1 r1 with ⟨hrev, hwhy⟩ | ⟨hSO, σ₂, aw2, k2, C2, hst2, hcd2, r2⟩
+  rcases seg_call2 hX hst1 hcd1 hcall1 hj5 hjb r1 with ⟨hrev, hwhy⟩ |
+    ⟨hSO, σ₂, o₂, rest, aw2, k2, C2, hst2, hcd2, r2⟩
   · left
     refine ⟨hrev, ?_⟩
     rcases hwhy with hne | hf
@@ -131,12 +133,14 @@ theorem expireMessage_success {σ σ₀ σ' : AccountMap} {A A' : Substate} {I :
     cases h
     exact ⟨hp, hc, hpost, rfl⟩
 
-/-- **Completeness.** If all conditions hold and the run is not static, the compiled code
-    succeeds with the post-state `ExpirePost`, unless it runs out of gas or one of its calls to the
-    L2CrossDomainMessenger fails (depth limit, or the callee reverts/runs out of gas). Partial
-    correctness: `CallFailed` is weak (existential call gas), so the content is that none of
-    `expireMessage`'s own checks reverts under the conditions; see README. -/
-theorem expireMessage_complete {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv}
+/-- **Not a completeness theorem.** If all conditions hold and the run is not static, the run
+    ends in out-of-gas, success with `ExpirePost`, or a revert together with `CallFailed`.
+    `CallFailed` is satisfiable in essentially every state (existentially quantified call gas;
+    see `Concrete.callFailed_in_success_state`), so this does **not** exclude reverts; it only
+    records the outcome classification under the conditions. Liveness is out of reach of EquiVM's
+    reached-or-out-of-gas invariant; `Concrete.success_reachable` is the evidence that the success
+    branch is taken. -/
+theorem expireMessage_revert_cause {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv}
     {g : UInt256} {vO vS : AccountAddress}
     (hcode : I.code = l2tol2Runtime) (hsel : selectorWord I = expireSelector)
     (hcds : I.calldata.size < 2 ^ 256)

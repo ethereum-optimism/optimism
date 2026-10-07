@@ -79,4 +79,53 @@ theorem other_caller_reverts :
     reverted (AccountAddress.ofUInt256 (UInt256.ofNat 0x99)) (5 + P_contract + 1) = true := by
   native_decide
 
+/-! ## Other branch kinds (witnesses that each disjunct of `expireMessage_outcome` is inhabited) -/
+
+def outcome (σ : AccountMap) (I : ExecutionEnv) (gas : ℕ) : String :=
+  match Ξ σ σ (UInt256.ofNat gas) default I with
+  | .ok (.success _ _) => "success"
+  | .ok (.revert _ _) => "revert"
+  | .error .OutOfGass => "oog"
+  | .error .StaticModeViolation => "static"
+  | .error _ => "other error"
+
+/-- Out of gas: the same successful call with 20000 gas runs out of gas. -/
+theorem oog_reachable : outcome σ (env l2cdm (5 + P_contract + 1)) 20000 = "oog" := by
+  native_decide
+
+/-- Static mode: entered with `perm = false` (via `STATICCALL`), the run halts at the `SSTORE`. -/
+theorem static_reachable :
+    outcome σ { env l2cdm (5 + P_contract + 1) with perm := false } 1000000 = "static" := by
+  native_decide
+
+/-- A mock L2CrossDomainMessenger whose code is `PUSH0 PUSH0 REVERT`. -/
+def σRevertingL2cdm : AccountMap :=
+  σ.insert l2cdm { (default : Account) with code := ⟨#[0x5f, 0x5f, 0xfd]⟩ }
+
+/-- Callee failure: if the L2CrossDomainMessenger's view call reverts, `expireMessage` reverts. -/
+theorem callee_failure_reverts :
+    outcome σRevertingL2cdm (env l2cdm (5 + P_contract + 1)) 1000000 = "revert" := by
+  native_decide
+
+/-- `t` of the success witness. -/
+def tS : ℕ := 5 + P_contract + 1
+
+/-- The static call `otherMessenger()` from `σ` with 0 forwarded gas. -/
+def zeroGasCall :=
+  Θ σ σ default (AccountAddress.ofUInt256 (UInt256.ofNat (env l2cdm tS).codeOwner))
+    (env l2cdm tS).sender l2cdm (toExecute σ l2cdm) ⟨0⟩
+    (UInt256.ofNat (env l2cdm tS).gasPrice) ⟨0⟩ ⟨0⟩ otherMessengerCalldata
+    ((env l2cdm tS).depth + 1) (env l2cdm tS).header (env l2cdm tS).blobVersionedHashes
+    (env l2cdm tS).blocks false
+
+/-- **Why `CallFailed` is weak.** It holds in `σ`, where the run with `t = sentAt + P + 1`
+    succeeds (`success_reachable`): the `otherMessenger()` call with 0 gas fails. Statements
+    with a `revert ∧ CallFailed` disjunct therefore do not exclude reverts. -/
+theorem callFailed_in_success_state : CallFailed σ σ (env l2cdm tS) := by
+  have hz : zeroGasCall.2.2.2.1 = false := by native_decide
+  refine Or.inr (Or.inl ⟨zeroGasCall.1, zeroGasCall.2.2.2.2, default, ⟨0⟩, zeroGasCall.2.1,
+    zeroGasCall.2.2.1, ?_⟩)
+  show _ = zeroGasCall
+  rw [← hz]
+
 end ExpiryEvm.Concrete

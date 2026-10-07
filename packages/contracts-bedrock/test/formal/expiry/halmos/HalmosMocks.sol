@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.8.25;
+
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Mocks for the Halmos expiry checks. Every mock is an ORACLE: it returns whatever the test (or a
 // symbolic storage slot) says, so the checks hold for every possible answer of the real contract
@@ -23,16 +25,22 @@ contract MockCrossL2Inbox {
 }
 
 /// @notice Fallback-only call recorder (etched at 0x4200..0007 and at 0x4200..0016). It has NO external
-///         functions, so every call, whatever its selector, reaches the fallback and is counted. Read its
-///         state with vm.load: slot 0 = calls whose msg.sender is the L2ToL2CrossDomainMessenger (0x4200..0023),
-///         slot 1 = all calls, slot 2 = keccak256(msg.data) of the last call from 0x..23, slot 3 = its length.
+///         functions, so every call, whatever its selector, reaches the fallback and is counted. Read its state with
+///         vm.load: slot 0 = calls whose msg.sender is the L2ToL2CrossDomainMessenger (0x4200..0023), slot 1 = all
+///         calls, slots 2/3 = keccak256 / length of the last call from 0x..23; slot 4 = calls from the
+///         UndeliveredMessageExporter (Predeploys.UNDELIVERED_MESSAGE_EXPORTER), slots 5/6 = keccak256 / length of its
+/// last call.
 contract Recorder {
     address internal constant L2_TO_L2 = 0x4200000000000000000000000000000000000023;
+    address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     uint256 internal callsFrom23;
     uint256 internal totalCalls;
     bytes32 internal lastHashFrom23;
     uint256 internal lastLenFrom23;
+    uint256 internal callsFromExporter;
+    bytes32 internal lastHashFromExporter;
+    uint256 internal lastLenFromExporter;
 
     fallback() external payable {
         totalCalls++;
@@ -40,6 +48,11 @@ contract Recorder {
             callsFrom23++;
             lastHashFrom23 = keccak256(msg.data);
             lastLenFrom23 = msg.data.length;
+        }
+        if (msg.sender == EXPORTER) {
+            callsFromExporter++;
+            lastHashFromExporter = keccak256(msg.data);
+            lastLenFromExporter = msg.data.length;
         }
     }
 }
@@ -81,11 +94,13 @@ interface IExportAndSend {
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external returns (bytes32);
 }
 
-/// @notice A relay target with code that RE-ENTERS the L2ToL2CrossDomainMessenger while it is being relayed to:
-///         armed at construction with symbolic arguments, its fallback calls exportUndeliveredMessage (mode 1) or
-///         sendMessage (mode 2) on 0x..23 and ignores the outcome, so the relay itself succeeds either way.
+/// @notice A relay target with code that, while the L2ToL2CrossDomainMessenger relays to it, calls
+///         exportUndeliveredMessage on the UndeliveredMessageExporter (mode 1) or RE-ENTERS sendMessage on 0x..23
+///         (mode 2), armed at construction with symbolic arguments, ignoring the outcome (the relay succeeds either
+/// way).
 contract ReentrantTarget {
     address internal constant L2_TO_L2 = 0x4200000000000000000000000000000000000023;
+    address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     struct Args {
         uint256 mode; // 1 = exportUndeliveredMessage, 2 = sendMessage, else nothing
@@ -111,7 +126,7 @@ contract ReentrantTarget {
     fallback() external {
         bool ok;
         if (a.mode == 1) {
-            (ok,) = L2_TO_L2.call(
+            (ok,) = EXPORTER.call(
                 abi.encodeCall(
                     IExportAndSend.exportUndeliveredMessage,
                     (a.sourceMessenger, a.source, a.nonce, a.sender, a.target, message, a.minGas)
@@ -121,5 +136,50 @@ contract ReentrantTarget {
             (ok,) = L2_TO_L2.call(abi.encodeCall(IExportAndSend.sendMessage, (a.destination, a.target, message)));
         }
         ok;
+    }
+}
+
+interface IL2ToL2Context {
+    function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
+}
+
+/// @notice Relay target with an observable effect. It has NO external functions (fallback/receive only), so any
+///         relayed calldata reaches the recorder. Records (read with vm.load): slot 0 = 1 if it ran, slot 1 = ETH
+///         received, slot 2 = 1 if crossDomainMessageContext() succeeded during the call (low-level call, so a getter
+///         revert is recorded rather than unwinding the record), slot 3 = context sender, slot 4 = context source.
+///         If `shouldRevert`, it reverts after recording (and the record is rolled back with it).
+contract RelayProbe {
+    address internal constant L2_TO_L2 = 0x4200000000000000000000000000000000000023;
+    bool internal immutable shouldRevert;
+
+    uint256 internal called;
+    uint256 internal value;
+    uint256 internal ctxOk;
+    uint256 internal ctxSender;
+    uint256 internal ctxSource;
+
+    constructor(bool _shouldRevert) {
+        shouldRevert = _shouldRevert;
+    }
+
+    function _record() internal {
+        called = 1;
+        value = msg.value;
+        (bool ok, bytes memory ret) = L2_TO_L2.staticcall(abi.encodeCall(IL2ToL2Context.crossDomainMessageContext, ()));
+        if (ok && ret.length == 64) {
+            ctxOk = 1;
+            (address snd, uint256 src) = abi.decode(ret, (address, uint256));
+            ctxSender = uint256(uint160(snd));
+            ctxSource = src;
+        }
+        if (shouldRevert) revert("RelayProbe: revert");
+    }
+
+    receive() external payable {
+        _record();
+    }
+
+    fallback() external payable {
+        _record();
     }
 }

@@ -173,3 +173,109 @@ theorem solcFreePtrMem_eq_wordsMem : solcFreePtrMem = wordsMem [⟨0⟩, ⟨0⟩
   decide +kernel
 
 end ExpiryEvm.Mem
+
+namespace ExpiryEvm.Mem
+
+open Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
+
+/-- `toByteArray_write_eq` without its (unused) `USize` bound on the gap. -/
+theorem toByteArray_write_eq' (v : UInt256) (mem : ByteArray) (off : ℕ)
+    (hoff : mem.size ≤ off) :
+    (UInt256.toByteArray v).write 0 mem off 32
+      = mem ++ ByteArray.zeroes (off - mem.size) ++ UInt256.toByteArray v := by
+  have hsz : (UInt256.toByteArray v).data.size = 32 := UInt256.toByteArrayWithSizeProof v |>.2
+  have hpz : (ByteArray.zeroes (off - mem.size)).data.size = off - mem.size := by
+    rw [show (ByteArray.zeroes (off - mem.size)).data.size
+          = (ByteArray.zeroes (off - mem.size)).size from rfl,
+        ByteArray_zeroes_size]
+  apply ByteArray.ext
+  unfold ByteArray.write
+  rw [if_neg (by decide : ¬ ((32:ℕ) = 0)),
+      if_neg (show ¬ (0 ≥ (UInt256.toByteArray v).size) from by
+                rw [show (UInt256.toByteArray v).size = 32 from hsz]; omega)]
+  simp only [ByteArray.data_copySlice, ByteArray.data_append]
+  have hv : v.toByteArray.size = 32 := hsz
+  have hDsz : (mem.data ++ (ByteArray.zeroes (off - mem.size)).data).size = off := by
+    rw [Array.size_append, hpz]; show mem.size + (off - mem.size) = off; omega
+  rw [hv, show (min 32 (32 - 0) : ℕ) = 32 from rfl,
+      show min mem.size (off + 32) - (off + 32) = 0 from by omega,
+      show (ByteArray.zeroes 0).data = (#[] : Array UInt8) from by
+        rw [zeroes_zero (n := 0) (by rfl)]; rfl]
+  rw [Array.append_empty]
+  rw [Array.extract_eq_self_of_le (by rw [hDsz]),
+      Array.extract_eq_self_of_le (show v.toByteArray.data.size ≤ 0 + (32 + 0) from by rw [hsz]),
+      Array.extract_eq_empty_of_le (by rw [hDsz]; omega),
+      Array.append_empty]
+
+theorem zeroes_add (a b : ℕ) : ByteArray.zeroes (a + b) = ByteArray.zeroes a ++ ByteArray.zeroes b := by
+  apply ByteArray.ext
+  simp only [ByteArray.zeroes, ByteArray.data_append]
+  first
+  | exact (Array.replicate_append_replicate).symm
+  | exact (Array.append_replicate_replicate).symm
+  | simp [Array.replicate_append_replicate]
+
+theorem zeroes_words (k : ℕ) : ByteArray.zeroes (32 * k) = wordsMem (List.replicate k ⟨0⟩) := by
+  induction k with
+  | zero => apply ByteArray.ext; simp [ByteArray.zeroes, wordsMem]
+  | succ k ih =>
+    rw [show 32 * (k + 1) = 32 + 32 * k by ring, zeroes_add, ih, zeroes32_eq]
+    simp [List.replicate_succ, wordsMem]
+
+/-- Writing a word `k` words past the end (the gap is zero-filled). -/
+theorem wordsMem_write_gap (ws : List UInt256) (w : UInt256) (k off : ℕ)
+    (hoff : off = 32 * (ws.length + k)) :
+    (UInt256.toByteArray w).write 0 (wordsMem ws) off 32 =
+      wordsMem (ws ++ List.replicate k ⟨0⟩ ++ [w]) := by
+  subst hoff
+  rw [toByteArray_write_eq' _ _ _ (by rw [wordsMem_size]; omega), wordsMem_size,
+    show 32 * (ws.length + k) - 32 * ws.length = 32 * k by omega, zeroes_words,
+    wordsMem_append, wordsMem_append]
+  simp [wordsMem]
+
+/-- A 32-byte copy of a byte array whose first word is `w` writes `w`. -/
+theorem write_prefix32 (o base : ByteArray) (w : UInt256) (off : ℕ)
+    (hsz : 32 ≤ o.size) (he : o.extract 0 32 = UInt256.toByteArray w) (hoff : off ≤ base.size) :
+    o.write 0 base off 32 = (UInt256.toByteArray w).write 0 base off 32 := by
+  rw [write32_eq _ _ _ hsz hoff, write32_eq _ _ _ (by rw [toByteArray_size]) hoff, he,
+    toByteArray_extract_all]
+
+end ExpiryEvm.Mem
+
+namespace ExpiryEvm.Mem
+
+open Ethereum
+
+/-- The memory layout after the second call: scratch (2 words), free pointer `p`, a zero word,
+    the first call's decoded word `w1` at 0x80, `k` zero words, and the second call's word `w2`
+    at `p_old = 32 * (5 + k)`. -/
+def memList (p w1 : UInt256) (k : ℕ) (w2 : UInt256) : List UInt256 :=
+  [⟨0⟩, ⟨0⟩, p, ⟨0⟩, w1] ++ List.replicate k ⟨0⟩ ++ [w2]
+
+theorem memList_length (p w1 : UInt256) (k : ℕ) (w2 : UInt256) :
+    (memList p w1 k w2).length = 6 + k := by
+  simp [memList]; omega
+
+theorem memList_get2 (p w1 : UInt256) (k : ℕ) (w2 : UInt256) (h : 2 < (memList p w1 k w2).length) :
+    (memList p w1 k w2)[2] = p := by
+  simp [memList]
+
+theorem memList_getLast (p w1 : UInt256) (k : ℕ) (w2 : UInt256)
+    (h : 5 + k < (memList p w1 k w2).length) : (memList p w1 k w2)[5 + k] = w2 := by
+  unfold memList
+  rw [List.getElem_append_right (by simp; omega)]
+  simp
+
+theorem memList_setLast (p w1 : UInt256) (k : ℕ) (w2 w : UInt256) :
+    (memList p w1 k w2).set (5 + k) w = memList p w1 k w := by
+  unfold memList
+  rw [List.set_append_right _ _ (by simp; omega)]
+  simp only [List.length_append, List.length_cons, List.length_nil, List.length_replicate]
+  rw [show 5 + k - (0 + 1 + 1 + 1 + 1 + 1 + k) = 0 by omega]
+  rfl
+
+theorem memList_set2 (p w1 : UInt256) (k : ℕ) (w2 p' : UInt256) :
+    (memList p w1 k w2).set 2 p' = memList p' w1 k w2 := by
+  simp [memList]
+
+end ExpiryEvm.Mem

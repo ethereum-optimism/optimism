@@ -1,24 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// Halmos symbolic checks on the REAL L2ToL2CrossDomainMessenger (src/L2/L2ToL2CrossDomainMessenger.sol), etched at
-// its predeploy address 0x4200..0023. Exact statements, assumptions and bounds: README.md in this directory.
-//   (1) UnsafeTargetRule      sendMessage / relayMessage never succeed for target 0x..23 (send) or 0x..07;
-//                             PENDING: also 0x..16 (expected to FAIL at 37b44c48c7).
-//   (2) OnlyExportReachesL1   every call 0x..23 makes to 0x..07 (top level, or re-entrantly during a relay) carries
-//                             exactly the export payload for a hash not relayed at that time; none from send or relay
-//                             themselves; PENDING: none to 0x..16 (expected to FAIL).
-//   (3) Export binding        exportUndeliveredMessage hash, exact L2CDM calldata, reverts iff relayed, no writes.
-//   (5) expireMessage         auth + exact window boundary, as an iff, plus full storage frame.
-//   (+) Storage effects/frames of sendMessage (records block.timestamp for H) and relayMessage.
+// Halmos symbolic checks on the REAL L2ToL2CrossDomainMessenger (src/L2/L2ToL2CrossDomainMessenger.sol) at
+// dd0931a540, etched at its predeploy address 0x4200..0023, with the REAL UndeliveredMessageExporter at
+// Predeploys.UNDELIVERED_MESSAGE_EXPORTER. Exact statements, assumptions and bounds: README.md in this directory.
+//   (1) UnsafeTargetRule      sendMessage / relayMessage never succeed for target 0x..07 or 0x..16 (and 0x..23 on
+// send). (2) OnlyExportReachesL1   0x..23 never calls 0x..07 or 0x..16 (send, relay, re-entrant relay); an export made
+//                             re-entrantly during a relay carries exactly the export payload for an unrelayed hash.
+//   (5) expireMessage         auth + exact boundary at EXPIRY_PERIOD, as an iff, plus full storage frame.
+//   (+) Storage effects/frames of sendMessage and relayMessage; relay delivery, value, context, failure.
+//   The exporter itself (group 3) is checked in ExporterExpiryHalmos.t.sol.
 //
 // Symbolic inputs: every check_ parameter (block.chainid / block.timestamp via vm.chainId / vm.warp). `bytes`
-// parameters take each length in --default-bytes-lengths (run.sh: 0,1,32,33,100,132,260). Messenger storage is
-// fully symbolic (svm.enableSymbolicStorage) where stated, and frame assertions read it at symbolic keys.
-//
-// Mocks (vm.etch at the predeploys): 0x..22 CrossL2Inbox (validateMessage always succeeds), 0x..07 / 0x..16
-// fallback-only call recorders, or MockL2CDMGetters at 0x..07 for expireMessage. Relay targets: any codeless account,
-// the predeploy mocks, or ReentrantTarget (re-enters export/send with symbolic arguments).
+// parameters take each length in --default-bytes-lengths (run.sh: 0,1,32,33,100,132,260).
 
 import { Test } from "forge-std/Test.sol";
 import { L2ToL2CrossDomainMessenger } from "src/L2/L2ToL2CrossDomainMessenger.sol";
@@ -26,7 +20,15 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { SVM, SVM_ADDRESS, MockCrossL2Inbox, Recorder, MockL2CDMGetters, ReentrantTarget } from "./HalmosMocks.sol";
+import {
+    SVM,
+    SVM_ADDRESS,
+    MockCrossL2Inbox,
+    Recorder,
+    MockL2CDMGetters,
+    ReentrantTarget,
+    RelayProbe
+} from "./HalmosMocks.sol";
 
 contract L2ToL2ExpiryHalmos is Test {
     SVM internal constant svm = SVM(SVM_ADDRESS);
@@ -40,17 +42,26 @@ contract L2ToL2ExpiryHalmos is Test {
 
     /// @dev Template deployments whose code is etched at the predeploys. They (and the test contract and the cheatcode
     ///      addresses) are harness accounts, not chain accounts, so symbolic relay targets are assumed to avoid them.
-    address[4] internal templates;
+    address[5] internal templates;
+    address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     function setUp() public {
         templates[0] = address(new L2ToL2CrossDomainMessenger());
         templates[1] = address(new MockCrossL2Inbox());
         templates[2] = address(new Recorder());
         templates[3] = address(new Recorder());
+        // The real UndeliveredMessageExporter (solc 0.8.15, compiled by ExporterExpiryHalmos.t.sol).
+        bytes memory code = vm.getCode("halmos-out/UndeliveredMessageExporter.sol/UndeliveredMessageExporter.json");
+        address exporter;
+        assembly {
+            exporter := create(0, add(code, 32), mload(code))
+        }
+        templates[4] = exporter;
         vm.etch(L2_TO_L2, templates[0].code);
         vm.etch(INBOX, templates[1].code);
         vm.etch(L2CDM, templates[2].code);
         vm.etch(PASSER, templates[3].code);
+        vm.etch(EXPORTER, templates[4].code);
     }
 
     /// @dev ASSUMPTION for symbolic relay targets: the target is not a harness account. It may still be any of the
@@ -62,9 +73,13 @@ contract L2ToL2ExpiryHalmos is Test {
         vm.assume(_target != SVM_ADDRESS);
         vm.assume(_target != 0x000000000000000000636F6e736F6c652e6c6f67); // console.log
         vm.assume(_target != CREATE2_FACTORY);
-        for (uint256 i = 0; i < 4; i++) {
+        for (uint256 i = 0; i < 5; i++) {
             vm.assume(_target != templates[i]);
         }
+        // The exporter ignores msg.sender, so a relay that calls it is an export with caller 0x..23, covered by
+        // ExporterExpiryHalmos (symbolic caller) and by check_OnlyExportReachesL1_relay_reentrant. Calling it here with
+        // symbolic calldata would only make halmos stuck on symbolic ABI offsets.
+        vm.assume(_target != EXPORTER);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -80,6 +95,14 @@ contract L2ToL2ExpiryHalmos is Test {
 
     function _lastHashFrom23(address _recorder) internal view returns (bytes32) {
         return vm.load(_recorder, bytes32(uint256(2)));
+    }
+
+    function _callsFromExporter(address _recorder) internal view returns (uint256) {
+        return uint256(vm.load(_recorder, bytes32(uint256(4))));
+    }
+
+    function _lastHashFromExporter(address _recorder) internal view returns (bytes32) {
+        return vm.load(_recorder, bytes32(uint256(5)));
     }
 
     /// @dev Symbolic probe keys for storage-frame assertions: `k` is an arbitrary message hash, `j` an arbitrary nonce.
@@ -200,12 +223,13 @@ contract L2ToL2ExpiryHalmos is Test {
         if (ok) {
             assert(_target != L2_TO_L2);
             assert(_target != L2CDM);
+            assert(_target != PASSER);
             assert(_destination != _chainId);
         }
     }
 
-    /// @notice PENDING RULE (expected to FAIL at 37b44c48c7): sendMessage to the L2ToL1MessagePasser reverts.
-    function check_UnsafeTargetRule_send_passer_PENDING(
+    /// @notice Rule landed at dd0931a540 (was pending at 37b44c48c7): sendMessage to the L2ToL1MessagePasser reverts.
+    function check_UnsafeTargetRule_send_passer(
         address _caller,
         uint256 _chainId,
         uint256 _destination,
@@ -257,6 +281,7 @@ contract L2ToL2ExpiryHalmos is Test {
         bool ok = _relay(_caller, _id, _destination, _target, _nonce, _sender, _message);
         if (ok) {
             assert(_target != L2CDM);
+            assert(_target != PASSER);
             assert(_id.origin == L2_TO_L2);
             assert(_destination == _chainId);
         }
@@ -279,8 +304,8 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(!ok);
     }
 
-    /// @notice PENDING RULE (expected to FAIL at 37b44c48c7): relayMessage to the L2ToL1MessagePasser reverts.
-    function check_UnsafeTargetRule_relay_passer_PENDING(
+    /// @notice Rule landed at dd0931a540 (was pending at 37b44c48c7): relayMessage to the L2ToL1MessagePasser reverts.
+    function check_UnsafeTargetRule_relay_passer(
         address _caller,
         uint256 _chainId,
         Identifier memory _id,
@@ -357,9 +382,9 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(_callsFrom23(L2CDM) == 0);
     }
 
-    /// @notice PENDING RULE (expected to FAIL at 37b44c48c7): relayMessage never makes 0x..23 call the
+    /// @notice Rule landed at dd0931a540 (was pending at 37b44c48c7): relayMessage never makes 0x..23 call the
     ///         L2ToL1MessagePasser. The counterexample is a relay with target 0x..16.
-    function check_OnlyExportReachesL1_relay_passer_PENDING(
+    function check_OnlyExportReachesL1_relay_passer(
         address _caller,
         uint256 _chainId,
         Identifier memory _id,
@@ -378,56 +403,8 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(_callsFrom23(PASSER) == 0);
     }
 
-    /// @notice Positive (non-vacuity) case of the group: from fresh storage, export succeeds, calls 0x..07 exactly
-    ///         once and 0x..16 never. (expireMessage only reads 0x..07 through view getters: STATICCALL.)
-    function check_OnlyExportReachesL1_export_positive(
-        address _caller,
-        uint256 _chainId,
-        uint256 _ts,
-        address _sourceMessenger,
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message,
-        uint32 _minGas
-    )
-        public
-    {
-        _env(_chainId, _ts);
-        vm.prank(_caller);
-        (bool ok,) = L2_TO_L2.call(
-            abi.encodeCall(
-                m.exportUndeliveredMessage, (_sourceMessenger, _source, _nonce, _sender, _target, _message, _minGas)
-            )
-        );
-        assert(ok); // fresh storage: nothing relayed, so export must succeed
-        assert(_callsFrom23(L2CDM) == 1);
-        assert(_callsFrom23(PASSER) == 0);
-    }
-
-    /// @notice NON-VACUITY (expected FAIL): export never reaches the L2CrossDomainMessenger.
-    function check_FALSE_export_neverCallsL2CDM(
-        address _sourceMessenger,
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message,
-        uint32 _minGas
-    )
-        public
-    {
-        (bool ok,) = L2_TO_L2.call(
-            abi.encodeCall(
-                m.exportUndeliveredMessage, (_sourceMessenger, _source, _nonce, _sender, _target, _message, _minGas)
-            )
-        );
-        ok;
-        assert(_callsFrom23(L2CDM) == 0);
-    }
-
-    // ================================================================ (3) exportUndeliveredMessage binding
+    // ================================================================ export arguments (the exporter is checked in
+    // ExporterExpiryHalmos)
 
     /// @notice With fully symbolic messenger storage: export succeeds iff !successfulMessages[H] where
     ///         H = keccak256(abi.encode(block.chainid, source, nonce, sender, target, message)); on success it
@@ -442,81 +419,6 @@ contract L2ToL2ExpiryHalmos is Test {
         address sender;
         address target;
         uint32 minGas;
-    }
-
-    function _export(
-        address _caller,
-        ExportArgs memory _a,
-        bytes calldata _message
-    )
-        internal
-        returns (bool ok_, bytes memory ret_)
-    {
-        vm.prank(_caller);
-        (ok_, ret_) = L2_TO_L2.call(
-            abi.encodeCall(
-                m.exportUndeliveredMessage,
-                (_a.sourceMessenger, _a.source, _a.nonce, _a.sender, _a.target, _message, _a.minGas)
-            )
-        );
-    }
-
-    function check_export_binding(
-        address _caller,
-        uint256 _chainId,
-        uint256 _ts,
-        ExportArgs memory _a,
-        bytes calldata _message,
-        FrameKeys memory _fk
-    )
-        public
-    {
-        _env(_chainId, _ts);
-        svm.enableSymbolicStorage(L2_TO_L2);
-        bytes32 h = _hash(_chainId, _a.source, _a.nonce, _a.sender, _a.target, _message);
-        bool relayedBefore = m.successfulMessages(h);
-        Snap memory before = _snap(_fk);
-
-        (bool ok, bytes memory ret) = _export(_caller, _a, _message);
-
-        assert(ok == !relayedBefore);
-        assert(m.successfulMessages(h) == relayedBefore);
-        _sameExceptNothing(before, _snap(_fk)); // export writes no messenger storage at all
-        if (ok) {
-            assert(abi.decode(ret, (bytes32)) == h);
-            assert(_callsFrom23(L2CDM) == 1);
-            bytes memory expected = abi.encodeCall(
-                ICrossDomainMessenger.sendMessage,
-                (
-                    _a.sourceMessenger,
-                    abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (h, _ts)),
-                    _a.minGas
-                )
-            );
-            assert(_lastHashFrom23(L2CDM) == keccak256(expected));
-            assert(uint256(vm.load(L2CDM, bytes32(uint256(3)))) == expected.length);
-        } else {
-            assert(_callsFrom23(L2CDM) == 0);
-        }
-        assert(_callsFrom23(PASSER) == 0);
-    }
-
-    /// @notice NON-VACUITY (expected FAIL): export hashes with the SOURCE as destination (it must use block.chainid).
-    function check_FALSE_export_hashUsesSourceAsDestination(
-        uint256 _chainId,
-        address _sourceMessenger,
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message,
-        uint32 _minGas
-    )
-        public
-    {
-        vm.chainId(_chainId);
-        bytes32 ret = m.exportUndeliveredMessage(_sourceMessenger, _source, _nonce, _sender, _target, _message, _minGas);
-        assert(ret == _hash(_source, _chainId, _nonce, _sender, _target, _message));
     }
 
     // ================================================================ storage effects and frames (send, relay)
@@ -688,13 +590,14 @@ contract L2ToL2ExpiryHalmos is Test {
 
         bool h2IsRelayed = h2 == _relayTo(_id, _rel, t, _message);
 
-        assert(_callsFrom23(L2CDM) <= 1);
-        if (_callsFrom23(L2CDM) == 1) {
+        assert(_callsFrom23(L2CDM) == 0); // 0x..23 itself never calls the L2CrossDomainMessenger
+        assert(_callsFromExporter(L2CDM) <= 1);
+        if (_callsFromExporter(L2CDM) == 1) {
             assert(_doExport);
             assert(!h2IsRelayed && !succH2Before);
-            assert(_lastHashFrom23(L2CDM) == _exportPayloadHash(_a2.sourceMessenger, h2, _ts, _a2.minGas));
+            assert(_lastHashFromExporter(L2CDM) == _exportPayloadHash(_a2.sourceMessenger, h2, _ts, _a2.minGas));
         }
-        assert(_callsFrom23(PASSER) == 0);
+        assert(_callsFrom23(PASSER) == 0 && _callsFromExporter(PASSER) == 0);
     }
 
     /// @notice NON-VACUITY (expected FAIL): a re-entrant export during a relay never reaches 0x..07. The
@@ -711,7 +614,113 @@ contract L2ToL2ExpiryHalmos is Test {
         vm.chainId(_chainId);
         ReentrantTarget t = new ReentrantTarget(_reentryArgs(1, _a2), "");
         _relay(address(this), _id, _chainId, address(t), _nonce, _sender, "");
-        assert(_callsFrom23(L2CDM) == 0);
+        assert(_callsFromExporter(L2CDM) == 0);
+    }
+
+    // ================================================================ relay delivery, value, context, failure
+
+    function _probe(address _p, uint256 _slot) internal view returns (uint256) {
+        return uint256(vm.load(_p, bytes32(_slot)));
+    }
+
+    function _relayWithValue(
+        Identifier memory _id,
+        FrameKeys memory _rel,
+        address _t,
+        bytes calldata _message,
+        uint256 _v
+    )
+        internal
+        returns (bool ok_, bytes32 h_)
+    {
+        address sender = address(uint160(uint256(_rel.k)));
+        h_ = _hash(block.chainid, _id.chainId, _rel.j, sender, _t, _message);
+        bytes memory payload = _payload(block.chainid, _t, _rel.j, sender, _message);
+        (ok_,) = L2_TO_L2.call{ value: _v }(abi.encodeCall(m.relayMessage, (_id, payload)));
+    }
+
+    /// @notice relayMessage to a target with an observable effect (RelayProbe), with symbolic msg.value, symbolic
+    ///         storage, and a target that either returns or reverts:
+    ///           - success => the target did not revert, it ran exactly with msg.value, and during the call
+    ///             crossDomainMessageContext() returned (sender, id.chainId); successfulMessages[H] is set;
+    ///           - target reverts => the relay reverts and successfulMessages[H] is unchanged (nothing consumed);
+    ///           - liveness: a non-reverting target, origin 0x..23 and H not yet relayed => the relay succeeds;
+    ///           - afterwards the context getter reverts again (entered flag cleared), and a second relay in the same
+    ///             transaction is not blocked by the reentrancy guard.
+    ///         (The sender/source transient slots are also reset by the contract; that is unobservable through the
+    ///         interface, since every context getter is onlyEntered.)
+    function check_relay_delivery_value_context_failure(
+        uint256 _chainId,
+        Identifier memory _id,
+        FrameKeys memory _rel, // sender = low 160 bits of k, nonce = j
+        bytes calldata _message,
+        uint256 _value,
+        bool _revertTarget
+    )
+        public
+    {
+        vm.chainId(_chainId);
+        svm.enableSymbolicStorage(L2_TO_L2);
+        vm.assume(_value <= 1 << 128);
+        vm.deal(address(this), _value);
+        address p = address(new RelayProbe(_revertTarget));
+        bytes32 h = _hash(_chainId, _id.chainId, _rel.j, address(uint160(uint256(_rel.k))), p, _message);
+        bool before = m.successfulMessages(h);
+
+        (bool ok,) = _relayWithValue(_id, _rel, p, _message, _value);
+
+        if (ok) {
+            assert(!_revertTarget);
+            assert(_probe(p, 0) == 1);
+            assert(_probe(p, 1) == _value && p.balance == _value);
+            assert(_probe(p, 2) == 1);
+            assert(_probe(p, 3) == uint256(uint160(uint256(_rel.k))));
+            assert(_probe(p, 4) == _id.chainId);
+            assert(m.successfulMessages(h));
+        } else {
+            assert(_probe(p, 0) == 0);
+            assert(m.successfulMessages(h) == before);
+            assert(p.balance == 0);
+        }
+        if (!_revertTarget && _id.origin == L2_TO_L2 && !before) assert(ok);
+
+        (bool ctxOk,) = L2_TO_L2.staticcall(abi.encodeCall(m.crossDomainMessageContext, ()));
+        assert(!ctxOk);
+        _assertSecondRelayNotBlocked(_id, _rel, _message);
+    }
+
+    /// @dev A second relay in the same transaction (different nonce, codeless target) is not blocked by the guard.
+    function _assertSecondRelayNotBlocked(
+        Identifier memory _id,
+        FrameKeys memory _rel,
+        bytes calldata _message
+    )
+        internal
+    {
+        FrameKeys memory rel2 = FrameKeys(_rel.k, _rel.j ^ 1);
+        address t2 = address(0xC0DE);
+        bytes32 h2 = _hash(block.chainid, _id.chainId, rel2.j, address(uint160(uint256(_rel.k))), t2, _message);
+        if (_id.origin == L2_TO_L2 && !m.successfulMessages(h2)) {
+            (bool ok2,) = _relayWithValue(_id, rel2, t2, _message, 0);
+            assert(ok2);
+        }
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): with a valid origin and fresh storage (so the only possible cause of a
+    ///         revert is the target), a relay to a reverting target still succeeds.
+    function check_FALSE_relay_revertingTargetStillSucceeds(
+        uint256 _chainId,
+        Identifier memory _id,
+        FrameKeys memory _rel,
+        bytes calldata _message
+    )
+        public
+    {
+        vm.chainId(_chainId);
+        vm.assume(_id.origin == L2_TO_L2);
+        address p = address(new RelayProbe(true));
+        (bool ok,) = _relayWithValue(_id, _rel, p, _message, 0);
+        assert(ok);
     }
 
     // ================================================================ (5) expireMessage
@@ -730,7 +739,7 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice expireMessage succeeds iff
     ///           msg.sender == 0x..07 && L2CDM.xDomainMessageSender() == L2CDM.otherMessenger()
     ///           && sentAt != 0 && t > sentAt + W
-    ///         where sentAt = sentMessageTimestamps[H] and W = MESSAGE_EXPIRY_WINDOW read from the contract (not
+    ///         where sentAt = sentMessageTimestamps[H] and W = EXPIRY_PERIOD read from the contract (not
     ///         hardcoded, so this holds unchanged when the constant becomes 8 days).
     ///         ASSUMPTION: sentAt <= 2^64 - 1 (a block timestamp). Without it see check_expire_iff_unbounded.
     ///         Frame: on success expiredMessages[H] becomes true; on revert it is unchanged; everything else
@@ -748,7 +757,7 @@ contract L2ToL2ExpiryHalmos is Test {
         public
     {
         _setupExpire(_xSender, _other);
-        uint256 w = m.MESSAGE_EXPIRY_WINDOW();
+        uint256 w = m.EXPIRY_PERIOD();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt <= type(uint64).max);
         bool expiredBefore = m.expiredMessages(_h);
@@ -778,7 +787,7 @@ contract L2ToL2ExpiryHalmos is Test {
         public
     {
         _setupExpire(_xSender, _other);
-        uint256 w = m.MESSAGE_EXPIRY_WINDOW();
+        uint256 w = m.EXPIRY_PERIOD();
         uint256 sentAt = m.sentMessageTimestamps(_h);
 
         bool ok = _expire(_caller, _h, _t);
@@ -792,7 +801,7 @@ contract L2ToL2ExpiryHalmos is Test {
     ///         t == sentAt + W + 1 succeeds.
     function check_expire_boundary(address _l1Messenger, bytes32 _h) public {
         _setupExpire(_l1Messenger, _l1Messenger);
-        uint256 w = m.MESSAGE_EXPIRY_WINDOW();
+        uint256 w = m.EXPIRY_PERIOD();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
 
@@ -805,7 +814,7 @@ contract L2ToL2ExpiryHalmos is Test {
     ///         counterexample is t == sentAt + W.
     function check_FALSE_expire_windowIsGte(address _l1Messenger, bytes32 _h, uint256 _t) public {
         _setupExpire(_l1Messenger, _l1Messenger);
-        uint256 w = m.MESSAGE_EXPIRY_WINDOW();
+        uint256 w = m.EXPIRY_PERIOD();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
 
@@ -816,7 +825,7 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice NON-VACUITY (expected FAIL): the auth check ignores xDomainMessageSender.
     function check_FALSE_expire_ignoresXDomainSender(address _xSender, address _other, bytes32 _h, uint256 _t) public {
         _setupExpire(_xSender, _other);
-        uint256 w = m.MESSAGE_EXPIRY_WINDOW();
+        uint256 w = m.EXPIRY_PERIOD();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
 
@@ -829,7 +838,12 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice P_contract >= W_protocol: the contract's expiry period covers the protocol window, which op-core/kona
     ///         config parsing caps at 7 days. Holds for the current constant (7 days) and the planned one (8 days).
     function check_contractWindowCoversProtocolCap() public view {
-        assert(m.MESSAGE_EXPIRY_WINDOW() >= 7 days);
+        assert(m.EXPIRY_PERIOD() >= 7 days);
+    }
+
+    /// @notice The expiry period is the protocol cap (7 days) plus the 1-day margin.
+    function check_expiryPeriodIsCapPlusMargin() public view {
+        assert(m.EXPIRY_PERIOD() == 7 days + 1 days);
     }
 
     /// @notice INFO (expected FAIL, documents an assumption): relayMessage ITSELF does not reject target 0x..23; the

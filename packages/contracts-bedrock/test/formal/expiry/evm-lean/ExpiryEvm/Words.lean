@@ -1,4 +1,5 @@
 import Reasoning.Solc
+import Reasoning.EVMWord
 
 /-! # Small 256-bit word facts used to discharge branch conditions
 
@@ -189,5 +190,79 @@ theorem calldata_ok_iff (n : ℕ) (hn : n < 2 ^ 256) :
       show ¬ n - 4 < (UInt256.ofNat 64).toNat
       rw [show (UInt256.ofNat 64).toNat = 64 by decide]; omega
     rw [this]; rfl
+
+end ExpiryEvm.Words
+
+namespace ExpiryEvm.Words
+
+open Ethereum
+
+/-- solc's allocation rounding `(n + 31) & ~31`. -/
+theorem round_up (n : ℕ) (hn : n < 2 ^ 200) :
+    UInt256.land (UInt256.ofNat n + UInt256.ofNat 31) (UInt256.lnot (UInt256.ofNat 31)) =
+      UInt256.ofNat (32 * ((n + 31) / 32)) := by
+  rw [ext_iff, Reasoning.Theory.uland_toNat, show UInt256.lnot (UInt256.ofNat 31) =
+    UInt256.lnot ⟨31⟩ from rfl, Reasoning.Theory.lnot31_toNat, toNat_add,
+    toNat_ofNat (by rw [size_eq]; omega), toNat_ofNat (by decide),
+    toNat_ofNat (by rw [size_eq]; omega), Nat.mod_eq_of_lt (by omega),
+    Reasoning.Theory.nat_land_mask _ (by omega)]
+
+theorem min32_toNat (n : ℕ) (h1 : 32 ≤ n) (h2 : n < 2 ^ 256) :
+    (min (UInt256.ofNat 32) (UInt256.ofNat n)).toNat = 32 := by
+  have hle : UInt256.ofNat 32 ≤ UInt256.ofNat n := by
+    show (UInt256.ofNat 32).val ≤ (UInt256.ofNat n).val
+    rw [Fin.le_def]
+    show (UInt256.ofNat 32).toNat ≤ (UInt256.ofNat n).toNat
+    rw [toNat_ofNat (by decide), toNat_ofNat (by rw [size_eq]; exact h2)]; exact h1
+  have hm : min (UInt256.ofNat 32) (UInt256.ofNat n) = UInt256.ofNat 32 := by
+    first
+    | exact min_eq_left hle
+    | (show (if UInt256.ofNat 32 ≤ UInt256.ofNat n then _ else _) = _; rw [if_pos hle])
+    | (simp only [Min.min, minOfLe]; rw [if_pos hle])
+  show (min (UInt256.ofNat 32) (UInt256.ofNat n)).toNat = 32
+  rw [hm]; decide
+
+theorem add_sub_cancel' (a : ℕ) (n : ℕ) (h : a + n < 2 ^ 256) :
+    UInt256.sub (UInt256.ofNat a + UInt256.ofNat n) (UInt256.ofNat a) = UInt256.ofNat n := by
+  have ha : (UInt256.ofNat a).toNat = a := toNat_ofNat (by rw [size_eq]; omega)
+  have hn : (UInt256.ofNat n).toNat = n := toNat_ofNat (by rw [size_eq]; omega)
+  have hs : (UInt256.ofNat a + UInt256.ofNat n).toNat = a + n := by
+    rw [toNat_add, ha, hn, Nat.mod_eq_of_lt h]
+  rw [ext_iff, toNat_sub_of_le (by rw [hs, ha]; omega), hs, ha, hn]; omega
+
+theorem ofNat_add (a b : ℕ) (h : a + b < 2 ^ 256) :
+    UInt256.ofNat a + UInt256.ofNat b = UInt256.ofNat (a + b) := by
+  rw [ext_iff, toNat_add, toNat_ofNat (by rw [size_eq]; omega), toNat_ofNat (by rw [size_eq]; omega),
+    toNat_ofNat (by rw [size_eq]; omega), Nat.mod_eq_of_lt h]
+
+/-- The ABI decoder's return-data length check passes for `n ≥ 32` bytes. -/
+theorem retlen_ok (n : ℕ) (h1 : 32 ≤ n) (h2 : n < 2 ^ 255) :
+    UInt256.isZero (UInt256.slt (UInt256.ofNat n) (UInt256.ofNat 32)) ≠ UInt256.ofNat 0 := by
+  rw [isZero_ne0]
+  unfold UInt256.slt UInt256.fromBool
+  have : UInt256.sltBool (UInt256.ofNat n) (UInt256.ofNat 32) = false := by
+    unfold UInt256.sltBool
+    rw [toNat_ofNat (by rw [size_eq]; omega), show (UInt256.ofNat 32).toNat = 32 by decide,
+      if_neg (by omega), if_neg (by norm_num)]
+    simp only [decide_eq_false_iff_not]
+    show ¬ (UInt256.ofNat n).val < (UInt256.ofNat 32).val
+    rw [Fin.lt_def]
+    show ¬ (UInt256.ofNat n).toNat < (UInt256.ofNat 32).toNat
+    rw [toNat_ofNat (by rw [size_eq]; omega), show (UInt256.ofNat 32).toNat = 32 by decide]; omega
+  rw [this]; rfl
+
+end ExpiryEvm.Words
+
+namespace ExpiryEvm.Words
+
+open Ethereum
+
+theorem add_sub_cancel_left' (n a : ℕ) (h : n + a < 2 ^ 256) :
+    UInt256.sub (UInt256.ofNat n + UInt256.ofNat a) (UInt256.ofNat a) = UInt256.ofNat n := by
+  have ha : (UInt256.ofNat a).toNat = a := toNat_ofNat (by rw [size_eq]; omega)
+  have hn : (UInt256.ofNat n).toNat = n := toNat_ofNat (by rw [size_eq]; omega)
+  have hs : (UInt256.ofNat n + UInt256.ofNat a).toNat = n + a := by
+    rw [toNat_add, ha, hn, Nat.mod_eq_of_lt h]
+  rw [ext_iff, toNat_sub_of_le (by rw [hs, ha]; omega), hs, ha, hn]; omega
 
 end ExpiryEvm.Words

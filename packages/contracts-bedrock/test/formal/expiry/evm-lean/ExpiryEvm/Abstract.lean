@@ -29,10 +29,23 @@ of the messenger's storage:
 * `cfg.contractPeriod` ↦ `P_contract` (the compiled constant), `f.hash` ↦ `argHash I`,
   `f.time` ↦ `(argTime I).toNat`.
 
-The model works with ideal hashes; the code with `keccak256` storage slots. The bridge needs that
-no other mapping key's slot collides with `expiredMessages[H]` (`NoSlotCollision H`, a
-per-key instance of keccak collision resistance; it is not refutable in general, unlike a global
-injectivity claim on 64-byte inputs, which would be false by counting).
+The model works with ideal hashes; the code with `keccak256` storage slots. Instead of a global
+non-collision assumption, the view equations are stated **per key**: for every key `H'` whose slot
+differs from `expiredMessages[H]`'s, the abstract value at `H'` is preserved (resp. follows
+`absNext`). Keys that do collide (if any exist) are simply not covered; no idealized hash
+assumption is made.
+
+What this is and is not:
+* It is a **projection**: one chain, the two maps `expire` touches, the action's guard and
+  effect. It is not a refinement of the whole model state, and it does not relate executions.
+* `deposits f` is **not derived**: the model's `s.deposits f` is a history fact (an
+  `expireMessage(H, t)` deposit from this chain's L1CrossDomainMessenger exists). Here it is read
+  as the call-time condition `DepositCall` that the code checks. That `DepositCall` holds only for
+  authentic deposits is supplied externally: by the L1CrossDomainMessenger's
+  `relayUndeliveredMessage` checks and by the L2CrossDomainMessenger relaying deposits with
+  `xDomainMessageSender` = their L1 sender (neither is verified here).
+* The restated definitions were compared with `../lean/Expiry/Model.lean` by hand (different
+  toolchains); a follow-up on a shared toolchain should replace them by imports.
 -/
 
 namespace ExpiryEvm.Abstract
@@ -59,10 +72,6 @@ def absNext (v : AbsView) (h : UInt256) : AbsView :=
 def viewOf (σ : AccountMap) (a : AccountAddress) : AbsView where
   sentAt H := (storageWord σ a (sentAtSlot H)).toNat
   expired H := UInt256.land (storageWord σ a (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩
-
-/-- Per-key keccak collision freedom needed to read the abstract maps back. -/
-def NoSlotCollision (H : UInt256) : Prop :=
-  (∀ H', H' ≠ H → expiredSlot H' ≠ expiredSlot H) ∧ (∀ H', sentAtSlot H' ≠ expiredSlot H)
 
 /-- The concrete meaning of `deposits ⟨z, H, t⟩` at this call. -/
 def DepositCall (I : ExecutionEnv) (vO vS : AccountAddress) : Prop :=
@@ -105,84 +114,55 @@ theorem storageWord_insert_self {st : Storage} {s v : UInt256} :
     (st.insert s v).getD s ⟨0⟩ = v := by
   rw [Std.ExtTreeMap.getD_insert, if_pos (Std.ReflCmp.compare_self)]
 
-/-- The effect of a successful run on the abstraction: exactly `absNext`. -/
-theorem post_view {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I)
-    (hnc : NoSlotCollision (argHash I)) :
-    (∀ H, (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
-    (∀ H, (viewOf σ' I.codeOwner).expired H ↔ (absNext (viewOf σ I.codeOwner) (argHash I)).expired H) := by
+/-- The effect of a successful run on the abstraction, per key: `expired` becomes true at `H`,
+    and every key whose slot differs from `expiredSlot H` keeps its `sentAt` / follows `absNext`. -/
+theorem post_view {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
+    (viewOf σ' I.codeOwner).expired (argHash I) ∧
+    (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
+      (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
+    (∀ H, expiredSlot H ≠ expiredSlot (argHash I) →
+      ((viewOf σ' I.codeOwner).expired H ↔ (absNext (viewOf σ I.codeOwner) (argHash I)).expired H)) := by
   have hs : ∀ s, storageWord σ' I.codeOwner s =
       ((σ.getD I.codeOwner default).storage.insert (expiredSlot (argHash I))
         (setTrueWord (storageWord σ I.codeOwner (expiredSlot (argHash I))))).getD s ⟨0⟩ := by
     intro s; unfold storageWord; rw [hpost.self_storage]; rfl
-  refine ⟨fun H => ?_, fun H => ?_⟩
+  refine ⟨?_, fun H hH => ?_, fun H hH => ?_⟩
+  · show UInt256.land (storageWord σ' I.codeOwner (expiredSlot (argHash I))) (UInt256.ofNat 0xff) ≠ ⟨0⟩
+    rw [hs, storageWord_insert_self]
+    exact land_setTrueWord_ff _
   · show (storageWord σ' I.codeOwner (sentAtSlot H)).toNat = (storageWord σ I.codeOwner (sentAtSlot H)).toNat
-    rw [hs, storageWord_insert_ne (hnc.2 H)]; rfl
-  · show UInt256.land (storageWord σ' I.codeOwner (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩ ↔
+    rw [hs, storageWord_insert_ne hH]; rfl
+  · have hne : H ≠ argHash I := fun h => hH (by rw [h])
+    show UInt256.land (storageWord σ' I.codeOwner (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩ ↔
       (UInt256.land (storageWord σ I.codeOwner (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩ ∨
         H = argHash I)
-    by_cases hH : H = argHash I
-    · subst hH
-      rw [hs, storageWord_insert_self]
-      exact ⟨fun _ => Or.inr rfl, fun _ => land_setTrueWord_ff _⟩
-    · rw [hs, storageWord_insert_ne (hnc.1 H hH)]
-      exact ⟨fun h => Or.inl h, fun h => h.resolve_right hH⟩
+    rw [hs, storageWord_insert_ne hH]
+    exact ⟨fun h => Or.inl h, fun h => h.resolve_right hne⟩
 
-/-- **Refinement (soundness).** A successful run of the compiled `expireMessage(H, t)` is an
-    abstract `expire ⟨z, H, t⟩` step: the abstract guard held before (with `deposits` read as
-    `DepositCall`), the abstract state after is `absNext`, and no other account's storage
-    changed. -/
+/-- **Projection refinement (soundness).** A successful run of the compiled
+    `expireMessage(H, t)` is an abstract `expire ⟨z, H, t⟩` step on the projection: the abstract
+    guard held before (with `deposits` read as `DepositCall`), `expired` holds at `H` after, every
+    key with a slot distinct from `expiredSlot H` keeps `sentAt` and follows `absNext`, and no
+    other account's storage changed. -/
 theorem refines_expire {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : ExecutionEnv}
     {g g' : UInt256} {o : ByteArray} {vO vS : AccountAddress}
     (hcode : I.code = l2tol2Runtime) (hsel : selectorWord I = expireSelector)
     (hcds : I.calldata.size < 2 ^ 256)
     (hO : ReturnsAddress σ σ₀ I otherMessengerCalldata vO)
     (hX : ReturnsAddress σ σ₀ I xDomainMessageSenderCalldata vS)
-    (hnc : NoSlotCollision (argHash I))
     (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
     absGuard P_contract (DepositCall I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
-    (∀ H, (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
-    (∀ H, (viewOf σ' I.codeOwner).expired H ↔
-      (absNext (viewOf σ I.codeOwner) (argHash I)).expired H) ∧
+    (viewOf σ' I.codeOwner).expired (argHash I) ∧
+    (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
+      (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
+    (∀ H, expiredSlot H ≠ expiredSlot (argHash I) →
+      ((viewOf σ' I.codeOwner).expired H ↔ (absNext (viewOf σ I.codeOwner) (argHash I)).expired H)) ∧
     (∀ a, a ≠ I.codeOwner → (σ'.getD a default).storage = (σ.getD a default).storage) := by
   obtain ⟨_, hc, hpost, _⟩ := expireMessage_success hcode hsel hcds hO hX hres
-  refine ⟨⟨⟨hc.callerIsL2cdm, hc.senderIsOther⟩, ?_, hc.expired⟩, (post_view hpost hnc).1,
-    (post_view hpost hnc).2, hpost.other_storage⟩
+  refine ⟨⟨⟨hc.callerIsL2cdm, hc.senderIsOther⟩, ?_, hc.expired⟩, (post_view hpost).1,
+    (post_view hpost).2.1, (post_view hpost).2.2, hpost.other_storage⟩
   intro h0
   apply hc.wasSent
   exact Words.ext_iff.mpr h0
-
-/-- **Refinement (completeness).** If the abstract `expire ⟨z, H, t⟩` is enabled (guard with
-    `deposits` read as `DepositCall`) and the concrete side conditions hold (no ETH, well-formed
-    calldata, `sentAt + P` fits in 256 bits, not a static call), the compiled code performs the
-    abstract step, unless it runs out of gas or one of its calls to the L2CrossDomainMessenger
-    fails. -/
-theorem complete_expire {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : UInt256}
-    {vO vS : AccountAddress}
-    (hcode : I.code = l2tol2Runtime) (hsel : selectorWord I = expireSelector)
-    (hcds : I.calldata.size < 2 ^ 256)
-    (hO : ReturnsAddress σ σ₀ I otherMessengerCalldata vO)
-    (hX : ReturnsAddress σ σ₀ I xDomainMessageSenderCalldata vS)
-    (hnc : NoSlotCollision (argHash I))
-    (hguard : absGuard P_contract (DepositCall I vO vS) (viewOf σ I.codeOwner) (argHash I)
-      (argTime I).toNat)
-    (hval : I.weiValue = ⟨0⟩) (hlen : 68 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4)
-    (hov : (sentAt σ I).toNat + P_contract < 2 ^ 256) (hperm : I.perm = true) :
-    Ξ σ σ₀ g A I = .error .OutOfGass ∨
-    (∃ σ' g' A', Ξ σ σ₀ g A I = .ok (.success (σ', g', A') ByteArray.empty) ∧
-      (∀ H, (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
-      (∀ H, (viewOf σ' I.codeOwner).expired H ↔
-        (absNext (viewOf σ I.codeOwner) (argHash I)).expired H)) ∨
-    ((∃ g' o, Ξ σ σ₀ g A I = .ok (.revert g' o)) ∧ CallFailed σ σ₀ I) := by
-  obtain ⟨⟨hsrc, hSO⟩, hs0, hexp⟩ := hguard
-  have hc : ExpireConds σ I vO vS :=
-    ⟨hval, hlen, hsrc, hSO, fun h => hs0 (by
-      show (storageWord σ I.codeOwner (sentAtSlot (argHash I))).toNat = 0
-      have : sentAt σ I = ⟨0⟩ := h
-      unfold sentAt at this; rw [this]; rfl), hov, hexp⟩
-  rcases expireMessage_complete (g := g) (A := A) hcode hsel hcds hO hX hc hperm with
-    h | ⟨σ', g', A', h, hpost⟩ | h
-  · exact Or.inl h
-  · exact Or.inr (Or.inl ⟨σ', g', A', h, (post_view hpost hnc).1, (post_view hpost hnc).2⟩)
-  · exact Or.inr (Or.inr h)
 
 end ExpiryEvm.Abstract

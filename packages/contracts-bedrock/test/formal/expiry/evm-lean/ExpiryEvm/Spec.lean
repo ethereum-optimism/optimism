@@ -14,7 +14,7 @@ the EVMLean semantics (`Ethereum.EVM.Ξ`, `Ethereum.EVM.Θ`, `AccountMap`, `Exec
   and the summary hypothesis on their results (`ReturnsAddress`),
 * the success conditions (`ExpireConds`) and the post-state relation (`ExpirePost`).
 
-Solidity source (at commit 37b44c48c7):
+Solidity source (at commit 5992028e08, tip of `karl/message-expiry-refunds`):
 
 ```solidity
 function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
@@ -24,7 +24,7 @@ function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
     ) revert NotOtherMessenger();
     uint256 sentAt = sentMessageTimestamps[_messageHash];
     if (sentAt == 0) revert InvalidMessage();
-    if (_undeliveredAt <= sentAt + MESSAGE_EXPIRY_WINDOW) revert MessageNotExpired();
+    if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert MessageNotExpired();
     expiredMessages[_messageHash] = true;
     emit MessageExpired(_messageHash, _undeliveredAt);
 }
@@ -37,10 +37,10 @@ open Ethereum Ethereum.EVM Reasoning.Theory
 
 /-! ## Constants of the compiled artifact -/
 
-/-- `MESSAGE_EXPIRY_WINDOW` as compiled into the artifact (`PUSH3 0x093a80` at pc 2628):
-    604800 s = 7 days at commit 37b44c48c7. The proofs refer to this name only; if the constant
+/-- `EXPIRY_PERIOD` as compiled into the artifact (`PUSH3 0x0a8c00` at pc 2179):
+    691200 s = 8 days at commit 5992028e08. The proofs refer to this name only; if the constant
     changes, regenerate the bytecode and change this one definition (see HOWTO.md). -/
-def P_contract : ℕ := 604800
+def P_contract : ℕ := 691200
 
 /-- `Predeploys.L2_CROSS_DOMAIN_MESSENGER` = 0x4200000000000000000000000000000000000007, as a word. -/
 def l2cdmWord : UInt256 := UInt256.ofNat 0x4200000000000000000000000000000000000007
@@ -122,26 +122,34 @@ def abiAddress (v : AccountAddress) : ByteArray := UInt256.toByteArray (UInt256.
 
 /-- **Summary (hypothesis) of an L2CrossDomainMessenger view function.** Run from any account map
     with the same storage, transient storage and code as `σ`, a *successful* static call with
-    calldata `cd` returns exactly the ABI encoding of `v`. Failure (`z = false`) is unconstrained.
+    calldata `cd` returns at least 32 bytes whose first 32-byte word is the ABI encoding of `v`
+    (any further bytes are unconstrained; the compiled decoder ignores them). Failure
+    (`z = false`) is unconstrained.
 
-    This is what the deployed L2CrossDomainMessenger does for `otherMessenger()` (returns the
-    immutable/stored L1CrossDomainMessenger address) and `xDomainMessageSender()` (returns the
-    current cross-domain sender, or reverts outside a relay). It is an assumption, not proved
-    here (the L2CrossDomainMessenger bytecode is not verified in this development). -/
+    This is what the deployed L2CrossDomainMessenger does for `otherMessenger()` and
+    `xDomainMessageSender()` (Solidity `address`-returning view functions; the latter reverts
+    outside a relay). It is an assumption, not proved here (the L2CrossDomainMessenger bytecode is
+    not verified in this development). `v` is thereby the address the code decodes from the
+    callee's return data. -/
 def ReturnsAddress (σ σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteArray)
     (v : AccountAddress) : Prop :=
   ∀ σc σ' z o, accountStorageStateEq σ σc → accountCodeStateEq σ σc →
-    L2cdmStaticCall σ₀ I cd σc σ' z o → z = true → o = abiAddress v
+    L2cdmStaticCall σ₀ I cd σc σ' z o → z = true → 32 ≤ o.size ∧ o.extract 0 32 = abiAddress v
 
-/-- One of the contract's calls to the L2CrossDomainMessenger can fail: the call depth limit was
-    reached, or a static call (with one of the two calldatas, from an account map with σ's
-    storage) returned `z = false`. Weak by design: the call gas is existentially quantified (the
-    `RD` framework does not expose the forwarded gas), so this holds whenever *some* gas amount
-    makes the callee fail. See README, "How strong is completeness". -/
+/-- A call the code makes to the L2CrossDomainMessenger *can* fail: the call depth limit is
+    reached; or the `otherMessenger()` call from `σ` returns `z = false`; or it succeeds (into
+    `σ₁`) and the following `xDomainMessageSender()` call from `σ₁` returns `z = false`.
+
+    **Weak**: the forwarded call gas and the substate are existentially quantified (the `RD`
+    framework does not expose the gas the 63/64 rule forwards), so this holds in essentially
+    every state (e.g. a call with 0 gas fails; `Concrete.callFailed_in_success_state` proves it in
+    a state where the run succeeds). Statements with a `revert ∧ CallFailed` disjunct are
+    therefore *not* completeness/liveness statements. See README. -/
 def CallFailed (σ σ₀ : AccountMap) (I : ExecutionEnv) : Prop :=
   I.depth.val = 1024 ∨
-  ∃ cd σc σ' o, (cd = otherMessengerCalldata ∨ cd = xDomainMessageSenderCalldata) ∧
-    accountStorageStateEq σ σc ∧ L2cdmStaticCall σ₀ I cd σc σ' false o
+  (∃ σ' o, L2cdmStaticCall σ₀ I otherMessengerCalldata σ σ' false o) ∨
+  (∃ σ₁ o₁ σ' o, L2cdmStaticCall σ₀ I otherMessengerCalldata σ σ₁ true o₁ ∧
+    L2cdmStaticCall σ₀ I xDomainMessageSenderCalldata σ₁ σ' false o)
 
 /-! ## Success conditions and post-state -/
 
@@ -162,9 +170,9 @@ structure ExpireConds (σ : AccountMap) (I : ExecutionEnv) (vOther vSender : Acc
   senderIsOther : vSender = vOther
   /-- `sentMessageTimestamps[H] != 0`. -/
   wasSent : sentAt σ I ≠ ⟨0⟩
-  /-- `sentAt + MESSAGE_EXPIRY_WINDOW` does not overflow 256 bits. -/
+  /-- `sentAt + EXPIRY_PERIOD` does not overflow 256 bits. -/
   noOverflow : (sentAt σ I).toNat + P_contract < 2 ^ 256
-  /-- `_undeliveredAt > sentAt + MESSAGE_EXPIRY_WINDOW`. -/
+  /-- `_undeliveredAt > sentAt + EXPIRY_PERIOD`. -/
   expired : (sentAt σ I).toNat + P_contract < (argTime I).toNat
 
 /-- The post-state of a successful run, relative to the pre-state `σ`: the persistent storage of

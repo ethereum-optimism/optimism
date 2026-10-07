@@ -4,6 +4,10 @@
 #   - every listed check must be present in halmos's results (missing, extra or empty contract results fail);
 #   - PASS checks must pass with no loop cut short by --loop;
 #   - FAIL checks (check_FALSE_*, check_INFO_*, *_PENDING) must fail with a counterexample halmos validated;
+#   - EVERY check (PASS or FAIL) must have zero stuck paths (halmos reports a counterexample in preference to
+#     stuck/error/timeout paths, so the exit code alone cannot rule them out), and the halmos log must contain no
+#     WARNING/ERROR line other than the known-benign "unknown deployed bytecode" (SafeSend deploys empty code);
+#   - every `contract X is Test` in this directory's .t.sol files must appear in expected.tsv, and vice versa;
 #   - each halmos process must exit 0 or 1 (1 = some check failed, expected here) and write its JSON.
 # Exit status is nonzero on any deviation.
 #
@@ -40,7 +44,7 @@ for contract in $(cut -f1 "$here/expected.tsv" | sort -u); do
   set +e
   "$HALMOS" --forge-build-out halmos-out --no-status \
     --default-bytes-lengths "${BYTES_LENGTHS:-0,1,32,33,100,132,260}" \
-    --loop 2 --solver-timeout-assertion 60s \
+    --solver-timeout-assertion 60s \
     --match-contract "^${contract}\$" --json-output "$out/$contract.json" >"$out/$contract.log" 2>&1
   code=$?
   set -e
@@ -51,9 +55,9 @@ for contract in $(cut -f1 "$here/expected.tsv" | sort -u); do
   fi
 done
 
-python3 - "$here/expected.tsv" "$out" <<'EOF' || status=1
-import json, os, sys
-expected_path, out = sys.argv[1], sys.argv[2]
+python3 - "$here/expected.tsv" "$out" "$here" <<'EOF' || status=1
+import glob, json, os, re, sys
+expected_path, out, here = sys.argv[1], sys.argv[2], sys.argv[3]
 expected = {}
 for line in open(expected_path):
     if line.strip():
@@ -61,7 +65,19 @@ for line in open(expected_path):
         expected[(c, n)] = e
 bad = 0
 seen = set()
+in_source = set()
+for f in glob.glob(os.path.join(here, "*.t.sol")):
+    in_source |= set(re.findall(r"^contract (\w+) is Test\b", open(f).read(), re.M))
+for c in sorted(in_source ^ {c for c, _ in expected}):
+    print(f"BAD {c}: test contract in source but not in expected.tsv, or vice versa"); bad += 1
 for c in sorted({c for c, _ in expected}):
+    log = os.path.join(out, c + ".log")
+    if os.path.exists(log):
+        for line in open(log):
+            line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+            if re.search(r"WARNING|ERROR|\[TIMEOUT\]", line) and "unknown deployed bytecode" not in line \
+                    and "foundry.lock" not in line:
+                print(f"BAD {c}: halmos log: {line.strip()[:160]}"); bad += 1
     path = os.path.join(out, c + ".json")
     if not os.path.exists(path):
         print(f"BAD {c}: no JSON output"); bad += 1; continue
@@ -77,6 +93,9 @@ for c in sorted({c for c, _ in expected}):
         seen.add(key)
         want = expected[key]
         code, models, loops = r["exitcode"], r["num_models"] or 0, r["num_bounded_loops"] or 0
+        stuck = (r["num_paths"] or [0, 0, 0])[2]
+        if stuck:
+            print(f"BAD {c}.{name}: {stuck} stuck path(s)"); bad += 1
         if want == "PASS":
             ok = code == 0 and loops == 0
             got = "PASS" if ok else f"exitcode={code} bounded_loops={loops}"
