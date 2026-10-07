@@ -184,7 +184,7 @@ jobs:
       - run:
           name: Determine change detection base
           command: |
-            GH_TOKEN="${MISE_GITHUB_TOKEN:-}" source scripts/ops/get-target-branch.sh
+            GH_TOKEN="${REPO_GITHUB_TOKEN:-${MISE_GITHUB_TOKEN:-}}" source scripts/ops/get-target-branch.sh
             echo "export BASE_REVISION=$TARGET_BRANCH" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       # Change-detection patterns live in routing.yml (change_patterns.any and
