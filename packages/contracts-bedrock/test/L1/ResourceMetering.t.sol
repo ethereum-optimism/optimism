@@ -334,7 +334,7 @@ contract ArtifactResourceMetering_Metered_Test is Test {
     ///         to analyze the gas usage and cost of the `ResourceMetering` contract. The next time
     ///         that the gas usage needs to be analyzed, the skip may be removed.
     function test_meter_generateArtifact_succeeds() external {
-        vm.skip({ skipTest: true });
+        vm.skip(true, "Resource metering CSV generation is a manual diagnostic");
 
         vm.writeLine(
             outfile,

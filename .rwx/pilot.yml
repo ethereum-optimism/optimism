@@ -1,0 +1,186 @@
+# Optional shadow checks. CircleCI remains responsible for the required gates.
+# Pushes include Bailiff's human-authorized external-fork branches and GitHub's
+# gh-readonly-queue branches. Avoid a second pull_request trigger for those SHAs.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [go-lint-tools, rust-fmt-tools]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+  # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  # This public checkout deliberately has no GitHub token or vault access.
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: go-lint-tools
+    use: tools
+    run: bash ops/ci/runtime/rwx-prepare.sh go-lint
+    timeout: 30m
+
+  - key: rust-fmt-tools
+    use: tools
+    run: bash ops/ci/runtime/rwx-prepare.sh rust
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: routing-tests
+    use: [code, tools]
+    run: |
+      mise exec -- bash ops/ci/tests/test-decision-tree.sh
+      mise exec -- python -m unittest discover -s ops/ci/tests -p 'test_rwx_metadata.py'
+      mise exec -- python ops/ci/migration/tests/test_compare_ci.py
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # Preserve the superchain bundle's existing verification before Go consumes it.
+  - key: prep-superchain
+    use: [code, go-lint-tools]
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: mise exec -- just build-superchain-go
+    cache: false
+    timeout: 15m
+
+  - key: go-lint
+    use: prep-superchain
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: |
+      mise exec -- just lint-go
+      mise exec -- bash ops/prestate-reproducibility/test-build-prestates.sh
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 32gb
+    outputs:
+      filesystem: false
+
+  - key: rust-fmt
+    use: [code, rust-fmt-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      mise exec -- just update-superchain-registry-submodule
+      cd rust
+      mise exec -- just fmt-check
+      mise exec -- just check-upstream-mirrors
+    cache: false
+    timeout: 20m
+    outputs:
+      filesystem: false
+
+  # Terminal task states preserve exact Rust dependencies without Main-only failures.
+  - key: rust-gate-receipt
+    use: [code, tools]
+    after: ${{ (rust-fmt.succeeded || rust-fmt.failed || rust-fmt.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt rust-fmt
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_RUST_FMT_SUCCEEDED: ${{ tasks.rust-fmt.succeeded }}
+      TASK_RUST_FMT_FAILED: ${{ tasks.rust-fmt.failed }}
+      TASK_RUST_FMT_SKIPPED: ${{ tasks.rust-fmt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/rust-fmt
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (go-lint.succeeded || go-lint.failed || go-lint.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-pilot
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_GO_LINT_SUCCEEDED: ${{ tasks.go-lint.succeeded }}
+      TASK_GO_LINT_FAILED: ${{ tasks.go-lint.failed }}
+      TASK_GO_LINT_SKIPPED: ${{ tasks.go-lint.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-pilot

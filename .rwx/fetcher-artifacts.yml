@@ -1,0 +1,176 @@
+# Fresh fetcher artifact comparison; Circle still owns its required gate.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [tools, fetcher-solc]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
+
+  - key: fetcher-solc
+    use: contract-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      if ! svm which 0.8.30 >/dev/null 2>&1; then
+        for attempt in 1 2 3 4 5; do
+          if svm install 0.8.30; then break; fi
+          if [ "$attempt" = 5 ]; then exit 1; fi
+          sleep "$((2 ** attempt))"
+        done
+      fi
+    timeout: 15m
+
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
+  - key: helper-tests
+    use: [code, fetcher-solc]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      RWX_LIVE_FETCHER_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_fetcher_artifacts.py'
+      RWX_LIVE_FETCHER_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_fetcher_artifacts.py'
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: fixtures
+          path: .ci/fetcher-artifacts/helper-fixtures
+
+  - key: check
+    use: [source, fetcher-solc]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/runtime/fetcher-artifacts.py --provider rwx
+    env:
+      CI: "true"
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: reports
+          path: .ci/fetcher-artifacts/run
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (check.succeeded || check.failed || check.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-fetcher
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_CHECK_SUCCEEDED: ${{ tasks.check.succeeded }}
+      TASK_CHECK_FAILED: ${{ tasks.check.failed }}
+      TASK_CHECK_SKIPPED: ${{ tasks.check.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-fetcher

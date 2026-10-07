@@ -1,0 +1,27 @@
+# Reusable historical generators and immutable Solidity compiler binaries.
+package:
+  parameters:
+    commit-sha:
+    branch:
+    cache-epoch:
+tasks:
+  - key: prepare
+    use: package.use
+    run: python3 ops/ci/runtime/nut-provenance.py --provider rwx --full --prepare-tools
+    env:
+      CI: "true"
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      RWX_RUN_ID:
+        cache-key: excluded
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: excluded
+    tool-cache: nut-provenance-historical-tools-${{ params.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      artifacts:
+        - key: tools
+          path: .ci/nut-provenance/toolchain

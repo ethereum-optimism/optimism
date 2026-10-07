@@ -1,0 +1,29 @@
+package:
+  parameters:
+    mode:
+      required: true
+tasks:
+  - key: prepare
+    use: package.use
+    run: |
+      bash ops/ci/runtime/rwx-prepare.sh rust
+      mise exec -- bash ops/ci/runtime/rwx-rust-prepare.sh
+      case "$RUST_TOOL_MODE" in
+        release) ;;
+        e2e) bash ops/ci/runtime/apt-install.sh m4 file ;;
+        workspace|sp1)
+          bash ops/ci/runtime/apt-install.sh m4 file
+          if [[ "$RUST_TOOL_MODE" == workspace ]]; then
+            mise install github:est31/cargo-udeps github:taiki-e/cargo-hack
+          else
+            mise install github:succinctlabs/sp1
+          fi
+          printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
+          ;;
+        *) echo "Unknown Rust tool mode: $RUST_TOOL_MODE" >&2; exit 1 ;;
+      esac
+    env:
+      RUST_TOOL_MODE: ${{ params.mode }}
+    filter:
+      workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+    timeout: 30m

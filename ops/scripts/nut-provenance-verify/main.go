@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -73,13 +74,13 @@ func run(fork forks.Name) error {
 	}
 
 	fmt.Printf("Verifying bundle provenance from commit %s...\n", entry.Commit[:12])
-	if err := verifyFromCommit(root, fork, entry, func(contractsDir string) error {
+	if err := verifyFromCommitReported(root, fork, entry, func(contractsDir string) error {
 		cmd := exec.Command("just", "generate-nut-bundle")
 		cmd.Dir = contractsDir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
-	}); err != nil {
+	}, os.Getenv("NUT_PROVENANCE_REPORT_DIR")); err != nil {
 		return fmt.Errorf("provenance verification: %w", err)
 	}
 
@@ -90,6 +91,10 @@ func run(fork forks.Name) error {
 // verifyFromCommit creates a temporary worktree at the recorded commit,
 // regenerates the NUT bundle, and compares it against the locked bundle.
 func verifyFromCommit(root string, fork forks.Name, entry nuts.ForkLockEntry, generate bundleGenerator) error {
+	return verifyFromCommitReported(root, fork, entry, generate, "")
+}
+
+func verifyFromCommitReported(root string, fork forks.Name, entry nuts.ForkLockEntry, generate bundleGenerator, reportDir string) error {
 	worktreeDir, err := os.MkdirTemp("", "verify-nuts-*")
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
@@ -111,8 +116,19 @@ func verifyFromCommit(root string, fork forks.Name, entry nuts.ForkLockEntry, ge
 
 	// Generate NUT bundle in the worktree.
 	contractsDir := filepath.Join(worktreeDir, "packages", "contracts-bedrock")
-	if err := generate(contractsDir); err != nil {
-		return fmt.Errorf("generating NUT bundle at commit %s: %w", entry.Commit[:12], err)
+	if reportDir != "" {
+		if err := retainSource(root, worktreeDir, reportDir, fork, entry); err != nil {
+			return fmt.Errorf("retaining provenance source: %w", err)
+		}
+	}
+	generationErr := generate(contractsDir)
+	if reportDir != "" {
+		if err := retainGeneration(worktreeDir, reportDir, generationErr == nil); err != nil {
+			return fmt.Errorf("retaining provenance generation: %w", errors.Join(generationErr, err))
+		}
+	}
+	if generationErr != nil {
+		return fmt.Errorf("generating NUT bundle at commit %s: %w", entry.Commit[:12], generationErr)
 	}
 
 	// Read the regenerated bundle.

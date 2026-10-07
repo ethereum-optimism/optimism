@@ -1,0 +1,217 @@
+# Complete SP1 guest ELF build and fresh original checks; Circle retains required ownership.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [build]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+      target-cache-mode: keep
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+      target-cache-mode: keep
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: rust-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: sp1
+
+  - key: toolchain
+    use: [code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase toolchain
+    filter:
+      - mise.toml
+      - rust/Cargo.toml
+      - rust/Cargo.lock
+      - rust/kona/sp1/programs/Cargo.toml
+      - rust/kona/sp1/programs/Cargo.lock
+      - rust/kona/sp1/justfile
+      - rust/rust-toolchain.toml
+      - rust/.cargo/config.toml
+      - ops/ci/runtime/sp1-guest.py
+      - ops/ci/runtime/sp1-guest-native-build.py
+      - ops/ci/runtime/sp1-guest-toolchain.sh
+      - ops/ci/runtime/rust-workspace-report.py
+      - ops/ci/runtime/ci-report.py
+      - ops/ci/runtime/rust-target-cache.py
+    timeout: 40m
+    outputs:
+      artifacts:
+        - key: reports
+          path: .ci/sp1-guest/toolchain
+
+  - key: build
+    use: [code, toolchain]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase build --features test-config-fallback
+    env:
+      CI: "true"
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CARGO_INCREMENTAL: "0"
+      SP1_GUEST_TARGET_MODE: ${{ init.target-cache-mode }}
+    tool-cache: sp1-guest-canonical-elf-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/sp1-cache/cargo, .ci/sp1-cache/elf-target, .ci/sp1-cache/elf-sccache]
+          system: []
+      artifacts:
+        - key: dependency
+          path: .ci/sp1-guest/dependency
+
+  - key: helper-tests
+    use: [code, toolchain]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_sp1_guest.py'
+      RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_sp1_guest.py'
+    env:
+      SP1_GUEST_ARTIFACT: ${{ tasks.build.artifacts.dependency }}
+      SP1_GUEST_REPORT: ${{ tasks.check.artifacts.reports }}
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: fixtures
+          path: .ci/sp1-guest/helper-fixtures
+
+  - key: check
+    use: [code, toolchain]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase checks --features test-config-fallback --artifact "$SP1_GUEST_ARTIFACT"
+    env:
+      CI: "true"
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CARGO_INCREMENTAL: "0"
+      SP1_GUEST_TARGET_MODE: ${{ init.target-cache-mode }}
+      SP1_GUEST_ARTIFACT: ${{ tasks.build.artifacts.dependency }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    tool-cache: sp1-guest-checks-${{ init.cache-epoch }}
+    cache: false
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/sp1-cache/cargo, .ci/sp1-cache/checks-target, .ci/sp1-cache/checks-sccache]
+          system: []
+      test-results:
+        - path: .ci/sp1-guest/run/*.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/sp1-guest/run
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (check.succeeded || check.failed || check.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-sp1
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_CHECK_SUCCEEDED: ${{ tasks.check.succeeded }}
+      TASK_CHECK_FAILED: ${{ tasks.check.failed }}
+      TASK_CHECK_SKIPPED: ${{ tasks.check.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-sp1

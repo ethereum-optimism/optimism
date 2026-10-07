@@ -1,0 +1,27 @@
+package:
+  parameters:
+    commit-sha:
+    cache-epoch:
+    build-probe:
+    target-cache-mode:
+tasks:
+  - key: build
+    use: package.use
+    run: mise exec -- bash ops/ci/runtime/go-dependencies.sh sp1-executor
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      BUILD_PROBE: ${{ params.build-probe }}
+      TARGET_CACHE_MODE: ${{ params.target-cache-mode }}
+    tool-cache: sp1-executor-release-${{ params.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/go-tests/dependencies/sp1-executor]
+          system: []
+      artifacts:
+        - key: dependency
+          path: .ci/go-tests/dependencies/sp1-executor

@@ -1,0 +1,33 @@
+# Modules only: Cannon's Circle job does not embed generated Cannon binaries.
+package:
+  parameters:
+    commit-sha:
+    branch:
+    cache-epoch:
+tasks:
+  - key: build
+    use: package.use
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      mkdir -p "$GOMODCACHE"
+      python3 ops/ci/runtime/pr-checks.py go-modules
+      python3 ops/ci/runtime/go-artifacts.py pack go-modules .ci/go-cache/pr-checks/modules
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      CI_CHECK_PROVIDER: rwx
+    tool-cache: pr-checks-go-modules-${{ params.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/pr-checks/modules, .ci/go-tests/dependencies/go-modules]
+          system: []
+      artifacts:
+        - key: dependency
+          path: .ci/go-tests/dependencies/go-modules
+        - key: preparation
+          path: .ci/pr-checks/go-modules

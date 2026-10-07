@@ -1,0 +1,10 @@
+{
+  "api_url": "https://circleci.com/api/v2/insights/gh/ethereum-optimism/optimism/flaky-tests?branch=codex%2Frwx-ci-pilot",
+  "http_status": 200,
+  "authenticated": false,
+  "captured_at": "2026-10-05T12:56:50.852261+00:00",
+  "scope": "project-wide branch-agnostic Circle Insights",
+  "source_rows": 79,
+  "acceptance_rows": 12,
+  "coverage_added": 0
+}

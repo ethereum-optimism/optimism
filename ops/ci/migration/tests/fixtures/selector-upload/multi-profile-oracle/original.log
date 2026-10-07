@@ -1,0 +1,9 @@
+Listing selectors for contracts in the project...
+
+╭----------+------------+------------+---------------╮
+| Type     | Signature  | Selector   | Contract      |
++====================================================+
+| Function | a(uint256) | 0xf0fdf834 | AUnrestricted |
+|----------+------------+------------+---------------|
+| Function | z(uint256) | 0x656ef8d9 | ZRestricted   |
+╰----------+------------+------------+---------------╯

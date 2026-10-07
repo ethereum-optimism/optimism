@@ -27,6 +27,8 @@
 /docs/public-docs/scripts/  @ethereum-optimism/solutions
 
 # CI workflows
+/.rwx/              @ethereum-optimism/cloud-security
+/ops/ci/            @ethereum-optimism/cloud-security
 /.github/workflows/ @ethereum-optimism/cloud-security
 /.github/actions/   @ethereum-optimism/cloud-security
 

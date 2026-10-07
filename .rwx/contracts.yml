@@ -1,0 +1,418 @@
+# Complete standard contracts in an optional shadow; CircleCI keeps its gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [compile-standard-main, compile-standard-CUSTOM_GAS_TOKEN, compile-standard-OPTIMISM_PORTAL_INTEROP, compile-standard-ZK_DISPUTE_GAME, compile-modified-main, compile-modified-CUSTOM_GAS_TOKEN, compile-modified-OPTIMISM_PORTAL_INTEROP, compile-modified-ZK_DISPUTE_GAME]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+      build-probe: ""
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+
+# Cache-only vault; no RPC or publishing credentials.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: |
+      bash ops/ci/runtime/rwx-metadata.sh
+      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contract routing flag") end' \
+        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
+
+  - key: go-modules
+    use: [code, go-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
+      python3 ops/ci/runtime/pr-checks.py go-modules
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    tool-cache: contract-suites-modules-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-suites/modules]
+          system: []
+      artifacts:
+        - key: reports
+          path: .ci/pr-checks/go-modules
+
+  # Freeze the moving discovery baseline once per run. Its Git object travels
+  # with the source snapshot; producers and verdicts use the same explicit SHA.
+  - key: modified-baseline
+    use: source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      git fetch --no-tags origin +refs/heads/develop:refs/remotes/origin/develop
+      mkdir -p .ci
+      git rev-parse --verify 'origin/develop^{commit}' > .ci/contract-baseline.txt
+      cp .ci/contract-baseline.txt "$RWX_VALUES/target-sha"
+    cache: false
+    timeout: 10m
+    outputs:
+      artifacts:
+        - key: baseline
+          path: .ci/contract-baseline.txt
+
+  # One initialized checkout supplies compiler and runtime submodule sources.
+  # Consumers validate the retained revisions instead of cloning them again.
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+    timeout: 20m
+
+  - key: helper-tests
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
+      RWX_LIVE_CONTRACT_SUITE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_contract_suites.py'
+      RWX_LIVE_CONTRACT_SUITE_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_contract_suites.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_suites.py'
+      python3 ops/ci/tests/test_contracts_shadow.py
+      python3 ops/ci/migration/tests/test_check_changed.py
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+
+  - key: compile-standard-main
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-main-${{ init.cache-epoch }}
+      suite: standard
+      feature: main
+
+  - key: verdict-standard-main
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-main]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-main.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-main/prepare
+      cache-key: contract-suites-runtime-standard-main-${{ init.cache-epoch }}
+      suite: standard
+      feature: main
+
+  - key: compile-standard-CUSTOM_GAS_TOKEN
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      suite: standard
+      feature: CUSTOM_GAS_TOKEN
+
+  - key: verdict-standard-CUSTOM_GAS_TOKEN
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-CUSTOM_GAS_TOKEN]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-CUSTOM_GAS_TOKEN.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-CUSTOM_GAS_TOKEN/prepare
+      cache-key: contract-suites-runtime-standard-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      suite: standard
+      feature: CUSTOM_GAS_TOKEN
+
+  - key: compile-standard-OPTIMISM_PORTAL_INTEROP
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      suite: standard
+      feature: OPTIMISM_PORTAL_INTEROP
+
+  - key: verdict-standard-OPTIMISM_PORTAL_INTEROP
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-OPTIMISM_PORTAL_INTEROP]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-OPTIMISM_PORTAL_INTEROP.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-OPTIMISM_PORTAL_INTEROP/prepare
+      cache-key: contract-suites-runtime-standard-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      suite: standard
+      feature: OPTIMISM_PORTAL_INTEROP
+
+  - key: compile-standard-ZK_DISPUTE_GAME
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: standard
+      feature: ZK_DISPUTE_GAME
+
+  - key: verdict-standard-ZK_DISPUTE_GAME
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-ZK_DISPUTE_GAME]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-ZK_DISPUTE_GAME/prepare
+      cache-key: contract-suites-runtime-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: standard
+      feature: ZK_DISPUTE_GAME
+
+  - key: compile-modified-main
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-main-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: main
+
+  - key: verdict-modified-main
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-main]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-main.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-main/prepare
+      cache-key: contract-suites-runtime-modified-main-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: main
+
+  - key: compile-modified-CUSTOM_GAS_TOKEN
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: CUSTOM_GAS_TOKEN
+
+  - key: verdict-modified-CUSTOM_GAS_TOKEN
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-CUSTOM_GAS_TOKEN]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-CUSTOM_GAS_TOKEN.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-CUSTOM_GAS_TOKEN/prepare
+      cache-key: contract-suites-runtime-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: CUSTOM_GAS_TOKEN
+
+  - key: compile-modified-OPTIMISM_PORTAL_INTEROP
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: OPTIMISM_PORTAL_INTEROP
+
+  - key: verdict-modified-OPTIMISM_PORTAL_INTEROP
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-OPTIMISM_PORTAL_INTEROP]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-OPTIMISM_PORTAL_INTEROP.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-OPTIMISM_PORTAL_INTEROP/prepare
+      cache-key: contract-suites-runtime-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: OPTIMISM_PORTAL_INTEROP
+
+  - key: compile-modified-ZK_DISPUTE_GAME
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: ZK_DISPUTE_GAME
+
+  - key: verdict-modified-ZK_DISPUTE_GAME
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-ZK_DISPUTE_GAME]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-ZK_DISPUTE_GAME/prepare
+      cache-key: contract-suites-runtime-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: ZK_DISPUTE_GAME
+
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt contracts-suites
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_MODIFIED_CUSTOM_GAS_TOKEN_SUCCEEDED: ${{ tasks.verdict-modified-CUSTOM_GAS_TOKEN.succeeded }}
+      TASK_VERDICT_MODIFIED_CUSTOM_GAS_TOKEN_FAILED: ${{ tasks.verdict-modified-CUSTOM_GAS_TOKEN.failed }}
+      TASK_VERDICT_MODIFIED_CUSTOM_GAS_TOKEN_SKIPPED: ${{ tasks.verdict-modified-CUSTOM_GAS_TOKEN.skipped }}
+      TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded }}
+      TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.failed }}
+      TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_MODIFIED_MAIN_SUCCEEDED: ${{ tasks.verdict-modified-main.succeeded }}
+      TASK_VERDICT_MODIFIED_MAIN_FAILED: ${{ tasks.verdict-modified-main.failed }}
+      TASK_VERDICT_MODIFIED_MAIN_SKIPPED: ${{ tasks.verdict-modified-main.skipped }}
+      TASK_VERDICT_STANDARD_CUSTOM_GAS_TOKEN_SUCCEEDED: ${{ tasks.verdict-standard-CUSTOM_GAS_TOKEN.succeeded }}
+      TASK_VERDICT_STANDARD_CUSTOM_GAS_TOKEN_FAILED: ${{ tasks.verdict-standard-CUSTOM_GAS_TOKEN.failed }}
+      TASK_VERDICT_STANDARD_CUSTOM_GAS_TOKEN_SKIPPED: ${{ tasks.verdict-standard-CUSTOM_GAS_TOKEN.skipped }}
+      TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded }}
+      TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.failed }}
+      TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_STANDARD_MAIN_SUCCEEDED: ${{ tasks.verdict-standard-main.succeeded }}
+      TASK_VERDICT_STANDARD_MAIN_FAILED: ${{ tasks.verdict-standard-main.failed }}
+      TASK_VERDICT_STANDARD_MAIN_SKIPPED: ${{ tasks.verdict-standard-main.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-suites

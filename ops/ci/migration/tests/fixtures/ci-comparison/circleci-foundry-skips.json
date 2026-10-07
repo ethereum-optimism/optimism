@@ -1,0 +1,37 @@
+{
+  "sha": "cb48622213e9aa8408de9904baafac784441ecc6",
+  "provenance": {
+    "url": "https://circleci.com/gh/ethereum-optimism/optimism/5622529",
+    "source": "Selected original CircleCI API records corresponding to native Foundry fixture identities. Different SHA; parsing fixture only, not a provider equivalence claim."
+  },
+  "cases": [
+    {
+      "classname": "test/L1/L1StandardBridge.t.sol:L1StandardBridge_DepositETHTo_Test",
+      "name": "testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32)",
+      "result": "skipped",
+      "run_time": 0.07,
+      "message": "Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled[SKIP: Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled] testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32) (runs: 0, \u03bc: 0, ~: 0)"
+    },
+    {
+      "classname": "test/L1/OPContractsManagerStandardValidator.t.sol:OPContractsManagerStandardValidator_AnchorStateRegistry_Test",
+      "name": "setUp()",
+      "result": "skipped",
+      "run_time": 0,
+      "message": "skipped: Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION[SKIP: skipped: Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION] setUp() (gas: 0)"
+    },
+    {
+      "classname": "test/L1/ResourceMetering.t.sol:ArtifactResourceMetering_Metered_Test",
+      "name": "test_meter_generateArtifact_succeeds()",
+      "result": "skipped",
+      "run_time": 0,
+      "message": "[SKIP] test_meter_generateArtifact_succeeds() (gas: 0)"
+    },
+    {
+      "classname": "test/L1/opcm/OPContractsManagerV2.t.sol:OPContractsManagerV2_UpgradeSuperchain_Test",
+      "name": "setUp()",
+      "result": "skipped",
+      "run_time": 0,
+      "message": "skipped[SKIP: skipped] setUp() (gas: 0)"
+    }
+  ]
+}

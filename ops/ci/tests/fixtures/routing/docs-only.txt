@@ -1,0 +1,2 @@
+docs/public-docs/intro.md
+docs/public-docs/configuration.md

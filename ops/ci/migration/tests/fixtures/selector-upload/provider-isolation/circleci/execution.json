@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "just",
+    "update-selectors"
+  ],
+  "cwd": "/home/circleci/project/packages/contracts-bedrock",
+  "elapsed_seconds": 1.2162649631500244,
+  "exit_code": 0,
+  "signals": [],
+  "started_at": 1791204201.50156,
+  "stderr_sha256": "58dc85172e1b99bb2fe1843e7b0043e0536ab0a88651a3cf003ca9c04a6f767c",
+  "stdout_sha256": "e9b4964f339806af6d91529bbc4408d0ec5bda10c97f6808db70274c112af483",
+  "timed_out": false
+}

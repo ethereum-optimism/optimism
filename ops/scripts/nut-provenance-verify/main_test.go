@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -138,4 +139,90 @@ func TestVerifyFromCommit_GeneratorModifiesBundle(t *testing.T) {
 
 	err := verifyFromCommit(root, "test-fork", entry, modifyingGenerator)
 	require.NoError(t, err)
+}
+
+func TestVerifyFromCommitReported_RetainsActualGenerationAndFailures(t *testing.T) {
+	for _, scenario := range []struct {
+		name       string
+		mismatch   bool
+		generation error
+	}{
+		{name: "fresh matching bundle"},
+		{name: "mismatched generated bundle", mismatch: true},
+		{name: "failed generator", generation: errors.New("intentional generator failure")},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			root, _ := initGitRepo(t)
+			writeFileInRepo(t, root, "mise.toml", []byte("[tools]\nforge = '1.2.3'\n"))
+			writeFileInRepo(t, root, "packages/contracts-bedrock/justfile", []byte("generate-nut-bundle:\n  forge script actual-generator\n"))
+			writeFileInRepo(t, root, "packages/contracts-bedrock/foundry.toml", []byte("[profile.default]\nsrc = 'src'\n"))
+			commit := writeFileInRepo(t, root, "packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json", []byte(`{"historical":true}`))
+			bundle := "op-core/nuts/bundles/test_nut_bundle.json"
+			regenerated := []byte(`{"fresh_generation":true}`)
+			locked := regenerated
+			if scenario.mismatch {
+				locked = []byte(`{"different_locked_bundle":true}`)
+			}
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, bundle)), 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(root, bundle), locked, 0644))
+			// The report must retain the historical tool file from the detached
+			// worktree, rather than copying this checkout's changed configuration.
+			require.NoError(t, os.WriteFile(filepath.Join(root, "mise.toml"), []byte("[tools]\nforge = '1.8.3'\n"), 0644))
+			report := filepath.Join(t.TempDir(), "report")
+			entry := nuts.ForkLockEntry{Bundle: bundle, Commit: commit}
+			err := verifyFromCommitReported(root, "test-fork", entry, func(contractsDir string) error {
+				require.NoError(t, os.WriteFile(filepath.Join(contractsDir, "snapshots/upgrades/current-upgrade-bundle.json"), regenerated, 0644))
+				return scenario.generation
+			}, report)
+			if scenario.generation != nil {
+				require.ErrorContains(t, err, "intentional generator failure")
+				require.NoFileExists(t, filepath.Join(report, "regenerated-bundle.json"))
+			} else {
+				if scenario.mismatch {
+					require.ErrorContains(t, err, "does not match")
+				} else {
+					require.NoError(t, err)
+				}
+				actual, err := os.ReadFile(filepath.Join(report, "regenerated-bundle.json"))
+				require.NoError(t, err)
+				require.Equal(t, regenerated, actual)
+			}
+			actual, err := os.ReadFile(filepath.Join(report, "locked-bundle.json"))
+			require.NoError(t, err)
+			require.Equal(t, locked, actual)
+			actual, err = os.ReadFile(filepath.Join(report, "mise.toml"))
+			require.NoError(t, err)
+			require.Equal(t, "[tools]\nforge = '1.2.3'\n", string(actual))
+			for _, name := range []string{"source.json", "tracked-stage.bin", "worktree-status.txt", "submodules.txt", "submodule-inventories.json"} {
+				require.FileExists(t, filepath.Join(report, name))
+			}
+			cmd := exec.Command("git", "worktree", "list", "--porcelain")
+			cmd.Dir = root
+			worktrees, err := cmd.Output()
+			require.NoError(t, err)
+			require.NotContains(t, string(worktrees), "verify-nuts-")
+		})
+	}
+}
+
+func TestVerifyFromCommitReported_WrapsGeneratorAndReportFailures(t *testing.T) {
+	root, _ := initGitRepo(t)
+	writeFileInRepo(t, root, "mise.toml", []byte("[tools]\nforge = '1.2.3'\n"))
+	writeFileInRepo(t, root, "packages/contracts-bedrock/justfile", []byte("generate-nut-bundle:\n  forge script original-generator\n"))
+	commit := writeFileInRepo(t, root, "packages/contracts-bedrock/foundry.toml", []byte("[profile.default]\n"))
+	bundle := "op-core/nuts/bundles/test_nut_bundle.json"
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, bundle)), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, bundle), []byte(`{"bundle":true}`), 0644))
+	report := filepath.Join(t.TempDir(), "report")
+	generationErr := errors.New("intentional generator failure")
+	err := verifyFromCommitReported(root, "test-fork", nuts.ForkLockEntry{Bundle: bundle, Commit: commit}, func(string) error {
+		// The generation failure and the independent report write failure must
+		// both remain discoverable through the returned error chain.
+		require.NoError(t, os.RemoveAll(report))
+		require.NoError(t, os.WriteFile(report, []byte("not a report directory"), 0644))
+		return generationErr
+	}, report)
+	require.ErrorIs(t, err, generationErr)
+	var pathErr *os.PathError
+	require.ErrorAs(t, err, &pathErr)
 }

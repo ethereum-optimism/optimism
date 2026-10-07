@@ -1,0 +1,917 @@
+# Rust workspace builds, tests, cross-compilation and source checks. Circle retains required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-0, features-1, features-2, features-3, features-4, features-5, features-6, features-7, features-8, features-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-epoch: v1
+      cargo-incremental: "1"
+      cache-warm: "true"
+  # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-epoch: v1
+      cargo-incremental: "1"
+      cache-warm: "false"
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+# Cache-only vault: no publishing credentials. Only develop may write;
+# PRs restore the protected shared baseline and compile changes locally.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: helper-tests
+    use: [code, tools]
+    run: |
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_extra.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_cannon.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_cannon.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: rust-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: workspace
+
+  - key: wasm-tools
+    use: rust-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: rustup target add wasm32-unknown-unknown wasm32-wasip1
+    timeout: 30m
+
+  - key: lint-tools
+    use: rust-tools
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      mise install github:ggwpez/zepter github:crate-ci/typos
+      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
+    timeout: 30m
+
+  - key: go-tools
+    use: rust-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  - key: rust-dependencies
+    use: [code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
+      cd rust
+      attempt=0
+      until cargo fetch --locked; do
+        attempt=$((attempt + 1))
+        if [[ "$attempt" -ge 5 ]]; then exit 1; fi
+        sleep "$((2 ** attempt))"
+      done
+    filter: [rust, mise.toml]
+    tool-cache: op-reth-dependencies-${{ init.cache-epoch }}
+    timeout: 30m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/rust-cache/cargo]
+          system: []
+
+  # Keep full source, Git metadata and the pinned submodule as build inputs.
+  - key: head-source
+    use: [code, rust-dependencies]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    timeout: 15m
+
+  - key: feature-plan
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh feature-plan
+    env: &rust-env
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/feature-plan
+
+  # Dependency/toolchain changes need a new initial target-cache layer. Source
+  # edits keep the same namespace and can reuse incremental compilation.
+  - key: test-cache-identity
+    use: [code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      mkdir -p .ci
+      python3 ops/ci/runtime/rust-target-cache.py namespace > .ci/rust-test-cache-identity.json
+      jq -er '.namespace' .ci/rust-test-cache-identity.json > "$RWX_VALUES/namespace"
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: identity
+          path: .ci/rust-test-cache-identity.json
+
+  - key: tests-build
+    use: [head-source, test-cache-identity]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-build
+    env: &incremental-rust-env
+      <<: *rust-env
+      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
+    # Retain individual files in a format-specific namespace. Source timestamps
+    # survive restoration; dependency/toolchain changes select a new baseline.
+    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    timeout: 90m
+    # Warm dependencies occupy 88.37 GB; RWX also requires 20 GB of scratch.
+    runner: &test-runner
+      cpus: 16
+      memory: 32gb
+      disk: 150gb
+    outputs:
+      filesystem: &test-compiler-output
+        filter:
+          workspace: [rust/target, .ci/rust-cache, '!.ci/rust-cache/target-cache.tar.zst', rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests-build
+        - key: compiler-cache
+          path: .ci/rust-cache/target-cache.tar.zst
+
+  # Execution-only nextest workers receive the verified test archive, never the
+  # full compiler snapshot. Runtime fixture compilation has its own small cache.
+  - key: tests-unit
+    use: [head-source, test-cache-identity]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-unit
+    env:
+      <<: *incremental-rust-env
+      TEST_ARCHIVE: ${{ tasks.tests-build.artifacts.report }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    tool-cache: rust-workspace-tests-unit-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    timeout: 90m
+    runner: *test-runner
+    outputs:
+      filesystem: *test-compiler-output
+      test-results:
+        - path: .ci/rust-workspace/tests-unit/junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests-unit
+
+  # Beacon and doctests need Cargo compiler state. Keep their protected runtime
+  # baseline and cold archive fallback while nextest executes independently.
+  - key: tests-compiler
+    use: [head-source, test-cache-identity]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-compiler
+    env:
+      <<: *incremental-rust-env
+      COMPILED_TARGET: ${{ tasks.tests-build.artifacts.compiler-cache }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    timeout: 90m
+    runner: *test-runner
+    outputs:
+      filesystem: *test-compiler-output
+      test-results:
+        - path: .ci/rust-workspace/tests-compiler/beacon.junit.xml
+        - path: .ci/rust-workspace/tests-compiler/doctests.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests-compiler
+
+  # Preserve the existing full-suite artifact and task key. Finished expressions
+  # collect original child failures; compiler layers never reach this fan-in.
+  - key: tests
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    after: ${{ tests-unit.finished && tests-compiler.finished }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-merge
+    env:
+      <<: *incremental-rust-env
+      UNIT_REPORT: ${{ tasks.tests-unit.artifacts.report }}
+      COMPILER_REPORT: ${{ tasks.tests-compiler.artifacts.report }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests
+
+  - key: doctest
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh doctest
+    env: &fresh-rust-env
+      <<: *rust-env
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    tool-cache: rust-workspace-doctest-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: &build-runner
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: &compiler-output
+        filter:
+          workspace: [rust/target, .ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          system: []
+      test-results:
+        - path: .ci/rust-workspace/doctest/doctests.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/doctest
+
+  - key: build
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh build
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-build-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/build
+
+  - key: docs
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh docs
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-docs-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/docs
+
+  - key: clippy
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh clippy
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-clippy-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/clippy
+
+  - key: no-std
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh no-std
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-no-std-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/no-std
+
+  - key: udeps
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh udeps
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-udeps-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/udeps
+
+  - key: features-0
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env: &incremental-fresh-rust-env
+      <<: *fresh-rust-env
+      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
+      CI_RUST_PARTITION_INDEX: "0"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-0-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-0
+
+  - key: features-1
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "1"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-1-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-1
+
+  - key: features-2
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "2"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-2-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-2
+
+  - key: features-3
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "3"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-3-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-3
+
+  - key: features-4
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "4"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-4-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-4
+
+  - key: features-5
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "5"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-5-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-5
+
+  - key: features-6
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "6"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-6-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-6
+
+  - key: features-7
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "7"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-7-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-7
+
+  - key: features-8
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "8"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-8-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-8
+
+  - key: features-9
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh features
+    env:
+      <<: *incremental-fresh-rust-env
+      CI_RUST_PARTITION_INDEX: "9"
+      CI_RUST_PARTITION_TOTAL: "10"
+    tool-cache: rust-workspace-features-9-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-9
+
+  - key: wasm-unknown
+    use: [head-source, wasm-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh wasm-unknown
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-wasm-unknown-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/wasm-unknown/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/wasm-unknown
+
+  - key: wasm-wasi
+    use: [head-source, wasm-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh wasm-wasi
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-wasm-wasi-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/wasm-wasi/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/wasm-wasi
+
+  - key: zepter
+    use: [head-source, lint-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh zepter
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-zepter-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/zepter/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/zepter
+
+  - key: typos
+    use: [head-source, lint-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh typos
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-typos-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/typos/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/typos
+
+  - key: registry
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh registry
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-registry-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/registry/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/registry
+
+  - key: interop
+    use: [head-source, go-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh interop
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-interop-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/interop-go, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          system: []
+      test-results:
+        - path: .ci/rust-workspace/interop/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/interop
+
+  # Preserve Docker/BuildKit data through the normal use dependency, without
+  # exporting image tarballs. The original recipe builds all configured ELFs.
+  - key: cannon-env
+    use: [head-source, cannon-witness]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-cannon.sh env
+    env: *rust-env
+    docker: preserve-data
+    tool-cache: rust-cannon-env-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-env
+
+  - key: cannon-go
+    use: [head-source, go-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-cannon.sh go
+    env: *rust-env
+    tool-cache: rust-cannon-go-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [cannon/bin, cannon/multicannon/embeds, .ci/cannon-cache/go]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-go
+
+  # Fail a missing/corrupt public fixture before the expensive environment build.
+  - key: cannon-witness
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-cannon.sh witness
+    env: *rust-env
+    timeout: 15m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/kona/bin/client/testdata/*.tar.zst, rust/kona/bin/client/testdata/*.etag]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-witness
+
+  - key: cannon-lint
+    use: [head-source, cannon-env]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-cannon.sh lint
+    env:
+      <<: *fresh-rust-env
+      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+    docker: preserve-data
+    tool-cache: rust-cannon-lint-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/cannon-lint/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-lint
+
+  - key: cannon-build
+    use: [head-source, cannon-env]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-cannon.sh build
+    env:
+      <<: *fresh-rust-env
+      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+    docker: preserve-data
+    tool-cache: rust-cannon-build-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/cannon-build/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-build
+
+  - key: cannon-offline
+    use: [head-source, go-tools, cannon-witness, cannon-go, cannon-build]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-cannon.sh offline
+    env:
+      <<: *fresh-rust-env
+      CANNON_GO_ARTIFACT: ${{ tasks.cannon-go.artifacts.report }}
+      CANNON_WITNESS_ARTIFACT: ${{ tasks.cannon-witness.artifacts.report }}
+      CANNON_BUILD_ARTIFACT: ${{ tasks.cannon-build.artifacts.report }}
+    docker: preserve-data
+    tool-cache: rust-cannon-offline-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/cannon-cache]
+          system: []
+      test-results:
+        - path: .ci/rust-workspace/cannon-offline/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-offline
+
+  # Terminal task states preserve exact Rust dependencies without Main-only failures.
+  - key: rust-gate-receipt
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' }}
+    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (doctest.succeeded || doctest.failed || doctest.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests.succeeded || tests.failed || tests.skipped) && (tests-compiler.succeeded || tests-compiler.failed || tests-compiler.skipped) && (tests-unit.succeeded || tests-unit.failed || tests-unit.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt rust-workspace
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_BUILD_SUCCEEDED: ${{ tasks.build.succeeded }}
+      TASK_BUILD_FAILED: ${{ tasks.build.failed }}
+      TASK_BUILD_SKIPPED: ${{ tasks.build.skipped }}
+      TASK_CANNON_BUILD_SUCCEEDED: ${{ tasks.cannon-build.succeeded }}
+      TASK_CANNON_BUILD_FAILED: ${{ tasks.cannon-build.failed }}
+      TASK_CANNON_BUILD_SKIPPED: ${{ tasks.cannon-build.skipped }}
+      TASK_CANNON_LINT_SUCCEEDED: ${{ tasks.cannon-lint.succeeded }}
+      TASK_CANNON_LINT_FAILED: ${{ tasks.cannon-lint.failed }}
+      TASK_CANNON_LINT_SKIPPED: ${{ tasks.cannon-lint.skipped }}
+      TASK_CANNON_OFFLINE_SUCCEEDED: ${{ tasks.cannon-offline.succeeded }}
+      TASK_CANNON_OFFLINE_FAILED: ${{ tasks.cannon-offline.failed }}
+      TASK_CANNON_OFFLINE_SKIPPED: ${{ tasks.cannon-offline.skipped }}
+      TASK_CLIPPY_SUCCEEDED: ${{ tasks.clippy.succeeded }}
+      TASK_CLIPPY_FAILED: ${{ tasks.clippy.failed }}
+      TASK_CLIPPY_SKIPPED: ${{ tasks.clippy.skipped }}
+      TASK_DOCS_SUCCEEDED: ${{ tasks.docs.succeeded }}
+      TASK_DOCS_FAILED: ${{ tasks.docs.failed }}
+      TASK_DOCS_SKIPPED: ${{ tasks.docs.skipped }}
+      TASK_DOCTEST_SUCCEEDED: ${{ tasks.doctest.succeeded }}
+      TASK_DOCTEST_FAILED: ${{ tasks.doctest.failed }}
+      TASK_DOCTEST_SKIPPED: ${{ tasks.doctest.skipped }}
+      TASK_FEATURES_0_SUCCEEDED: ${{ tasks.features-0.succeeded }}
+      TASK_FEATURES_0_FAILED: ${{ tasks.features-0.failed }}
+      TASK_FEATURES_0_SKIPPED: ${{ tasks.features-0.skipped }}
+      TASK_FEATURES_1_SUCCEEDED: ${{ tasks.features-1.succeeded }}
+      TASK_FEATURES_1_FAILED: ${{ tasks.features-1.failed }}
+      TASK_FEATURES_1_SKIPPED: ${{ tasks.features-1.skipped }}
+      TASK_FEATURES_2_SUCCEEDED: ${{ tasks.features-2.succeeded }}
+      TASK_FEATURES_2_FAILED: ${{ tasks.features-2.failed }}
+      TASK_FEATURES_2_SKIPPED: ${{ tasks.features-2.skipped }}
+      TASK_FEATURES_3_SUCCEEDED: ${{ tasks.features-3.succeeded }}
+      TASK_FEATURES_3_FAILED: ${{ tasks.features-3.failed }}
+      TASK_FEATURES_3_SKIPPED: ${{ tasks.features-3.skipped }}
+      TASK_FEATURES_4_SUCCEEDED: ${{ tasks.features-4.succeeded }}
+      TASK_FEATURES_4_FAILED: ${{ tasks.features-4.failed }}
+      TASK_FEATURES_4_SKIPPED: ${{ tasks.features-4.skipped }}
+      TASK_FEATURES_5_SUCCEEDED: ${{ tasks.features-5.succeeded }}
+      TASK_FEATURES_5_FAILED: ${{ tasks.features-5.failed }}
+      TASK_FEATURES_5_SKIPPED: ${{ tasks.features-5.skipped }}
+      TASK_FEATURES_6_SUCCEEDED: ${{ tasks.features-6.succeeded }}
+      TASK_FEATURES_6_FAILED: ${{ tasks.features-6.failed }}
+      TASK_FEATURES_6_SKIPPED: ${{ tasks.features-6.skipped }}
+      TASK_FEATURES_7_SUCCEEDED: ${{ tasks.features-7.succeeded }}
+      TASK_FEATURES_7_FAILED: ${{ tasks.features-7.failed }}
+      TASK_FEATURES_7_SKIPPED: ${{ tasks.features-7.skipped }}
+      TASK_FEATURES_8_SUCCEEDED: ${{ tasks.features-8.succeeded }}
+      TASK_FEATURES_8_FAILED: ${{ tasks.features-8.failed }}
+      TASK_FEATURES_8_SKIPPED: ${{ tasks.features-8.skipped }}
+      TASK_FEATURES_9_SUCCEEDED: ${{ tasks.features-9.succeeded }}
+      TASK_FEATURES_9_FAILED: ${{ tasks.features-9.failed }}
+      TASK_FEATURES_9_SKIPPED: ${{ tasks.features-9.skipped }}
+      TASK_INTEROP_SUCCEEDED: ${{ tasks.interop.succeeded }}
+      TASK_INTEROP_FAILED: ${{ tasks.interop.failed }}
+      TASK_INTEROP_SKIPPED: ${{ tasks.interop.skipped }}
+      TASK_NO_STD_SUCCEEDED: ${{ tasks.no-std.succeeded }}
+      TASK_NO_STD_FAILED: ${{ tasks.no-std.failed }}
+      TASK_NO_STD_SKIPPED: ${{ tasks.no-std.skipped }}
+      TASK_REGISTRY_SUCCEEDED: ${{ tasks.registry.succeeded }}
+      TASK_REGISTRY_FAILED: ${{ tasks.registry.failed }}
+      TASK_REGISTRY_SKIPPED: ${{ tasks.registry.skipped }}
+      TASK_TESTS_COMPILER_SUCCEEDED: ${{ tasks.tests-compiler.succeeded }}
+      TASK_TESTS_COMPILER_FAILED: ${{ tasks.tests-compiler.failed }}
+      TASK_TESTS_COMPILER_SKIPPED: ${{ tasks.tests-compiler.skipped }}
+      TASK_TESTS_UNIT_SUCCEEDED: ${{ tasks.tests-unit.succeeded }}
+      TASK_TESTS_UNIT_FAILED: ${{ tasks.tests-unit.failed }}
+      TASK_TESTS_UNIT_SKIPPED: ${{ tasks.tests-unit.skipped }}
+      TASK_TESTS_SUCCEEDED: ${{ tasks.tests.succeeded }}
+      TASK_TESTS_FAILED: ${{ tasks.tests.failed }}
+      TASK_TESTS_SKIPPED: ${{ tasks.tests.skipped }}
+      TASK_TYPOS_SUCCEEDED: ${{ tasks.typos.succeeded }}
+      TASK_TYPOS_FAILED: ${{ tasks.typos.failed }}
+      TASK_TYPOS_SKIPPED: ${{ tasks.typos.skipped }}
+      TASK_UDEPS_SUCCEEDED: ${{ tasks.udeps.succeeded }}
+      TASK_UDEPS_FAILED: ${{ tasks.udeps.failed }}
+      TASK_UDEPS_SKIPPED: ${{ tasks.udeps.skipped }}
+      TASK_WASM_UNKNOWN_SUCCEEDED: ${{ tasks.wasm-unknown.succeeded }}
+      TASK_WASM_UNKNOWN_FAILED: ${{ tasks.wasm-unknown.failed }}
+      TASK_WASM_UNKNOWN_SKIPPED: ${{ tasks.wasm-unknown.skipped }}
+      TASK_WASM_WASI_SUCCEEDED: ${{ tasks.wasm-wasi.succeeded }}
+      TASK_WASM_WASI_FAILED: ${{ tasks.wasm-wasi.failed }}
+      TASK_WASM_WASI_SKIPPED: ${{ tasks.wasm-wasi.skipped }}
+      TASK_ZEPTER_SUCCEEDED: ${{ tasks.zepter.succeeded }}
+      TASK_ZEPTER_FAILED: ${{ tasks.zepter.failed }}
+      TASK_ZEPTER_SKIPPED: ${{ tasks.zepter.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/rust-workspace

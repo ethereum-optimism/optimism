@@ -1,0 +1,1001 @@
+# Full Rust E2E shadows. CircleCI retains all required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [go, contracts, release, prestate, compile-proof, compile-restart, compile-simple-kona, compile-simple-kona-sequencer, compile-op-reth]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+        build-probe: ""
+        target-cache-mode: keep
+      status-checks:
+        name: optimism-rust-e2e-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+
+# Shared cache baseline: only develop may write; PRs restore it read-only.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: go-build-tools
+    use: tools
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: anvil
+
+  - key: rust-tools
+    use: [bootstrap-inputs, tools]
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: e2e
+
+  - key: helper-tests
+    use: [code, go-build-tools, contract-tools]
+    run: |
+      bash ops/ci/runtime/apt-install.sh zstd
+      RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_release.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_gate.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_e2e.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_artifacts.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_go_artifacts.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
+  - key: rust-dependencies
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
+      cd rust
+      attempt=0
+      until cargo fetch --locked; do
+        attempt=$((attempt + 1))
+        if [[ "$attempt" -ge 5 ]]; then exit 1; fi
+        sleep "$((2 ** attempt))"
+      done
+    filter: [rust, mise.toml]
+    tool-cache: op-reth-dependencies-${{ init.cache-epoch }}
+    timeout: 30m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/rust-cache/cargo]
+          system: []
+
+  - key: head-source
+    use: [source, rust-dependencies]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: 'true'
+
+  - key: go
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    call: ${{ run.dir }}/packages/go-go.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: contracts
+    use: [source, contract-tools, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    call: ${{ run.dir }}/packages/rust-e2e-contracts.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: release
+    use: [rust-tools, head-source]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    call: ${{ run.dir }}/packages/rust-e2e-release.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+
+  - key: prestate
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    call: ${{ run.dir }}/packages/go-prestate.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: runtime-tools
+    use: [go-build-tools, contract-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      mise install go:github.com/ethereum/go-ethereum/cmd/geth
+      printf '%s\n' "$(mise bin-paths | paste -sd: -):$PATH" >"$RWX_ENV/PATH"
+    timeout: 30m
+
+  - key: compile-proof
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_E2E_PROVIDER: rwx
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/compile]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/rust-e2e/compiled/proof
+
+  - key: compile-restart
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile restart
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_E2E_PROVIDER: rwx
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/compile]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/rust-e2e/compiled/restart
+
+  - key: compile-simple-kona
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile simple-kona
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_E2E_PROVIDER: rwx
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/compile]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/rust-e2e/compiled/simple-kona
+
+  - key: compile-simple-kona-sequencer
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile simple-kona-sequencer
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_E2E_PROVIDER: rwx
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/compile]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/rust-e2e/compiled/simple-kona-sequencer
+
+  - key: compile-op-reth
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile op-reth
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_E2E_PROVIDER: rwx
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-go-compile-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/compile]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/rust-e2e/compiled/op-reth
+
+  # Run/attempt identity forces fresh verdicts while preserving runtime Go caches.
+  - key: verdict-proof-0
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "0"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-1
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "1"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-2
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "2"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-3
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "3"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-4
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "4"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-5
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "5"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-6
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "6"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-proof-7
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "7"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/proof/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/proof
+
+  - key: verdict-restart-0
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run restart
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "0"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/restart/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/restart
+
+  - key: verdict-restart-1
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run restart
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "1"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/restart/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/restart
+
+  - key: verdict-restart-2
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run restart
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "2"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/restart/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/restart
+
+  - key: verdict-simple-kona-0
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run simple-kona
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "0"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-simple-kona.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-simple-kona-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/simple-kona/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/simple-kona
+
+  - key: verdict-simple-kona-sequencer-0
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run simple-kona-sequencer
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "0"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-simple-kona-sequencer.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-simple-kona-sequencer-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/simple-kona-sequencer/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/simple-kona-sequencer
+
+  - key: verdict-op-reth-0
+    use: [source, runtime-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run op-reth
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_E2E_PROVIDER: rwx
+      CI_SHARD_INDEX: "0"
+      PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_E2E_COMPILED: ${{ tasks.compile-op-reth.artifacts.compiled }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
+    tool-cache: rust-e2e-runtime-op-reth-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rust-e2e/run]
+          system: []
+      test-results:
+        - path: .ci/rust-e2e/reports/op-reth/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/rust-e2e/reports/op-reth
+
+  - key: required-rust-e2e
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    after: [release, verdict-proof-0, verdict-proof-1, verdict-proof-2, verdict-proof-3, verdict-proof-4, verdict-proof-5, verdict-proof-6, verdict-proof-7, verdict-restart-0, verdict-restart-1, verdict-restart-2, verdict-simple-kona-0, verdict-simple-kona-sequencer-0, verdict-op-reth-0]
+    run: |
+      reports=()
+      for index in 0 1 2 3 4 5 6 7 8 9 10 11 12 13; do
+        name="REPORT_$index"
+        reports+=("${!name}")
+      done
+      python3 ops/ci/runtime/rust-e2e-gate.py --release "$RELEASE_REPORT" --sha "$CI_COMMIT_SHA" \
+        --output .ci/rust-e2e/gate.json "${reports[@]}"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      RELEASE_REPORT: ${{ tasks.release.tasks.build.artifacts.reports }}
+      REPORT_0: ${{ tasks.verdict-proof-0.artifacts.reports }}
+      REPORT_1: ${{ tasks.verdict-proof-1.artifacts.reports }}
+      REPORT_2: ${{ tasks.verdict-proof-2.artifacts.reports }}
+      REPORT_3: ${{ tasks.verdict-proof-3.artifacts.reports }}
+      REPORT_4: ${{ tasks.verdict-proof-4.artifacts.reports }}
+      REPORT_5: ${{ tasks.verdict-proof-5.artifacts.reports }}
+      REPORT_6: ${{ tasks.verdict-proof-6.artifacts.reports }}
+      REPORT_7: ${{ tasks.verdict-proof-7.artifacts.reports }}
+      REPORT_8: ${{ tasks.verdict-restart-0.artifacts.reports }}
+      REPORT_9: ${{ tasks.verdict-restart-1.artifacts.reports }}
+      REPORT_10: ${{ tasks.verdict-restart-2.artifacts.reports }}
+      REPORT_11: ${{ tasks.verdict-simple-kona-0.artifacts.reports }}
+      REPORT_12: ${{ tasks.verdict-simple-kona-sequencer-0.artifacts.reports }}
+      REPORT_13: ${{ tasks.verdict-op-reth-0.artifacts.reports }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: gate
+          path: .ci/rust-e2e/gate.json
+
+  # The overall optional check fails on a build failure even if no consumer ran.
+  # RWX cancels all tasks when the run is canceled; this task cannot turn it green.
+  - key: required-rust-e2e-failure
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
+    after: ${{ release.failed || verdict-proof-0.failed || verdict-proof-1.failed || verdict-proof-2.failed || verdict-proof-3.failed || verdict-proof-4.failed || verdict-proof-5.failed || verdict-proof-6.failed || verdict-proof-7.failed || verdict-restart-0.failed || verdict-restart-1.failed || verdict-restart-2.failed || verdict-simple-kona-0.failed || verdict-simple-kona-sequencer-0.failed || verdict-op-reth-0.failed }}
+    run: |
+      mkdir -p .ci/rust-e2e
+      printf '%s\n' '{"passed":false,"reason":"E2E dependency or verdict failed or was aborted"}' >.ci/rust-e2e/gate-failure.json
+      exit 1
+    cache: false
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: gate
+          path: .ci/rust-e2e/gate-failure.json

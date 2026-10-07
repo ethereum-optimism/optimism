@@ -238,7 +238,7 @@ abstract contract Setup is FeatureFlags {
     ///      bytecode verification tests, and any test sensitive to compiler output.
     function skipIfUnoptimized() public {
         if (Config.isUnoptimized()) {
-            vm.skip(true);
+            vm.skip(true, "Test requires optimized, uninstrumented bytecode");
         }
     }
 
@@ -250,7 +250,7 @@ abstract contract Setup is FeatureFlags {
     ///      comparison because the artifact on disk is not instrumented.
     function skipIfCoverage() public {
         if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            vm.skip(true);
+            vm.skip(true, "Test requires bytecode without coverage instrumentation");
         }
     }
 
@@ -305,24 +305,21 @@ abstract contract Setup is FeatureFlags {
     /// @dev Skips tests when running against a forked production network.
     function skipIfForkTest(string memory message) public {
         if (isL1ForkTest()) {
-            vm.skip(true);
-            console.log(string.concat("Skipping fork test: ", message));
+            vm.skip(true, string.concat("Skipping fork test: ", message));
         }
     }
 
     /// @dev Skips tests when not running against forked production network.
     function skipIfNotForkTest(string memory message) public {
         if (!isL1ForkTest()) {
-            vm.skip(true);
-            console.log(string.concat("Skipping non-fork test: ", message));
+            vm.skip(true, string.concat("Skipping non-fork test: ", message));
         }
     }
 
     /// @dev Skips tests when running against a forked production network using the superchain ops repo.
     function skipIfOpsRepoTest(string memory message) public {
         if (forkL1Live.useOpsRepo()) {
-            vm.skip(true);
-            console.log(string.concat("Skipping ops repo test: ", message));
+            vm.skip(true, string.concat("Skipping ops repo test: ", message));
         }
     }
 

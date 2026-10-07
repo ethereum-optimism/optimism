@@ -1,0 +1,29 @@
+package:
+  parameters:
+    commit-sha:
+    cache-epoch:
+    build-probe:
+    target-cache-mode:
+tasks:
+  - key: build
+    use: package.use
+    run: mise exec -- bash ops/ci/runtime/go-dependencies.sh op-reth
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      BUILD_PROBE: ${{ params.build-probe }}
+      TARGET_CACHE_MODE: ${{ params.target-cache-mode }}
+    tool-cache: op-reth-release-${{ params.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/release-build, .ci/go-tests/dependencies/op-reth]
+          system: []
+      artifacts:
+        - key: dependency
+          path: .ci/go-tests/dependencies/op-reth
+        - key: release-binaries
+          path: .ci/op-reth/release-build

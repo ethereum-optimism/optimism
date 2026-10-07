@@ -4,10 +4,9 @@ use std::process::{Command, Output};
 
 /// Runs the binary under test with `args` and returns its output.
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_lokahi"))
-        .args(args)
-        .output()
-        .expect("failed to run the lokahi binary")
+    let binary = std::env::var_os("CARGO_BIN_EXE_lokahi")
+        .expect("test runner must set CARGO_BIN_EXE_lokahi");
+    Command::new(binary).args(args).output().expect("failed to run the lokahi binary")
 }
 
 /// Asserts the command succeeded and returns its stdout.

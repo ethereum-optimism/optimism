@@ -1,0 +1,360 @@
+# Complete L1 upgrade matrices; Circle retains its required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [compile-feature-main, compile-feature-CUSTOM_GAS_TOKEN, compile-feature-OPTIMISM_PORTAL_INTEROP, compile-feature-ZK_DISPUTE_GAME, compile-chain-op, compile-chain-ink, compile-chain-unichain]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: |
+      bash ops/ci/runtime/rwx-metadata.sh
+      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
+        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
+
+  - key: rpc-check
+    use: [code, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      python3 ops/ci/runtime/contract-upgrades.py preflight
+      printf 'true\n' >"$RWX_VALUES/ready"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/contract-upgrades/preflight]
+          system: []
+      artifacts:
+        - key: block
+          path: .ci/contract-upgrades/preflight/block.json
+        - key: reports
+          path: .ci/contract-upgrades/preflight
+
+  - key: go-modules
+    use: [code, go-tools]
+    # Allow an intentionally skipped preflight only for compiler-only warming.
+    after: ${{ rpc-check.succeeded || rpc-check.skipped }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      mkdir -p "$GOMODCACHE"
+      python3 ops/ci/runtime/pr-checks.py go-modules
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    tool-cache: contract-upgrades-modules-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-upgrades/modules]
+          system: []
+      artifacts:
+        - key: reports
+          path: .ci/pr-checks/go-modules
+
+  - key: helper-tests
+    use: [code, go-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_contract_upgrades.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_upgrades.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-feature-main
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-feature-main-${{ init.cache-epoch }}
+      variant: feature-main
+
+  - key: verdict-feature-main
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-main, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/feature-main/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-feature-main-${{ init.cache-epoch }}
+      variant: feature-main
+
+  - key: compile-feature-CUSTOM_GAS_TOKEN
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      variant: feature-CUSTOM_GAS_TOKEN
+
+  - key: verdict-feature-CUSTOM_GAS_TOKEN
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-CUSTOM_GAS_TOKEN, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/feature-CUSTOM_GAS_TOKEN/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      variant: feature-CUSTOM_GAS_TOKEN
+
+  - key: compile-feature-OPTIMISM_PORTAL_INTEROP
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-feature-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      variant: feature-OPTIMISM_PORTAL_INTEROP
+
+  - key: verdict-feature-OPTIMISM_PORTAL_INTEROP
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-OPTIMISM_PORTAL_INTEROP, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/feature-OPTIMISM_PORTAL_INTEROP/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-feature-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      variant: feature-OPTIMISM_PORTAL_INTEROP
+
+  - key: compile-feature-ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-feature-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      variant: feature-ZK_DISPUTE_GAME
+
+  - key: verdict-feature-ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-ZK_DISPUTE_GAME, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/feature-ZK_DISPUTE_GAME/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-feature-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      variant: feature-ZK_DISPUTE_GAME
+
+  - key: compile-chain-op
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-chain-op-${{ init.cache-epoch }}
+      variant: chain-op
+
+  - key: verdict-chain-op
+    use: [code, go-tools, contract-tools, go-modules, compile-chain-op, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/chain-op/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-chain-op-${{ init.cache-epoch }}
+      variant: chain-op
+
+  - key: compile-chain-ink
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-chain-ink-${{ init.cache-epoch }}
+      variant: chain-ink
+
+  - key: verdict-chain-ink
+    use: [code, go-tools, contract-tools, go-modules, compile-chain-ink, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/chain-ink/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-chain-ink-${{ init.cache-epoch }}
+      variant: chain-ink
+
+  - key: compile-chain-unichain
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-chain-unichain-${{ init.cache-epoch }}
+      variant: chain-unichain
+
+  - key: verdict-chain-unichain
+    use: [code, go-tools, contract-tools, go-modules, compile-chain-unichain, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/chain-unichain/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-chain-unichain-${{ init.cache-epoch }}
+      variant: chain-unichain
+
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-chain-ink.succeeded || verdict-chain-ink.failed || verdict-chain-ink.skipped) && (verdict-chain-op.succeeded || verdict-chain-op.failed || verdict-chain-op.skipped) && (verdict-chain-unichain.succeeded || verdict-chain-unichain.failed || verdict-chain-unichain.skipped) && (verdict-feature-CUSTOM_GAS_TOKEN.succeeded || verdict-feature-CUSTOM_GAS_TOKEN.failed || verdict-feature-CUSTOM_GAS_TOKEN.skipped) && (verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-feature-OPTIMISM_PORTAL_INTEROP.failed || verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-feature-ZK_DISPUTE_GAME.succeeded || verdict-feature-ZK_DISPUTE_GAME.failed || verdict-feature-ZK_DISPUTE_GAME.skipped) && (verdict-feature-main.succeeded || verdict-feature-main.failed || verdict-feature-main.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt contracts-upgrades
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_CHAIN_INK_SUCCEEDED: ${{ tasks.verdict-chain-ink.succeeded }}
+      TASK_VERDICT_CHAIN_INK_FAILED: ${{ tasks.verdict-chain-ink.failed }}
+      TASK_VERDICT_CHAIN_INK_SKIPPED: ${{ tasks.verdict-chain-ink.skipped }}
+      TASK_VERDICT_CHAIN_OP_SUCCEEDED: ${{ tasks.verdict-chain-op.succeeded }}
+      TASK_VERDICT_CHAIN_OP_FAILED: ${{ tasks.verdict-chain-op.failed }}
+      TASK_VERDICT_CHAIN_OP_SKIPPED: ${{ tasks.verdict-chain-op.skipped }}
+      TASK_VERDICT_CHAIN_UNICHAIN_SUCCEEDED: ${{ tasks.verdict-chain-unichain.succeeded }}
+      TASK_VERDICT_CHAIN_UNICHAIN_FAILED: ${{ tasks.verdict-chain-unichain.failed }}
+      TASK_VERDICT_CHAIN_UNICHAIN_SKIPPED: ${{ tasks.verdict-chain-unichain.skipped }}
+      TASK_VERDICT_FEATURE_CUSTOM_GAS_TOKEN_SUCCEEDED: ${{ tasks.verdict-feature-CUSTOM_GAS_TOKEN.succeeded }}
+      TASK_VERDICT_FEATURE_CUSTOM_GAS_TOKEN_FAILED: ${{ tasks.verdict-feature-CUSTOM_GAS_TOKEN.failed }}
+      TASK_VERDICT_FEATURE_CUSTOM_GAS_TOKEN_SKIPPED: ${{ tasks.verdict-feature-CUSTOM_GAS_TOKEN.skipped }}
+      TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded }}
+      TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.failed }}
+      TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_FEATURE_MAIN_SUCCEEDED: ${{ tasks.verdict-feature-main.succeeded }}
+      TASK_VERDICT_FEATURE_MAIN_FAILED: ${{ tasks.verdict-feature-main.failed }}
+      TASK_VERDICT_FEATURE_MAIN_SKIPPED: ${{ tasks.verdict-feature-main.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-upgrades
