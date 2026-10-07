@@ -93,12 +93,18 @@ impl ConsolidateTask {
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        build_and_import(self.client.as_ref(), &self.cfg, state, attributes.clone(), self.block_sink.as_ref())
-            .await?;
+        build_and_import(
+            self.client.as_ref(),
+            &self.cfg,
+            state,
+            attributes.clone(),
+            self.block_sink.as_ref(),
+        )
+        .await?;
         Ok(())
     }
 
-    /// This provides symmetric fallback behavior to with `build_and_import`.
+    /// This provides symmetric fallback behavior with `build_and_import`.
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,
@@ -370,7 +376,7 @@ mod tests {
             ConsolidateInput::Attributes(Box::new(attributes.clone())),
             Arc::new(crate::NoopBlockSink),
         );
-        task.execute_build_and_seal_tasks(&mut state, attributes)
+        task.build_and_import_attributes(&mut state, attributes)
             .await
             .expect_err("the mock never completes a seal")
     }

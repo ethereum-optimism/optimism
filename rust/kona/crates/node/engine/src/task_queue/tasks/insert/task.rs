@@ -76,7 +76,6 @@ pub(in crate::task_queue) async fn insert_payload(
 ) -> Result<L2BlockInfo, InsertTaskError> {
     // Insert the new payload.
     // Form the new unsafe block ref from the execution payload.
-
     let response = match payload.clone() {
         OpExecutionPayloadEnvelope::V1(payload) => client.new_payload_v1(payload).await,
         OpExecutionPayloadEnvelope::V2(payload) => {
