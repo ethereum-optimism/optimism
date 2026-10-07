@@ -15,22 +15,22 @@ use tokio::sync::watch::Sender;
 /// A stable ordering within each task priority. Retried work can accumulate many same-kind
 /// requests, which must keep their original order (especially unsafe payload imports).
 #[derive(Debug)]
-struct QueuedTask<C: EngineClient> {
+struct QueuedTask {
     sequence: u64,
-    task: EngineTask<C>,
+    task: EngineTask,
 }
-impl<C: EngineClient> PartialEq for QueuedTask<C> {
+impl PartialEq for QueuedTask {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
-impl<C: EngineClient> Eq for QueuedTask<C> {}
-impl<C: EngineClient> PartialOrd for QueuedTask<C> {
+impl Eq for QueuedTask {}
+impl PartialOrd for QueuedTask {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
-impl<C: EngineClient> Ord for QueuedTask<C> {
+impl Ord for QueuedTask {
     fn cmp(&self, other: &Self) -> Ordering {
         self.task.cmp(&other.task).then_with(|| other.sequence.cmp(&self.sequence))
     }
@@ -51,7 +51,7 @@ impl<C: EngineClient> Ord for QueuedTask<C> {
 /// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
 /// block, so it is popped before the error is returned.
 #[derive(Debug)]
-pub struct Engine<EngineClient_: EngineClient> {
+pub struct Engine {
     /// The state of the engine.
     state: EngineState,
     /// A sender that can be used to notify the engine actor of state changes.
@@ -59,14 +59,14 @@ pub struct Engine<EngineClient_: EngineClient> {
     /// A sender that can be used to notify the engine actor of task queue length changes.
     task_queue_length: Sender<usize>,
     /// The task queue.
-    tasks: BinaryHeap<QueuedTask<EngineClient_>>,
+    tasks: BinaryHeap<QueuedTask>,
     next_sequence: u64,
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
-    active: Option<EngineTask<EngineClient_>>,
+    active: Option<EngineTask>,
 }
 
-impl<EngineClient_: EngineClient> Engine<EngineClient_> {
+impl Engine {
     /// Creates a new [`Engine`] with an empty task queue and the passed initial [`EngineState`].
     pub fn new(
         initial_state: EngineState,
@@ -100,7 +100,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
 
     /// Enqueues a new [`EngineTask`] for execution.
     /// Updates the queue length and notifies listeners of the change.
-    pub fn enqueue(&mut self, task: EngineTask<EngineClient_>) {
+    pub fn enqueue(&mut self, task: EngineTask) {
         let sequence = self.next_sequence;
         self.next_sequence =
             self.next_sequence.checked_add(1).expect("engine task sequence exhausted");
@@ -123,7 +123,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// forkchoice update will be enqueued in order to reorg the execution layer.
     pub async fn reset(
         &mut self,
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
         let start = find_starting_forkchoice(&config, client.as_ref()).await?;
@@ -211,9 +211,7 @@ mod recovery_tests {
     use super::*;
     use crate::{
         ConsolidateInput, ConsolidateTask, InsertTask, NoopBlockSink,
-        test_utils::{
-            MockEngineClient, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
-        },
+        test_utils::{TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client},
     };
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceUpdated, PayloadId,
@@ -230,7 +228,9 @@ mod recovery_tests {
         let mut config = RollupConfig::default();
         config.genesis.l2.hash = block.header.hash_slow();
         let config = Arc::new(config);
-        let client = Arc::new(MockEngineClient::builder().with_config(config.clone()).build());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        l2.expect_error("engine_newPayloadV1");
         let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
         let (queue_tx, queue_rx) = tokio::sync::watch::channel(0);
         let mut engine = Engine::new(EngineState::default(), state_tx, queue_tx);
@@ -268,18 +268,19 @@ mod recovery_tests {
                 Arc::new(NoopBlockSink),
             ))));
         }
-        client
-            .set_new_payload_v1_response(PayloadStatus::from_status(PayloadStatusEnum::Valid))
-            .await;
-        client
-            .set_fork_choice_updated_v3_response(ForkchoiceUpdated::new(
-                PayloadStatus::from_status(PayloadStatusEnum::Valid),
-            ))
-            .await;
+        for _ in 0..4 {
+            l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+            l2.expect(
+                "engine_forkchoiceUpdatedV3",
+                ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+            );
+        }
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
         assert_eq!(*queue_rx.borrow(), 0);
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 
     // A flush means the task already replaced its block with a deposits-only block. Keeping it
@@ -318,18 +319,17 @@ mod recovery_tests {
         let config = Arc::new(config);
 
         let valid = PayloadStatus::from_status(PayloadStatusEnum::Valid);
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(config.clone())
-                .with_fork_choice_updated_v3_rejecting_non_deposit_attributes()
-                .with_fork_choice_updated_v3_response(ForkchoiceUpdated {
-                    payload_status: valid.clone(),
-                    payload_id: Some(PayloadId::new([1; 8])),
-                })
-                .with_execution_payload_v3(replacement)
-                .with_new_payload_v3_response(valid)
-                .build(),
-        );
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        let forkchoice = TestEngineStateBuilder::new().with_unsafe_head(parent).build()
+            .sync_state.create_forkchoice_state();
+        l2.expect_params("engine_forkchoiceUpdatedV3", serde_json::json!([
+            forkchoice, attributes.as_deposits_only().attributes
+        ]), ForkchoiceUpdated { payload_status: valid.clone(), payload_id: Some(PayloadId::new([1; 8])) });
+        l2.expect("engine_getPayloadV3", replacement);
+        l2.expect("engine_newPayloadV3", valid.clone());
+        l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid));
         // The safe head is at the unsafe head, so the task builds the attributes instead of
         // consolidating them against an unsafe block.
         let state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
@@ -345,8 +345,8 @@ mod recovery_tests {
 
         let error = engine.drain().await.unwrap_err();
         assert_eq!(error.severity(), EngineTaskErrorSeverity::Flush, "got {error:?}");
-        let builds = client.fork_choice_updated_v3_attributes().await.iter().flatten().count();
-        assert_eq!(builds, 2, "one build for the batch, one for its replacement");
+        l1.assert_finished();
+        l2.assert_finished();
         assert!(engine.is_empty());
         assert_eq!(*queue_rx.borrow(), 0);
         // The task updates `engine.state()` itself; only drain publishes it.

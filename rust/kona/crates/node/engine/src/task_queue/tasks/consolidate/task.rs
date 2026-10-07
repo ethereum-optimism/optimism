@@ -66,9 +66,9 @@ impl ConsolidateInput {
 /// The [`ConsolidateTask`] attempts to consolidate the engine state
 /// using the specified payload attributes or block info.
 #[derive(Debug, Clone)]
-pub struct ConsolidateTask<EngineClient_: EngineClient> {
+pub struct ConsolidateTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The [`RollupConfig`].
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
@@ -77,10 +77,10 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
-impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
+impl ConsolidateTask {
     /// Creates a new [`ConsolidateTask`] with the specified input
     pub const fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -280,7 +280,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient_> {
+impl EngineTaskExt for ConsolidateTask {
     type Output = ();
 
     type Error = ConsolidateTaskError;
@@ -311,8 +311,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EngineTaskError, ImportedBlockSink, SealTaskError, test_utils::MockEngineClient};
-    use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+    use crate::{EngineTaskError, ImportedBlockSink, SealTaskError, test_utils::test_engine_client};
+    use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use kona_genesis::ChainGenesis;
@@ -335,7 +335,8 @@ mod tests {
         // must reach the sink rather than being dropped.
         let header = RpcHeader::new(alloy_consensus::Header::default());
         let block_hash = header.hash;
-        let block = RpcBlock::new(header, BlockTransactions::Full(vec![]));
+        let block: RpcBlock<op_alloy_rpc_types::Transaction> =
+            RpcBlock::new(header, BlockTransactions::Full(vec![]));
 
         // Pin genesis to this block so its L2BlockInfo needs no L1-info deposit.
         let cfg = Arc::new(RollupConfig {
@@ -345,12 +346,9 @@ mod tests {
             },
             ..Default::default()
         });
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(cfg.clone())
-                .with_l2_block_by_label(BlockNumberOrTag::Number(0), block)
-                .build(),
-        );
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
+        let client = Arc::new(client);
 
         let safe_l2 = L2BlockInfo {
             block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
@@ -363,6 +361,8 @@ mod tests {
         task.consolidate(&mut EngineState::default()).await.unwrap();
 
         assert_eq!(sink.0.lock().unwrap().as_slice(), &[block_hash]);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 
     const DEPOSIT: u8 = op_alloy_consensus::DEPOSIT_TX_TYPE_ID;
@@ -382,7 +382,7 @@ mod tests {
     }
 
     async fn build_derived(
-        client: Arc<MockEngineClient>,
+        client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         attributes: &OpAttributesWithParent,
     ) -> ConsolidateTaskError {
@@ -405,27 +405,22 @@ mod tests {
     async fn attributes_rejected_at_fcu_are_replaced_with_deposits_only() {
         let deposit = alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]);
         let attributes = derived(vec![deposit.clone(), alloy_primitives::Bytes::from(vec![0x02])]);
-        let client = Arc::new(
-            crate::test_utils::test_engine_client_builder()
-                .with_fork_choice_updated_v3_rejecting_non_deposit_attributes()
-                .with_fork_choice_updated_v3_response(alloy_rpc_types_engine::ForkchoiceUpdated {
-                    payload_status: alloy_rpc_types_engine::PayloadStatus::from_status(
-                        alloy_rpc_types_engine::PayloadStatusEnum::Valid,
-                    ),
-                    payload_id: Some(alloy_rpc_types_engine::PayloadId::new([1; 8])),
-                })
-                .build(),
-        );
-
-        let err = build_derived(client.clone(), holocene_cfg(), &attributes).await;
-
-        let calls = client.fork_choice_updated_v3_attributes().await;
-        assert_eq!(calls.len(), 2, "one fcU for the batch, one for its deposits-only replacement");
-        assert_eq!(
-            calls[1].as_ref().and_then(|attrs| attrs.transactions.clone()),
-            Some(vec![deposit]),
-            "the replacement keeps only the deposits",
-        );
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        let forkchoice = crate::test_utils::TestEngineStateBuilder::new()
+            .with_unsafe_head(attributes.parent).build().sync_state.create_forkchoice_state();
+        l2.expect_params("engine_forkchoiceUpdatedV3", serde_json::json!([
+            forkchoice, attributes.as_deposits_only().attributes
+        ]), alloy_rpc_types_engine::ForkchoiceUpdated {
+            payload_status: alloy_rpc_types_engine::PayloadStatus::from_status(
+                alloy_rpc_types_engine::PayloadStatusEnum::Valid),
+            payload_id: Some(alloy_rpc_types_engine::PayloadId::new([1; 8])),
+        });
+        l2.expect_error("engine_getPayloadV3");
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
         // The mock fails the replacement's getPayload.
         assert!(
             matches!(
@@ -441,20 +436,16 @@ mod tests {
     // An internal error at FCU is a failure of the execution layer, not of the batch.
     #[tokio::test]
     async fn internal_error_at_fcu_is_retried_not_replaced() {
-        const INTERNAL_ERROR: i32 = -32603;
         let attributes = derived(vec![
             alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
             alloy_primitives::Bytes::from(vec![0x02]),
         ]);
-        let client = Arc::new(
-            crate::test_utils::test_engine_client_builder()
-                .with_fork_choice_updated_v3_failing_non_deposit_attributes(INTERNAL_ERROR)
-                .build(),
-        );
-
-        let err = build_derived(client.clone(), holocene_cfg(), &attributes).await;
-
-        assert_eq!(client.fork_choice_updated_v3_attributes().await.len(), 1);
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_error("engine_forkchoiceUpdatedV3");
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
         assert!(matches!(err, ConsolidateTaskError::BuildTaskFailed(_)), "got {err:?}");
         assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
     }
@@ -465,11 +456,12 @@ mod tests {
             alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
             alloy_primitives::Bytes::from(vec![0x02]),
         ]);
-        let client = Arc::new(crate::test_utils::test_engine_client_builder().build());
-
-        let err = build_derived(client.clone(), holocene_cfg(), &attributes).await;
-
-        assert_eq!(client.fork_choice_updated_v3_attributes().await.len(), 1);
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_transport_error("engine_forkchoiceUpdatedV3");
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
         assert!(matches!(err, ConsolidateTaskError::BuildTaskFailed(_)), "got {err:?}");
         assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
     }
@@ -481,17 +473,14 @@ mod tests {
             alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
             alloy_primitives::Bytes::from(vec![0x02]),
         ]);
-        let client = Arc::new(
-            crate::test_utils::test_engine_client_builder()
-                .with_fork_choice_updated_v3_rejecting_non_deposit_attributes()
-                .build(),
-        );
         let mut cfg = RollupConfig::default();
         cfg.hardforks.ecotone_time = Some(0);
-
-        let err = build_derived(client.clone(), Arc::new(cfg), &attributes).await;
-
-        assert_eq!(client.fork_choice_updated_v3_attributes().await.len(), 1, "no replacement");
+        let cfg = Arc::new(cfg);
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
         assert!(
             matches!(&err, ConsolidateTaskError::BuildTaskFailed(build) if build.is_invalid_attributes()),
             "got {err:?}"
