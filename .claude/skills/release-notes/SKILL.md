@@ -14,9 +14,8 @@ The raw list is replaced, not annotated. Read `reference/house-style.md` before 
 `reference/triage.md` before pruning.
 
 `op-contracts` and `op-deployer` use the same house style, with the differences listed in
-the "op-contracts and op-deployer" section of `reference/house-style.md`. Both are released
-from a `proposal/op-contracts/vX.Y.Z` branch, and each op-deployer release embeds one
-op-contracts release.
+the "op-contracts and op-deployer" section of `reference/house-style.md`. Each op-deployer
+release embeds one op-contracts release.
 
 This skill does not create or finalize tags.
 

@@ -114,9 +114,9 @@ no published version is affected" is a triage conclusion, not something the read
 
 ## Changes that already shipped
 
-A release cut from a `proposal/` branch compares against a tag on a different branch. A fix
-cherry-picked onto the previous release branch therefore appears again, as its original
-`develop` PR. List the commits that only the previous release has:
+A release tag is not always on the same line of history as the previous one. When the
+previous tag is not an ancestor of this one, a fix cherry-picked for the previous release
+appears again, as its original PR. List the commits that only the previous release has:
 
 ```bash
 git log --format='%s' $(git merge-base <prev-tag> <this-tag>)..<prev-tag> -- <component paths>

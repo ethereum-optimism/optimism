@@ -229,10 +229,9 @@ note operate a different chain and should be able to stop reading at that senten
 
 ## op-contracts and op-deployer
 
-These notes follow the same shape and rules, with the differences below. Both releases are
-cut from the same `proposal/op-contracts/vX.Y.Z` branch. Each op-deployer release embeds
-the artifacts of one op-contracts release, and by default it deploys and upgrades to that
-release.
+These notes follow the same shape and rules, with the differences below. Each op-deployer
+release embeds the artifacts of one op-contracts release, and by default it deploys and
+upgrades to that release.
 
 ### Which note gets which change
 
