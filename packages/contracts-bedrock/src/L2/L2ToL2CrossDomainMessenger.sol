@@ -49,12 +49,6 @@ error NotExpiryHub();
 /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed past the expiry window.
 error MessageNotExpired();
 
-/// @notice Thrown when attempting to resend a message that expired.
-error MessageAlreadyExpired();
-
-/// @notice Thrown when anyone but the sender of a message attempts to resend it.
-error ResendNotSender();
-
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
@@ -87,8 +81,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     uint256 public constant MESSAGE_EXPIRY_WINDOW = 7 days;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -211,49 +205,6 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
         msgNonce++;
 
         emit SentMessage(_destination, _target, nonce, msg.sender, _message);
-    }
-
-    /// @notice Re-emits a previously sent message event for old messages that haven't been
-    ///         relayed yet, allowing offchain infrastructure to pick them up and relay them.
-    /// @dev    Emitting a message that has already been relayed will have no effect, as it is only
-    ///         relayed once on the destination chain. The new event can be relayed until its own timestamp plus
-    ///         the expiry window, so resending restarts the message's expiry window, and an expired message,
-    ///         which may have been undone on this chain, can never be resent. Only the sender can resend: a resend
-    ///         restarts the expiry window, so letting anyone resend would let anyone keep a message from ever
-    ///         expiring.
-    /// @param _destination Chain ID of the destination chain.
-    /// @param _nonce Nonce of the message sent
-    /// @param _sender Address that sent the message
-    /// @param _target Target contract or wallet address.
-    /// @param _message Message payload to call target with.
-    /// @return messageHash_ The hash of the message being re-sent.
-    function resendMessage(
-        uint256 _destination,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message
-    )
-        external
-        returns (bytes32 messageHash_)
-    {
-        if (msg.sender != _sender) revert ResendNotSender();
-
-        messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
-            _destination: _destination,
-            _source: block.chainid,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
-
-        if (sentMessages[_nonce] != messageHash_) revert InvalidMessage();
-        if (expiredMessages[messageHash_]) revert MessageAlreadyExpired();
-
-        sentMessageTimestamps[messageHash_] = block.timestamp;
-
-        emit SentMessage(_destination, _target, _nonce, _sender, _message);
     }
 
     /// @notice Relays a message that was sent by the other L2ToL2CrossDomainMessenger contract. Can only be executed

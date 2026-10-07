@@ -47,12 +47,6 @@ interface IL2ToL2CrossDomainMessenger is IProxyAdminOwnedBase {
     ///         window.
     error MessageNotExpired();
 
-    /// @notice Thrown when attempting to resend a message that expired.
-    error MessageAlreadyExpired();
-
-    /// @notice Thrown when anyone but the sender of a message attempts to resend it.
-    error ResendNotSender();
-
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -170,26 +164,6 @@ interface IL2ToL2CrossDomainMessenger is IProxyAdminOwnedBase {
     ///                      has successfully been relayed.
     function sendMessage(
         uint256 _destination,
-        address _target,
-        bytes calldata _message
-    )
-        external
-        returns (bytes32 messageHash_);
-
-    /// @notice Re-emits a previously sent message event for old messages that haven't been
-    ///         relayed yet, allowing offchain infrastructure to pick them up and relay them.
-    /// @dev    Emitting a message that has already been relayed will have no effect, as it is only
-    ///         relayed once on the destination chain.
-    /// @param _destination Chain ID of the destination chain.
-    /// @param _nonce Nonce of the message sent
-    /// @param _sender Address that sent the message
-    /// @param _target Target contract or wallet address.
-    /// @param _message Message payload to call target with.
-    /// @return messageHash_ The hash of the message being re-sent.
-    function resendMessage(
-        uint256 _destination,
-        uint256 _nonce,
-        address _sender,
         address _target,
         bytes calldata _message
     )

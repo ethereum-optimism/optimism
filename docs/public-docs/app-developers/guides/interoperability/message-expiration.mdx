@@ -1,6 +1,6 @@
 ---
 title: Message expiration
-description: What message expiration is, why it exists, and how to reemit a previously sent message if it has expired and was never relayed.
+description: What message expiration is, why it exists, and how an application undoes a message that expired without being relayed.
 diataxis: explanation
 ---
 
@@ -8,29 +8,15 @@ diataxis: explanation
 
 [Messages](/app-developers/guides/interoperability/message-passing) referenced between OP Stack chains have a limited validity period called the expiry window. Once this window elapses, the referenced message becomes invalid and can no longer be referenced.
 
-For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing), if a message expires before being referenced, developers can reemit the message on the source chain. This triggers a fresh `SentMessage` event, enabling the message to be relayed.
+For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing), a message that expires before being relayed can never be relayed. Its source chain can learn this and report it, so applications can undo the send.
 
 ## The expiry window
 
 The expiry window is an offchain constant that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
 
-After this period, a message can no longer be referenced unless the event is remitted.
+## Undoing an expired message
 
-## Reemitting an expired message
-
-The `resendMessage` function on the [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing) contract allows developers to reemit a message that was sent but not yet relayed.
-
-This emits a new `SentMessage` log with the same content as the original message, enabling offchain relayers to pick it up again. Only the original sender of the message can resend it, since a resend restarts the message's expiry window.
-
-The process to reemit an expired message:
-
-1.  Call [`resendMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L2/IL2ToL2CrossDomainMessenger.sol#L114-L122) on the origin chain to reemit the message event. The contract verifies the message hash was originally sent. The call requires   [every parameter](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L2/IL2ToL2CrossDomainMessenger.sol#L114-L122) to rebuild the original message.
-
-2.  [Relay the new message](/interop/message-passing#executing-message) as normal.
-
-Note: Re-emitting an already relayed message will have no effect on the destination chain, since the destination chain only honors the original initiating message. 
-
-A message that its destination chain shows was never relayed within the expiry window can be marked expired on the source chain, where `expiredMessages` reports it and applications can undo the send (the `SuperchainETHBridge` refunds the sender with `refundETH`). An expired message can't be resent.
+Once the expiry window has passed, anyone can call `exportUndeliveredMessage` on the destination chain's `L2ToL2CrossDomainMessenger`. It checks that the message was not relayed there and tells the source chain, through L1. When that arrives, the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, and applications can undo the send: the `SuperchainETHBridge` returns the ETH to the sender with `refundETH`.
 
 ## Next steps
 
