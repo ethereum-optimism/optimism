@@ -73,6 +73,11 @@ Each PR is tagged `LINKED` (changed a package compiled into the binary, and whic
 `cargo tree`, so linkage is exact — but it proves the package is compiled in, not that the
 changed function is on the component's runtime path.
 
+A component whose image ships more than one binary resolves all of them and tags against the
+union, reading the shipping units from `just release-paths`. op-challenger covers the Go
+op-challenger and cannon binaries plus the Rust kona-host, so a kona-only change is `LINKED`,
+not `--`.
+
 If every Go row comes back `?`, `go list` failed. In a fresh worktree the usual cause is the
 missing generated `op-core/superchain/superchain-configs.zip`; run
 `mise exec -- just build-superchain-go` and run the script again.
