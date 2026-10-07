@@ -1005,14 +1005,18 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     function test_upgrade_withdrawalDelaysUnchangedWithoutOverride_succeeds() public {
         uint256 proofMaturityBefore = optimismPortal2.proofMaturityDelaySeconds();
         uint256 finalityBefore = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 wethDelayBefore = delayedWeth.delay();
 
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(optimismPortal2.proofMaturityDelaySeconds(), proofMaturityBefore, "proof maturity delay changed");
         assertEq(anchorStateRegistry.disputeGameFinalityDelaySeconds(), finalityBefore, "finality delay changed");
-        // After the upgrade the values are read from proxy storage (portal slot 64, registry slot 7).
+        assertEq(delayedWeth.delay(), wethDelayBefore, "withdrawal delay changed");
+        // After the upgrade the values are read from proxy storage (portal slot 64, registry slot 7,
+        // DelayedWETH slot 6).
         assertEq(uint256(vm.load(address(optimismPortal2), bytes32(uint256(64)))), proofMaturityBefore);
         assertEq(uint256(vm.load(address(anchorStateRegistry), bytes32(uint256(7)))), finalityBefore);
+        assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
     }
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
@@ -1598,6 +1602,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.l2ChainId = 999_999_999;
         deployConfig.proofMaturityDelaySeconds = 604800;
         deployConfig.disputeGameFinalityDelaySeconds = 302400;
+        deployConfig.withdrawalDelaySeconds = 302400;
         deployConfig.resourceConfig = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
@@ -1803,6 +1808,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         _assertUpgradeInstructionRejected(
             version, "overrides.cfg.disputeGameFinalityDelaySeconds", abi.encode(uint256(12 hours))
         );
+        _assertUpgradeInstructionRejected(
+            version, "overrides.cfg.withdrawalDelaySeconds", abi.encode(uint256(12 hours))
+        );
     }
 
     /// @notice Tests that the anchor root override remains unavailable in v9.
@@ -1967,6 +1975,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function test_deploy_setsWithdrawalDelays_succeeds() public {
         deployConfig.proofMaturityDelaySeconds = 2 days;
         deployConfig.disputeGameFinalityDelaySeconds = 1 days;
+        deployConfig.withdrawalDelaySeconds = 1 days;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
@@ -1974,13 +1983,33 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         assertEq(cts.optimismPortal.proofMaturityDelaySeconds(), 2 days, "proof maturity delay mismatch");
         assertEq(cts.anchorStateRegistry.disputeGameFinalityDelaySeconds(), 1 days, "finality delay mismatch");
+        assertEq(cts.delayedWETH.delay(), 1 days, "withdrawal delay mismatch");
 
-        // The values live in the proxies (portal slot 64, registry slot 7), not in the implementations.
+        // The values live in the proxies (portal slot 64, registry slot 7, DelayedWETH slot 6), not
+        // in the implementations.
         assertEq(uint256(vm.load(address(cts.optimismPortal), bytes32(uint256(64)))), 2 days);
         assertEq(uint256(vm.load(address(cts.anchorStateRegistry), bytes32(uint256(7)))), 1 days);
+        assertEq(uint256(vm.load(address(cts.delayedWETH), bytes32(uint256(6)))), 1 days);
         IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
         assertEq(IOptimismPortal2(payable(impls.optimismPortalImpl)).proofMaturityDelaySeconds(), 0);
         assertEq(IAnchorStateRegistry(impls.anchorStateRegistryImpl).disputeGameFinalityDelaySeconds(), 0);
+        assertEq(IDelayedWETH(payable(impls.delayedWETHImpl)).delay(), 0);
+    }
+
+    /// @notice Tests that a zero withdrawal delay is rejected on deploy. OPCM does not check it;
+    ///         the DelayedWETH initializer rejects it as below the minimum, wrapped by the Proxy.
+    function test_deploy_zeroWithdrawalDelay_reverts() public {
+        deployConfig.withdrawalDelaySeconds = 0;
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+    }
+
+    /// @notice Tests that the DelayedWETH bounds reject an out-of-range withdrawal delay on deploy.
+    ///         The bounds error is raised inside initialize(), which the Proxy wraps in its own
+    ///         delegatecall failure message.
+    function test_deploy_withdrawalDelayOutOfBounds_reverts() public {
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        deployConfig.withdrawalDelaySeconds = IDelayedWETH(payable(impls.delayedWETHImpl)).maxDelay() + 1;
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
     }
 
     /// @notice Tests that a zero proof maturity delay is rejected on deploy. OPCM does not check
@@ -2546,7 +2575,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             disputeGameConfigs: dgConfigs,
             useCustomGasToken: false,
             proofMaturityDelaySeconds: 604800,
-            disputeGameFinalityDelaySeconds: 302400
+            disputeGameFinalityDelaySeconds: 302400,
+            withdrawalDelaySeconds: 302400
         });
 
         // Deploy the chain.

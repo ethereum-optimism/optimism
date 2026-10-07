@@ -173,7 +173,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             superchainConfig: superchainConfig,
             useCustomGasToken: useCustomGasToken,
             proofMaturityDelaySeconds: proofMaturityDelaySeconds,
-            disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds
+            disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
+            withdrawalDelaySeconds: withdrawalDelaySeconds
         });
     }
 

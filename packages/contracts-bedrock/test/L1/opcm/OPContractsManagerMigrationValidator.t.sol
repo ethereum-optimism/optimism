@@ -191,7 +191,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             disputeGameConfigs: dgConfigs,
             useCustomGasToken: false,
             proofMaturityDelaySeconds: 604800,
-            disputeGameFinalityDelaySeconds: 302400
+            disputeGameFinalityDelaySeconds: 302400,
+            withdrawalDelaySeconds: 302400
         });
 
         cts_ = opcmV2.deploy(deployConfig);
