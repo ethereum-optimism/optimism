@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 # workspace
 kona-genesis.workspace = true
-kona-macros.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 
 # alloy
@@ -23,6 +22,7 @@ alloy-eips.workspace = true
 alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-transport.workspace = true
+alloy-json-rpc.workspace = true
 alloy-primitives.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "reqwest", "reqwest-rustls-tls", "engine-api"] }
 alloy-rpc-client.workspace = true
@@ -50,7 +50,7 @@ derive_more = { workspace = true, features = ["display", "deref", "from_str", "c
 serde_json.workspace = true
 
 # metrics
-metrics = { workspace = true, optional = true }
+metrics.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["io-util", "net", "test-util"] }
@@ -62,7 +62,6 @@ metrics-exporter-prometheus.workspace = true
 rstest.workspace = true
 
 [features]
-metrics = [ "dep:metrics" ]
 test-utils = [
 	"kona-protocol/test-utils",
 	"alloy-primitives/rand",

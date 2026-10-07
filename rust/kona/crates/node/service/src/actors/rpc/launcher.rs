@@ -7,10 +7,15 @@
 use async_trait::async_trait;
 use jsonrpsee::{
     RpcModule,
-    server::{Server, ServerHandle, middleware::http::ProxyGetRequestLayer},
+    server::{
+        Server, ServerConfig, ServerHandle,
+        middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
+    },
 };
 use kona_rpc::RpcBuilder;
 use std::time::Duration;
+
+use super::middleware::RpcMetricsLayer;
 
 /// A handle to a running RPC server.
 ///
@@ -90,7 +95,15 @@ async fn launch(
                 .expect("Critical: Failed to build GET method proxy"),
         )
         .timeout(Duration::from_secs(2));
-    let server = Server::builder().set_http_middleware(middleware).build(config.socket).await?;
+    let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+    let rpc_middleware = RpcServiceBuilder::new()
+        .layer(RpcMetricsLayer::new(module.method_names(), max_response_body_size));
+    let server = Server::builder()
+        .set_config(ServerConfig::builder().max_response_body_size(max_response_body_size).build())
+        .set_http_middleware(middleware)
+        .set_rpc_middleware(rpc_middleware)
+        .build(config.socket)
+        .await?;
 
     if let Ok(addr) = server.local_addr() {
         info!(target: "rpc", addr = ?addr, "RPC server bound to address");

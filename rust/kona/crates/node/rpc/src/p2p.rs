@@ -20,7 +20,6 @@ use crate::{OpP2PApiServer, net::P2pRpc};
 #[async_trait]
 impl OpP2PApiServer for P2pRpc {
     async fn opp2p_self(&self) -> RpcResult<PeerInfo> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_self");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::PeerInfo(tx))
@@ -31,7 +30,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_count(&self) -> RpcResult<PeerCount> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_peerCount");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::PeerCount(tx))
@@ -45,7 +43,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peers(&self, connected: bool) -> RpcResult<PeerDump> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_peers");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::Peers { out: tx, connected })
@@ -70,7 +67,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_discoveryTable");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::DiscoveryTable(tx))
@@ -81,7 +77,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_block_peer(&self, peer_id: String) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_blockPeer");
         let id = libp2p::PeerId::from_str(&peer_id)
             .map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
         self.sender
@@ -91,7 +86,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_unblock_peer(&self, peer_id: String) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_unblockPeer");
         let id = libp2p::PeerId::from_str(&peer_id)
             .map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
         self.sender
@@ -101,7 +95,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_listBlockedPeers");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::ListBlockedPeers(tx))
@@ -114,7 +107,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_block_addr(&self, address: IpAddr) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_blockAddr");
         self.sender
             .send(P2pRpcRequest::BlockAddr { address })
             .await
@@ -122,7 +114,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_unblock_addr(&self, address: IpAddr) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_unblockAddr");
         self.sender
             .send(P2pRpcRequest::UnblockAddr { address })
             .await
@@ -130,7 +121,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_listBlockedAddrs");
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::ListBlockedAddrs(tx))
@@ -141,7 +131,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_block_subnet(&self, subnet: IpNet) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_blockSubnet");
         self.sender
             .send(P2pRpcRequest::BlockSubnet { address: subnet })
             .await
@@ -149,8 +138,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_unblock_subnet(&self, subnet: IpNet) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_unblockSubnet");
-
         self.sender
             .send(P2pRpcRequest::UnblockSubnet { address: subnet })
             .await
@@ -158,11 +145,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_subnets(&self) -> RpcResult<Vec<IpNet>> {
-        kona_macros::inc!(
-            gauge,
-            kona_gossip::Metrics::RPC_CALLS,
-            "method" => "opp2p_listBlockedSubnets"
-        );
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.sender
             .send(P2pRpcRequest::ListBlockedSubnets(tx))
@@ -173,7 +155,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_protect_peer(&self, id: String) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_protectPeer");
         let peer_id = libp2p::PeerId::from_str(&id)
             .map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
         self.sender
@@ -183,7 +164,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_unprotect_peer(&self, id: String) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_unprotectPeer");
         let peer_id = libp2p::PeerId::from_str(&id)
             .map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
         self.sender
@@ -194,7 +174,6 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_connect_peer(&self, _peer: String) -> RpcResult<()> {
         use std::str::FromStr;
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_connectPeer");
         let ma = libp2p::Multiaddr::from_str(&_peer).map_err(|_| {
             ErrorObject::borrowed(ErrorCode::InvalidParams.code(), "Invalid multiaddr", None)
         })?;
@@ -253,7 +232,6 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_disconnect_peer(&self, peer_id: String) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "opp2p_disconnectPeer");
         let peer_id = match peer_id.parse() {
             Ok(id) => id,
             Err(err) => {

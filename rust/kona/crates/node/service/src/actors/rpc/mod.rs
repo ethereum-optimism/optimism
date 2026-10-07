@@ -4,6 +4,8 @@ pub use actor::RpcActor;
 mod launcher;
 pub use launcher::{JsonrpseeServerLauncher, RpcServerHandle, RpcServerLauncher};
 
+mod middleware;
+
 mod engine_rpc_client;
 pub use engine_rpc_client::QueuedEngineRpcClient;
 

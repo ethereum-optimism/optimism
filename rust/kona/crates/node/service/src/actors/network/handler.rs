@@ -37,7 +37,7 @@ impl NetworkHandler {
                     self.gossip.swarm.behaviour().gossipsub.peer_score(peer_id).unwrap_or_default();
 
                 // Record the peer score in the metrics.
-                kona_macros::record!(histogram, kona_gossip::Metrics::PEER_SCORES, score);
+                metrics::histogram!(kona_gossip::Metrics::PEER_SCORES).record(score);
 
                 if score < ban_peers.ban_threshold {
                     return Some(*peer_id);
@@ -61,18 +61,14 @@ impl NetworkHandler {
                         // Record the duration of the peer connection.
                         if let Some(start_time) = self.gossip.peer_connection_start.remove(&peer_to_remove) {
                             let peer_duration = start_time.elapsed();
-                            kona_macros::record!(
-                                histogram,
-                                kona_gossip::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
-                                peer_duration.as_secs_f64()
-                            );
+                            metrics::histogram!(kona_gossip::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS).record(peer_duration.as_secs_f64());
                         }
 
                 if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove) {
                     use kona_gossip::ConnectionGate;
                     self.gossip.connection_gate.remove_dial(&peer_to_remove);
                     let score = self.gossip.swarm.behaviour().gossipsub.peer_score(&peer_to_remove).unwrap_or_default();
-                    kona_macros::inc!(gauge, kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string());
+                    metrics::gauge!(kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string()).increment(1);
                     return Some(info.listen_addrs);
                 }
 

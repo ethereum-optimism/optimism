@@ -22,14 +22,12 @@ impl Metrics {
     /// This does two things:
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
-    #[cfg(feature = "metrics")]
     pub fn init() {
         Self::describe();
         Self::zero();
     }
 
     /// Describes metrics used in the discovery service.
-    #[cfg(feature = "metrics")]
     pub fn describe() {
         metrics::describe_gauge!(Self::DISCOVERY_EVENT, "Events received by the discv5 service");
         metrics::describe_histogram!(
@@ -48,15 +46,14 @@ impl Metrics {
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
-    #[cfg(feature = "metrics")]
     pub fn zero() {
         // Discovery Event
-        kona_macros::set!(gauge, Self::DISCOVERY_EVENT, "type", "discovered", 0);
-        kona_macros::set!(gauge, Self::DISCOVERY_EVENT, "type", "session_established", 0);
-        kona_macros::set!(gauge, Self::DISCOVERY_EVENT, "type", "unverifiable_enr", 0);
+        metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "discovered").set(0);
+        metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "session_established").set(0);
+        metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "unverifiable_enr").set(0);
 
         // Peer Counts
-        kona_macros::set!(gauge, Self::DISCOVERY_PEER_COUNT, 0);
-        kona_macros::set!(gauge, Self::FIND_NODE_REQUEST, 0);
+        metrics::gauge!(Self::DISCOVERY_PEER_COUNT).set(0);
+        metrics::gauge!(Self::FIND_NODE_REQUEST).set(0);
     }
 }

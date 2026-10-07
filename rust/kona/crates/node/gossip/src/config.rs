@@ -145,7 +145,7 @@ fn compute_message_id(msg: &Message) -> MessageId {
         || {
             // Oversized or undecompressable frame: invalid-snappy domain. Count and debug-log,
             // never warn — this runs on unauthenticated remote input.
-            kona_macros::inc!(counter, crate::Metrics::MESSAGE_ID_INVALID_SNAPPY);
+            metrics::counter!(crate::Metrics::MESSAGE_ID_INVALID_SNAPPY).increment(1);
             debug!(target: "gossip", len = msg.data.len(), "Snappy frame failed to decompress within bound in message-id");
             (MESSAGE_DOMAIN_INVALID_SNAPPY, msg.data.as_slice())
         },
@@ -348,7 +348,6 @@ mod tests {
         assert_eq!(snappy_decompressed_len_within_bound(&small), Some(5));
     }
 
-    #[cfg(feature = "metrics")]
     fn message_id_invalid_snappy_count(snapshot: metrics_util::debugging::Snapshot) -> u64 {
         use metrics_util::debugging::DebugValue;
         for (ckey, _unit, _desc, value) in snapshot.into_vec() {
@@ -362,7 +361,6 @@ mod tests {
         0
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn compute_message_id_records_invalid_snappy_on_decompress_failure() {
         use metrics_util::debugging::DebuggingRecorder;
@@ -384,7 +382,6 @@ mod tests {
         assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 1);
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn compute_message_id_records_invalid_snappy_on_oversize_frame() {
         use metrics_util::debugging::DebuggingRecorder;
@@ -407,7 +404,6 @@ mod tests {
         assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 1);
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn compute_message_id_does_not_record_invalid_snappy_on_valid_frame() {
         use metrics_util::debugging::DebuggingRecorder;

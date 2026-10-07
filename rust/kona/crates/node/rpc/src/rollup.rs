@@ -30,9 +30,6 @@ pub struct RollupRpc<EngineRpcClient_> {
 }
 
 impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
-    /// The identifier for the Metric that tracks rollup RPC calls.
-    pub const RPC_IDENT: &'static str = "rollup_rpc";
-
     /// Constructs a new [`RollupRpc`] given a sender channel.
     pub const fn new(
         engine_client: EngineRpcClient_,
@@ -66,8 +63,6 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     for RollupRpc<EngineRpcClient_>
 {
     async fn op_output_at_block(&self, block_num: BlockNumberOrTag) -> RpcResult<OutputResponse> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_outputAtBlock");
-
         let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
 
         let ((l2_block_info, output_root, l2_sync_status), l1_sync_status) =
@@ -91,13 +86,10 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
         &self,
         _block_num: BlockNumberOrTag,
     ) -> RpcResult<SafeHeadResponse> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_safeHeadAtL1Block");
         return Err(ErrorObject::from(ErrorCode::MethodNotFound));
     }
 
     async fn op_sync_status(&self) -> RpcResult<SyncStatus> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_syncStatus");
-
         let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
 
         let (l1_sync_status, l2_sync_status) = tokio::try_join!(
@@ -116,14 +108,10 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     }
 
     async fn op_rollup_config(&self) -> RpcResult<RollupConfig> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_rollupConfig");
-
         self.engine_client.get_config().await
     }
 
     async fn op_version(&self) -> RpcResult<String> {
-        kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_version");
-
         const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
 
         return Ok(RPC_VERSION.to_string());

@@ -214,15 +214,12 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
         // The queue retains failed work. Its owner schedules the next attempt so a dependency
         // outage cannot monopolize the actor or turn into a tight retry loop.
         if let Err(e) = self.execute_inner(state).await {
-            kona_macros::inc!(
-                counter,
-                crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => e.severity().to_string()
-            );
+            metrics::counter!(crate::Metrics::ENGINE_TASK_FAILURE, self.task_metrics_label() => e.severity().to_string()).increment(1);
             return Err(e);
         }
 
-        kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
+        metrics::counter!(crate::Metrics::ENGINE_TASK_SUCCESS, "type" => self.task_metrics_label())
+            .increment(1);
 
         Ok(())
     }

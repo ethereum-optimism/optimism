@@ -53,14 +53,16 @@ impl Handler for BlockHandler {
         // before decoding. The decoder would otherwise pre-allocate the declared length (up to
         // roughly 4 GiB) from a tiny frame. This mirrors op-node's gossip topic validator.
         if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length");
+            metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length")
+                .increment(1);
             debug!(target: "gossip", len = msg.data.len(), "Rejecting Snappy frame with invalid declared length before decode");
             return (MessageAcceptance::Reject, None);
         }
 
         let Some(version) = self.payload_version(&msg.topic) else {
             // Unreachable in practice because the driver dispatches only known block topics.
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic");
+            metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic")
+                .increment(1);
             debug!(target: "gossip", topic = ?msg.topic, "Received block with unknown topic");
             return (MessageAcceptance::Reject, None);
         };
@@ -68,14 +70,14 @@ impl Handler for BlockHandler {
         let signed = match SignedGossipPayload::decode_snappy(&msg.data) {
             Ok(signed) => signed,
             Err(err) => {
-                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
+                metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error")
+                    .increment(1);
                 debug!(target: "gossip", ?err, "Failed to decode signed gossip payload");
                 return (MessageAcceptance::Reject, None);
             }
         };
         let payload_hash = signed.payload_hash();
-        #[cfg(feature = "metrics")]
-        kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_TOTAL);
+        metrics::counter!(crate::Metrics::BLOCK_VALIDATION_TOTAL).increment(1);
 
         // Authenticate the exact envelope bytes before decoding the SSZ payload and transactions.
         if let Err(err) = self.validate_signature(&signed) {
@@ -86,9 +88,9 @@ impl Handler for BlockHandler {
         let envelope = match signed.into_envelope(version) {
             Ok(envelope) => envelope,
             Err(err) => {
-                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
-                #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block");
+                metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error")
+                    .increment(1);
+                metrics::counter!(crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block").increment(1);
                 debug!(target: "gossip", ?err, hash = ?payload_hash, "Failed to decode authenticated execution payload");
                 return (MessageAcceptance::Reject, None);
             }
@@ -339,7 +341,6 @@ mod tests {
         assert_valid_decode(v3_envelope(), |h| h.blocks_v3_topic.clone());
     }
 
-    #[cfg(feature = "metrics")]
     fn invalid_message_count(snapshot: metrics_util::debugging::Snapshot, reason: &str) -> u64 {
         use metrics_util::debugging::DebugValue;
         for (ckey, _unit, _desc, value) in snapshot.into_vec() {
@@ -356,7 +357,6 @@ mod tests {
         0
     }
 
-    #[cfg(feature = "metrics")]
     fn zero_signer_handler() -> BlockHandler {
         let (_, unsafe_signer) = tokio::sync::watch::channel(Address::ZERO);
         BlockHandler::new(
@@ -365,7 +365,6 @@ mod tests {
         )
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn handle_records_invalid_message_metric_for_invalid_snappy_length() {
         use metrics_util::debugging::DebuggingRecorder;
@@ -395,7 +394,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn handle_records_invalid_message_metric_for_decode_error() {
         use metrics_util::debugging::DebuggingRecorder;
@@ -415,7 +413,6 @@ mod tests {
         assert_eq!(invalid_message_count(snapshotter.snapshot(), "decode_error"), 1);
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn handle_records_invalid_message_metric_for_unknown_topic() {
         use metrics_util::debugging::DebuggingRecorder;

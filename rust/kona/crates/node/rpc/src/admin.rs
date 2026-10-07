@@ -64,7 +64,6 @@ where
         &self,
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
-        kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
         payload.check_block_hash().map_err(|err| {
             let message = match &err {
                 OpPayloadError::Eth(PayloadError::BlockHash { execution, consensus }) => {
