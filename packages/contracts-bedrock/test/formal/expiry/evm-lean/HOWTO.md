@@ -1,0 +1,143 @@
+# HOWTO: prove the next function with this infrastructure
+
+Read README.md first (what is proved, trust base). This note is for the worker proving
+`relayUndeliveredMessage` (L1CrossDomainMessenger), `refundETH` (SuperchainETHBridge) or the
+exporter's `exportUndeliveredMessage`.
+
+## 0. Setup (hel1)
+
+```sh
+export PATH=$HOME/.elan/bin:$HOME/.foundry/bin:$PATH
+cd <worktree>/packages/contracts-bedrock/test/formal/expiry/evm-lean
+lake exe cache get && lake build          # ~5 min cold (Mathlib from cache), ~1 min warm
+```
+
+hel1 is shared; with load > 100, single-file rebuilds still take 5–20 s. Iterate on one module
+with `lake build ExpiryEvm.<Module>` and filter the log for `error:` lines in your files (the
+dependencies print hundreds of linter warnings).
+
+## 1. Get the artifact and the block summaries
+
+For a function of `L2ToL2CrossDomainMessenger` (e.g. `relayMessage`) the artifact and the
+summaries are already here: `ExpiryEvm/Blocks/` has a proved summary for **every** basic block of
+the runtime (`RuntimeBlocks.index` maps `l2tol2_block_<pc>[_taken|_fallthrough][_packed]` to file
+and line). For another contract, copy `scripts/regen.sh` and change `NAME`, the `--name` prefix
+(e.g. `ethbridge`) and the code term (`ExpiryEvm.<x>Runtime`), and give `gen_bytecode.py` a
+different definition name, so several contracts can live in one project. Keep the generated files
+unedited; regenerate them whenever the branch moves (the proofs refer to concrete pcs, so a
+changed layout breaks them loudly rather than silently).
+
+Record solc version, settings and the keccak of runtime and init code (regen.sh prints them and
+the `semver-lock.json` hash to compare).
+
+## 2. Find the paths
+
+`python3 scripts/trace_paths.py artifacts/<X>.runtime.hex` runs a tiny concrete EVM on the
+scenarios at the bottom of the script and prints, per scenario, the external calls, `SSTORE`s,
+the terminal pc, and the list of block entry pcs. Write one scenario per branch (success, each
+revert). Extend the opcode table if your function uses more opcodes (e.g. `CALLDATACOPY`,
+`RETURNDATACOPY` with offsets, `CALL` with value). Cross-check pcs against `cast disassemble`.
+
+## 3. Write the trace in segments
+
+One file per segment, one theorem per segment, conclusion a disjunction of terminals. The pattern
+(see `TraceCall1.lean`):
+
+```lean
+by_cases hc : <the summary's hcond, copied verbatim> = UInt256.ofNat 0
+· have r1 := l2tol2_block_<pc>_fallthrough (by simp) hc h          -- or obtain ⟨aw, k, C, r1⟩ := …_packed
+  simp only [l2tol2_block_<pc>_fallthrough_stack, …_memory, <memory equations>] at r1
+  …
+· have r1 := l2tol2_block_<pc>_taken (by simp) hc (by jump_dest) h
+```
+
+* Stack-depth side goals: `(by simp)` or `(by simp [l2tol2_block_<pc>_..._stack])`.
+* Jump targets: `(by jump_dest)` (rewrites with `l2tol2ValidJumps`, then `native_decide`).
+* Branch conditions: turn them into `toNat` facts with `ExpiryEvm.Words`
+  (`isZero_ne0/eq0`, `lt_eq0`, `gt_eq0/ne0`, `eq_ne0/eq0`, `sub_zero_ne0`, `noOverflow_iff`,
+  `expired_iff`, `calldata_ok_iff`). Note `⟨0⟩` vs `UInt256.ofNat 0`: definitionally equal,
+  syntactically not; use `exact`, not `rw`, across them.
+* Memory: keep every memory as `Mem.wordsMem [w₀, w₁, …]` (word-aligned, which is all solc's
+  scratch/free-pointer/ABI-head traffic is). Rewrite each summary's `…_memory` with
+  `wordsMem_write` (existing slot), `wordsMem_write_end`, `wordsMem_write_gap1`, and reads with
+  `memLoad_wordsMem`, `loadedWord_wordsMem`, `wordsMem_read4` (call selectors),
+  `keccakWord_wordsMem` (mapping slots; gives `solcMappingSlot base key`). State each equation
+  as a `have` whose left side is the summary's term verbatim, then `simp only [...] at r`.
+  For dynamic data (the `message` bytes in `refundETH`'s and the exporter's hash) `wordsMem` is
+  not enough: use EquiVM's `Reasoning/HeapMemory.lean`, `MemCascade.lean`, `ABIComposite.lean`.
+* After a call the pc is `UInt256.ofNat pc + ⟨1⟩`: `RD.normalizePC (pc' := UInt256.ofNat (pc+1)) r (by decide)`.
+* A path that halts: the summary concludes `RDrev`/`RDret` directly (revert blocks, `STOP` block).
+* Static mode: blocks containing `SSTORE`/`LOG*`/value-`CALL` take `hperm : ee.perm = true`.
+  Split `cases hp : I.perm`; on `false` step to the first forbidden opcode with `evm_run` and
+  close with `RD.sstoreStatic` (or `RD.log*Static`, `RD.callValueStatic`); see the end of
+  `TraceStore.lean`, which copies the first steps of the generated block's proof.
+
+## 4. External calls
+
+The generator stops at `CALL`/`STATICCALL`/`DELEGATECALL`/`CREATE*` (look for
+`Unsupported instruction boundary at pc N`). Step over them with:
+
+* `RD.solcStaticcall r hdec hdepth (by simp)` (depth < 1024) — yields `∃ σ' z o A_in callGas k C,
+  (∃ g' A', (σ', g', A', z, o) = Θ …) ∧ RD … (pc+1) ((if z then 1 else 0) :: t) (o.write …) … o σ' …`;
+  `RD.solcStaticcallDepthLimit` (depth = 1024) — pushes 0, empty returndata.
+* `RD.call`, `RD.callValueMade`, `RD.callValueInsufficientBalance`, `RD.callValueDepthLimit`
+  (`Reasoning/Reach.lean`) for `CALL` with/without value.
+* Static calls preserve storage, transient storage and code: `Theta_static_accountStorageStateEq`,
+  `Theta_static_accountCodeStateEq` (EVMLean, proved).
+* Turn the `Θ` equation into a named predicate (here `L2cdmStaticCall`) by rewriting the target
+  (`AccountAddress.ofUInt256 (mask & 0x42…07) = l2cdm`, by `decide`) and the calldata slice
+  (`wordsMem_read4` + a `decide +kernel` fact about the selector bytes).
+* Summaries are hypotheses of the form "if this call succeeds, its output is exactly X"
+  (`ReturnsAddress`), quantified over every account map with the same storage and code, so they
+  can be applied after earlier static calls. Never assume a callee *succeeds*: that is false for
+  small call gas and makes the theorem vacuous. Failures become an explicit disjunct
+  (`CallFailed`). List every summary in your README.
+
+## 5. Close at the `Ξ` level
+
+`RDrev.xiResult`, `RDstatic.xiResult` (EquiVM) and `rdret_xi` (here; the EquiVM version only
+allows an unchanged account map) turn the terminals into `Ξ σ σ₀ g A I = …`. Instantiate the
+segment theorems with `g := Sat256.ofUInt256 g`. Copy the four headline shapes
+(`_outcome`, `_success`, `_complete`, `_no_other_error`) and the post-state structure.
+
+Alternatively, EquiVM's own relation: write a one-transition Sol⁻ spec (`Solm/Syntax`, e.g. the
+`Examples/Caller` shape) and prove `runtimeRefinementFor cfg spec σ σ₀ g A I` for calldata with
+your selector, using `RDret.reEquivExecution` / `RDrev.reEquivExecutionRevert` and the
+`ExecStmt`/`ExecBlock` lemmas of `Reasoning/SolmBody.lean`. That gives a third-party refinement
+statement but requires modelling every call in Sol⁻'s `externalCall`; the `Ξ`-level statements
+here were cheaper.
+
+## 6. Checks before handing back
+
+```sh
+lake build                                   # whole project
+grep -rn "sorry\|admit" ExpiryEvm/           # nothing
+lake env lean ExpiryEvm/Axioms.lean          # add your theorems; expect propext, Classical.choice,
+                                             # Quot.sound and …native_decide.ax_* only
+```
+
+Add an executable witness in the style of `Concrete.lean` (success reachable, one boundary that
+must revert); it catches wrong selectors, wrong slots and wrong mock setups early.
+
+## Notes per function
+
+* **`relayMessage`** (same bytecode, summaries present): `TLOAD`/`TSTORE` reentrancy guard
+  (`RD.tload`/`RD.tstore` exist), a `STATICCALL`/`CALL` to CrossL2Inbox `validateMessage`, a
+  dynamic `bytes` payload decode, and a `CALL` with value to an arbitrary target (`RD.callValueMade`
+  + a summary that the target can do anything: its `Θ` result is unconstrained, which is exactly
+  what you want — prove that `successfulMessages[H]` is written *before* the call).
+* **`exportUndeliveredMessage`** (exporter predeploy, separate contract, not yet at `37b44c48c7`):
+  `abi.encode(destination, source, nonce, sender, target, message)` hashed with a dynamic
+  `message` — needs HeapMemory-style lemmas; then a `CALL` to L2CrossDomainMessenger
+  `sendMessage(sourceMessenger, relayUndeliveredMessage(H, block.timestamp), minGas)`: assert the
+  exact calldata bytes passed to `Θ` (that *is* the property: the fact it emits).
+* **`relayUndeliveredMessage`** (L1CrossDomainMessenger, L1 artifact; check its foundry profile):
+  six view calls (`portal()`, `systemConfig()`, `l1CrossDomainMessenger()`, `ethLockbox()`,
+  `authorizedPortals(p)`, `xDomainMessageSender()`) — one `ReturnsAddress`/`ReturnsBool` summary
+  each, the `CallFailed` disjunct generalised — then `this.sendMessage(...)`, an external *self*
+  call: either summarise it (its `Θ` result) or prove `sendMessage` separately and compose.
+* **`refundETH`** (SuperchainETHBridge): rebuilds `H` over a dynamic `relayETH` calldata
+  (HeapMemory), `STATICCALL` `expiredMessages(H)` on the messenger (`ReturnsBool` summary),
+  `SSTORE refunded[H]`, `CALL` ETHLiquidity `mint` (value-less), and `SafeSend` (a `CREATE`
+  with value: `RD` has no `CREATE` summary in the generator; use EquiVM's `Constructor`/`Θ`/`Λ`
+  lemmas or summarise the create).
