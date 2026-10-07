@@ -20,7 +20,7 @@ After this period, a message can no longer be referenced unless the event is rem
 
 The `resendMessage` function on the [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing) contract allows developers to reemit a message that was sent but not yet relayed.
 
-This emits a new `SentMessage` log with the same content as the original message, enabling offchain relayers to pick it up again.
+This emits a new `SentMessage` log with the same content as the original message, enabling offchain relayers to pick it up again. Only the original sender of the message can resend it, since a resend restarts the message's expiry window.
 
 The process to reemit an expired message:
 
@@ -29,6 +29,8 @@ The process to reemit an expired message:
 2.  [Relay the new message](/interop/message-passing#executing-message) as normal.
 
 Note: Re-emitting an already relayed message will have no effect on the destination chain, since the destination chain only honors the original initiating message. 
+
+A message that its destination chain shows was never relayed within the expiry window can be marked expired on the source chain, where `expiredMessages` reports it and applications can undo the send (the `SuperchainETHBridge` refunds the sender with `refundETH`). An expired message can't be resent.
 
 ## Next steps
 
