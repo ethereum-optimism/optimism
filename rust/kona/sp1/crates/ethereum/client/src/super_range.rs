@@ -460,16 +460,19 @@ where
 #[cfg(test)]
 mod tests {
     use alloy_consensus::Header;
-    use alloy_primitives::{B256, U256};
+    use alloy_eips::BlockNumHash;
+    use alloy_primitives::{B256, FixedBytes, U256};
+    use alloy_trie::EMPTY_ROOT_HASH;
     use kona_genesis::RollupConfig;
     use kona_preimage::PreimageKey;
     use kona_proof::block_on;
+    use kona_protocol::{BatchValidity, BlockInfo, L2BlockInfo, SpanBatch, SpanBatchElement};
     use kona_sp1_client_utils::{
         super_root::{
             SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs, SuperRangeTransition,
             SuperRootProof, TimestampSpan,
         },
-        witness::preimage_store::PreimageStore,
+        witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
     };
 
     use super::*;
@@ -564,7 +567,6 @@ mod tests {
         use alloy_eips::Encodable2718;
         use alloy_op_evm::{OpEvmFactory, block::OpAlloyReceiptBuilder};
         use alloy_primitives::keccak256;
-        use alloy_trie::EMPTY_ROOT_HASH;
         use kona_executor::StatelessL2Builder;
         use kona_genesis::SystemConfig;
         use kona_protocol::{L1BlockInfoTx, Predeploys};
@@ -1070,5 +1072,117 @@ mod tests {
             err.to_string().contains("must target next L2 block #4"),
             "unexpected error: {err}"
         );
+    }
+
+    struct OverlappingSpanBatch {
+        witness: PreimageStore,
+        config: RollupConfig,
+        l1_origin: BlockInfo,
+        safe_head: L2BlockInfo,
+        batch: SpanBatch,
+        parent_hash: B256,
+    }
+
+    /// Safe head #1 (ts 101) on top of genesis #0 (ts 100). The span batch covers ts 101-102, so
+    /// it overlaps the safe head and its parent is block #0.
+    fn overlapping_span_batch(withhold_parent_header: bool) -> OverlappingSpanBatch {
+        let l1_origin = BlockInfo::new(b256(0x11), 1, B256::ZERO, 100);
+        let mut witness = PreimageStore::default();
+        witness.save_preimage(PreimageKey::new_keccak256(*EMPTY_ROOT_HASH), vec![0x80]).unwrap();
+        let parent = Header {
+            number: 0,
+            timestamp: 100,
+            transactions_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let parent_hash = if withhold_parent_header {
+            parent.hash_slow()
+        } else {
+            save_header(&mut witness, &parent)
+        };
+        let safe_head_hash = save_header(
+            &mut witness,
+            &Header {
+                number: 1,
+                timestamp: 101,
+                parent_hash,
+                transactions_root: EMPTY_ROOT_HASH,
+                ..Default::default()
+            },
+        );
+
+        let mut config = rollup_config(u64::MAX, 1);
+        config.hardforks.delta_time = Some(0);
+        config.hardforks.holocene_time = Some(0);
+        config.genesis.l1 = BlockNumHash { number: 1, hash: l1_origin.hash };
+        config.genesis.l2 = BlockNumHash { number: 0, hash: parent_hash };
+        config.genesis.l2_time = 100;
+
+        OverlappingSpanBatch {
+            witness,
+            config,
+            l1_origin,
+            safe_head: L2BlockInfo {
+                block_info: BlockInfo::new(safe_head_hash, 1, parent_hash, 101),
+                l1_origin: BlockNumHash { number: 1, hash: l1_origin.hash },
+                seq_num: 1,
+            },
+            batch: SpanBatch {
+                parent_check: FixedBytes::from_slice(&parent_hash[..20]),
+                l1_origin_check: FixedBytes::from_slice(&l1_origin.hash[..20]),
+                batches: vec![
+                    SpanBatchElement { epoch_num: 1, timestamp: 101, transactions: vec![] },
+                    SpanBatchElement { epoch_num: 1, timestamp: 102, transactions: vec![] },
+                ],
+                ..Default::default()
+            },
+            parent_hash,
+        }
+    }
+
+    fn check_prefix_through_guest_oracle(
+        fixture: OverlappingSpanBatch,
+    ) -> (BatchValidity, Option<L2BlockInfo>) {
+        block_on(async {
+            let (oracle, _) = DefaultWitnessData::from_parts(fixture.witness, BlobData::default())
+                .get_oracle_and_blob_provider()
+                .await
+                .unwrap();
+            let mut provider = OracleL2ChainProvider::new(
+                fixture.safe_head.block_info.hash,
+                Arc::new(fixture.config.clone()),
+                oracle,
+            );
+            fixture
+                .batch
+                .check_batch_prefix(
+                    &fixture.config,
+                    &[fixture.l1_origin],
+                    fixture.safe_head,
+                    &fixture.l1_origin,
+                    &mut provider,
+                )
+                .await
+        })
+    }
+
+    #[test]
+    fn span_batch_prefix_accepts_overlapping_batch_with_complete_witness() {
+        let fixture = overlapping_span_batch(false);
+        let parent_hash = fixture.parent_hash;
+
+        let (validity, parent) = check_prefix_through_guest_oracle(fixture);
+
+        assert_eq!(validity, BatchValidity::Accept);
+        assert_eq!(parent.map(|parent| parent.block_info.hash), Some(parent_hash));
+    }
+
+    /// Regression test for #23206: a prover that withholds a span batch's parent header must abort
+    /// the guest. Otherwise `check_batch_prefix` returns `Undecided` and the Holocene
+    /// `BatchStream` skips the valid batch.
+    #[test]
+    #[should_panic(expected = "requested preimage key not present in witness")]
+    fn span_batch_prefix_aborts_when_parent_header_missing_from_witness() {
+        let _ = check_prefix_through_guest_oracle(overlapping_span_batch(true));
     }
 }

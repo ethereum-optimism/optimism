@@ -543,7 +543,7 @@ jsonrpsee-types = "0.26.0"
 
 # ==================== CRYPTO ====================
 c-kzg = { version = "2.1.5", default-features = false }
-enr = { version = "0.13", default-features = false }
+enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
 sha2 = { version = "0.10.9", default-features = false }
@@ -629,11 +629,11 @@ tar-no-std = { version = "0.4.2", default-features = false }
 zstd = "0.13"
 
 # ==================== NETWORKING ====================
-discv5 = "0.10.2"
+discv5 = "0.12.0"
 ipnet = "2.11.0"
-libp2p = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
-libp2p-stream = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
-libp2p-identity = "0.2.13"
+libp2p = "0.57.0"
+libp2p-stream = "0.5.0-alpha"
+libp2p-identity = "0.3.0"
 openssl = "0.10.75"
 
 # ==================== MISC ====================

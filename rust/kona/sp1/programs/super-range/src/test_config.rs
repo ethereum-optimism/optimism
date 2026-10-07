@@ -4,9 +4,7 @@ use anyhow::Context;
 use kona_preimage::{
     DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey, PreimageOracleClient,
 };
-use kona_sp1_client_utils::{
-    super_root::SuperInteropInputs, witness::preimage_store::PreimageStore,
-};
+use kona_sp1_client_utils::super_root::SuperInteropInputs;
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
 
 /// Present only in test-config-fallback ELFs; prestate builds reject any ELF that contains it.
@@ -16,7 +14,7 @@ pub(super) const MARKER: &str =
 
 pub(super) async fn load(
     inputs: &SuperInteropInputs,
-    oracle: &PreimageStore,
+    oracle: &impl PreimageOracleClient,
 ) -> anyhow::Result<ChainConfigs> {
     let chain_ids = match inputs {
         SuperInteropInputs::Range(inputs) => inputs.chain_ids.clone(),
@@ -49,8 +47,9 @@ pub(super) async fn load(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kona_sp1_client_utils::super_root::{
-        SuperConsolidationInputs, SuperRangeInputs, TimestampSpan,
+    use kona_sp1_client_utils::{
+        super_root::{SuperConsolidationInputs, SuperRangeInputs, TimestampSpan},
+        witness::preimage_store::PreimageStore,
     };
 
     #[test]

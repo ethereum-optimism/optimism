@@ -33,6 +33,9 @@ pub use l1_watcher::{
     QueuedL1WatcherDerivationClient,
 };
 
+mod signer;
+pub use signer::{SignedPayload, SignerActor, SignerActorError};
+
 mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
