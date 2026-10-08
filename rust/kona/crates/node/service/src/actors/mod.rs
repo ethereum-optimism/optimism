@@ -12,10 +12,8 @@ pub use engine::{
     SealRequest,
 };
 
-pub(crate) mod rpc;
-pub use rpc::{
-    JsonrpseeServerLauncher, RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher,
-};
+mod rpc;
+pub use rpc::{RpcActor, RpcActorError};
 
 mod derivation;
 pub use derivation::{
