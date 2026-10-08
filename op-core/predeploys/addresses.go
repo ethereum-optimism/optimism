@@ -79,6 +79,9 @@ var (
 	LiquidityControllerAddr           = common.HexToAddress(LiquidityController)
 	ConditionalDeployerAddr           = common.HexToAddress(ConditionalDeployer)
 	L2DevFeatureFlagsAddr             = common.HexToAddress(L2DevFeatureFlags)
+	// UndeliveredMessageExporterAddr is deliberately not in Predeploys yet: that map decides what the
+	// frozen Karst and Lagoon state files contain, and those forks don't install the exporter. Add
+	// it when the Lagoon NUT bundle is re-snapshotted with message expiry.
 	UndeliveredMessageExporterAddr    = common.HexToAddress(UndeliveredMessageExporter)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	MultiCall3Addr                    = common.HexToAddress(MultiCall3)
