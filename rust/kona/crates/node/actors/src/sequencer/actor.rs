@@ -38,16 +38,16 @@ use tokio::{
 #[derive(Debug)]
 pub struct Builder {
     handle: Handle,
-    messages: mpsc::Receiver<Message>,
+    messages_rx: mpsc::Receiver<Message>,
     is_active_tx: watch::Sender<bool>,
 }
 
 impl Builder {
     /// Creates the builder with its initial state.
     pub fn new(capacity: Capacity) -> Self {
-        let (messages_tx, messages) = mpsc::channel(capacity.get());
+        let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
         let (is_active_tx, is_active_rx) = watch::channel(false);
-        Self { handle: Handle::new(is_active_rx, messages_tx), messages, is_active_tx }
+        Self { handle: Handle::new(is_active_rx, messages_tx), messages_rx, is_active_tx }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -74,10 +74,10 @@ impl Builder {
         conductor: Option<Conductor_>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, messages, is_active_tx } = self;
+        let Self { handle: _, messages_rx, is_active_tx } = self;
         async move {
             Actor::new(
-                messages,
+                messages_rx,
                 is_active_tx,
                 attributes_builder,
                 conductor,
@@ -129,7 +129,7 @@ struct Actor<
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Receives messages from handles.
-    messages: mpsc::Receiver<Message>,
+    messages_rx: mpsc::Receiver<Message>,
     /// Whether sequencing is active.
     is_active: bool,
     /// Publishes state to handle readers.
@@ -179,7 +179,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        messages: mpsc::Receiver<Message>,
+        messages_rx: mpsc::Receiver<Message>,
         is_active_tx: watch::Sender<bool>,
         attributes_builder: AttributesBuilder_,
         conductor: Option<Conductor_>,
@@ -191,7 +191,7 @@ where
         let is_active = *is_active_tx.borrow();
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         Self {
-            messages,
+            messages_rx,
             is_active,
             is_active_tx,
             attributes_builder,
@@ -506,9 +506,9 @@ where
         self.schedule_initial_reset().await?;
         loop {
             select! {
-                // Prioritize admin messages over block building.
+                // Prioritize messages over block building.
                 biased;
-                Some(message) = self.messages.recv() => self.handle_message(message).await,
+                Some(message) = self.messages_rx.recv() => self.handle_message(message).await,
                 _ = self.build_ticker.tick(), if self.is_active => self.build().await?,
                 // A stopped actor with no command handles stays pending until dropped.
                 else => pending().await,
