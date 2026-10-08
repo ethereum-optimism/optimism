@@ -77,12 +77,13 @@ func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte, opts ...fun
 		bindings.WithTest(t),
 	)
 
+	minGas, err := contractio.Read(portal.MinimumGasLimit(uint64(len(calldata))), ctx)
+	t.Require().NoError(err, "failed to read MinimumGasLimit")
 	gasLimit := o.GasLimit
 	if gasLimit == 0 {
-		minGas, err := contractio.Read(portal.MinimumGasLimit(uint64(len(calldata))), ctx)
-		t.Require().NoError(err, "failed to read MinimumGasLimit")
 		gasLimit = max(100_000, minGas)
 	}
+	t.Require().GreaterOrEqual(gasLimit, minGas, "deposit gas limit is below the portal's minimum")
 	d.l2.log.Info("Sending deposit", "to", to, "gasLimit", gasLimit)
 	depositCall := portal.DepositTransaction(to, eth.ZeroWei, gasLimit, false, calldata)
 	l1Receipt, err := contractio.Write(depositCall, ctx, d.l1.Plan())
