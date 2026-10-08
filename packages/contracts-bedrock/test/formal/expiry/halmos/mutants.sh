@@ -103,7 +103,7 @@ run_forge() {
   local code=$?
   set -e
   # Killed only if the designated test itself failed after a successful setUp (not a setUp/compile failure).
-  if [ "$code" -ne 0 ] && grep -q "\[FAIL[^]]*\] $test(" "$log" && ! grep -q "setUp()" "$log" \
+  if [ "$code" -ne 0 ] && grep -qE "^\[FAIL.*\] $test\(" "$log" && ! grep -q "setUp()" "$log" \
       && ! grep -q "Compiler run failed" "$log"; then
     echo "killed $name (forge): $path::$test"
   else

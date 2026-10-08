@@ -12,7 +12,8 @@ pragma solidity 0.8.25;
 //   RELAY   relayMessage(id, canonical SentMessage payload(dest, target, nonce, sender, message)), target one of a
 //           codeless account, 0x..07, 0x..16
 //   EXPIRE  expireMessage(h, t)          (0x..07 answers xDomainMessageSender() with a per-step symbolic value)
-//   OTHER   a symbolic 4-byte selector that is none of the contract's selectors, plus 64 symbolic bytes
+//   OTHER   a symbolic 4-byte selector that is none of the contract's selectors, plus 32 symbolic bytes (one word: a
+//           second symbolic word would be a symbolic ABI offset for the proxy's upgradeToAndCall(address,bytes))
 // View functions are not steps: the compiler forbids state writes in them (and the proxy forwards them unchanged).
 //
 // Properties, at a symbolic message hash K, checked after EVERY step:
@@ -69,7 +70,6 @@ contract ReachL2ToL2Halmos is Test {
         // OTHER
         bytes4 sel;
         bytes32 w1;
-        bytes32 w2;
     }
 
     struct Obs {
@@ -138,7 +138,7 @@ contract ReachL2ToL2Halmos is Test {
             return abi.encodeCall(L2ToL2CrossDomainMessenger.relayMessage, (_s.id, _payload(_s, _message)));
         }
         if (kind == EXPIRE) return abi.encodeCall(L2ToL2CrossDomainMessenger.expireMessage, (_s.h, _s.t));
-        return abi.encodePacked(_s.sel, _s.w1, _s.w2);
+        return abi.encodePacked(_s.sel, _s.w1);
     }
 
     /// @notice Runs one step and checks (E), (T), (S) at `_k`. `_fresh`: the state is reachable (strong (T)).

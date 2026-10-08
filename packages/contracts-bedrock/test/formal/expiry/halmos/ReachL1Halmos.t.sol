@@ -18,6 +18,7 @@ import { MockSystemConfig, MockCallerPortal, MockCallerMessenger, MockLockbox } 
 
 interface SVMReachL1 {
     function enableSymbolicStorage(address) external;
+    function createUint256(string memory) external returns (uint256);
 }
 
 /// @notice A's portal: records every depositTransaction and the envelope SENDER (relayMessage's 2nd argument, the word
@@ -188,12 +189,17 @@ contract ReachL1CDMHalmos is Test {
         _step(_s2, _m2);
     }
 
+    /// @notice Symbolic answers for every mock. A's SystemConfig keeps its concrete messenger (packed with the flags in
+    ///         slot 0, so symbolic storage alone would leave INTEROP and paused at their concrete `false`); its INTEROP
+    ///         flag and paused are set from fresh symbolic values. (Before this fix the INTEROP gate was always off
+    ///         here, and the paired witness check_FALSE_reach_l1cdmNeverSelfSender exposed it by passing.)
     function _symbolicMocks() internal {
+        sysCfgA.set(address(l1cdm), svm.createUint256("pausedA") & 1 == 1);
+        sysCfgA.setInterop(svm.createUint256("interopA") & 1 == 1);
         svm.enableSymbolicStorage(address(sysCfg));
         svm.enableSymbolicStorage(address(callerPortal));
         svm.enableSymbolicStorage(address(caller));
         svm.enableSymbolicStorage(address(lockbox));
-        svm.enableSymbolicStorage(address(sysCfgA));
     }
 
     /// @notice NON-VACUITY (expected FAIL): A's L1CDM is never the envelope sender in one step (the

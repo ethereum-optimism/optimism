@@ -1,3 +1,4 @@
-# Halmos build output (run.sh / mutants.sh)
+# Halmos build output and per-contract results (run.sh / mutants.sh)
 out/
 cache/
+results/

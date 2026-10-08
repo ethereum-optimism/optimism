@@ -22,7 +22,8 @@
 #                    uv pip install --link-mode copy --python /tmp/halmos-sd/bin/python halmos==0.3.3  # copy: never patch uv's cache
 #                    patch -d /tmp/halmos-sd/lib/python3.12/site-packages -p1 < test/formal/expiry/halmos/halmos-selfdestruct.patch
 #                    HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh
-#   BYTES_LENGTHS  lengths tried for every `bytes` parameter (default 0,1,32,33,100,132,260).
+#   BYTES_LENGTHS  if set, lengths tried for EVERY `bytes` parameter, overriding halmos.toml (0,1,32,33,100,132,260)
+#                  and the per-function annotations of the phase-2 checks.
 #   HALMOS_WRAP    optional command prefix for each halmos process, e.g. a memory cap:
 #                    HALMOS_WRAP="systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0"
 #
@@ -41,20 +42,23 @@ export FOUNDRY_CACHE_PATH=test/formal/expiry/halmos/cache
 
 HALMOS="${HALMOS:-halmos}"
 HALMOS_WRAP="${HALMOS_WRAP:-}"
-out="$(mktemp -d)"
-trap 'rm -rf "$out"' EXIT
+# Per-contract halmos logs and JSON are kept (gitignored) for inspection after the run.
+out="$here/results"
+rm -rf "$out" && mkdir -p "$out"
 
 $HALMOS_WRAP forge clean
 $HALMOS_WRAP forge build >/dev/null
 
 status=0
+# Byte lengths come from halmos.toml (below function annotations); BYTES_LENGTHS, if set, overrides everything.
+lengths=()
+if [ -n "${BYTES_LENGTHS:-}" ]; then lengths=(--default-bytes-lengths "$BYTES_LENGTHS"); fi
 while IFS= read -r contract; do
   set +e
   # shellcheck disable=SC2086 # HALMOS_WRAP is a command prefix, split on purpose
-  $HALMOS_WRAP "$HALMOS" --forge-build-out test/formal/expiry/halmos/out --no-status \
-    --default-bytes-lengths "${BYTES_LENGTHS:-0,1,32,33,100,132,260}" \
-    --solver-timeout-assertion 60s \
-    --match-contract "^${contract}\$" --json-output "$out/$contract.json" >"$out/$contract.log" 2>&1 </dev/null
+  $HALMOS_WRAP "$HALMOS" --forge-build-out test/formal/expiry/halmos/out --no-status --config "$here/halmos.toml" \
+    "${lengths[@]}" --match-contract "^${contract}\$" --json-output "$out/$contract.json" >"$out/$contract.log" 2>&1 \
+    </dev/null
   code=$?
   set -e
   if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
@@ -79,7 +83,7 @@ bad = 0
 for (c, n), e in expected.items():
     if e == "PASS" and expected.get((c, witness[(c, n)])) != "FAIL":
         print(f"BAD {c}.{n}: no non-vacuity witness (got {witness[(c, n)]!r})"); bad += 1
-results = {}
+outcome = {}
 seen = set()
 in_source = set()
 for f in glob.glob(os.path.join(here, "*.t.sol")):
@@ -91,7 +95,11 @@ for c in sorted({c for c, _ in expected}):
     if os.path.exists(log):
         for line in open(log):
             line = re.sub(r"\x1b\[[0-9;]*m", "", line)
-            benign = "unknown deployed bytecode" in line and c in ("RefundExpiryHalmos", "ReachBridgeHalmos")
+            # halmos cannot name runtime code it did not compile into a known artifact: SafeSend's empty code
+            # (refund groups) and contracts deployed from DeployUtils.getCode bytecode (L2ToL2 groups).
+            benign = "unknown deployed bytecode" in line and c in (
+                "RefundExpiryHalmos", "ReachBridgeHalmos", "L2ToL2ExpiryHalmos", "ReachL2ToL2Halmos"
+            )
             if re.search(r"WARNING|ERROR|\[TIMEOUT\]", line) and not benign and "foundry.lock" not in line:
                 print(f"BAD {c}: halmos log: {line.strip()[:160]}"); bad += 1
     path = os.path.join(out, c + ".json")
@@ -120,10 +128,10 @@ for c in sorted({c for c, _ in expected}):
             ok = code == 1 and models > 0 and valid
             got = "FAIL (expected; valid counterexample)" if ok else f"exitcode={code} models={models} valid={valid}"
         bad += not ok
-        results[key] = ok
+        outcome[key] = ok
         print(f"{'ok ' if ok else 'BAD'} {c}.{name}: {got} ({r['time'][0]:.2f}s, paths={r['num_paths'][0]})")
 for (c, n), e in sorted(expected.items()):
-    if e == "PASS" and not results.get((c, witness[(c, n)]), False):
+    if e == "PASS" and not outcome.get((c, witness[(c, n)]), False):
         print(f"BAD {c}.{n}: its witness {witness[(c, n)]} did not produce a validated counterexample"); bad += 1
 for key in sorted(set(expected) - seen):
     print(f"BAD {key[0]}.{key[1]}: expected {expected[key]} but it did not run"); bad += 1

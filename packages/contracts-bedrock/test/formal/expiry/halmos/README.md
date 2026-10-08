@@ -7,6 +7,9 @@ Symbolic checks, using Halmos 0.3.3, on the real contracts of the exporter desig
 sequence of calls, made from a symbolic state**. These checks do not cover multi-chain or multi-transaction
 composition; that belongs to the Quint model, Kontrol and Lean, which cross-check against this suite.
 
+Last full run (`run.sh` and `mutants.sh`): contracts at c7c51d79e2. The logic is unchanged at 448d31ad19, where only
+the messenger's version string differs.
+
 ## Files
 
 | File | What it holds |
@@ -18,6 +21,8 @@ composition; that belongs to the Quint model, Kontrol and Lean, which cross-chec
 | `HalmosMocks.sol` | L2-side mocks: the inbox, call recorders, L2CDM getters, a re-entrant relay target and an observing (optionally reverting) relay target. |
 | `expected.tsv` | The inventory: contract, check, expected outcome. `run.sh` fails on any deviation. |
 | `run.sh` | Builds and runs everything, then validates against `expected.tsv`. |
+| `halmos.toml` | Default halmos options (byte lengths, solver timeout). Function annotations override them; command-line flags override both. |
+| `.gitignore` | Ignores the build output (`out/`, `cache/`) and the per-contract halmos logs and JSON that `run.sh` keeps in `results/`. |
 | `mutants.sh` | 43 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
 | `halmos-selfdestruct.patch` | Patch to halmos 0.3.3: SELFDESTRUCT in constructors, and MAX_ETH raised to 2^200. See below. |
 
@@ -28,8 +33,8 @@ cd packages/contracts-bedrock
 uv venv /tmp/halmos-sd --python 3.12
 uv pip install --link-mode copy --python /tmp/halmos-sd/bin/python halmos==0.3.3   # copy mode: never patch uv's cache
 patch -d /tmp/halmos-sd/lib/python3.12/site-packages -p1 < test/formal/expiry/halmos/halmos-selfdestruct.patch
-HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # the phase-2 reachability checks dominate: tens of minutes
-HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/mutants.sh    # ONLY=<regex> selects mutants
+HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # about 70 min on a 32-core Linux host (ReachL1CDM ~38 min, ReachL2ToL2 ~16 min)
+HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/mutants.sh    # about 15 min; ONLY=<regex> selects mutants
 # On a shared host, cap memory (and time) per halmos process:
 #   HALMOS_WRAP="systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 timeout 3600" ...
 ```
@@ -37,8 +42,9 @@ HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/mutants.sh    # ONLY=
 Options and settings:
 - **No foundry.toml change needed.** `run.sh` sets `FOUNDRY_SRC`, `FOUNDRY_TEST` and `FOUNDRY_SCRIPT` to this directory, with
   `FOUNDRY_OUT` and `FOUNDRY_CACHE_PATH` pointing at `out/` and `cache/` in this directory, which `.gitignore` excludes.
-- **Halmos flags:** `--solver-timeout-assertion 60s --default-bytes-lengths 0,1,32,33,100,132,260`, and halmos's default
-  `--loop 2`. The one exception is `check_exporter_anyCalldata_onlyExportPayload`, which sets `@custom:halmos --loop 40`
+- **Halmos options:** `halmos.toml` sets `--default-bytes-lengths 0,1,32,33,100,132,260` and `--solver-timeout-assertion 60s`;
+  halmos's own default is `--loop 2`. Because command-line flags would override the per-function annotations, `run.sh`
+  passes these through the config file. The phase-2 reachability checks use smaller length sets via annotations. The one exception is `check_exporter_anyCalldata_onlyExportPayload`, which sets `@custom:halmos --loop 40`
   so the word-by-word copies of its symbolic-length `bytes` argument (up to 1024 bytes) are explored in full. You can override
   the lengths with `BYTES_LENGTHS`. The solver is yices, the default.
 - **Wider lengths:** the suite is also run with `0,1,31,32,33,64,100,132,260,1024`.
@@ -224,7 +230,7 @@ the contract are allowed: 0x..07 for expireMessage and 0x..23 for relayETH, with
 | `ReachL2ToL2Halmos.check_reach_sequence2` | Two steps from the deployed state, so every state is reachable; three steps exceeded 40 minutes. Relay targets are a codeless account, 0x..07 or 0x..16; arbitrary relay targets are covered by the L2ToL2ExpiryHalmos relay checks. Two steps already cover send-then-expire and send-then-relay. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0 and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
 | `ReachL2ToL2Halmos.check_reach_step_symbolicStorage` | The same for one step from **fully symbolic** storage. (T) is weakened to "only a sendMessage step sending K, to block.timestamp", because an unreachable state can already hold a value for the next nonce's hash. | PASS |
 | `ReachExporterHalmos.check_reach_exporter_sequence2` | Two steps over export (symbolic arguments and message), version(), unknown selectors and empty calldata; three steps exceeded 40 minutes. successfulMessages is fully symbolic, so the first step already starts from every messenger state. Every call the exporter makes to 0x..07 is exactly the export payload for that step's arguments, with H computed with block.chainid and block.timestamp, and only when `successfulMessages[H]` was false before the step. It never calls 0x..16. The proxy slots and slots 0..3 never change; the implementation has no state variables. | PASS |
-| `ReachBridgeHalmos.check_reach_bridge_sequence2` | Two steps over the bridge (sendETH, relayETH, refundETH) **and** ETHLiquidity (burn, fund, mint), plus unknown selectors. refunded[K] never goes true → false, and goes false → true only in refundETH whose arguments hash to K with expiredMessages[K]. ETHLiquidity's balance decreases, i.e. a mint, only in relayETH called by 0x..23 with context sender == the bridge, or in refundETH, and by exactly the amount. With three steps the run exceeded 20 minutes. | PASS |
+| `ReachBridgeHalmos.check_reach_bridge_step` | One step from fully symbolic bridge and messenger storage, which covers every state, reachable or not; two- and three-step sequences exceeded 40 minutes, and every property here is a one-step transition property. The step is over the bridge (sendETH, relayETH, refundETH) **and** ETHLiquidity (burn, fund, mint), plus unknown selectors. refunded[K] never goes true → false, and goes false → true only in refundETH whose arguments hash to K with expiredMessages[K]. ETHLiquidity's balance decreases, i.e. a mint, only in relayETH called by 0x..23 with context sender == the bridge, or in refundETH, and by exactly the amount. With three steps the run exceeded 20 minutes. | PASS |
 | `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` | Two steps, each one of: sendMessage, relayMessage (any caller including A's portal; target a codeless account, A's L1CDM or A's portal, because arbitrary relay targets are the gate checks' job), relayUndeliveredMessage (any caller, including the mock messengers through symbolic aliasing), initialize, or an unknown selector, all with symbolic arguments. Three steps exceeded 40 minutes, and the earlier `createCalldata` form got stuck on symbolic offsets. A's L1CDM is the **envelope sender** of a deposit only in a relayUndeliveredMessage step. A sendMessage step's deposit carries that step's caller as the sender. Nothing else deposits, and there is at most one deposit per step. | PASS |
 | `check_FALSE_reach_*` (one per contract) | Non-vacuity: expiry is reached, the exporter does call 0x..07, liquidity is minted, and the L1CDM is the self-sender. | FAIL |
 
@@ -281,7 +287,7 @@ constant's value.
 | `ReachL2ToL2Halmos` | `check_reach_sequence2` | `check_FALSE_reach_expiredNeverSet` |
 | `ReachL2ToL2Halmos` | `check_reach_step_symbolicStorage` | `check_FALSE_reach_step_noTransition` |
 | `ReachExporterHalmos` | `check_reach_exporter_sequence2` | `check_FALSE_reach_exporterNeverCalls` |
-| `ReachBridgeHalmos` | `check_reach_bridge_sequence2` | `check_FALSE_reach_liquidityNeverMints` |
+| `ReachBridgeHalmos` | `check_reach_bridge_step` | `check_FALSE_reach_liquidityNeverMints` |
 | `ReachL1CDMHalmos` | `check_reach_l1cdm_sequence2` | `check_FALSE_reach_l1cdmNeverSelfSender` |
 
 ## Assumptions, mocks and bounds
@@ -494,3 +500,6 @@ and R3. Verdict: high confidence in the local statements, with no critical findi
 | 6 | R1, R2, R3 | Expected-FAIL timeouts, the createCalldata wording, the exporter's observation scope, whole-contract frames, the portal value-mismatch replay path, the scope of the benign-warning whitelist, and `from == 0`. | **Fixed or documented.** The timeout limitation is stated exactly. The createCalldata wording is narrowed, and the exporter's observation scope is stated. Whole-contract frames are now the phase-2 reachability checks. The value mismatch is in the gate frame. The whitelist applies only to the refund groups. `from != 0` is assumed in the refund checks, since msg.sender is never 0 on chain. |
 | 7 | R1 | Stale text (old NatSpec, orphan struct doc, a sentence about relay to 0x..16, commit references). | **Fixed.** Commit hashes are replaced by design descriptions. |
 | 8 | integrator | Every headline PASS property needs an automated non-vacuity check. | **Done.** Each PASS check is paired with an expected-FAIL witness in `expected.tsv`, and seven witnesses were added. `run.sh` enforces the pairing and requires every witness to produce a validated counterexample. See "Non-vacuity". |
+| 9 | non-vacuity rule | The new witness pairing caught a vacuous PASS: in `ReachL1CDMHalmos`, A's SystemConfig mock kept INTEROP and paused at their concrete `false`, because they are packed with the messenger in a slot written in setUp, so symbolic storage left them concrete. relayUndeliveredMessage therefore always reverted, and the witness `check_FALSE_reach_l1cdmNeverSelfSender` PASSED. | **Fixed.** Both flags are now set from fresh symbolic values, and the witness fails with a validated counterexample. This was a harness bug, not a contract bug. |
+| 10 | (self) | `run.sh` passed `--default-bytes-lengths` on the command line, which silently overrode the reachability checks' smaller per-function sets and made them time out. | **Fixed.** Defaults moved to `halmos.toml`; `BYTES_LENGTHS` remains an explicit global override. |
+| 11 | (self) | The L2ToL2 reach check's unknown-selector step sent two symbolic words. Through the proxy's `upgradeToAndCall(address,bytes)` selector, the second word became a symbolic ABI offset, and halmos got stuck on it. | **Fixed.** One word of arguments, as in the other reach contracts. A non-admin call to any proxy selector is still covered: it is forwarded and must revert. |

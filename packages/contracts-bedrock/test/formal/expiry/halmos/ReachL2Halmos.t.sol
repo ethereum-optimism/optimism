@@ -330,17 +330,16 @@ contract ReachBridgeHalmos is ProxyHarness {
         if (k >= UNKNOWN_BRIDGE) assert(!ok);
     }
 
-    /// @notice Two steps over both contracts (three exceeded 20 minutes); expired set and refunded map arbitrary
-    ///         (symbolic storage, so the first step already starts from every state); symbolic liquidity balance.
-    function check_reach_bridge_sequence2(
-        uint256 _chainId,
-        bytes32 _k,
-        uint256 _liq,
-        Step memory _s1,
-        Step memory _s2
-    )
-        public
-    {
+    /// @notice One step over both contracts from FULLY symbolic bridge storage (refunded) and messenger storage
+    ///         (expiredMessages, context), with a symbolic liquidity balance: so the transition properties hold from
+    ///         every state, reachable or not. (Two- and three-step sequences exceeded 40 minutes; since every
+    ///         property is a one-step transition property, symbolic initial state subsumes the sequence.)
+    function check_reach_bridge_step(uint256 _chainId, bytes32 _k, uint256 _liq, Step memory _s1) public {
+        _bridgeWorld(_chainId, _liq);
+        _step(_s1, _k);
+    }
+
+    function _bridgeWorld(uint256 _chainId, uint256 _liq) internal {
         vm.chainId(_chainId);
         svm.enableSymbolicStorage(L2_TO_L2);
         svm.enableSymbolicStorage(BRIDGE);
@@ -348,25 +347,12 @@ contract ReachBridgeHalmos is ProxyHarness {
         vm.store(BRIDGE, Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(bridgeImpl))));
         vm.assume(_liq <= BOUND);
         vm.deal(LIQUIDITY, _liq);
-        _step(_s1, _k);
-        _step(_s2, _k);
     }
 
-    /// @notice NON-VACUITY (expected FAIL): ETHLiquidity's balance never decreases within two steps.
-    function check_FALSE_reach_liquidityNeverMints(
-        uint256 _chainId,
-        uint256 _liq,
-        Step memory _s1,
-        Step memory _s2
-    )
-        public
-    {
-        vm.chainId(_chainId);
-        svm.enableSymbolicStorage(L2_TO_L2);
-        vm.assume(_liq <= BOUND);
-        vm.deal(LIQUIDITY, _liq);
-        _step(_s1, bytes32(0));
-        _step(_s2, bytes32(0));
+    /// @notice NON-VACUITY (expected FAIL): ETHLiquidity's balance never decreases in one step (same world).
+    function check_FALSE_reach_liquidityNeverMints(uint256 _chainId, bytes32 _k, uint256 _liq, Step memory _s1) public {
+        _bridgeWorld(_chainId, _liq);
+        _step(_s1, _k);
         assert(LIQUIDITY.balance >= _liq);
     }
 }
