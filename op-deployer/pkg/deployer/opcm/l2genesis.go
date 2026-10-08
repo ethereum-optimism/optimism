@@ -37,6 +37,7 @@ type L2GenesisInput struct {
 	NativeAssetLiquidityAmount               *big.Int
 	LiquidityControllerOwner                 common.Address
 	DevFeatureBitmap                         common.Hash
+	L2ToL2MessageExpiryPeriod                *big.Int
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]
