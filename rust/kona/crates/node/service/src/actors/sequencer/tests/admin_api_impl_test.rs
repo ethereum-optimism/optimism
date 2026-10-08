@@ -1,90 +1,18 @@
 use crate::{
-    ConductorError, EngineClientError, SequencerAdminQuery,
-    actors::{MockConductor, MockSequencerEngineClient, sequencer::tests::test_util::test_actor},
+    ConductorError, EngineClientError,
+    actors::{
+        MockConductor, MockSequencerEngineClient,
+        sequencer::tests::test_util::{test_actor, test_actor_with_conductor},
+    },
 };
 use alloy_primitives::B256;
 use alloy_transport::RpcError;
 use kona_protocol::{BlockInfo, L2BlockInfo};
-use kona_rpc::SequencerAdminAPIError;
+use kona_rpc::{
+    AdminApiServer, AdminRpc, SequencerAdminAPIError, SequencerAdminCommand, SequencerAdminHandle,
+};
 use rstest::rstest;
-use tokio::sync::oneshot;
-
-#[rstest]
-#[tokio::test]
-async fn test_is_sequencer_active(
-    #[values(true, false)] active: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    actor.is_active = active;
-
-    let result = async {
-        match via_channel {
-            false => actor.is_sequencer_active().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::SequencerActive(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    assert!(result.is_ok());
-    assert_eq!(active, result.unwrap());
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_is_conductor_enabled(
-    #[values(true, false)] conductor_exists: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    if conductor_exists {
-        actor.conductor = Some(MockConductor::new())
-    };
-
-    let result = async {
-        match via_channel {
-            false => actor.is_conductor_enabled().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ConductorEnabled(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    assert!(result.is_ok());
-    assert_eq!(conductor_exists, result.unwrap());
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_in_recovery_mode(
-    #[values(true, false)] recovery_mode: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    actor.in_recovery_mode = recovery_mode;
-
-    let result = async {
-        match via_channel {
-            false => actor.in_recovery_mode().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::RecoveryMode(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    assert!(result.is_ok());
-    assert_eq!(recovery_mode, result.unwrap());
-}
+use tokio::sync::{mpsc, oneshot};
 
 #[rstest]
 #[tokio::test]
@@ -93,12 +21,10 @@ async fn test_start_sequencer(
     #[values(true, false)] via_channel: bool,
 ) {
     let mut actor = test_actor();
-    actor.is_active = already_started;
+    actor.update_state(|state| state.active = already_started);
 
-    // verify starting state
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), already_started);
+    let state = actor.admin_state_receiver();
+    assert_eq!(state.borrow().active, already_started);
 
     // start the sequencer
     let result = async {
@@ -106,7 +32,7 @@ async fn test_start_sequencer(
             false => actor.start_sequencer().await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
+                actor.handle_admin_command(SequencerAdminCommand::StartSequencer(tx)).await;
                 rx.await.unwrap()
             }
         }
@@ -114,10 +40,7 @@ async fn test_start_sequencer(
     .await;
     assert!(result.is_ok());
 
-    // verify it is started
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert!(result.unwrap());
+    assert!(state.borrow().active);
 }
 
 #[rstest]
@@ -137,12 +60,10 @@ async fn test_stop_sequencer_success(
 
     let mut actor = test_actor();
     actor.engine_client = client;
-    actor.is_active = !already_stopped;
+    actor.update_state(|state| state.active = !already_stopped);
 
-    // verify starting state
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), !already_stopped);
+    let state = actor.admin_state_receiver();
+    assert_eq!(state.borrow().active, !already_stopped);
 
     // stop the sequencer
     let result = async {
@@ -150,7 +71,7 @@ async fn test_stop_sequencer_success(
             false => actor.stop_sequencer().await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
+                actor.handle_admin_command(SequencerAdminCommand::StopSequencer(tx)).await;
                 rx.await.unwrap()
             }
         }
@@ -159,22 +80,20 @@ async fn test_stop_sequencer_success(
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), expected_hash);
 
-    // verify ending state
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert!(!result.unwrap());
+    assert!(!state.borrow().active);
 }
 
 #[rstest]
 #[tokio::test]
 async fn test_stop_sequencer_error_fetching_unsafe_head(#[values(true, false)] via_channel: bool) {
-    let mut client = MockSequencerEngineClient::new();
-    client
-        .expect_get_unsafe_head()
-        .times(1)
-        .return_once(|| Err(EngineClientError::RequestError("whoops!".to_string())));
-
     let mut actor = test_actor();
+    let state = actor.admin_state_receiver();
+    let mut client = MockSequencerEngineClient::new();
+    client.expect_get_unsafe_head().times(1).return_once(move || {
+        assert!(!state.borrow().active, "stop must publish before reading the unsafe head");
+        Err(EngineClientError::RequestError("whoops!".to_string()))
+    });
+
     actor.engine_client = client;
 
     let result = async {
@@ -182,7 +101,7 @@ async fn test_stop_sequencer_error_fetching_unsafe_head(#[values(true, false)] v
             false => actor.stop_sequencer().await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
+                actor.handle_admin_command(SequencerAdminCommand::StopSequencer(tx)).await;
                 rx.await.unwrap()
             }
         }
@@ -194,7 +113,7 @@ async fn test_stop_sequencer_error_fetching_unsafe_head(#[values(true, false)] v
         result.unwrap_err(),
         SequencerAdminAPIError::ErrorAfterSequencerWasStopped(_)
     ));
-    assert!(!actor.is_active);
+    assert!(!actor.state().active);
 }
 
 #[rstest]
@@ -205,12 +124,10 @@ async fn test_set_recovery_mode(
     #[values(true, false)] via_channel: bool,
 ) {
     let mut actor = test_actor();
-    actor.in_recovery_mode = starting_mode;
+    actor.update_state(|state| state.recovery_mode = starting_mode);
 
-    // verify starting state
-    let result = actor.in_recovery_mode().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), starting_mode);
+    let state = actor.admin_state_receiver();
+    assert_eq!(state.borrow().recovery_mode, starting_mode);
 
     // set recovery mode
     let result = async {
@@ -219,7 +136,7 @@ async fn test_set_recovery_mode(
             true => {
                 let (tx, rx) = oneshot::channel();
                 actor
-                    .handle_admin_query(SequencerAdminQuery::SetRecoveryMode(mode_to_set, tx))
+                    .handle_admin_command(SequencerAdminCommand::SetRecoveryMode(mode_to_set, tx))
                     .await;
                 rx.await.unwrap()
             }
@@ -228,10 +145,7 @@ async fn test_set_recovery_mode(
     .await;
     assert!(result.is_ok());
 
-    // verify it is set
-    let result = actor.in_recovery_mode().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), mode_to_set);
+    assert_eq!(state.borrow().recovery_mode, mode_to_set);
 }
 
 #[rstest]
@@ -254,15 +168,11 @@ async fn test_override_leader(
             conductor.expect_override_leader().times(1).return_once(move || {
                 Err(ConductorError::Rpc(RpcError::local_usage_str(conductor_error_string)))
             });
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
+            test_actor_with_conductor(Some(conductor))
         } else {
             let mut conductor = MockConductor::new();
             conductor.expect_override_leader().times(1).return_once(|| Ok(()));
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
+            test_actor_with_conductor(Some(conductor))
         }
     };
 
@@ -272,7 +182,7 @@ async fn test_override_leader(
             false => actor.override_leader().await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::OverrideLeader(tx)).await;
+                actor.handle_admin_command(SequencerAdminCommand::OverrideLeader(tx)).await;
                 rx.await.unwrap()
             }
         }
@@ -305,7 +215,9 @@ async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_chann
             false => actor.reset_derivation_pipeline().await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
+                actor
+                    .handle_admin_command(SequencerAdminCommand::ResetDerivationPipeline(tx))
+                    .await;
                 rx.await.unwrap()
             }
         }
@@ -332,7 +244,9 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
             false => actor.reset_derivation_pipeline().await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
+                actor
+                    .handle_admin_command(SequencerAdminCommand::ResetDerivationPipeline(tx))
+                    .await;
                 rx.await.unwrap()
             }
         }
@@ -345,7 +259,7 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
 
 #[rstest]
 #[tokio::test]
-async fn test_handle_admin_query_resilient_to_dropped_receiver() {
+async fn test_handle_admin_command_resilient_to_dropped_receiver() {
     let mut conductor = MockConductor::new();
     conductor.expect_override_leader().times(1).returning(|| Ok(()));
 
@@ -357,54 +271,96 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     client.expect_get_unsafe_head().times(1).returning(move || Ok(unsafe_head));
     client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
 
-    let mut actor = test_actor();
-    actor.conductor = Some(conductor);
+    let mut actor = test_actor_with_conductor(Some(conductor));
     actor.engine_client = client;
 
-    let mut queries: Vec<SequencerAdminQuery> = Vec::new();
+    let mut commands: Vec<SequencerAdminCommand> = Vec::new();
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::SequencerActive(tx));
+        commands.push(SequencerAdminCommand::StartSequencer(tx));
     }
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StartSequencer(tx));
+        commands.push(SequencerAdminCommand::StopSequencer(tx));
     }
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StopSequencer(tx));
+        commands.push(SequencerAdminCommand::SetRecoveryMode(true, tx));
     }
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::ConductorEnabled(tx));
+        commands.push(SequencerAdminCommand::OverrideLeader(tx));
     }
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::RecoveryMode(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::SetRecoveryMode(true, tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::OverrideLeader(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::ResetDerivationPipeline(tx));
+        commands.push(SequencerAdminCommand::ResetDerivationPipeline(tx));
     }
 
     // None of these should fail even if the receiver is dropped
-    for query in queries {
-        actor.handle_admin_query(query).await;
+    for command in commands {
+        actor.handle_admin_command(command).await;
     }
+}
+
+/// Status reads observe completed commands without queueing a second actor request.
+#[tokio::test]
+async fn rpc_reads_published_state_after_commands() {
+    let mut actor = test_actor_with_conductor(Some(MockConductor::new()));
+    actor.update_state(|state| state.active = false);
+    let (commands_tx, commands_rx) = mpsc::channel(1);
+    actor.admin_command_rx = commands_rx;
+    let (payloads_tx, _payloads_rx) = mpsc::channel(1);
+    let rpc = AdminRpc::new(
+        Some(SequencerAdminHandle::new(actor.admin_state_receiver(), commands_tx)),
+        payloads_tx,
+    );
+    let hash = B256::repeat_byte(42);
+    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+    actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash, ..Default::default() },
+            ..Default::default()
+        })
+    });
+
+    let ((), ()) = tokio::join!(
+        async {
+            assert!(!rpc.admin_sequencer_active().await.unwrap());
+            assert!(rpc.admin_conductor_enabled().await.unwrap());
+            assert!(!rpc.admin_recover_mode().await.unwrap());
+            rpc.admin_start_sequencer().await.unwrap();
+            assert!(rpc.admin_sequencer_active().await.unwrap());
+            rpc.admin_set_recover_mode(true).await.unwrap();
+            assert!(rpc.admin_recover_mode().await.unwrap());
+            assert_eq!(rpc.admin_stop_sequencer().await.unwrap(), hash);
+            assert!(!rpc.admin_sequencer_active().await.unwrap());
+        },
+        async {
+            for _ in 0..3 {
+                crate::NodeActor::step(&mut actor).await.unwrap();
+            }
+        }
+    );
+}
+
+/// State remains authoritative even when admin RPC is disabled or has no subscribers.
+#[tokio::test]
+async fn state_updates_without_rpc_subscribers() {
+    let mut actor = test_actor();
+    actor.set_recovery_mode(true).await.unwrap();
+    assert!(actor.state().recovery_mode);
+    let receiver = actor.admin_state_receiver();
+    assert!(receiver.borrow().recovery_mode);
+    drop(receiver);
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
+    actor.engine_client = engine;
+    actor.stop_sequencer().await.unwrap();
+    assert!(!actor.state().active);
+    assert!(!actor.admin_state_receiver().borrow().active);
 }

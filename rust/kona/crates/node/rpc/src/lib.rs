@@ -10,10 +10,9 @@
 extern crate tracing;
 
 mod admin;
-pub use admin::{AdminRpc, NetworkAdminQuery};
-
-mod client;
-pub use client::{SequencerAdminAPIClient, SequencerAdminAPIError};
+pub use admin::{
+    AdminRpc, SequencerAdminAPIError, SequencerAdminCommand, SequencerAdminHandle, SequencerState,
+};
 
 mod config;
 pub use config::RpcBuilder;

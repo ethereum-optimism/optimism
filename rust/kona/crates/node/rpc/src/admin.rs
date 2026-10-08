@@ -1,65 +1,123 @@
 //! Admin RPC Module
 
-use crate::{AdminApiServer, SequencerAdminAPIClient};
+use crate::AdminApiServer;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadError;
 use async_trait::async_trait;
-use core::fmt::Debug;
 use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
+use thiserror::Error;
+use tokio::sync::{mpsc, oneshot, watch};
 
-/// The query types to the network actor for the admin api.
-#[derive(Debug)]
-pub enum NetworkAdminQuery {
-    /// An admin rpc request to post an unsafe payload.
-    PostUnsafePayload {
-        /// The payload to post.
-        payload: OpExecutionPayloadEnvelope,
-    },
+/// Sequencer state shared by the actor and admin RPC readers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SequencerState {
+    /// Whether the sequencer is active.
+    pub active: bool,
+    /// Whether a conductor is configured.
+    pub conductor_enabled: bool,
+    /// Whether the sequencer is in recovery mode.
+    pub recovery_mode: bool,
 }
 
-type NetworkAdminQuerySender = tokio::sync::mpsc::Sender<NetworkAdminQuery>;
-
-/// The admin rpc server.
+/// State-changing admin commands executed by the sequencer actor.
 #[derive(Debug)]
-pub struct AdminRpc<SequencerAdminAPIClient> {
-    /// The sequencer admin API client.
-    pub sequencer_admin_client: Option<SequencerAdminAPIClient>,
-    /// The sender to the network actor.
-    pub network_sender: NetworkAdminQuerySender,
+pub enum SequencerAdminCommand {
+    /// Start sequencing.
+    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// Stop sequencing and return the current unsafe block hash.
+    StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
+    /// Set recovery mode.
+    SetRecoveryMode(bool, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// Override the conductor leader.
+    OverrideLeader(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// Reset the derivation pipeline.
+    ResetDerivationPipeline(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
 }
 
-impl<SequencerAdminAPIClient_> AdminRpc<SequencerAdminAPIClient_>
-where
-    SequencerAdminAPIClient_: SequencerAdminAPIClient,
-{
-    /// Constructs a new [`AdminRpc`] given the sequencer sender and network sender.
-    ///
-    /// # Parameters
-    ///
-    /// - `sequencer_sender`: The [`SequencerAdminAPIClient`] used to fulfill sequencer admin
-    ///   queries.
-    /// - `network_sender`: The sender to the network actor.
-    ///
-    /// # Returns
-    ///
-    /// A new [`AdminRpc`] instance.
+/// Published sequencer state and its admin command queue.
+#[derive(Debug, Clone)]
+pub struct SequencerAdminHandle {
+    state: watch::Receiver<SequencerState>,
+    commands: mpsc::Sender<SequencerAdminCommand>,
+}
+
+impl SequencerAdminHandle {
+    /// Construct a handle from the sequencer's published state and command sender.
     pub const fn new(
-        sequencer_admin_client: Option<SequencerAdminAPIClient_>,
-        network_sender: NetworkAdminQuerySender,
+        state: watch::Receiver<SequencerState>,
+        commands: mpsc::Sender<SequencerAdminCommand>,
     ) -> Self {
-        Self { sequencer_admin_client, network_sender }
+        Self { state, commands }
+    }
+
+    fn snapshot(&self) -> RpcResult<SequencerState> {
+        // Fail if the actor exited, even if its final update has not been read yet.
+        self.state.has_changed().map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        Ok(*self.state.borrow())
+    }
+}
+
+/// Errors that can occur when using the sequencer admin API.
+#[derive(Debug, Error)]
+pub enum SequencerAdminAPIError {
+    /// Error sending request.
+    #[error("Error sending request: {0}.")]
+    RequestError(String),
+
+    /// Sequencer stopped successfully, followed by some error.
+    #[error("Sequencer stopped successfully, followed by error: {0}.")]
+    ErrorAfterSequencerWasStopped(String),
+
+    /// Error overriding leader.
+    #[error("Error overriding leader: {0}.")]
+    LeaderOverrideError(String),
+}
+
+/// The admin RPC server.
+#[derive(Debug)]
+pub struct AdminRpc {
+    sequencer: Option<SequencerAdminHandle>,
+    unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
+}
+
+impl AdminRpc {
+    /// Construct the admin RPC server from an optional sequencer and a payload sender.
+    pub const fn new(
+        sequencer: Option<SequencerAdminHandle>,
+        unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
+    ) -> Self {
+        Self { sequencer, unsafe_payloads }
+    }
+
+    fn sequencer(&self) -> RpcResult<&SequencerAdminHandle> {
+        self.sequencer.as_ref().ok_or_else(|| ErrorObject::from(ErrorCode::MethodNotFound))
+    }
+
+    async fn command<T>(
+        &self,
+        command: impl FnOnce(
+            oneshot::Sender<Result<T, SequencerAdminAPIError>>,
+        ) -> SequencerAdminCommand,
+    ) -> RpcResult<T> {
+        let sequencer = self.sequencer()?;
+        let (tx, rx) = oneshot::channel();
+        sequencer
+            .commands
+            .send(command(tx))
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        rx.await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 }
 
 #[async_trait]
-impl<SequencerAdminAPIClient_> AdminApiServer for AdminRpc<SequencerAdminAPIClient_>
-where
-    SequencerAdminAPIClient_: SequencerAdminAPIClient + 'static + Send + Sync,
-{
+impl AdminApiServer for AdminRpc {
     async fn admin_post_unsafe_payload(
         &self,
         payload: OpExecutionPayloadEnvelope,
@@ -75,105 +133,178 @@ where
             };
             ErrorObject::owned(ErrorCode::InvalidParams.code(), message, None::<()>)
         })?;
-        self.network_sender
-            .send(NetworkAdminQuery::PostUnsafePayload { payload })
+        self.unsafe_payloads
+            .send(payload)
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn admin_sequencer_active(&self) -> RpcResult<bool> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .is_sequencer_active()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        Ok(self.sequencer()?.snapshot()?.active)
     }
 
     async fn admin_start_sequencer(&self) -> RpcResult<()> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .start_sequencer()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.command(SequencerAdminCommand::StartSequencer).await
     }
 
     async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .stop_sequencer()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.command(SequencerAdminCommand::StopSequencer).await
     }
 
     async fn admin_conductor_enabled(&self) -> RpcResult<bool> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .is_conductor_enabled()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        Ok(self.sequencer()?.snapshot()?.conductor_enabled)
     }
 
     async fn admin_recover_mode(&self) -> RpcResult<bool> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .is_recovery_mode()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        Ok(self.sequencer()?.snapshot()?.recovery_mode)
     }
 
     async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .set_recovery_mode(mode)
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.command(|tx| SequencerAdminCommand::SetRecoveryMode(mode, tx)).await
     }
 
     async fn admin_override_leader(&self) -> RpcResult<()> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
-
-        sequencer_client
-            .override_leader()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.command(SequencerAdminCommand::OverrideLeader).await
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
-        // If the sequencer is not enabled (mode runs in validator mode), return an error.
-        let Some(ref sequencer_client) = self.sequencer_admin_client else {
-            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
-        };
+        self.command(SequencerAdminCommand::ResetDerivationPipeline).await
+    }
+}
 
-        sequencer_client
-            .reset_derivation_pipeline()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rpc_types_engine::ExecutionPayloadV1;
+
+    #[tokio::test]
+    async fn reads_published_state_without_queueing_and_rejects_closed_publisher() {
+        let initial =
+            SequencerState { active: false, conductor_enabled: true, recovery_mode: false };
+        let (state_tx, state_rx) = watch::channel(initial);
+        let (commands_tx, _commands_rx) = mpsc::channel(1);
+        let (reply, _) = oneshot::channel();
+        commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
+        let (payloads_tx, _) = mpsc::channel(1);
+        let rpc =
+            AdminRpc::new(Some(SequencerAdminHandle::new(state_rx, commands_tx)), payloads_tx);
+        assert!(!rpc.admin_sequencer_active().await.unwrap());
+        assert!(rpc.admin_conductor_enabled().await.unwrap());
+        assert!(!rpc.admin_recover_mode().await.unwrap());
+
+        let updated = SequencerState { active: true, recovery_mode: true, ..initial };
+        state_tx.send_replace(updated);
+        assert!(rpc.admin_sequencer_active().await.unwrap());
+        assert!(rpc.admin_recover_mode().await.unwrap());
+
+        // Closing with an unread final update must not serve stale status.
+        drop(state_tx);
+        for result in [
+            rpc.admin_sequencer_active().await,
+            rpc.admin_conductor_enabled().await,
+            rpc.admin_recover_mode().await,
+        ] {
+            assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
+        }
+    }
+
+    #[tokio::test]
+    async fn sequencer_methods_are_unavailable_on_validators() {
+        let (tx, _) = mpsc::channel(1);
+        let rpc = AdminRpc::new(None, tx);
+        for result in [
+            rpc.admin_sequencer_active().await.map(|_| ()),
+            rpc.admin_conductor_enabled().await.map(|_| ()),
+            rpc.admin_recover_mode().await.map(|_| ()),
+            rpc.admin_start_sequencer().await,
+            rpc.admin_stop_sequencer().await.map(|_| ()),
+            rpc.admin_set_recover_mode(true).await,
+            rpc.admin_override_leader().await,
+            rpc.admin_reset_derivation_pipeline().await,
+        ] {
+            assert_eq!(result.unwrap_err().code(), ErrorCode::MethodNotFound.code());
+        }
+    }
+
+    #[tokio::test]
+    async fn commands_return_actor_results_and_map_failures() {
+        let (_state_tx, state_rx) = watch::channel(SequencerState {
+            active: true,
+            conductor_enabled: false,
+            recovery_mode: false,
+        });
+        let (commands_tx, mut commands_rx) = mpsc::channel(1);
+        let (payloads_tx, _) = mpsc::channel(1);
+        let rpc =
+            AdminRpc::new(Some(SequencerAdminHandle::new(state_rx, commands_tx)), payloads_tx);
+        let hash = B256::repeat_byte(42);
+        let (result, ()) = tokio::join!(rpc.admin_stop_sequencer(), async {
+            let SequencerAdminCommand::StopSequencer(reply) = commands_rx.recv().await.unwrap()
+            else {
+                panic!("expected stop");
+            };
+            reply.send(Ok(hash)).unwrap();
+        });
+        assert_eq!(result.unwrap(), hash);
+
+        let (result, ()) = tokio::join!(rpc.admin_override_leader(), async {
+            let SequencerAdminCommand::OverrideLeader(reply) = commands_rx.recv().await.unwrap()
+            else {
+                panic!("expected leader override");
+            };
+            reply
+                .send(Err(SequencerAdminAPIError::LeaderOverrideError("unavailable".to_owned())))
+                .unwrap();
+        });
+        assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
+
+        let (result, ()) = tokio::join!(rpc.admin_start_sequencer(), async {
+            drop(commands_rx.recv().await.unwrap());
+        });
+        assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
+        drop(commands_rx);
+        assert_eq!(
+            rpc.admin_start_sequencer().await.unwrap_err().code(),
+            ErrorCode::InternalError.code()
+        );
+    }
+
+    #[tokio::test]
+    async fn validates_payloads_before_forwarding_on_validators() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let rpc = AdminRpc::new(None, tx);
+        let mut payload = ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 30_000_000,
+            gas_used: 0,
+            timestamp: 1,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions: vec![],
+        };
+        let error = rpc
+            .admin_post_unsafe_payload(OpExecutionPayloadEnvelope::V1(payload.clone()))
             .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+            .unwrap_err();
+        assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        assert!(error.message().starts_with("payload has bad block hash:"));
+        assert!(matches!(rx.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+        payload.block_hash = payload.clone().into_block_raw().unwrap().header.hash_slow();
+        let envelope = OpExecutionPayloadEnvelope::V1(payload);
+        rpc.admin_post_unsafe_payload(envelope.clone()).await.unwrap();
+        assert_eq!(rx.recv().await.unwrap(), envelope);
+        drop(rx);
+        assert_eq!(
+            rpc.admin_post_unsafe_payload(envelope).await.unwrap_err().code(),
+            ErrorCode::InternalError.code()
+        );
     }
 }
