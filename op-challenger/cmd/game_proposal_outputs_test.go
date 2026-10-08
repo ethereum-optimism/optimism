@@ -30,7 +30,7 @@ func sampleProposalOutputs() []proposalOutputRecord {
 			L2BlockNumber: ptr.New(uint64(29541759)),
 			ProposedRoot:  "0xede109637900d069eab8a7dfcced76725b303df0cb0feb4c1890903173c9da62",
 			OutputRoot:    "0xede109637900d069eab8a7dfcced76725b303df0cb0feb4c1890903173c9da62",
-			RootMatch:     true,
+			RootMatch:     ptr.New(true),
 			L1Head:        "0x6946284891a0fb032ee9e6050522dbc4c7354a3b6f7ffeed5020548b56bebdf4",
 			L1HeadNumber:  11127878, SafeHead: ptr.New(uint64(29542323)), SafeHeadAtOrAboveBlock: ptr.New(true),
 		},
@@ -40,7 +40,7 @@ func sampleProposalOutputs() []proposalOutputRecord {
 			L2BlockNumber: ptr.New(uint64(100)),
 			ProposedRoot:  "0x1111111111111111111111111111111111111111111111111111111111111111",
 			OutputRoot:    "0x2222222222222222222222222222222222222222222222222222222222222222",
-			RootMatch:     false,
+			RootMatch:     ptr.New(false),
 			L1Head:        "0x3333333333333333333333333333333333333333333333333333333333333333",
 			L1HeadNumber:  50, SafeHead: ptr.New(uint64(90)), SafeHeadAtOrAboveBlock: ptr.New(false),
 		},
@@ -59,12 +59,12 @@ func TestRenderProposalOutputsJSON(t *testing.T) {
 
 	require.NotNil(t, got.Games[0].Index)
 	require.Equal(t, uint64(14231), *got.Games[0].Index)
-	require.True(t, got.Games[0].RootMatch)
+	require.True(t, *got.Games[0].RootMatch)
 	require.True(t, *got.Games[0].SafeHeadAtOrAboveBlock)
 
 	// Explicit-game records omit the factory index entirely (json omitempty).
 	require.Nil(t, got.Games[1].Index)
-	require.False(t, got.Games[1].RootMatch)
+	require.False(t, *got.Games[1].RootMatch)
 	require.False(t, *got.Games[1].SafeHeadAtOrAboveBlock)
 }
 
@@ -128,22 +128,24 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 		{gameTypes.SuperPermissionedGameType, snapshots.LoadSuperFaultDisputeGameABI()},
 		{gameTypes.ZKDisputeGameType, snapshots.LoadZKDisputeGameABI()},
 	}
+	// rootMatch nil means the record carries no verdict.
 	cases := []struct {
 		name       string
 		currentL1  uint64
 		data       *eth.SuperRootResponseData
 		superRoot  string
-		rootMatch  bool
+		rootMatch  *bool
 		nodeSynced bool
 		// Super fault games replace a root that is not derivable by l1Head with the invalid
 		// transition hash; ZK games keep superRoot and rootMatch as listed.
 		invalidForFaultGames bool
 	}{
-		{name: "match", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum}}, superRoot: proposed.Hex(), rootMatch: true, nodeSynced: true},
-		{name: "mismatch", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(other)}, superRoot: other.Hex(), rootMatch: false, nodeSynced: true},
-		{name: "nil data", currentL1: l1HeadNum + 1, data: nil, superRoot: "", rootMatch: false, nodeSynced: true},
-		{name: "node at l1 head", currentL1: l1HeadNum, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed)}, superRoot: proposed.Hex(), rootMatch: true, nodeSynced: false},
-		{name: "verified after l1 head", currentL1: l1HeadNum + 10, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum + 1}}, superRoot: proposed.Hex(), rootMatch: true, nodeSynced: true, invalidForFaultGames: true},
+		{name: "match", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum}}, superRoot: proposed.Hex(), rootMatch: ptr.New(true), nodeSynced: true},
+		{name: "mismatch", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(other)}, superRoot: other.Hex(), rootMatch: ptr.New(false), nodeSynced: true},
+		{name: "nil data", currentL1: l1HeadNum + 1, data: nil, superRoot: "", rootMatch: ptr.New(false), nodeSynced: true},
+		{name: "node at l1 head", currentL1: l1HeadNum, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed)}, nodeSynced: false},
+		{name: "node at l1 head with nil data", currentL1: l1HeadNum, data: nil, nodeSynced: false},
+		{name: "verified after l1 head", currentL1: l1HeadNum + 10, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum + 1}}, superRoot: proposed.Hex(), rootMatch: ptr.New(true), nodeSynced: true, invalidForFaultGames: true},
 	}
 	for _, kind := range gameKinds {
 		for _, tc := range cases {
@@ -165,7 +167,7 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 				require.NoError(t, err)
 				superRoot, rootMatch := tc.superRoot, tc.rootMatch
 				if tc.invalidForFaultGames && kind.gameType != gameTypes.ZKDisputeGameType {
-					superRoot, rootMatch = eth.InvalidTransitionHash.Hex(), false
+					superRoot, rootMatch = eth.InvalidTransitionHash.Hex(), ptr.New(false)
 				}
 				require.Equal(t, proposalOutputRecord{
 					Index:        &index,

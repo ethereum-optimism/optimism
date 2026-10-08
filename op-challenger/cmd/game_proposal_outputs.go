@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,10 +49,9 @@ const proposalOutputsConcurrency = 10
 //   - superroot_atTimestamp(<game l2SequenceNumber>) -> the super root our node derives at that
 //     timestamp, and the L1 block it has processed up to
 //
-// A node that has not processed past the game's l1Head cannot judge the proposal yet, and a
-// missing super root means the timestamp is not safe on our node, so the proposal is invalid.
-// Challengers dispute invalid super-cannon-kona and zk proposals. Super-permissioned games
-// resolve at creation, so an invalid one needs a guardian blacklist instead.
+// A node that has not processed past the game's l1Head cannot judge the proposal yet, so the
+// record carries no root verdict. Once it has, a missing super root means the timestamp is not
+// safe on our node, so the proposal is invalid.
 func GameProposalOutputs(ctx *cli.Context) error {
 	logger, err := setupLogging(ctx)
 	if err != nil {
@@ -260,7 +260,7 @@ func queryOutputRootProposal(ctx context.Context, caller *batching.MultiCaller, 
 	ourRoot := common.Hash(output.OutputRoot)
 	record.L2BlockNumber = ptr.New(meta.L2SequenceNum)
 	record.OutputRoot = ourRoot.Hex()
-	record.RootMatch = ourRoot == meta.ProposedRoot
+	record.RootMatch = ptr.New(ourRoot == meta.ProposedRoot)
 	record.SafeHead = ptr.New(safeHead.SafeHead.Number)
 	record.SafeHeadAtOrAboveBlock = ptr.New(safeHead.SafeHead.Number >= meta.L2SequenceNum)
 	return record, nil
@@ -277,23 +277,30 @@ func querySuperRootProposal(ctx context.Context, caller *batching.MultiCaller, l
 	}
 	record.Timestamp = ptr.New(meta.L2SequenceNum)
 	// Only L1 blocks strictly below CurrentL1 are fully processed, the same gate the challenger applies.
-	record.NodeSynced = ptr.New(resp.CurrentL1.Number > record.L1HeadNumber)
-	if resp.Data != nil {
-		ourRoot := common.Hash(resp.Data.SuperRoot)
-		// Super fault games treat a super root that was not derivable from L1 data up to the game's
-		// l1Head as the invalid transition (trace/super/provider.go). ZK games compare the root as is.
-		if g.gameType != gameTypes.ZKDisputeGameType && resp.Data.VerifiedRequiredL1.Number > record.L1HeadNumber {
-			ourRoot = eth.InvalidTransitionHash
-		}
-		record.SuperRoot = ourRoot.Hex()
-		record.RootMatch = ourRoot == meta.ProposedRoot
+	synced := resp.CurrentL1.Number > record.L1HeadNumber
+	record.NodeSynced = ptr.New(synced)
+	if !synced {
+		return record, nil
 	}
+	if resp.Data == nil {
+		record.RootMatch = ptr.New(false)
+		return record, nil
+	}
+	ourRoot := common.Hash(resp.Data.SuperRoot)
+	// Super fault games treat a super root that was not derivable from L1 data up to the game's
+	// l1Head as the invalid transition (trace/super/provider.go). ZK games compare the root as is.
+	if g.gameType != gameTypes.ZKDisputeGameType && resp.Data.VerifiedRequiredL1.Number > record.L1HeadNumber {
+		ourRoot = eth.InvalidTransitionHash
+	}
+	record.SuperRoot = ourRoot.Hex()
+	record.RootMatch = ptr.New(ourRoot == meta.ProposedRoot)
 	return record, nil
 }
 
 // proposalOutputRecord is the structured, machine-readable view of one game's proposal vs our node.
 // Output-root games set L2BlockNumber, OutputRoot and the safe-head fields; super-root games set
-// Timestamp, SuperRoot and NodeSynced. The other kind's fields are omitted from JSON.
+// Timestamp, SuperRoot and NodeSynced. The other kind's fields are omitted from JSON. Super-root
+// records omit SuperRoot and RootMatch while the node is not synced past L1Head.
 type proposalOutputRecord struct {
 	Index                  *uint64 `json:"index,omitempty"` // factory index, omitted for explicit game args
 	Game                   string  `json:"game"`
@@ -303,7 +310,7 @@ type proposalOutputRecord struct {
 	OutputRoot             string  `json:"outputRoot,omitempty"`             // what our node derives at L2BlockNumber
 	Timestamp              *uint64 `json:"timestamp,omitempty"`              // super-root timestamp the game proposes
 	SuperRoot              string  `json:"superRoot,omitempty"`              // what our node derives at Timestamp; omitted when it has none
-	RootMatch              bool    `json:"rootMatch"`                        // our root == ProposedRoot
+	RootMatch              *bool   `json:"rootMatch,omitempty"`              // our root == ProposedRoot
 	L1Head                 string  `json:"l1Head"`                           // game's L1 head anchor (hash)
 	L1HeadNumber           uint64  `json:"l1HeadNumber"`                     // L1 head block number
 	SafeHead               *uint64 `json:"safeHead,omitempty"`               // our node's safe head at L1Head
@@ -328,7 +335,7 @@ func renderProposalOutputsText(out io.Writer, records []proposalOutputRecord) er
 		}
 		for _, r := range outputRoots {
 			if _, err := fmt.Fprintf(out, lineFormat,
-				r.Game, r.Status, *r.L2BlockNumber, r.OutputRoot, r.RootMatch,
+				r.Game, r.Status, *r.L2BlockNumber, r.OutputRoot, *r.RootMatch,
 				r.L1HeadNumber, *r.SafeHead, *r.SafeHeadAtOrAboveBlock); err != nil {
 				return err
 			}
@@ -348,12 +355,15 @@ func renderProposalOutputsText(out io.Writer, records []proposalOutputRecord) er
 		return err
 	}
 	for _, r := range superRoots {
-		superRoot := r.SuperRoot
+		superRoot, rootMatch := r.SuperRoot, "-"
 		if superRoot == "" {
 			superRoot = "-"
 		}
+		if r.RootMatch != nil {
+			rootMatch = strconv.FormatBool(*r.RootMatch)
+		}
 		if _, err := fmt.Fprintf(out, lineFormat,
-			r.Game, r.Status, *r.Timestamp, superRoot, r.RootMatch, r.L1HeadNumber, *r.NodeSynced); err != nil {
+			r.Game, r.Status, *r.Timestamp, superRoot, rootMatch, r.L1HeadNumber, *r.NodeSynced); err != nil {
 			return err
 		}
 	}

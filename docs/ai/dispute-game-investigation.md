@@ -64,13 +64,14 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
      `timestamp`, `superRoot` (absent when the node has no super root there, which makes the
      proposal invalid; for super-cannon-kona and super-permissioned, the invalid-transition hash
      when the root's `VerifiedRequiredL1` is past `l1Head`), `rootMatch`, and `nodeSynced`
-     (`current_l1 > l1Head`; when false the challenger waits rather than acting). Super-root
-     records omit `l2BlockNumber`, `outputRoot` and the safe-head fields. Challengers dispute
-     invalid super-cannon-kona and zk proposals; super-permissioned games resolve DEFENDER_WINS at
-     creation, so `rootMatch=false` there needs a guardian blacklist in the `AnchorStateRegistry`
-     (op-dispute-mon alerts on it). For zk games `rootMatch` covers only the root: the challenger
-     also challenges any child of a parent that resolved CHALLENGER_WINS, so check the parent's
-     status with `list-games`.
+     (`current_l1 > l1Head`). When `nodeSynced` is false the node cannot judge the proposal yet,
+     so `superRoot` and `rootMatch` are omitted, the same way the challenger waits rather than
+     acting. Super-root records omit `l2BlockNumber`, `outputRoot` and the safe-head fields.
+     Challengers dispute invalid super-cannon-kona and zk proposals; super-permissioned games
+     resolve DEFENDER_WINS at creation, so `rootMatch=false` there needs a guardian blacklist in the
+     `AnchorStateRegistry` (op-dispute-mon alerts on it). For zk games `rootMatch` covers only the
+     root: the challenger also challenges any child of a parent that resolved CHALLENGER_WINS, so
+     check the parent's status with `list-games`.
    - `op-challenger/scripts/check-game-block-hashes.sh <node-rpc> <ref-rpc> <blocks…>` — block-hash
      cross-check (a mismatch = real divergence).
 
