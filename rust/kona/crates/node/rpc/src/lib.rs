@@ -33,7 +33,7 @@ pub use jsonrpsee::{
 pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
-pub use rollup::{OutputProvider, RollupRpc};
+pub use rollup::{OutputError, OutputProvider, RollupRpc};
 
 mod l1_watcher;
 pub use l1_watcher::{L1State, L1WatcherQueries, L1WatcherQuerySender};

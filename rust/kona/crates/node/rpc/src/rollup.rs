@@ -3,41 +3,91 @@
 //! Implemented in the op-node in <https://github.com/ethereum-optimism/optimism/blob/174e55f0a1e73b49b80a561fd3fedd4fea5770c6/op-service/sources/rollupclient.go#L16>
 
 use alloy_eips::BlockNumberOrTag;
+use alloy_provider::Provider;
+use alloy_transport::TransportError;
 use async_trait::async_trait;
 use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::{EngineClient, EngineClientError, EngineState};
+use kona_engine::EngineState;
 use kona_genesis::RollupConfig;
-use kona_protocol::{L2BlockInfo, OutputRoot, SyncStatus};
+use kona_protocol::{FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
+use op_alloy_network::Optimism;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 
 use crate::{
     L1WatcherQueries, OutputResponse, RollupNodeApiServer, l1_watcher::L1WatcherQuerySender,
 };
 
+/// An error encountered while reading or computing an L2 output.
+#[derive(Error, Debug)]
+pub enum OutputError {
+    /// An RPC error occurred.
+    #[error("An RPC error occurred: {0}")]
+    RpcError(#[from] TransportError),
+
+    /// An error occurred while decoding the payload.
+    #[error("An error occurred while decoding the payload: {0}")]
+    BlockInfoDecodeError(#[from] FromBlockError),
+
+    /// No L2 block was found for the requested number or tag.
+    #[error("No L2 block found for block number or tag: {0}")]
+    NoL2BlockFound(BlockNumberOrTag),
+
+    /// The block has no withdrawals root while Isthmus is active.
+    #[error("No block withdrawals root while Isthmus is active")]
+    NoWithdrawalsRoot,
+}
+
 /// The read-only L2 output query needed by [`RollupRpc`].
 pub trait OutputProvider: Send + Sync {
     /// An error encountered while reading or computing an output.
     type Error;
 
-    /// Reads the L2 block and computes its output root.
+    /// Reads the L2 block and computes its output root using the configured genesis and fork rules.
     fn output_at_block(
         &self,
         block: BlockNumberOrTag,
+        config: &RollupConfig,
     ) -> impl Future<Output = Result<(L2BlockInfo, OutputRoot), Self::Error>> + Send;
 }
 
-impl OutputProvider for EngineClient {
-    type Error = EngineClientError;
+impl<P: Provider<Optimism>> OutputProvider for P {
+    type Error = OutputError;
 
     async fn output_at_block(
         &self,
         block: BlockNumberOrTag,
+        config: &RollupConfig,
     ) -> Result<(L2BlockInfo, OutputRoot), Self::Error> {
-        Self::output_at_block(self, block).await
+        let output_block = self.get_block_by_number(block).full().await?;
+        let output_block = output_block.ok_or(OutputError::NoL2BlockFound(block))?;
+        // Decode the block info from the fetched block rather than making another request.
+        let consensus_block = output_block.clone().into_consensus();
+        let output_block_info = L2BlockInfo::from_block_and_genesis(
+            &consensus_block.map_transactions(|tx| tx.inner.inner.into_inner()),
+            &config.genesis,
+        )?;
+
+        let message_passer_storage_root = if config.is_isthmus_active(output_block.header.timestamp)
+        {
+            output_block.header.withdrawals_root.ok_or(OutputError::NoWithdrawalsRoot)?
+        } else {
+            self.get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
+                .block_id(block.into())
+                .await?
+                .storage_hash
+        };
+
+        let output_root = OutputRoot::from_parts(
+            output_block.header.state_root,
+            message_passer_storage_root,
+            output_block.header.hash,
+        );
+        Ok((output_block_info, output_root))
     }
 }
 
@@ -100,7 +150,7 @@ impl<L2: OutputProvider + 'static> RollupNodeApiServer for RollupRpc<L2> {
         let ((l2_block_info, output_root), sync_status) = tokio::try_join!(
             async {
                 self.l2
-                    .output_at_block(block_num)
+                    .output_at_block(block_num, &self.config)
                     .await
                     .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
             },
@@ -130,8 +180,11 @@ mod tests {
     use super::*;
     use crate::L1State;
     use alloy_primitives::B256;
-    use kona_engine::test_utils::{TestEngineStateBuilder, test_engine_client};
+    use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
+    use kona_engine::test_utils::{RpcMock, TestEngineStateBuilder, test_engine_client};
     use kona_protocol::{BlockInfo, L2BlockInfo};
+    use op_alloy_rpc_types::Transaction;
+    use serde_json::json;
     use tokio::sync::mpsc;
 
     struct TestOutputProvider {
@@ -145,9 +198,43 @@ mod tests {
         async fn output_at_block(
             &self,
             block: BlockNumberOrTag,
+            _config: &RollupConfig,
         ) -> Result<(L2BlockInfo, OutputRoot), Self::Error> {
             assert_eq!(block, self.block);
             self.output
+        }
+    }
+
+    #[tokio::test]
+    async fn computes_output_roots_using_an_optimism_provider() {
+        for isthmus in [false, true] {
+            let mut block = Block::<Transaction>::default();
+            block.header.inner.state_root = B256::repeat_byte(1);
+            block.header.inner.withdrawals_root = Some(B256::repeat_byte(2));
+            block.header.hash = block.header.inner.hash_slow();
+            let mut config = RollupConfig::default();
+            config.genesis.l2.hash = block.header.hash;
+            config.hardforks.isthmus_time = isthmus.then_some(0);
+            let mock = RpcMock::default();
+            let provider = mock.provider::<Optimism>();
+            mock.expect_params("eth_getBlockByNumber", json!(["0x0", true]), &block);
+            let storage_hash = if isthmus { B256::repeat_byte(2) } else { B256::repeat_byte(3) };
+            if !isthmus {
+                mock.expect_params(
+                    "eth_getProof",
+                    json!([Predeploys::L2_TO_L1_MESSAGE_PASSER, [], "0x0"]),
+                    EIP1186AccountProofResponse { storage_hash, ..Default::default() },
+                );
+            }
+            let (info, root) =
+                provider.output_at_block(BlockNumberOrTag::Number(0), &config).await.unwrap();
+            assert_eq!(info.block_info.hash, block.header.hash);
+            assert_eq!(
+                root.hash(),
+                OutputRoot::from_parts(block.header.state_root, storage_hash, block.header.hash)
+                    .hash()
+            );
+            mock.assert_finished();
         }
     }
 

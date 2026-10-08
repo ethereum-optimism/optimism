@@ -24,9 +24,12 @@ kona-engine.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
 
 # OP Alloy
+op-alloy-network.workspace = true
 op-alloy-rpc-types-engine = {workspace = true, features = ["serde", "std"]}
 
 # Alloy
+alloy-provider.workspace = true
+alloy-transport.workspace = true
 alloy-eips = { workspace = true, features = ["serde", "std"] }
 alloy-rpc-types-engine = { workspace = true, features = ["serde", "std"] }
 alloy-primitives = { workspace = true, features = ["map", "rlp", "serde", "std"] }
@@ -59,6 +62,9 @@ op-alloy-rpc-jsonrpsee.workspace = true
 alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 
 [dev-dependencies]
+alloy-rpc-types-eth.workspace = true
+op-alloy-rpc-types.workspace = true
+serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
