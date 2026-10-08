@@ -565,7 +565,7 @@ theorem ethbridge_block_1848 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem 
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r2 := RD.genMload r1 (by evm_kdecide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 18074760117491723492711543516830290912764447529838340178131556265193451290624) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 4283108933445421824756484206644851292164488533893701873295093031910181437440) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r4 := r3.dup2 (by evm_kdecide) (by evm_ov)
   have r5 := RD.genMstore r4 (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)
@@ -672,7 +672,7 @@ theorem ethbridge_block_1921 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem 
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r2 := RD.genMload r1 (by evm_kdecide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 76155408980881028472196328796264378881531830510794594231919978036997205786624) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 19663479255927283481287023152847279242139961893411169798514943407892948058112) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r4 := r3.dup2 (by evm_kdecide) (by evm_ov)
   have r5 := RD.genMstore r4 (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)

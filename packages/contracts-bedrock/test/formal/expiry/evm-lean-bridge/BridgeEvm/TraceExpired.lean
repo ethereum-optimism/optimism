@@ -21,7 +21,7 @@ set_option maxHeartbeats 4000000 in
     the calldata `expiredCalldata H`) succeeded, returned at least 32 bytes whose first word is
     `1`, and execution continues at pc 1897. The reverting cases are: call depth 1024, the call
     failed, fewer than 32 bytes returned, a non-boolean first word, or the first word `0`
-    (`MessageNotExpired`). -/
+    (`SuperchainETHBridge_MessageNotExpired`). -/
 theorem seg_expired {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     {aw : UInt256} {k C : ℕ} {H : UInt256}
     (h : RD ethbridgeRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 1699)

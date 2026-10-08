@@ -57,11 +57,11 @@ works for any contract. See `../evm-lean-kernel/README.md`.
 
 | | |
 |---|---|
-| Source | `src/L2/SuperchainETHBridge.sol` at `5992028e08` (tip of `karl/message-expiry-refunds` when this was written). Re-checked at the later tip `52ff613e14`: `SuperchainETHBridge.sol`, `SafeSend.sol`, `Hashing.sol` and `foundry.toml` are unchanged, and the `semver-lock.json` init-code hash is identical. |
+| Source | `src/L2/SuperchainETHBridge.sol` at `c7c51d79e2` (tip of `karl/message-expiry-refunds` after the guideline pass that renamed the errors to `SuperchainETHBridge_MessageNotExpired` / `SuperchainETHBridge_AlreadyRefunded`). Relative to the earlier target `5992028e08`, the runtime differs only in the two revert-selector `PUSH32` operands (pcs 1852 and 1925). The proof rebuilt unchanged; only the concrete selector checks were updated. |
 | Compiler | solc `0.8.15+commit.e14f2714` via forge 1.8.1, repository **default** profile |
 | Settings | `{"evmVersion":"london","libraries":{},"metadata":{"bytecodeHash":"none"},"optimizer":{"enabled":true,"runs":999999}}` (solc 0.8.15 caps the profile's `cancun` at `london`) |
-| Runtime | 3131 bytes, `keccak256 = 0x74d5d26355c633189db6e892ba12456b1481ade7a2446b295dbc1d42cc32d2a2` (`bytecode/SuperchainETHBridge.runtime.hex`) |
-| Init code | `keccak256 = 0x7387ae889af66f29bcd2f95e32e06ddfab05be17bd9dd2671195815bd32b596a` = `initCodeHash` in `snapshots/semver-lock.json` |
+| Runtime | 3131 bytes, `keccak256 = 0x403a710da33008eb30fabda2f7599c9ff3107a2f24e632f268f98ba87f12b7c8` (`bytecode/SuperchainETHBridge.runtime.hex`) |
+| Init code | `keccak256 = 0xa9040c1ceb1ed6a404351ae4fdbfd6f20f2b088219b8e5d9e421d5b73e2ce22b` = `initCodeHash` in `snapshots/semver-lock.json` |
 | SafeSend creation code | 89 bytes, `keccak256 = 0xfd5b265533779bec7c59f23224f55fcae732beb46dc9a7ebe6b132230063c8e5` (`bytecode/SafeSend.creation.hex`). It is embedded in the bridge runtime at offset 3030, which is the `CODECOPY` source of `new SafeSend`. |
 | Lean | `BridgeEvm/Bytecode.lean` (`ethbridgeRuntime`, one flat literal, generated). Its JUMPDEST table is checked by the kernel. |
 
@@ -194,7 +194,7 @@ run arbitrary code as far as this proof is concerned, so a claim about `σ'` wou
 assumed) callee code. No frame assumption is made.
 
 **At most once, within this proof's scope:** in `σ₂`, `refunded[H]` reads true
-(`setTrueWord_lowByte`), so a later `refundETH` for the same `H` reverts with `AlreadyRefunded`
+(`setTrueWord_lowByte`), so a later `refundETH` for the same `H` reverts with `SuperchainETHBridge_AlreadyRefunded`
 *provided the slot still holds that value when it runs*. Whether it does depends on what the later
 callees and transactions do to the bridge's storage and code. That is not proved here.
 
@@ -263,6 +263,39 @@ callees and transactions do to the bridge's storage and code. That is not proved
   EVMLean. In that corner case they describe EVMLean's outcome (failure, hence a revert), not
   Cancun's.
 
+## Non-vacuity (automated, `BridgeEvm/NonVacuous.lean`)
+
+Every headline theorem has a partner `nonvacuous_<name>`. The partner exhibits concrete values that
+satisfy all of the theorem's hypotheses jointly, instantiates the theorem on them, and derives its
+conclusion. For the theorems about success it uses the concrete *successful* run.
+`Axioms.lean` runs `#assert_headline` on each theorem. That asserts the standard-axiom footprint
+**and** fails the build if the `nonvacuous_` partner is missing. A mutation test confirmed this:
+renaming one partner fails the build with "… has no non-vacuity partner …".
+
+| theorem | witness |
+|---|---|
+| `refundETH_trace` | `Concrete.env 7` on `Concrete.σ 0`. `w_code` holds by `rfl`; `w_sel` and `w_cds` by `decide +kernel`. |
+| `refundETH_outcome` | the same; on the successful run the success disjunct is derived |
+| `refundETH_success` | the successful run `w_success` (`Ξ … = .ok (.success …)`) gives `RefundRun (σ 0) (σ 0) (env 7) σ'` |
+| `refundETH_no_other_error` | the statically entered run (`perm := false`) errors; the theorem gives `StaticModeViolation ∧ perm = false` |
+| `createStep_success` | `CreateStep … x σ' rd'` and `x ≠ 0` taken from the concrete `RefundRun` |
+| `storedMap_post` | `σ₁`, `hst` and `hcd` from the concrete `RefundRun`; `hcode` from `bridge_has_code` (`decide +kernel`) |
+| `refundETH_store` | the concrete `RefundRun` and `bridge_has_code` |
+| `RD.create` | a one-byte program `CREATE` with stack `[0,0,0]`; the `RD` hypothesis is built by `RD.start`, and the decode is checked by `evm_kdecide` (fully kernel-checked) |
+| `refundPreimage_size` | instantiated at `env 7` (no hypotheses) |
+
+**Trust.** Everything is kernel-checked except two facts that need `Ξ` evaluated on the concrete
+bytecode: `run_success_native` (the concrete run succeeds) and `run_static_native` (the static run
+raises `StaticModeViolation`). These are named `native_decide` lemmas. They are used only by the
+partners. They are outside every headline theorem's axiom cone, as the `#assert_std_axioms` check
+proves. Each success partner's footprint is the standard axioms plus exactly
+`run_success_native._native.native_decide.ax_1_1`.
+
+**Hypotheses quantified over all states or callees.** No headline theorem has one any more.
+`StaticCall`, `CallTo` and `CreateStep` are existential facts about the actual run. The former
+universal `MintFrame`/`CreateFrame` are removed. Every remaining hypothesis is discharged by the
+witnesses above.
+
 ## Non-vacuity and checks (`BridgeEvm/Concrete.lean`, executed with `Ξ`)
 
 The setup is the bridge code at 0x4200…0024 with balance `amount`, a mock messenger returning
@@ -275,9 +308,9 @@ The setup is the bridge code at 0x4200…0024 with balance `amount`, a mock mess
 | `success_storage_exact` | after success the bridge's storage is exactly `{refunded[H] ↦ 1}`. This is an observation about this run, not a frame theorem. |
 | `bridge_has_code` | the hypothesis of `storedMap_post`/`refundETH_store` holds in the pre-state. |
 | `dirty_high_bytes_success` | a slot `0x100` reads false (low byte) and becomes `0x101` (`setTrueWord`). |
-| `wrong_preimage_reverts` | nonce 8 → different `H` → mock says not expired → revert with selector `MessageNotExpired()` = `0x27f5f3a2`. |
-| `not_expired_reverts` | mock returns false for every `H` → revert with selector `0x27f5f3a2`. |
-| `already_refunded_reverts` | `refunded[H] = 1` → revert with selector `AlreadyRefunded()` = `0xa85e6f1a`. |
+| `wrong_preimage_reverts` | nonce 8 → different `H` → mock says not expired → revert with selector `SuperchainETHBridge_MessageNotExpired()` = `0x0978275c`. |
+| `not_expired_reverts` | mock returns false for every `H` → revert with selector `0x0978275c`. |
+| `already_refunded_reverts` | `refunded[H] = 1` → revert with selector `SuperchainETHBridge_AlreadyRefunded()` = `0x2b792286`. |
 | `no_liquidity_code_reverts` | ETHLiquidity has no code → revert (solc's `EXTCODESIZE` check). |
 | `create_failure_reverts` | the bridge cannot fund `amount` → `CREATE` pushes 0 → revert. |
 | `static_violation` | `perm = false` → `StaticModeViolation` at the `SSTORE`. |
@@ -317,8 +350,8 @@ Supporting files:
 ```sh
 cd packages/contracts-bedrock/test/formal/expiry/evm-lean-bridge
 lake exe cache get                  # Mathlib cache (or copy ../evm-lean/.lake/packages: same pins)
-lake build BridgeEvm BridgeEvm.Axioms   # must print "Build completed successfully" and 9
-                                        # "standard axioms only" lines
+lake build BridgeEvm BridgeEvm.Axioms   # must print "Build completed successfully", 9
+                                        # "standard axioms only" and 9 "partner … present" lines
 grep -rn "sorry\|admit" BridgeEvm/      # nothing
 ```
 
@@ -364,7 +397,8 @@ each.
 | `BridgeEvm/Mem.lean`, `BridgeEvm/Words.lean`, `BridgeEvm/Create.lean` | libraries (see "Proof structure") |
 | `BridgeEvm/Trace*.lean`, `BridgeEvm/Refund.lean`, `BridgeEvm/Post.lean` | proof |
 | `BridgeEvm/Concrete.lean` | executable checks |
-| `BridgeEvm/Axioms.lean` | `#assert_std_axioms` |
+| `BridgeEvm/NonVacuous.lean` | one `nonvacuous_` partner per headline theorem |
+| `BridgeEvm/Axioms.lean` | `#assert_headline`: standard axioms + partner present |
 
 ## Review log
 
@@ -396,3 +430,11 @@ each.
   5. *Low.* Fixes: `regen.sh` now validates the staged artifacts (including the SafeSend offset)
      before replacing tracked files. The chain-id wording is corrected. The concrete revert tests
      assert the error selector. The concrete runs' not exercising the proxy is noted.
+* **Round 2: automated non-vacuity.** Added `NonVacuous.lean`, with one partner per headline
+  theorem that satisfies every hypothesis jointly and derives the conclusion. Added the
+  `#assert_headline` build check, which fails on a missing partner (mutation-tested). Scanned for
+  hypotheses quantified over all states or callees and found none left.
+* **Retarget to `c7c51d79e2`** (errors renamed with the `SuperchainETHBridge_` prefix).
+  `regen.sh` validated the new artifact against `semver-lock.json` (`0xa9040c1c…`). Only the two
+  selector operands changed. The proof and the non-vacuity partners rebuilt unchanged; the
+  concrete selector checks were updated.

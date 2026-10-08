@@ -23,15 +23,36 @@ elab "#assert_std_axioms " id:ident : command => do
     throwError m!"{n} depends on non-standard axioms ({bad.size}): {bad.toList.take 5} …"
   logInfo m!"{n}: standard axioms only ({axs.toList})"
 
-#assert_std_axioms BridgeEvm.refundETH_trace
-#assert_std_axioms BridgeEvm.refundETH_outcome
-#assert_std_axioms BridgeEvm.refundETH_success
-#assert_std_axioms BridgeEvm.refundETH_no_other_error
-#assert_std_axioms BridgeEvm.createStep_success
-#assert_std_axioms BridgeEvm.storedMap_post
-#assert_std_axioms BridgeEvm.refundETH_store
-#assert_std_axioms BridgeEvm.RD.create
-#assert_std_axioms BridgeEvm.refundPreimage_size
+open Lean Elab Command in
+/-- Fail unless `BridgeEvm.NonVacuous.nonvacuous_<n>` exists, where `<n>` is the theorem's name
+without the `BridgeEvm.` prefix and with `.` replaced by `_` (see `NonVacuous.lean`). -/
+elab "#assert_nonvacuous " id:ident : command => do
+  let n ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo id
+  let short := (n.toString.replace "BridgeEvm." "").replace "." "_"
+  let partner := Name.mkStr (Name.mkStr (Name.mkStr .anonymous "BridgeEvm") "NonVacuous")
+    ("nonvacuous_" ++ short)
+  unless (← getEnv).contains partner do
+    throwError m!"{n} has no non-vacuity partner {partner}"
+  logInfo m!"{n}: non-vacuity partner {partner} present"
+
+/-- Every headline theorem: standard axioms only, and a `nonvacuous_` partner. -/
+macro "#assert_headline " id:ident : command =>
+  `(#assert_std_axioms $id
+    #assert_nonvacuous $id)
+
+#assert_headline BridgeEvm.refundETH_trace
+#assert_headline BridgeEvm.refundETH_outcome
+#assert_headline BridgeEvm.refundETH_success
+#assert_headline BridgeEvm.refundETH_no_other_error
+#assert_headline BridgeEvm.createStep_success
+#assert_headline BridgeEvm.storedMap_post
+#assert_headline BridgeEvm.refundETH_store
+#assert_headline BridgeEvm.RD.create
+#assert_headline BridgeEvm.refundPreimage_size
+
+-- The partners themselves: kernel-checked except the isolated `Ξ`-evaluation lemmas.
+#print axioms BridgeEvm.NonVacuous.nonvacuous_refundETH_success
+#print axioms BridgeEvm.NonVacuous.nonvacuous_RD_create
 
 #print axioms BridgeEvm.Concrete.refundHash_matches_cast
 #print axioms BridgeEvm.Concrete.success_reachable

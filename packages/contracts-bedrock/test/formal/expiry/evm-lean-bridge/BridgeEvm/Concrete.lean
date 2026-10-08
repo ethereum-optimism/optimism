@@ -104,9 +104,10 @@ def revertSelector (refundedPre nonce : ℕ) : Option (List UInt8) :=
   | .ok (.revert _ o) => some (o.data.toList.take 4)
   | _ => none
 
-/-- `MessageNotExpired()` = `0x27f5f3a2` and `AlreadyRefunded()` = `0xa85e6f1a` (`cast sig`). -/
-def selMessageNotExpired : List UInt8 := [0x27, 0xf5, 0xf3, 0xa2]
-def selAlreadyRefunded : List UInt8 := [0xa8, 0x5e, 0x6f, 0x1a]
+/-- `SuperchainETHBridge_MessageNotExpired()` = `0x0978275c` and
+    `SuperchainETHBridge_AlreadyRefunded()` = `0x2b792286` (`cast sig`). -/
+def selMessageNotExpired : List UInt8 := [0x09, 0x78, 0x27, 0x5c]
+def selAlreadyRefunded : List UInt8 := [0x2b, 0x79, 0x22, 0x86]
 
 /-- The statement's preimage definition reproduces Solidity's `abi.encode` hash (cast). -/
 theorem refundHash_matches_cast : refundHash (env 7) = Hgood := by native_decide
@@ -117,10 +118,10 @@ theorem success_reachable :
     afterSuccess 0 7 = some (UInt256.ofNat 1, UInt256.ofNat amount) := by native_decide
 
 /-- Not expired: with `nonce = 8` the recomputed hash is not `Hgood` (wrong preimage), so the
-    mock messenger returns false and the code reverts (`MessageNotExpired`). -/
+    mock messenger returns false and the code reverts (`SuperchainETHBridge_MessageNotExpired`). -/
 theorem wrong_preimage_reverts : revertSelector 0 8 = some selMessageNotExpired := by native_decide
 
-/-- Already refunded: `refunded[Hgood] = 1` makes the code revert (`AlreadyRefunded`). -/
+/-- Already refunded: `refunded[Hgood] = 1` makes the code revert (`SuperchainETHBridge_AlreadyRefunded`). -/
 theorem already_refunded_reverts : revertSelector 1 7 = some selAlreadyRefunded := by native_decide
 
 /-- A dirty slot whose low byte is 0 still reads `refunded = false` (the success path runs and
@@ -159,6 +160,6 @@ theorem success_storage_exact :
 
 /-- The hypothesis of `storedMap_post` / `refundETH_store` holds in the concrete pre-state: the
     executing account has non-empty code. -/
-theorem bridge_has_code : ((σ 0).getD bridgeAddr default).code.size ≠ 0 := by native_decide
+theorem bridge_has_code : ((σ 0).getD bridgeAddr default).code.size ≠ 0 := by decide +kernel
 
 end BridgeEvm.Concrete
