@@ -14,6 +14,7 @@ use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
 use kona_peers::BootNode;
+use kona_rpc::P2pRpc;
 use kona_sources::BlockSignerHandler;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -103,18 +104,21 @@ impl TestNetworkBuilder {
         let handler = builder.build().expect("build network").start().await.expect("start network");
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
+        let discovery = handler.discovery.clone();
         let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
-            p2p_rpc_rx,
+            gossip_command_rx,
             admin_rpc_rx,
             signed_payload_rx,
         );
+
+        let p2p_rpc = P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx);
 
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.
@@ -143,7 +147,7 @@ impl TestNetworkBuilder {
             Ok(())
         });
 
-        TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        TestNetwork { p2p_rpc, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }
 }
 

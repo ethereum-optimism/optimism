@@ -105,12 +105,12 @@ impl GossipCommand {
             LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
-        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         // This example only consumes inbound gossip blocks; the other channels exist solely to
         // satisfy NetworkActor::new and are held to keep them open.
-        let _unused_senders = (p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx);
+        let _unused_senders = (gossip_command_tx, admin_rpc_tx, gossip_payload_tx);
 
         let network_config: kona_node_service::NetworkBuilder = NetworkConfig {
             discovery_address: disc_addr,
@@ -142,7 +142,7 @@ impl GossipCommand {
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
             handler,
-            p2p_rpc_rx,
+            gossip_command_rx,
             admin_rpc_rx,
             gossip_payload_rx,
         );

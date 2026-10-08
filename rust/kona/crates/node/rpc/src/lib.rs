@@ -18,10 +18,8 @@ pub use client::{SequencerAdminAPIClient, SequencerAdminAPIError};
 mod config;
 pub use config::RpcBuilder;
 
-mod net;
-pub use net::P2pRpc;
-
 mod p2p;
+pub use p2p::P2pRpc;
 
 mod output;
 pub use output::OutputResponse;

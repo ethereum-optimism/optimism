@@ -1,12 +1,16 @@
 use async_trait::async_trait;
-use kona_gossip::P2pRpcRequest;
+use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
 use kona_rpc::NetworkAdminQuery;
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::{
     self, select,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        watch,
+    },
 };
 
 use crate::{
@@ -23,8 +27,10 @@ use crate::{
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// The live libp2p [`NetworkHandler`].
     handler: NetworkHandler,
-    /// A channel to receive p2p RPC requests.
-    p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
+    /// Gossip state published for readers outside the actor.
+    gossip_state_tx: watch::Sender<Arc<GossipState>>,
+    /// A channel to receive gossip commands.
+    gossip_command_rx: GossipCommandReceiver,
     /// A channel to receive admin RPC queries.
     admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
     /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
@@ -48,20 +54,27 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     pub fn new(
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
-        p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
+        gossip_command_rx: GossipCommandReceiver,
         admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
         publish_rx: mpsc::Receiver<SignedPayload>,
     ) -> Self {
+        let (gossip_state_tx, _) = watch::channel(Arc::new(handler.gossip.snapshot()));
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
         Self {
             handler,
-            p2p_rpc_rx,
+            gossip_state_tx,
+            gossip_command_rx,
             admin_query_rx,
             publish_rx,
             engine_client,
             unsafe_block_tx,
             unsafe_block_rx,
         }
+    }
+
+    /// Returns a read-only handle to the actor's published gossip state.
+    pub fn gossip_query_handle(&self) -> GossipQueryHandle {
+        GossipQueryHandle::new(self.gossip_state_tx.subscribe())
     }
 }
 
@@ -92,7 +105,8 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
     type Error = NetworkActorError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        select! {
+        let mut applied = None;
+        let result = select! {
             block = self.unsafe_block_rx.recv() => {
                 let Some(block) = block else {
                     error!(target: "node::p2p", "The unsafe block receiver channel has closed");
@@ -148,10 +162,18 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {
-                req.handle(&mut self.handler.gossip, &self.handler.discovery);
+            Some((req, applied_tx)) = self.gossip_command_rx.recv(), if !self.gossip_command_rx.is_closed() => {
+                req.handle(&mut self.handler.gossip);
+                applied = Some(applied_tx);
                 Ok(())
             }
+        };
+        if result.is_ok() && self.gossip_state_tx.receiver_count() > 0 {
+            self.gossip_state_tx.send_replace(Arc::new(self.handler.gossip.snapshot()));
         }
+        if let Some(applied) = applied {
+            let _ = applied.send(());
+        }
+        result
     }
 }
