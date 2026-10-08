@@ -42,7 +42,7 @@ import { IUndeliveredMessageExporter } from "interfaces/L2/IUndeliveredMessageEx
 ///         - One global, monotone clock (block.timestamp) is shared by all chains.
 ///         - The L1 hop is not executed. TRUSTED_SENDER is the L2 sender L1CrossDomainMessenger.relayUndeliveredMessage
 ///           trusts (xDomainMessageSender): the UndeliveredMessageExporter predeploy
-/// (Predeploys.UNDELIVERED_MESSAGE_EXPORTER) at 5992028e08; 0x..23 in the legacy design (37b44c48c7), which the
+/// (Predeploys.UNDELIVERED_MESSAGE_EXPORTER) at 52ff613e14; 0x..23 in the legacy design (37b44c48c7), which the
 /// legacy-mutant configuration models. EXPORTER is the
 ///           contract whose exportUndeliveredMessage the handler calls (the same address). The L1 interop feature gate
 ///           (systemConfig INTEROP) is assumed on for A. A
@@ -57,9 +57,15 @@ import { IUndeliveredMessageExporter } from "interfaces/L2/IUndeliveredMessageEx
 ///         - Raw withdrawals (MessagePassed whose sender is 0x..23 or TRUSTED_SENDER, i.e. the contract calling the
 ///           passer directly) are counted but never delivered: on L1 the portal calls their target directly, so
 ///           relayUndeliveredMessage's caller is a portal (no portal()/xDomainMessageSender), and an
-///           L1CrossDomainMessenger rejects them (portal.l2Sender() != L2CrossDomainMessenger). At 5992028e08 the
+///           L1CrossDomainMessenger rejects them (portal.l2Sender() != L2CrossDomainMessenger). At 52ff613e14 the
 ///           messenger rejects the L2ToL1MessagePasser as a target, so none should exist; an invariant checks that.
 contract ExpiryHandler is CommonBase, StdUtils {
+    /// @notice Thrown when sendETH returns a hash other than the one recomputed from its arguments.
+    error ExpiryHandler_SendHashMismatch();
+
+    /// @notice Thrown when a send emits no L2ToL2CrossDomainMessenger SentMessage log.
+    error ExpiryHandler_NoSentMessageLog();
+
     ////////////////////////////////////////////////////////////////
     //                         Constants                          //
     ////////////////////////////////////////////////////////////////
@@ -76,8 +82,11 @@ contract ExpiryHandler is CommonBase, StdUtils {
     uint256 internal constant MAX_AMOUNT = 1_000 ether;
     uint256 internal constant MAX_JUNK = 256;
 
-    /// @notice Event signatures.
+    /// @notice Event signatures (solc 0.8.15 cannot read another contract's event selector). The witnesses assert
+    ///         that each one is observed on the real contracts (sends revert without a SentMessage log, exports
+    ///         must yield facts, deliveries must count MessageExpired emissions), so a renamed event fails loudly.
     bytes32 internal constant L2TOL2_SENT_MESSAGE_SIG = keccak256("SentMessage(uint256,address,uint256,address,bytes)");
+    bytes32 internal constant MESSAGE_EXPIRED_SIG = keccak256("MessageExpired(bytes32,uint256)");
     bytes32 internal constant MESSAGE_PASSED_SIG =
         keccak256("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)");
 
@@ -159,6 +168,12 @@ contract ExpiryHandler is CommonBase, StdUtils {
     mapping(bytes32 => uint256) public expiredFactTime;
     mapping(bytes32 => uint256) public expiredFactIndexPlusOne;
 
+    /// @notice Successful relays per hash (any message), observed by the handler.
+    mapping(bytes32 => uint256) public relayCount;
+
+    /// @notice Whether a relay of the hash was attempted and refused by the protocol window rule.
+    mapping(bytes32 => bool) public blockedRelay;
+
     /// @notice Successful refunds per hash, as computed from the refundETH arguments.
     mapping(bytes32 => uint256) public refundCount;
     bytes32[] internal refundedHashes;
@@ -179,6 +194,17 @@ contract ExpiryHandler is CommonBase, StdUtils {
     bool public forgedFactAccepted;
     bool public adversarialExpiryAccepted;
     bool public unsafeTargetAccepted;
+    bool public relayPaidWrong;
+    bool public bridgeRetainedEth;
+    bool public wrongChainRelayAccepted;
+    bool public unauthorizedExpiryEmitted;
+
+    /// @notice Non-vacuity witness: some hash had a window-blocked relay attempt and was refunded afterwards.
+    bool public refundAfterBlockedRelay;
+
+    /// @notice L2ToL2CrossDomainMessenger SentMessage events emitted outside A's sends (nested sends from a
+    ///         destination). The handler filters the only path to them (a relayed bridge.sendETH), so this must stay 0.
+    uint256 public nestedSends;
 
     /// @notice Withdrawals from TRUSTED_SENDER not produced by an exportUndeliveredMessage call (must stay 0).
     uint256 public nonExportFacts;
@@ -186,7 +212,7 @@ contract ExpiryHandler is CommonBase, StdUtils {
     ///         produced on that chain at that time: t != now, H already relayed there, or H is a known message to
     ///         another chain (must stay false).
     bool public dishonestFactCaptured;
-    /// @notice Raw withdrawals (sender == 0x..23 at the passer). Zero with the passer target rule (5992028e08).
+    /// @notice Raw withdrawals (sender == 0x..23 at the passer). Zero with the passer target rule (52ff613e14).
     uint256 public rawWithdrawalsFrom23;
     /// @notice Raw withdrawals with sender == TRUSTED_SENDER at the passer (same as above when it is 0x..23).
     uint256 public rawWithdrawalsFromTrusted;
@@ -211,9 +237,16 @@ contract ExpiryHandler is CommonBase, StdUtils {
     uint256 public nAttackerRelays;
     uint256 public nForgeAttempts;
     uint256 public nWarps;
+    uint256 public nWrongChainRelays;
+    uint256 public nExpiredEmissions;
+    uint256 public nNestedSendsFiltered;
 
     /// @notice L1->L2 nonce counter for delivered facts.
     uint240 internal l1Nonce;
+
+    /// @notice Whether attackerSend filters relayed bridge.sendETH calls (nested sends). Only the nestedSends
+    ///         failing witness turns it off.
+    bool public nestedSendFilter = true;
 
     constructor(
         address _aL1Messenger,
@@ -249,13 +282,12 @@ contract ExpiryHandler is CommonBase, StdUtils {
         bytes memory payload = _sentMessagePayload(vm.getRecordedLogs());
 
         bytes memory message = abi.encodeCall(ISuperchainETHBridge.relayETH, (from, to, amount));
-        require(
+        if (
             h
-                == Hashing.hashL2toL2CrossDomainMessage(
+                != Hashing.hashL2toL2CrossDomainMessage(
                     destination, CHAIN_A, nonce, address(bridge), address(bridge), message
-                ),
-            "ExpiryHandler: send hash"
-        );
+                )
+        ) revert ExpiryHandler_SendHashMismatch();
 
         ethSends.push(
             Message({
@@ -308,7 +340,44 @@ contract ExpiryHandler is CommonBase, StdUtils {
     function relayETH(uint256 _i) public {
         if (ethSends.length == 0) return;
         Message storage m = ethSends[_i % ethSends.length];
-        if (_relay(m) && m.amount > 0) ghostRelayMinted += m.amount;
+        uint256 toBefore = m.to.balance;
+        uint256 bridgeBefore = address(bridge).balance;
+        bool ok = _relay(m);
+        if (address(bridge).balance != bridgeBefore) bridgeRetainedEth = true;
+        if (ok) {
+            // The destination pays the recipient exactly the amount.
+            if (m.to.balance != toBefore + m.amount) relayPaidWrong = true;
+            ghostRelayMinted += m.amount;
+        }
+    }
+
+    /// @notice Relay an authentic, within-window ETH send payload on the OTHER destination chain (B <-> C). The
+    ///         inbox mock accepts it (it is a real initiating event), so only the messenger's destination check can
+    ///         refuse it; it must.
+    function relayOnWrongChain(uint256 _i) public {
+        if (ethSends.length == 0) return;
+        Message storage m = ethSends[_i % ethSends.length];
+        if (block.timestamp - m.initTs > W_PROTOCOL) return;
+        uint256 wrong = m.destination == CHAIN_B ? CHAIN_C : CHAIN_B;
+        vm.chainId(wrong);
+        Identifier memory id = Identifier({
+            origin: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            blockNumber: 1,
+            logIndex: 0,
+            timestamp: m.initTs,
+            chainId: CHAIN_A
+        });
+        vm.mockCall(
+            Predeploys.CROSS_L2_INBOX, abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(m.payload))), ""
+        );
+        vm.recordLogs();
+        vm.prank(RELAYER);
+        try messenger.relayMessage(id, m.payload) {
+            wrongChainRelayAccepted = true;
+        } catch { }
+        vm.clearMockedCalls();
+        _capture(vm.getRecordedLogs(), false, wrong);
+        nWrongChainRelays++;
     }
 
     /// @notice Attacker on A sends a message to B with a chosen target and calldata, and optionally relays it at
@@ -327,14 +396,25 @@ contract ExpiryHandler is CommonBase, StdUtils {
     {
         address target = _attackTarget(_targetSel, _junk);
         bytes memory data = _attackData(_dataSel, _i, _tSeed, _gas, _junk);
+        // Nested traffic: a relayed bridge.sendETH would make a destination send a child message (a second source),
+        // which this single-source model does not track. Every hash commits to its source chain, so such a child
+        // can never touch A's hashes; the handler filters it, and nestedSends checks the filter is complete.
+        (bytes4 dataSel,) = _split(data);
+        if (
+            nestedSendFilter && target == Predeploys.SUPERCHAIN_ETH_BRIDGE
+                && dataSel == ISuperchainETHBridge.sendETH.selector
+        ) {
+            nNestedSendsFiltered++;
+            return;
+        }
 
         vm.chainId(CHAIN_A);
         uint256 nonce = messenger.messageNonce();
         vm.recordLogs();
         vm.prank(ATTACKER);
-        try messenger.sendMessage(CHAIN_B, target, data) returns (bytes32 h) {
+        try messenger.sendMessage(CHAIN_B, target, data) returns (bytes32 h_) {
             bytes memory payload = _sentMessagePayload(vm.getRecordedLogs());
-            if (target == Predeploys.L2_CROSS_DOMAIN_MESSENGER) unsafeTargetAccepted = true;
+            if (_isUnsafe(target)) unsafeTargetAccepted = true;
             attackerMsgs.push(
                 Message({
                     destination: CHAIN_B,
@@ -342,7 +422,7 @@ contract ExpiryHandler is CommonBase, StdUtils {
                     sender: ATTACKER,
                     target: target,
                     message: data,
-                    hash: h,
+                    hash: h_,
                     initTs: block.timestamp,
                     payload: payload,
                     from: address(0),
@@ -350,8 +430,8 @@ contract ExpiryHandler is CommonBase, StdUtils {
                     amount: 0
                 })
             );
-            destOf[h] = CHAIN_B;
-            initTsOf[h] = block.timestamp;
+            destOf[h_] = CHAIN_B;
+            initTsOf[h_] = block.timestamp;
             nAttackerSends++;
         } catch {
             vm.getRecordedLogs();
@@ -367,10 +447,11 @@ contract ExpiryHandler is CommonBase, StdUtils {
         _relay(attackerMsgs[_j % attackerMsgs.length]);
     }
 
-    /// @notice B: relay a payload whose target is the L2CrossDomainMessenger as if it had an initiating event
-    ///         (which the send-side rule and the activation requirement rule out). Checks the relay-side target
-    ///         rule on its own: the relay must revert.
-    function relayForgedPayloadToL2CDM(
+    /// @notice B: relay a payload whose target is the L2CrossDomainMessenger (even `_targetSel`) or the
+    ///         L2ToL1MessagePasser (odd) as if it had an initiating event (which the send-side rule and the activation
+    ///         requirement rule out). Checks the relay-side target rule on its own: the relay must revert.
+    function relayForgedPayloadToUnsafeTarget(
+        uint8 _targetSel,
         uint8 _dataSel,
         uint256 _i,
         uint256 _tSeed,
@@ -380,12 +461,10 @@ contract ExpiryHandler is CommonBase, StdUtils {
         public
     {
         bytes memory data = _attackData(_dataSel, _i, _tSeed, _gas, _junk);
+        address target = _targetSel % 2 == 0 ? Predeploys.L2_CROSS_DOMAIN_MESSENGER : Predeploys.L2_TO_L1_MESSAGE_PASSER;
         vm.chainId(CHAIN_B);
         bytes memory payload = abi.encodePacked(
-            abi.encode(
-                L2TOL2_SENT_MESSAGE_SIG, CHAIN_B, Predeploys.L2_CROSS_DOMAIN_MESSENGER, uint256(type(uint240).max)
-            ),
-            abi.encode(ATTACKER, data)
+            abi.encode(L2TOL2_SENT_MESSAGE_SIG, CHAIN_B, target, uint256(type(uint240).max)), abi.encode(ATTACKER, data)
         );
         Identifier memory id = Identifier({
             origin: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
@@ -434,15 +513,15 @@ contract ExpiryHandler is CommonBase, StdUtils {
         );
     }
 
-    /// @notice Index of the first ETH send from `_i` (cyclically) that is past P_contract, unrelayed and unexpired,
-    ///         or `_i` if none.
+    /// @notice Index of the first ETH send from `_i` (cyclically) that is at or past init + P_contract (the boundary
+    ///         is included so boundary mutants are reachable), unrelayed and unexpired, or `_i` if none.
     function _findExpirable(uint256 _i) internal view returns (uint256) {
         uint256 n = ethSends.length;
         _i = _i % n;
         for (uint256 j = 0; j < n; j++) {
             Message storage m = ethSends[(_i + j) % n];
             if (
-                block.timestamp > m.initTs + P_CONTRACT && !messenger.successfulMessages(m.hash)
+                block.timestamp >= m.initTs + P_CONTRACT && !messenger.successfulMessages(m.hash)
                     && !messenger.expiredMessages(m.hash)
             ) return (_i + j) % n;
         }
@@ -492,9 +571,10 @@ contract ExpiryHandler is CommonBase, StdUtils {
     }
 
     /// @notice A: deliver captured fact `_k` (or, for mode >= 128, the latest fact) through the real
-    ///         L2CrossDomainMessenger. Modes 0 and 1 (for an export fact) replace undeliveredAt with some t' <= t
-    ///         (within 2 days of t, or anywhere in [0, t]): a weaker statement, true because successfulMessages only
-    ///         grows, so the destination could have exported it at t' too. Other modes deliver t as exported.
+    ///         L2CrossDomainMessenger. Modes 0, 1 and 3 (for an export fact) replace undeliveredAt with some t' <= t
+    ///         (within 2 days of t, anywhere in [0, t], or exactly init + P_contract): a weaker statement, true
+    ///         because successfulMessages only grows, so the destination could have exported it at t' too. Other
+    ///         modes deliver t as exported.
     function deliverFact(uint256 _k, uint8 _mode, uint256 _tSeed) public {
         if (facts.length == 0) return;
         uint256 k = _mode >= 128 ? facts.length - 1 : _k % facts.length;
@@ -504,13 +584,31 @@ contract ExpiryHandler is CommonBase, StdUtils {
             nUndeliverable++;
             return;
         }
-        if (f.fromExport && _mode % 8 == 0) t = bound(_tSeed, t > 2 days ? t - 2 days : 0, t);
-        else if (f.fromExport && _mode % 8 == 1) t = bound(_tSeed, 0, t);
+        if (f.fromExport && _mode % 8 == 0) {
+            t = bound(_tSeed, t > 2 days ? t - 2 days : 0, t);
+        } else if (f.fromExport && _mode % 8 == 1) {
+            t = bound(_tSeed, 0, t);
+        } else if (f.fromExport && _mode % 8 == 3 && initTsOf[h] != 0 && initTsOf[h] + P_CONTRACT <= t) {
+            // Exactly at the expiry boundary (still a weaker, true statement): only `t > sentAt + P` rejects it.
+            t = initTsOf[h] + P_CONTRACT;
+        }
 
         vm.chainId(CHAIN_A);
         bool expiredBefore = messenger.expiredMessages(h);
+        vm.recordLogs();
         _l2cdmRelay(aL1Messenger, abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (h, t)));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
         nDeliveries++;
+
+        // NoForgedFact / OnlyDestinationCanExport: every successful expireMessage execution (a MessageExpired
+        // emission, including repeats after an earlier expiry) must run on a fact exported on the message's
+        // destination.
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter != address(messenger) || logs[i].topics[0] != MESSAGE_EXPIRED_SIG) continue;
+            if (logs[i].topics[1] != h) unauthorizedExpiryEmitted = true;
+            nExpiredEmissions++;
+            if (!f.fromExport || f.chain != destOf[h]) forgedFactAccepted = true;
+        }
 
         if (!expiredBefore && messenger.expiredMessages(h)) {
             expiredAt[h] = block.timestamp;
@@ -518,8 +616,6 @@ contract ExpiryHandler is CommonBase, StdUtils {
             expiredFactIndexPlusOne[h] = k + 1;
             if (isEthSend[h]) expiredSends.push(h);
             nExpiries++;
-            // NoForgedFact / OnlyDestinationCanExport: only an export run on the message's destination may expire it.
-            if (!f.fromExport || f.chain != destOf[h]) forgedFactAccepted = true;
         }
     }
 
@@ -534,6 +630,7 @@ contract ExpiryHandler is CommonBase, StdUtils {
 
         vm.chainId(CHAIN_A);
         bool expiredBefore = messenger.expiredMessages(m.hash);
+        vm.recordLogs();
         uint256 mode = _mode % 4;
         if (mode == 0) {
             // A's L1CrossDomainMessenger relays a message whose L1 sender is someone else.
@@ -561,6 +658,13 @@ contract ExpiryHandler is CommonBase, StdUtils {
                 catch { }
         }
         if (!expiredBefore && messenger.expiredMessages(m.hash)) adversarialExpiryAccepted = true;
+        // Any successful expireMessage execution on these paths, including a repeat on an expired hash.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(messenger) && logs[i].topics[0] == MESSAGE_EXPIRED_SIG) {
+                adversarialExpiryAccepted = true;
+            }
+        }
         nForgeAttempts++;
     }
 
@@ -602,9 +706,12 @@ contract ExpiryHandler is CommonBase, StdUtils {
         );
         bool expiredBefore = messenger.expiredMessages(h);
         uint256 balanceBefore = from.balance;
+        uint256 bridgeBefore = address(bridge).balance;
 
         vm.prank(_caller);
         try bridge.refundETH(destination, nonce, from, to, amount) {
+            if (address(bridge).balance != bridgeBefore) bridgeRetainedEth = true;
+            if (blockedRelay[h]) refundAfterBlockedRelay = true;
             if (!expiredBefore) refundWithoutExpiry = true;
             if (!isEthSend[h]) refundOfUnknownHash = true;
             if (from.balance != balanceBefore + amount) refundPaidWrong = true;
@@ -630,6 +737,24 @@ contract ExpiryHandler is CommonBase, StdUtils {
             aL1Messenger, abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (m.hash, _t)), 200_000
         );
         _capture(vm.getRecordedLogs(), false, m.destination);
+    }
+
+    /// @notice NOT a fuzz target. Failing-witness helper: turns the nested-send filter off.
+    function setNestedSendFilter(bool _on) public {
+        nestedSendFilter = _on;
+    }
+
+    /// @notice NOT a fuzz target. Governance failing witness: an upgraded exporter calls the L2ToL1MessagePasser
+    ///         directly (a raw withdrawal whose L2 sender is the trusted sender).
+    function rawWithdrawalAsUpgradedExporter() public {
+        vm.chainId(CHAIN_B);
+        vm.recordLogs();
+        vm.prank(TRUSTED_SENDER);
+        IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER))
+            .initiateWithdrawal(
+                aL1Messenger, 200_000, abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (bytes32(0), 0))
+            );
+        _capture(vm.getRecordedLogs(), false, CHAIN_B);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -681,6 +806,7 @@ contract ExpiryHandler is CommonBase, StdUtils {
     /// @notice Relays `_m` on its destination iff the protocol accepts it (exec - init <= W_PROTOCOL).
     function _relay(Message storage _m) internal returns (bool ok_) {
         if (block.timestamp - _m.initTs > W_PROTOCOL) {
+            blockedRelay[_m.hash] = true;
             nRelaysBlockedByWindow++;
             return false;
         }
@@ -714,8 +840,9 @@ contract ExpiryHandler is CommonBase, StdUtils {
         );
 
         if (ok_) {
+            relayCount[_m.hash]++;
             if (expiredBefore) relayedWhileExpired = true;
-            if (_m.target == Predeploys.L2_CROSS_DOMAIN_MESSENGER) unsafeTargetAccepted = true;
+            if (_isUnsafe(_m.target)) unsafeTargetAccepted = true;
             if (_m.sender == ATTACKER) nAttackerRelays++;
             else nRelays++;
         } else {
@@ -743,6 +870,11 @@ contract ExpiryHandler is CommonBase, StdUtils {
     function _capture(Vm.Log[] memory _logs, bool _fromExport, uint256 _chain) internal {
         for (uint256 i = 0; i < _logs.length; i++) {
             Vm.Log memory l = _logs[i];
+            if (l.emitter == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER && l.topics.length > 0) {
+                if (l.topics[0] == L2TOL2_SENT_MESSAGE_SIG) nestedSends++;
+                // Expiry happens only through deliverFact, whose logs are not captured here.
+                if (l.topics[0] == MESSAGE_EXPIRED_SIG) unauthorizedExpiryEmitted = true;
+            }
             if (l.emitter != Predeploys.L2_TO_L1_MESSAGE_PASSER || l.topics.length != 4) continue;
             if (l.topics[0] != MESSAGE_PASSED_SIG) continue;
             address sender = address(uint160(uint256(l.topics[2])));
@@ -813,7 +945,7 @@ contract ExpiryHandler is CommonBase, StdUtils {
                 return abi.encodePacked(l.topics[0], l.topics[1], l.topics[2], l.topics[3], l.data);
             }
         }
-        revert("ExpiryHandler: no SentMessage log");
+        revert ExpiryHandler_NoSentMessageLog();
     }
 
     /// @notice Splits calldata into selector and arguments.
@@ -826,13 +958,18 @@ contract ExpiryHandler is CommonBase, StdUtils {
         }
     }
 
+    /// @notice The messenger's unsafe targets (L2CrossDomainMessenger and L2ToL1MessagePasser).
+    function _isUnsafe(address _target) internal pure returns (bool) {
+        return _target == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _target == Predeploys.L2_TO_L1_MESSAGE_PASSER;
+    }
+
     function _actor(uint256 _seed) internal pure returns (address) {
         return address(uint160(0x10000 + (_seed % 4)));
     }
 
     function _recipient(uint256 _seed) internal pure returns (address) {
         if (_seed % 2 == 0) return _actor(_seed / 2);
-        return address(uint160(uint256(keccak256(abi.encode("recipient", _seed % 16)))));
+        return address(uint160(uint256(keccak256(abi.encode("recipient", (_seed / 2) % 16)))));
     }
 
     function _attackTarget(uint8 _sel, bytes calldata _junk) internal view returns (address) {

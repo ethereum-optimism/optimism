@@ -7,9 +7,16 @@ import { ExpiryHandler } from "test/formal/expiry/invariants/ExpiryHandler.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+
+/// @title ILegacyExpiryWindow
+/// @notice The expiry constant of the 37b44c48c7 messenger (legacy-design mutant only).
+interface ILegacyExpiryWindow {
+    function MESSAGE_EXPIRY_WINDOW() external view returns (uint256);
+}
 
 /// @title ExpiryInvariants_TestInit
 /// @notice Shared setup for the per-message expiry invariant harness (see ExpiryHandler for the model and its
@@ -22,14 +29,44 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 ///         - Exports go through the real UndeliveredMessageExporter predeploy, whose withdrawals are the only facts
 ///           (the sender L1CrossDomainMessenger.relayUndeliveredMessage trusts), except in the legacy-design mutant.
 ///         - Expected-to-fail variants run only with EXPIRY_INV_EXPECT_FAIL=true (skipped otherwise).
-///         Targets karl/message-expiry-refunds at 5992028e08 (UndeliveredMessageExporter, EXPIRY_PERIOD = 8 days).
+///         Targets karl/message-expiry-refunds at 52ff613e14 (UndeliveredMessageExporter, EXPIRY_PERIOD = 8 days).
 abstract contract ExpiryInvariants_TestInit is CommonTest {
     /// @notice Messenger replacements (test-only copies under mutants/; the real contracts are not modified).
     uint8 internal constant MUTANT_NONE = 0;
-    /// @notice 5992028e08 messenger with _isUnsafeTarget always false (no L2CrossDomainMessenger/passer target rule).
+    /// @notice 52ff613e14 messenger with _isUnsafeTarget always false (no L2CrossDomainMessenger/passer target rule).
     uint8 internal constant MUTANT_NO_UNSAFE_TARGETS = 1;
     /// @notice Legacy design: the 37b44c48c7 messenger (exports itself; L1 trusted 0x..23) without its target rule.
     uint8 internal constant MUTANT_LEGACY_NO_TARGET_RULE = 2;
+    /// @notice Messenger without its relay destination check and replay check (failing witnesses only).
+    uint8 internal constant MUTANT_FAULTY_MESSENGER = 3;
+
+    /// @notice Property ids for runCheck (one per headline invariant).
+    uint256 internal constant CHECK_NO_DOUBLE_SPEND = 0;
+    uint256 internal constant CHECK_ETH_CONSERVATION = 1;
+    uint256 internal constant CHECK_AT_MOST_ONE_RELAY = 2;
+    uint256 internal constant CHECK_DESTINATION_BINDING = 3;
+    uint256 internal constant CHECK_REFUND_IMPLIES_EXPIRED = 4;
+    uint256 internal constant CHECK_EXPIRED_NEVER_RELAYABLE = 5;
+    uint256 internal constant CHECK_AT_MOST_ONE_REFUND = 6;
+    uint256 internal constant CHECK_ONLY_EXPORT_REACHES_L1 = 7;
+    uint256 internal constant CHECK_NO_FORGED_FACT = 8;
+    uint256 internal constant CHECK_UNSAFE_TARGET_RULE = 9;
+    uint256 internal constant CHECK_ONLY_EXPORT_INITIATES_WITHDRAWAL = 10;
+    uint256 internal constant CHECK_SENT_TIMESTAMPS = 11;
+
+    /// @notice Opt-in switch for the expected-to-fail suites (non-vacuity, unsafe window, legacy design). Kept false in
+    ///         the repo so CI skips them; flip it locally to run them (see README).
+    bool internal constant RUN_EXPECTED_FAIL = false;
+
+    /// @notice Opt-in switch for per-run coverage statistics, appended to STATS_PATH by afterInvariant. Kept false in
+    ///         the repo (no file writes in CI); flip it locally to measure coverage (see README).
+    bool internal constant WRITE_STATS = false;
+
+    /// @notice Where afterInvariant appends statistics when WRITE_STATS is true (under .testdata/, fs permissions).
+    string internal constant STATS_PATH = ".testdata/expiry-invariants-stats.txt";
+
+    /// @notice W_protocol for the safety suites: the protocol's maximum message expiry window (7 days).
+    uint256 internal constant W_PROTOCOL_MAX = 7 days;
 
     /// @notice EIP-1967 implementation slot.
     bytes32 internal constant IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
@@ -46,12 +83,18 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
     function _label() internal pure virtual returns (string memory);
 
     /// @notice W_protocol for this configuration.
-    function _wProtocol(uint256) internal view virtual returns (uint256) {
-        return vm.envOr("EXPIRY_INV_W_PROTOCOL", uint256(7 days));
+    function _wProtocol(uint256) internal pure virtual returns (uint256) {
+        return W_PROTOCOL_MAX;
     }
 
     /// @notice Whether this configuration drops the P_contract >= W_protocol assumption.
     function _allowUnsafeWindow() internal pure virtual returns (bool) {
+        return false;
+    }
+
+    /// @notice Whether to etch mutants/SuperchainETHBridgeFaulty.sol over the bridge implementation (failing
+    ///         witnesses only).
+    function _faultyBridge() internal pure virtual returns (bool) {
         return false;
     }
 
@@ -60,8 +103,8 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         return MUTANT_NONE;
     }
 
-    /// @notice Whether the campaign may relay a payload with no initiating event (relayForgedPayloadToL2CDM). On for
-    ///         the real contracts (a stronger adversary than the protocol allows); off for the mutant so that its
+    /// @notice Whether the campaign may relay a payload with no initiating event (relayForgedPayloadToUnsafeTarget). On
+    /// for the real contracts (a stronger adversary than the protocol allows); off for the mutant so that its
     ///         counterexamples use only protocol-valid relays.
     function _includeForgedPayloadAction() internal pure virtual returns (bool) {
         return true;
@@ -78,7 +121,7 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
     }
 
     function setUp() public virtual override {
-        if (_expectFail() && !vm.envOr("EXPIRY_INV_EXPECT_FAIL", false)) vm.skip(true);
+        if (_expectFail() && !RUN_EXPECTED_FAIL) vm.skip(true);
 
         super.enableInterop();
         super.setUp();
@@ -93,30 +136,28 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
             address impl = address(uint160(uint256(vm.load(address(messenger), IMPL_SLOT))));
             assertTrue(impl != address(0));
             if (_mutant() == MUTANT_NO_UNSAFE_TARGETS) {
-                vm.etch(
-                    impl,
-                    vm.getDeployedCode(
-                        "L2ToL2CrossDomainMessengerNoUnsafeTargets.sol:L2ToL2CrossDomainMessengerNoUnsafeTargets"
-                    )
-                );
+                vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerNoUnsafeTargets"));
+            } else if (_mutant() == MUTANT_FAULTY_MESSENGER) {
+                vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerFaulty"));
             } else {
-                vm.etch(
-                    impl,
-                    vm.getDeployedCode(
-                        "L2ToL2CrossDomainMessengerLegacyNoTargetRule.sol:L2ToL2CrossDomainMessengerLegacyNoTargetRule"
-                    )
-                );
+                vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerLegacyNoTargetRule"));
                 exporter = address(messenger);
             }
+        }
+
+        if (_faultyBridge()) {
+            address bridgeImpl = address(uint160(uint256(vm.load(Predeploys.SUPERCHAIN_ETH_BRIDGE, IMPL_SLOT))));
+            assertTrue(bridgeImpl != address(0));
+            vm.etch(bridgeImpl, DeployUtils.getDeployedCode("SuperchainETHBridgeFaulty"));
         }
 
         uint256 pContract = _contractExpiryPeriod();
         uint256 wProtocol = _wProtocol(pContract);
         if (!_allowUnsafeWindow()) {
             // Assumption: the protocol window never exceeds the contract's expiry period.
-            require(pContract >= wProtocol, "ExpiryInvariants: P_contract < W_protocol");
+            assertGe(pContract, wProtocol, "ExpiryInvariants: P_contract < W_protocol");
         } else {
-            require(pContract < wProtocol, "ExpiryInvariants: unsafe-window config must have P_contract < W_protocol");
+            assertLt(pContract, wProtocol, "ExpiryInvariants: unsafe-window config needs P_contract < W_protocol");
         }
 
         // The L2CrossDomainMessenger's otherMessenger plays A's L1CrossDomainMessenger.
@@ -129,7 +170,7 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
 
         if (!_isInvariant()) return;
         targetContract(address(handler));
-        bytes4[] memory selectors = new bytes4[](_includeForgedPayloadAction() ? 10 : 9);
+        bytes4[] memory selectors = new bytes4[](_includeForgedPayloadAction() ? 11 : 10);
         selectors[0] = handler.sendETH.selector;
         selectors[1] = handler.warp.selector;
         selectors[2] = handler.relayETH.selector;
@@ -139,14 +180,15 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         selectors[6] = handler.deliverFact.selector;
         selectors[7] = handler.forgeExpiry.selector;
         selectors[8] = handler.refund.selector;
-        if (_includeForgedPayloadAction()) selectors[9] = handler.relayForgedPayloadToL2CDM.selector;
+        selectors[9] = handler.relayOnWrongChain.selector;
+        if (_includeForgedPayloadAction()) selectors[10] = handler.relayForgedPayloadToUnsafeTarget.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
     }
 
-    /// @notice Appends this run's handler statistics to env EXPIRY_INV_STATS (a path under .testdata/), if set.
+    /// @notice Appends this run's handler statistics to STATS_PATH when WRITE_STATS is true.
     function afterInvariant() public {
-        string memory path = vm.envOr("EXPIRY_INV_STATS", string(""));
-        if (bytes(path).length == 0) return;
+        if (!WRITE_STATS) return;
+        string memory path = STATS_PATH;
         string memory line = string.concat(
             _label(),
             ",sends=",
@@ -193,13 +235,13 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         vm.writeLine(path, line);
     }
 
-    /// @notice P_contract. Reads the messenger's expiry constant: EXPIRY_PERIOD at 5992028e08 (8 days), or
+    /// @notice P_contract. Reads the messenger's expiry constant: EXPIRY_PERIOD at 52ff613e14 (8 days), or
     ///         MESSAGE_EXPIRY_WINDOW for the legacy-design mutant (a 37b44c48c7 copy, 7 days).
     function _contractExpiryPeriod() internal view returns (uint256) {
-        (bool ok, bytes memory ret) = address(messenger).staticcall(abi.encodeWithSignature("EXPIRY_PERIOD()"));
-        if (!ok) (ok, ret) = address(messenger).staticcall(abi.encodeWithSignature("MESSAGE_EXPIRY_WINDOW()"));
-        require(ok && ret.length == 32, "ExpiryInvariants: cannot read the contract expiry period");
-        return abi.decode(ret, (uint256));
+        if (_mutant() == MUTANT_LEGACY_NO_TARGET_RULE) {
+            return ILegacyExpiryWindow(address(messenger)).MESSAGE_EXPIRY_WINDOW();
+        }
+        return messenger.EXPIRY_PERIOD();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -229,8 +271,31 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
             (bytes32 h,,, uint256 amount) = handler.ethSend(i);
             if (messenger.successfulMessages(h)) out += amount;
             if (superchainETHBridge.refunded(h)) out += amount;
+            // Per send: minted on the destination + refunded on A <= amount, i.e. at most one payout event.
+            assertLe(handler.relayCount(h) + handler.refundCount(h), 1, "ETHConservation: send paid out twice");
         }
         assertLe(out, handler.ghostSent(), "ETHConservation: minted + refunded > sent");
+        // Actual delivery: each relay paid its recipient exactly the amount; the bridge never keeps ETH.
+        assertFalse(handler.relayPaidWrong(), "ETHConservation: relay did not pay the recipient the amount");
+        assertFalse(handler.bridgeRetainedEth(), "ETHConservation: bridge balance changed");
+    }
+
+    /// @notice AtMostOneRelay: every message (ETH send or attacker message) is relayed at most once.
+    function _checkAtMostOneRelay() internal view {
+        for (uint256 i = 0; i < handler.ethSendsLength(); i++) {
+            (bytes32 h,,,) = handler.ethSend(i);
+            assertLe(handler.relayCount(h), 1, "AtMostOneRelay");
+        }
+        for (uint256 j = 0; j < handler.attackerMsgsLength(); j++) {
+            (bytes32 h,) = handler.attackerMsg(j);
+            assertLe(handler.relayCount(h), 1, "AtMostOneRelay");
+        }
+    }
+
+    /// @notice DestinationBinding: an authentic, within-window payload is never relayed on a chain other than its
+    ///         destination.
+    function _checkDestinationBinding() internal view {
+        assertFalse(handler.wrongChainRelayAccepted(), "DestinationBinding: relayed on the wrong chain");
     }
 
     /// @notice RefundImpliesExpired.
@@ -293,19 +358,27 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
     function _checkNoForgedFact() internal view {
         assertFalse(handler.forgedFactAccepted(), "NoForgedFact: expiry from a non-destination or non-export fact");
         assertFalse(handler.adversarialExpiryAccepted(), "NoForgedFact: expiry by another path");
+        assertFalse(handler.unauthorizedExpiryEmitted(), "NoForgedFact: MessageExpired outside a fact delivery");
     }
 
     /// @notice UnsafeTargetRule: no message targeting the L2CrossDomainMessenger is ever sent or relayed.
     function _checkUnsafeTargetRule() internal view {
         assertFalse(handler.unsafeTargetAccepted(), "UnsafeTargetRule");
+        _checkNoRawWithdrawalFrom23();
     }
 
-    /// @notice Bookkeeping: sentMessageTimestamps holds each ETH send's initiating timestamp (never rewritten).
+    /// @notice Bookkeeping: sentMessageTimestamps holds each message's initiating timestamp (never rewritten), for ETH
+    ///         sends and attacker messages; no destination ever sends a nested message (model scope).
     function _checkSentTimestamps() internal view {
         for (uint256 i = 0; i < handler.ethSendsLength(); i++) {
             (bytes32 h,, uint256 initTs,) = handler.ethSend(i);
             assertEq(messenger.sentMessageTimestamps(h), initTs, "SentTimestamps");
         }
+        for (uint256 j = 0; j < handler.attackerMsgsLength(); j++) {
+            (bytes32 h, uint256 initTs) = handler.attackerMsg(j);
+            assertEq(messenger.sentMessageTimestamps(h), initTs, "SentTimestamps (attacker)");
+        }
+        assertEq(handler.nestedSends(), 0, "Model scope: nested send from a destination");
     }
 
     /// @notice OnlyExportInitiatesWithdrawal (trusted sender): the trusted sender never calls the passer directly.
@@ -318,9 +391,33 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         assertEq(handler.rawWithdrawalsFrom23(), 0, "PasserTargetRule: raw withdrawal from 0x..23");
     }
 
+    /// @notice Runs one headline check by id (external, so a failing witness can expect its revert).
+    function runCheck(uint256 _id) external view {
+        if (_id == CHECK_NO_DOUBLE_SPEND) _checkNoDoubleSpend();
+        else if (_id == CHECK_ETH_CONSERVATION) _checkEthConservation();
+        else if (_id == CHECK_AT_MOST_ONE_RELAY) _checkAtMostOneRelay();
+        else if (_id == CHECK_DESTINATION_BINDING) _checkDestinationBinding();
+        else if (_id == CHECK_REFUND_IMPLIES_EXPIRED) _checkRefundImpliesExpired();
+        else if (_id == CHECK_EXPIRED_NEVER_RELAYABLE) _checkExpiredImpliesNeverRelayable();
+        else if (_id == CHECK_AT_MOST_ONE_REFUND) _checkAtMostOneRefund();
+        else if (_id == CHECK_ONLY_EXPORT_REACHES_L1) _checkOnlyExportReachesL1();
+        else if (_id == CHECK_NO_FORGED_FACT) _checkNoForgedFact();
+        else if (_id == CHECK_UNSAFE_TARGET_RULE) _checkUnsafeTargetRule();
+        else if (_id == CHECK_ONLY_EXPORT_INITIATES_WITHDRAWAL) _checkNoRawTrustedWithdrawal();
+        else if (_id == CHECK_SENT_TIMESTAMPS) _checkSentTimestamps();
+    }
+
+    /// @notice Asserts that check `_id` fails in the current state (failing witness).
+    function _expectCheckFails(uint256 _id) internal view {
+        (bool ok,) = address(this).staticcall(abi.encodeCall(this.runCheck, (_id)));
+        assertFalse(ok, "failing witness: the check did not fail");
+    }
+
     function _checkAll() internal view {
         _checkNoDoubleSpend();
         _checkEthConservation();
+        _checkAtMostOneRelay();
+        _checkDestinationBinding();
         _checkRefundImpliesExpired();
         _checkExpiredImpliesNeverRelayable();
         _checkAtMostOneRefund();
@@ -334,6 +431,16 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
 /// @title ExpiryInvariants_Safety_Invariant
 /// @notice The safety properties on the real contracts, at W_protocol (default 7 days) and the contract's
 ///         P_contract (EXPIRY_PERIOD, 8 days).
+/// forge-config: default.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.runs = 32
+/// forge-config: ci.invariant.depth = 256
+/// forge-config: liteci.invariant.fail-on-revert = true
+/// forge-config: liteci.invariant.runs = 32
+/// forge-config: liteci.invariant.depth = 256
+/// forge-config: ciheavy.invariant.fail-on-revert = true
+/// forge-config: ciheavy.invariant.runs = 32
+/// forge-config: ciheavy.invariant.depth = 256
 contract ExpiryInvariants_Safety_Invariant is ExpiryInvariants_TestInit {
     function _label() internal pure override returns (string memory) {
         return "Safety";
@@ -364,6 +471,16 @@ contract ExpiryInvariants_Safety_Invariant is ExpiryInvariants_TestInit {
         _checkAtMostOneRefund();
     }
 
+    /// @custom:invariant AtMostOneRelay
+    function invariant_atMostOneRelay() public view {
+        _checkAtMostOneRelay();
+    }
+
+    /// @custom:invariant DestinationBinding
+    function invariant_destinationBinding() public view {
+        _checkDestinationBinding();
+    }
+
     /// @custom:invariant OnlyExportReachesL1
     function invariant_onlyExportReachesL1() public view {
         _checkOnlyExportReachesL1();
@@ -377,7 +494,6 @@ contract ExpiryInvariants_Safety_Invariant is ExpiryInvariants_TestInit {
     /// @custom:invariant UnsafeTargetRule (L2CrossDomainMessenger and L2ToL1MessagePasser targets)
     function invariant_unsafeTargetRule() public view {
         _checkUnsafeTargetRule();
-        _checkNoRawWithdrawalFrom23();
     }
 
     /// @custom:invariant OnlyExportInitiatesWithdrawal: the exporter never initiates a raw withdrawal.
@@ -393,6 +509,16 @@ contract ExpiryInvariants_Safety_Invariant is ExpiryInvariants_TestInit {
 
 /// @title ExpiryInvariants_TightWindow_Invariant
 /// @notice All safety properties at the boundary W_protocol == P_contract (8 days), i.e. without the 1-day margin.
+/// forge-config: default.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.runs = 32
+/// forge-config: ci.invariant.depth = 256
+/// forge-config: liteci.invariant.fail-on-revert = true
+/// forge-config: liteci.invariant.runs = 32
+/// forge-config: liteci.invariant.depth = 256
+/// forge-config: ciheavy.invariant.fail-on-revert = true
+/// forge-config: ciheavy.invariant.runs = 32
+/// forge-config: ciheavy.invariant.depth = 256
 contract ExpiryInvariants_TightWindow_Invariant is ExpiryInvariants_TestInit {
     function _label() internal pure override returns (string memory) {
         return "TightWindow";
@@ -405,7 +531,6 @@ contract ExpiryInvariants_TightWindow_Invariant is ExpiryInvariants_TestInit {
     /// @custom:invariant All safety properties at W_protocol == P_contract.
     function invariant_allSafetyProperties() public view {
         _checkAll();
-        _checkNoRawWithdrawalFrom23();
         _checkNoRawTrustedWithdrawal();
     }
 }
@@ -418,6 +543,16 @@ contract ExpiryInvariants_TightWindow_Invariant is ExpiryInvariants_TestInit {
 ///         safety does not depend on the rule (the legacy 0x..23-trusted design did:
 ///         ExpiryInvariants_LegacyNoTargetRule_Invariant). UnsafeTargetRule and PasserTargetRule are not checked
 ///         here (the mutant violates them by construction).
+/// forge-config: default.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.runs = 32
+/// forge-config: ci.invariant.depth = 256
+/// forge-config: liteci.invariant.fail-on-revert = true
+/// forge-config: liteci.invariant.runs = 32
+/// forge-config: liteci.invariant.depth = 256
+/// forge-config: ciheavy.invariant.fail-on-revert = true
+/// forge-config: ciheavy.invariant.runs = 32
+/// forge-config: ciheavy.invariant.depth = 256
 contract ExpiryInvariants_NoUnsafeTargetRule_Invariant is ExpiryInvariants_TestInit {
     function _label() internal pure override returns (string memory) {
         return "NoUnsafeTargetRule";
@@ -431,6 +566,8 @@ contract ExpiryInvariants_NoUnsafeTargetRule_Invariant is ExpiryInvariants_TestI
     function invariant_safetyWithoutTargetRule() public view {
         _checkNoDoubleSpend();
         _checkEthConservation();
+        _checkAtMostOneRelay();
+        _checkDestinationBinding();
         _checkRefundImpliesExpired();
         _checkExpiredImpliesNeverRelayable();
         _checkAtMostOneRefund();
@@ -445,6 +582,16 @@ contract ExpiryInvariants_NoUnsafeTargetRule_Invariant is ExpiryInvariants_TestI
 /// @notice EXPECTED TO FAIL (run with EXPIRY_INV_EXPECT_FAIL=true). Each property says a step of the honest path
 ///         never happens; the fuzzer must falsify each, showing the safety campaign reaches relays, exports,
 ///         expiries and refunds.
+/// forge-config: default.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.runs = 32
+/// forge-config: ci.invariant.depth = 256
+/// forge-config: liteci.invariant.fail-on-revert = true
+/// forge-config: liteci.invariant.runs = 32
+/// forge-config: liteci.invariant.depth = 256
+/// forge-config: ciheavy.invariant.fail-on-revert = true
+/// forge-config: ciheavy.invariant.runs = 32
+/// forge-config: ciheavy.invariant.depth = 256
 contract ExpiryInvariants_NonVacuity_Invariant is ExpiryInvariants_TestInit {
     function _label() internal pure override returns (string memory) {
         return "NonVacuity";
@@ -469,9 +616,9 @@ contract ExpiryInvariants_NonVacuity_Invariant is ExpiryInvariants_TestInit {
         assertEq(handler.nRelays(), 0, "witness: relay reached");
     }
 
-    /// @custom:invariant EXPECTED FAIL: a refund after a relay attempt was blocked by the window is reachable.
+    /// @custom:invariant EXPECTED FAIL: some hash has a window-blocked relay attempt and is refunded afterwards.
     function invariant_refundAfterBlockedRelayNeverHappens() public view {
-        assertFalse(handler.nRefunds() > 0 && handler.nRelaysBlockedByWindow() > 0, "witness: blocked relay + refund");
+        assertFalse(handler.refundAfterBlockedRelay(), "witness: blocked relay then refund of the same hash");
     }
 }
 
@@ -479,6 +626,16 @@ contract ExpiryInvariants_NonVacuity_Invariant is ExpiryInvariants_TestInit {
 /// @notice EXPECTED TO FAIL (run with EXPIRY_INV_EXPECT_FAIL=true). Drops the assumption: W_protocol =
 ///         P_contract + 1 day. A message relayed between P_contract and W_protocol after its send can also be
 ///         expired and refunded.
+/// forge-config: default.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.runs = 32
+/// forge-config: ci.invariant.depth = 256
+/// forge-config: liteci.invariant.fail-on-revert = true
+/// forge-config: liteci.invariant.runs = 32
+/// forge-config: liteci.invariant.depth = 256
+/// forge-config: ciheavy.invariant.fail-on-revert = true
+/// forge-config: ciheavy.invariant.runs = 32
+/// forge-config: ciheavy.invariant.depth = 256
 contract ExpiryInvariants_UnsafeWindow_Invariant is ExpiryInvariants_TestInit {
     function _label() internal pure override returns (string memory) {
         return "UnsafeWindow";
@@ -513,6 +670,16 @@ contract ExpiryInvariants_UnsafeWindow_Invariant is ExpiryInvariants_TestInit {
 ///         mutants/L2ToL2CrossDomainMessengerLegacyNoTargetRule.sol). A relayed message to the
 ///         L2CrossDomainMessenger forges a fact. Relays without an initiating event are excluded, so counterexamples
 ///         use only protocol-valid relays.
+/// forge-config: default.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.fail-on-revert = true
+/// forge-config: ci.invariant.runs = 32
+/// forge-config: ci.invariant.depth = 256
+/// forge-config: liteci.invariant.fail-on-revert = true
+/// forge-config: liteci.invariant.runs = 32
+/// forge-config: liteci.invariant.depth = 256
+/// forge-config: ciheavy.invariant.fail-on-revert = true
+/// forge-config: ciheavy.invariant.runs = 32
+/// forge-config: ciheavy.invariant.depth = 256
 contract ExpiryInvariants_LegacyNoTargetRule_Invariant is ExpiryInvariants_TestInit {
     function _label() internal pure override returns (string memory) {
         return "LegacyNoTargetRule";
@@ -560,7 +727,6 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
 
     function _checkAllReal() internal view {
         _checkAll();
-        _checkNoRawWithdrawalFrom23();
         _checkNoRawTrustedWithdrawal();
     }
 
@@ -573,6 +739,11 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
         handler.warp(3, 4, 0);
         assertEq(block.timestamp, initTs + handler.P_CONTRACT() + 1);
 
+        // The protocol already refuses the relay.
+        handler.relayETH(0);
+        assertEq(handler.nRelaysBlockedByWindow(), 1);
+        assertFalse(messenger.successfulMessages(h));
+
         handler.exportMessage(0, 0, 1, 1, 200_000, false);
         assertEq(handler.nExports(), 1);
         assertEq(handler.factsLength(), 1);
@@ -580,19 +751,66 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
         handler.deliverFact(0, 2, 0);
         assertTrue(messenger.expiredMessages(h));
         assertEq(handler.nExpiries(), 1);
+        // The handler observes the real MessageExpired event (guards the event signature constant).
+        assertEq(handler.nExpiredEmissions(), 1);
 
         handler.refund(0, 0, 0, address(this));
         assertTrue(superchainETHBridge.refunded(h));
         assertEq(handler.nRefunds(), 1);
+        assertTrue(handler.refundAfterBlockedRelay());
 
         handler.refund(0, 0, 0, address(this));
         assertEq(handler.nRefunds(), 1);
         assertEq(handler.nRefundsReverted(), 1);
 
-        handler.relayETH(0);
-        assertEq(handler.nRelaysBlockedByWindow(), 1);
-        assertFalse(messenger.successfulMessages(h));
+        // A repeated delivery of the same honest fact re-runs expireMessage; it is still authorized.
+        handler.deliverFact(0, 2, 0);
+        assertFalse(handler.forgedFactAccepted());
 
+        _checkAllReal();
+    }
+
+    /// @notice ETH relays at init + W - 1 and init + W succeed and pay the recipient; at init + W + 1 the protocol
+    ///         refuses it.
+    function test_witness_relayAtWindowBoundary_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        handler.sendETH(1, 2, 2 ether, 0);
+        handler.sendETH(2, 4, 3 ether, 0);
+        (bytes32 h0,, uint256 initTs,) = handler.ethSend(0);
+        (bytes32 h1,,,) = handler.ethSend(1);
+        (bytes32 h2,,,) = handler.ethSend(2);
+        uint256 w = handler.W_PROTOCOL();
+
+        handler.warp(3, 0, 0); // init + W - 1
+        assertEq(block.timestamp, initTs + w - 1);
+        handler.relayETH(0);
+        assertTrue(messenger.successfulMessages(h0));
+
+        handler.warp(3, 1, 0); // init + W
+        assertEq(block.timestamp, initTs + w);
+        handler.relayETH(1);
+        assertTrue(messenger.successfulMessages(h1));
+
+        handler.warp(3, 2, 0); // init + W + 1
+        handler.relayETH(2);
+        assertFalse(messenger.successfulMessages(h2));
+        assertEq(handler.nRelays(), 2);
+        assertEq(handler.nRelaysBlockedByWindow(), 1);
+        assertFalse(handler.relayPaidWrong());
+        _checkAllReal();
+    }
+
+    /// @notice An authentic, within-window A->B payload relayed on C is refused by the messenger; on B it relays.
+    function test_witness_wrongChainRelayRejected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        (bytes32 h, uint256 dest,,) = handler.ethSend(0);
+        assertEq(dest, handler.CHAIN_B());
+        handler.relayOnWrongChain(0);
+        assertEq(handler.nWrongChainRelays(), 1);
+        assertFalse(handler.wrongChainRelayAccepted());
+        assertFalse(messenger.successfulMessages(h));
+        handler.relayETH(0);
+        assertTrue(messenger.successfulMessages(h));
         _checkAllReal();
     }
 
@@ -608,6 +826,8 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
         handler.exportMessage(0, 0, 1, 1, 200_000, false);
         handler.deliverFact(1, 1, 0); // weakened to t' = 0
         assertFalse(messenger.expiredMessages(h));
+        handler.deliverFact(1, 3, 0); // weakened to exactly init + P (the boundary)
+        assertFalse(messenger.expiredMessages(h));
         handler.deliverFact(1, 2, 0); // honest t
         assertTrue(messenger.expiredMessages(h));
         _checkAllReal();
@@ -620,6 +840,10 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
         handler.relayETH(0);
         assertTrue(messenger.successfulMessages(h));
         assertEq(handler.nRelays(), 1);
+        // A second relay of the same payload (still within the window) is refused (AtMostOneRelay reach).
+        handler.relayETH(0);
+        assertEq(handler.nRelays(), 1);
+        assertEq(handler.nRelaysReverted(), 1);
 
         handler.warp(3, 4, 0);
         handler.exportMessage(0, 0, 1, 1, 200_000, false);
@@ -657,9 +881,14 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
     function test_witness_targetRuleRejects_succeeds() external {
         handler.sendETH(0, 0, 1 ether, 0);
         handler.attackerSend(0, 0, 0, 0, 200_000, "", true); // L2CrossDomainMessenger
+        assertEq(handler.nAttackerSendsRejected(), 1);
         handler.attackerSend(1, 1, 0, 0, 200_000, "", true); // L2ToL1MessagePasser
         assertEq(handler.nAttackerSendsRejected(), 2);
-        handler.relayForgedPayloadToL2CDM(0, 0, 0, 200_000, "");
+        assertEq(handler.attackerMsgsLength(), 0);
+        handler.relayForgedPayloadToUnsafeTarget(0, 0, 0, 0, 200_000, ""); // L2CrossDomainMessenger
+        handler.relayForgedPayloadToUnsafeTarget(1, 1, 0, 0, 200_000, ""); // L2ToL1MessagePasser
+        assertEq(handler.nForgeAttempts(), 2);
+        assertFalse(handler.unsafeTargetAccepted());
         assertEq(handler.factsLength(), 0);
         assertEq(handler.rawWithdrawalsFrom23(), 0);
         _checkAllReal();
@@ -680,6 +909,30 @@ contract ExpiryInvariants_Witness_Test is ExpiryInvariants_TestInit {
         handler.refund(0, 0, 0, address(this));
         assertTrue(superchainETHBridge.refunded(h));
         _checkAllReal();
+    }
+
+    /// @notice Failing witness (fault injection on real code): rewriting a stored send timestamp is detected.
+    function test_witness_sentTimestampCorruptionDetected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        (bytes32 h,, uint256 initTs,) = handler.ethSend(0);
+        // sentMessageTimestamps is the messenger's storage slot 3.
+        bytes32 slot = keccak256(abi.encode(h, uint256(3)));
+        assertEq(uint256(vm.load(address(messenger), slot)), initTs);
+        this.runCheck(CHECK_SENT_TIMESTAMPS);
+        vm.store(address(messenger), slot, bytes32(initTs + 1));
+        _expectCheckFails(CHECK_SENT_TIMESTAMPS);
+    }
+
+    /// @notice Failing witness (model scope): with the handler's nested-send filter off, a relayed bridge.sendETH
+    ///         makes B send a child message, and the model-scope check catches it.
+    function test_witness_nestedSendDetected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        handler.setNestedSendFilter(false);
+        bytes memory junk = abi.encodeCall(superchainETHBridge.sendETH, (address(0xBEEF), handler.CHAIN_C()));
+        handler.attackerSend(2, 6, 0, 0, 200_000, junk, true);
+        assertEq(handler.nAttackerRelays(), 1);
+        assertEq(handler.nestedSends(), 1);
+        _expectCheckFails(CHECK_SENT_TIMESTAMPS);
     }
 }
 
@@ -713,8 +966,10 @@ contract ExpiryInvariants_UnsafeWindowWitness_Test is ExpiryInvariants_TestInit 
         handler.deliverFact(0, 2, 0);
         handler.refund(0, 0, 0, address(this));
         assertTrue(superchainETHBridge.refunded(h));
-        // NoDoubleSpend is violated: both relayed and refunded.
+        // NoDoubleSpend is violated: both relayed and refunded. Both checks catch it.
         assertTrue(messenger.successfulMessages(h) && superchainETHBridge.refunded(h));
+        _expectCheckFails(CHECK_NO_DOUBLE_SPEND);
+        _expectCheckFails(CHECK_EXPIRED_NEVER_RELAYABLE);
     }
 }
 
@@ -753,6 +1008,8 @@ contract ExpiryInvariants_NoUnsafeTargetRuleWitness_Test is ExpiryInvariants_Tes
         _checkOnlyExportReachesL1();
         _checkNoForgedFact();
         _checkNoRawTrustedWithdrawal();
+        // UnsafeTargetRule failing witness: the mutant accepts both unsafe targets.
+        _expectCheckFails(CHECK_UNSAFE_TARGET_RULE);
     }
 }
 
@@ -790,6 +1047,10 @@ contract ExpiryInvariants_LegacyNoTargetRuleWitness_Test is ExpiryInvariants_Tes
 
         handler.refund(0, 0, 0, address(this));
         assertTrue(messenger.successfulMessages(h) && superchainETHBridge.refunded(h));
+        _expectCheckFails(CHECK_ONLY_EXPORT_REACHES_L1);
+        _expectCheckFails(CHECK_NO_FORGED_FACT);
+        _expectCheckFails(CHECK_NO_DOUBLE_SPEND);
+        _expectCheckFails(CHECK_UNSAFE_TARGET_RULE);
     }
 }
 
@@ -821,5 +1082,99 @@ contract ExpiryInvariants_GovernanceAssumptionWitness_Test is ExpiryInvariants_T
         assertTrue(messenger.expiredMessages(h));
         handler.refund(0, 0, 0, address(this));
         assertTrue(messenger.successfulMessages(h) && superchainETHBridge.refunded(h));
+        _expectCheckFails(CHECK_ONLY_EXPORT_REACHES_L1);
+        _expectCheckFails(CHECK_NO_FORGED_FACT);
+        _expectCheckFails(CHECK_NO_DOUBLE_SPEND);
+    }
+
+    /// @notice Failing witness for OnlyExportInitiatesWithdrawal: an upgraded exporter calling the passer directly.
+    function test_witness_upgradedExporterRawWithdrawal_succeeds() external {
+        this.runCheck(CHECK_ONLY_EXPORT_INITIATES_WITHDRAWAL);
+        handler.rawWithdrawalAsUpgradedExporter();
+        assertEq(handler.rawWithdrawalsFromTrusted(), 1);
+        _expectCheckFails(CHECK_ONLY_EXPORT_INITIATES_WITHDRAWAL);
+    }
+}
+
+/// @title ExpiryInvariants_FaultyMessengerWitness_Test
+/// @notice Failing witnesses for DestinationBinding and AtMostOneRelay, with the test-only messenger copy that lacks
+///         the relay destination check and replay check (mutants/L2ToL2CrossDomainMessengerFaulty.sol).
+contract ExpiryInvariants_FaultyMessengerWitness_Test is ExpiryInvariants_TestInit {
+    function _label() internal pure override returns (string memory) {
+        return "FaultyMessengerWitness";
+    }
+
+    function _isInvariant() internal pure override returns (bool) {
+        return false;
+    }
+
+    function _mutant() internal pure override returns (uint8) {
+        return MUTANT_FAULTY_MESSENGER;
+    }
+
+    function test_witness_wrongChainRelayDetected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        this.runCheck(CHECK_DESTINATION_BINDING);
+        handler.relayOnWrongChain(0);
+        assertTrue(handler.wrongChainRelayAccepted());
+        _expectCheckFails(CHECK_DESTINATION_BINDING);
+    }
+
+    function test_witness_replayDetected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        (bytes32 h,,,) = handler.ethSend(0);
+        handler.relayETH(0);
+        this.runCheck(CHECK_AT_MOST_ONE_RELAY);
+        handler.relayETH(0);
+        assertEq(handler.relayCount(h), 2);
+        _expectCheckFails(CHECK_AT_MOST_ONE_RELAY);
+        _expectCheckFails(CHECK_ETH_CONSERVATION);
+    }
+}
+
+/// @title ExpiryInvariants_FaultyBridgeWitness_Test
+/// @notice Failing witnesses for RefundImpliesExpired, AtMostOneRefund and ETH conservation (payout), with the
+///         test-only bridge copy that refunds without the expiry and already-refunded checks and pays relays to the
+///         sender (mutants/SuperchainETHBridgeFaulty.sol).
+contract ExpiryInvariants_FaultyBridgeWitness_Test is ExpiryInvariants_TestInit {
+    function _label() internal pure override returns (string memory) {
+        return "FaultyBridgeWitness";
+    }
+
+    function _isInvariant() internal pure override returns (bool) {
+        return false;
+    }
+
+    function _faultyBridge() internal pure override returns (bool) {
+        return true;
+    }
+
+    function test_witness_refundWithoutExpiryDetected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        this.runCheck(CHECK_REFUND_IMPLIES_EXPIRED);
+        handler.refund(0, 0, 0, address(this));
+        assertTrue(handler.refundWithoutExpiry());
+        _expectCheckFails(CHECK_REFUND_IMPLIES_EXPIRED);
+    }
+
+    function test_witness_doubleRefundDetected_succeeds() external {
+        handler.sendETH(0, 0, 1 ether, 0);
+        handler.warp(3, 4, 0);
+        handler.exportMessage(0, 0, 1, 1, 200_000, false);
+        handler.deliverFact(0, 2, 0);
+        handler.refund(0, 0, 0, address(this));
+        this.runCheck(CHECK_AT_MOST_ONE_REFUND);
+        handler.refund(0, 0, 0, address(this));
+        assertEq(handler.nRefunds(), 2);
+        _expectCheckFails(CHECK_AT_MOST_ONE_REFUND);
+    }
+
+    function test_witness_wrongPayoutDetected_succeeds() external {
+        // An odd recipient seed picks a recipient other than the sender.
+        handler.sendETH(0, 1, 1 ether, 0);
+        this.runCheck(CHECK_ETH_CONSERVATION);
+        handler.relayETH(0);
+        assertTrue(handler.relayPaidWrong());
+        _expectCheckFails(CHECK_ETH_CONSERVATION);
     }
 }

@@ -2,10 +2,9 @@
 pragma solidity 0.8.25;
 
 // MUTANT FOR TESTING ONLY. NOT A REAL CONTRACT. NEVER DEPLOY.
-// Copy of src/L2/L2ToL2CrossDomainMessenger.sol at c7c51d79e2 with the unsafe-target rule REMOVED: _isUnsafeTarget
-// always returns false, so sendMessage and relayMessage accept the L2CrossDomainMessenger and the
-// L2ToL1MessagePasser as targets. Used by ExpiryInvariants_NoUnsafeTargetRule_Invariant (expected to pass:
-// safety does not depend on this rule) and by the UnsafeTargetRule failing witness.
+// Copy of src/L2/L2ToL2CrossDomainMessenger.sol at c7c51d79e2 with two relay checks REMOVED: the destination check
+// (destination == block.chainid) and the replay check (successfulMessages). Used only by the deterministic failing
+// witnesses for DestinationBinding and AtMostOneRelay (ExpiryInvariants_FailingWitness_Test).
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -51,11 +50,11 @@ error L2ToL2CrossDomainMessenger_NotOtherMessenger();
 ///         the expiry period.
 error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
-/// @title L2ToL2CrossDomainMessengerNoUnsafeTargets (MUTANT, test only)
+/// @title L2ToL2CrossDomainMessengerFaulty (MUTANT, test only)
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentrancyAware {
+contract L2ToL2CrossDomainMessengerFaulty is ISemver, TransientReentrancyAware {
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -228,7 +227,7 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
             _decodeSentMessagePayload(_sentMessage);
 
         // Assert invariants on the message
-        if (destination != block.chainid) revert MessageDestinationNotRelayChain();
+        // MUTANT: destination check removed.
 
         if (_isUnsafeTarget(target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();
 
@@ -242,9 +241,7 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
             _message: message
         });
 
-        if (successfulMessages[messageHash]) {
-            revert MessageAlreadyRelayed();
-        }
+        // MUTANT: replay check removed.
 
         successfulMessages[messageHash] = true;
         _storeMessageMetadata(source, sender);
@@ -296,9 +293,7 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
     /// @param _target Target of the message.
     /// @return Whether the target is unsafe.
     function _isUnsafeTarget(address _target) internal pure returns (bool) {
-        // MUTANT: unsafe-target rule removed.
-        _target;
-        return false;
+        return _target == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _target == Predeploys.L2_TO_L1_MESSAGE_PASSER;
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two bytes of the message
