@@ -50,8 +50,7 @@ const (
 )
 
 var (
-	// undeliveredMessageExporterAddr is the UndeliveredMessageExporter predeploy, which the
-	// contracts PR that enables these tests adds.
+	// undeliveredMessageExporterAddr is the UndeliveredMessageExporter predeploy.
 	undeliveredMessageExporterAddr = common.HexToAddress("0x4200000000000000000000000000000000000030")
 
 	failedRelayedMessageTopic       = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
@@ -62,8 +61,8 @@ var (
 	messageRelayed                  = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
 )
 
-// expiryTestsSkipReason holds the message expiry tests back until the contracts they exercise
-// land (ethereum-optimism/specs#960).
+// expiryTestsSkipReason holds back the message expiry tests, which need the message expiry
+// contracts.
 const expiryTestsSkipReason = "requires the message expiry contracts, which #23286 adds and which re-enables this test"
 
 // shortClocks shrinks the L1 dispute windows and game clocks until they can be waited out in
