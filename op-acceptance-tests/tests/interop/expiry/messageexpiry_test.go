@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -56,11 +55,12 @@ const (
 )
 
 var (
-	failedRelayedMessageTopic = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
-	expireMessageSelector     = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
-	messageNotExpired         = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
-	refundNotExpired          = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
-	messageRelayed            = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
+	failedRelayedMessageTopic       = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
+	undeliveredMessageExportedTopic = crypto.Keccak256Hash([]byte("UndeliveredMessageExported(bytes32,uint256,address,uint256)"))
+	expireMessageSelector           = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
+	messageNotExpired               = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
+	refundNotExpired                = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
+	messageRelayed                  = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
 )
 
 // TestUnrelayedMessageCannotExpireBeforeExpiryPeriod runs every leg of the expiry path: A sends
@@ -90,17 +90,22 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	exporter := sys.FunderB.NewFundedEOA(eth.ZeroWei).ViaDepositTx(l1User, sys.L2ELB, sys.L2ChainB)
 	exportRcpt := exporter.DepositTx(predeploys.UndeliveredMessageExporterAddr, exportCalldata(t, sys, send.Message),
 		func(o *dsl.DepositTxOpts) { o.GasLimit = exportGasLimit })
-	exportBlock := sys.L2ELB.BlockRefByNumber(bigs.Uint64Strict(exportRcpt.BlockNumber))
+	exportBlock := sys.L2ELB.BlockRefByHash(exportRcpt.BlockHash)
+	require.True(slices.ContainsFunc(exportRcpt.Logs, func(l *types.Log) bool {
+		return l.Address == predeploys.UndeliveredMessageExporterAddr && len(l.Topics) > 1 &&
+			l.Topics[0] == undeliveredMessageExportedTopic && l.Topics[1] == send.Message.Hash
+	}), "B's exporter must emit UndeliveredMessageExported for the message")
 
 	withdrawal := sys.StandardBridge(sys.L2ChainB).WithdrawalFromReceipt(exportRcpt)
 	withdrawal.Prove(l1User)
-	withdrawal.WaitForDisputeGameResolved(func(o *dsl.WaitForDisputeGameOpts) { o.Timeout = gameResolutionTimeout })
+	withdrawal.WaitForDisputeGameResolved(func(o *dsl.WaitForDisputeGameResolvedOpts) { o.Timeout = gameResolutionTimeout })
 	withdrawal.Finalize(l1User)
 
 	deposit := sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
 	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
 	require.True(slices.ContainsFunc(deposit.Logs, func(l *types.Log) bool {
-		return l.Address == predeploys.L2CrossDomainMessengerAddr && l.Topics[0] == failedRelayedMessageTopic
+		return l.Address == predeploys.L2CrossDomainMessengerAddr && len(l.Topics) > 0 &&
+			l.Topics[0] == failedRelayedMessageTopic
 	}), "A's L2CrossDomainMessenger must keep the rejected word as a failed message")
 	expire, found := sys.L2ELA.TraceCalls(deposit.TxHash).Find(func(f dsl.CallFrame) bool {
 		return f.To == predeploys.L2toL2CrossDomainMessengerAddr && bytes.HasPrefix(f.Input, expireMessageSelector)

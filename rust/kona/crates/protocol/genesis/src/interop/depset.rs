@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn get_message_expiry_window_default() {
+    fn test_get_message_expiry_window_default() {
         let deps = BTreeMap::default();
         // override_message_expiry_window is 0, so default should be used
         let ds = create_dependency_set(deps, 0);
@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn get_message_expiry_window_override() {
+    fn test_get_message_expiry_window_override() {
         let deps = BTreeMap::default();
         let override_value = 12345;
         let ds = create_dependency_set(deps, override_value);
@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn get_message_expiry_window_never_exceeds_protocol_window() {
+    fn test_get_message_expiry_window_never_exceeds_protocol_window() {
         let ds = create_dependency_set(BTreeMap::default(), MESSAGE_EXPIRY_WINDOW + 1);
         assert_eq!(ds.get_message_expiry_window(), MESSAGE_EXPIRY_WINDOW);
     }
@@ -123,7 +123,7 @@ mod tests {
     /// op-core pins the same 7 days (`MessageExpiryTimeSecondsInterop`);
     /// `L2ToL2CrossDomainMessenger.sol`'s `EXPIRY_PERIOD` is this window plus a day of margin.
     #[test]
-    fn message_expiry_window_is_seven_days() {
+    fn test_message_expiry_window_is_seven_days() {
         assert_eq!(MESSAGE_EXPIRY_WINDOW, 604_800);
     }
 
