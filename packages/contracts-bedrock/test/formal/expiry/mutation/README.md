@@ -33,6 +33,11 @@ exact statements.
   mapped by its statements, like EVM-Lean (see "Layers"). The committed Halmos suite renamed the bridge's phase-2
   check (`check_reach_bridge_step`); the bridge's phase 2 decided no verdict here (it was
   stopped for K43 and K50).
+- **Re-run after the gaps were closed.** The gaps this campaign found were closed on the formal branch (unit tests
+  `e1b3903ab8`, test-only; hevm harness `091bcb1500`; Halmos `557e7691e9`). The affected mutants were re-run with
+  this `run.sh` at `557e7691e9`, on a fresh checkout whose baseline passed first: K06, K41, K42, K43 and K45 on the
+  unit tests; K41 and K42 on Halmos phase 1; K04 on Halmos phases 1 and 2 (with a fresh `ReachL2ToL2Halmos`
+  baseline). Those cells are marked **K§**; every other cell is from `e0ffb33a31`.
 
 ## The question in one table
 
@@ -57,7 +62,7 @@ a change, not as a semantic catch.
 | K03 | P_contract = 6 days, below the 7-day protocol window | new | double spend | K | K(setUp) | K | excl. | `cex_periodBelowWindow`; `periodBelowWindow` | pin† | K |
 | K04 | sentAt + P computed unchecked (wraps for sentAt >= 2^256 - P) | new | none reachable | · | · | K | excl. | — | stmt | · |
 | K05 | sendMessage does not record sentMessageTimestamps | new | liveness | K | K | K | K | — | pin | · |
-| K06 | sendMessage records timestamp 1 instead of block.timestamp | halmos M13 | double spend | · | K | K | K | mechanism of `cex_resendNoRestart` / `resendNoRestart` | pin | · |
+| K06 | sendMessage records timestamp 1 instead of block.timestamp | halmos M13 | double spend | K§ | K | K | K | mechanism of `cex_resendNoRestart` / `resendNoRestart` | pin | · |
 | K07 | relayMessage does not set successfulMessages | halmos M24 | double spend | K | K | K | K | named assumption only | pin | · |
 | K08 | relayMessage has no replay check | invariants M3 | double delivery | K | K | K | K | — | pin | · |
 | K09 | expireMessage drops its msg.sender == L2CrossDomainMessenger check | new | none reachable | K | · | K | excl. | — | stmt | K |
@@ -92,11 +97,11 @@ a change, not as a semantic catch.
 | K37 | refundETH hash preimage uses nonce + 1 | halmos M18 | API shift | K | K(witness) | K | n/a | — | stmt | K |
 | K39 | expireMessage drops its sentAt != 0 check | new; review R1 | unbounded mint | K | K | K | excl. | — (`expire` guard fixes sentAt ≠ 0) | stmt | K |
 | K40 | expireMessage compares the source's block.timestamp instead of _undeliveredAt | new; review R1 | double spend | K | K | K | excl. | — (fact time ignored) | stmt | K |
-| K41 | check (a) reads the caller's own systemConfig() instead of its portal's | new; review R1 | double spend | K‡ | n/a | K‡ | n/a | `cex_noRealMessengerCheck`; `noRealMessengerCheck` | stmt | K‡ |
-| K42 | check (b) reversed: the caller portal's lockbox must authorize this chain's portal | new; review R1 | double spend | K‡ | n/a | K‡ | n/a | `cex_noLockboxCheck_fakePortal`; `noLockboxCheck` | stmt | K‡ |
-| K43 | refundETH emits RefundETH only for a nonzero amount | new; review R2 | event only | · | · | · (phase 2 stopped; raw ERROR) | n/a | — | pin | · |
+| K41 | check (a) reads the caller's own systemConfig() instead of its portal's | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noRealMessengerCheck`; `noRealMessengerCheck` | stmt | K‡ |
+| K42 | check (b) reversed: the caller portal's lockbox must authorize this chain's portal | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noLockboxCheck_fakePortal`; `noLockboxCheck` | stmt | K‡ |
+| K43 | refundETH emits RefundETH only for a nonzero amount | new; review R2 | event only | K§ | · | · (phase 2 stopped; raw ERROR) | n/a | — | pin | · |
 | K44 | relayMessage forwards only half the remaining gas to the target | new; review R2 | liveness (gas) | · | · | · | excl. | — (gas) | pin | · |
-| K45 | relayMessage does not call CrossL2Inbox.validateMessage | new; review R2 | forged delivery, unbounded mint | · | · | · | K | — (`relay` needs an initiating event) | pin | · |
+| K45 | relayMessage does not call CrossL2Inbox.validateMessage | new; review R2 | forged delivery, unbounded mint | K§ | · | · | K | — (`relay` needs an initiating event) | pin | · |
 | K46 | relayMessage marks successfulMessages after the target call instead of before | new; review R2 | local only (the window rule absorbs it) | · | · | K | · | — | pin | · |
 | K47 | exporter hash ignores the nonce | new; review R2 | liveness | K | K | K | n/a | — | stmt | K |
 | K48 | the forwarded expireMessage carries a different hash | new; review R2 | liveness | K | n/a | K | n/a | — | stmt | K |
@@ -105,9 +110,11 @@ a change, not as a semantic catch.
 | K51 | expireMessage emits MessageExpired twice | new; review R3 | event only | · | K(witness) | · | excl. | — | pin | · |
 
 K01–K38 are the original catalogue; K39–K51 were added after the first review round (see "Review log").
-**K‡** caught only because the test stand-in for the other chain's messenger or portal lacks the getter the
+**K§** caught at `557e7691e9`, after the gap-closing commits, for the right reason (checked per mutant under
+"Re-run at 557e7691e9"); at `e0ffb33a31` the cell was · or K‡. **K‡** caught only because the test stand-in for the other chain's messenger or portal lacks the getter the
 mutant newly calls, so every call reverts, including honest ones; the forged word the mutant would accept is never
-tried (see "Surviving every executed layer"). **· (phase 2 stopped; raw ERROR)**: phase 1 survived, and the bridge's phase-2 check was stopped by hand (its baseline does not
+tried (see "Surviving every executed layer"). Only Kontrol's K41/K42 cells are still K‡: its stand-in fix is in
+progress elsewhere, and the column stays "by statement". **· (phase 2 stopped; raw ERROR)**: phase 1 survived, and the bridge's phase-2 check was stopped by hand (its baseline does not
 finish in 90 minutes on the shared host, and it observes neither events nor storage layout, which is what K43
 and K50 change).
 
@@ -123,16 +130,16 @@ payouts, reached through different arguments.
 
 | Layer | Caught | Survived | Not applicable or excluded |
 |---|---|---|---|
-| Unit tests | 42 (K41, K42 only through a fixture artifact) | K04, K06, K25, K43, K44, K45, K46, K50, K51 | — |
+| Unit tests | 45 at `557e7691e9` (42 at `e0ffb33a31`, where K41 and K42 were caught only through a fixture artifact) | K04, K25, K44, K46, K50, K51 (at `e0ffb33a31` also K06, K43, K45) | — |
 | Invariants | 30 (of them: K03 by a setUp assertion; K11, K20, K36, K37, K49, K51 by witness tests only) | K02, K04, K09, K43, K44, K45, K46, K50 | 13 L1CrossDomainMessenger mutants (the harness does not execute L1) |
-| Halmos | 45 (K41, K42 only through a fixture artifact) | K25, K44, K45, K51 | K43, K50: phase 1 survived, phase 2 stopped (raw verdict ERROR) |
+| Halmos | 45 (K41, K42 for the right reason at `557e7691e9`; only through a fixture artifact at `e0ffb33a31`) | K25, K44, K45, K51 | K43, K50: phase 1 survived, phase 2 stopped (raw verdict ERROR) |
 | hevm harness | 6 (K05–K08, K15, K45) | K46 | 14 messenger mutants outside the compared surface by design; 30 not the messenger |
-| Kontrol (by statement) | 35 (K35 only at the liquidity edge; K41, K42 only through the same mock gap) | 16 | — |
+| Kontrol (by statement) | 35 (K35 only at the liquidity edge; K41, K42 only through the same mock gap, fix pending) | 16 | — |
 | EVM-Lean (by statement) | 34 stmt | 17 pin (2 of them pin†) | — |
 
 ### Which checks caught each mutant
 
-<details><summary>Failing tests and checks per mutant (unit: test contract and function; invariants: the first seed
+<details><summary>Failing tests and checks per mutant at <code>e0ffb33a31</code> (the K§ re-runs are under "Re-run at 557e7691e9") (unit: test contract and function; invariants: the first seed
 that failed, invariants first, then witnesses)</summary>
 
 - **K01**
@@ -365,29 +372,18 @@ that failed, invariants first, then witnesses)</summary>
 
 ## Surviving every executed layer
 
-**Four mutants have no recorded catch in any executed layer: K25, K43, K44 and K50.** For K43 and K50, Halmos's
-phase 2 was stopped, so "survived" there means phase 1 and every other layer. **Two more, K41 and K42, are caught
-only for the wrong reason, so no executed layer checks what they break.** K25 is equivalent; the other five are
-gaps. K41 and K42 are the important ones: each is a double spend.
+At `557e7691e9`, after the gap-closing commits, **three mutants have no catch in any executed layer: K25, K44 and
+K50.** K25 is equivalent; K44 and K50 are known gaps covered elsewhere or out of scope. At `e0ffb33a31` the list
+was longer: K43 also survived everything, and K41 and K42 were caught only for the wrong reason; see "Re-run at
+557e7691e9".
 
-| ID | Mistake | Why it survives | What would kill it |
+| ID | Mistake | Why it survives | Where it is covered instead |
 |---|---|---|---|
-| K25 | checks (a) and (c) of `relayUndeliveredMessage` in the opposite order | **Equivalent** (argued below): every check is a view call and every failure reverts. It also survived `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` (2319 s; 2463 s for the whole Halmos layer). Kontrol's `prove_relayUndeliveredMessage_spec` and the EVM-Lean `relay_success` statement would still hold. | Nothing should. |
-| K50 | a new state variable declared before `SuperchainETHBridge.refunded` (storage layout shift) | **Gap: upgrade history.** Every executed layer deploys fresh code and reads `refunded` through its getter. After a later upgrade with this layout, every hash refunded before the upgrade would read as unrefunded and could be refunded again. | Already caught outside this campaign's layers: the committed storage-layout snapshot (`snapshots/storageLayout/SuperchainETHBridge.json` has `refunded` at slot 0; with K50 it is slot 1, so regenerating the snapshots with `just snapshots-check` followed by `git diff --exit-code snapshots/` fails), and the `refundETH` EVM-Lean statement, which fixes the `refunded` slot (by reasoning). |
-| K44 | `relayMessage` forwards only half the remaining gas to the target | **Gap: gas forwarding.** No layer asserts how much gas the relay forwards: the unit tests' targets are cheap, Halmos and the models do not check gas, and the hevm harness excludes gas on purpose. A relay to an expensive target can fail where it would have succeeded; the message then stays unrelayed and can still expire, so nothing is paid twice. | A unit test that relays to a target which needs most of the transaction's gas (for example, one that burns a fixed large amount) and asserts success with a gas limit just above the requirement. |
-| K41 | check (a) reads `caller.systemConfig()` instead of `caller.portal().systemConfig()` | **Gap: the stand-ins.** The mutant asks the calling contract for its SystemConfig. The Halmos `MockCallerMessenger`, Kontrol's caller mock and the unit tests' `vm.mockCall` fixtures do not answer `systemConfig()`, so the call reverts for honest and forged callers alike. The Halmos counterexample is the honest direction (should succeed, reverts); `check_relayUndelivered_rejectsCallerClaimingPortalA` passes; the unit attack tests fail only on revert data. A real L1CrossDomainMessenger does have `systemConfig()`, and a fake caller can answer anything, so the mutant accepts a forged word. | In Halmos and Kontrol, give the caller mock a symbolic, attacker-chosen `systemConfig()` (and the portal mock a symbolic `ethLockbox()`); in the unit tests `borrowedPortal` and `otherCluster`, mock those getters with attacker-favourable answers and expect the custom error. Lean's `cex_noRealMessengerCheck` is the attack. |
-| K42 | check (b) asks the caller's portal's lockbox about this chain's portal | **Gap: the stand-ins**, as for K41: the portal mocks do not answer `ethLockbox()`. A fake portal can return a lockbox that authorizes anything. | As for K41. Lean's `cex_noLockboxCheck_fakePortal` is the attack. |
-| K43 | `refundETH` emits `RefundETH` only for a nonzero amount | **Gap: events, minor.** The successful-refund fuzz test bounds the amount from 1, and no other layer asserts the `RefundETH` event. | Run `testFuzz_refundETH_succeeds` with `_amount = 0` allowed (or add a zero-amount case) and `vm.expectEmit` on `RefundETH`. |
+| K25 | checks (a) and (c) of `relayUndeliveredMessage` in the opposite order | **Equivalent** (argued below): every check is a view call and every failure reverts. It also survived `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` (2319 s; 2463 s for the whole Halmos layer). Kontrol's `prove_relayUndeliveredMessage_spec` and the EVM-Lean `relay_success` statement would still hold. | Nothing should catch it. |
+| K44 | `relayMessage` forwards only half the remaining gas to the target | **Out of scope: gas forwarding.** No layer asserts how much gas the relay forwards: the unit tests' targets are cheap, Halmos and the models do not check gas, and the hevm harness excludes gas on purpose. A relay to an expensive target can fail where it would have succeeded; the message then stays unrelayed and can still expire, so nothing is paid twice. The forwarding code predates this PR and is intentionally untested here. | Not covered. A unit test with a target that needs most of the transaction's gas would catch it. |
+| K50 | a new state variable declared before `SuperchainETHBridge.refunded` (storage layout shift) | **Upgrade history.** Every executed layer deploys fresh code and reads `refunded` through its getter. After a later upgrade with this layout, every hash refunded before the upgrade would read as unrefunded and could be refunded again. | The committed storage-layout snapshot (`snapshots/storageLayout/SuperchainETHBridge.json` has `refunded` at slot 0; with K50 it is slot 1, so regenerating the snapshots with `just snapshots-check` followed by `git diff --exit-code snapshots/` fails), and the `refundETH` EVM-Lean statement, which fixes the `refunded` slot (by reasoning, not run). |
 
 **Every other non-equivalent mutant is caught by at least one executed layer.** The ones with a single catching layer:
-- **K45** (`relayMessage` skips `CrossL2Inbox.validateMessage`: any payload can be relayed without an initiating
-  message, a forged delivery). **Only the hevm harness** catches it, by comparing the calls made with develop's.
-  The unit tests mock the inbox with `vm.mockCall` and never `vm.expectCall` it; the Halmos inbox mock and the
-  invariant handler's mock accept everything. Checks that would kill it: a unit test where `vm.mockCallRevert` on
-  the inbox makes `relayMessage` revert, plus `vm.expectCall` on the inbox in the success test; in Halmos, an inbox
-  mock that records its argument and an assertion that a successful relay validated exactly `(id,
-  keccak256(payload))`. This is not new code in this PR (develop's messenger has the same call), so it is a gap of
-  the test suites, not of the expiry change.
 - **K46** (`relayMessage` marks the message relayed only after the target call). **Only Halmos** catches it
   (`check_OnlyExportReachesL1_relay_reentrant`: a target that calls the exporter during its own relay gets a "not
   relayed" export for the message being relayed). This breaks the local property only: that export carries the
@@ -396,12 +392,33 @@ gaps. K41 and K42 are the important ones: each is a double spend.
   `successfulMessages(h)` back during the call (develop answers true, K46 false).
 - **K51** (duplicate `MessageExpired`) is caught only by the invariant witness `test_witness_refundAfterExpiry_succeeds`,
   which counts that event.
-- **K04** (Halmos only, `check_expire_iff_unbounded`) changes no reachable state (argued below). `ReachL2ToL2Halmos`
-  does not catch it; see finding 14 for why its symbolic-storage step should have.
+- **K04** (unchecked `sentAt + P`) is caught only by Halmos, which changes no reachable state on a real chain (argued
+  below). At `557e7691e9` both phase-1 `check_expire_iff_unbounded` and both phase-2 `ReachL2ToL2Halmos` checks
+  catch it, because the harness's block timestamp is a full `uint256`.
+- **K45** (`relayMessage` skips `CrossL2Inbox.validateMessage`) was caught only by the hevm harness at
+  `e0ffb33a31`; the unit tests now catch it too (`vm.expectCall` on the inbox, `e1b3903ab8`).
+
+### Re-run at 557e7691e9
+
+Each re-run mutant was checked for **why** it is now caught, not only that it is:
+
+| ID | Layer | Catching check | Why that is the right reason |
+|---|---|---|---|
+| K06 | unit | `testFuzz_sendMessage_succeeds` | `assertion failed: 1 != <fuzzed timestamp>`: the test now warps to a fuzzed time, so the recorded timestamp 1 is wrong. |
+| K41 | unit | `test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts` | "next call did not revert as expected": a fake messenger whose own `systemConfig()` names it is **accepted**, which is the attack. (The older fixture tests still fail on missing getters; they are not counted as the reason.) |
+| K41 | Halmos | `check_relayUndelivered_rejectsCallerClaimingPortalA` (and `check_relayUndelivered_iff_and_deposit`) | The rejection check that passed at `e0ffb33a31` now fails: the stand-in answers `systemConfig()` symbolically. A probe on the same build (`assert(!ok || a)` after a relay from the stand-in caller) passes on the unmutated code and fails under K41: the mutant accepts a word with check (a) false. |
+| K42 | unit | `test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts` | "next call did not revert as expected": a caller whose portal's lockbox authorizes this chain is accepted. Also `test_refundETH_endToEnd_succeeds` fails on an assertion. |
+| K42 | Halmos | `check_relayUndelivered_iff_and_deposit` | The same probe with `assert(!ok || b)` passes on the unmutated code and fails under K42: the mutant accepts a word with check (b) false, the forged direction. |
+| K43 | unit | `test_refundETH_zeroAmount_succeeds` | Expects `RefundETH` for amount 0 and sees `LiquidityMinted` next. |
+| K45 | unit | `testFuzz_relayMessage_metadataStore_succeeds` | "expected call to 0x4200…0022 with data `validateMessage(…)`": the inbox is never asked. |
+| K04 | Halmos | `check_expire_iff_unbounded`; `ReachL2ToL2Halmos.check_reach_sequence2`, `check_reach_step_symbolicStorage` | The (E) clause now asserts `pre.ts <= type(uint256).max - period`. The counterexample sends at `block.timestamp = 2^256 - 0x80000` and then expires through the wrapped deadline. The fresh phase-2 baseline passed (1096 s for phases 1 and 2). |
+
+Kontrol's stand-ins for K41/K42 are being fixed separately; its column stays "by statement", with K‡ for K41 and K42.
 
 Narrowest coverage by contract:
 - **L1CrossDomainMessenger** (K21–K30, K41, K42, K48): only the unit tests and Halmos run its code; the invariant
-  harness abstracts the L1 hop. Both catch every one except K25, and K41 and K42 only through the mock gap above. Lean has a counterexample for each dropped or
+  harness abstracts the L1 hop. Both catch every one except K25 (K41 and K42 for the right reason since
+  `557e7691e9`). Lean has a counterexample for each dropped or
   weakened check (K21–K24, K30, K41, K42; Quint for the same except K30, whose rule is fixed there), and the
   EVM-Lean `relay_success` statement would fail for every one except K25 and K30 (`relayMessage` is not covered).
 - **K36** (refund preimage with amount 0, an unbounded mint once a zero-value `sendETH` expires): the random
@@ -413,13 +430,20 @@ implementation changes outside the catalogue.
 
 ## Findings and surprises
 
-1. **Unit tests miss K06 (send records timestamp 1).** `testFuzz_sendMessage_succeeds` asserts
+Findings 1, 2, 3, 11 (K43), 12 (K45), 14 and 15 are resolved on the formal branch; each says by which commit, and the
+affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of each finding describes the state at
+`e0ffb33a31`.
+
+1. **Resolved in `e1b3903ab8`** (the test fuzzes the timestamp; K06 is now caught). **Unit tests miss K06 (send
+   records timestamp 1).** `testFuzz_sendMessage_succeeds` asserts
    `sentMessageTimestamps(h) == block.timestamp`, but it runs at forge's default `block.timestamp == 1`, so it cannot
    tell `= 1` from `= block.timestamp`. K06 is a double spend (every message expires immediately). The invariant
    suite (`invariant_sentTimestamps`, `invariant_noDoubleSpend`), Halmos (`check_send_effects_and_frame`) and the
    hevm harness (S-map) all catch it. The check that would kill it in the unit tests: warp first, for example
    `vm.warp(bound(_ts, 2, type(uint64).max))` with a fuzzed `_ts`, or a fixed non-1 time, before `sendMessage`.
-2. **The hevm harness's Halmos S-all checks do not see a changed mapping entry.** K07 (relay no longer sets
+2. **Resolved in `091bcb1500`** (the hevm docs now call S-all and S-map complementary, and its `run.sh` records
+   mutants that drop a mapping write as killed by S-map and passing S-all). **The hevm harness's Halmos S-all checks
+   do not see a changed mapping entry.** K07 (relay no longer sets
    `successfulMessages[H]`) leaves the outcome and the calls unchanged and differs from develop only in that
    mapping entry. The S-map checks (solidity layout) catch it; every `check_allSlots_*` (generic layout) passes with
    complete exploration. A probe on the same build gave the same result for `check_allSlots_relayMessage_len37`
@@ -438,7 +462,8 @@ implementation changes outside the catalogue.
      drops one mapping write. This is a statement-fidelity issue of that layer, not a contract issue. S-map
      compares the mapping entries it names (the relayed hash and the symbolic keys of the new-only mappings), which
      is what caught K07; it is not a whole-storage comparison either.
-3. **`../halmos/mutants.sh` M7 is not the mutant its label says.** Its `sed` replaces the call to
+3. **Resolved in `557e7691e9`** (M7 relabeled; M7b is K10's edit). **`../halmos/mutants.sh` M7 is not the mutant
+   its label says.** Its `sed` replaces the call to
    `xDomainMessageSender()` with `address(0)`, which leaves the condition `address(0) != otherMessenger()`. On a
    deployed chain (`otherMessenger()` nonzero) that makes `expireMessage` always revert, a liveness mutant. In the
    Halmos domain, where `otherMessenger()` may be zero, it also accepts calls the original rejects. Either way it
@@ -480,22 +505,29 @@ implementation changes outside the catalogue.
     EVM-Lean and Kontrol statements for `refundETH`, the exporter and `expireMessage`) are what pin those down. The
     unit tests, invariants and Halmos were run and catch them, except K45 (only the hevm harness); the EVM-Lean and
     Kontrol columns are by reasoning.
-11. **Upgrade history, and events other than the one witness that counts them, are outside the executed layers.**
+11. **K43 resolved in `e1b3903ab8`** (zero-amount refund event test); K50 remains, covered by the storage-layout
+    snapshot. **Upgrade history, and events other than the one witness that counts them, are outside the executed
+    layers.**
     K50 (storage-layout shift in the bridge) and K43 (a missing zero-amount `RefundETH` event) survive all of them; see "Surviving every executed layer". K51 (a duplicate
     `MessageExpired`) is caught only because one invariant-suite witness counts that event. The repo's storage-layout
     snapshot check is what guards K50's class.
-12. **The relay's inbox call and its mark-before-call order each rest on one layer.** K45 (no
+12. **K45 resolved in `e1b3903ab8`** (the unit tests `vm.expectCall` the inbox); K46 still rests on Halmos alone.
+    **The relay's inbox call and its mark-before-call order each rest on one layer.** K45 (no
     `CrossL2Inbox.validateMessage`: forged delivery, and through a forged `relayETH` an unbounded mint) is caught
     only by the hevm harness, and K46 (mark after the call; local only) only by Halmos's re-entrant export check.
     The checks that would add a second layer are proposed under "Surviving every executed layer".
-13. **Relay gas forwarding is asserted by no layer.** K44 (half the gas forwarded to the relay target) survives all of them, as R2
+13. **Accepted as out of scope:** the gas forwarding predates this PR and is intentionally untested here.
+    **Relay gas forwarding is asserted by no layer.** K44 (half the gas forwarded to the relay target) survives all of them, as R2
     predicted; K27's changed minimum gas limit is caught only through the exact deposit envelope.
-14. **`ReachL2ToL2Halmos` drops overflow paths.** Its symbolic-storage step can start from `sentAt` near `2^256`,
+14. **Resolved in `557e7691e9`** (the (E) clause asserts the `sentAt + period` bound; K04 is now caught by both
+    phase-2 checks). **`ReachL2ToL2Halmos` drops overflow paths.** Its symbolic-storage step can start from `sentAt` near `2^256`,
     yet it misses K04: its (E) clause `assert(pre.ts != 0 && _s.t > pre.ts + period)` is checked arithmetic, which
     panics with code 0x11 in the wrapped case, and Halmos 0.3.3 counts only `Panic(0x01)` as a failure, so the path
     is dropped silently. Fix: bound it as `check_expire_iff_unbounded` does (`pre.ts <= type(uint256).max - period
     && ...`), or compare without overflow.
-15. **K41 and K42 expose a stand-in gap in three layers at once** (Halmos, Kontrol, unit tests); see "Surviving
+15. **Resolved in `e1b3903ab8` (unit tests with forged getter answers) and `557e7691e9` (Halmos stand-ins answer
+    `systemConfig()` and `ethLockbox()` symbolically); Kontrol pending.** **K41 and K42 expose a stand-in gap in
+    three layers at once** (Halmos, Kontrol, unit tests); see "Surviving
     every executed layer". The layers state the right property, but their models of "another chain's messenger and
     portal" lack two getters that a mistaken implementation might call.
 
@@ -698,3 +730,9 @@ set. Findings:
 | 6 | R1, R2, R3 | `run.sh`: overrides still inherited by the hevm build, its Halmos run and the final clean; `forge clean` and `git checkout` statuses ignored; empty hevm check lists pass; a tripped canary still lets the invariant layer run; stale `../hevm/mutants/`; untracked files under `src/` not detected; "Ran 1 test suite" not matched; no bash version guard. | **Fixed.** A failed restore stops the run. The final `run.sh` was re-run on K08 and K45 (unit and hevm layers) and reproduced their verdicts. |
 | 7 | R2 | The K50 snapshot check needs a diff after regeneration. | **Fixed** (`just snapshots-check` then `git diff --exit-code snapshots/`). |
 | 8 | R1 | K45's effect is an unbounded mint as well (a forged `relayETH`). | **Fixed.** |
+
+### After round 2: gaps closed and re-run
+
+| # | Source | Item | Disposition |
+|---|---|---|---|
+| 1 | integrator | The gaps found here were closed on the formal branch: unit tests `e1b3903ab8` (K06, K41, K42, K43, K45), hevm harness `091bcb1500` (S-all wording; drop-a-mapping-write mutants recorded as S-map kills), Halmos `557e7691e9` (symbolic other-chain getters; M7 relabeled and M7b added; `ReachL2ToL2Halmos` (E) bound). | **Re-run** with this `run.sh` at `557e7691e9` on a fresh checkout (baselines passed first): K06, K41, K42, K43, K45 on the unit tests; K41, K42 on Halmos phase 1; K04 on Halmos phases 1 and 2. All are caught, each for the right reason (table under "Re-run at 557e7691e9"); for K41 and K42 a two-assertion probe confirmed the forged direction. Matrix cells marked K§; survivors now K25 (equivalent), K44 (out of scope) and K50 (snapshot and EVM-Lean). Kontrol's K41/K42 stand-in fix is pending elsewhere. |
