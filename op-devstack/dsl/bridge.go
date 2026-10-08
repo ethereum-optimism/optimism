@@ -205,8 +205,9 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 func (b *StandardBridge) WithdrawalFromReceipt(rcpt *types.Receipt) *Withdrawal {
 	b.require.NotNil(rcpt, "withdrawal receipt must not be nil")
 	b.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "withdrawal-initiating transaction failed")
-	_, err := withdrawals.ParseMessagePassed(rcpt)
+	ev, err := withdrawals.ParseMessagePassed(rcpt)
 	b.require.NoError(err, "receipt does not contain a MessagePassed event")
+	b.log.Info("Adopted withdrawal", "tx", rcpt.TxHash, "nonce", ev.Nonce, "target", ev.Target)
 	return &Withdrawal{
 		commonImpl:  commonFromT(b.t),
 		bridge:      b,
@@ -549,6 +550,19 @@ func (w *Withdrawal) DisputeGameMaxClockDuration() time.Duration {
 		bindings.WithTest(w.t))
 	clock, err := contractio.Read(game.MaxClockDuration(), w.ctx)
 	w.require.NoErrorf(err, "failed to read the max clock duration of dispute game %s", w.proveParams.DisputeGameAddress)
+	w.log.Info("Dispute game max clock duration", "game", w.proveParams.DisputeGameAddress, "seconds", clock)
+	return time.Duration(clock) * time.Second
+}
+
+// RespectedGameMaxClockDuration returns the max clock duration of the implementation of the
+// portal's respected game type, as deployed.
+func (b *StandardBridge) RespectedGameMaxClockDuration() time.Duration {
+	gameType := b.RespectedGameType()
+	gameImplAddr, err := contractio.Read(b.disputeGameFactory.GameImpls(gameType), b.ctx)
+	b.require.NoErrorf(err, "failed to get implementation for game type %v", gameType)
+	game := bindings.NewBindings[bindings.FaultDisputeGame](bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(gameImplAddr), bindings.WithTest(b.t))
+	clock, err := contractio.Read(game.MaxClockDuration(), b.ctx)
+	b.require.NoErrorf(err, "failed to get max clock duration for game type %v", gameType)
 	return time.Duration(clock) * time.Second
 }
 
