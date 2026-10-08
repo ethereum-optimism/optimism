@@ -312,9 +312,9 @@ contract L2GenesisForkUpgrade_Interop_ExpiryPeriod_Test is L2GenesisForkUpgrade_
         _executeCurrentBundle();
         address impl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         assertTrue(impl != genesisImpl, "the bundle must install its own messenger implementation");
-        assertEq(IL2ToL2CrossDomainMessenger(impl).EXPIRY_PERIOD(), 691200);
+        assertEq(IL2ToL2CrossDomainMessenger(impl).expiryPeriod(), 691200);
         assertEq(
-            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(),
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
             Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
         );
     }
