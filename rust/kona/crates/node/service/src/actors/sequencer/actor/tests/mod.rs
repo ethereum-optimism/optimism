@@ -1,19 +1,22 @@
 use super::SequencerActor;
-use crate::{Clock, EngineClientResult, SequencerEngineClient};
+use crate::{
+    Clock, EngineClientResult, SequencerEngineClient,
+    actors::{
+        MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
+    },
+};
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::time::Instant;
-use crate::actors::{
-    MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-};
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use kona_rpc::SequencerAdminCommand;
-use std::sync::Arc;
-use tokio::sync::mpsc;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use tokio::{sync::mpsc, time::Instant};
 
 mod admin;
 mod building;
@@ -40,14 +43,24 @@ fn test_actor_with_config(
     recovery_mode: bool,
     conductor: Option<MockConductor>,
 ) -> (TestSequencerActor, mpsc::Sender<SequencerAdminCommand>) {
-    test_actor_with_engine_config(MockSequencerEngineClient::new(), active, recovery_mode, conductor)
+    test_actor_with_engine_config(
+        MockSequencerEngineClient::new(),
+        active,
+        recovery_mode,
+        conductor,
+    )
 }
 
 fn test_actor_with_engine<E: SequencerEngineClient>(engine: E) -> TestActor<E> {
     test_actor_with_engine_config(engine, true, false, None).0
 }
 
-fn test_actor_with_engine_config<E: SequencerEngineClient>(engine: E, active: bool, recovery_mode: bool, conductor: Option<MockConductor>) -> (TestActor<E>, mpsc::Sender<SequencerAdminCommand>) {
+fn test_actor_with_engine_config<E: SequencerEngineClient>(
+    engine: E,
+    active: bool,
+    recovery_mode: bool,
+    conductor: Option<MockConductor>,
+) -> (TestActor<E>, mpsc::Sender<SequencerAdminCommand>) {
     let (commands_tx, commands_rx) = mpsc::channel(20);
     let actor = SequencerActor::new(
         commands_rx,

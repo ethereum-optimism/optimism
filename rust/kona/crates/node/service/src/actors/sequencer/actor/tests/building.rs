@@ -1,4 +1,4 @@
-use super::{test_actor, test_actor_with_engine, SlowSealEngine, TEST_START, TestActor};
+use super::{SlowSealEngine, TEST_START, TestActor, test_actor, test_actor_with_engine};
 use crate::{
     NodeActor, SequencerActorError, SequencerEngineClient,
     actors::{MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient},
@@ -6,8 +6,8 @@ use crate::{
 use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadId};
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use kona_rpc::SequencerAdminCommand;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rstest::rstest;
 use std::sync::{
     Arc,

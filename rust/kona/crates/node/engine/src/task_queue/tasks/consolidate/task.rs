@@ -311,7 +311,9 @@ impl EngineTaskExt for ConsolidateTask {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EngineTaskError, ImportedBlockSink, SealTaskError, test_utils::test_engine_client};
+    use crate::{
+        EngineTaskError, ImportedBlockSink, SealTaskError, test_utils::test_engine_client,
+    };
     use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
@@ -409,14 +411,20 @@ mod tests {
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
         let forkchoice = crate::test_utils::TestEngineStateBuilder::new()
-            .with_unsafe_head(attributes.parent).build().sync_state.create_forkchoice_state();
-        l2.expect_params("engine_forkchoiceUpdatedV3", serde_json::json!([
-            forkchoice, attributes.as_deposits_only().attributes
-        ]), alloy_rpc_types_engine::ForkchoiceUpdated {
-            payload_status: alloy_rpc_types_engine::PayloadStatus::from_status(
-                alloy_rpc_types_engine::PayloadStatusEnum::Valid),
-            payload_id: Some(alloy_rpc_types_engine::PayloadId::new([1; 8])),
-        });
+            .with_unsafe_head(attributes.parent)
+            .build()
+            .sync_state
+            .create_forkchoice_state();
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
+            alloy_rpc_types_engine::ForkchoiceUpdated {
+                payload_status: alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+                payload_id: Some(alloy_rpc_types_engine::PayloadId::new([1; 8])),
+            },
+        );
         l2.expect_error("engine_getPayloadV3");
         let err = build_derived(Arc::new(client), cfg, &attributes).await;
         l1.assert_finished();
