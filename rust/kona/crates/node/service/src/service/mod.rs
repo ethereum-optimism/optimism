@@ -9,6 +9,8 @@ pub(crate) use block_sink::BufferImportedBlocks;
 mod builder;
 pub use builder::{DerivationDelegateConfig, L1ConfigBuilder, RollupNodeBuilder};
 
+mod middleware;
+
 mod mode;
 pub use mode::NodeMode;
 
