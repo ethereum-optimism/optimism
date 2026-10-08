@@ -200,17 +200,17 @@
   },
   {
     "inputs": [],
-    "name": "AlreadyRefunded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidCrossDomainSender",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "MessageNotExpired",
+    "name": "SuperchainETHBridge_AlreadyRefunded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SuperchainETHBridge_MessageNotExpired",
     "type": "error"
   },
   {
