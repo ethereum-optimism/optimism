@@ -46,6 +46,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     MockCallerPortal internal callerPortal;
     MockSystemConfig internal callerSystemConfig;
     MockSystemConfigA internal aSystemConfig;
+    MockLockbox internal callerLockbox;
 
     function setUp() public {
         aCdm = new L1CrossDomainMessenger();
@@ -55,6 +56,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         caller = new MockCallerMessenger();
         callerPortal = new MockCallerPortal();
         callerSystemConfig = new MockSystemConfig();
+        callerLockbox = new MockLockbox();
 
         vm.store(address(aCdm), bytes32(SLOT_PORTAL), bytes32(uint256(uint160(address(aPortal)))));
         vm.store(
@@ -64,6 +66,17 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         );
         vm.store(address(aCdm), bytes32(SLOT_SYSTEM_CONFIG), bytes32(uint256(uint160(address(aSystemConfig)))));
         vm.store(address(aPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(aLockbox)))));
+        // Pointer getters every stand-in answers (MockPortalA.systemConfigRet is its slot 8).
+        vm.store(address(aPortal), bytes32(uint256(8)), bytes32(uint256(uint160(address(aSystemConfig)))));
+        vm.store(address(caller), bytes32(uint256(2)), bytes32(uint256(uint160(address(callerSystemConfig)))));
+        vm.store(address(callerPortal), bytes32(uint256(1)), bytes32(uint256(uint160(address(callerLockbox)))));
+    }
+
+    /// @notice Leaf answers of the caller's SystemConfig and lockbox, ANY values.
+    function _symbolicCallerAnswers() internal returns (address l1cdmAnswer_) {
+        kevm.symbolicStorage(address(callerSystemConfig));
+        kevm.symbolicStorage(address(callerLockbox));
+        l1cdmAnswer_ = callerSystemConfig.l1CrossDomainMessenger();
     }
 
     /// @notice The L2 sender relayUndeliveredMessage trusts (check (c)), from the library constant.
@@ -86,23 +99,26 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     ///         (g) A's SystemConfig.isFeatureEnabled(INTEROP),
     ///         (a) caller.portal().systemConfig().l1CrossDomainMessenger() == caller,
     ///         (b) A's lockbox authorizedPortals(caller.portal()), and
-    ///         (c) caller.xDomainMessageSender() == Predeploys.UNDELIVERED_MESSAGE_EXPORTER, where
-    ///             the four answers (isFeatureEnabled, l1CrossDomainMessenger, authorizedPortals,
-    ///             xDomainMessageSender) are fully symbolic (caller.portal() = a mock portal, its
-    ///             systemConfig() = a mock SystemConfig). On success, exactly one deposit is made
-    ///             through A's portal, from A's L1CDM, with value 0, not a creation, to
-    ///             otherMessenger (0x..07), with gas baseGas(msg, 100_000) and data
-    ///             relayMessage(versionedNonce, sender = A's L1CDM, target = 0x..23, 0, 100_000,
-    ///             expireMessage(H, t)).
+    ///         (c) caller.xDomainMessageSender() == Predeploys.UNDELIVERED_MESSAGE_EXPORTER.
+    ///         On success, exactly one deposit is made through A's portal, from A's L1CDM, with
+    ///         value 0, not a creation, to otherMessenger (0x..07), with gas baseGas(msg, 100_000)
+    ///         and data relayMessage(versionedNonce, sender = A's L1CDM, target = 0x..23, 0,
+    ///         100_000, expireMessage(H, t)).
+    ///         Forged answers covered: every leaf answer of every stand-in is symbolic, including
+    ///         those the real code does not read (A's own SystemConfig.l1CrossDomainMessenger(),
+    ///         the caller portal's lockbox authorizedPortals(), the caller SystemConfig's feature
+    ///         flags), so a contract reading the wrong getter is not saved by a missing function.
+    ///         The pointer getters (caller.portal(), caller.systemConfig(), portal.systemConfig(),
+    ///         portal.ethLockbox()) return fixed stand-ins; fully symbolic pointers are the
+    ///         symbolicPortalChain proof.
     function prove_relayUndeliveredMessage_spec(bytes32 _messageHash, uint256 _undeliveredAt) external {
         uint256 nonce = _symbolicNonce();
         bool interop = _symbolicInteropGate();
-        address l1cdmAnswer = kevm.freshAddress();
         address xSenderAnswer = kevm.freshAddress();
         vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerPortal)))));
         vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(xSenderAnswer))));
         vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerSystemConfig)))));
-        vm.store(address(callerSystemConfig), bytes32(uint256(0)), bytes32(uint256(uint160(l1cdmAnswer))));
+        address l1cdmAnswer = _symbolicCallerAnswers();
         kevm.symbolicStorage(address(aLockbox));
         bool authorized = aLockbox.authorizedPortals(address(callerPortal));
 
@@ -167,7 +183,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerPortal)))));
         vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(kevm.freshAddress()))));
         vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerSystemConfig)))));
-        vm.store(address(callerSystemConfig), bytes32(uint256(0)), bytes32(uint256(uint160(kevm.freshAddress()))));
+        _symbolicCallerAnswers();
         kevm.symbolicStorage(address(aLockbox));
         (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
         assert(!ok);

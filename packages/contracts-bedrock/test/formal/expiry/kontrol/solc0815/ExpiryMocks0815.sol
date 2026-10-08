@@ -19,6 +19,7 @@ interface KontrolExpiryCheatsL1 {
     function freshBytes(uint256) external returns (bytes memory);
     function symbolicStorage(address) external;
     function allowCallsToAddress(address) external;
+    function allowChangesToStorage(address, uint256) external;
 }
 
 abstract contract ExpiryKontrolBaseL1 {
@@ -28,11 +29,18 @@ abstract contract ExpiryKontrolBaseL1 {
 }
 
 /// @notice Stands for the CALLER of relayUndeliveredMessage (in the honest case: chain B's
-///         L1CrossDomainMessenger relaying B's withdrawal). portal() and xDomainMessageSender()
-///         return slots 0 and 1.
+///         L1CrossDomainMessenger relaying B's withdrawal). portal(), xDomainMessageSender() and
+///         systemConfig() return slots 0, 1 and 2. Every L1 stand-in answers every getter an
+///         L1CrossDomainMessenger could ask it (here or in a mutant), so a wrong getter does not
+///         revert by accident.
 contract MockCallerMessenger {
     address internal portalRet;
     address internal xSenderRet;
+    address internal systemConfigRet;
+
+    function systemConfig() external view returns (address) {
+        return systemConfigRet;
+    }
 
     function portal() external view returns (address) {
         return portalRet;
@@ -57,26 +65,38 @@ contract MockCallerMessenger {
     }
 }
 
-/// @notice Stands for the caller's OptimismPortal: systemConfig() returns slot 0.
+/// @notice Stands for the caller's OptimismPortal: systemConfig() and ethLockbox() return slots 0
+///         and 1.
 contract MockCallerPortal {
     address internal systemConfigRet;
+    address internal ethLockboxRet;
+
+    function ethLockbox() external view returns (address) {
+        return ethLockboxRet;
+    }
 
     function systemConfig() external view returns (address) {
         return systemConfigRet;
     }
 }
 
-/// @notice Stands for the caller portal's SystemConfig: l1CrossDomainMessenger() returns slot 0.
+/// @notice Stands for the caller portal's SystemConfig: l1CrossDomainMessenger() returns slot 0;
+///         isFeatureEnabled(f) = mapping at slot 1.
 contract MockSystemConfig {
     address internal l1CrossDomainMessengerRet;
+    mapping(bytes32 => bool) internal features;
+
+    function isFeatureEnabled(bytes32 _feature) external view returns (bool) {
+        return features[_feature];
+    }
 
     function l1CrossDomainMessenger() external view returns (address) {
         return l1CrossDomainMessengerRet;
     }
 }
 
-/// @notice Stands for chain A's ETHLockbox: authorizedPortals(p) = mapping at slot 0 (symbolic in
-///         the proofs).
+/// @notice Stands for an ETHLockbox (chain A's, or the caller portal's): authorizedPortals(p) =
+///         mapping at slot 0 (symbolic in the proofs).
 contract MockLockbox {
     mapping(address => bool) internal authorized;
 
@@ -97,9 +117,14 @@ contract MockPortalA {
     bytes32 internal lastDataHash;
     address internal lastSender;
     uint256 internal lastMsgValue;
+    address internal systemConfigRet;
 
     function ethLockbox() external view returns (address) {
         return lockbox;
+    }
+
+    function systemConfig() external view returns (address) {
+        return systemConfigRet;
     }
 
     function lastDeposit() external view returns (uint256, address, uint256, uint64, bool, bytes32, address, uint256) {
@@ -152,9 +177,15 @@ contract MockExpiredMessages {
 }
 
 /// @notice Stands for chain A's SystemConfig (relayUndeliveredMessage's interop gate):
-///         isFeatureEnabled(f) = mapping at slot 0 (symbolic in the proofs).
+///         isFeatureEnabled(f) = mapping at slot 0; l1CrossDomainMessenger() returns slot 1 (both
+///         symbolic in the proofs).
 contract MockSystemConfigA {
     mapping(bytes32 => bool) internal features;
+    address internal l1CrossDomainMessengerRet;
+
+    function l1CrossDomainMessenger() external view returns (address) {
+        return l1CrossDomainMessengerRet;
+    }
 
     function isFeatureEnabled(bytes32 _feature) external view returns (bool) {
         return features[_feature];

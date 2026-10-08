@@ -10,7 +10,8 @@ The proofs live in two folders, because the contracts under test need different 
 - `solc0815/`: the UndeliveredMessageExporter, L1CrossDomainMessenger and SuperchainETHBridge (solc 0.8.15).
 - `expiry-lemmas.md` has the extra KEVM lemmas the proofs need, each with its soundness argument. They cover the
   jump destinations of init code with symbolic constructor arguments (`new SafeSend{value}(from)` with a symbolic
-  `from`) and the definedness of KEVM's jump-destination helper.
+  `from`) and the definedness of KEVM's jump-destination helper. `run-kontrol-expiry.sh` deletes Kontrol's cached
+  copy of this file before each build, because Kontrol otherwise keeps compiling its first copy.
 - `run-kontrol-expiry.sh` builds and runs everything.
 
 ## Running
@@ -105,6 +106,18 @@ records the caller of every non-static call it receives, whatever the calldata.
   L1CDM, has value 0, is not a creation, goes to 0x..07, has gas `baseGas(msg, 100_000)`, and carries data
   `relayMessage(versionedNonce, sender = A's L1CDM, target = 0x..23, 0, 100_000, expireMessage(H, t))`. On
   failure, no deposit is made.
+
+  Forged answers covered: every stand-in answers every getter an L1CrossDomainMessenger could ask it, with a
+  symbolic answer for each leaf getter. That includes getters the real code does not read: A's own
+  `SystemConfig.l1CrossDomainMessenger()`, the caller portal's lockbox `authorizedPortals()`, and the caller
+  SystemConfig's feature flags. So a contract that reads the wrong getter is caught by the iff, not by a missing
+  function reverting. Run on scratch copies of the contract, the iff fails with a genuine counterexample for both
+  of these mutants:
+  - mutation K41: check (a) reads A's own `systemConfig`;
+  - mutation K42: check (b) reversed, i.e. `callerPortal.ethLockbox().authorizedPortals(portal)`.
+
+  The pointer getters (`caller.portal()`, `caller.systemConfig()`, `portal.systemConfig()`, `portal.ethLockbox()`)
+  return fixed stand-ins. Fully symbolic pointers are covered only by `symbolicPortalChain`, which does not close.
 - `prove_relayUndeliveredMessage_rejectsMessengerAsSender`: with the gate on and (a) and (b) satisfied, a word
   from 0x..23 is rejected.
 - `prove_relayUndeliveredMessage_symbolicPortalChain`: the caller's portal and that portal's SystemConfig are
@@ -144,9 +157,17 @@ records the caller of every non-static call it receives, whatever the calldata.
 - `prove_exporter_anySelector_onlyExportPayload`: for ANY selector and caller (argument region laid out as an
   export call), every CALL the exporter makes goes to 0x..07, at most one is made, and if one is made the selector
   is `exportUndeliveredMessage` and the calldata is exactly the export payload for the decoded arguments.
-- `prove_bridge_anySelector_refundedOnlyByRefundETH`: for ANY selector, caller (including 0x..23), five argument
-  words and ANY hash H0: if `refunded[H0]` goes from false to true then the selector is `refundETH`, H0 is the
-  refundETH preimage hash of the arguments, and `expiredMessages[H0]` holds.
+- `prove_bridge_anySelector_*` (five proofs, one per case): for ANY selector, any caller (including 0x..23) and
+  five argument words, `refunded` changes only through `refundETH`. The selector space is split into `refundETH`,
+  `sendETH`, `relayETH`, the two getters, and "none of the five" (no fallback, so it reverts).
+  - For the four non-refund cases: for ANY hash H0, if `refunded[H0]` goes from false to true then the selector is
+    `refundETH`. These cases never write `refunded`.
+  - For the `refundETH` case: Kontrol's storage whitelist allows writes only to the slot of `refunded[H]`, H being
+    the preimage hash of the arguments. The proof asserts `ok == (expiredMessages[H] && !refunded[H])`. A write to
+    any other slot would be cut off and revert the refund, which falsifies that assertion. So a successful refund
+    writes no slot but `refunded[H]`, and a failed one writes nothing.
+  - `prove_bridge_anySelector_refundETHSucceeds_WITNESS` shows a refund still succeeds under the whitelist, i.e.
+    the whitelisted slot is the one refundETH writes.
 - Not attempted in Kontrol (see the Halmos suite for these): `expiredMessages[H]` is set only by `expireMessage`
   for any calldata to the messenger (any-selector dispatch into `relayMessage` with symbolic dynamic offsets), and
   "the L1CrossDomainMessenger is an L1->L2 sender only via relayUndeliveredMessage" for any calldata.
@@ -169,22 +190,29 @@ Run on c7c51d79e2 (logic unchanged at 448d31ad19, where only the messenger's ver
 | `prove_expiryPeriod_atLeastProtocolWindow` | passed | <1m |
 | `prove_exporter_onlyCallsL2CDMWithFixedPayload` | passed | 3m |
 | `prove_exporter_anySelector_onlyExportPayload` | passed | 22m |
-| `prove_relayUndeliveredMessage_spec` | passed | 5m |
+| `prove_relayUndeliveredMessage_spec` | passed (rerun with all-getter stand-ins) | 3m |
 | `prove_relayUndeliveredMessage_rejectsMessengerAsSender` | passed | 1m |
 | `prove_relayUndeliveredMessage_symbolicPortalChain` | NOT CLOSED: path explosion, stopped after ~4h at >2,000 nodes | - |
 | `prove_refundETH_preimageBinding` | passed | 35m |
 | `prove_refundETH_alreadyRefundedReverts` | passed | 6m |
 | `prove_refundETH_singleUse` | NOT CLOSED: stopped after ~4h; single use follows from the two proofs around it | - |
-| `prove_bridge_anySelector_refundedOnlyByRefundETH` | OPEN: rerunning with the mapping-key lemma (see below) | - |
+| `prove_bridge_anySelector_refundETH` | passed (storage whitelist) | 24m |
+| `prove_bridge_anySelector_sendETH` | passed | 21m |
+| `prove_bridge_anySelector_relayETH` | passed | 53m |
+| `prove_bridge_anySelector_getters` | passed | 14m |
+| `prove_bridge_anySelector_otherSelectors` | passed | 16m |
 
-Every `*_WITNESS` failed with a genuine counterexample (a failing leaf, no stuck nodes). There are two exceptions.
-`prove_relayUndeliveredMessage_symbolicPortalChainCanSucceed_WITNESS` explodes like its proof and was stopped.
-`prove_bridge_anySelectorRefunds_WITNESS` is being rerun together with its proof.
+Every `*_WITNESS` failed with a genuine counterexample (a failing leaf, no stuck nodes). The one exception is
+`prove_relayUndeliveredMessage_symbolicPortalChainCanSucceed_WITNESS`, which explodes like its proof and was stopped.
 
-`prove_bridge_anySelector_refundedOnlyByRefundETH` failed on its first run with a spurious counterexample. In that
-counterexample, `refunded[H0]` reads as set after a refund of a different hash H, because Kontrol could not resolve
-the lookup of key H0 in storage just written at key H. The lemma "Storage slots of distinct mapping keys" in
-`expiry-lemmas.md` is meant to close this gap; the rerun that would confirm it is in progress.
+The bridge any-selector property was first a single proof with a fresh H0 for every selector. It failed twice, the
+second time after 2h38m with 93 nodes still pending. Both counterexamples are spurious. The selector is `refundETH`
+(0xe17a776b), the path condition contains `H0 != H` (H being the refund hash of the arguments), and the failing read
+is `refunded[H0]` looked up in storage just written at key `refunded[H]`. Kontrol cannot resolve that lookup: it
+needs `keccak(H0 . 0) != keccak(H . 0)` from `H0 != H`, and its injectivity rule leaves the preimage comparison
+unevaluated. `w1 = 2^160` in the model is the refund nonce, a full `uint256` both in the harness hash and in the
+contract, so the harness hash agrees with the contract's. The fix is the split described under Phase 2, which uses
+the storage whitelist for the `refundETH` case.
 
 `prove_relayMessage_selfTarget_neverCallsL2CDMOrPasser` does not close. The relayed self-call dispatches a fully
 symbolic 600-byte message into the messenger's own ABI decoder, where the dynamic `bytes` offsets are symbolic. One
@@ -230,8 +258,7 @@ without loss of generality.
   owner. These proofs assume the deployed exporter is the code in `src/`.
 - **keccak**: Kontrol's built-in `KECCAK-LEMMAS` assume keccak is injective (collision resistance, the assumption
   stated for this work), that a keccak of symbolic bytes never equals a concrete value (mapping slots never collide
-  with fixed slots), and that keccak results are not within 32 of 0 or 2^256. `expiry-lemmas.md` adds one instance
-  of the same injectivity for mapping-slot preimages. The proofs rely on these.
+  with fixed slots), and that keccak results are not within 32 of 0 or 2^256. The proofs rely on these.
 - **Out of scope here**:
   - Cross-chain timing: protocol window <= contract period, monotone timestamps, withdrawal finality. These are
     covered by the Quint/Lean models.

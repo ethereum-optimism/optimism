@@ -134,7 +134,7 @@ payouts, reached through different arguments.
 | Invariants | 30 (of them: K03 by a setUp assertion; K11, K20, K36, K37, K49, K51 by witness tests only) | K02, K04, K09, K43, K44, K45, K46, K50 | 13 L1CrossDomainMessenger mutants (the harness does not execute L1) |
 | Halmos | 45 (K41, K42 for the right reason at `557e7691e9`; only through a fixture artifact at `e0ffb33a31`) | K25, K44, K45, K51 | K43, K50: phase 1 survived, phase 2 stopped (raw verdict ERROR) |
 | hevm harness | 6 (K05–K08, K15, K45) | K46 | 14 messenger mutants outside the compared surface by design; 30 not the messenger |
-| Kontrol (by statement) | 35 (K35 only at the liquidity edge; K41, K42 only through the same mock gap, fix pending) | 16 | — |
+| Kontrol (by statement) | 35 (K35 only at the liquidity edge; K41, K42 by the `relayUndeliveredMessage` iff spec once its stand-ins answer every getter, see Kontrol's README) | 16 | — |
 | EVM-Lean (by statement) | 34 stmt | 17 pin (2 of them pin†) | — |
 
 ### Which checks caught each mutant
@@ -526,7 +526,7 @@ affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of eac
     is dropped silently. Fix: bound it as `check_expire_iff_unbounded` does (`pre.ts <= type(uint256).max - period
     && ...`), or compare without overflow.
 15. **Resolved in `e1b3903ab8` (unit tests with forged getter answers) and `557e7691e9` (Halmos stand-ins answer
-    `systemConfig()` and `ethLockbox()` symbolically); Kontrol pending.** **K41 and K42 expose a stand-in gap in
+    `systemConfig()` and `ethLockbox()` symbolically) and in the Kontrol harness (stand-ins answer every getter; the iff spec fails with an assertion counterexample under K41 and K42).** **K41 and K42 expose a stand-in gap in
     three layers at once** (Halmos, Kontrol, unit tests); see "Surviving
     every executed layer". The layers state the right property, but their models of "another chain's messenger and
     portal" lack two getters that a mistaken implementation might call.
@@ -735,4 +735,4 @@ set. Findings:
 
 | # | Source | Item | Disposition |
 |---|---|---|---|
-| 1 | integrator | The gaps found here were closed on the formal branch: unit tests `e1b3903ab8` (K06, K41, K42, K43, K45), hevm harness `091bcb1500` (S-all wording; drop-a-mapping-write mutants recorded as S-map kills), Halmos `557e7691e9` (symbolic other-chain getters; M7 relabeled and M7b added; `ReachL2ToL2Halmos` (E) bound). | **Re-run** with this `run.sh` at `557e7691e9` on a fresh checkout (baselines passed first): K06, K41, K42, K43, K45 on the unit tests; K41, K42 on Halmos phase 1; K04 on Halmos phases 1 and 2. All are caught, each for the right reason (table under "Re-run at 557e7691e9"); for K41 and K42 a two-assertion probe confirmed the forged direction. Matrix cells marked K§; survivors now K25 (equivalent), K44 (out of scope) and K50 (snapshot and EVM-Lean). Kontrol's K41/K42 stand-in fix is pending elsewhere. |
+| 1 | integrator | The gaps found here were closed on the formal branch: unit tests `e1b3903ab8` (K06, K41, K42, K43, K45), hevm harness `091bcb1500` (S-all wording; drop-a-mapping-write mutants recorded as S-map kills), Halmos `557e7691e9` (symbolic other-chain getters; M7 relabeled and M7b added; `ReachL2ToL2Halmos` (E) bound). | **Re-run** with this `run.sh` at `557e7691e9` on a fresh checkout (baselines passed first): K06, K41, K42, K43, K45 on the unit tests; K41, K42 on Halmos phase 1; K04 on Halmos phases 1 and 2. All are caught, each for the right reason (table under "Re-run at 557e7691e9"); for K41 and K42 a two-assertion probe confirmed the forged direction. Matrix cells marked K§; survivors now K25 (equivalent), K44 (out of scope) and K50 (snapshot and EVM-Lean). Kontrol's stand-ins were fixed in the same way afterwards; under K41 and K42 its `relayUndeliveredMessage` iff spec fails on an assertion after the call, not on a missing getter (run on throwaway copies; see Kontrol's README). |

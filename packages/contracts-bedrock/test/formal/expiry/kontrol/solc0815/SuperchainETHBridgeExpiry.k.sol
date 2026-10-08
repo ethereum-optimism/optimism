@@ -239,16 +239,76 @@ contract SuperchainETHBridgeExpiryKontrol is ExpiryKontrolBaseL1 {
     // ---------------------------------------------------------------------------------------------
     // Phase 2: whole-contract reachability (any selector)
     // ---------------------------------------------------------------------------------------------
+    //
+    // "refunded[H0] is set only by refundETH, for H0 = the refundETH preimage hash of its
+    // arguments, and only if expiredMessages[H0]", for ANY 4-byte selector, any caller (possibly
+    // 0x..23), any five argument words and ANY hash H0. The selector space is split into the
+    // bridge's five functions and "none of them" (which hits no function: no fallback), one proof
+    // each, so the cases run in parallel. Each case has a witness with the same assumptions. The
+    // non-refundETH cases read refunded[H0] for a fresh H0 before and after the call; the refundETH
+    // case uses the storage whitelist (see prove_bridge_anySelector_refundETH). The arguments are
+    // passed as five words; functions with fewer or narrower parameters decode the leading words
+    // (and revert if out of range). The recipient exclusion above applies to the address each path
+    // pays.
 
-    /// @notice For ANY 4-byte selector, any caller (possibly 0x..23), any five argument words and
-    ///         ANY hash H0: if refunded[H0] goes from false to true, then the selector is
-    ///         refundETH's, H0 is the refundETH preimage hash of the arguments, and
-    ///         expiredMessages[H0] holds. So no other function (sendETH, relayETH, getters, unknown
-    ///         selectors) sets `refunded`. The arguments are passed as five words; for functions
-    ///         with fewer or narrower parameters the leading words are decoded (and must be in
-    ///         range, or the call reverts). The same recipient exclusion as above applies to the
-    ///         address that each path pays.
-    function prove_bridge_anySelector_refundedOnlyByRefundETH(
+    uint8 internal constant CASE_REFUND = 0;
+    uint8 internal constant CASE_SEND = 1;
+    uint8 internal constant CASE_RELAY = 2;
+    uint8 internal constant CASE_GETTERS = 3;
+    uint8 internal constant CASE_OTHER = 4;
+
+    /// @notice Restricts `_selector` to one case of the split.
+    function _assumeCase(bytes4 _selector, uint8 _case) internal view {
+        bytes4 refund = SuperchainETHBridge.refundETH.selector;
+        bytes4 send = SuperchainETHBridge.sendETH.selector;
+        bytes4 relay = SuperchainETHBridge.relayETH.selector;
+        bytes4 getRefunded = bridge.refunded.selector;
+        bytes4 getVersion = bridge.version.selector;
+        if (_case == CASE_REFUND) {
+            vm.assume(_selector == refund);
+        } else if (_case == CASE_SEND) {
+            vm.assume(_selector == send);
+        } else if (_case == CASE_RELAY) {
+            vm.assume(_selector == relay);
+        } else if (_case == CASE_GETTERS) {
+            vm.assume(_selector == getRefunded || _selector == getVersion);
+        } else {
+            vm.assume(_selector != refund && _selector != send && _selector != relay);
+            vm.assume(_selector != getRefunded && _selector != getVersion);
+        }
+    }
+
+    /// @notice Calls the bridge with `_selector` and the five words, from a fresh caller. Returns
+    ///         success and whether refunded[_h0] went from false to true.
+    function _callAny(
+        bytes4 _selector,
+        bytes32 _h0,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        internal
+        returns (bool ok_, bool flipped_)
+    {
+        // Recipients: refundETH pays _w2; relayETH pays its second word.
+        _assumeRecipient(_w2);
+        if (_w1 < 2 ** 160) _assumeRecipient(address(uint160(_w1)));
+        bool refundedBefore = bridge.refunded(_h0);
+        vm.prank(kevm.freshAddress());
+        (ok_,) = BRIDGE.call(abi.encodePacked(_selector, abi.encode(_w0, _w1, _w2, _w3, _w4)));
+        flipped_ = !refundedBefore && bridge.refunded(_h0);
+    }
+
+    /// @notice A fresh hash H0 (any 32-byte value).
+    function _freshHash() internal returns (bytes32 h0_) {
+        h0_ = bytes32(kevm.freshUInt(32));
+    }
+
+    /// @notice The property for one case of the split.
+    function _refundedOnlyByRefundETH(
+        uint8 _case,
         bytes4 _selector,
         uint256 _w0,
         uint256 _w1,
@@ -256,29 +316,51 @@ contract SuperchainETHBridgeExpiryKontrol is ExpiryKontrolBaseL1 {
         address _w3,
         uint256 _w4
     )
-        external
+        internal
     {
         uint256 chainId = _setup();
-        bytes32 h0 = bytes32(kevm.freshUInt(32));
-        // Recipients: refundETH pays _w2; relayETH pays its second word.
-        _assumeRecipient(_w2);
-        if (_w1 < 2 ** 160) _assumeRecipient(address(uint160(_w1)));
-        bool refundedBefore = bridge.refunded(h0);
-
-        vm.prank(kevm.freshAddress());
-        (bool ok,) = BRIDGE.call(abi.encodePacked(_selector, abi.encode(_w0, _w1, _w2, _w3, _w4)));
-        ok; // success or failure, the property below must hold
-
-        if (!refundedBefore && bridge.refunded(h0)) {
+        _assumeCase(_selector, _case);
+        bytes32 h0 = _freshHash();
+        (, bool flipped) = _callAny(_selector, h0, _w0, _w1, _w2, _w3, _w4);
+        if (flipped) {
             assert(_selector == SuperchainETHBridge.refundETH.selector);
             assert(h0 == _expectedHash(_w0, chainId, _w1, _w2, _w3, _w4));
             assert(l2tol2.expiredMessages(h0));
         }
     }
 
-    /// @notice WITNESS (expected to FAIL): in the any-selector setting, `refunded[H0]` can flip.
-    function prove_bridge_anySelectorRefunds_WITNESS(
+    /// @notice The witness for one case: sendETH, relayETH and the getters can succeed; an unknown
+    ///         selector reaches the end of the call (and reverts).
+    function _anySelectorWitness(
+        uint8 _case,
         bytes4 _selector,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        internal
+    {
+        _setup();
+        _assumeCase(_selector, _case);
+        bytes32 h0 = _freshHash();
+        (bool ok, bool flipped) = _callAny(_selector, h0, _w0, _w1, _w2, _w3, _w4);
+        flipped;
+        if (_case == CASE_OTHER) assert(ok);
+        else assert(!ok);
+    }
+
+    /// @notice refundETH case. Kontrol cannot resolve a read of refunded[H0] for a fresh H0 != H
+    ///         after the write to refunded[H] (it reports a spurious counterexample), so this case
+    ///         uses the storage whitelist instead of a fresh H0: only the slot of refunded[H] may
+    ///         be written. Any other SSTORE is cut off with KONTROL_WHITELISTSTORAGE, which reverts
+    ///         the refund; the assertion `ok == (expiredMessages[H] && !refunded[H])`
+    ///         (prove_refundETH_preimageBinding, here with the whitelist on) then fails. So every
+    ///         successful refundETH writes no storage slot but refunded[H], and a failed one writes
+    ///         nothing.
+    function prove_bridge_anySelector_refundETH(
+        bytes4 _s,
         uint256 _w0,
         uint256 _w1,
         address _w2,
@@ -287,17 +369,155 @@ contract SuperchainETHBridgeExpiryKontrol is ExpiryKontrolBaseL1 {
     )
         external
     {
-        _setup();
-        bytes32 h0 = bytes32(kevm.freshUInt(32));
-        // Recipients: refundETH pays _w2; relayETH pays its second word.
+        (bool ok, bool expired, bool refundedBefore) = _refundUnderWhitelist(_s, _w0, _w1, _w2, _w3, _w4);
+        assert(ok == (expired && !refundedBefore));
+    }
+
+    /// @notice Runs the refundETH case with only the slot of refunded[H] whitelisted for writes.
+    function _refundUnderWhitelist(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        internal
+        returns (bool ok_, bool expired_, bool refundedBefore_)
+    {
+        uint256 chainId = _setup();
+        _assumeCase(_s, CASE_REFUND);
+        vm.assume(_w4 <= LIQUIDITY_BALANCE);
         _assumeRecipient(_w2);
-        if (_w1 < 2 ** 160) _assumeRecipient(address(uint160(_w1)));
-        bool refundedBefore = bridge.refunded(h0);
-
+        bytes32 h = _expectedHash(_w0, chainId, _w1, _w2, _w3, _w4);
+        expired_ = l2tol2.expiredMessages(h);
+        refundedBefore_ = bridge.refunded(h);
+        kevm.allowChangesToStorage(BRIDGE, uint256(keccak256(abi.encode(h, uint256(0)))));
         vm.prank(kevm.freshAddress());
-        (bool ok,) = BRIDGE.call(abi.encodePacked(_selector, abi.encode(_w0, _w1, _w2, _w3, _w4)));
-        ok; // success or failure, the property below must hold
+        (ok_,) = BRIDGE.call(abi.encodePacked(_s, abi.encode(_w0, _w1, _w2, _w3, _w4)));
+    }
 
-        assert(!(!refundedBefore && bridge.refunded(h0)));
+    function prove_bridge_anySelector_sendETH(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _refundedOnlyByRefundETH(CASE_SEND, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    function prove_bridge_anySelector_relayETH(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _refundedOnlyByRefundETH(CASE_RELAY, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    function prove_bridge_anySelector_getters(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _refundedOnlyByRefundETH(CASE_GETTERS, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    function prove_bridge_anySelector_otherSelectors(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _refundedOnlyByRefundETH(CASE_OTHER, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    /// @notice WITNESS (expected to FAIL): with the storage whitelist on, refundETH can still
+    ///         succeed, so the whitelisted slot is the one refundETH really writes.
+    function prove_bridge_anySelector_refundETHSucceeds_WITNESS(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        (bool ok,,) = _refundUnderWhitelist(_s, _w0, _w1, _w2, _w3, _w4);
+        assert(!ok);
+    }
+
+    /// @notice WITNESS (expected to FAIL): sendETH can succeed in this setting.
+    function prove_bridge_anySelector_sendETHSucceeds_WITNESS(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _anySelectorWitness(CASE_SEND, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    /// @notice WITNESS (expected to FAIL): relayETH can succeed in this setting.
+    function prove_bridge_anySelector_relayETHSucceeds_WITNESS(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _anySelectorWitness(CASE_RELAY, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    /// @notice WITNESS (expected to FAIL): the getters can succeed in this setting.
+    function prove_bridge_anySelector_gettersSucceed_WITNESS(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _anySelectorWitness(CASE_GETTERS, _s, _w0, _w1, _w2, _w3, _w4);
+    }
+
+    /// @notice WITNESS (expected to FAIL): an unknown selector reaches the end of the call.
+    function prove_bridge_anySelector_otherSelectorsReached_WITNESS(
+        bytes4 _s,
+        uint256 _w0,
+        uint256 _w1,
+        address _w2,
+        address _w3,
+        uint256 _w4
+    )
+        external
+    {
+        _anySelectorWitness(CASE_OTHER, _s, _w0, _w1, _w2, _w3, _w4);
     }
 }

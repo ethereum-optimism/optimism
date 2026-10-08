@@ -56,22 +56,6 @@ below states that definedness, so the infeasible branch is pruned.
     rule #Ceil(#computeValidJumpDests(PGM, I, RESULT, LEN)) => #Top
       requires 0 <=Int I andBool LEN ==Int lengthBytes(PGM) andBool lengthBytes(RESULT) ==Int LEN
       [simplification]
-```
-
-## Storage slots of distinct mapping keys
-
-Kontrol already assumes that `keccak` is injective (`keccak-inj` in its `KECCAK-LEMMAS`:
-`keccak(A) ==Int keccak(B) => A ==K B`), which is the collision-resistance assumption stated for these proofs. That
-rule leaves `#buf(32, X) +Bytes B ==K #buf(32, Y) +Bytes B` unevaluated when `X` and `Y` are distinct symbolic
-words, so a lookup of mapping key `X` in a storage map just written at key `Y` cannot be resolved even when the path
-condition says `X =/= Y`. The rule below is the same injectivity assumption stated for the 64-byte preimage of a
-mapping slot (`#buf(32, key) +Bytes #buf(32, slot)`): for words in range, `#buf(32, _)` is injective, so the two
-preimages are equal exactly when the keys are equal.
-
-```k
-    rule keccak(#buf(32, X) +Bytes B) ==Int keccak(#buf(32, Y) +Bytes B) => X ==Int Y
-      requires 0 <=Int X andBool X <Int pow256 andBool 0 <=Int Y andBool Y <Int pow256
-      [simplification(40)]
 
 endmodule
 ```

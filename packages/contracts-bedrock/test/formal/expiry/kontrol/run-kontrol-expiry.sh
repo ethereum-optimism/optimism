@@ -28,6 +28,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../../../.."
 
 if [ "${KONTROL_NO_BUILD:-0}" != 1 ]; then
   lemmas=test/formal/expiry/kontrol/expiry-lemmas.md
+  # kontrol keeps its first copy of a required file; drop it so lemma edits are picked up.
+  rm -rf test/formal/expiry/kontrol/out/kompiled/requires
   kontrol build --no-metadata --rekompile --regen \
     --require "$lemmas" \
     --module-import L2ToL2CrossDomainMessengerExpiryKontrol:EXPIRY-LEMMAS \
