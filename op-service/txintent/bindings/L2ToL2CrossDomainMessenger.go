@@ -10,4 +10,5 @@ type L2ToL2CrossDomainMessenger struct {
 	// Read-only functions
 	ExpiredMessages       func(messageHash [32]byte) TypedCall[bool]     `sol:"expiredMessages"`
 	SentMessageTimestamps func(messageHash [32]byte) TypedCall[*big.Int] `sol:"sentMessageTimestamps"`
+	Version               func() TypedCall[string]                       `sol:"version"`
 }

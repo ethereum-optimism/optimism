@@ -4,6 +4,7 @@ package upgrade
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,11 +13,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func TestPostInbox(gt *testing.T) {
@@ -35,6 +42,41 @@ func TestPostInbox(gt *testing.T) {
 		code, err := el.EthClient().CodeAtHash(t.Ctx(), implAddr, activationBlock.Hash)
 		require.NoError(err)
 		require.NotEmpty(code)
+	})
+}
+
+// TestPostMessageExpiryContracts checks that Lagoon installs the message expiry contracts: the
+// UndeliveredMessageExporter, an L2ToL2CrossDomainMessenger without resendMessage, and a
+// SuperchainETHBridge that refunds expired sends.
+func TestPostMessageExpiryContracts(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 60)
+	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
+		require := t.Require()
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
+		client := net.PrimaryEL().EthClient()
+
+		implAddrBytes, err := client.GetStorageAt(t.Ctx(), predeploys.UndeliveredMessageExporterAddr,
+			genesis.ImplementationSlot, activationBlock.Hash.String())
+		require.NoError(err)
+		implAddr := common.BytesToAddress(implAddrBytes[:])
+		require.NotEqual(common.Address{}, implAddr, "the UndeliveredMessageExporter must have an implementation")
+		code, err := client.CodeAtHash(t.Ctx(), implAddr, activationBlock.Hash)
+		require.NoError(err)
+		require.NotEmpty(code)
+
+		messenger := bindings.NewBindings[bindings.L2ToL2CrossDomainMessenger](bindings.WithClient(client),
+			bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
+		version := contract.Read(messenger.Version())
+		require.Truef(strings.HasPrefix(version, "2."), "the messenger must be 2.x, without resendMessage, got %s", version)
+
+		// No message with this nonce expired, so a bridge that can refund rejects it as not
+		// expired. A bridge without refundETH would revert without data.
+		bridge := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(client),
+			bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
+		_, err = contractio.Read(bridge.RefundETH(eth.ChainIDFromUInt64(1), common.Big0, common.Address{1},
+			common.Address{1}, common.Big0), t.Ctx())
+		require.ErrorContains(errutil.TryAddRevertReason(err), refundNotExpired, "the bridge must have refundETH")
 	})
 }
 
@@ -149,3 +191,5 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 
 	logger.Info("Interop message inclusion test completed successfully")
 }
+
+var refundNotExpired = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
