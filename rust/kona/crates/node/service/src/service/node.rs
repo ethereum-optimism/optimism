@@ -22,7 +22,7 @@ use jsonrpsee::{
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineQueryClient, EngineState};
+use kona_engine::{Engine, EngineClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -223,13 +223,13 @@ impl RollupNode {
         ))
     }
 
-    /// Builds the engine actor and returns the read-only L2 client and state watch used by RPC.
+    /// Builds the engine actor and returns the shared client and state watch used by RPC.
     fn build_engine_actor(
         &self,
         engine_request_rx: mpsc::Receiver<EngineActorRequest>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
-    ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
+    ) -> (ConfiguredEngineActor, EngineClient, watch::Receiver<EngineState>) {
         // Share engine state with RPC without routing reads through the actor.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
@@ -250,7 +250,7 @@ impl RollupNode {
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
 
-        (actor, engine_client.query_client(), engine_state_rx)
+        (actor, engine_client.as_ref().clone(), engine_state_rx)
     }
 
     /// Selects between the standard and delegate derivation actor implementations and constructs
@@ -405,7 +405,7 @@ impl RollupNode {
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
     async fn build_rpc_actor(
         &self,
-        l2_query_client: EngineQueryClient,
+        l2_query_client: EngineClient,
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,

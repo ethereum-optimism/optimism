@@ -95,7 +95,7 @@ where
     }
 }
 
-/// An error that occurred in the [`EngineClient`] or [`EngineQueryClient`].
+/// An error that occurred in the [`EngineClient`].
 #[derive(Error, Debug)]
 pub enum EngineClientError {
     /// An RPC error occurred
@@ -170,40 +170,6 @@ impl EngineClient {
         Ok(self.engine.get_block_by_number(numtag).full().await?)
     }
 
-    /// Returns a restricted handle sharing this client's L2 connection.
-    pub fn query_client(&self) -> EngineQueryClient {
-        EngineQueryClient { engine: self.engine.clone(), cfg: self.cfg.clone() }
-    }
-
-    /// Creates an authenticated L2 provider with request timing and a deadline.
-    pub fn rpc_client(addr: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-        let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
-        let http_hyper = Http::with_client(HyperClient::with_service(service), addr);
-        let rpc_client = ClientBuilder::default()
-            .layer(RequestDurationLayer)
-            .layer(MapFutureLayer::new(with_deadline))
-            .transport(http_hyper, false);
-        RootProvider::new(rpc_client)
-    }
-}
-
-/// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
-impl Provider<Optimism> for EngineClient {
-    fn root(&self) -> &RootProvider<Optimism> {
-        &self.engine
-    }
-}
-
-/// Read-only execution-layer handle that computes L2 outputs. Its provider is private and it
-/// exposes no Engine API mutations.
-#[derive(Clone, Debug)]
-pub struct EngineQueryClient {
-    engine: RootProvider<Optimism>,
-    cfg: Arc<RollupConfig>,
-}
-
-impl EngineQueryClient {
     /// Reads the L2 block and computes its output root using the active fork rules.
     pub async fn output_at_block(
         &self,
@@ -241,6 +207,25 @@ impl EngineQueryClient {
             output_block.header.hash,
         );
         Ok((output_block_info, output_response_v0))
+    }
+
+    /// Creates an authenticated L2 provider with request timing and a deadline.
+    pub fn rpc_client(addr: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
+        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
+        let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
+        let http_hyper = Http::with_client(HyperClient::with_service(service), addr);
+        let rpc_client = ClientBuilder::default()
+            .layer(RequestDurationLayer)
+            .layer(MapFutureLayer::new(with_deadline))
+            .transport(http_hyper, false);
+        RootProvider::new(rpc_client)
+    }
+}
+
+/// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
+impl Provider<Optimism> for EngineClient {
+    fn root(&self) -> &RootProvider<Optimism> {
+        &self.engine
     }
 }
 
@@ -408,7 +393,7 @@ mod provider_tests {
     use serde_json::json;
 
     #[tokio::test]
-    async fn query_handle_shares_l2_connection_and_computes_output_roots() {
+    async fn computes_output_roots_using_the_l2_connection() {
         for isthmus in [false, true] {
             let mut block = Block::<Transaction>::default();
             block.header.inner.state_root = B256::repeat_byte(1);
@@ -419,7 +404,6 @@ mod provider_tests {
             config.hardforks.isthmus_time = isthmus.then_some(0);
             let config = Arc::new(config);
             let (client, l1, l2) = test_engine_client(config);
-            let query = client.query_client();
             l1.expect_params(
                 "eth_getBlockByNumber",
                 json!(["latest", false]),
@@ -441,7 +425,7 @@ mod provider_tests {
             }
             assert!(client.get_l1_block(BlockId::latest()).await.unwrap().is_none());
             assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
-            let (info, root) = query.output_at_block(BlockNumberOrTag::Number(0)).await.unwrap();
+            let (info, root) = client.output_at_block(BlockNumberOrTag::Number(0)).await.unwrap();
             assert_eq!(info.block_info.hash, block.header.hash);
             assert_eq!(
                 root.hash(),

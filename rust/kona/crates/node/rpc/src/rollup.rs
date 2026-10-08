@@ -8,9 +8,9 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::{EngineQueryClient, EngineState};
+use kona_engine::{EngineClient, EngineClientError, EngineState};
 use kona_genesis::RollupConfig;
-use kona_protocol::SyncStatus;
+use kona_protocol::{L2BlockInfo, OutputRoot, SyncStatus};
 use std::sync::Arc;
 use tokio::sync::{oneshot, watch};
 
@@ -18,31 +18,54 @@ use crate::{
     L1WatcherQueries, OutputResponse, RollupNodeApiServer, l1_watcher::L1WatcherQuerySender,
 };
 
+/// The read-only L2 output query needed by [`RollupRpc`].
+pub trait OutputProvider: Send + Sync {
+    /// An error encountered while reading or computing an output.
+    type Error;
+
+    /// Reads the L2 block and computes its output root.
+    fn output_at_block(
+        &self,
+        block: BlockNumberOrTag,
+    ) -> impl Future<Output = Result<(L2BlockInfo, OutputRoot), Self::Error>> + Send;
+}
+
+impl OutputProvider for EngineClient {
+    type Error = EngineClientError;
+
+    async fn output_at_block(
+        &self,
+        block: BlockNumberOrTag,
+    ) -> Result<(L2BlockInfo, OutputRoot), Self::Error> {
+        Self::output_at_block(self, block).await
+    }
+}
+
 /// `RollupRpc`
 ///
 /// This is a server implementation of [`crate::RollupNodeApiServer`].
 #[derive(Debug)]
-pub struct RollupRpc {
+pub struct RollupRpc<L2> {
     /// The application version.
     pub version: String,
     /// The rollup configuration.
     pub config: Arc<RollupConfig>,
     /// The engine state published by the engine task queue.
     pub engine_state: watch::Receiver<EngineState>,
-    /// The read-only L2 connection shared with the engine.
-    pub l2: EngineQueryClient,
+    /// The read-only L2 output query provider.
+    l2: L2,
     /// The channel to send [`crate::L1WatcherQueries`]s.
     pub l1_watcher_sender: L1WatcherQuerySender,
 }
 
-impl RollupRpc {
+impl<L2> RollupRpc<L2> {
     /// Constructs a new [`RollupRpc`] from the application version, configuration, state, and
     /// clients.
     pub const fn new(
         version: String,
         config: Arc<RollupConfig>,
         engine_state: watch::Receiver<EngineState>,
-        l2: EngineQueryClient,
+        l2: L2,
         l1_watcher_sender: L1WatcherQuerySender,
     ) -> Self {
         Self { version, config, engine_state, l2, l1_watcher_sender }
@@ -72,7 +95,7 @@ impl RollupRpc {
 }
 
 #[async_trait]
-impl RollupNodeApiServer for RollupRpc {
+impl<L2: OutputProvider + 'static> RollupNodeApiServer for RollupRpc<L2> {
     async fn op_output_at_block(&self, block_num: BlockNumberOrTag) -> RpcResult<OutputResponse> {
         let ((l2_block_info, output_root), sync_status) = tokio::try_join!(
             async {
@@ -106,9 +129,84 @@ impl RollupNodeApiServer for RollupRpc {
 mod tests {
     use super::*;
     use crate::L1State;
+    use alloy_primitives::B256;
     use kona_engine::test_utils::{TestEngineStateBuilder, test_engine_client};
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use tokio::sync::mpsc;
+
+    struct TestOutputProvider {
+        block: BlockNumberOrTag,
+        output: Result<(L2BlockInfo, OutputRoot), &'static str>,
+    }
+
+    impl OutputProvider for TestOutputProvider {
+        type Error = &'static str;
+
+        async fn output_at_block(
+            &self,
+            block: BlockNumberOrTag,
+        ) -> Result<(L2BlockInfo, OutputRoot), Self::Error> {
+            assert_eq!(block, self.block);
+            self.output
+        }
+    }
+
+    #[tokio::test]
+    async fn queries_outputs_through_a_single_method_provider() {
+        let block = BlockNumberOrTag::Number(17);
+        let block_info = L2BlockInfo {
+            block_info: BlockInfo { number: 17, hash: B256::repeat_byte(1), ..Default::default() },
+            ..Default::default()
+        };
+        let root = OutputRoot::from_parts(
+            B256::repeat_byte(2),
+            B256::repeat_byte(3),
+            block_info.block_info.hash,
+        );
+        let config = Arc::new(RollupConfig::default());
+        let (_, state_rx) = watch::channel(EngineState::default());
+        let (l1_tx, mut l1_rx) = mpsc::channel(1);
+        let rpc = RollupRpc::new(
+            "test".to_owned(),
+            config.clone(),
+            state_rx.clone(),
+            TestOutputProvider { block, output: Ok((block_info, root)) },
+            l1_tx.clone(),
+        );
+        let head_l1 = BlockInfo { number: 42, ..Default::default() };
+        let (response, ()) = tokio::join!(rpc.op_output_at_block(block), async {
+            let L1WatcherQueries::L1State(reply) = l1_rx.recv().await.unwrap() else {
+                panic!("expected L1 state query");
+            };
+            reply
+                .send(L1State {
+                    current_l1: None,
+                    current_l1_finalized: None,
+                    head_l1: Some(head_l1),
+                    safe_l1: None,
+                    finalized_l1: None,
+                })
+                .unwrap();
+        });
+        let response = response.unwrap();
+        assert_eq!(response.block_ref, block_info);
+        assert_eq!(response.output_root, root.hash());
+        assert_eq!(response.state_root, root.state_root);
+        assert_eq!(response.withdrawal_storage_root, root.bridge_storage_root);
+        assert_eq!(response.sync_status.head_l1, head_l1);
+
+        let rpc = RollupRpc::new(
+            "test".to_owned(),
+            config,
+            state_rx,
+            TestOutputProvider { block, output: Err("output unavailable") },
+            l1_tx,
+        );
+        assert_eq!(
+            rpc.op_output_at_block(block).await.unwrap_err().code(),
+            ErrorCode::InternalError.code()
+        );
+    }
 
     #[tokio::test]
     async fn reads_config_and_published_engine_state() {
@@ -116,13 +214,7 @@ mod tests {
         let (client, l1, l2) = test_engine_client(config.clone());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
-        let rpc = RollupRpc::new(
-            "1.2.3-test".to_owned(),
-            config.clone(),
-            state_rx,
-            client.query_client(),
-            l1_tx,
-        );
+        let rpc = RollupRpc::new("1.2.3-test".to_owned(), config.clone(), state_rx, client, l1_tx);
         assert_eq!(rpc.op_rollup_config().await.unwrap(), *config);
 
         let head = L2BlockInfo {
@@ -168,7 +260,7 @@ mod tests {
                 version.to_owned(),
                 config.clone(),
                 state_rx.clone(),
-                client.query_client(),
+                client.clone(),
                 l1_tx.clone(),
             );
             assert_eq!(rpc.op_version().await.unwrap(), version);

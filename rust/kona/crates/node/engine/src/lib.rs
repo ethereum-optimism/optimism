@@ -53,7 +53,7 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{EngineClient, EngineClientBuilder, EngineClientError, EngineQueryClient};
+pub use client::{EngineClient, EngineClientBuilder, EngineClientError};
 
 mod request;
 pub use request::{
