@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -122,8 +123,8 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	txs, gas, err := UpgradeTransactions(forks.Lagoon)
 	require.NoError(t, err)
 
-	// 26 implementation deployments + L2CM deployment + upgradePredeploys = 28.
-	require.Len(t, txs, 28)
+	// 27 implementation deployments + L2CM deployment + upgradePredeploys = 29.
+	require.Len(t, txs, 29)
 
 	// First tx: StorageSetter implementation deployment (qualified intent).
 	first := UpgradeDepositSource{Intent: "Interop 0: Deploy StorageSetter Implementation"}
@@ -131,7 +132,7 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	require.Equal(t, first.SourceHash(), dep0.SourceHash())
 
 	// Last tx: L2ProxyAdmin upgradePredeploys.
-	last := UpgradeDepositSource{Intent: "Interop 27: L2ProxyAdmin Upgrade Predeploys"}
+	last := UpgradeDepositSource{Intent: "Interop 28: L2ProxyAdmin Upgrade Predeploys"}
 	_, depLast := toDepositTxn(t, txs[len(txs)-1])
 	require.Equal(t, last.SourceHash(), depLast.SourceHash())
 
@@ -143,4 +144,39 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 		sumGas += dep.Gas()
 	}
 	require.Equal(t, sumGas+interopSetFeatureGas+interopETHLiquidityFundGas, gas)
+}
+
+// TestLagoonNUTBundleL2ToL2MessengerExpiryPeriod checks that the embedded Lagoon NUT bundle deploys
+// the L2ToL2CrossDomainMessenger with the production expiry period: the 7-day interop message
+// expiry window plus a day of margin.
+func TestLagoonNUTBundleL2ToL2MessengerExpiryPeriod(t *testing.T) {
+	bundle, err := nutBundleForFork(forks.Lagoon)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(8*24*60*60), l2ToL2MessengerExpiryPeriod(t, bundle))
+}
+
+// l2ToL2MessengerExpiryPeriod returns the expiry period a NUT bundle deploys the
+// L2ToL2CrossDomainMessenger implementation with. The deployment calls
+// ConditionalDeployer.deploy(bytes32 salt, bytes code), and the code ends with the constructor's
+// one argument.
+func l2ToL2MessengerExpiryPeriod(t *testing.T, bundle *nutBundle) *big.Int {
+	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	require.NoError(t, err)
+	bytesType, err := abi.NewType("bytes", "", nil)
+	require.NoError(t, err)
+	deployArgs := abi.Arguments{{Type: bytes32Type}, {Type: bytesType}}
+
+	for _, tx := range bundle.Transactions {
+		if tx.Intent != "Deploy L2ToL2CrossDomainMessenger Implementation" {
+			continue
+		}
+		require.Greater(t, len(tx.Data), 4, "the deployment must carry calldata")
+		values, err := deployArgs.Unpack(tx.Data[4:])
+		require.NoError(t, err)
+		code := values[1].([]byte)
+		require.GreaterOrEqual(t, len(code), 32, "the deployment code must end with the constructor argument")
+		return new(big.Int).SetBytes(code[len(code)-32:])
+	}
+	t.Fatal("the bundle does not deploy the L2ToL2CrossDomainMessenger implementation")
+	return nil
 }

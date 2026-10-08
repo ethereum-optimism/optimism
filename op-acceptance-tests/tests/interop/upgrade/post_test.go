@@ -3,6 +3,7 @@
 package upgrade
 
 import (
+	"math/big"
 	"math/rand"
 	"strings"
 	"testing"
@@ -69,6 +70,8 @@ func TestPostMessageExpiryContracts(gt *testing.T) {
 			bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
 		version := contract.Read(messenger.Version())
 		require.Truef(strings.HasPrefix(version, "2."), "the messenger must be 2.x, without resendMessage, got %s", version)
+		require.Equal(big.NewInt(8*24*60*60), contract.Read(messenger.ExpiryPeriod()),
+			"the messenger must use the production expiry period")
 
 		// No message with this nonce expired, so a bridge that can refund rejects it as not
 		// expired. A bridge without refundETH would revert without data.
