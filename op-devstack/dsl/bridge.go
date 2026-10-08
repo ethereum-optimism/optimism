@@ -771,8 +771,8 @@ func (w *Withdrawal) FinalizeReceipt() *types.Receipt {
 	return w.finalizeReceipt
 }
 
-// WaitForDisputeGameOpts configures WaitForDisputeGameResolved.
-type WaitForDisputeGameOpts struct {
+// WaitForDisputeGameResolvedOpts configures WaitForDisputeGameResolved.
+type WaitForDisputeGameResolvedOpts struct {
 	// Timeout bounds the wait. Tests that wait a game's chess clock out in wall-clock time, rather
 	// than skipping it with time travel, need more than the game's max clock duration.
 	Timeout time.Duration
@@ -780,8 +780,8 @@ type WaitForDisputeGameOpts struct {
 
 // WaitForDisputeGameResolved waits for the dispute game the withdrawal was proven against to
 // resolve in the defender's favour, retrying transient RPC errors.
-func (w *Withdrawal) WaitForDisputeGameResolved(opts ...func(*WaitForDisputeGameOpts)) {
-	o := WaitForDisputeGameOpts{Timeout: 60 * time.Second}
+func (w *Withdrawal) WaitForDisputeGameResolved(opts ...func(*WaitForDisputeGameResolvedOpts)) {
+	o := WaitForDisputeGameResolvedOpts{Timeout: 60 * time.Second}
 	for _, opt := range opts {
 		opt(&o)
 	}
