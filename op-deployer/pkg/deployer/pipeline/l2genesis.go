@@ -34,6 +34,11 @@ type l2GenesisOverrides struct {
 	OperatorFeeVaultWithdrawalNetwork        genesis.WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
+	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
+	// seconds. Zero keeps the production period of 8 days. For test networks only: the period must
+	// exceed the dependency set's message expiry window, or an expired message could still be
+	// relayed.
+	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
 }
 
 type cgtConfig struct {
@@ -128,6 +133,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
+		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
