@@ -11,11 +11,13 @@ import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
@@ -292,7 +294,8 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            devFeatureBitmap: bytes32(0)
+            devFeatureBitmap: bytes32(0),
+            l2ToL2MessageExpiryPeriod: 0
         });
     }
 
@@ -317,6 +320,26 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function testInterop() internal view {
         assertGt(Predeploys.CROSS_L2_INBOX.code.length, 0, "CrossL2Inbox must have code");
         assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
+    }
+
+    /// @notice Tests that genesis deploys the messenger with the production expiry period when
+    ///         the input sets none.
+    function test_run_defaultL2ToL2MessageExpiryPeriod_succeeds() external {
+        _setInputInteropEnabled();
+        genesis.run(input);
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(),
+            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+        );
+    }
+
+    /// @notice Tests that genesis deploys the messenger with the expiry period the input sets.
+    function testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, type(uint64).max);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(), _expiryPeriod);
     }
 
     /// @notice Tests that the run function succeeds when interop is enabled.
