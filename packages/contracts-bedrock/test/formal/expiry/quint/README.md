@@ -130,6 +130,42 @@ than v1's premise: no ProxyAdmin action set an implementation at the exporter ad
 upgrade, on any chain that is or becomes part of the lockbox. `messengerTrustedPrestaged`
 shows the same premise failing for the earlier design.
 
+## Results
+
+Apalache 0.62.1 via `quint verify`, on a 32-core Linux host, each check memory-capped (8–16 GB).
+
+**Unsafe instances.** Every one violates `NoDoubleSpend`, within the default `DEPTH` of 15. The
+column is the step at which Apalache reports the shortest violation.
+
+| Instance | Violation at step | Time |
+|---|---|---|
+| `noRealMessengerCheck`, `noLockboxCheck` | 6 | 22–23 s |
+| `messengerTrustedPrestaged`, `noSenderCheck` | 7 | 22–30 s |
+| `messengerTrustedNoTargetRule`, `nonstandardJoin` | 8 | 27–28 s |
+| `periodBelowWindow`, `expireGeNoMargin`, `duplicateChainId` | 9 | 27–43 s |
+| `resendNoRestart` | 11 | 346 s |
+
+**Witnesses.** In every safe instance `NoRefundEver` and `NoRefundOfM2` are violated at step 8,
+`NoRefundOfM3` at step 9 and `NoEdgeRelay` at step 3 (22–60 s each). `MessengerSilentAfterUpgrade`
+holds in `safe` at depth 15 (332 s) and is violated in `safeNoTargetRule` at step 2.
+
+**`Safety` in the safe instances is checked to a smaller depth than 15.** The symbolic state grows
+quickly with depth: step 11 alone ran for more than five hours per instance without finishing. The
+depths below are the last step at which Apalache finished checking every conjunct of `Safety`
+for every execution of that length; the runs were then stopped.
+
+| Instance | `Safety` holds for every execution of up to |
+|---|---|
+| `safe`, `safeNoTargetRule`, `safeNoMargin` | 10 steps |
+| `safeShorterWindow`, `safeResendRestarts` | 9 steps |
+
+What this bound covers: an honest refund takes 8–9 steps, and every unsafe instance except
+`resendNoRestart` double-spends within 9 steps, so for those mitigations the safe instance is
+checked at least as deep as the shortest attack its removal enables. The `resendNoRestart`
+attack needs 11 steps, deeper than `safeResendRestarts` was checked. Unbounded safety for all
+of these configurations is the Lean proof (`safety`, `safety_without_targetRule`,
+`safe_variants`); this model is the bounded cross-check and the source of the counterexamples.
+
 ## Assumptions (not shown by this model)
 
 - **Timestamps.** Per-chain timestamps are monotone, and the source records `sentAt` as the
@@ -171,7 +207,8 @@ shows the same premise failing for the earlier design.
 - **Bounded.** Two messages, four chains, `MAX_TIME` = 20, and Apalache up to `DEPTH` steps.
   - An honest refund takes 8–9 steps.
   - The attacks' shortest double spends take 6 steps (`fakeCaller` paths) to 11 (`resendNoRestart`).
-  - The default `DEPTH` is 15. The results and per-check times are in `../README.md`.
+  - The default `DEPTH` is 15. `Safety` in the safe instances was checked to 9–10 steps (see
+    Results).
   - The Lean proof covers unbounded chains, messages and time.
 - **Not modeled:** gas, ETH amounts, pauses, proof-maturity delays and message nonces. ETH amounts
   are covered by the Foundry invariant harness.

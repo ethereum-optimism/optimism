@@ -37,7 +37,7 @@ it checked.
 
 | Property | Lean (unbounded) | Quint / Apalache (bounded) | Halmos (symbolic, bytecode) | EVM-Lean (bytecode refinement) | Others |
 |---|---|---|---|---|---|
-| **NoDoubleSpend**: never both relayed on the destination and refunded on the source | proved for any `SafeConfig` (exporter design) | checked to depth 15 in 5 safe instances; 10 mitigation-off instances double-spend | (local properties only) | (`expireMessage` only) | Foundry invariants |
+| **NoDoubleSpend**: never both relayed on the destination and refunded on the source | proved for any `SafeConfig` (exporter design) | checked for every execution of up to 10 steps (`safe`, `safeNoTargetRule`, `safeNoMargin`) or 9 steps (`safeShorterWindow`, `safeResendRestarts`); 10 mitigation-off instances double-spend within 6–11 steps | (local properties only) | (`expireMessage` only) | Foundry invariants |
 | **ExpiredImpliesNeverRelayable** | proved, for all extensions of the execution | checked | — | — | — |
 | **NoForgedFact / OnlyDestinationCanExport** | proved | checked | export hash binding | — | — |
 | **RefundImpliesExpired, AtMostOneRefund** | proved (standard chains) | checked | refund iff + single use | `refundETH`: refunded set only after reading `expiredMessages(H)` true and `refunded[H]` false | Foundry invariants |
