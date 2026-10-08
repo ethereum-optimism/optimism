@@ -7,8 +7,8 @@ interface ISuperchainETHBridge is ISemver {
     error Unauthorized();
     error InvalidCrossDomainSender();
     error ZeroAddress();
-    error MessageNotExpired();
-    error AlreadyRefunded();
+    error SuperchainETHBridge_MessageNotExpired();
+    error SuperchainETHBridge_AlreadyRefunded();
 
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 

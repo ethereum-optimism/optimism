@@ -33,16 +33,17 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
     error InvalidMessage();
 
-    /// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger or the
-    ///         L2ToL1MessagePasser.
-    error MessageTargetUnsafe();
+    /// @notice Thrown when attempting to send or relay a message whose target is the
+    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser.
+    error L2ToL2CrossDomainMessenger_MessageTargetUnsafe();
 
-    /// @notice Thrown when a message is marked expired by anything but this chain's L1CrossDomainMessenger.
-    error NotOtherMessenger();
+    /// @notice Thrown when a message is marked expired by anything but this chain's
+    ///         L1CrossDomainMessenger.
+    error L2ToL2CrossDomainMessenger_NotOtherMessenger();
 
-    /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed past the expiry
-    ///         period.
-    error MessageNotExpired();
+    /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed
+    ///         past the expiry period.
+    error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
@@ -70,7 +71,8 @@ interface IL2ToL2CrossDomainMessenger {
 
     function version() external view returns (string memory);
 
-    /// @notice How long after it is sent a message must go unrelayed before it can be marked expired.
+    /// @notice How long after it is sent a message must go unrelayed before it can be marked
+    ///         expired.
     function EXPIRY_PERIOD() external view returns (uint256);
 
     /// @notice Mapping of message hashes to the timestamp of the block they were sent in.
@@ -79,7 +81,8 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Mapping of message hashes to whether they expired undelivered.
     function expiredMessages(bytes32) external view returns (bool);
 
-    /// @notice Marks a message sent from this chain expired, on word from this chain's L1CrossDomainMessenger.
+    /// @notice Marks a message sent from this chain expired, on word from this chain's
+    ///         L1CrossDomainMessenger.
     /// @param _messageHash   Hash of the message.
     /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
     function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external;

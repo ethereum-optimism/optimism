@@ -7,10 +7,19 @@ interface IUndeliveredMessageExporter {
     /// @notice Thrown when exporting a message that was relayed on this chain.
     error UndeliveredMessageExporter_MessageRelayed();
 
+    /// @notice Emitted when a message to this chain is exported as not relayed.
+    /// @param messageHash     Hash of the message.
+    /// @param source          Chain ID of the message's source chain.
+    /// @param sourceMessenger The source chain's L1CrossDomainMessenger the word is sent to.
+    /// @param undeliveredAt   Timestamp at which the message had not been relayed.
+    event UndeliveredMessageExported(
+        bytes32 indexed messageHash, uint256 indexed source, address sourceMessenger, uint256 undeliveredAt
+    );
+
     function version() external view returns (string memory);
 
-    /// @notice Tells the source chain, through its L1CrossDomainMessenger, that a message to this chain has not been
-    ///         relayed by now.
+    /// @notice Tells the source chain, through its L1CrossDomainMessenger, that a message to this
+    ///         chain has not been relayed by now.
     /// @param _sourceMessenger The source chain's L1CrossDomainMessenger.
     /// @param _source          Chain ID of the source chain.
     /// @param _nonce           Nonce of the message.

@@ -20,9 +20,9 @@ import {
     MessageTargetL2ToL2CrossDomainMessenger,
     MessageAlreadyRelayed,
     InvalidMessage,
-    MessageTargetUnsafe,
-    NotOtherMessenger,
-    MessageNotExpired
+    L2ToL2CrossDomainMessenger_MessageTargetUnsafe,
+    L2ToL2CrossDomainMessenger_NotOtherMessenger,
+    L2ToL2CrossDomainMessenger_MessageNotExpired
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 // Interfaces
@@ -299,7 +299,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         vm.assume(_destination != block.chainid);
         address target = _messagePasser ? Predeploys.L2_TO_L1_MESSAGE_PASSER : Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        vm.expectRevert(MessageTargetUnsafe.selector);
+        vm.expectRevert(L2ToL2CrossDomainMessenger_MessageTargetUnsafe.selector);
         l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: target, _message: _message });
     }
 }
@@ -650,7 +650,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
             returnData: ""
         });
 
-        vm.expectRevert(MessageTargetUnsafe.selector);
+        vm.expectRevert(L2ToL2CrossDomainMessenger_MessageTargetUnsafe.selector);
         l2ToL2CrossDomainMessenger.relayMessage(id, sentMessage);
     }
 
@@ -816,14 +816,6 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         messageHash = l2ToL2CrossDomainMessenger.sendMessage(block.chainid + 1, address(0xbeef), hex"1234");
     }
 
-    /// @notice Tests that the expiry period is the protocol's 7-day message expiry window plus a day of
-    ///         margin. op-core (MessageExpiryTimeSecondsInterop) and kona-genesis (MESSAGE_EXPIRY_WINDOW)
-    ///         pin that window at 604800 seconds and reject longer overrides.
-    function test_expireMessage_periodExceedsProtocolWindow_succeeds() external view {
-        assertEq(l2ToL2CrossDomainMessenger.EXPIRY_PERIOD(), 8 days);
-        assertGe(l2ToL2CrossDomainMessenger.EXPIRY_PERIOD(), 604800 + 1 days);
-    }
-
     /// @notice Tests that word dated after the expiry period marks the message expired, and that
     ///         more word changes nothing.
     function testFuzz_expireMessage_succeeds(uint256 _afterWindow) external {
@@ -844,7 +836,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
     function test_expireMessage_atWindowEnd_reverts() external {
         uint256 windowEnd = sentAt + l2ToL2CrossDomainMessenger.EXPIRY_PERIOD();
 
-        vm.expectRevert(MessageNotExpired.selector);
+        vm.expectRevert(L2ToL2CrossDomainMessenger_MessageNotExpired.selector);
         _expireMessage(l1Messenger, messageHash, windowEnd);
 
         _expireMessage(l1Messenger, messageHash, windowEnd + 1);
@@ -855,7 +847,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
     function testFuzz_expireMessage_withinWindow_reverts(uint256 _undeliveredAt) external {
         _undeliveredAt = bound(_undeliveredAt, 0, sentAt + l2ToL2CrossDomainMessenger.EXPIRY_PERIOD());
 
-        vm.expectRevert(MessageNotExpired.selector);
+        vm.expectRevert(L2ToL2CrossDomainMessenger_MessageNotExpired.selector);
         _expireMessage(l1Messenger, messageHash, _undeliveredAt);
     }
 
@@ -874,7 +866,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         vm.assume(_caller != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
         // A different cross-domain sender, through the L2CrossDomainMessenger.
-        vm.expectRevert(NotOtherMessenger.selector);
+        vm.expectRevert(L2ToL2CrossDomainMessenger_NotOtherMessenger.selector);
         _expireMessage(_xDomainSender, messageHash, type(uint64).max);
 
         // The L1CrossDomainMessenger as cross-domain sender, but not called by the L2CrossDomainMessenger.
@@ -883,8 +875,21 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(l1Messenger)
         );
-        vm.expectRevert(NotOtherMessenger.selector);
+        vm.expectRevert(L2ToL2CrossDomainMessenger_NotOtherMessenger.selector);
         vm.prank(_caller);
         l2ToL2CrossDomainMessenger.expireMessage(messageHash, type(uint64).max);
+    }
+}
+
+/// @title L2ToL2CrossDomainMessenger_Uncategorized_Test
+/// @notice General tests that are not testing any function directly of the
+///         `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_Uncategorized_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Tests that the expiry period is the protocol's message expiry window,
+    ///         MessageExpiryTimeSecondsInterop in op-core and MESSAGE_EXPIRY_WINDOW in kona-genesis
+    ///         (604800 seconds, which both cap overrides at), plus a day of margin.
+    function test_expiryPeriod_exceedsProtocolWindowByADay_succeeds() external view {
+        uint256 protocolWindow = 604800;
+        assertEq(l2ToL2CrossDomainMessenger.EXPIRY_PERIOD(), protocolWindow + 1 days);
     }
 }

@@ -15,7 +15,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 /// @custom:proxied true
@@ -24,13 +23,14 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
-    /// @notice Thrown when `relayUndeliveredMessage` is called on a chain that does not run interop, or not by another
-    ///         chain's L1CrossDomainMessenger in this chain's interop cluster, relaying a withdrawal from that chain's
-    ///         UndeliveredMessageExporter.
-    error L1CrossDomainMessenger_NotInteropMessenger();
-
-    /// @notice Gas limit for L2ToL2CrossDomainMessenger.expireMessage on L2, which uses about 40k gas.
+    /// @notice Gas limit for L2ToL2CrossDomainMessenger.expireMessage on L2, which uses about 40k
+    ///         gas.
     uint32 internal constant EXPIRE_MESSAGE_GAS_LIMIT = 100_000;
+
+    /// @notice Thrown when `relayUndeliveredMessage` is called on a chain that does not run
+    ///         interop, or not by another chain's L1CrossDomainMessenger in this chain's interop
+    ///         cluster, relaying a withdrawal from that chain's UndeliveredMessageExporter.
+    error L1CrossDomainMessenger_NotInteropMessenger();
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -90,28 +90,34 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
         return portal;
     }
 
-    /// @notice Passes on word from another chain in this chain's interop cluster that a message from this chain had
-    ///         not been relayed there by `_undeliveredAt`. This chain's L2ToL2CrossDomainMessenger marks the message
-    ///         expired if that is past its expiry period. It is off unless this chain runs interop. The caller must be:
-    ///         - a real L1CrossDomainMessenger: its portal's SystemConfig names it as the chain's messenger. A contract
-    ///           that names a real portal as its own fails this;
-    ///         - of a chain in this chain's cluster: its portal is authorized by this chain's ETHLockbox. Every such
-    ///           chain can already withdraw this chain's ETH, so trusting its word adds no trust;
-    ///         - relaying a withdrawal from that chain's UndeliveredMessageExporter, which sends this call only for a
-    ///           message to that chain that it has not relayed. The exporter's proxy had no implementation before it,
-    ///           and it never calls arbitrary targets, so no withdrawal from it can predate it or say anything else.
-    ///         The word is sent on as this contract, which no relayed message can be (see `_isUnsafeTarget`), so L2 can
-    ///         trust it. If this runs out of gas, the call lands in the caller's failed messages and can be replayed.
+    /// @notice Passes on word from another chain in this chain's interop cluster that a message
+    ///         from this chain had not been relayed there by `_undeliveredAt`. This chain's
+    ///         L2ToL2CrossDomainMessenger marks the message expired if that is past its expiry
+    ///         period. It is off unless this chain runs interop. The caller must be:
+    ///         - a real L1CrossDomainMessenger: its portal's SystemConfig names it as the chain's
+    ///           messenger. A contract that names a real portal as its own fails this;
+    ///         - of a chain in this chain's cluster: its portal is authorized by this chain's
+    ///           ETHLockbox. Every such chain can already withdraw this chain's ETH, so trusting
+    ///           its word adds no trust;
+    ///         - relaying a withdrawal from that chain's UndeliveredMessageExporter, which sends
+    ///           this call only for a message to that chain that it has not relayed. The
+    ///           exporter's proxy had no implementation before it, and it never calls arbitrary
+    ///           targets, so no withdrawal from it can predate it or say anything else.
+    ///         The word is sent on as this contract, which no relayed message can be (see
+    ///         `_isUnsafeTarget`), so L2 can trust it. If this runs out of gas, the call lands in
+    ///         the caller's failed messages and can be replayed.
     /// @param _messageHash   Hash of the message.
-    /// @param _undeliveredAt Timestamp on the message's destination at which it had not been relayed.
+    /// @param _undeliveredAt Timestamp on the message's destination at which it had not been
+    ///                       relayed.
     function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
         if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();
 
-        IOptimismPortal callerPortal = IL1CrossDomainMessenger(msg.sender).portal();
+        L1CrossDomainMessenger caller = L1CrossDomainMessenger(msg.sender);
+        IOptimismPortal callerPortal = caller.portal();
         if (
             callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender
                 || !portal.ethLockbox().authorizedPortals(callerPortal)
-                || IL1CrossDomainMessenger(msg.sender).xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER
+                || caller.xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER
         ) {
             revert L1CrossDomainMessenger_NotInteropMessenger();
         }
