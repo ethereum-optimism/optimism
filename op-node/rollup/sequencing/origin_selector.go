@@ -36,6 +36,13 @@ type L1OriginSelector struct {
 	// Internal cache of L1 origins for faster access.
 	currentOrigin eth.L1BlockRef
 	nextOrigin    eth.L1BlockRef
+	// lookahead is the successor of nextOrigin, prefetched so that nextOrigin can be
+	// replaced as soon as an L2 block adopts it. The sequencer starts the next build
+	// right after inserting a block, typically before the forkchoice update of that
+	// insertion reaches this selector. Without the lookahead, that build would find
+	// no next origin and keep the one just adopted, so the origin could only advance
+	// every other L2 block.
+	lookahead eth.L1BlockRef
 
 	mu sync.Mutex
 }
@@ -121,6 +128,12 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 		// If the L2 head has progressed to the next origin, update the current and next origins.
 		los.currentOrigin = los.nextOrigin
 		los.nextOrigin = eth.L1BlockRef{}
+		// The lookahead was fetched by number, so only promote it if it still extends
+		// the new current origin.
+		if los.lookahead.ParentHash == los.currentOrigin.Hash {
+			los.nextOrigin = los.lookahead
+		}
+		los.lookahead = eth.L1BlockRef{}
 	} else {
 		// If for some reason the L2 head is not on the current or next origin, we need to find the
 		// current origin block and reset the next origin.
@@ -134,25 +147,38 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 
 		los.currentOrigin = currentOrigin
 		los.nextOrigin = eth.L1BlockRef{}
+		los.lookahead = eth.L1BlockRef{}
 	}
 
 	return los.currentOrigin, los.nextOrigin, nil
 }
 
-func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
+// maybeCacheOrigin caches a fetched block as the next origin or the lookahead,
+// if it is the subsequent block by number of the current or next origin.
+// On reorgs, it might not be the immediate child since the hash is not checked:
+// a next origin that is not a child surfaces as ErrNextL1OriginOrphaned, and a
+// lookahead that is not a child is discarded instead of promoted.
+func (los *L1OriginSelector) maybeCacheOrigin(origin eth.L1BlockRef) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
-	// Set the next origin if it is the subsequent block by number.
-	// On reorgs, this might not be the immediate child of the current origin
-	// since the hash is not checked.
-	if nextOrigin.Number == los.currentOrigin.Number+1 {
-		los.nextOrigin = nextOrigin
+	switch {
+	case origin.Number == los.currentOrigin.Number+1:
+		los.nextOrigin = origin
+	case los.nextOrigin != (eth.L1BlockRef{}) && origin.Number == los.nextOrigin.Number+1:
+		los.lookahead = origin
 	}
 }
 
+func (los *L1OriginSelector) hasLookahead() bool {
+	los.mu.Lock()
+	defer los.mu.Unlock()
+
+	return los.lookahead != (eth.L1BlockRef{})
+}
+
 func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
-	// Only allow a relatively small window for fetching the next origin, as this is performed
+	// Only allow a relatively small window for fetching the next origins, as this is performed
 	// on a best-effort basis.
 	ctx, cancel := context.WithTimeout(los.ctx, 500*time.Millisecond)
 	defer cancel()
@@ -163,28 +189,38 @@ func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 		return
 	}
 
-	los.tryFetchNextOrigin(ctx, currentOrigin, nextOrigin)
+	los.tryFetchNextOrigins(ctx, currentOrigin, nextOrigin)
 }
 
-// tryFetchNextOrigin schedules a fetch for the next L1 origin block if it is not already set.
-// This method always closes the channel, even if the next origin is already set.
-func (los *L1OriginSelector) tryFetchNextOrigin(ctx context.Context, currentOrigin, nextOrigin eth.L1BlockRef) {
-	// If the next origin is already set, we don't need to do anything.
-	if nextOrigin != (eth.L1BlockRef{}) {
-		return
-	}
-
+// tryFetchNextOrigins fetches the next L1 origin block and its successor, the lookahead,
+// unless they are already cached.
+func (los *L1OriginSelector) tryFetchNextOrigins(ctx context.Context, currentOrigin, nextOrigin eth.L1BlockRef) {
 	// If the current origin is not set, we can't schedule the next origin check.
 	if currentOrigin == (eth.L1BlockRef{}) {
 		return
 	}
 
-	if _, err := los.fetch(ctx, currentOrigin.Number+1); err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			los.log.Debug("No next potential L1 origin found")
-		} else {
-			los.log.Error("Failed to get next origin", "err", err)
+	if nextOrigin == (eth.L1BlockRef{}) {
+		var err error
+		if nextOrigin, err = los.fetch(ctx, currentOrigin.Number+1); err != nil {
+			los.logFetchError("next origin", err)
+			return
 		}
+	}
+
+	if los.hasLookahead() {
+		return
+	}
+	if _, err := los.fetch(ctx, nextOrigin.Number+1); err != nil {
+		los.logFetchError("lookahead origin", err)
+	}
+}
+
+func (los *L1OriginSelector) logFetchError(what string, err error) {
+	if errors.Is(err, ethereum.NotFound) {
+		los.log.Debug("No potential L1 origin found", "what", what)
+	} else {
+		los.log.Error("Failed to get L1 origin", "what", what, "err", err)
 	}
 }
 
@@ -197,7 +233,7 @@ func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1Bl
 		return eth.L1BlockRef{}, err
 	}
 
-	los.maybeSetNextOrigin(nextOrigin)
+	los.maybeCacheOrigin(nextOrigin)
 
 	return nextOrigin, nil
 }
@@ -208,6 +244,7 @@ func (los *L1OriginSelector) reset() {
 
 	los.currentOrigin = eth.L1BlockRef{}
 	los.nextOrigin = eth.L1BlockRef{}
+	los.lookahead = eth.L1BlockRef{}
 }
 
 var (
