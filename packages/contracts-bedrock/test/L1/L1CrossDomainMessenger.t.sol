@@ -1418,7 +1418,7 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
     }
 
     /// @notice Mocks a chain in this chain's cluster whose messenger is relaying a withdrawal from
-    ///         its L2ToL2CrossDomainMessenger.
+    ///         its UndeliveredMessageExporter.
     function _mockChain(string memory _name)
         internal
         returns (address messenger_, address portal_, address systemConfig_)
