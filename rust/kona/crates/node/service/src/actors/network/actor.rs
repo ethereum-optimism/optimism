@@ -13,10 +13,11 @@ use tokio::{
 };
 
 use crate::{
-    NetworkEngineClient, NodeActor, SignedPayload,
+    NetworkEngineClient, NodeActor,
     actors::network::{
         driver::NetworkDriverError, error::NetworkBuilderError, handler::NetworkHandler,
     },
+    signer,
 };
 
 /// The network actor handles two core networking components of the rollup node:
@@ -33,7 +34,7 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// A channel to receive unsafe payloads submitted through admin RPC.
     admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
-    publish_rx: mpsc::Receiver<SignedPayload>,
+    publish_rx: mpsc::Receiver<signer::Payload>,
     /// A client to use to interact with the engine actor.
     engine_client: NetworkEngineClient_,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
@@ -55,7 +56,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
         handler: NetworkHandler,
         gossip_command_rx: GossipCommandReceiver,
         admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
-        publish_rx: mpsc::Receiver<SignedPayload>,
+        publish_rx: mpsc::Receiver<signer::Payload>,
     ) -> Self {
         let (gossip_state_tx, _) = watch::channel(Arc::new(handler.gossip.snapshot()));
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();

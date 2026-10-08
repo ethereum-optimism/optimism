@@ -55,8 +55,8 @@ struct SealLastStartNextResult {
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
-/// and handing them to the [`SignerActor`](crate::SignerActor) to be signed and gossipped,
-/// extending the L2 chain with new blocks.
+/// and handing them to the signer through [`signer::Handle`](crate::signer::Handle) to be signed
+/// and gossipped, extending the L2 chain with new blocks.
 #[derive(Debug)]
 pub struct SequencerActor<
     AttributesBuilder_,

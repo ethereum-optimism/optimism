@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, signer,
 };
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
@@ -20,6 +20,7 @@ use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::{mpsc, watch};
+use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -106,7 +107,8 @@ impl TestNetworkBuilder {
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
+        let signer_builder = signer::Builder::new(signer::Capacity::try_from(256).unwrap());
+        let signer_handle = signer_builder.handle();
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
         let discovery = handler.discovery.clone();
@@ -120,22 +122,19 @@ impl TestNetworkBuilder {
 
         let p2p_rpc = P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx);
 
-        // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
+        // Every test network can sign: payloads sent to `signer_handle` are signed with this
         // node's key and then gossiped.
-        let mut signer = SignerActor::new(
+        let signer = signer_builder.build(
             BlockSignerHandler::Local(block_signer),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
-            gossip_payload_rx,
             signed_payload_tx,
+            CancellationToken::new(),
         );
         tokio::spawn(async move {
-            let err = loop {
-                if let Err(err) = signer.step().await {
-                    break err;
-                }
-            };
-            error!(target: "net", ?err, "Signer actor failed");
+            if let Err(err) = signer.await {
+                error!(target: "net", ?err, "Signer actor failed");
+            }
         });
 
         let handle = tokio::spawn(async move {
@@ -147,7 +146,7 @@ impl TestNetworkBuilder {
             Ok(())
         });
 
-        TestNetwork { p2p_rpc, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        TestNetwork { p2p_rpc, admin_rpc_tx, signer: signer_handle, blocks_rx, handle }
     }
 }
 

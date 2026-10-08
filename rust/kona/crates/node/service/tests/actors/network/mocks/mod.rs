@@ -16,7 +16,7 @@ pub(crate) struct TestNetwork {
     pub(super) p2p_rpc: P2pRpc,
     #[allow(dead_code)]
     pub(super) admin_rpc_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
-    pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+    pub(super) signer: kona_node_service::signer::Handle,
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,

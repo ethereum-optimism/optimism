@@ -45,8 +45,8 @@ pub struct NetworkConfig {
     pub bootnodes: BootNodes,
     /// The [`RollupConfig`].
     pub rollup_config: RollupConfig,
-    /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It is used by the
-    /// [`SignerActor`](crate::SignerActor), not by the network itself.
+    /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It configures the
+    /// signer actor, whose input is exposed through [`signer::Handle`](crate::signer::Handle).
     pub gossip_signer: Option<BlockSigner>,
 }
 

@@ -21,7 +21,7 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
 
     let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
 
-    sequencer_network.gossip_payload_tx.send(envelope.clone()).await?;
+    sequencer_network.signer.send(envelope.clone()).await?;
 
     let block = validator_network
         .blocks_rx
@@ -66,7 +66,7 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 
     let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
 
-    sequencer_network.gossip_payload_tx.send(envelope.clone()).await?;
+    sequencer_network.signer.send(envelope.clone()).await?;
 
     // Check that the block propagates to all networks.
     for network in &mut validator_networks {
