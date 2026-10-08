@@ -1,27 +1,28 @@
-use crate::{
-    Clock, EngineClientResult, SequencerActor, SequencerEngineClient,
-    actors::{
-        MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-    },
-};
+use super::SequencerActor;
+use crate::{Clock, EngineClientResult, SequencerEngineClient};
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
-use kona_derive::test_utils::TestAttributesBuilder;
-use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::time::Instant;
+use crate::actors::{
+    MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
 };
-use tokio::{sync::mpsc, time::Instant};
+use kona_derive::test_utils::TestAttributesBuilder;
+use kona_genesis::RollupConfig;
+use kona_rpc::SequencerAdminCommand;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
-/// The time, in seconds since the UNIX epoch, that the clock of a [`test_actor`] starts at:
-/// 2000-01-01T00:00:00Z.
-pub(crate) const TEST_START: u64 = 946_684_800;
+mod admin;
+mod building;
 
-/// A [`SequencerActor`] built from mocks, with the engine client `E`.
-pub(crate) type TestActor<E = MockSequencerEngineClient> = SequencerActor<
+const TEST_START: u64 = 946_684_800;
+
+type TestSequencerActor = TestActor;
+
+type TestActor<E = MockSequencerEngineClient> = SequencerActor<
     TestAttributesBuilder,
     MockConductor,
     MockOriginSelector,
@@ -29,39 +30,38 @@ pub(crate) type TestActor<E = MockSequencerEngineClient> = SequencerActor<
     MockUnsafePayloadGossipClient,
 >;
 
-pub(crate) type TestSequencerActor = TestActor;
-
-// Returns a test SequencerActor with mocks that can be used or overridden.
-pub(crate) fn test_actor() -> TestActor {
-    test_actor_with_engine(MockSequencerEngineClient::new())
+fn test_actor() -> TestSequencerActor {
+    // Drop the sender so block-building tests have no admin requests.
+    test_actor_with_config(true, false, None).0
 }
 
-/// Returns a test [`SequencerActor`] like [`test_actor`], with the given engine client.
-pub(crate) fn test_actor_with_conductor(conductor: Option<MockConductor>) -> TestSequencerActor {
-    test_actor_with_engine_and_conductor(MockSequencerEngineClient::new(), conductor)
+fn test_actor_with_config(
+    active: bool,
+    recovery_mode: bool,
+    conductor: Option<MockConductor>,
+) -> (TestSequencerActor, mpsc::Sender<SequencerAdminCommand>) {
+    test_actor_with_engine_config(MockSequencerEngineClient::new(), active, recovery_mode, conductor)
 }
 
-pub(crate) fn test_actor_with_engine<E: SequencerEngineClient>(engine_client: E) -> TestActor<E> {
-    test_actor_with_engine_and_conductor(engine_client, None)
+fn test_actor_with_engine<E: SequencerEngineClient>(engine: E) -> TestActor<E> {
+    test_actor_with_engine_config(engine, true, false, None).0
 }
 
-fn test_actor_with_engine_and_conductor<E: SequencerEngineClient>(engine_client: E, conductor: Option<MockConductor>) -> TestActor<E> {
-    // The sender is intentionally dropped, so the channel starts closed.
-    // If future tests need to send messages, keep the sender instead of dropping it.
-    let (_admin_api_tx, admin_api_rx) = mpsc::channel(20);
-    SequencerActor::new(
-        admin_api_rx,
+fn test_actor_with_engine_config<E: SequencerEngineClient>(engine: E, active: bool, recovery_mode: bool, conductor: Option<MockConductor>) -> (TestActor<E>, mpsc::Sender<SequencerAdminCommand>) {
+    let (commands_tx, commands_rx) = mpsc::channel(20);
+    let actor = SequencerActor::new(
+        commands_rx,
         TestAttributesBuilder { attributes: vec![] },
         conductor,
-        engine_client,
-        true,
-        false,
+        engine,
+        active,
+        recovery_mode,
         MockOriginSelector::new(),
-        // tokio::time::interval requires a non-zero period; the default block_time is 0.
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
         MockUnsafePayloadGossipClient::new(),
         Arc::new(TokioClock::new(UNIX_EPOCH + Duration::from_secs(TEST_START))),
-    )
+    );
+    (actor, commands_tx)
 }
 
 /// A wall clock that starts at a given time and moves with tokio's clock, so it pauses and
