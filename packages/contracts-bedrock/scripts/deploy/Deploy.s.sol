@@ -254,7 +254,8 @@ contract Deploy is Deployer {
 
         DeployImplementations.Output memory dio = di.run(
             DeployImplementations.Input({
-                withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+                minWithdrawalDelaySeconds: cfg.minWithdrawalDelaySeconds(),
+                maxWithdrawalDelaySeconds: cfg.maxWithdrawalDelaySeconds(),
                 minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
                 challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
                 minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
@@ -312,7 +313,9 @@ contract Deploy is Deployer {
         ChainAssertions.checkDisputeGameFactory(
             IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
-        ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
+        ChainAssertions.checkDelayedWETHImpl(
+            IDelayedWETH(payable(impls.DelayedWETH)), cfg.minWithdrawalDelaySeconds(), cfg.maxWithdrawalDelaySeconds()
+        );
         ChainAssertions.checkMIPS({
             _mips: IMIPS64(address(dio.mipsSingleton)), _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });

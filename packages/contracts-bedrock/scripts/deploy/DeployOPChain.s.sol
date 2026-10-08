@@ -353,6 +353,7 @@ contract DeployOPChain is Script {
 
         require(_i.proofMaturityDelaySeconds != 0, "DeployOPChainInput: proofMaturityDelaySeconds not set");
         require(_i.disputeGameFinalityDelaySeconds != 0, "DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+        require(_i.withdrawalDelaySeconds != 0, "DeployOPChainInput: withdrawalDelaySeconds not set");
 
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
         require(_i.disputeSplitDepth != 0, "DeployOPChainInput: disputeSplitDepth not set");
@@ -437,6 +438,10 @@ contract DeployOPChain is Script {
         require(
             _o.anchorStateRegistryProxy.disputeGameFinalityDelaySeconds() == _i.disputeGameFinalityDelaySeconds,
             "DeployOPChain: disputeGameFinalityDelaySeconds mismatch"
+        );
+        require(
+            _o.delayedWETHPermissionlessGameProxy.delay() == _i.withdrawalDelaySeconds,
+            "DeployOPChain: withdrawalDelaySeconds mismatch"
         );
 
         // Check dispute games and get superchain config
