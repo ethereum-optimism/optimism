@@ -125,44 +125,12 @@ async fn override_leader(#[case] configured: bool, #[case] fail: bool) {
     }
 }
 
-#[rstest]
-#[tokio::test(start_paused = true)]
-async fn reset_derivation_pipeline(#[values(true, false)] fail: bool) {
-    let (mut actor, commands) = test_actor_with_config(true, false, None);
-    let mut sequence = mockall::Sequence::new();
-    actor
-        .engine_client
-        .expect_reset_engine_forkchoice()
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(|| Ok(()));
-    actor
-        .engine_client
-        .expect_reset_engine_forkchoice()
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(move || {
-            if fail {
-                Err(EngineClientError::RequestError("reset failed".to_string()))
-            } else {
-                Ok(())
-            }
-        });
-    let result =
-        command(&mut actor, &commands, SequencerAdminCommand::ResetDerivationPipeline).await;
-    if fail {
-        assert!(result.unwrap_err().to_string().contains("Failed to reset engine"));
-    } else {
-        result.unwrap();
-    }
-}
-
 #[tokio::test(start_paused = true)]
 async fn accepted_commands_run_when_response_receivers_are_dropped() {
     let mut conductor = MockConductor::new();
     conductor.expect_override_leader().times(1).return_once(|| Ok(()));
     let (mut actor, commands_tx) = test_actor_with_config(true, false, Some(conductor));
-    actor.engine_client.expect_reset_engine_forkchoice().times(2).returning(|| Ok(()));
+    actor.engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
     actor
         .engine_client
         .expect_get_unsafe_head()
@@ -177,8 +145,6 @@ async fn accepted_commands_run_when_response_receivers_are_dropped() {
     commands.push(SequencerAdminCommand::SetRecoveryMode(true, tx));
     let (tx, _) = oneshot::channel();
     commands.push(SequencerAdminCommand::OverrideLeader(tx));
-    let (tx, _) = oneshot::channel();
-    commands.push(SequencerAdminCommand::ResetDerivationPipeline(tx));
     let state = actor.admin_state_receiver();
     for command in commands {
         commands_tx.send(command).await.unwrap();
@@ -194,6 +160,7 @@ async fn rpc_reads_published_state_after_commands() {
     let (payloads_tx, _) = mpsc::channel(1);
     let rpc = AdminRpc::new(
         Some(SequencerAdminHandle::new(actor.admin_state_receiver(), commands)),
+        mpsc::channel(1).0,
         payloads_tx,
     );
     let hash = B256::repeat_byte(42);
