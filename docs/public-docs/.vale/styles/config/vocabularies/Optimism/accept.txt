@@ -214,7 +214,6 @@ REQUIREDBLOCKS
 RPCPREFIX
 RPGF
 RWAs
-Reemitting
 Regenesis
 Reimagine
 Relayer
@@ -539,7 +538,6 @@ proxyd
 quicknode
 quickstarts
 rebalancing
-reemit
 regenesis
 regolith_time
 rejournal

@@ -103,7 +103,7 @@ This behavior differs from [standard ETH transfers](https://docs.base.org/learn/
 
 #### Refunds
 
-If the destination never relays the message, it [expires](/app-developers/guides/interoperability/message-expiration). Once the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, anyone can call `SuperchainETHBridge.refundETH` with the send's arguments, and the ETH goes back to the sender, once, again through `SafeSend`.
+If the destination never relays the message, it [expires](/app-developers/guides/interoperability/message-expiration). Once the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, anyone can call `SuperchainETHBridge.refundETH` with the send's destination chain ID, message nonce, sender, recipient and amount, and the ETH goes back to the sender, once, again through `SafeSend`.
 
 ## L1 Treasury
 
