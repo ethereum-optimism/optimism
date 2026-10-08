@@ -1,5 +1,5 @@
 //! Contains the [`RollupNode`] implementation.
-use super::middleware::RpcMetricsLayer;
+use super::{Supervisor, middleware::RpcMetricsLayer, run_node_actor};
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
@@ -294,7 +294,7 @@ impl RollupNode {
     /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
     /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
     /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
-    /// Using `impl Trait` here is intentional; the macro consumer only requires `NodeActor`.
+    /// Using `impl Trait` here is intentional; the lifetime adapter only requires `NodeActor`.
     fn build_l1_watcher(
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
@@ -510,7 +510,7 @@ impl RollupNode {
     /// next `select!`. Actors may log channel-closed errors while peers are torn down
     /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
-        // Single umbrella cancellation token owned by the spawn_and_wait! macro.
+        // Single umbrella cancellation token shared by the supervisor and actor lifetimes.
         let cancellation = CancellationToken::new();
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
@@ -599,18 +599,46 @@ impl RollupNode {
             )
             .await?;
 
-        crate::service::spawn_and_wait!(
-            cancellation,
-            actors = [
-                rpc,
-                sequencer_actor,
-                signer_actor,
-                Some(network),
-                Some(l1_watcher),
-                Some(derivation),
-                Some(engine_actor),
-            ]
-        );
-        Ok(())
+        let mut supervisor = Supervisor::new(cancellation.clone());
+        if let Some(rpc) = rpc {
+            supervisor.spawn("rpc", run_node_actor(rpc, cancellation.clone()));
+        }
+        if let Some(sequencer) = sequencer_actor {
+            supervisor.spawn("sequencer", run_node_actor(sequencer, cancellation.clone()));
+        }
+        if let Some(signer) = signer_actor {
+            supervisor.spawn("signer", run_node_actor(signer, cancellation.clone()));
+        }
+        supervisor.spawn("network", run_node_actor(network, cancellation.clone()));
+        supervisor.spawn("l1", run_node_actor(l1_watcher, cancellation.clone()));
+        supervisor.spawn("derivation", run_node_actor(derivation, cancellation.clone()));
+        supervisor.spawn("engine", run_node_actor(engine_actor, cancellation));
+        let shutdown = async {
+            let ctrl_c = async {
+                tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+            };
+
+            #[cfg(unix)]
+            let terminate = async {
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("failed to install SIGTERM handler")
+                    .recv()
+                    .await;
+            };
+
+            #[cfg(not(unix))]
+            let terminate = std::future::pending::<()>();
+
+            tokio::select! {
+                _ = ctrl_c => {
+                    info!(target: "rollup_node", "Received SIGINT (Ctrl+C)");
+                },
+                _ = terminate => {
+                    info!(target: "rollup_node", "Received SIGTERM");
+                },
+            }
+        };
+
+        supervisor.wait(shutdown).await
     }
 }

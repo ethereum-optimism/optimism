@@ -17,5 +17,5 @@ pub use mode::NodeMode;
 mod node;
 pub use node::{L1Config, RollupNode};
 
-pub(crate) mod util;
-pub(crate) use util::{shutdown_signal, spawn_and_wait};
+mod supervisor;
+use supervisor::{Supervisor, run_node_actor};
