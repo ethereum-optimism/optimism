@@ -60,6 +60,9 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 		return gameSequenceNumber, nil
 	}
 	outputBlockNum, err := AndGet(ctx, time.Second, getL2BlockFromLatestGame, func(latestSeqnum *big.Int) bool {
+		if latestSeqnum.Sign() < 0 {
+			return false // No game of the respected type exists yet.
+		}
 		switch gameTypes.GameType(respectedGameType) {
 		case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 			return latestSeqnum.Cmp(l2BlockNumber) >= 0
