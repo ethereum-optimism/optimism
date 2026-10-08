@@ -1155,9 +1155,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(delayedWeth.delay()));
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(expectedETHLockboxFor(sysCfg)));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
 
@@ -1404,7 +1402,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         DelayedWETH delay is invalid.
+    ///         DelayedWETH delay is outside the standard range.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
         assertEq("PDDG-DWETH-40,CKDG-DWETH-40", _validate(true));
@@ -1565,9 +1563,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(delayedWeth.delay()));
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(expectedETHLockboxFor(sysCfg)));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
     }
@@ -1948,6 +1944,13 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
             abi.encode(1)
         );
         assertEq("SPDG-ANCHORP-80,SCKDG-ANCHORP-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SCKDG-DWETH-40 when the DelayedWETH delay is
+    ///         outside the standard range. Only the permissionless super game carries a DelayedWETH.
+    function test_validate_delayedWETHDelayOutOfRange_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1));
+        assertEq("SCKDG-DWETH-40", _validate(true));
     }
 }
 
