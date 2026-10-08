@@ -95,7 +95,9 @@ Each layer states which of these it assumes and which it checks:
   preimages.
 - **Governance:**
   - only chains that ran the standard predeploys are authorized in a lockbox;
-  - chain IDs are unique among lockbox members;
+  - no chain, inside the lockbox or not, shares a chain ID with a lockbox member, a chain that can
+    join, or a protected source (Lean `ChainIdUnique`). Uniqueness among members alone is not enough:
+    a non-member with a member's chain ID can deliver that member's messages (`rollout/`, `cexNonMember`);
   - authorized portals' SystemConfigs name their real L1CrossDomainMessenger;
   - no implementation was set at the exporter address before the upgrade;
   - each cluster chain's L2 governance can upgrade its own exporter, which would let it forge facts for

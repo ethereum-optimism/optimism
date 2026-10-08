@@ -1,5 +1,6 @@
 // -*- mode: Bluespec; -*-
-// Rollout model of per-message interop expiry (exporter design, branch tip 5992028e08).
+// Rollout model of per-message interop expiry (exporter design, commit 5992028e08; the cited code
+// was re-checked at e1b3903ab8, whose changes do not affect this model).
 //
 // Copied from ../quint/expiry.qnt and changed so that the single atomic `upgrade(x)` becomes separate,
 // freely ordered activation events per chain and per layer:
@@ -517,6 +518,20 @@ module rolloutSafe {
   // What the conditions rule out: no governance downgrade after a timestamp; the Lagoon bundle after the tip leaves
   // 2.0.0 in place, so resend stays unavailable; no window above 7 after the exporter; no join of a
   // chain whose exporter ran non-standard code; the earlier-design L1 is not installable.
+  // The remaining witnesses as traces: INTEROP enabled later on L1 (C); a 0x..23 withdrawal from a
+  // 1.3.1 messenger, which L1 rejects; non-standard exporter code on an outsider and its withdrawal,
+  // which L1 rejects (C is not a member); a resend on 1.3.1 (no timestamp, so it never expires).
+  run witnessLateInteropEnable = init.then(l1EnableInterop("C")).expect(SafetyFull and not(NoLateInteropEnable))
+  run witnessMessengerWithdrawalRejected = init.then(nutTip("A")).then(l1Set("A", "new"))
+    .then(messengerForge("B", "m1", "B", 10, "A"))
+    .expect(SafetyFull and not(NoMessengerWithdrawal))
+    .then(l1Relay(wd("B", "messenger", fact("m1", "B", 10, "A", "B", false), true)).fail())
+  run witnessRogueOutsiderRejected = init.then(nutTip("A")).then(l1Set("A", "new")).then(setExporter("C", "rogue"))
+    .then(exportRogue("C", "m1", "B", 10, "A"))
+    .expect(SafetyFull and not(NoRogueExporterEver) and not(NoRogueWithdrawal))
+    .then(l1Relay(wd("C", "exporter", fact("m1", "B", 10, "A", "C", false), true)).fail())
+  run witnessResendOn131 = init.then(send("m1", 1)).then(resend("m1", 3))
+    .expect(SafetyFull and not(NoResend) and msgs.get("m1").sentAt == 0)
   run blockedGovDowngrade = init.then(nutTip("A")).then(send("m1", 1)).then(govMessengerDowngrade("A").fail())
   run blockedResendAfterLagoon = init.then(nutTip("A")).then(send("m1", 1)).then(nutLagoon("A"))
     .then(resend("m1", 3).fail())
@@ -603,7 +618,7 @@ module govMessengerDowngrade {
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
 
   run cex = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new")).then(honestTail1)
-    .then(govMessengerDowngrade("A")).then(resend("m1", 3)).then(relay("m1", 7, 10))
+    .then(govMessengerDowngrade("A")).then(resend("m1", 12)).then(relay("m1", 7, 15))
     .expect(not(NoDoubleSpend))
 }
 
@@ -618,7 +633,7 @@ module lagoonWithoutGuard {
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
 
   run cex = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new")).then(honestTail1)
-    .then(nutLagoon("A")).then(resend("m1", 3)).then(relay("m1", 7, 10))
+    .then(nutLagoon("A")).then(resend("m1", 12)).then(relay("m1", 7, 15))
     .expect(not(NoDoubleSpend))
 }
 
@@ -664,6 +679,13 @@ module duplicateChainId {
     UNIQUE_IDS = false, NEW_WRITES_SENT_MESSAGES = true).*
 
   pure val FD = fact("m1", "B", 10, "A", "C", true)
+  // Apalache's shortest counterexample (9 steps) needs no join: B (a member) exports for m3, whose
+  // destination C shares B's chain ID, and C, which is not a member, relays it.
+  pure val FN = fact("m3", "B", 10, "A", "B", true)
+  run cexNonMember = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new"))
+    .then(send("m3", 1)).then(exportStd("B", "m3", "A", 10))
+    .then(l1Relay(wd("B", "exporter", FN, true))).then(expire(dep("A", FN))).then(refund("m3"))
+    .then(relay("m3", 7, 1)).expect(not(NoDoubleSpend) and not(cluster.contains("C")))
   run cex = init.then(nutTip("A")).then(nutTip("C")).then(l1Set("A", "new")).then(join("C"))
     .then(send("m1", 1)).then(exportStd("C", "m1", "A", 10))
     .then(l1Relay(wd("C", "exporter", FD, true))).then(expire(dep("A", FD))).then(refund("m1"))

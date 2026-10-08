@@ -9,13 +9,16 @@ the atomic `upgrade(x)` split into separate events per chain and per layer, whic
 order.
 
 Results in short:
-- **Every ordering of the rollout is safe** under five activation conditions, AC1–AC5; the tip's
-  code already meets AC5. This is checked for every interleaving of up to 11 events, which is as
-  long as the longest counterexample. The orderings include: the L1 before or after the L2; chain
+- **No ordering violates safety within the bound** when five activation conditions, AC1–AC5,
+  hold; the tip's code already meets AC5. The bound: Apalache found no violation in any execution
+  of up to 11 events of this finite model (3 chains, 3 messages, times up to 16 days). That depth is
+  not a completeness threshold; see **Results**. The orderings explored include: the L1 before or after the L2; chain
   by chain; source before destination or the reverse; the locked Lagoon bundle; an exporter that
   goes live before its messenger records timestamps, or after; L1, bridge and exporter rollbacks;
   a messenger rollback before any timestamp; and a mid-rollout lockbox join.
-- **Each condition is necessary**: dropping any one gives a concrete double spend.
+- **Each condition is individually indispensable**: dropping any one of them, with the others
+  kept, gives a concrete double spend. This does not make AC1–AC5 the weakest possible conditions
+  (see **Activation conditions**).
 - **One condition is only partly enforced by code.** AC2 says that once a source chain's messenger
   has recorded a timestamp, it is never rolled back below 2.0.0. The L2ContractsManager's semver
   guard enforces this on the NUT path. The L2 ProxyAdmin owner's `upgrade` path has no guard, and a
@@ -56,7 +59,7 @@ interleaving up to the depth bound.
 | `l1Set(x, v)` | OPCM upgrade or rollback of x's L1CrossDomainMessenger. The versions are: `old` (no `relayUndeliveredMessage`); `new` (tip: INTEROP gate plus checks (a), (b) and (c), with the exporter as the trusted sender); `earlier` (only with `L1_EARLIER_DESIGN`: the unreleased PR-branch design before `1086b6de3e` that trusts 0x..23, modeled without the INTEROP gate; `cf3d730591` added the gate, which delays the attack only until the route's INTEROP is set, as it already is for A and B). |
 | `l1EnableInterop(x)` | `SystemConfig.setFeature(INTEROP)`, set by OPCM migrate. It can't be cleared. |
 | `nutTip(x)` | The tip's bundle (`snapshots/upgrades/current-upgrade-bundle.json`). The L2ContractsManager installs messenger 2.0.0, bridge 1.1.0 and the standard exporter 1.0.0 in one transaction. |
-| `nutLagoon(x)` | The **locked Lagoon bundle** (`op-core/nuts/bundles/lagoon_nut_bundle.json`, `fork_lock.toml` commit `fa9974a2`): messenger **1.3.1**, bridge **1.0.1**, and no exporter entry, so the exporter is untouched. With `L2CM_DOWNGRADE_GUARD`, the whole `upgradePredeploys` call reverts if the messenger or bridge is already newer (`L2ContractsManagerUtils.upgradeTo:61-67`). |
+| `nutLagoon(x)` | The **locked Lagoon bundle** (`op-core/nuts/bundles/lagoon_nut_bundle.json`, `fork_lock.toml` commit `fa9974a2`): messenger **1.3.1**, bridge **1.0.1**, and no exporter entry, so the exporter is untouched. With `L2CM_DOWNGRADE_GUARD`, the whole `upgradePredeploys` call reverts if the messenger or bridge is already newer. The guard that runs at Lagoon is the one in the locked bundle's own L2ContractsManager (`fa9974a2:L2ContractsManagerUtils.sol:49-62`, and `:132` for `upgradeToAndCall`). In the real bundle the messenger and bridge upgrades also require L1Block INTEROP (`fa9974a2:L2ContractsManager.sol:397`), which op-node sets only for a multi-chain dependency set (`op-node/rollup/derive/attributes.go:171-182`). `nutLagoon` ignores that gate, which can only add executions. |
 | `setMessengerNew(x)`, `setBridge(x, b)`, `setExporter(x, v)` | One predeploy at a time: a split bundle, a later fork, or governance through `ProxyAdmin.upgrade`. The bridge can go in either direction. The exporter can be set to `none`, `std`, or `rogue` (non-standard code); `rogue` is allowed only per `ROGUE_EXPORTER_MEMBER` / `ROGUE_EXPORTER_OUTSIDER`. |
 | `govMessengerDowngrade(x)` | The L2 ProxyAdmin owner sets the messenger back to 1.3.1. `ProxyAdmin.upgrade` (`src/universal/ProxyAdmin.sol:152`) has no version check. `GOV_MSGR_DOWNGRADE` is `never`, `beforeTimestamps` (only while no message from x has a timestamp; this is what `rolloutSafe` allows) or `any`. |
 | `join(x)` | `ETHLockbox.authorizePortal` or OPCM migrate. With `JOIN_REQUIRES_CLEAN_EXPORTER`, a chain can join only if its exporter address never ran non-standard code. |
@@ -69,7 +72,10 @@ deployment state:
 - `resend(m)`: 1.3.1 only. It requires `sentMessages[nonce] == H` (1.3.1
   `L2ToL2CrossDomainMessenger.sol:192` at `fa9974a2`), re-emits the event at the current time, and
   never touches `sentMessageTimestamps`.
-- `relay(m, w)`: valid iff some initiating event `e` has `now[dest] <= e + w`. The window `w` is
+- `relay(m, w)`: enabled if some initiating event `e` has `t <= e + w`. That is only the upper
+  bound of the real rule. The real rule also requires `init ≤ exec`, dependency-set membership and
+  activation checks (`op-core/interop/depset/links.go:47-74`). Dropping them is conservative: it
+  only adds relays. The window `w` is
   picked **per relay** from the destination's window set: `WIN_BEFORE[d]` until d's exporter has
   first had an implementation, and `WIN_AFTER[d]` from then on. A set therefore covers W changing
   over time, a W rule that isn't active yet (`INF`), and a host-chosen depset (kona's fallback;
@@ -80,11 +86,13 @@ deployment state:
 - `exportRogue(x, …)`: needs x's exporter to be `rogue`. The fact can have any content, and the
   recorded sender is the exporter.
 - `messengerForge(x, …)`: needs messenger 1.3.1 on x, which has no target rule. A relay to the
-  L2CrossDomainMessenger produces a withdrawal whose recorded sender is 0x..23.
+  L2CrossDomainMessenger produces a withdrawal whose recorded sender is 0x..23. This one event
+  stands for the attacker's initiating send plus its relay.
 - `l1Relay(w)`: the withdrawal comes from a lockbox member other than the route. For a `new` L1 it
   needs the route's INTEROP and the exporter as the recorded sender; for an `earlier` L1, 0x..23.
-  Withdrawals and deposits are never consumed: failed L1 relays and failed L2 deposits stay
-  replayable (`failedMessages`).
+  Withdrawals and deposits are never consumed. Failed L1 relays and failed L2 deposits really do
+  stay replayable (`failedMessages`). Successful ones cannot be replayed in reality
+  (`CrossDomainMessenger.sol`), so keeping them is a conservative over-approximation.
 - `expire(dep)`: needs messenger 2.0.0 on the source. On 1.3.1 the call reverts and stays
   replayable. It also requires `sentAt != 0` and `at > sentAt + P`.
 - `refund(m)`: needs bridge 1.1.0 **and** messenger 2.0.0 on the source, since `refundETH` reads
@@ -111,8 +119,10 @@ either one does not come out as expected:
   ordering and assert that `Safety` holds and the witness is violated at the end. `blocked*` traces
   assert that a step a condition forbids is disabled. `cex` traces reproduce each double spend.
 
-**Witness invariants in `rolloutSafe`.** All must be violated. Each is also driven by a scripted
-trace (or, for the last six, is a short prefix of one):
+**Witness invariants in `rolloutSafe`.** All must be violated, and each is also driven by a
+scripted trace. The last six have their own short traces: `witnessLateInteropEnable`,
+`witnessMessengerWithdrawalRejected`, `witnessRogueOutsiderRejected`, `witnessResendOn131`, plus
+`witnessRefundM3JoinMidRollout` for `NoJoin`:
 
 | Witness | Ordering it shows is reachable *and* safe |
 |---|---|
@@ -178,12 +188,16 @@ counterexample and the scripted `cex` trace reproduces it.
 | 6a | chain joins the lockbox mid-rollout (clean history) | safe | `NoRefundOfM3` |
 | 6b | chain with past non-standard exporter code joins | **double spend** | `rogueThenJoin` |
 | 6c | lockbox member's governance installs non-standard exporter code | **double spend** | `rogueExporterMember` |
-| 6d | joining chain has a member's L2 chain ID | **double spend** | `duplicateChainId` |
+| 6d | a chain that can relay members' messages shares a member's L2 chain ID, whether or not it joins | **double spend** | `duplicateChainId` (Apalache's shortest counterexample, 9 steps, has no join: trace `cexNonMember`; trace `cex` has a join) |
 
-## Minimal activation conditions (checked to 11 events)
+## Activation conditions (checked to 11 events)
 
-`rolloutSafe` assumes exactly AC1–AC5 and leaves every other ordering free. Each `cex` instance
-drops exactly one of them, and each double-spends.
+`rolloutSafe` assumes AC1–AC5 and leaves every other modeled event free. Each unsafe instance
+relaxes exactly one of them, keeps the others, and double-spends. So the set is **individually
+indispensable under the modeled relaxations**. It is not shown to be the weakest characterization.
+For example, briefly installing the earlier L1 implementation without any forged withdrawal ever
+being relayed would be safe. So would rolling back the messenger after all of its timestamped
+messages had been relayed. Both are outside AC5 and AC2 as stated.
 
 - **AC1 (window).** For every chain d, from the moment d's exporter first has an implementation,
   every relay on d is judged with `W ≤ P` (P = 8 days), forever after.
@@ -203,20 +217,35 @@ drops exactly one of them, and each double-spends.
   - *Scoped*: outsiders may run anything while they are outside (`ROGUE_EXPORTER_OUTSIDER = true`
     in `rolloutSafe`); they just can't join afterwards.
   - *Necessary*: `rogueExporterMember`, `rogueThenJoin`.
-- **AC4 (chain IDs).** L2 chain IDs are unique among the chains that are, or become, lockbox
-  members. *Necessary*: `duplicateChainId`.
+- **AC4 (chain IDs).** No chain that can relay messages sent from a lockbox member shares the L2
+  chain ID of a lockbox member, or of another such chain. In practice: L2 chain IDs are unique
+  across members and every chain in their dependency sets. `rolloutSafe` assumes all IDs are
+  unique.
+  - Uniqueness among members alone is **not** enough. In `duplicateChainId`'s shortest
+    counterexample (9 steps, trace `cexNonMember`), C has B's chain ID and never joins.
+    1. B (a member) exports "not relayed here" for m3, which is addressed to that chain ID.
+    2. A refunds m3.
+    3. C relays m3 and mints the ETH again on C.
+  - *Necessary*: `duplicateChainId`.
 - **AC5 (L1 implementation).** No L1CrossDomainMessenger that trusts 0x..23 for
   `relayUndeliveredMessage` is ever installed, even briefly: 1.3.1 L2 messengers let anyone make
   0x..23 speak, and such withdrawals never expire. *Necessary*: `l1EarlierDesign`. The tip's code
   meets it (check (c) compares against `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`).
 
-**Not needed** (no condition was required; `rolloutSafe` checks them free):
-- the relative order of the L1 upgrade, the L1 INTEROP flag, the messenger, bridge and exporter
-  upgrades, and lockbox joins;
+**Not needed within the bound** (no condition was required; `rolloutSafe` leaves them free):
+- the relative order of the L1 upgrade, the messenger, bridge and exporter upgrades, and lockbox
+  joins;
 - the order across chains;
 - the locked Lagoon bundle before the tip bundle;
 - rollbacks of the L1 messenger, the bridge and the exporter, and of the messenger before any
   timestamp.
+
+**The L1 INTEROP flag is argued, not checked.** Both message sources, A and B, start with INTEROP
+set, and only C can enable it later. C is never a source, so the late-enable path never reaches an
+expiry, and `NoLateInteropEnable` shows reachability only. The argument: the gate only adds a revert
+to `relayUndeliveredMessage` (`L1CrossDomainMessenger.sol:113`). A reverted L1 relay stays
+replayable in the caller's `failedMessages`, so enabling it later can only delay a fact. Exercising
+this needs a model change (a source starting without INTEROP) and a rerun.
 
 In particular there is **no "L1 accepts facts only after …" condition**. Before a member's
 exporter has its standard implementation, no withdrawal from the exporter can exist there, and an honest fact stays true
@@ -229,7 +258,7 @@ forever because the destination's clock and AC1 are monotone.
 | AC1 | op-core `StaticConfigDependencySet.hydrate` rejects overrides > 7d (`static_depset.go:141`); kona `DependencySet` serde rejects > 7d (`genesis/src/interop/depset.rs:39`) and `get_message_expiry_window` ignores a larger override set directly (`:54-56`), and that path covers the embedded registry (`registry/src/lib.rs:52`, serde) and the host-fallback depset (`proof-interop/src/boot.rs:281-284`, serde); `op-interop-filter` rejects > 7d (`filter/config.go:80`); op-node's registry depset (`op-node/superchain/depset.go:17-35`) has no override, so W = 7; `EXPIRY_PERIOD = 8 days` | every node, filter and **absolute prestate** that judges a destination's relays must include the cap (or have no override) **before** that destination's exporter goes live; the destination's withdrawals must be finalized by an interop (super-root) proof that enforces W. A pre-cap build with an override > 8d breaks AC1. |
 | AC2 | NUT path: `L2ContractsManagerUtils.upgradeTo` reverts on a semver decrease (`:61-67`), so the Lagoon bundle after the tip reverts | **governance path not enforced**: `ProxyAdmin.upgrade` (`ProxyAdmin.sol:152`) can set 1.3.1 (see BC2) |
 | AC3 | genesis proxy without implementation; L2CM only sets the standard implementation | the L2 ProxyAdmin owner can set anything (the named governance assumption); `ETHLockbox.authorizePortal` (`ETHLockbox.sol:124`, `_authorizePortal:220`) checks only the shared ProxyAdmin owner and SuperchainConfig, not the joiner's history (BC4) |
-| AC4 | `OPContractsManagerMigrator._validateChainSystemConfigs` (`:295-330`) rejects duplicate L2 chain IDs | `ETHLockbox.authorizePortal` does not check chain IDs (BC4) |
+| AC4 | `OPContractsManagerMigrator._validateChainSystemConfigs` (`:295-330`) rejects duplicate L2 chain IDs among the chains it migrates | `ETHLockbox.authorizePortal` does not check chain IDs (BC4); nothing on chain checks the IDs of non-member chains in a member's dependency set (dependency-set configuration) |
 | AC5 | tip L1CrossDomainMessenger check (c) | never deploy an L1CrossDomainMessenger built from a PR-branch commit before `1086b6de3e` (e.g. `37b44c48c7`, `cf3d730591`), whose check (c) is `L2_TO_L2_CROSS_DOMAIN_MESSENGER` |
 
 ## Bug candidates (ranked by "could this be a real bug")
@@ -249,16 +278,26 @@ forever because the destination's clock and AC1 are monotone.
   - B exports at B-time 10;
   - the fact is relayed on L1, `m1` expires on A and is refunded;
   - A's messenger is rolled back to 1.3.1;
-  - A resends at A-time 3;
-  - B relays at B-time 10, which is valid because 10 ≤ 3 + 7.
-  The rollback happens after the refund, so no re-upgrade is needed.
+  - A resends at A-time 12, after the refund;
+  - B relays at B-time 15, which is valid because 15 ≤ 12 + 7.
+  The rollback happens after the refund, so no re-upgrade is needed. The model's clocks are
+  abstract: they do not tie an L2 block's timestamp to its L1 origin or to withdrawal finality. So
+  "day 10" for the export does not mean a refund at day 10. The attack needs only that the resend
+  comes after the refund and the relay within 7 days of the resend, and every real schedule allows
+  that.
 - **NUT path.** It is protected only by the semver guard: without it, the Lagoon bundle activating
   after the tip does the same (`lagoonWithoutGuard`).
 - **Fix options.**
   - (a) 2.0.0 stops writing `sentMessages`. `downgradeHardened` checks that this makes **any**
     rollback to 1.3.1 safe: 1.3.1 can then resend only its own messages, which have `sentAt = 0`.
     The cost is that the public `sentMessages(nonce)` getter returns zero for messages sent under
-    2.0.0. An alternative with the same effect is to write the hash to a new slot.
+    2.0.0. That breaks an existing test assertion (`test/L2/L2ToL2CrossDomainMessenger.t.sol:231`),
+    and a rolled-back 1.3.1 can no longer resend messages sent under 2.0.0.
+    - The fix must ship in the **first** 2.0.0 deployed on any chain. `downgradeHardened` assumes
+      it from genesis, and entries an unhardened 2.0.0 has already written stay resendable.
+    - Storage layout and nonces must be preserved.
+    - A rollback to 1.3.1 still needs AC5, because 1.3.1 has no target rule.
+    - An alternative with the same effect is to write the hash to a new slot.
   - (b) Document AC2 as a governance obligation next to the exporter assumption.
 
 **BC1: the locked Lagoon bundle still ships the pre-expiry L2 contracts.**
@@ -270,8 +309,10 @@ forever because the destination's clock and AC1 are monotone.
     L2ToL2CrossDomainMessenger **1.3.1** and SuperchainETHBridge **1.0.1**, and has **no
     UndeliveredMessageExporter** entry. These are the version strings in the bundle's initcode;
     `current-upgrade-bundle.json` has 2.0.0, 1.1.0 and exporter 1.0.0.
-  - `check-nut-locks` only compares the hash to the lock, so nothing ties the interop fork's bundle
-    to the expiry contracts.
+  - `check-nut-locks` (`ops/scripts/check-nut-locks/main.go`; `justfile`; CI) checks the bundle hash
+    against the lock, that the commit is recorded and is an ancestor of `origin/develop`, that the
+    pre-fork state file exists, and that every bundle file is locked. None of these checks requires
+    the interop fork's bundle to contain the expiry contracts.
 - **Consequence if Lagoon ships as locked.**
   - The new L1CrossDomainMessenger (OPCM) has no counterpart.
   - Every message sent while 1.3.1 is live has `sentAt = 0` and can **never** be expired or
@@ -281,10 +322,22 @@ forever because the destination's clock and AC1 are monotone.
   - Commit `5992028e08` itself defers the state regeneration to "the fork that ships the exporter".
 - **Required.** `just nut-snapshot-for lagoon` (the two-PR flow in `op-core/nuts/README.md`) before
   Lagoon is scheduled on any chain that should have expiry.
-- **Related (not checked here).** A chain whose genesis already has 2.0.0, and on which Lagoon
-  activates later, would have the Lagoon `upgradePredeploys` revert as a whole on the semver guard.
-  That skips **all** of Lagoon's predeploy upgrades on that chain. It is safe in this model
-  (`NoRefundAfterLagoonReverted`), but worth confirming as an operational issue.
+- **Related: a genesis-vs-NUT consistency issue, not expiry safety.** Take a chain whose genesis
+  is built from current code and on which Lagoon activates later.
+  - The locked bundle's L2ContractsManager hits its semver downgrade guard. It can do so even before
+    the interop block, and even on a single-chain dependency set: tip fee vaults are 1.7.0 against
+    the bundle's 1.6.1, and L2DevFeatureFlags is 1.3.0 against 1.0.0. These are version strings in
+    the bundle initcode against `custom:semver` at the tip. With the interop gate set, the messenger
+    (2.0.0 against 1.3.1) does the same.
+  - `L2ProxyAdmin.upgradePredeploys` then reverts (`L2ProxyAdmin.sol:52-55`). The upgrade deposit
+    gets a failed receipt and every proxy change in it is undone. The block stays valid.
+  - The bundle's separate implementation-deployment deposits and the interop setFeature and
+    funding wrappers still execute (`op-node/rollup/derive/lagoon_activation_transactions.go`).
+    On such an interop chain, L2 INTEROP ends up enabled while the predeploys keep their genesis
+    code.
+  - Nothing retries the upgrade.
+  - In this model the messenger case is safe (`NoRefundAfterLagoonReverted`). The general case
+    is an operational issue for chains whose genesis predates or postdates their bundle.
 
 **BC3: the window cap holds only for software that includes it (AC1).**
 - **Severity.** Low.
@@ -292,8 +345,12 @@ forever because the destination's clock and AC1 are monotone.
   - The cap is enforced in every parser at the tip, including kona's host-fallback depset. The
     fallback `boot.rs:281-284` deserializes through the capped serde.
   - The fallback is also unprovable on chain: `SuperFaultDisputeGame.addLocalData:611` accepts only
-    local idents 1–4, and the depset is key 8. So a cluster outside the embedded registry has no
-    working on-chain proof anyway, a general misconfiguration and not specific to expiry.
+    local idents 1–4 (cases at `:620-632`), and the depset is key 8 (`local_keys.rs:53`). Keys 5–7
+    (chain ID, rollup and L1 config fallbacks) have the same gap. Caller-localized keys mean no
+    one else can supply the data. A bisection that reaches that read cannot be stepped on chain,
+    so the game is decided by its clocks rather than by the program, and an unchallenged proposal
+    still wins by timeout. A cluster outside the prestate's embedded registry therefore has no
+    working on-chain proof. This is a general misconfiguration, not specific to expiry.
 - **Process side.**
   - Before any destination's exporter goes live, no node, interop filter or deployed absolute
     prestate judging its relays may run a pre-cap build with an override above 8 days.
@@ -331,11 +388,17 @@ take another 10 hours or more. Their logs end with the depth-11 marker; nothing 
 | `downgradeHardened` | `Safety` | **11** (run with `--max-steps=11`, finished: no violation) | 4 h 14 min |
 | `rolloutSafe` | `SafetyFull` (adds `ExpiredImpliesNeverRelayable`) | **10** (run with `--max-steps=10`, finished: no violation) | 3 h 12 min |
 
-At depth 11 `rolloutSafe` covers every interleaving of up to 11 events. That is as long as the
-longest counterexample of every unsafe instance, so each attack's shape (with the one dropped
-condition restored) is inside the safe check's bound. It also covers the honest refund (8 events)
-combined with up to 3 arbitrary further events: rollouts, rollbacks, joins, forged withdrawals and
-so on.
+**What depth 11 does and does not show.**
+- At depth 11, `rolloutSafe` has no violation in any execution of up to 11 events of this finite
+  model. That covers the honest refund (8 events) combined with up to 3 arbitrary further events:
+  rollouts, rollbacks, joins, forged withdrawals and so on.
+- Depth 11 is also the length of the longest counterexample found against any relaxed condition.
+  That is a heuristic for choosing the depth, **not** a completeness threshold: a longer
+  execution that combines several permitted moves is not excluded.
+- `SafetyFull` is checked only to depth 10.
+- The model is finite (3 chains, 3 messages, times up to 16 days). The Lean model in `../lean`
+  proves the fully-upgraded design for unbounded executions; the rollout model has no unbounded
+  counterpart.
 
 **Checks expected to be violated** (`--max-steps=15`; Apalache stops at the first counterexample,
 whose length is given):
@@ -358,15 +421,24 @@ whose length is given):
 | `rolloutWindowAtP` | `NoRefundEver`, `NoEdgeRelay`, `NoRefundOfM3`, `NoRefundAfterLagoon` | 8, 3, 9, 9 | 53 s, 8 s, 126 s, 267 s |
 | `downgradeHardened` | `NoRefundEver`, `NoRefundAfterMessengerRollback`, `NoResend` | 8, 9, 2 | 53 s, 156 s, 8 s |
 
-**File identity.** Every check in the tables ran on this `rollout.qnt`, byte for byte. The one
-exception is an earlier full-conjunction run of `rolloutSafe`. It checked all five conjuncts at
-once, which is today's `SafetyFull`, completed **depth 9** (in 22 min) and was then stopped to split
-the property. It ran on a version that differed only in two ways: it had not yet added the
-witness `val`s `NoJoin` … `NoResend`, and it still called today's `SafetyFull` `Safety`.
+**File identity.** All the Apalache checks above ran on the version of `rollout.qnt` with SHA-256
+`abd1847e2ed97225f21951a57393297307bb961bcc2afab9126bf6d0c541c892`. The review round (see
+**Review log**) changed it in three ways only, none of which affects the invariants or actions
+Apalache checks:
+- added `run` traces: `cexNonMember`, `witnessLateInteropEnable`,
+  `witnessMessengerWithdrawalRejected`, `witnessRogueOutsiderRejected`, `witnessResendOn131`;
+- retimed two existing `cex` traces (resend at 12, relay at 15);
+- edited the header comment.
 
-Scripted traces (`./run.sh test`, Quint 0.33.0, Rust backend): all pass. That is 18 in
-`rolloutSafe`, 2 in `rolloutWindowAtP`, 2 in `downgradeHardened`, and 1 counterexample in each of
-the 8 unsafe instances.
+The one other result is an earlier full-conjunction run of `rolloutSafe`. It checked all five
+conjuncts at once, which is today's `SafetyFull`, completed **depth 9** (in 22 min) and was then
+stopped to split the property. It ran on a version that differed only in two ways: it had not yet
+added the witness `val`s `NoJoin` … `NoResend`, and it still called today's `SafetyFull` `Safety`.
+The Apalache logs are kept on the checking host and not committed (`*.log` is gitignored).
+
+Scripted traces (`./run.sh test`, Quint 0.33.0, Rust backend): all pass. That is 22 in
+`rolloutSafe`, 2 in `rolloutWindowAtP`, 2 in `downgradeHardened`, 2 counterexamples in
+`duplicateChainId`, and 1 in each of the other 7 unsafe instances.
 
 ## Run
 
@@ -405,7 +477,10 @@ nohup setsid ./launch.sh > verify.out 2>&1 &
 - **NUT bundles.**
   - They are modeled as their effect on the three predeploys. The L2CM guard is modeled for the
     messenger and bridge. The exporter isn't in the Lagoon bundle.
-  - The tip bundle overwrites a rogue exporter, which only removes behavior.
+  - `nutTip` overwrites a rogue exporter unconditionally. The real L2ContractsManager calls
+    `version()` on the current implementation and reverts the whole upgrade if that call fails or
+    returns a higher semver. The model is more permissive here, and `rogueEver` stays set in any
+    case.
   - Bundle *execution failure modes* other than the semver guard are not modeled (gas, other
     predeploys).
 - **`isInterop` gating.** The L2CM installs interop predeploys only when `L1Block.isFeatureEnabled(INTEROP)`
@@ -420,16 +495,54 @@ nohup setsid ./launch.sh > verify.out 2>&1 &
 
 Reviewers are named R1 (a fresh-context reviewer) and R2 and R3 (independent model-based reviewers).
 
-**v1** (this version): not externally reviewed yet. Changes made while building it:
+**v1**: changes made while building it.
 - **Non-vacuity.** Every safe instance has witness invariants. The runner fails if Apalache reports
   any of them as holding. There are also scripted `witness*` / `blocked*` / `cex` traces that
-  `run.sh test` asserts. Witnesses now cover every activation event and attacker move:
-  `NoJoin`, `NoLateInteropEnable`, `NoRogueExporterEver`, `NoRogueWithdrawal`,
-  `NoMessengerWithdrawal`, `NoResend`.
-- **AC2 scoping.** It is checked rather than argued: `rolloutSafe` allows a governance rollback
-  while the chain has no timestamped message (`NoRefundAfterMessengerRollback`).
-- **Clocks.** They are folded into the time-reading actions; there is no `tick`. This cuts the
-  honest refund from 9 to 8 steps and the longest counterexample from 13 to 11.
+  `run.sh test` asserts.
+- **AC2 scoping.** It is checked rather than argued: `rolloutSafe` allows a rollback before any
+  timestamp.
+- **Clocks.** They are folded into the time-reading actions.
 - **Split safety property.** `Safety` and `SafetyFull` are separate, so that the deep check is not
-  dominated by `ExpiredImpliesNeverRelayable`. The first full-conjunction run of `rolloutSafe`
-  completed depth 9 before it was stopped (see **Results**).
+  dominated by `ExpiredImpliesNeverRelayable`.
+
+**v1 review** (R1, R2, R3: a correctness and statement-fidelity audit against the cited code at
+`e1b3903ab8` and `fa9974a2`). None of them found a critical issue. Each finding and what became of
+it:
+- **R1 (high): AC4 was too weak.** It required uniqueness only among members, but a non-member
+  with a member's chain ID double-spends: Apalache's 9-step counterexample has no join. AC4 is
+  restated, row 6d is corrected, and the trace `cexNonMember` is added.
+- **R1, R2, R3: the bound was overclaimed.** "Every ordering is safe", "minimal" and "each
+  attack's shape is inside the bound" overstated it. The wording now says: no violation in
+  executions of ≤ 11 events of the finite model; depth 11 is a heuristic, not a completeness
+  threshold; the conditions are individually indispensable, not the weakest.
+- **R1, R2: the late L1 INTEROP enable was vacuous.** Only C could enable it, and C is never a
+  source. The claim that its order is free is withdrawn; it is argued instead (the gate only adds
+  a replayable revert). Checking it needs a model change.
+- **R1, R3: the Lagoon guard citation and the side note.**
+  - The cited guard is now the locked bundle's own L2ContractsManager (`fa9974a2`).
+  - `nutLagoon` ignoring the INTEROP gate is stated as a conservative choice.
+  - The side note is confirmed and corrected. The revert can come from the fee vaults or
+    L2DevFeatureFlags, even on a single-chain set. The deposit fails, the block stays valid, the
+    wrappers and implementation deployments survive, and nothing retries.
+- **R1, R2, R3: the hardening needed caveats.** It must ship with the first 2.0.0; it breaks the
+  getter and a test; a rollback still needs AC5. Added.
+- **R1, R2: clocks and abstractions.**
+  - The BC2 trace's resend time is now after the refund (resend at 12, relay at 15).
+  - The abstract clocks, the missing `init ≤ exec` and dependency checks, the replay
+    over-approximation and the compression in `messengerForge` are now stated.
+- **R1: wrong trace claim.** The "short prefix" claim for the last six witnesses was false. Four
+  traces are added.
+- **R1, R2, R3: `check-nut-locks`.** It does more than compare hashes; the description is
+  corrected, and the conclusion stands.
+- **R1: rogue exporter overwrite.** The `nutTip` overwrite is now described as more permissive
+  than the code.
+- **R1: header comment.** The comment's tip reference is fixed.
+- **R2, R3: results reproducibility.** Results can't be reproduced from the repo, so the model's
+  digest and where the logs are kept are recorded.
+- **Confirmed by all three:**
+  - BC2's mechanism (1.3.1 resend checks only `sentMessages`; 2.0.0 writes it; `ProxyAdmin.upgrade`
+    has no version check; the semver guard is only on the NUT path);
+  - BC1's pin and bundle contents;
+  - BC3's key-8 finding. A game that needs key 8 can't execute that step on chain, so it is decided
+    by the clocks.
+  - All eight counterexample mechanisms match real code paths under their relaxations.
