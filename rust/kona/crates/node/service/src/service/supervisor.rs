@@ -1,27 +1,24 @@
-//! Supervision of actor lifetime futures.
+//! Supervise tokio tasks.
 
 use crate::NodeActor;
 use std::{collections::HashMap, fmt::Debug, future::Future};
 use tokio::task::{Id, JoinSet};
 use tokio_util::sync::CancellationToken;
 
-/// Spawns actor lifetime futures and shuts down the node when any actor exits.
-///
-/// Actors handle cancellation themselves. On an error, panic, or shutdown request, remaining tasks
-/// are aborted when the supervisor is dropped, matching the existing node shutdown policy.
+/// Spawns tasks and shuts down when one of them exits.
 #[derive(Debug)]
 pub(super) struct Supervisor {
     cancellation: CancellationToken,
     tasks: JoinSet<Result<(), String>>,
-    actor_names: HashMap<Id, &'static str>,
+    names: HashMap<Id, &'static str>,
 }
 
 impl Supervisor {
     pub(super) fn new(cancellation: CancellationToken) -> Self {
-        Self { cancellation, tasks: JoinSet::new(), actor_names: HashMap::new() }
+        Self { cancellation, tasks: JoinSet::new(), names: HashMap::new() }
     }
 
-    /// Starts a lifetime future, retaining the actor's name for errors and panics.
+    /// Starts a lifetime future, retaining the task's name for errors and panics.
     pub(super) fn spawn<F, E>(&mut self, name: &'static str, task: F)
     where
         F: Future<Output = Result<(), E>> + Send + 'static,
@@ -31,39 +28,35 @@ impl Supervisor {
         let guard = self.cancellation.clone().drop_guard();
         let handle = self.tasks.spawn(async move {
             let _guard = guard;
-            task.await.map_err(|error| format!("{name} actor failed: {error:?}"))
+            task.await.map_err(|error| format!("task {name}: {error:?}"))
         });
-        self.actor_names.insert(handle.id(), name);
+        self.names.insert(handle.id(), name);
     }
 
-    /// Waits for actors and a caller-provided shutdown future.
+    /// Waits for tasks and a caller-provided shutdown future.
     pub(super) async fn wait(mut self, shutdown: impl Future<Output = ()>) -> Result<(), String> {
         tokio::pin!(shutdown);
 
         loop {
             tokio::select! {
                 _ = &mut shutdown => {
-                    info!(target: "rollup_node", "Received shutdown signal, initiating graceful shutdown...");
                     self.cancellation.cancel();
                     return Ok(());
                 }
                 result = self.tasks.join_next_with_id() => {
                     match result {
                         Some(Ok((id, result))) => {
-                            self.actor_names.remove(&id);
+                            self.names.remove(&id);
                             if let Err(error) = result {
-                                error!(target: "rollup_node", "Critical error in sub-routine: {error}");
                                 self.cancellation.cancel();
                                 return Err(error);
                             }
                         }
                         Some(Err(error)) => {
-                            let name = self.actor_names.remove(&error.id())
+                            let name = self.names.remove(&error.id())
                                 .expect("supervised task has a registered name");
-                            let error = format!("{name} actor task join error: {error}");
-                            error!(target: "rollup_node", "{error}");
                             self.cancellation.cancel();
-                            return Err(error);
+                            return Err(format!("join task {name}: {error}"));
                         }
                         None => return Ok(()),
                     }
@@ -184,7 +177,7 @@ mod tests {
 
         let error = supervisor.wait(pending()).await.unwrap_err();
 
-        assert_eq!(error, "engine actor failed: \"engine failed\"");
+        assert_eq!(error, "task engine: \"engine failed\"");
         assert!(cancellation.is_cancelled());
         // An error aborts peers; they may observe cancellation before being aborted.
         let _ = cancelled_rx.await;
@@ -202,7 +195,7 @@ mod tests {
 
         let error = supervisor.wait(pending()).await.unwrap_err();
 
-        assert!(error.starts_with("derivation actor task join error:"));
+        assert!(error.starts_with("join task derivation:"));
         assert!(error.contains("derivation panicked"));
         assert!(cancellation.is_cancelled());
     }
