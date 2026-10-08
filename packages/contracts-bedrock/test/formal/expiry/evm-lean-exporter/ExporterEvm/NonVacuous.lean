@@ -10,8 +10,9 @@ theorem has no partner.
 
 Trust: every step is kernel-checked except the facts that need *evaluating `Ξ` on the concrete
 bytecode* (a successful run, a reverting run and a statically entered run). Those are isolated as
-the named `native_decide` lemmas `native_run_success`, `native_run_relayed`, `native_run_static`;
-no headline theorem depends on them (`#assert_std_axioms`). The witness is `Concrete.σ0` /
+the named `native_decide` lemmas `native_run_success`, `native_run_relayed`, `native_run_static`.
+`#assert_headline` checks that no headline theorem depends on them and that every non-standard
+axiom of a partner comes from a `native_*` lemma (so renaming one of them breaks the build). The witness is `Concrete.σ0` /
 `Concrete.env0` (exporter code at 0x…30, mock messengers; see `Concrete.lean`).
 -/
 

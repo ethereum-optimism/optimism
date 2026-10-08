@@ -4,7 +4,8 @@ Status: **all claimed theorems proved.** `lake build ExporterEvm ExporterEvm.Axi
 is no `sorry` or `admit`. Every headline theorem depends only on `propext`, `Classical.choice` and
 `Quot.sound` (0 `native_decide` axioms), and `ExporterEvm/Axioms.lean` asserts this at build time
 with `#assert_headline`, which also fails the build when a headline theorem has no `nonvacuous_`
-partner or the partner's proof does not use the theorem. Soundness and the outcome classification are claimed; completeness is not (see "Not
+partner, the partner's proof does not apply the theorem, or the partner uses compiled evaluation
+outside a lemma named `native_*`. Soundness and the outcome classification are claimed; completeness is not (see "Not
 covered").
 
 This is a sibling of `../evm-lean-bridge/` (the `refundETH` proof) and `../evm-lean-l1cdm/` (the
@@ -298,8 +299,14 @@ are not described.
 
 Every headline theorem has a partner `nonvacuous_<name>` that exhibits concrete values satisfying
 all of its hypotheses jointly, instantiates the theorem on them, and derives its conclusion.
-`Axioms.lean` runs `#assert_headline` on each, which asserts the standard-axiom footprint **and**
-fails the build if the partner is missing or its proof term does not use the headline theorem.
+`Axioms.lean` runs `#assert_headline` on each (the same checker as `../evm-lean-bridge`). It fails
+the build unless:
+1. the headline theorem depends only on the three standard axioms;
+2. the partner exists and its proof term applies the headline theorem;
+3. every non-standard axiom of the partner comes from a theorem named `native_*` (the traversal
+   does not enter those and lists them), and each such lemma uses only the standard axioms plus
+   the `<name>._native.native_decide.ax_*` axioms `native_decide` adds for it.
+
 That the instantiation discharges every hypothesis with a concrete witness is a property of the
 partner's statement (listed below), not something the guard can check.
 
@@ -319,12 +326,13 @@ static partner depends on exactly one `…native_decide.ax_1_1`, and the `#asser
 show no headline theorem does.
 
 **Mutation checks** (each applied on a copy, `lake build ExporterEvm.Axioms` run, then reverted;
-all eleven fail the build):
+all twelve fail the build):
 
 | mutation | first error |
 |---|---|
 | rename `nonvacuous_export_revert` | `Axioms.lean`: `export_revert has no non-vacuity partner` |
-| replace `nonvacuous_export_revert` by `True := trivial` | `Axioms.lean`: `nonvacuous_export_revert does not use export_revert` |
+| replace `nonvacuous_export_revert` by `True := trivial` | `Axioms.lean`: `nonvacuous_export_revert does not apply export_revert` |
+| rename `native_run_success` to `run_success_native` | `Axioms.lean`: `nonvacuous_export_trace uses non-standard axioms outside native_* lemmas` |
 | `successfulSelector` last byte `0x09 → 0x0a` | `TraceStatic.lean` (`successfulCalldata_eq`) |
 | preimage offset word `0xc0 → 0xa0` | `HashMem.lean` (`exportPreimage_eq`) |
 | `relaySelector` last byte | `TraceCall.lean` (`sendMessageCd_eq`) |
@@ -378,8 +386,8 @@ free-memory pointers), `LogTrack.lean` (`RDL`, `RDretL`).
 ```sh
 cd packages/contracts-bedrock/test/formal/expiry/evm-lean-exporter
 lake exe cache get                          # Mathlib cache (or copy ../evm-lean-bridge/.lake/packages: same pins)
-lake build ExporterEvm ExporterEvm.Axioms   # "Build completed successfully"; 6 "standard axioms only"
-                                            # + 6 "partner … present" lines, 2 more axiom lines
+lake build ExporterEvm ExporterEvm.Axioms   # "Build completed successfully"; 6 "standard axioms only.
+                                            # Partner … applies it" lines, 4 more axiom lines
 grep -rn "sorry\|admit" ExporterEvm/        # nothing
 ```
 
@@ -457,3 +465,7 @@ generated block shards take 9–17 s each and the proof files 2–8 s each.
      `extcodesize(0x4200…0007) ≠ 0`.
   7. *Low (R1).* `regen.sh` did not check the event-topic `PUSH32` (pc 754). **Fixed:** added.
   8. *Low (R1).* The three uses of `hcds` were not listed together. **Fixed:** Hypotheses item 1.
+* **Parity with the sibling EVM layers.** `Axioms.lean` now uses the bridge's checker, which also
+  fails the build if a partner's non-standard axioms come from anywhere other than `native_*`
+  lemmas, each carrying only its own `native_decide` axioms. Mutation-tested: renaming
+  `native_run_success` breaks the build; a partner proving `True` and a missing partner still do.
