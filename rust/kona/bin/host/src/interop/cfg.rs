@@ -191,6 +191,9 @@ impl InteropHost {
         C: Channel + Send + Sync + 'static,
     {
         self.require_dependency_set_if_interop_scheduled()?;
+        // Refuse to start with a dependency set that does not parse, rather than serving the
+        // client a missing preimage later.
+        self.read_dependency_set().transpose()?;
 
         let kv_store = self.create_key_value_store()?;
 

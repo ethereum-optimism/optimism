@@ -40,13 +40,15 @@ impl KeyValueStore for InteropLocalInputs {
                 serde_json::to_vec(&l1_config).ok()
             }
             DEPENDENCY_SET_KEY => {
-                let dependency_set =
-                    self.cfg.read_dependency_set().and_then(|r| r.ok()).unwrap_or_else(|| {
-                        DependencySet {
-                            dependencies: Default::default(),
-                            override_message_expiry_window: None,
-                        }
-                    });
+                // A dependency set that fails to parse is not replaced with an empty one, which
+                // would make every executing message invalid; `start_server` refuses to start.
+                let dependency_set = match self.cfg.read_dependency_set() {
+                    Some(dependency_set) => dependency_set.ok()?,
+                    None => DependencySet {
+                        dependencies: Default::default(),
+                        override_message_expiry_window: None,
+                    },
+                };
                 serde_json::to_vec(&dependency_set).ok()
             }
             _ => None,
@@ -55,5 +57,41 @@ impl KeyValueStore for InteropLocalInputs {
 
     fn set(&mut self, _: B256, _: Vec<u8>) -> Result<()> {
         unreachable!("LocalKeyValueStore is read-only")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_interop::MESSAGE_EXPIRY_WINDOW;
+    use std::path::PathBuf;
+
+    fn dependency_set_preimage(dependency_set_path: Option<PathBuf>) -> Option<Vec<u8>> {
+        let inputs =
+            InteropLocalInputs::new(InteropHost { dependency_set_path, ..Default::default() });
+        let key = PreimageKey::new_local(DEPENDENCY_SET_KEY.to());
+        inputs.get(B256::from(key))
+    }
+
+    #[test]
+    fn test_dependency_set_preimage_missing_file_is_empty_set() {
+        let preimage = dependency_set_preimage(None).expect("serves an empty dependency set");
+        let dependency_set: DependencySet = serde_json::from_slice(&preimage).unwrap();
+        assert!(dependency_set.dependencies.is_empty());
+    }
+
+    #[test]
+    fn test_dependency_set_preimage_unparsable_file_is_not_served() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("depset.json");
+        std::fs::write(
+            &path,
+            format!(
+                r#"{{"dependencies":{{}},"overrideMessageExpiryWindow":{}}}"#,
+                MESSAGE_EXPIRY_WINDOW + 1
+            ),
+        )
+        .unwrap();
+        assert_eq!(dependency_set_preimage(Some(path)), None);
     }
 }
