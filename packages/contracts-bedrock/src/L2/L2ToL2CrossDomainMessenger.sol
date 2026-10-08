@@ -92,7 +92,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     mapping(uint256 => bytes32) public sentMessages;
 
     /// @notice Mapping of message hashes to the timestamp of the block they were sent in. Note that a message will only
-    ///         be present in this mapping if it has been sent from this chain to a destination chain.
+    ///         be present in this mapping if it has been sent from this chain to a destination chain. Messages sent
+    ///         before this mapping existed are absent and can never expire.
     mapping(bytes32 => uint256) public sentMessageTimestamps;
 
     /// @notice Mapping of message hashes to whether they expired. A message sent from this chain expires when its

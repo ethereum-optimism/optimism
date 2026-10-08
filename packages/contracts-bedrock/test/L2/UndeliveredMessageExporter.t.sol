@@ -71,15 +71,14 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
         assertEq(returned, messageHash);
     }
 
-    /// @notice Tests that the export works from a deposit, so no sequencer can keep it out.
-    function test_exportUndeliveredMessage_fromDeposit_succeeds() external {
-        address depositor = AddressAliasHelper.applyL1ToL2Alias(alice);
-        uint256 nonce = l2CrossDomainMessenger.messageNonce();
+    /// @notice Tests that anyone can export, including an aliased L1 address sending a deposit.
+    function testFuzz_exportUndeliveredMessage_anyCaller_succeeds(address _caller, bool _aliased) external {
+        address caller = _aliased ? AddressAliasHelper.applyL1ToL2Alias(_caller) : _caller;
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage(block.chainid, 1, 0, alice, bob, hex"1234");
+        _expectExport(messageHash, 1_000_000);
 
-        vm.prank(depositor, depositor);
+        vm.prank(caller, caller);
         exporter.exportUndeliveredMessage(sourceMessenger, 1, 0, alice, bob, hex"1234", 1_000_000);
-
-        assertEq(l2CrossDomainMessenger.messageNonce(), nonce + 1);
     }
 
     /// @notice Tests that a message that was relayed here cannot be exported.
@@ -118,19 +117,22 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
         bytes32 messageHash = messenger.sendMessage(source + 1, bob, hex"1234");
 
         vm.chainId(source + 1);
-        bytes32 fromDestination =
-            exporter.exportUndeliveredMessage(sourceMessenger, source, nonce, alice, bob, hex"1234", 0);
-        vm.chainId(source + 2);
-        bytes32 fromOther = exporter.exportUndeliveredMessage(sourceMessenger, source, nonce, alice, bob, hex"1234", 0);
-        vm.chainId(source);
+        _expectExport(messageHash, 0);
+        exporter.exportUndeliveredMessage(sourceMessenger, source, nonce, alice, bob, hex"1234", 0);
 
-        assertEq(fromDestination, messageHash);
+        vm.chainId(source + 2);
+        bytes32 fromOther = Hashing.hashL2toL2CrossDomainMessage(source + 2, source, nonce, alice, bob, hex"1234");
         assertNotEq(fromOther, messageHash);
+        _expectExport(fromOther, 0);
+        exporter.exportUndeliveredMessage(sourceMessenger, source, nonce, alice, bob, hex"1234", 0);
+
+        vm.chainId(source);
         _expectExpireRejected(fromOther);
     }
 
-    /// @notice Tests that word a chain exports about a message from itself can never expire one: no
-    ///         chain can send a message to itself, so no such message was ever sent.
+    /// @notice Tests that word a chain exports about a message from itself can never expire one: the
+    ///         hash names this chain as both source and destination, and no chain can send a message
+    ///         to itself.
     function testFuzz_exportUndeliveredMessage_fromItself_reverts(
         uint256 _nonce,
         address _sender,
@@ -140,9 +142,26 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
         external
     {
         bytes32 selfHash =
-            exporter.exportUndeliveredMessage(sourceMessenger, block.chainid, _nonce, _sender, _target, _message, 0);
+            Hashing.hashL2toL2CrossDomainMessage(block.chainid, block.chainid, _nonce, _sender, _target, _message);
+        _expectExport(selfHash, 0);
+        exporter.exportUndeliveredMessage(sourceMessenger, block.chainid, _nonce, _sender, _target, _message, 0);
 
+        vm.expectRevert(IL2ToL2CrossDomainMessenger.MessageDestinationSameChain.selector);
+        messenger.sendMessage(block.chainid, _target, _message);
         _expectExpireRejected(selfHash);
+    }
+
+    /// @notice Expects the exporter to send word that `_messageHash` was not relayed by now, as itself,
+    ///         through the L2CrossDomainMessenger to the source messenger.
+    function _expectExport(bytes32 _messageHash, uint32 _minGasLimit) internal {
+        vm.expectEmit(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        emit SentMessage(
+            sourceMessenger,
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER,
+            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (_messageHash, block.timestamp)),
+            l2CrossDomainMessenger.messageNonce(),
+            _minGasLimit
+        );
     }
 
     /// @notice Expects this chain's messenger to reject word, from this chain's

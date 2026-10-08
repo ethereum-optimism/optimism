@@ -12,7 +12,7 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 /// @custom:proxied true
-/// @custom:predeploy 0x420000000000000000000000000000000000002E
+/// @custom:predeploy 0x4200000000000000000000000000000000000030
 /// @title UndeliveredMessageExporter
 /// @notice Tells a message's source chain, through the withdrawal path, that the message has not been relayed on this
 ///         chain. The source chain's L1CrossDomainMessenger trusts withdrawals from this predeploy and passes the word
@@ -30,7 +30,9 @@ contract UndeliveredMessageExporter is ISemver {
 
     /// @notice Tells the source chain that a message to this chain has not been relayed by now. Anyone can call it, and
     ///         since it is not an executing message it can be forced in as a deposit. The message hash is computed with
-    ///         this chain as the destination, so a chain can only speak for messages to itself.
+    ///         this chain as the destination, so a chain can only speak for messages to itself. An export before the
+    ///         source's expiry period has passed is harmless: it becomes a failed message on the source chain that can
+    ///         never succeed, and the message can be exported again later.
     /// @param _sourceMessenger The source chain's L1CrossDomainMessenger. If it is wrong, nothing happens and the
     ///                         message can be exported again.
     /// @param _source          Chain ID of the source chain.
