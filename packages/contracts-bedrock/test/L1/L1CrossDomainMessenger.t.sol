@@ -1265,6 +1265,8 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         super.setUp();
         lockbox = _mockContract("lockbox");
         vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(lockbox));
+        // The mocked lockbox stands behind this chain's pause check.
+        vm.mockCall(lockbox, abi.encodeCall(IETHLockbox.paused, ()), abi.encode(false));
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(true)
         );
@@ -1435,8 +1437,6 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
     /// @notice Tests that word an exporter sends to its own chain's L1CrossDomainMessenger never
     ///         reaches `relayUndeliveredMessage`: the messenger refuses to relay to itself.
     function test_relayUndeliveredMessage_ownChain_reverts() external {
-        // The mocked lockbox stands behind this chain's pause check.
-        vm.mockCall(lockbox, abi.encodeCall(IETHLockbox.paused, ()), abi.encode(false));
         vm.store(
             address(optimismPortal2),
             bytes32(senderSlotIndex),
@@ -1468,8 +1468,11 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
             nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
         );
 
-        // The withdrawal's relay leaves the call too little gas for the deposit it makes.
+        // The withdrawal's relay reaches this messenger and its deposit, but leaves the call too
+        // little gas to finish the deposit.
         uint256 depositNonce = l1CrossDomainMessenger.messageNonce();
+        vm.expectCall(address(l1CrossDomainMessenger), word);
+        vm.expectCall(address(optimismPortal2), abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector));
         vm.prank(address(destination.portal()));
         destination.relayMessage{ gas: 200_000 }(
             nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word

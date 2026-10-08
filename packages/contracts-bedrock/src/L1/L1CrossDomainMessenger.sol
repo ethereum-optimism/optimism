@@ -33,7 +33,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
 
     /// @notice Thrown when `relayUndeliveredMessage` is not called by another chain's
     ///         L1CrossDomainMessenger in this chain's interop cluster, relaying a withdrawal from
-    ///         that chain's UndeliveredMessageExporter.
+    ///         that chain's UndeliveredMessageExporter. A caller whose getters revert, such as an
+    ///         account with no code, gets that revert instead.
     error L1CrossDomainMessenger_NotInteropMessenger();
 
     /// @custom:legacy
@@ -106,6 +107,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         - relaying a withdrawal from that chain's UndeliveredMessageExporter, which sends
     ///           this call only for a message to that chain that it has not relayed. See
     ///           UndeliveredMessageExporter for why withdrawals from it can be trusted.
+    ///         It does not check whether this chain is paused: marking a message expired, and the
+    ///         refund that follows on L2, move no ETH out of the L1 lockbox.
     ///         The word is sent on as this contract, which no relayed message can be (see
     ///         `_isUnsafeTarget`), so L2 can trust it. If this runs out of gas, the call lands in
     ///         the caller's failed messages and can be replayed.
