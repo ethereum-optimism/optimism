@@ -12,11 +12,10 @@ use core::fmt;
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ChainDependency {}
 
-/// An override of the message expiry window, in seconds. It may only shorten the window:
-/// `L2ToL2CrossDomainMessenger` marks a message expired, and apps refund it, a day after
-/// [`MESSAGE_EXPIRY_WINDOW`] has passed, so a longer window could let an expired message still be
-/// relayed. A value above [`MESSAGE_EXPIRY_WINDOW`] cannot be constructed or deserialized, as in
-/// op-core.
+/// An override of the message expiry window, in seconds. A dependency set may shorten the window
+/// but not lengthen it beyond [`MESSAGE_EXPIRY_WINDOW`] (see the Expiry Window section of the
+/// interop specification, ethereum-optimism/specs#960). A value above [`MESSAGE_EXPIRY_WINDOW`]
+/// cannot be constructed or deserialized, as in op-core.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(try_from = "u64", into = "u64"))]
@@ -37,7 +36,7 @@ impl fmt::Display for MessageExpiryOverrideTooLong {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "message expiry window override {}s exceeds protocol window {}s",
+            "overrideMessageExpiryWindow {}s exceeds protocol window {}s",
             self.0, MESSAGE_EXPIRY_WINDOW
         )
     }
@@ -139,7 +138,7 @@ mod tests {
         let err = MessageExpiryOverride::try_from(MESSAGE_EXPIRY_WINDOW + 1).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "message expiry window override 604801s exceeds protocol window 604800s"
+            "overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"
         );
         assert_eq!(
             MessageExpiryOverride::try_from(MESSAGE_EXPIRY_WINDOW).unwrap().get(),
@@ -158,7 +157,7 @@ mod tests {
         let err = parse(MESSAGE_EXPIRY_WINDOW + 1).unwrap_err();
         assert!(
             err.to_string()
-                .contains("message expiry window override 604801s exceeds protocol window 604800s"),
+                .contains("overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"),
             "unexpected error: {err}"
         );
         assert_eq!(

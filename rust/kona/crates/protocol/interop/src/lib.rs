@@ -32,7 +32,9 @@ pub use message::{
     parse_logs_to_executing_msgs,
 };
 
-pub use kona_genesis::{ChainDependency, DependencySet, MessageExpiryOverride};
+pub use kona_genesis::{
+    ChainDependency, DependencySet, MessageExpiryOverride, MessageExpiryOverrideTooLong,
+};
 
 pub use op_alloy_consensus::interop::SafetyLevel;
 

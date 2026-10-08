@@ -39,7 +39,7 @@ func TestDependencySet(t *testing.T) {
 
 	t.Run("expiry window override above the protocol window", func(t *testing.T) {
 		deps := map[eth.ChainID]*StaticConfigDependency{eth.ChainIDFromUInt64(900): {}}
-		const wantErr = "message expiry window override 604801s exceeds protocol window 604800s"
+		const wantErr = "overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"
 		_, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop+1)
 		require.ErrorContains(t, err, wantErr)
 		var ds StaticConfigDependencySet
@@ -53,8 +53,7 @@ func TestDependencySet(t *testing.T) {
 		require.Equal(t, MessageExpiryTimeSecondsInterop, ok.MessageExpiryWindow())
 	})
 
-	// kona-genesis pins the same 7 days (MESSAGE_EXPIRY_WINDOW); L2ToL2CrossDomainMessenger.sol's
-	// EXPIRY_PERIOD is this window plus a day of margin.
+	// kona-genesis pins the same 7 days (MESSAGE_EXPIRY_WINDOW).
 	t.Run("protocol expiry window is 7 days", func(t *testing.T) {
 		require.Equal(t, uint64(604800), MessageExpiryTimeSecondsInterop)
 	})

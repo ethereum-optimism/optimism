@@ -151,6 +151,14 @@ pub enum InteropHostError {
         /// The `lagoon_time` from that rollup config.
         lagoon_time: Option<u64>,
     },
+    /// The dependency-set file cannot be read.
+    #[error("Failed reading dependency set {path:?}: {source}")]
+    UnreadableDependencySet {
+        /// The dependency-set file.
+        path: PathBuf,
+        /// The IO error.
+        source: std::io::Error,
+    },
     /// The dependency-set file does not parse.
     #[error("Failed deserializing dependency set {path:?}: {source}")]
     InvalidDependencySet {
@@ -189,6 +197,12 @@ impl InteropHost {
         require_dependency_set_for_configs(&configs, &self.dependency_set_path)
     }
 
+    /// Refuses to start with a configured dependency set that cannot be read or parsed, rather
+    /// than serving the client no dependency set later.
+    fn require_readable_dependency_set(&self) -> Result<(), InteropHostError> {
+        self.read_dependency_set().transpose().map(|_| ())
+    }
+
     /// Starts the preimage server, communicating with the client over the provided channels.
     pub async fn start_server<C>(
         &self,
@@ -199,9 +213,7 @@ impl InteropHost {
         C: Channel + Send + Sync + 'static,
     {
         self.require_dependency_set_if_interop_scheduled()?;
-        // Refuse to start with a dependency set that does not parse, rather than serving the
-        // client a missing preimage later.
-        self.read_dependency_set().transpose()?;
+        self.require_readable_dependency_set()?;
 
         let kv_store = self.create_key_value_store()?;
 
@@ -306,7 +318,9 @@ impl InteropHost {
         let path = self.dependency_set_path.as_ref()?;
 
         Some((|| {
-            let ser_config = std::fs::read_to_string(path)?;
+            let ser_config = std::fs::read_to_string(path).map_err(|source| {
+                InteropHostError::UnreadableDependencySet { path: path.clone(), source }
+            })?;
             serde_json::from_str(&ser_config).map_err(|source| {
                 InteropHostError::InvalidDependencySet { path: path.clone(), source }
             })
@@ -467,6 +481,27 @@ mod tests {
             }
             other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_require_readable_dependency_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let host = |dependency_set_path| InteropHost { dependency_set_path, ..Default::default() };
+
+        assert!(host(None).require_readable_dependency_set().is_ok());
+
+        let missing = dir.path().join("missing.json");
+        assert!(matches!(
+            host(Some(missing)).require_readable_dependency_set(),
+            Err(InteropHostError::UnreadableDependencySet { .. })
+        ));
+
+        let too_long = dir.path().join("depset.json");
+        std::fs::write(&too_long, r#"{"dependencies":{},"overrideMessageExpiryWindow":604801}"#)
+            .unwrap();
+        let err = host(Some(too_long)).require_readable_dependency_set().unwrap_err();
+        assert!(matches!(err, InteropHostError::InvalidDependencySet { .. }));
+        assert!(err.to_string().contains("overrideMessageExpiryWindow 604801s exceeds"));
     }
 
     #[test]
