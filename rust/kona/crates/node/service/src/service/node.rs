@@ -1,12 +1,13 @@
 //! Contains the [`RollupNode`] implementation.
+use super::middleware::RpcMetricsLayer;
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor,
-    L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
-    NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
+    EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain,
+    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
+    SequencerConfig, SignedPayload, SignerActor,
     SystemClock,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
@@ -14,7 +15,13 @@ use crate::{
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
-use jsonrpsee::{RpcModule, server::ServerHandle};
+use jsonrpsee::{
+    RpcModule,
+    server::{
+        Server, ServerConfig,
+        middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
+    },
+};
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineQueryClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -144,9 +151,6 @@ type ConfiguredSequencerActor = SequencerActor<
     QueuedSequencerEngineClient,
     QueuedUnsafePayloadGossipClient,
 >;
-
-/// Concrete type of the rpc actor used by `RollupNode`.
-type ConfiguredRpcActor = RpcActor<ServerHandle>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -413,7 +417,7 @@ impl RollupNode {
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
-    ) -> Result<Option<ConfiguredRpcActor>, String> {
+    ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
         };
@@ -444,12 +448,32 @@ impl RollupNode {
             )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
 
-        let handle = JsonrpseeServerLauncher::new(config)
-            .launch(modules)
+        let middleware = tower::ServiceBuilder::new()
+            .layer(
+                ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                    .expect("Critical: Failed to build GET method proxy"),
+            )
+            .timeout(Duration::from_secs(2));
+        let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
+        let server = Server::builder()
+            .set_config(
+                ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
+            )
+            .set_http_middleware(middleware)
+            .set_rpc_middleware(rpc_middleware)
+            .build(config.socket)
             .await
             .map_err(|e: std::io::Error| format!("Failed to launch rpc server: {e:?}"))?;
 
-        Ok(Some(RpcActor::new(handle)))
+        if let Ok(addr) = server.local_addr() {
+            info!(target: "rpc", addr = ?addr, "RPC server bound to address");
+        } else {
+            error!(target: "rpc", "Failed to get local address for RPC server");
+        }
+
+        Ok(Some(RpcActor::new(server.start(modules))))
     }
 
     /// Starts the rollup node service.
