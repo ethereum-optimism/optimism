@@ -64,6 +64,8 @@ pub struct L1Config {
 /// Stack configuration of components.
 #[derive(Debug)]
 pub struct RollupNode {
+    /// The application version reported by the RPC server.
+    pub(crate) version: String,
     /// The rollup configuration.
     pub(crate) config: Arc<RollupConfig>,
     /// The L1 configuration.
@@ -423,7 +425,7 @@ impl RollupNode {
 
         let mut modules = RpcModule::new(());
         modules
-            .merge(HealthzApiServer::into_rpc(HealthzRpc::new(config.version)))
+            .merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone())))
             .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
         modules
             .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
@@ -437,7 +439,7 @@ impl RollupNode {
         modules
             .merge(
                 RollupRpc::new(
-                    config.version,
+                    self.version.clone(),
                     self.config.clone(),
                     engine_state_rx,
                     l2_query_client,

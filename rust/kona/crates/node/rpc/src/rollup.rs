@@ -23,8 +23,8 @@ use crate::{
 /// This is a server implementation of [`crate::RollupNodeApiServer`].
 #[derive(Debug)]
 pub struct RollupRpc {
-    /// The running binary's release version.
-    pub version: &'static str,
+    /// The application version.
+    pub version: String,
     /// The rollup configuration.
     pub config: Arc<RollupConfig>,
     /// The engine state published by the engine task queue.
@@ -36,9 +36,10 @@ pub struct RollupRpc {
 }
 
 impl RollupRpc {
-    /// Constructs a new [`RollupRpc`] from the node configuration, state, and clients.
+    /// Constructs a new [`RollupRpc`] from the application version, configuration, state, and
+    /// clients.
     pub const fn new(
-        version: &'static str,
+        version: String,
         config: Arc<RollupConfig>,
         engine_state: watch::Receiver<EngineState>,
         l2: EngineQueryClient,
@@ -97,7 +98,7 @@ impl RollupNodeApiServer for RollupRpc {
     }
 
     async fn op_version(&self) -> RpcResult<String> {
-        Ok(self.version.to_string())
+        Ok(self.version.clone())
     }
 }
 
@@ -115,7 +116,13 @@ mod tests {
         let (client, l1, l2) = test_engine_client(config.clone());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
-        let rpc = RollupRpc::new(config.clone(), state_rx, client.query_client(), l1_tx);
+        let rpc = RollupRpc::new(
+            "1.2.3-test".to_owned(),
+            config.clone(),
+            state_rx,
+            client.query_client(),
+            l1_tx,
+        );
         assert_eq!(rpc.op_rollup_config().await.unwrap(), *config);
 
         let head = L2BlockInfo {
@@ -145,6 +152,28 @@ mod tests {
         drop(l1_rx);
         assert!(rpc.sync_status().await.is_err());
         assert_eq!(rpc.op_sync_status().await.unwrap_err().code(), ErrorCode::InternalError.code());
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    #[tokio::test]
+    async fn returns_configured_version() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let (_, state_rx) = watch::channel(EngineState::default());
+        let (l1_tx, _) = mpsc::channel(1);
+
+        for version in ["1.2.3-test", "0.0.0-dev"] {
+            let rpc = RollupRpc::new(
+                version.to_owned(),
+                config.clone(),
+                state_rx.clone(),
+                client.query_client(),
+                l1_tx.clone(),
+            );
+            assert_eq!(rpc.op_version().await.unwrap(), version);
+        }
+
         l1.assert_finished();
         l2.assert_finished();
     }
