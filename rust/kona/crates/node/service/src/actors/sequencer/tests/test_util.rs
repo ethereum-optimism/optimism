@@ -29,20 +29,30 @@ pub(crate) type TestActor<E = MockSequencerEngineClient> = SequencerActor<
     MockUnsafePayloadGossipClient,
 >;
 
+pub(crate) type TestSequencerActor = TestActor;
+
 // Returns a test SequencerActor with mocks that can be used or overridden.
 pub(crate) fn test_actor() -> TestActor {
     test_actor_with_engine(MockSequencerEngineClient::new())
 }
 
 /// Returns a test [`SequencerActor`] like [`test_actor`], with the given engine client.
+pub(crate) fn test_actor_with_conductor(conductor: Option<MockConductor>) -> TestSequencerActor {
+    test_actor_with_engine_and_conductor(MockSequencerEngineClient::new(), conductor)
+}
+
 pub(crate) fn test_actor_with_engine<E: SequencerEngineClient>(engine_client: E) -> TestActor<E> {
+    test_actor_with_engine_and_conductor(engine_client, None)
+}
+
+fn test_actor_with_engine_and_conductor<E: SequencerEngineClient>(engine_client: E, conductor: Option<MockConductor>) -> TestActor<E> {
     // The sender is intentionally dropped, so the channel starts closed.
     // If future tests need to send messages, keep the sender instead of dropping it.
     let (_admin_api_tx, admin_api_rx) = mpsc::channel(20);
     SequencerActor::new(
         admin_api_rx,
         TestAttributesBuilder { attributes: vec![] },
-        None,
+        conductor,
         engine_client,
         true,
         false,
