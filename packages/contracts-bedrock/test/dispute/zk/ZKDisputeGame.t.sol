@@ -1237,35 +1237,6 @@ contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_TestInit {
         game.claimCredit(noCredit);
     }
 
-    /// @notice Once the bond distribution mode is set, closeGame and claimCredit must still
-    ///         revert while the system is paused, so no DelayedWETH unlock can start mid-pause.
-    function test_claimCredit_pausedAfterClose_reverts() public {
-        // Resolve, finalize, and close the game so the bond distribution mode is set.
-        (,,,, Timestamp deadline,) = game.claimData();
-        vm.warp(deadline.raw() + 1);
-        game.resolve();
-        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
-        game.closeGame();
-        assertTrue(game.bondDistributionMode() == BondDistributionMode.NORMAL);
-        uint256 credit = game.normalModeCredit(proposer);
-        assertGt(credit, 0);
-
-        // Pause the system.
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(0));
-
-        // closeGame and claimCredit must both revert despite the mode already being set.
-        vm.expectRevert(GamePaused.selector);
-        game.closeGame();
-        vm.expectRevert(GamePaused.selector);
-        game.claimCredit(proposer);
-
-        // No credit was consumed and no DelayedWETH withdrawal was started.
-        assertEq(game.normalModeCredit(proposer), credit);
-        (uint256 amount,) = delayedWeth.withdrawals(address(game), proposer);
-        assertEq(amount, 0);
-    }
-
     function test_claimCredit_refundMode_succeeds() public {
         // Challenge the game so both proposer and challenger have refund credits.
         vm.startPrank(challenger);

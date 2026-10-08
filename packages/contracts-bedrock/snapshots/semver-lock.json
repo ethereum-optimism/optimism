@@ -180,8 +180,8 @@
     "sourceCodeHash": "0x2cc9c53d544e5715e38a50ad266551fe7b0f05488e7a66f3f70bca618fbd7fc7"
   },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
-    "initCodeHash": "0x0e745bbbcc9340d8de67df2613ae40a8b60dacbdb73e1122217b4f2acac78df4",
-    "sourceCodeHash": "0xdd2b9737d08bc0e420f4225761b15d31a8811d2b9e645ca6c9463f3268d61c99"
+    "initCodeHash": "0xf74c65102e2640a16a224709f34850f8ef530d6e7608b896f69c4b204e98aff8",
+    "sourceCodeHash": "0x04fcf66f0000bbcbbdd8437804a9031d72f1d5279e6bb5622b9f1e595c0899a3"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
