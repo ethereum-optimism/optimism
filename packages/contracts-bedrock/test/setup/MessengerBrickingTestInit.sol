@@ -82,7 +82,7 @@ abstract contract MessengerBrickingTestInit is OptimismPortal2_TestInit {
     {
         return _success
             || keccak256(_returnData)
-                == keccak256(abi.encodeWithSelector(IOptimismPortal2.OptimismPortal_L1CDMCallFailed.selector));
+                == keccak256(abi.encodePacked(IOptimismPortal2.OptimismPortal_L1CDMCallFailed.selector));
     }
 
     /// @notice Whether the messenger relayed the message successfully.
