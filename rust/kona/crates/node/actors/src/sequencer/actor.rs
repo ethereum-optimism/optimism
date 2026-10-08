@@ -139,8 +139,8 @@ struct Actor<
     SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
-    /// Receiver for sequencer admin commands.
-    admin_command_rx: mpsc::Receiver<Message>,
+    /// Receives messages from handles.
+    messages: mpsc::Receiver<Message>,
     /// Sequencer state shared with admin RPC readers.
     state: State,
     /// Publishes state to handle readers.
@@ -190,7 +190,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        admin_command_rx: mpsc::Receiver<Message>,
+        messages: mpsc::Receiver<Message>,
         published: watch::Sender<State>,
         state: State,
         attributes_builder: AttributesBuilder_,
@@ -202,7 +202,7 @@ where
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         Self {
-            admin_command_rx,
+            messages,
             state,
             published,
             attributes_builder,
@@ -539,7 +539,7 @@ where
             select! {
                 // Prioritize admin messages over block building.
                 biased;
-                Some(message) = self.admin_command_rx.recv() => self.handle_message(message).await,
+                Some(message) = self.messages.recv() => self.handle_message(message).await,
                 _ = self.build_ticker.tick(), if self.state().active => self.build().await?,
                 // A stopped actor with no command handles stays pending until dropped.
                 else => pending().await,
