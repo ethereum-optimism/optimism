@@ -1,10 +1,7 @@
-#[cfg(test)]
+use super::test_actor;
 use crate::{
     NodeActor, SequencerActorError,
-    actors::{
-        MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-        sequencer::tests::test_util::test_actor,
-    },
+    actors::{MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient},
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -23,8 +20,8 @@ use tokio::{
 #[case::temp(PipelineErrorKind::Temporary(BuilderError::Custom(String::new()).into()), false)]
 #[case::reset(PipelineErrorKind::Reset(BuilderError::Custom(String::new()).into()), false)]
 #[case::critical(PipelineErrorKind::Critical(BuilderError::Custom(String::new()).into()), true)]
-#[tokio::test]
-async fn test_build_unsealed_payload_prepare_payload_attributes_error(
+#[tokio::test(start_paused = true)]
+async fn step_handles_payload_attributes_errors(
     #[case] forced_error: PipelineErrorKind,
     #[case] expect_err: bool,
 ) {
@@ -34,9 +31,8 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
     client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
     // Must not be called on critical error
     client.expect_start_build_block().times(0);
-    if let PipelineErrorKind::Reset(_) = &forced_error {
-        client.expect_reset_engine_forkchoice().times(1).return_once(move || Ok(()));
-    }
+    let resets = if matches!(&forced_error, PipelineErrorKind::Reset(_)) { 2 } else { 1 };
+    client.expect_reset_engine_forkchoice().times(resets).returning(|| Ok(()));
 
     let l1_origin = BlockInfo::default();
     let mut origin_selector = MockOriginSelector::new();
@@ -49,7 +45,8 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
     actor.engine_client = client;
     actor.attributes_builder = attributes_builder;
 
-    let result = actor.build_unsealed_payload().await;
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    let result = actor.step().await;
     if expect_err {
         assert!(result.is_err());
         assert!(matches!(
