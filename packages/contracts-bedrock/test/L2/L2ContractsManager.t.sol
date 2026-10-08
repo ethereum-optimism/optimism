@@ -855,7 +855,7 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
         interopPredeploys.push(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
-    /// @notice Tests that all 5 interop predeploys are upgraded when the INTEROP sys feature is enabled
+    /// @notice Tests that all interop predeploys are upgraded when the INTEROP sys feature is enabled
     ///         (which requires OPTIMISM_PORTAL_INTEROP dev feature to also be enabled for consistency).
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
         // Capture pre-upgrade implementations
@@ -928,7 +928,7 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
         interopPredeploys.push(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
-    /// @notice Tests that all 5 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
+    /// @notice Tests that all interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
     /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
         // Capture pre-upgrade implementations

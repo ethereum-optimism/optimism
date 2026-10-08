@@ -38,7 +38,8 @@ abstract contract UndeliveredMessageExporter_TestInit is CommonTest {
 }
 
 /// @title UndeliveredMessageExporter_ExportUndeliveredMessage_Test
-/// @notice Tests the `exportUndeliveredMessage` function of the `UndeliveredMessageExporter` contract.
+/// @notice Tests the `exportUndeliveredMessage` function of the `UndeliveredMessageExporter`
+///         contract.
 contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is UndeliveredMessageExporter_TestInit {
     /// @notice Selector of the L2ToL2CrossDomainMessenger's SentMessage event.
     bytes32 internal constant SENT_MESSAGE_EVENT_SELECTOR =
