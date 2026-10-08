@@ -12,15 +12,6 @@ use url::Url;
 /// Sequencer CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct SequencerArgs {
-    /// Initialize the sequencer in a stopped state. The sequencer can be started using the
-    /// `admin_startSequencer` RPC.
-    #[arg(
-        long = "sequencer.stopped",
-        default_value = "false",
-        env = "KONA_NODE_SEQUENCER_STOPPED"
-    )]
-    pub stopped: bool,
-
     /// Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
     /// Disabled if 0.
     #[arg(
@@ -69,7 +60,6 @@ impl SequencerArgs {
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
-            sequencer_stopped: self.stopped,
             sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
             l1_conf_delay: self.l1_confs,

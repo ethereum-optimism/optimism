@@ -113,9 +113,10 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 
 ## Sequencer Arguments
 
+Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | Start sequencer in stopped state | `false` |
 | `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |

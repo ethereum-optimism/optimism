@@ -289,6 +289,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.CLKey,
 				spec.ELKey,
 				spec.IsSequencer,
+				spec.IsSequencer,
 				depSet,
 			)
 		default:
@@ -542,6 +543,7 @@ func startMixedKonaNode(
 	clKey string,
 	elKey string,
 	isSequencer bool,
+	startSequencer bool,
 	depSet coredepset.DependencySet,
 	extraEnv ...string,
 ) *KonaNode {
@@ -616,13 +618,14 @@ func startMixedKonaNode(
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 
 	k := &KonaNode{
-		name:     clKey,
-		chainID:  l2Net.ChainID(),
-		userRPC:  "",
-		execPath: execPath,
-		args:     []string{"node"},
-		env:      envVars,
-		p:        t,
+		name:           clKey,
+		chainID:        l2Net.ChainID(),
+		userRPC:        "",
+		execPath:       execPath,
+		args:           []string{"node"},
+		env:            envVars,
+		startSequencer: startSequencer,
+		p:              t,
 	}
 	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
 	k.Start()

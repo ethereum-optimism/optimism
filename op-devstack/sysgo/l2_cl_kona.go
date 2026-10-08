@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
@@ -25,6 +26,8 @@ type KonaNode struct {
 	args     []string
 	// Each entry is of the form "key=value".
 	env []string
+	// Start sequencing through the admin API after each process startup.
+	startSequencer bool
 
 	p devtest.T
 
@@ -92,6 +95,14 @@ func (k *KonaNode) Start() {
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
+	if k.startSequencer {
+		rollupClient, err := dial.DialRollupClientWithTimeout(k.p.Ctx(), k.p.Logger(), k.userRPC)
+		k.p.Require().NoError(err, "failed to dial sequencer node")
+		defer rollupClient.Close()
+		status, err := rollupClient.SyncStatus(k.p.Ctx())
+		k.p.Require().NoError(err, "failed to fetch sequencer head")
+		k.p.Require().NoError(rollupClient.StartSequencer(k.p.Ctx(), status.UnsafeL2.Hash), "failed to start sequencing")
+	}
 }
 
 // Stop stops the kona node.

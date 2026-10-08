@@ -129,7 +129,7 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, isSequencer, nil)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
@@ -166,7 +166,7 @@ func startStoppedSequencerCL(
 				opt.Apply(t, target, konaCfg)
 			}
 		}
-		extraEnv := []string{"KONA_NODE_SEQUENCER_STOPPED=true"}
+		var extraEnv []string
 		if konaCfg.ConductorRPC != "" {
 			t.Require().Positive(konaCfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
 			t.Require().Zero(konaCfg.ConductorRPCTimeout%time.Second, "Kona conductor RPC timeout must use whole seconds")
@@ -176,7 +176,7 @@ func startStoppedSequencerCL(
 			)
 		}
 		return startMixedKonaNode(
-			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, nil,
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, false, nil,
 			extraEnv...,
 		)
 	default: // op-node

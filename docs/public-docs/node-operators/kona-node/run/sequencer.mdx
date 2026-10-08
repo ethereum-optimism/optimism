@@ -17,6 +17,7 @@ To run a Kona node in sequencer mode:
 ```bash
 kona-node node \
   --mode=Sequencer \
+  --rpc.enable-admin \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
@@ -24,6 +25,16 @@ kona-node node \
   --p2p.sequencer.key.path=./p2p-sequencer.key \
   --chain=123456
 ```
+
+Sequencers start stopped after every restart. Once the node is running, start block production through the admin API:
+
+```bash
+curl http://localhost:9545 \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}'
+```
+
+A conductor can issue the start request for managed sequencers. The admin API must be enabled for it to control sequencing.
 
 ## Required Arguments
 
@@ -47,7 +58,6 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | `false` | Start sequencer in stopped state |
 | `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Max L2 blocks between safe and unsafe heads |
 | `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | Force recovery mode operation |
@@ -62,6 +72,7 @@ The full flag catalogue, including the standard node arguments shared with valid
 ```bash
 kona-node node \
   --mode=Sequencer \
+  --rpc.enable-admin \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \
@@ -73,6 +84,7 @@ kona-node node \
 ```bash
 kona-node node \
   --mode=Sequencer \
+  --rpc.enable-admin \
   --conductor.rpc=http://conductor:8080 \
   --conductor.rpc.timeout=5 \
   --sequencer.l1-confs=6 \
@@ -87,6 +99,7 @@ kona-node node \
 ```bash
 kona-node node \
   --mode=Sequencer \
+  --rpc.enable-admin \
   --sequencer.recover=true \
   --sequencer.max-safe-lag=100 \
   --l1-eth-rpc=http://localhost:8545 \

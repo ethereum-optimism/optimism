@@ -37,7 +37,7 @@ use kona_rpc::{
 use kona_sources::BlockSignerHandler;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{ops::Not as _, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -487,7 +487,7 @@ impl RollupNode {
             Some(sequencer::Builder::new(
                 sequencer::Capacity::try_from(1024).map_err(|error| error.to_string())?,
                 self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
-                self.sequencer_config.sequencer_stopped.not(),
+                false,
                 self.sequencer_config.sequencer_recovery_mode,
             ))
         } else {
