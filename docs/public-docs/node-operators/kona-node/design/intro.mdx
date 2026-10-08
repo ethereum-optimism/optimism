@@ -42,7 +42,9 @@ The [`RollupNode`][node] builds and starts the following actors.
   queries. The [engine][engine] docs expand on this.
 - **L1 Watcher Actor**: Watches the L1 chain for new
   head and finalized blocks and relays them to the
-  derivation actor.
+  derivation actor. It also keeps the unsafe block
+  signer current from the `SystemConfig` contract, for
+  gossip validation and the signer actor.
 - **Network Actor**: Manages the P2P Network for the rollup
   node. The P2P stack consists of `discv5` peer discovery
   and block gossip through libp2p. Visit the [network][p2p]
@@ -51,6 +53,9 @@ The [`RollupNode`][node] builds and starts the following actors.
   `kona-node` to be run as a sequencer. Sequencing is
   periphery to the basic rollup node operation. See
   the [sequencer][sequencer] docs.
+- **Signer Actor**: Runs alongside the sequencer actor.
+  It signs each block the sequencer builds, in order,
+  and passes it to the network actor to gossip.
 - **RPC Actor**: The RPC actor spins up and serves an
   RPC server that exposes the rpc methods required by
   the [OP Stack Specs][specs].

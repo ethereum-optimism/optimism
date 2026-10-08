@@ -24,15 +24,16 @@ use kona_sp1_client_utils::{
     },
 };
 
-use crate::super_range::{
-    fetch_l2_header, fetch_output_block_hash, load_dependency_set, load_l1_config,
-    load_rollup_configs, optimistic_chain_id_as_u64,
+use crate::{
+    chain_config::ChainConfigs,
+    super_range::{fetch_l2_header, fetch_output_block_hash, optimistic_chain_id_as_u64},
 };
 
-/// Builds consolidation-mode public outputs from typed inputs and an oracle-backed witness source.
+/// Builds consolidation outputs; `None` uses the embedded registry (see [`ChainConfigs`]).
 pub async fn build_consolidation_outputs<C>(
     inputs: SuperConsolidationInputs,
     oracle: Arc<C>,
+    configs: Option<&ChainConfigs>,
 ) -> anyhow::Result<SuperConsolidationOutputs>
 where
     C: CommsClient + Send + Sync + Debug + 'static,
@@ -44,10 +45,19 @@ where
     revm::precompile::install_crypto(CustomCrypto::default());
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
-    let dependency_set = load_dependency_set(&chain_ids, oracle.as_ref()).await?;
-    let rollup_configs = load_rollup_configs(&chain_ids, oracle.as_ref()).await?;
-    let l1_config = load_l1_config(&rollup_configs, oracle.as_ref()).await?;
-    let rollup_configs: RegistryHashMap<_, _> = rollup_configs.into_iter().collect();
+    let embedded_configs;
+    let configs = match configs {
+        Some(configs) => {
+            configs.validate(&chain_ids)?;
+            configs
+        }
+        None => {
+            embedded_configs = ChainConfigs::from_registry(&chain_ids)?;
+            &embedded_configs
+        }
+    };
+    let rollup_configs: RegistryHashMap<_, _> =
+        configs.rollup_configs.clone().into_iter().collect();
 
     let mut previous_super_root =
         fetch_super_root(oracle.as_ref(), inputs.previous_super_root).await?;
@@ -66,9 +76,9 @@ where
             previous_super_root,
             input.optimistic_blocks,
             &input.claimed_super_root_proof,
-            dependency_set.clone(),
+            configs.dependency_set.clone(),
             &rollup_configs,
-            &l1_config,
+            &configs.l1_config,
         )
         .await?;
         previous_super_root = input.claimed_super_root_proof.super_root;
@@ -278,12 +288,14 @@ mod tests {
     use std::sync::Mutex;
 
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
-    use alloy_primitives::{B256, U256};
+    use alloy_eips::Encodable2718;
+    use alloy_primitives::{B256, Bytes, U256, keccak256};
     use alloy_rlp::EMPTY_STRING_CODE;
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
+    use kona_interop::{ChainBuilder, ExecutingMessageBuilder};
     use kona_preimage::{
-        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
+        DEPENDENCY_SET_KEY, HintWriterClient, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
         PreimageOracleClient, errors::PreimageOracleResult,
     };
     use kona_proof::block_on;
@@ -292,11 +304,16 @@ mod tests {
             SuperConsolidationTransitionInput, SuperOptimisticBlock, SuperOutputRoot,
             SuperRootProof, TimestampSpan,
         },
-        witness::preimage_store::PreimageStore,
+        witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
     };
 
     use super::*;
-    use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
+    use crate::test_utils::{
+        b256, chain_configs, dependency_set, rollup_config, save_header, save_output_root,
+    };
+
+    const INITIATING_CHAIN: u64 = u64::MAX - 1;
+    const EXECUTING_CHAIN: u64 = u64::MAX;
 
     fn save_super_root(oracle: &mut PreimageStore, super_root: &SuperRoot) -> B256 {
         let hash = super_root.hash();
@@ -314,21 +331,6 @@ mod tests {
 
     fn rollup_configs(chain_ids: &[u64]) -> RegistryHashMap<u64, RollupConfig> {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
-    }
-
-    fn save_fallback_chain_config(oracle: &mut PreimageStore, chain_id: u64) {
-        oracle
-            .save_preimage(
-                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
-                serde_json::to_vec(&dependency_set(&[chain_id], None)).unwrap(),
-            )
-            .unwrap();
-        oracle
-            .save_preimage(
-                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
-                serde_json::to_vec(&rollup_configs(&[chain_id])).unwrap(),
-            )
-            .unwrap();
     }
 
     #[derive(Clone, Debug)]
@@ -532,7 +534,7 @@ mod tests {
         };
         let mut oracle = PreimageStore::default();
         save_empty_trie(&mut oracle);
-        save_fallback_chain_config(&mut oracle, chain_id);
+        let configs = chain_configs(&[chain_id]);
 
         let previous_head_hash = save_header(&mut oracle, &previous_head);
         let first_head = Header {
@@ -594,8 +596,9 @@ mod tests {
         };
         let oracle = RecordingOracle::new(oracle);
 
-        let outputs = block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone())))
-            .expect("two-timestamp consolidation succeeds");
+        let outputs =
+            block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone()), Some(&configs)))
+                .expect("two-timestamp consolidation succeeds");
 
         assert_eq!(
             outputs.transitions.iter().map(|transition| transition.super_root).collect::<Vec<_>>(),
@@ -612,10 +615,42 @@ mod tests {
     }
 
     #[test]
+    fn consolidation_outputs_reject_untrusted_preimage_configs() {
+        let chain_id = u64::MAX;
+        let configs = chain_configs(&[chain_id]);
+        let inputs = SuperConsolidationInputs {
+            span: TimestampSpan::new(100, 100).unwrap(),
+            previous_super_root: b256(0x11),
+            transitions: vec![SuperConsolidationTransitionInput {
+                optimistic_blocks: vec![SuperOptimisticBlock {
+                    chain_id: U256::from(chain_id),
+                    block_hash: b256(0x22),
+                    output_root: b256(0x33),
+                }],
+                claimed_super_root_proof: SuperRootProof::new(
+                    100,
+                    vec![SuperOutputRoot { chain_id, output_root: b256(0x55) }],
+                ),
+            }],
+        };
+        let mut oracle = PreimageStore::default();
+        for (key, serialized) in [
+            (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
+            (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
+            (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config).unwrap()),
+        ] {
+            oracle.save_preimage(PreimageKey::new_local(key.to()), serialized).unwrap();
+        }
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), None))
+            .expect_err("guest-facing consolidation must reject witness configs");
+        assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn consolidation_outputs_reject_starting_root_before_span_predecessor() {
         let chain_id = u64::MAX;
         let mut oracle = PreimageStore::default();
-        save_fallback_chain_config(&mut oracle, chain_id);
+        let configs = chain_configs(&[chain_id]);
         let stale_super_root =
             SuperRoot::new(98, vec![SuperOutputRoot { chain_id, output_root: b256(0x44) }]);
         let stale_super_root_hash = save_super_root(&mut oracle, &stale_super_root);
@@ -635,8 +670,8 @@ mod tests {
             }],
         };
         inputs.validate().expect("typed consolidation timestamps are valid");
-
-        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle))).unwrap_err();
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), Some(&configs)))
+            .unwrap_err();
 
         assert!(
             err.to_string().contains(
@@ -644,5 +679,149 @@ mod tests {
             ),
             "unexpected error: {err}"
         );
+    }
+
+    /// Saves the receipts trie of `receipts`, returning its root. With `withhold_root`, the root
+    /// node is the one preimage left out, so the receipts cannot be read.
+    fn receipts_root<R: Encodable2718>(
+        witness: &mut PreimageStore,
+        receipts: &[R],
+        withhold_root: bool,
+    ) -> B256 {
+        let mut trie =
+            kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
+        let root = trie.root();
+        for node in trie.take_proof_nodes().into_inner().into_values() {
+            let hash = keccak256(&node);
+            if withhold_root && hash == root {
+                continue;
+            }
+            witness.save_preimage(PreimageKey::new_keccak256(*hash), node.to_vec()).unwrap();
+        }
+        root
+    }
+
+    struct CrossChainMessageTransition {
+        witness: PreimageStore,
+        previous_super_root: SuperRoot,
+        optimistic_blocks: Vec<SuperOptimisticBlock>,
+        claim: SuperRootProof,
+    }
+
+    /// Chain `EXECUTING_CHAIN`'s optimistic block #4 (ts 101) executes a message initiated in
+    /// chain `INITIATING_CHAIN`'s previous cross-safe block #3 (ts 100).
+    fn cross_chain_message_transition(
+        withhold_initiating_receipts_root: bool,
+    ) -> CrossChainMessageTransition {
+        let payload = Bytes::from_static(b"initiating message");
+        let mut initiating = ChainBuilder::default();
+        initiating.add_initiating_message(payload.clone());
+        let mut executing = ChainBuilder::default();
+        executing.add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(&payload))
+                .with_origin_chain_id(INITIATING_CHAIN)
+                .with_origin_block_number(3)
+                .with_origin_timestamp(100),
+        );
+
+        let mut witness = PreimageStore::default();
+        save_empty_trie(&mut witness);
+        let header = |number, timestamp, parent_hash, receipts_root| Header {
+            number,
+            timestamp,
+            parent_hash,
+            receipts_root,
+            transactions_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+
+        let initiating_receipts =
+            receipts_root(&mut witness, &initiating.receipts, withhold_initiating_receipts_root);
+        let a3_hash = save_header(&mut witness, &header(3, 100, B256::ZERO, initiating_receipts));
+        let a4_hash = save_header(&mut witness, &header(4, 101, a3_hash, EMPTY_ROOT_HASH));
+        let b3_hash = save_header(&mut witness, &header(3, 100, B256::ZERO, EMPTY_ROOT_HASH));
+        let executing_receipts = receipts_root(&mut witness, &executing.receipts, false);
+        let b4_hash = save_header(&mut witness, &header(4, 101, b3_hash, executing_receipts));
+        let a3_out = save_output_root(&mut witness, a3_hash);
+        let a4_out = save_output_root(&mut witness, a4_hash);
+        let b3_out = save_output_root(&mut witness, b3_hash);
+        let b4_out = save_output_root(&mut witness, b4_hash);
+
+        CrossChainMessageTransition {
+            witness,
+            previous_super_root: SuperRoot::new(
+                100,
+                vec![
+                    SuperOutputRoot { chain_id: INITIATING_CHAIN, output_root: a3_out },
+                    SuperOutputRoot { chain_id: EXECUTING_CHAIN, output_root: b3_out },
+                ],
+            ),
+            optimistic_blocks: vec![
+                SuperOptimisticBlock {
+                    chain_id: U256::from(INITIATING_CHAIN),
+                    block_hash: a4_hash,
+                    output_root: a4_out,
+                },
+                SuperOptimisticBlock {
+                    chain_id: U256::from(EXECUTING_CHAIN),
+                    block_hash: b4_hash,
+                    output_root: b4_out,
+                },
+            ],
+            claim: SuperRootProof::new(
+                101,
+                vec![
+                    SuperOutputRoot { chain_id: INITIATING_CHAIN, output_root: a4_out },
+                    SuperOutputRoot { chain_id: EXECUTING_CHAIN, output_root: b4_out },
+                ],
+            ),
+        }
+    }
+
+    fn consolidate_through_guest_oracle(
+        transition: CrossChainMessageTransition,
+    ) -> anyhow::Result<SuperConsolidationTransition> {
+        let mut configs = rollup_configs(&[INITIATING_CHAIN, EXECUTING_CHAIN]);
+        for config in configs.values_mut() {
+            config.hardforks.lagoon_time = Some(0);
+        }
+        block_on(async {
+            let (oracle, _) =
+                DefaultWitnessData::from_parts(transition.witness, BlobData::default())
+                    .get_oracle_and_blob_provider()
+                    .await?;
+            run_transition(
+                oracle,
+                transition.previous_super_root,
+                transition.optimistic_blocks,
+                &transition.claim,
+                dependency_set(&[INITIATING_CHAIN, EXECUTING_CHAIN], None),
+                &configs,
+                &Default::default(),
+            )
+            .await
+        })
+    }
+
+    #[test]
+    fn consolidation_keeps_valid_cross_chain_message_with_complete_witness() {
+        let fixture = cross_chain_message_transition(false);
+        let claim = fixture.claim.clone();
+        let optimistic_blocks = fixture.optimistic_blocks.clone();
+
+        let transition = consolidate_through_guest_oracle(fixture).unwrap();
+
+        assert_eq!(transition.super_root, hash_super_root_proof(&claim).unwrap());
+        assert_eq!(transition.optimistic_blocks, optimistic_blocks);
+    }
+
+    /// Regression test for #23204: a prover that withholds the root node of the initiating block's
+    /// receipts trie must abort the guest. Otherwise `MessageGraph::resolve` marks the valid
+    /// message invalid and the executing block gets replaced with a deposit-only block.
+    #[test]
+    #[should_panic(expected = "requested preimage key not present in witness")]
+    fn consolidation_aborts_when_initiating_receipts_missing_from_witness() {
+        let _ = consolidate_through_guest_oracle(cross_chain_message_transition(true));
     }
 }

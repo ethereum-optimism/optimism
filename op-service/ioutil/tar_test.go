@@ -89,3 +89,53 @@ func TestUntar_PathTraversalProtection(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, files, "No files should have been extracted due to path traversal protection")
 }
+
+func TestSanitizeTarPath(t *testing.T) {
+	outDir := t.TempDir()
+	tests := []struct {
+		name    string
+		tarPath string
+		want    string
+		wantErr string
+	}{
+		{name: "plain file", tarPath: "file.txt", want: "file.txt"},
+		{name: "nested file", tarPath: "dir/file.txt", want: filepath.Join("dir", "file.txt")},
+		{name: "dots inside a name", tarPath: "foo..bar", want: "foo..bar"},
+		{name: "internal parent that stays inside", tarPath: "a/../b", want: "b"},
+		{name: "leading parent", tarPath: "../x", wantErr: "path traversal detected"},
+		{name: "deep leading parent", tarPath: "../../../etc/passwd", wantErr: "path traversal detected"},
+		{name: "internal parent that escapes", tarPath: "a/../../x", wantErr: "path traversal detected"},
+		{name: "absolute path", tarPath: "/etc/passwd", wantErr: "absolute paths are not allowed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sanitizeTarPath(tt.tarPath, outDir)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestUntar_ConfinedToOutDir checks that extraction cannot leave outDir even when the
+// entry name passes sanitizeTarPath, here by writing through a symlink inside outDir.
+func TestUntar_ConfinedToOutDir(t *testing.T) {
+	outDir := t.TempDir()
+	outside := t.TempDir()
+	require.NoError(t, os.Symlink(outside, filepath.Join(outDir, "link")))
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	content := []byte("escaped")
+	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "link/escaped.txt", Mode: 0o644, Size: int64(len(content))}))
+	_, err := tw.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+
+	err = Untar(outDir, tar.NewReader(&buf))
+	require.ErrorContains(t, err, "path escapes from parent")
+	require.NoFileExists(t, filepath.Join(outside, "escaped.txt"))
+}

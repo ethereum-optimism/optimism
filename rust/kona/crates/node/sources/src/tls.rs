@@ -224,13 +224,17 @@ pub struct ReloadingRpcClient {
 impl ReloadingRpcClient {
     /// Builds the client from the current files and, if any TLS material is configured, starts
     /// watching it for changes.
+    ///
+    /// With a `request_timeout`, each request fails if it does not complete, including reading
+    /// the response, within that time. Clients rebuilt for new TLS files keep it.
     pub fn new(
         endpoint: Url,
         tls: TlsPaths,
         headers: HeaderMap,
+        request_timeout: Option<Duration>,
     ) -> Result<Self, ReloadingRpcClientError> {
         if !tls.is_configured() {
-            let client = build_rpc_client(&endpoint, &tls, &headers)?;
+            let client = build_rpc_client(&endpoint, &tls, &headers, request_timeout)?;
             return Ok(Self { client: Arc::new(RwLock::new(client)), watcher: None });
         }
 
@@ -266,13 +270,22 @@ impl ReloadingRpcClient {
             watcher.watch(dir, RecursiveMode::NonRecursive)?;
         }
 
-        let client = Arc::new(RwLock::new(build_rpc_client(&endpoint, &tls, &headers)?));
+        let client =
+            Arc::new(RwLock::new(build_rpc_client(&endpoint, &tls, &headers, request_timeout)?));
         let reload_client = Arc::clone(&client);
         let thread_endpoint = log_endpoint.clone();
         std::thread::Builder::new()
             .name("tls-reload".into())
             .spawn(move || {
-                run_reload_thread(&rx, &reload_client, &endpoint, &tls, &headers, &thread_endpoint)
+                run_reload_thread(
+                    &rx,
+                    &reload_client,
+                    &endpoint,
+                    &tls,
+                    &headers,
+                    request_timeout,
+                    &thread_endpoint,
+                )
             })
             .map_err(ReloadingRpcClientError::ReloadThread)?;
         tracing::info!(target: "signer", endpoint = %log_endpoint, dirs = ?dirs, "Starting certificate watcher for automatic TLS reload");
@@ -307,8 +320,12 @@ fn build_rpc_client(
     endpoint: &Url,
     tls: &TlsPaths,
     headers: &HeaderMap,
+    request_timeout: Option<Duration>,
 ) -> Result<RpcClient, ReloadingRpcClientError> {
     let mut builder = reqwest::Client::builder().default_headers(headers.clone());
+    if let Some(timeout) = request_timeout {
+        builder = builder.timeout(timeout);
+    }
     if tls.is_configured() {
         builder = builder.tls_backend_preconfigured(tls.client_config()?);
     }
@@ -339,10 +356,11 @@ fn run_reload_thread(
     endpoint: &Url,
     tls: &TlsPaths,
     headers: &HeaderMap,
+    request_timeout: Option<Duration>,
     log_endpoint: &str,
 ) {
     while panic::catch_unwind(AssertUnwindSafe(|| {
-        reload_loop(rx, client, endpoint, tls, headers, log_endpoint);
+        reload_loop(rx, client, endpoint, tls, headers, request_timeout, log_endpoint);
     }))
     .is_err()
     {
@@ -362,6 +380,7 @@ fn reload_loop(
     endpoint: &Url,
     tls: &TlsPaths,
     headers: &HeaderMap,
+    request_timeout: Option<Duration>,
     log_endpoint: &str,
 ) {
     // When a failure was last logged; set while rebuilds are failing.
@@ -381,7 +400,7 @@ fn reload_loop(
         }
 
         tracing::debug!(target: "signer:certificate-watcher", endpoint = %log_endpoint, "Reloading TLS configuration");
-        match build_rpc_client(endpoint, tls, headers) {
+        match build_rpc_client(endpoint, tls, headers, request_timeout) {
             Ok(new) => {
                 *client.write().unwrap_or_else(PoisonError::into_inner) = new;
                 failure_logged_at = None;
@@ -605,6 +624,7 @@ mod tests {
                     }),
                 },
                 HeaderMap::new(),
+                None,
             )
             .unwrap();
             assert!(client.is_watching());

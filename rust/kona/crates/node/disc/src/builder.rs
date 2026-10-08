@@ -1,6 +1,7 @@
 //! Contains a builder for the discovery service.
 
-use discv5::{Config, Discv5, Enr, enr::k256};
+use discv5::{Config, Discv5, Enr};
+use enr::k256;
 use kona_peers::{BootNodes, BootStoreFile, OpStackEnr};
 use std::net::IpAddr;
 use tokio::time::Duration;
@@ -47,7 +48,7 @@ impl LocalNode {
     /// broadcast to the other nodes in the network. See
     /// [the op-node implementation](https://github.com/ethereum-optimism/optimism/blob/174e55f0a1e73b49b80a561fd3fedd4fea5770c6/op-node/p2p/discovery.go#L61-L97)
     /// for the go equivalent
-    fn build_enr(self, chain_id: u64) -> Result<Enr, discv5::enr::Error> {
+    fn build_enr(self, chain_id: u64) -> Result<Enr, enr::Error> {
         let opstack = OpStackEnr::from_chain_id(chain_id);
         let mut opstack_data = Vec::new();
         use alloy_rlp::Encodable;
@@ -188,7 +189,8 @@ impl Discv5Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use discv5::{ConfigBuilder, ListenConfig, enr::CombinedKey};
+    use discv5::{ConfigBuilder, ListenConfig};
+    use enr::CombinedKey;
     use kona_peers::EnrValidation;
     use std::net::{IpAddr, Ipv4Addr};
 

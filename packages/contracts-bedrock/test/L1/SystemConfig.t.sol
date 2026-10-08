@@ -813,6 +813,19 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
     }
 
+    /// @notice Tests that INTEROP cannot be disabled by either authorized caller.
+    /// @param _byOwner Whether to call as the ProxyAdmin owner instead of the ProxyAdmin.
+    function testFuzz_setFeature_interopDisable_reverts(bool _byOwner) external {
+        address caller = _byOwner ? systemConfig.proxyAdminOwner() : address(systemConfig.proxyAdmin());
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(true);
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(caller);
+        systemConfig.setFeature(Features.INTEROP, false);
+    }
+
     /// @notice Tests that a global pause does not block ETHLockbox activation.
     function test_setFeature_ethLockboxEnableWhileGloballyPaused_succeeds() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
@@ -852,8 +865,10 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @notice Tests that `isFeatureEnabled` returns false for unset features.
     /// @param _feature The feature to check.
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
-        if (_feature == Features.ETH_LOCKBOX && systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            // Needs to be anything but ETH_LOCKBOX because we can't turn that feature off if it's on.
+        if (
+            (_feature == Features.ETH_LOCKBOX || _feature == Features.INTEROP)
+                && systemConfig.isFeatureEnabled(_feature)
+        ) {
             vm.skip(true);
         }
 
@@ -861,12 +876,6 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
             vm.prank(address(systemConfig.proxyAdmin()));
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
-        }
-
-        // Normalize INTEROP to avoid environment-dependent state
-        if (systemConfig.isFeatureEnabled(Features.INTEROP)) {
-            vm.prank(address(systemConfig.proxyAdmin()));
-            systemConfig.setFeature(Features.INTEROP, false);
         }
 
         assertFalse(systemConfig.isFeatureEnabled(_feature));

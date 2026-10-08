@@ -40,6 +40,10 @@ func TestPlayableGameTypesAreLifecycleSupported(t *testing.T) {
 	}
 }
 
+func TestTraceGameTypesArePlayable(t *testing.T) {
+	require.Subset(t, PlayableGameTypes, TraceGameTypes, "run-trace types must be parseable by PlayableGameTypeFromString")
+}
+
 func TestSetAllPlayableGameTypes(t *testing.T) {
 	for _, gameType := range PlayableGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {

@@ -20,8 +20,9 @@ use jsonrpsee_core::{client::ClientT, rpc_params};
 use jsonrpsee_http_client::{HttpClient, HttpClientBuilder};
 use kona_host::{DataFormat, interop::InteropHost};
 use kona_preimage::{
-    BidirectionalChannel, HintWriter, HintWriterClient, NativeChannel, OracleReader, PreimageKey,
-    PreimageOracleClient, errors::PreimageOracleResult,
+    BidirectionalChannel, DEPENDENCY_SET_KEY, HintWriter, HintWriterClient, L1_CONFIG_KEY,
+    L2_ROLLUP_CONFIG_KEY, NativeChannel, OracleReader, PreimageKey, PreimageOracleClient,
+    errors::PreimageOracleResult,
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
@@ -34,7 +35,8 @@ use kona_sp1_client_utils::{
     witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
 };
 use kona_sp1_ethereum_client_utils::{
-    super_consolidation::build_consolidation_outputs, super_range::build_range_outputs,
+    chain_config::ChainConfigs, super_consolidation::build_consolidation_outputs,
+    super_range::build_range_outputs,
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
 use serde::Deserialize;
@@ -51,6 +53,7 @@ pub const EXIT_INFRA: u8 = 2;
 #[derive(Clone, Debug)]
 pub struct RunConfig {
     /// Replay collected witnesses through the shared native cores instead of executing the guest.
+    /// Like the guest, the replay panics on a preimage missing from the witness.
     pub native_core: bool,
     /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
     /// the honest one, so the guest rejects the claim.
@@ -167,16 +170,27 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         synthesized.current_super_root,
         config.end_timestamp,
     )?;
+    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
+    let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
+    if !config.native_core {
+        // Test guests consume Local config keys; production guests ignore these preimages.
+        for (key, bytes) in [
+            (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set)?),
+            (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs)?),
+            (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config)?),
+        ] {
+            preloaded_preimages.push((PreimageKey::new_local(key.to()), bytes));
+        }
+    }
     let (range_witness, native_range_outputs) = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
-        &synthesized.preloaded_preimages,
+        &preloaded_preimages,
+        Some(&configs),
     )
     .await?;
 
-    // Witness collection above ran on the honest claim, so the witness stays valid; tampering only
-    // the replayed inputs leaves the guest re-deriving the real root and disagreeing with the
-    // claim.
+    // Witnesses were collected on the honest claim; see [`corrupt_range_claim`].
     let replay_range_inputs = if config.corrupt_claimed_root {
         corrupt_range_claim(&synthesized.range_inputs)?
     } else {
@@ -188,6 +202,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &replay_range_inputs,
         range_witness,
         super_range_elf.clone(),
+        Some(&configs),
     )
     .await
     {
@@ -227,7 +242,8 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     let (consolidation_witness, native_consolidation_outputs) = collect_consolidation_witness(
         consolidation_host,
         &synthesized.consolidation_inputs,
-        &synthesized.preloaded_preimages,
+        &preloaded_preimages,
+        Some(&configs),
     )
     .await?;
 
@@ -236,6 +252,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.consolidation_inputs,
         consolidation_witness,
         super_range_elf,
+        Some(&configs),
     )
     .await
     {
@@ -266,6 +283,53 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         "super-range program validated the optimistic transitions and consolidation",
     );
     Ok(Verdict::Valid)
+}
+
+/// Resolves deployment files as registry overrides, using embedded values for omitted files.
+pub fn deployment_chain_configs(host: &InteropHost, chain_ids: &[U256]) -> Result<ChainConfigs> {
+    ensure!(
+        chain_ids.iter().all(|id| *id <= U256::from(u64::MAX)),
+        "deployment chain ID does not fit in u64"
+    );
+    let rollup_configs = match host.read_rollup_configs() {
+        Some(configs) => configs.context("failed to read deployment rollup configs")?,
+        None => chain_ids
+            .iter()
+            .map(|id| {
+                let chain_id = id.saturating_to::<u64>();
+                let config =
+                    kona_registry::ROLLUP_CONFIGS.get(&chain_id).cloned().ok_or_else(|| {
+                        anyhow!("no embedded rollup config for deployment chain ID {chain_id}")
+                    })?;
+                Ok((chain_id, config))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()?,
+    };
+    let dependency_set = match host.read_dependency_set() {
+        Some(config) => config.context("failed to read deployment dependency set")?,
+        None => chain_ids
+            .first()
+            .and_then(|chain_id| {
+                kona_registry::DEPENDENCY_SETS.get(&chain_id.saturating_to::<u64>())
+            })
+            .cloned()
+            .ok_or_else(|| anyhow!("custom chains require a dependency-set config file"))?,
+    };
+    let l1_config = if host.l1_config_path.is_some() {
+        host.read_l1_config().context("failed to read deployment L1 config")?
+    } else {
+        let l1_chain_id = rollup_configs
+            .values()
+            .next()
+            .ok_or_else(|| anyhow!("deployment rollup config set is empty"))?
+            .l1_chain_id;
+        kona_registry::L1_CONFIGS.get(&l1_chain_id).cloned().ok_or_else(|| {
+            anyhow!("deployment L1 chain {l1_chain_id} requires an L1 config file")
+        })?
+    };
+    let configs = ChainConfigs { dependency_set, rollup_configs, l1_config };
+    configs.validate(chain_ids)?;
+    Ok(configs)
 }
 
 /// Fetches `superroot_atTimestamp` from the supplied supernode client.
@@ -501,6 +565,7 @@ async fn replay_range(
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Option<Arc<[u8]>>,
+    configs: Option<&ChainConfigs>,
 ) -> Result<SuperRangeOutputs> {
     if !native_core {
         return execute_sp1_range(
@@ -511,7 +576,7 @@ async fn replay_range(
         .await;
     }
     let (oracle, beacon) = witness.get_oracle_and_blob_provider().await?;
-    build_range_outputs(inputs.clone(), oracle, beacon).await
+    build_range_outputs(inputs.clone(), oracle, beacon, configs).await
 }
 
 async fn replay_consolidation(
@@ -519,6 +584,7 @@ async fn replay_consolidation(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
     super_range_elf: Option<Arc<[u8]>>,
+    configs: Option<&ChainConfigs>,
 ) -> Result<SuperConsolidationOutputs> {
     if !native_core {
         return execute_sp1_consolidation(
@@ -529,15 +595,16 @@ async fn replay_consolidation(
         .await;
     }
     let (oracle, _) = witness.get_oracle_and_blob_provider().await?;
-    build_consolidation_outputs(inputs.clone(), oracle).await
+    build_consolidation_outputs(inputs.clone(), oracle, configs).await
 }
 
 /// Flips a bit in the first claimed transition's optimistic output root.
 ///
-/// The guest's `validate_range_transition_output` compares the root it re-derives against the
-/// claimed one, so a tampered claim aborts the guest and the executor reports the claim invalid.
-/// Only the replayed inputs are corrupted — the collected witness still describes the honest
-/// transition — so this exercises the guest's claim check rather than a broken witness.
+/// Only the replayed inputs are corrupted, so the collected witness has no preimage for the
+/// tampered root. The SP1 guest aborts when it reads that preimage and the executor reports the
+/// claim invalid. Native-core replay panics on the same read instead of returning an error, so
+/// combining the corruption with native-core replay is unsupported: keep invalid-claim tests on the
+/// SP1 execute path.
 fn corrupt_range_claim(inputs: &SuperRangeInputs) -> Result<SuperRangeInputs> {
     let mut corrupted = inputs.clone();
     let transition = corrupted
@@ -607,10 +674,11 @@ pub async fn collect_range_witness(
     host: InteropHost,
     inputs: &SuperRangeInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
+    configs: Option<&ChainConfigs>,
 ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
     collect_witness(preloaded_preimages, host, |oracle, beacon| {
         let inputs = inputs.clone();
-        async move { build_range_outputs(inputs, oracle, beacon).await }
+        async move { build_range_outputs(inputs, oracle, beacon, configs).await }
     })
     .await
 }
@@ -620,10 +688,11 @@ pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
+    configs: Option<&ChainConfigs>,
 ) -> Result<(DefaultWitnessData, SuperConsolidationOutputs)> {
     collect_witness(preloaded_preimages, host, |oracle, _beacon| {
         let inputs = inputs.clone();
-        async move { build_consolidation_outputs(inputs, oracle).await }
+        async move { build_consolidation_outputs(inputs, oracle, configs).await }
     })
     .await
 }
@@ -1173,6 +1242,130 @@ mod tests {
                 super_root,
             }),
         }
+    }
+
+    #[test]
+    fn deployment_configs_use_registry_defaults_and_file_overrides() {
+        for case in ["registry", "rollup_override", "missing_custom_depset"] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut expected = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+            let rollup_config_paths = match case {
+                "registry" => None,
+                "rollup_override" => {
+                    expected.rollup_configs.get_mut(&10).unwrap().l1_chain_id = 11155111;
+                    expected.l1_config = kona_registry::L1_CONFIGS[&11155111].clone();
+                    let path = dir.path().join("rollup.json");
+                    std::fs::write(
+                        &path,
+                        serde_json::to_vec(&expected.rollup_configs[&10]).unwrap(),
+                    )
+                    .unwrap();
+                    Some(vec![path])
+                }
+                "missing_custom_depset" => {
+                    let mut rollup = expected.rollup_configs.remove(&10).unwrap();
+                    rollup.l2_chain_id = u64::MAX.into();
+                    let path = dir.path().join("rollup.json");
+                    std::fs::write(&path, serde_json::to_vec(&rollup).unwrap()).unwrap();
+                    expected.rollup_configs.insert(u64::MAX, rollup);
+                    Some(vec![path])
+                }
+                _ => unreachable!(),
+            };
+            let chain_ids =
+                expected.rollup_configs.keys().copied().map(U256::from).collect::<Vec<_>>();
+            let host = build_interop_host(
+                &HostInputs {
+                    l1_node_address: "http://127.0.0.1:1".into(),
+                    l1_beacon_address: "http://127.0.0.1:1".into(),
+                    l2_node_addresses: vec!["http://127.0.0.1:1".into()],
+                    rollup_config_paths,
+                    l1_config_path: None,
+                    dependency_set_path: None,
+                },
+                b256(0xaa),
+                &[],
+                b256(0xbb),
+                101,
+            )
+            .unwrap();
+            let result = deployment_chain_configs(&host, &chain_ids);
+            if case == "missing_custom_depset" {
+                assert_eq!(
+                    result.unwrap_err().to_string(),
+                    "custom chains require a dependency-set config file",
+                );
+            } else {
+                assert_eq!(result.unwrap(), expected, "case: {case}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn native_replay_uses_resolved_deployment_configs_without_elf_or_local_config_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+        configs.l1_config = Default::default();
+        let mut rollup = configs.rollup_configs.remove(&10).unwrap();
+        rollup.l2_chain_id = u64::MAX.into();
+        configs.rollup_configs.insert(u64::MAX, rollup.clone());
+        let dependency = configs.dependency_set.dependencies.remove(&10).unwrap();
+        configs.dependency_set.dependencies.insert(u64::MAX, dependency);
+        configs.dependency_set.override_message_expiry_window = Some(123);
+        let rollup_path = dir.path().join("rollup.json");
+        let dependency_path = dir.path().join("depset.json");
+        let l1_path = dir.path().join("l1.json");
+        for (path, bytes) in [
+            (&rollup_path, serde_json::to_vec(&rollup).unwrap()),
+            (&dependency_path, serde_json::to_vec(&configs.dependency_set).unwrap()),
+            (&l1_path, serde_json::to_vec(&configs.l1_config).unwrap()),
+        ] {
+            std::fs::write(path, bytes).unwrap();
+        }
+        let host = build_interop_host(
+            &HostInputs {
+                l1_node_address: "http://127.0.0.1:1".into(),
+                l1_beacon_address: "http://127.0.0.1:1".into(),
+                l2_node_addresses: vec!["http://127.0.0.1:1".into()],
+                rollup_config_paths: Some(vec![rollup_path.clone()]),
+                l1_config_path: Some(l1_path),
+                dependency_set_path: Some(dependency_path),
+            },
+            b256(0xaa),
+            &[],
+            b256(0xbb),
+            101,
+        )
+        .unwrap();
+        let loaded = deployment_chain_configs(&host, &[U256::from(u64::MAX)]).unwrap();
+        assert_eq!(loaded, configs);
+        std::fs::write(rollup_path, "invalid JSON after config resolution").unwrap();
+
+        let header = alloy_consensus::Header { number: 3, timestamp: 100, ..Default::default() };
+        let block_hash = header.hash_slow();
+        let responses = [100, 101]
+            .map(|timestamp| response_with_block_hash(timestamp, &[u64::MAX], 7, |_| block_hash));
+        let synthesized =
+            synthesize_execution(TimestampSpan::new(101, 101).unwrap(), b256(0xaa), 8, &responses)
+                .unwrap();
+        let mut preimages = PreimageStore::default();
+        for (key, bytes) in &synthesized.preloaded_preimages {
+            preimages.save_preimage(*key, bytes.clone()).unwrap();
+        }
+        preimages
+            .save_preimage(PreimageKey::new_keccak256(*block_hash), alloy_rlp::encode(&header))
+            .unwrap();
+        let witness = DefaultWitnessData::from_parts(preimages, BlobData::default());
+        let outputs =
+            replay_range(true, &synthesized.range_inputs, witness.clone(), None, Some(&loaded))
+                .await
+                .unwrap();
+        assert_eq!(outputs.transitions, synthesized.range_inputs.claimed_transitions);
+        assert_eq!(outputs.span, synthesized.range_inputs.span);
+        assert_eq!(outputs.l1_head, synthesized.range_inputs.l1_head);
+        let err =
+            replay_range(true, &synthesized.range_inputs, witness, None, None).await.unwrap_err();
+        assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 
     #[test]
