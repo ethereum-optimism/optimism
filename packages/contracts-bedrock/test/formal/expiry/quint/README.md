@@ -156,8 +156,8 @@ for every execution of that length; the runs were then stopped.
 
 | Instance | `Safety` holds for every execution of up to |
 |---|---|
-| `safe`, `safeNoTargetRule`, `safeNoMargin` | 10 steps |
-| `safeShorterWindow`, `safeResendRestarts` | 9 steps |
+| `safe`, `safeNoTargetRule`, `safeNoMargin`, `safeShorterWindow` | 10 steps |
+| `safeResendRestarts` | 9 steps |
 
 What this bound covers: an honest refund takes 8–9 steps, and every unsafe instance except
 `resendNoRestart` double-spends within 9 steps, so for those mitigations the safe instance is
