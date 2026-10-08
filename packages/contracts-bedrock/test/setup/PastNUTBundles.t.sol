@@ -28,7 +28,7 @@ abstract contract PastNUTBundles_TestInit is Test {
     address internal constant KARST_L2CM = 0x5398A70Eb0929dd7bfc73c59E7137d8C7CDF6669;
 
     /// @notice L2ContractsManager address encoded by the committed Lagoon NUT bundle.
-    address internal constant LAGOON_L2CM = 0xd946cE006a9Cb9cCEE7d76C43448ef02f5726C60;
+    address internal constant LAGOON_L2CM = 0x4Ac0E46fFD038FcAB7cDB357eDbdfA4FEAA36E40;
 }
 
 /// @title PastNUTBundles_OrderTarget
