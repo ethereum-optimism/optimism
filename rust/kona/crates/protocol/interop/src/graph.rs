@@ -267,7 +267,7 @@ where
             .logs
             .get_mut(message.inner.identifier.logIndex.saturating_to::<usize>())
             .ok_or(MessageGraphError::RemoteMessageNotFound {
-                chain_id: message.inner.identifier.chainId.to(),
+                chain_id: initiating_chain_id,
                 message_hash: message.inner.payloadHash,
             })?;
 
