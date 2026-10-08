@@ -227,7 +227,7 @@ where
             .flat_map(|receipt| receipt.logs())
             .nth(message.inner.identifier.logIndex.saturating_to())
             .ok_or(MessageGraphError::RemoteMessageNotFound {
-                chain_id: message.inner.identifier.chainId.to(),
+                chain_id: initiating_chain_id,
                 message_hash: message.inner.payloadHash,
             })?;
 
