@@ -15,8 +15,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, watch};
 
 use crate::{
-    L1WatcherQueries, OutputResponse, RollupNodeApiServer, SafeHeadResponse,
-    l1_watcher::L1WatcherQuerySender,
+    L1WatcherQueries, OutputResponse, RollupNodeApiServer, l1_watcher::L1WatcherQuerySender,
 };
 
 /// `RollupRpc`
@@ -84,15 +83,6 @@ impl RollupNodeApiServer for RollupRpc {
         )?;
 
         Ok(OutputResponse::from_v0(output_root, sync_status, l2_block_info))
-    }
-
-    /// This RPC endpoint is not supported. It is not necessary to track the safe head for every L1
-    /// block post-interop anymore so we can remove this method from the rpc interface.
-    async fn op_safe_head_at_l1_block(
-        &self,
-        _block_num: BlockNumberOrTag,
-    ) -> RpcResult<SafeHeadResponse> {
-        return Err(ErrorObject::from(ErrorCode::MethodNotFound));
     }
 
     async fn op_sync_status(&self) -> RpcResult<SyncStatus> {
