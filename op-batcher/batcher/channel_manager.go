@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var ErrReorg = errors.New("block does not extend existing chain")
@@ -57,11 +58,13 @@ type channelManager struct {
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+	// Amsterdam activation is unknown until the driver fetches the first L1 head. The config
+	// selected here is reassessed with the current activation status before its first submission.
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
-		defaultCfg:  cfgProvider.ChannelConfig(false),
+		defaultCfg:  cfgProvider.ChannelConfig(false, false),
 		rollupCfg:   rollupCfg,
 		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
@@ -220,11 +223,12 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 //
-// It will decide whether to switch DA type automatically.
-// When switching DA type, the channelManager state will be rebuilt
-// with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInfo) (txData, error) {
-	channel, err := s.getReadyChannel(l1Head, pi)
+// It will decide whether to switch DA type automatically, pricing DA under the L1 fork rules
+// active at l1Head. When switching DA type, the channelManager state will be rebuilt with a new
+// ChannelConfig.
+func (s *channelManager) TxData(l1Head *types.Header, isThrottling bool, pi pubInfo) (txData, error) {
+	l1HeadID := eth.HeaderBlockID(l1Head)
+	channel, err := s.getReadyChannel(l1HeadID, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -235,7 +239,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInf
 	}
 
 	// Call provider method to reassess optimal DA type
-	newCfg := s.cfgProvider.ChannelConfig(isThrottling)
+	newCfg := s.cfgProvider.ChannelConfig(isThrottling, isAmsterdamHeader(l1Head))
 
 	// No change:
 	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
@@ -258,7 +262,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInf
 	s.defaultCfg = newCfg
 
 	// Try again to get data to send on chain.
-	channel, err = s.getReadyChannel(l1Head, pi)
+	channel, err = s.getReadyChannel(l1HeadID, pi)
 	if err != nil {
 		return emptyTxData, err
 	}

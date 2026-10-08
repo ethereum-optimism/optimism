@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -262,7 +263,7 @@ func setupConductor(
 		return nil, err
 	}
 	t.Cleanup(rawClient.Close)
-	client := conrpc.NewAPIClient(rawClient)
+	client := conrpc.NewAPIClient(opclient.NewBaseRPCClient(rawClient))
 
 	return &conductor{
 		service: service,

@@ -92,13 +92,11 @@ Never hand-edit the generated snippets (`-check` fails on any hand edit), and
 never regenerate from unreleased code: if the flags changed since the manifest
 tag, the regenerated table would document behavior no released binary has.
 
-Enforcement runs as a review-gated Mintlify docs automation on a weekly
-schedule: it compares the newest finalized tag of each covered component
-(`op-batcher/v*`, `op-node/v*`, `op-proposer/v*`, `op-challenger/v*`,
-`op-conductor/v*`) against the tag in `manifest.json` and, when a newer
-release exists, regenerates per the steps above and proposes the change for
-human review. Local runs of the generator (`-check` for verification) cover
-the gap between scheduled runs.
+Regeneration is not yet automated. A monorepo CI job triggered by each
+finalized release tag will run the generator and open the docs pull request
+(ethereum-optimism/solutions#1518, Phase 2). Until it exists, regenerate
+locally per the steps above when a release is published; `-check` verifies
+the committed snippets at any time.
 
 ## Adding a component
 
@@ -108,7 +106,7 @@ the gap between scheduled runs.
 2. Add its latest finalized release tag to `manifest.json`.
 3. Run the generator (at that tag, or at a tag-parity-verified commit) and
    import the new snippet from the component's reference page.
-4. Extend the docs automation prompt to watch the new component's release
+4. Extend the CI regeneration job to watch the new component's release
    tag pattern.
 
 ## Ownership
@@ -121,15 +119,15 @@ model in the Solutions repo's
 
 | Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
-| Generated snippets (`snippets/generated/`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
+| Generator code + its CI job (this directory, the regeneration workflow) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
+| Generated snippets (`snippets/generated/`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
 | Flag facts (each component's `flags/` package, op-service flag families) | Component engineers | Component team | Component team; the docs table follows at the next finalized release |
 
 Known residual gaps (accepted, by design):
 
 - The tables document the manifest release tags, not `develop`. Flag changes
   merged after a release are intentionally not reflected until the next
-  finalized tag is published and the automation (or a maintainer) regenerates.
+  finalized tag is published and the CI job (or a maintainer) regenerates.
 - The required-flag lists are mirrored in `main.go` because the components do
   not export them. A rename fails the generator's sanity check; adding a brand
   new required flag without updating the mirror would list it as optional.

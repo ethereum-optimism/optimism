@@ -1,13 +1,10 @@
-//! Utilities for configuring mutual TLS clients.
+//! Utilities for configuring mutual TLS clients that reload their material when it changes on disk.
 
-use std::{env, path::PathBuf, sync::Arc};
+use std::{env, path::PathBuf};
 
-use alloy_transport_http::reqwest;
-use anyhow::{Context, Result, bail, ensure};
-use rustls::{
-    ClientConfig,
-    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
-};
+use alloy_transport_http::reqwest::{Url, header::HeaderMap};
+use anyhow::{Context, Result, bail};
+use kona_sources::{ClientCert, ReloadingRpcClient, TlsPaths};
 
 use crate::prefixed_env_var;
 
@@ -46,50 +43,20 @@ impl ClientTls {
         }
     }
 
-    /// Builds a rustls client configuration that trusts platform roots and the configured CA.
-    pub fn client_config(&self) -> Result<ClientConfig> {
-        let ca_certs = CertificateDer::pem_file_iter(&self.ca)
-            .with_context(|| format!("failed to read CA certificate from {}", self.ca.display()))?
-            .collect::<Result<Vec<_>, _>>()
-            .with_context(|| {
-                format!("failed to parse CA certificate from {}", self.ca.display())
-            })?;
-        ensure!(!ca_certs.is_empty(), "no CA certificates found in {}", self.ca.display());
-
-        let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
-        let verifier = rustls_platform_verifier::Verifier::new_with_extra_roots(
-            ca_certs,
-            Arc::clone(&provider),
+    /// Builds a JSON-RPC client over mutual TLS; see [`ReloadingRpcClient`] for reloading.
+    ///
+    /// Only the configured CA is trusted to verify the server.
+    pub fn rpc_client(&self, endpoint: Url) -> Result<ReloadingRpcClient> {
+        ReloadingRpcClient::new(
+            endpoint,
+            TlsPaths {
+                ca_cert: Some(self.ca.clone()),
+                client_cert: Some(ClientCert { cert: self.cert.clone(), key: self.key.clone() }),
+            },
+            HeaderMap::new(),
+            None,
         )
-        .context("failed to configure platform and custom CA certificates")?;
-
-        let certs = CertificateDer::pem_file_iter(&self.cert)
-            .with_context(|| {
-                format!("failed to read client certificate from {}", self.cert.display())
-            })?
-            .collect::<Result<Vec<_>, _>>()
-            .with_context(|| {
-                format!("failed to parse client certificate from {}", self.cert.display())
-            })?;
-        ensure!(!certs.is_empty(), "no client certificates found in {}", self.cert.display());
-        let key = PrivateKeyDer::from_pem_file(&self.key)
-            .with_context(|| format!("failed to read private key from {}", self.key.display()))?;
-
-        ClientConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
-            .context("failed to configure TLS protocol versions")?
-            .dangerous()
-            .with_custom_certificate_verifier(Arc::new(verifier))
-            .with_client_auth_cert(certs, key)
-            .context("failed to configure client certificate")
-    }
-
-    /// Builds a reqwest client configured for mutual TLS.
-    pub fn http_client(&self) -> Result<reqwest::Client> {
-        reqwest::Client::builder()
-            .tls_backend_preconfigured(self.client_config()?)
-            .build()
-            .context("failed to build mTLS HTTP client")
+        .context("failed to build mTLS RPC client")
     }
 }
 
@@ -152,24 +119,24 @@ mod tests {
     }
 
     #[test]
-    fn client_config_accepts_valid_pem_material() {
+    fn rpc_client_accepts_valid_pem_material() {
         let tls = ClientTls {
             ca: fixture("ca.crt"),
             cert: fixture("client.crt"),
             key: fixture("client.key"),
         };
 
-        tls.client_config().unwrap();
+        tls.rpc_client("https://localhost:1".parse().unwrap()).unwrap();
     }
 
     #[test]
-    fn client_config_rejects_non_pem_material() {
+    fn rpc_client_rejects_non_pem_material() {
         let tls = ClientTls {
             ca: Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
             cert: fixture("client.crt"),
             key: fixture("client.key"),
         };
 
-        assert!(tls.client_config().is_err());
+        assert!(tls.rpc_client("https://localhost:1".parse().unwrap()).is_err());
     }
 }

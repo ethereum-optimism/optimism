@@ -16,8 +16,8 @@ import (
 const (
 	metricPollInterval         = 100 * time.Millisecond
 	stateWaitTimeout           = 10 * time.Minute
-	defenseTasksSpawnedMetric  = "kona_sp1_proposer_games_defense_spawned"
-	gameProvingFailuresMetric  = "kona_sp1_proposer_game_proving_error"
+	defenseTasksSpawnedMetric  = "op_zk_proposer_games_defense_spawned"
+	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
 	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
@@ -26,7 +26,7 @@ type Runtime interface {
 	MetricsClient() client.HTTP
 }
 
-// ZKProposer verifies the observable state of a running kona-sp1-proposer.
+// ZKProposer verifies the observable state of a running op-zk-proposer.
 type ZKProposer struct {
 	t       devtest.T
 	log     log.Logger

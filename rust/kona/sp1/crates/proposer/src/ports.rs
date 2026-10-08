@@ -11,6 +11,7 @@ use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
 use crate::{
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     prover::ProofKeys,
+    proving::ProofRequestCounts,
     superroot::SuperRootAt,
 };
 
@@ -266,6 +267,8 @@ pub(crate) trait ProofEngine: Send + Sync {
     /// Resets only terminal requests, returning the number reset.
     /// Scheduler policy requires the caller to skip games with tracked proving tasks.
     fn retry_terminal_requests(&self, game_address: Address) -> usize;
+    /// SPN request slots of games still being proven, by kind and state.
+    fn request_counts(&self) -> ProofRequestCounts;
 }
 
 /// Confirmed proposer transaction effects.

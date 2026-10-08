@@ -17,7 +17,7 @@ use kona_sp1_super_range_executor::{
 )]
 struct Cli {
     /// Replay the collected witnesses through the shared native cores instead of executing the
-    /// SP1 guest ELF.
+    /// SP1 guest ELF. Like the guest, the replay panics on a preimage missing from the witness.
     #[arg(long)]
     native_core: bool,
     /// Corrupt the claimed optimistic output root the guest sees, so it rejects the claim.

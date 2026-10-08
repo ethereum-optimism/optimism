@@ -43,7 +43,7 @@ use crate::{
         BondDistributionMode, DisputeGameFactory::DisputeGameFactoryInstance, GameStatus,
         ProposalStatus,
     },
-    metrics::{ProposerGauge, record_deadline_passed, token_balance},
+    metrics::{ProposerGauge, record_deadline_passed, record_proof_requests, token_balance},
     ports::{
         ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
         QueryTime, SuperRootSource,
@@ -281,7 +281,7 @@ impl ProposerIdentity {
     pub fn log_startup_info(&self, prestates_url: &Url) {
         tracing::info!(
             version = %self.version,
-            prestates_url = %crate::config::redacted_url(prestates_url),
+            prestates_url = %kona_sources::redacted_url(prestates_url),
             "proposer identity",
         );
     }
@@ -341,7 +341,7 @@ pub struct Game {
 impl Game {
     /// Returns true when the proposer owns this game's defense, resolution, and
     /// claim lifecycle: its `absolutePrestate()` is in the known-prestates set
-    /// (artifacts loadable from `KONA_SP1_PROPOSER_PRESTATES_URL`, proving keys not poisoned).
+    /// (artifacts loadable from `OP_ZK_PROPOSER_PRESTATES_URL`, proving keys not poisoned).
     ///
     /// Lifecycle ownership is prestate-based, not creator-based. Claims stay
     /// credit-driven, so iterating foreign games costs nothing where the proposer
@@ -885,7 +885,7 @@ pub struct Proposer {
     /// Serialized transaction submission and receipt decoding.
     action_executor: Arc<dyn ActionExecutor>,
     /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()`
-    /// hash, fetched from `KONA_SP1_PROPOSER_PRESTATES_URL` on demand (see [`PrestateCache`]).
+    /// hash, fetched from `OP_ZK_PROPOSER_PRESTATES_URL` on demand (see [`PrestateCache`]).
     pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
@@ -1154,7 +1154,7 @@ impl Proposer {
         let game_args = self.l1_view.registered_game_args(BlockId::latest()).await?;
         if !self.prestates.ensure_loaded(game_args.absolute_prestate).await {
             // Not fatal: creation stays paused until the artifacts appear
-            // under KONA_SP1_PROPOSER_PRESTATES_URL (PrestateCache::ensure_loaded logged why).
+            // under OP_ZK_PROPOSER_PRESTATES_URL (PrestateCache::ensure_loaded logged why).
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
                 "registered prestate programs unavailable; creation will pause"
@@ -3053,6 +3053,7 @@ impl Proposer {
         if let Some(anchor_game) = anchor_game {
             ProposerGauge::AnchorGameL2SequenceNumber.set(anchor_game.l2_sequence_number as f64);
         }
+        record_proof_requests(&self.proof_engine.request_counts());
 
         tokio::join!(
             self.collect_gauge(ProposerGauge::MaxProposableSequenceNumber, async {
@@ -3062,6 +3063,13 @@ impl Proposer {
                 let balance = self.l1_view.signer_balance(self.proposer_address).await?;
                 Ok(Some(token_balance(balance)))
             }),
+            self.collect_gauges(
+                [ProposerGauge::SignerNonce, ProposerGauge::SignerPendingNonce],
+                async {
+                    let nonces = self.l1_view.nonce_state(self.proposer_address).await?;
+                    Ok(Some([nonces.latest as f64, nonces.pending as f64]))
+                }
+            ),
             async {
                 if self.config.proof_provider == ProofProviderKind::Network {
                     self.collect_gauge(
@@ -3079,17 +3087,33 @@ impl Proposer {
         gauge: ProposerGauge,
         sample: impl Future<Output = Result<Option<f64>>>,
     ) {
+        self.collect_gauges([gauge], async { Ok(sample.await?.map(|value| [value])) }).await;
+    }
+
+    /// Sets gauges read together from one observation; a failed observation marks all of them
+    /// `NaN`.
+    async fn collect_gauges<const N: usize>(
+        &self,
+        gauges: [ProposerGauge; N],
+        sample: impl Future<Output = Result<Option<[f64; N]>>>,
+    ) {
         let timeout = Duration::from_secs(self.config.proof_provider_config.network_calls_timeout);
         match time::timeout(timeout, sample)
             .await
             .context("metric observation timed out")
             .and_then(|result| result)
         {
-            Ok(Some(value)) => gauge.set(value),
+            Ok(Some(values)) => {
+                for (gauge, value) in gauges.into_iter().zip(values) {
+                    gauge.set(value);
+                }
+            }
             Ok(None) => {}
             Err(error) => {
-                gauge.set(f64::NAN);
-                tracing::warn!(?gauge, %error, "Failed to fetch metric");
+                for gauge in gauges {
+                    gauge.set(f64::NAN);
+                }
+                tracing::warn!(?gauges, %error, "Failed to fetch metric");
                 ProposerGauge::MetricsError.increment(1.0);
             }
         }
@@ -3573,7 +3597,7 @@ impl Proposer {
     /// Check if we should create a game.
     ///
     /// In fast finality mode this first selects proving for owned
-    /// unchallenged games without one (up to `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT`,
+    /// unchallenged games without one (up to `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT`,
     /// counting ALL in-flight proving tasks), then skips creation while at
     /// that capacity: never create games faster than they can be proven.
     ///
@@ -4465,7 +4489,7 @@ pub enum UnknownPrestatePolicy {
 pub const UNKNOWN_PRESTATE_POLICY: UnknownPrestatePolicy = UnknownPrestatePolicy::Pause;
 
 /// How long a failed prestate artifact load is cached before the next fetch
-/// attempt. Bounds `KONA_SP1_PROPOSER_PRESTATES_URL` traffic and log noise for genuinely
+/// attempt. Bounds `OP_ZK_PROPOSER_PRESTATES_URL` traffic and log noise for genuinely
 /// unknown prestates while keeping them retryable: an operator can publish
 /// artifacts later and the proposer self-heals without a restart.
 pub const UNKNOWN_PRESTATE_RETRY: Duration = Duration::from_secs(60);
@@ -4517,7 +4541,7 @@ impl std::fmt::Display for PrestateKeyError {
 impl std::error::Error for PrestateKeyError {}
 
 /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()` hash,
-/// fetched from the base `KONA_SP1_PROPOSER_PRESTATES_URL` on demand, plus per-prestate SP1
+/// fetched from the base `OP_ZK_PROPOSER_PRESTATES_URL` on demand, plus per-prestate SP1
 /// proving keys for the defend path.
 ///
 /// The artifact directory is consulted live on every cache miss (subject to
@@ -4899,6 +4923,10 @@ mod tests {
         fn retry_terminal_requests(&self, game_address: Address) -> usize {
             self.retried.lock().push(game_address);
             0
+        }
+
+        fn request_counts(&self) -> crate::proving::ProofRequestCounts {
+            crate::proving::ProofRequestCounts::new()
         }
     }
 
@@ -5291,7 +5319,9 @@ mod tests {
         }
 
         async fn nonce_state(&self, _proposer: Address) -> anyhow::Result<NonceState> {
-            panic!("unexpected L1 call: nonce_state")
+            self.record("nonce_state");
+            self.fail_if_configured("nonce_state")?;
+            Ok(NonceState { pending: 0, latest: 0 })
         }
 
         async fn respected_game_type(&self, _block: BlockId) -> anyhow::Result<u32> {
@@ -5429,7 +5459,7 @@ mod tests {
 
     fn write_test_prestate_artifacts(name: &str, prestate: B256) -> std::path::PathBuf {
         let dir = std::env::temp_dir()
-            .join(format!("kona-sp1-proposer-sync-test-{}-{name}", std::process::id()));
+            .join(format!("op-zk-proposer-sync-test-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         for suffix in [".agg.bin.gz", ".range.bin.gz"] {
             let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
@@ -5574,7 +5604,7 @@ mod tests {
                 recorder
                     .handle()
                     .render()
-                    .contains("kona_sp1_proposer_defense_deadline_remaining_seconds NaN")
+                    .contains("op_zk_proposer_defense_deadline_remaining_seconds NaN")
             );
         }
 
@@ -5605,13 +5635,9 @@ mod tests {
             );
             let scrape = recorder.handle().render();
             assert!(
-                scrape.contains(
-                    "kona_sp1_proposer_deadline_passed_total{window=\"fast_finality\"} 1"
-                )
+                scrape.contains("op_zk_proposer_deadline_passed_total{window=\"fast_finality\"} 1")
             );
-            assert!(
-                scrape.contains("kona_sp1_proposer_deadline_passed_total{window=\"defense\"} 2")
-            );
+            assert!(scrape.contains("op_zk_proposer_deadline_passed_total{window=\"defense\"} 2"));
         }
 
         #[tokio::test]
@@ -5657,12 +5683,12 @@ mod tests {
             }
             let calls_before = view.calls().len();
             proposer.fetch_proposer_metrics().await;
-            assert_eq!(&view.calls()[calls_before..], ["signer_balance"]);
+            let mut metric_calls = view.calls()[calls_before..].to_vec();
+            metric_calls.sort_unstable();
+            assert_eq!(metric_calls, ["nonce_state", "signer_balance"]);
             let scrape = recorder.handle().render();
-            assert!(scrape.contains("kona_sp1_proposer_defense_deadline_remaining_seconds -5"));
-            assert!(
-                scrape.contains("kona_sp1_proposer_deadline_passed_total{window=\"defense\"} 1")
-            );
+            assert!(scrape.contains("op_zk_proposer_defense_deadline_remaining_seconds -5"));
+            assert!(scrape.contains("op_zk_proposer_deadline_passed_total{window=\"defense\"} 1"));
             assert!(!scrape.contains("window=\"fast_finality\""));
         }
 
@@ -5701,12 +5727,12 @@ mod tests {
                 proposer.fetch_proposer_metrics().await;
                 let scrape = recorder.handle().render();
                 assert!(scrape.contains(&format!(
-                    "kona_sp1_proposer_defense_deadline_remaining_seconds {expected}"
+                    "op_zk_proposer_defense_deadline_remaining_seconds {expected}"
                 )));
-                assert!(scrape.contains("kona_sp1_proposer_signer_balance_eth 1.25"));
+                assert!(scrape.contains("op_zk_proposer_signer_balance_eth 1.25"));
                 if misses > 0 {
                     assert!(scrape.contains(&format!(
-                        "kona_sp1_proposer_deadline_passed_total{{window=\"defense\"}} {misses}"
+                        "op_zk_proposer_deadline_passed_total{{window=\"defense\"}} {misses}"
                     )));
                 }
             }
@@ -5717,7 +5743,7 @@ mod tests {
                 recorder
                     .handle()
                     .render()
-                    .contains("kona_sp1_proposer_defense_deadline_remaining_seconds NaN")
+                    .contains("op_zk_proposer_defense_deadline_remaining_seconds NaN")
             );
             proposer.l1_view = Arc::new(RecordingL1View::default());
             proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
@@ -5726,7 +5752,7 @@ mod tests {
                 .render()
                 .lines()
                 .find_map(|line| {
-                    line.strip_prefix("kona_sp1_proposer_defense_deadline_remaining_seconds ")
+                    line.strip_prefix("op_zk_proposer_defense_deadline_remaining_seconds ")
                         .map(|value| value.parse::<f64>().unwrap())
                 })
                 .unwrap();

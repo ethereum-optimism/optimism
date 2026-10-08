@@ -323,7 +323,8 @@ impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'static>
         attributes: OpPayloadAttributes,
     ) -> Result<Self, alloy_rlp::Error> {
         let encoded_transactions = attributes.transactions.unwrap_or_default();
-        validate_post_exec_entry_count(&encoded_transactions)?;
+        validate_post_exec_entry_count(&encoded_transactions)
+            .map_err(|error| alloy_rlp::Error::Custom(error.as_reason()))?;
         let transactions = encoded_transactions
             .into_iter()
             .map(|data| decode_2718_canonical(data.as_ref()).map(|tx| WithEncoded::new(data, tx)))

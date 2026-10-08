@@ -253,14 +253,12 @@ contract DeployOwnership is Deploy {
     function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
         // Deploy the safe with the extra deployer key, and keep the threshold at 1 to allow for further setup.
         SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
-        addr_ = payable(
-            deploySafe({
+        addr_ = payable(deploySafe({
                 _name: "SecurityCouncilSafe",
                 _owners: exampleCouncilConfig.safeConfig.owners,
                 _threshold: 1,
                 _keepDeployer: true
-            })
-        );
+            }));
     }
 
     /// @notice Deploy Guardian Safe.
@@ -299,9 +297,7 @@ contract DeployOwnership is Deploy {
         // Deploy and add the Liveness Module.
         address livenessModule = deployLivenessModule();
         _callViaSafe({
-            _safe: safe,
-            _target: address(safe),
-            _data: abi.encodeCall(ModuleManager.enableModule, (livenessModule))
+            _safe: safe, _target: address(safe), _data: abi.encodeCall(ModuleManager.enableModule, (livenessModule))
         });
 
         // Configure the LivenessModule2 (second step of installation)
@@ -311,17 +307,17 @@ contract DeployOwnership is Deploy {
             _target: livenessModule,
             _data: abi.encodeCall(
                 LivenessModule2.configureLivenessModule,
-                (
-                    LivenessModule2.ModuleConfig({
+                (LivenessModule2.ModuleConfig({
                         livenessResponsePeriod: livenessModuleConfig.livenessInterval,
                         fallbackOwner: livenessModuleConfig.fallbackOwner
-                    })
-                )
+                    }))
             )
         });
 
         // Finalize configuration by removing the additional deployer key.
-        removeDeployerFromSafe({ _name: "SecurityCouncilSafe", _newThreshold: exampleCouncilConfig.safeConfig.threshold });
+        removeDeployerFromSafe({
+            _name: "SecurityCouncilSafe", _newThreshold: exampleCouncilConfig.safeConfig.threshold
+        });
 
         // Verify the module was configured correctly
         LivenessModule2.ModuleConfig memory verifyConfig =

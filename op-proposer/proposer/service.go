@@ -255,7 +255,6 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPCConfig.ListenPort,
 		ps.Version,
 		oprpc.WithLogger(ps.Log),
-		oprpc.WithRPCRecorder(ps.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPCConfig.EnableAdmin {
 		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Log)

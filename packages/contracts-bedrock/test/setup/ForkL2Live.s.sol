@@ -45,8 +45,10 @@ contract ForkL2Live is Deployer {
             isCustomGasToken = false;
         }
 
-        try IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-        returns (bool isInteropEnabled_) {
+        try IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS)
+            .isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) returns (
+            bool isInteropEnabled_
+        ) {
             isInteropEnabled = isInteropEnabled_;
             console.log("ForkL2Live: Interop features detected");
         } catch {

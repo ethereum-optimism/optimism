@@ -34,7 +34,10 @@ use crate::{
         SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
-    proving::{GameProofInputs, InMemoryProofProgress, ProveGameRequest, prove_game_inner},
+    proving::{
+        GameProofInputs, InMemoryProofProgress, ProofRequestCounts, ProveGameRequest,
+        prove_game_inner,
+    },
     signer::{FeeCaps, SignerLock},
     superroot::{ResponseSelection, SuperrootClient},
 };
@@ -545,6 +548,10 @@ impl ProofEngine for ProductionProofEngine {
 
     fn retry_terminal_requests(&self, game_address: Address) -> usize {
         self.proof_progress.retry_terminal_requests(game_address)
+    }
+
+    fn request_counts(&self) -> ProofRequestCounts {
+        self.proof_progress.request_counts()
     }
 }
 

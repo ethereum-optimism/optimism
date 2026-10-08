@@ -56,7 +56,7 @@ type LogsDBChainIngester struct {
 	ethClient        EthClient
 	logsDB           LogsDB
 	dataDir          string
-	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
+	startTimestamp   uint64        // Timestamp at which we report Ready (now minus assume-valid-before)
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
@@ -83,7 +83,7 @@ type LogsDBChainIngester struct {
 }
 
 // NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
-// startTimestamp is when we report Ready() = true (typically now).
+// startTimestamp is when we report Ready() = true (now minus assume-valid-before).
 // backfillDuration is how far back from startTimestamp to begin ingestion.
 func NewLogsDBChainIngester(
 	parentCtx context.Context,

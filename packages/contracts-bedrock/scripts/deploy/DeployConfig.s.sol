@@ -240,7 +240,7 @@ contract DeployConfig is Script {
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
         if (_l2OutputOracleStartingTimestamp < 0) {
             bytes32 tag = l1StartingBlockTag();
-            string memory cmd = string.concat("cast block ", vm.toString(tag), " --json | jq .timestamp");
+            string memory cmd = string.concat("cast block ", vm.toString(tag), " --json | jq '(.data // .).timestamp'");
             string memory res = Process.bash(cmd);
             return stdJson.readUint(res, "");
         }
@@ -421,7 +421,7 @@ contract DeployConfig is Script {
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
-        string memory cmd = string.concat("cast block ", _tag, " --json | jq -r .hash");
+        string memory cmd = string.concat("cast block ", _tag, " --json | jq -r '(.data // .).hash'");
         bytes memory res = bytes(Process.bash(cmd));
         return abi.decode(res, (bytes32));
     }
@@ -430,11 +430,7 @@ contract DeployConfig is Script {
         return _jsonInp.readBoolOr(_key, _defaultValue);
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        uint256 _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, uint256 _defaultValue)
         internal
         view
         returns (uint256)
@@ -442,11 +438,7 @@ contract DeployConfig is Script {
         return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readUint(_key) : _defaultValue;
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        address _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, address _defaultValue)
         internal
         view
         returns (address)
@@ -475,11 +467,7 @@ contract DeployConfig is Script {
         return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readInt(_key) : _defaultValue;
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        bytes32 _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, bytes32 _defaultValue)
         internal
         view
         returns (bytes32)

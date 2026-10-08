@@ -151,12 +151,12 @@
       "target": "kona-host",
       "paths": ["rust/**"]
     },
-    "kona-sp1-proposer": {
+    "op-zk-proposer": {
       "type": "rust",
       "check": "rust",
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
-      "target": "kona-sp1-proposer",
+      "target": "op-zk-proposer",
       "paths": ["rust/**"]
     },
     "op-reth": {

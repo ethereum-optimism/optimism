@@ -159,10 +159,11 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 
 func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	// Calculate start timestamp once for all components.
+	// History up to startTimestamp is assumed valid; everything after it is cross-validated.
 	// Chain ingesters will start ingesting from (startTimestamp - backfillDuration)
 	// and report Ready() once they reach startTimestamp.
-	// Cross-validator initializes to startTimestamp and waits for chains to catch up.
-	startTimestamp := uint64(clock.SystemClock.Now().Unix())
+	// Cross-validator initializes to startTimestamp and validates every later timestamp.
+	startTimestamp := uint64(clock.SystemClock.Now().Add(-cfg.AssumeValidBefore).Unix())
 
 	chains := make(map[eth.ChainID]ChainIngester)
 

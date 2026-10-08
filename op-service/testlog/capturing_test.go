@@ -1,6 +1,8 @@
 package testlog_test
 
 import (
+	"io"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -127,4 +129,19 @@ func TestCaptureLoggerConcurrent(t *testing.T) {
 	want := len(loggers) * writersPerLogger * perWriter
 	require.Equal(t, want, len(logs.FindLogs(testlog.NewMessageFilter("concurrent"))), "no records may be lost")
 	require.Equal(t, writersPerLogger*perWriter, len(logs.FindLogs(testlog.NewAttributesFilter("name", "childX"))))
+}
+
+// TestCaptureLoggerWithGroup checks that a handler derived with WithGroup keeps
+// the attributes it inherited, so filters still see them on captured records.
+func TestCaptureLoggerWithGroup(t *testing.T) {
+	h := testlog.WrapCaptureLogger(slog.NewTextHandler(io.Discard, nil))
+	logs := h.(*testlog.CapturingHandler)
+	grouped := slog.New(h.WithAttrs([]slog.Attr{slog.String("parent", "x")}).WithGroup("g"))
+	grouped.Info("grouped", "own", "y")
+
+	rec := logs.FindLog(testlog.NewMessageFilter("grouped"))
+	require.NotNil(t, rec)
+	require.Equal(t, "x", rec.AttrValue("parent"))
+	require.Equal(t, "y", rec.AttrValue("own"))
+	require.NotNil(t, logs.FindLog(testlog.NewAttributesFilter("parent", "x")))
 }

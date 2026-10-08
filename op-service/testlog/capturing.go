@@ -132,6 +132,7 @@ func (c *CapturingHandler) WithGroup(name string) slog.Handler {
 	return &CapturingHandler{
 		handler: c.handler.WithGroup(name),
 		records: c.records,
+		attrs:   c.attrs,
 	}
 }
 
