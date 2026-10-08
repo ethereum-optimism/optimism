@@ -22,10 +22,10 @@ contract SuperchainETHBridge is ISemver {
     error InvalidCrossDomainSender();
 
     /// @notice Thrown when refunding a send whose message has not expired.
-    error MessageNotExpired();
+    error SuperchainETHBridge_MessageNotExpired();
 
     /// @notice Thrown when refunding a send that was already refunded.
-    error AlreadyRefunded();
+    error SuperchainETHBridge_AlreadyRefunded();
 
     /// @notice Emitted when ETH is sent from one chain to another.
     /// @param from          Address of the sender.
@@ -94,9 +94,9 @@ contract SuperchainETHBridge is ISemver {
         emit RelayETH(_from, _to, _amount, source);
     }
 
-    /// @notice Returns the ETH of a send whose message expired: its destination never relayed it, and now never can.
-    ///         Anyone can call it, and the ETH goes to the sender. The arguments are those of the send's message, which
-    ///         the message hash binds.
+    /// @notice Returns the ETH of a send whose message expired: its destination never relayed it,
+    ///         and now never can. Anyone can call it, and the ETH goes to the sender. The arguments
+    ///         are those of the send's message, which the message hash binds.
     /// @param _destination Chain ID of the destination chain of the send.
     /// @param _nonce       Nonce of the send's message.
     /// @param _from        Address that sent the ETH.
@@ -113,9 +113,9 @@ contract SuperchainETHBridge is ISemver {
         });
 
         if (!IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiredMessages(messageHash)) {
-            revert MessageNotExpired();
+            revert SuperchainETHBridge_MessageNotExpired();
         }
-        if (refunded[messageHash]) revert AlreadyRefunded();
+        if (refunded[messageHash]) revert SuperchainETHBridge_AlreadyRefunded();
 
         refunded[messageHash] = true;
 

@@ -11,34 +11,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/lmittmann/w3"
 )
 
 const postGenesisInteropActivationDelay = uint64(20)
-
-var sendETHFn = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
-
-type sendETHTrigger struct {
-	Recipient   common.Address
-	Destination eth.ChainID
-}
-
-func (t *sendETHTrigger) To() (*common.Address, error) {
-	addr := predeploys.SuperchainETHBridgeAddr
-	return &addr, nil
-}
-
-func (t *sendETHTrigger) EncodeInput() ([]byte, error) {
-	return sendETHFn.EncodeArgs(t.Recipient, t.Destination.ToBig())
-}
-
-func (t *sendETHTrigger) AccessList() (types.AccessList, error) {
-	return nil, nil
-}
 
 func newPostGenesisSupernodeInterop(t devtest.T) *presets.TwoL2SupernodeInterop {
 	return presets.NewTwoL2SupernodeInterop(t, postGenesisInteropActivationDelay,
@@ -149,18 +126,8 @@ func bridgeETH(
 	amount eth.ETH,
 ) (*types.Receipt, *types.Receipt) {
 	require := t.Require()
-
-	sendTx := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](
-		sender.Plan(),
-		txplan.WithValue(amount),
-	)
-	sendTx.Content.Set(&sendETHTrigger{
-		Recipient:   recipient.Address(),
-		Destination: recipient.ChainID(),
-	})
-
-	sendReceipt, err := sendTx.PlannedTx.Included.Eval(t.Ctx())
-	require.NoError(err, "sendETH receipt not found")
+	send := dsl.SendETH(sender, recipient.Address(), recipient.ChainID(), amount)
+	sendReceipt := send.Receipt
 	require.Len(sendReceipt.Logs, 3, "sendETH should emit burn, sendMessage, and sendETH logs")
 	for idx, addr := range []common.Address{
 		predeploys.ETHLiquidityAddr,
@@ -170,22 +137,7 @@ func bridgeETH(
 		require.Equal(addr, sendReceipt.Logs[idx].Address)
 	}
 
-	sendBlock, err := sendTx.PlannedTx.IncludedBlock.Eval(t.Ctx())
-	require.NoError(err, "sendETH block not found")
-	t.Logger().Info("waiting for supernode validation of bridge send", "timestamp", sendBlock.Time)
-	sys.Supernode.AwaitValidatedTimestamp(sendBlock.Time)
-
-	relayTx := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](relayer.Plan())
-	relayTx.Content.DependOn(&sendTx.Result)
-	relayTx.Content.Fn(txintent.RelayIndexed(
-		predeploys.L2toL2CrossDomainMessengerAddr,
-		&sendTx.Result,
-		&sendTx.PlannedTx.Included,
-		1,
-	))
-
-	relayReceipt, err := relayTx.PlannedTx.Included.Eval(t.Ctx())
-	require.NoError(err, "relayETH receipt not found")
+	relayReceipt := send.Relay(relayer, sys.Supernode)
 	require.Len(relayReceipt.Logs, 4, "relayETH should emit inbox, mint, relayETH, and relayedMessage logs")
 	for idx, addr := range []common.Address{
 		predeploys.CrossL2InboxAddr,

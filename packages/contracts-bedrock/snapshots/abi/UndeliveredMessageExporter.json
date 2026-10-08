@@ -62,6 +62,37 @@
     "type": "function"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "messageHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "source",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sourceMessenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "undeliveredAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "UndeliveredMessageExported",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "UndeliveredMessageExporter_MessageRelayed",
     "type": "error"

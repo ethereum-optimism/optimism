@@ -139,7 +139,8 @@ func (ds *StaticConfigDependencySet) hydrate() error {
 	// apps refund it, a day after MessageExpiryTimeSecondsInterop has passed, so a longer window
 	// could let an expired message still be relayed.
 	if ds.overrideMessageExpiryWindow > MessageExpiryTimeSecondsInterop {
-		return fmt.Errorf("message expiry window override %d exceeds %d", ds.overrideMessageExpiryWindow, MessageExpiryTimeSecondsInterop)
+		return fmt.Errorf("message expiry window override %ds exceeds protocol window %ds",
+			ds.overrideMessageExpiryWindow, MessageExpiryTimeSecondsInterop)
 	}
 	ds.chainIDs = make([]eth.ChainID, 0, len(ds.dependencies))
 	for id := range ds.dependencies {

@@ -19,6 +19,10 @@ import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 /// @title UndeliveredMessageExporter_TestInit
 /// @notice Reusable test initialization for `UndeliveredMessageExporter` tests.
 abstract contract UndeliveredMessageExporter_TestInit is CommonTest {
+    event UndeliveredMessageExported(
+        bytes32 indexed messageHash, uint256 indexed source, address sourceMessenger, uint256 undeliveredAt
+    );
+
     IUndeliveredMessageExporter internal exporter =
         IUndeliveredMessageExporter(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     IL2ToL2CrossDomainMessenger internal messenger =
@@ -55,14 +59,7 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
     {
         bytes32 messageHash =
             Hashing.hashL2toL2CrossDomainMessage(block.chainid, _source, _nonce, _sender, _target, _message);
-        vm.expectEmit(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        emit SentMessage(
-            sourceMessenger,
-            Predeploys.UNDELIVERED_MESSAGE_EXPORTER,
-            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (messageHash, block.timestamp)),
-            l2CrossDomainMessenger.messageNonce(),
-            _minGasLimit
-        );
+        _expectExport(messageHash, _source, _minGasLimit);
 
         bytes32 returned = exporter.exportUndeliveredMessage(
             sourceMessenger, _source, _nonce, _sender, _target, _message, _minGasLimit
@@ -75,7 +72,7 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
     function testFuzz_exportUndeliveredMessage_anyCaller_succeeds(address _caller, bool _aliased) external {
         address caller = _aliased ? AddressAliasHelper.applyL1ToL2Alias(_caller) : _caller;
         bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage(block.chainid, 1, 0, alice, bob, hex"1234");
-        _expectExport(messageHash, 1_000_000);
+        _expectExport(messageHash, 1, 1_000_000);
 
         vm.prank(caller, caller);
         exporter.exportUndeliveredMessage(sourceMessenger, 1, 0, alice, bob, hex"1234", 1_000_000);
@@ -117,13 +114,13 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
         bytes32 messageHash = messenger.sendMessage(source + 1, bob, hex"1234");
 
         vm.chainId(source + 1);
-        _expectExport(messageHash, 0);
+        _expectExport(messageHash, source, 0);
         exporter.exportUndeliveredMessage(sourceMessenger, source, nonce, alice, bob, hex"1234", 0);
 
         vm.chainId(source + 2);
         bytes32 fromOther = Hashing.hashL2toL2CrossDomainMessage(source + 2, source, nonce, alice, bob, hex"1234");
         assertNotEq(fromOther, messageHash);
-        _expectExport(fromOther, 0);
+        _expectExport(fromOther, source, 0);
         exporter.exportUndeliveredMessage(sourceMessenger, source, nonce, alice, bob, hex"1234", 0);
 
         vm.chainId(source);
@@ -143,7 +140,7 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
     {
         bytes32 selfHash =
             Hashing.hashL2toL2CrossDomainMessage(block.chainid, block.chainid, _nonce, _sender, _target, _message);
-        _expectExport(selfHash, 0);
+        _expectExport(selfHash, block.chainid, 0);
         exporter.exportUndeliveredMessage(sourceMessenger, block.chainid, _nonce, _sender, _target, _message, 0);
 
         vm.expectRevert(IL2ToL2CrossDomainMessenger.MessageDestinationSameChain.selector);
@@ -152,8 +149,9 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
     }
 
     /// @notice Expects the exporter to send word that `_messageHash` was not relayed by now, as itself,
-    ///         through the L2CrossDomainMessenger to the source messenger.
-    function _expectExport(bytes32 _messageHash, uint32 _minGasLimit) internal {
+    ///         through the L2CrossDomainMessenger to the source messenger, and to emit
+    ///         UndeliveredMessageExported.
+    function _expectExport(bytes32 _messageHash, uint256 _source, uint32 _minGasLimit) internal {
         vm.expectEmit(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         emit SentMessage(
             sourceMessenger,
@@ -162,6 +160,8 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
             l2CrossDomainMessenger.messageNonce(),
             _minGasLimit
         );
+        vm.expectEmit(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
+        emit UndeliveredMessageExported(_messageHash, _source, sourceMessenger, block.timestamp);
     }
 
     /// @notice Expects this chain's messenger to reject word, from this chain's

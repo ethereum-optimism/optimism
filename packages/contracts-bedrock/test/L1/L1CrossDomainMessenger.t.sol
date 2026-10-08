@@ -1268,7 +1268,7 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         (otherMessenger, otherPortal, otherConfig) = _mockChain("other");
     }
 
-    /// @notice Tests that word from a cluster chain's L2ToL2CrossDomainMessenger is deposited into
+    /// @notice Tests that word from a cluster chain's UndeliveredMessageExporter is deposited into
     ///         this chain's L2ToL2CrossDomainMessenger, sent as this messenger.
     function test_relayUndeliveredMessage_succeeds() external {
         bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (MESSAGE_HASH, UNDELIVERED_AT));
@@ -1418,7 +1418,7 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
     }
 
     /// @notice Mocks a chain in this chain's cluster whose messenger is relaying a withdrawal from
-    ///         its L2ToL2CrossDomainMessenger.
+    ///         its UndeliveredMessageExporter.
     function _mockChain(string memory _name)
         internal
         returns (address messenger_, address portal_, address systemConfig_)

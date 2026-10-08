@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -76,8 +77,9 @@ func (c *Config) Check() error {
 	}
 	// The protocol window is at most 7 days: L2ToL2CrossDomainMessenger marks messages expired, and
 	// apps refund them, on that assumption, so the filter must not admit older messages.
-	if c.MessageExpiryWindow > uint64(DefaultMessageExpiryWindow.Seconds()) {
-		result = errors.Join(result, errors.New("message-expiry-window must not exceed 7 days"))
+	if c.MessageExpiryWindow > depset.MessageExpiryTimeSecondsInterop {
+		result = errors.Join(result, fmt.Errorf("message-expiry-window %ds exceeds protocol window %ds",
+			c.MessageExpiryWindow, depset.MessageExpiryTimeSecondsInterop))
 	}
 	if c.PollInterval <= 0 {
 		result = errors.Join(result, errors.New("poll-interval must be positive"))

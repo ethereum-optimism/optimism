@@ -241,7 +241,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         assertEq(_from.balance, balanceBefore + _amount);
         assertTrue(superchainETHBridge.refunded(messageHash));
 
-        vm.expectRevert(ISuperchainETHBridge.AlreadyRefunded.selector);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_AlreadyRefunded.selector);
         superchainETHBridge.refundETH(DESTINATION, nonce, _from, _to, _amount);
     }
 
@@ -249,7 +249,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
     function test_refundETH_notExpired_reverts() external {
         (uint256 nonce,) = _send(alice, bob, 1 ether);
 
-        vm.expectRevert(ISuperchainETHBridge.MessageNotExpired.selector);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
         superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
     }
 
@@ -271,7 +271,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
                 != keccak256(abi.encode(DESTINATION, nonce, alice, bob, 1 ether))
         );
 
-        vm.expectRevert(ISuperchainETHBridge.MessageNotExpired.selector);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
         superchainETHBridge.refundETH(_destination, _nonce, _from, _to, _amount);
     }
 
@@ -281,7 +281,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
         _expire(messageHash);
 
-        vm.expectRevert(ISuperchainETHBridge.MessageNotExpired.selector);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
         superchainETHBridge.refundETH(block.chainid, nonce, alice, bob, 1 ether);
     }
 
@@ -297,7 +297,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         );
         _expire(messageHash);
 
-        vm.expectRevert(ISuperchainETHBridge.MessageNotExpired.selector);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
         superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
     }
 

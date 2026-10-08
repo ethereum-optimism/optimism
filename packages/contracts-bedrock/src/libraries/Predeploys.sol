@@ -470,7 +470,7 @@ library Predeploys {
         records_[19] = PredeployRecord({
             proxy: UNDELIVERED_MESSAGE_EXPORTER,
             variants: _variants(
-                "UndeliveredMessageExporter", "UndeliveredMessageExporter.sol:UndeliveredMessageExporter", 600_000
+                "UndeliveredMessageExporter", "UndeliveredMessageExporter.sol:UndeliveredMessageExporter", 650_000
             ),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
