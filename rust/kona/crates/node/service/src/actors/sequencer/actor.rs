@@ -17,13 +17,14 @@ use crate::{
         },
     },
 };
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
 use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
-use kona_rpc::{SequencerAdminCommand, SequencerState};
+use kona_rpc::{SequencerAdminAPIError, SequencerAdminCommand, SequencerState};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::{
     sync::Arc,
@@ -37,11 +38,11 @@ use tokio::{
 
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
-pub(super) struct UnsealedPayloadHandle {
+struct UnsealedPayloadHandle {
     /// The [`PayloadId`] of the unsealed payload.
-    pub payload_id: PayloadId,
+    payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] used to start block building.
-    pub attributes_with_parent: OpAttributesWithParent,
+    attributes_with_parent: OpAttributesWithParent,
 }
 
 /// The return payload of the `seal_last_and_start_next` function. This allows the sequencer
@@ -49,9 +50,9 @@ pub(super) struct UnsealedPayloadHandle {
 #[derive(Debug)]
 struct SealLastStartNextResult {
     /// The [`UnsealedPayloadHandle`] that was built.
-    pub unsealed_payload_handle: Option<UnsealedPayloadHandle>,
+    unsealed_payload_handle: Option<UnsealedPayloadHandle>,
     /// How long it took to execute the seal operation.
-    pub seal_duration: Duration,
+    seal_duration: Duration,
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
@@ -78,7 +79,7 @@ pub struct SequencerActor<
     /// The attributes builder used for block building.
     pub attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
-    pub(super) conductor: Option<Conductor_>,
+    conductor: Option<Conductor_>,
     /// The struct used to interact with the engine.
     pub engine_client: SequencerEngineClient_,
     /// The struct used to determine the next L1 origin.
@@ -161,12 +162,12 @@ where
     }
 
     /// Copy the current state so no watch borrow is held across an await.
-    pub(super) fn state(&self) -> SequencerState {
+    fn state(&self) -> SequencerState {
         *self.state.borrow()
     }
 
     /// Update and publish sequencer state together with its metrics.
-    pub(super) fn update_state(&self, update: impl FnOnce(&mut SequencerState)) {
+    fn update_state(&self, update: impl FnOnce(&mut SequencerState)) {
         self.state.send_modify(|state| {
             update(state);
             let state_flags = [
@@ -175,6 +176,63 @@ where
             ];
             metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags).set(1);
         });
+    }
+
+    /// Starts the sequencer in an idempotent fashion.
+    fn start_sequencer(&self) {
+        if self.state().active {
+            info!(target: "sequencer", "received request to start sequencer, but it is already started");
+            return;
+        }
+
+        info!(target: "sequencer", "Starting sequencer");
+        self.update_state(|state| state.active = true);
+    }
+
+    /// Stops the sequencer in an idempotent fashion.
+    async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {
+        info!(target: "sequencer", "Stopping sequencer");
+        // Publish before awaiting the unsafe head: sequencing is stopped even if that read fails.
+        self.update_state(|state| state.active = false);
+
+        self.engine_client.get_unsafe_head().await
+            .map(|h| h.hash())
+            .map_err(|e| {
+                error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer, which should never happen.");
+                SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
+            })
+    }
+
+    /// Sets the recovery mode of the sequencer in an idempotent fashion.
+    fn set_recovery_mode(&self, mode: bool) {
+        self.update_state(|state| state.recovery_mode = mode);
+        info!(target: "sequencer", is_active = mode, "Updated recovery mode");
+    }
+
+    /// Overrides the leader, if the conductor is enabled.
+    /// If not, an error will be returned.
+    async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
+        let Some(conductor) = self.conductor.as_mut() else {
+            return Err(SequencerAdminAPIError::LeaderOverrideError(
+                "No conductor configured".to_string(),
+            ));
+        };
+
+        if let Err(e) = conductor.override_leader().await {
+            error!(target: "sequencer::rpc", "Failed to override leader: {}", e);
+            return Err(SequencerAdminAPIError::LeaderOverrideError(e.to_string()));
+        }
+        info!(target: "sequencer", "Overrode leader via the conductor service");
+
+        Ok(())
+    }
+
+    async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
+        info!(target: "sequencer", "Resetting derivation pipeline");
+        self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+            error!(target: "sequencer", err=?e, "Failed to reset engine forkchoice");
+            SequencerAdminAPIError::RequestError(format!("Failed to reset engine: {e}"))
+        })
     }
 
     /// Seals and commits the last pending block, if one exists and starts the build job for the
@@ -241,7 +299,7 @@ where
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
     /// correct L1 origin block and sending them to the block engine.
-    pub(super) async fn build_unsealed_payload(
+    async fn build_unsealed_payload(
         &mut self,
     ) -> Result<Option<UnsealedPayloadHandle>, SequencerActorError> {
         let unsafe_head = self.engine_client.get_unsafe_head().await?;
@@ -487,14 +545,27 @@ where
             // This is important to limit the occurrence of race conditions where a stop command is received when a sequencer is building a new block.
             biased;
             Some(command) = self.admin_command_rx.recv() => {
-                let active_before = self.state().active;
-
-                self.handle_admin_command(command).await;
-
-                // immediately attempt to build a block if the sequencer was just started
-                if !active_before && self.state().active {
-                    self.build_ticker.reset_immediately();
+                // A dropped RPC response receiver does not cancel an accepted command.
+                match command {
+                    SequencerAdminCommand::StartSequencer(tx) => {
+                        self.start_sequencer();
+                        let _ = tx.send(Ok(()));
+                    }
+                    SequencerAdminCommand::StopSequencer(tx) => {
+                        let _ = tx.send(self.stop_sequencer().await);
+                    }
+                    SequencerAdminCommand::SetRecoveryMode(mode, tx) => {
+                        self.set_recovery_mode(mode);
+                        let _ = tx.send(Ok(()));
+                    }
+                    SequencerAdminCommand::OverrideLeader(tx) => {
+                        let _ = tx.send(self.override_leader().await);
+                    }
+                    SequencerAdminCommand::ResetDerivationPipeline(tx) => {
+                        let _ = tx.send(self.reset_derivation_pipeline().await);
+                    }
                 }
+
                 Ok(())
             }
             // The sequencer must be active to build new blocks.
@@ -571,3 +642,6 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::ClockWentBackwards => true,
     }
 }
+
+#[cfg(test)]
+mod tests;
