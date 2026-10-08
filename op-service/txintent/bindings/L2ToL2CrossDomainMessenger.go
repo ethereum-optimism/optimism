@@ -8,7 +8,7 @@ import (
 // predeploy.
 type L2ToL2CrossDomainMessenger struct {
 	// Read-only functions
-	ExpiryPeriod          func() TypedCall[*big.Int]                     `sol:"EXPIRY_PERIOD"`
+	ExpiryPeriod          func() TypedCall[*big.Int]                     `sol:"expiryPeriod"`
 	ExpiredMessages       func(messageHash [32]byte) TypedCall[bool]     `sol:"expiredMessages"`
 	SentMessageTimestamps func(messageHash [32]byte) TypedCall[*big.Int] `sol:"sentMessageTimestamps"`
 	Version               func() TypedCall[string]                       `sol:"version"`

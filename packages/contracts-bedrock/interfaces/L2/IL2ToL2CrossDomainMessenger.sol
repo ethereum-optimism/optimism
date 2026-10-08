@@ -76,7 +76,7 @@ interface IL2ToL2CrossDomainMessenger {
 
     /// @notice How long after it is sent a message must go unrelayed before it can be marked
     ///         expired.
-    function EXPIRY_PERIOD() external view returns (uint256);
+    function expiryPeriod() external view returns (uint256);
 
     /// @notice Mapping of message hashes to the timestamp of the block they were sent in.
     function sentMessageTimestamps(bytes32) external view returns (uint256);

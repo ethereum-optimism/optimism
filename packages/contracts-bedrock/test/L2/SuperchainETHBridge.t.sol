@@ -214,7 +214,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
     /// @notice Marks a message expired, as word from the L1CrossDomainMessenger relayed by the
     ///         L2CrossDomainMessenger.
     function _expire(bytes32 _messageHash) internal {
-        uint256 undeliveredAt = messenger.sentMessageTimestamps(_messageHash) + messenger.EXPIRY_PERIOD() + 1;
+        uint256 undeliveredAt = messenger.sentMessageTimestamps(_messageHash) + messenger.expiryPeriod() + 1;
         vm.mockCall(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -349,7 +349,7 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         vm.deal(alice, 1 ether);
         vm.prank(alice);
         hash_ = superchainETHBridge.sendETH{ value: 1 ether }(bob, DESTINATION);
-        vm.warp(block.timestamp + messenger.EXPIRY_PERIOD() + 1);
+        vm.warp(block.timestamp + messenger.expiryPeriod() + 1);
     }
 
     /// @notice Relays an L1 message from this chain's L1CrossDomainMessenger to the
