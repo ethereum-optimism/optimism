@@ -13,12 +13,13 @@ pub struct HealthzResponse {
 /// The healthz rpc server.
 #[derive(Debug, Clone)]
 pub struct HealthzRpc {
-    version: &'static str,
+    /// The application version.
+    version: String,
 }
 
 impl HealthzRpc {
-    /// Uses the running binary's release version.
-    pub const fn new(version: &'static str) -> Self {
+    /// Constructs a healthz RPC server with the application version.
+    pub const fn new(version: String) -> Self {
         Self { version }
     }
 }
@@ -26,6 +27,19 @@ impl HealthzRpc {
 #[async_trait]
 impl HealthzApiServer for HealthzRpc {
     async fn healthz(&self) -> RpcResult<HealthzResponse> {
-        Ok(HealthzResponse { version: self.version.to_string() })
+        Ok(HealthzResponse { version: self.version.clone() })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn returns_configured_version() {
+        for version in ["1.2.3-test", "0.0.0-dev"] {
+            let rpc = HealthzRpc::new(version.to_owned());
+            assert_eq!(rpc.healthz().await.unwrap().version, version);
+        }
     }
 }
