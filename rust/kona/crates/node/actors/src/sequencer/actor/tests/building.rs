@@ -1,4 +1,4 @@
-use super::test_actor;
+use super::{test_actor, test_actor_with_config};
 use crate::{
     MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
     sequencer::{ActorError, handle::Message},
@@ -61,7 +61,7 @@ async fn build_handles_payload_attributes_errors(
 /// blocking the actor, so admin queries such as op-conductor's `StopSequencer` are still answered.
 #[tokio::test(start_paused = true)]
 async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
-    let mut actor = test_actor();
+    let (mut actor, _, handle) = test_actor_with_config(true, false, None);
     let mut engine = MockSequencerEngineClient::new();
     // No block is built or sealed while the queue is full.
     engine.expect_start_build_block().times(0);
@@ -81,7 +81,7 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
         .await
         .unwrap();
     assert_eq!(rx.await.unwrap().unwrap(), L2BlockInfo::default().hash());
-    assert!(!actor.state().active);
+    assert!(!handle.snapshot().unwrap().active);
 }
 
 /// Block building resumes after the gossip queue has room again.

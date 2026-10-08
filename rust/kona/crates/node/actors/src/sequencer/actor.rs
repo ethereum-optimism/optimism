@@ -38,7 +38,7 @@ use tokio::{
 #[derive(Debug)]
 pub struct Builder<Conductor_> {
     handle: Handle,
-    commands: mpsc::Receiver<Message>,
+    messages: mpsc::Receiver<Message>,
     published: watch::Sender<State>,
     conductor: Option<Conductor_>,
 }
@@ -51,14 +51,13 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
         is_active: bool,
         in_recovery_mode: bool,
     ) -> Self {
-        let (commands_tx, commands) = mpsc::channel(capacity.get());
-        let state = State {
+        let (messages_tx, messages) = mpsc::channel(capacity.get());
+        let (published, state) = watch::channel(State {
             active: is_active,
             conductor_enabled: conductor.is_some(),
             recovery_mode: in_recovery_mode,
-        };
-        let (published, state) = watch::channel(state);
-        Self { handle: Handle::new(state, commands_tx), commands, published, conductor }
+        });
+        Self { handle: Handle::new(state, messages_tx), messages, published, conductor }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -83,11 +82,11 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
         rollup_config: Arc<RollupConfig>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, commands, published, conductor } = self;
+        let Self { handle: _, messages, published, conductor } = self;
         let state = *published.borrow();
         async move {
             Actor::new(
-                commands,
+                messages,
                 published,
                 state,
                 attributes_builder,
@@ -217,18 +216,8 @@ where
         }
     }
 
-    #[cfg(test)]
-    fn admin_state_receiver(&self) -> watch::Receiver<State> {
-        self.published.subscribe()
-    }
-
-    const fn state(&self) -> State {
-        self.state
-    }
-
-    /// Update and publish sequencer state together with its metrics.
-    fn update_state(&mut self, update: impl FnOnce(&mut State)) {
-        update(&mut self.state);
+    /// Publishes sequencer state and updates its metrics.
+    fn update_state(&self) {
         let state_flags = [
             ("active", self.state.active.to_string()),
             ("recovery", self.state.recovery_mode.to_string()),
@@ -346,7 +335,7 @@ where
         &mut self,
         unsafe_head: L2BlockInfo,
     ) -> Result<Option<BlockInfo>, ActorError> {
-        let recovery_mode = self.state().recovery_mode;
+        let recovery_mode = self.state.recovery_mode;
         let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head, recovery_mode).await
         {
             Ok(l1_origin) => l1_origin,
@@ -429,7 +418,7 @@ where
     /// Determines, for the provided L1 origin block and payload attributes being constructed, if
     /// transaction pool transactions should be enabled.
     fn should_use_tx_pool(&self, l1_origin: BlockInfo, attributes: &OpPayloadAttributes) -> bool {
-        if self.state().recovery_mode {
+        if self.state.recovery_mode {
             warn!(target: "sequencer", "Sequencer is in recovery mode, producing empty block");
             return false;
         }
@@ -532,7 +521,7 @@ where
 {
     async fn run(mut self) -> Result<(), ActorError> {
         // Publish the initial state and metrics before beginning block building.
-        self.update_state(|_| {});
+        self.update_state();
         // Reset the engine state prior to beginning block building.
         self.schedule_initial_reset().await?;
         loop {
@@ -540,7 +529,7 @@ where
                 // Prioritize admin messages over block building.
                 biased;
                 Some(message) = self.messages.recv() => self.handle_message(message).await,
-                _ = self.build_ticker.tick(), if self.state().active => self.build().await?,
+                _ = self.build_ticker.tick(), if self.state.active => self.build().await?,
                 // A stopped actor with no command handles stays pending until dropped.
                 else => pending().await,
             }
@@ -551,13 +540,15 @@ where
         // A dropped RPC response receiver does not cancel an accepted command.
         match message {
             Message::StartSequencer(tx) => {
-                self.update_state(|state| state.active = true);
+                self.state.active = true;
+                self.update_state();
                 let _ = tx.send(Ok(()));
             }
             Message::StopSequencer(tx) => {
                 // Publish before awaiting the unsafe head: sequencing is stopped even if that read
                 // fails.
-                self.update_state(|state| state.active = false);
+                self.state.active = false;
+                self.update_state();
                 let result =
                     self.engine_client.get_unsafe_head().await.map(|h| h.hash()).map_err(|_| {
                         HandleError::ErrorAfterSequencerWasStopped(
@@ -567,7 +558,8 @@ where
                 let _ = tx.send(result);
             }
             Message::SetRecoveryMode(mode, tx) => {
-                self.update_state(|state| state.recovery_mode = mode);
+                self.state.recovery_mode = mode;
+                self.update_state();
                 let _ = tx.send(Ok(()));
             }
             Message::OverrideLeader(tx) => {

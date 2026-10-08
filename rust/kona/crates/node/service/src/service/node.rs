@@ -493,7 +493,7 @@ impl RollupNode {
         } else {
             None
         };
-        let sequencer_admin = sequencer_builder.as_ref().map(sequencer::Builder::handle);
+        let sequencer_handle = sequencer_builder.as_ref().map(sequencer::Builder::handle);
         // Network actor inbound channels
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (admin_payload_tx, admin_payload_rx) =
@@ -567,7 +567,7 @@ impl RollupNode {
             )
         });
 
-        let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
+        let admin_rpc = AdminRpc::new(sequencer_handle, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
             .build_rpc_actor(
                 l2_query_client,

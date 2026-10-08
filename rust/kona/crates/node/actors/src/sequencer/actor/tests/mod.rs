@@ -1,7 +1,7 @@
 use super::Actor;
 use crate::{
     MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-    sequencer::{State, handle::Message},
+    sequencer::{Handle, State, handle::Message},
 };
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
@@ -28,10 +28,11 @@ fn test_actor_with_config(
     active: bool,
     recovery_mode: bool,
     conductor: Option<MockConductor>,
-) -> (TestActor, mpsc::Sender<Message>) {
+) -> (TestActor, mpsc::Sender<Message>, Handle) {
     let (commands_tx, commands_rx) = mpsc::channel(20);
     let state = State { active, recovery_mode, conductor_enabled: conductor.is_some() };
-    let (published, _) = watch::channel(state);
+    let (published, state_rx) = watch::channel(state);
+    let handle = Handle::new(state_rx, commands_tx.clone());
     let actor = Actor::new(
         commands_rx,
         published,
@@ -43,7 +44,7 @@ fn test_actor_with_config(
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
         MockUnsafePayloadGossipClient::new(),
     );
-    (actor, commands_tx)
+    (actor, commands_tx, handle)
 }
 
 mod lifetime;
