@@ -19,14 +19,17 @@ Results in short:
 - **Each condition is individually indispensable**: dropping any one of them, with the others
   kept, gives a concrete double spend. This does not make AC1–AC5 the weakest possible conditions
   (see **Activation conditions**).
-- **One condition is only partly enforced by code.** AC2 says that once a source chain's messenger
-  has recorded a timestamp, it is never rolled back below 2.0.0. The L2ContractsManager's semver
-  guard enforces this on the NUT path. The L2 ProxyAdmin owner's `upgrade` path has no guard, and a
-  rollback there gives a double spend. Deleting one line (2.0.0's `sentMessages[nonce] = …` write)
-  makes every rollback safe, and that is checked too (`downgradeHardened`).
+- **One condition is a deployment assumption, not code.** AC2 is discharged by the deployment
+  decision that no resend-capable messenger implementation (1.3.x, with `resendMessage`) is ever
+  live on a chain with expiry: 1.3.x is never shipped to a production chain, so there is no
+  resend-capable implementation to roll back to. BC2 shows why it is needed: the L2 ProxyAdmin
+  owner's `upgrade` path has no version guard, and a 1.3.1 implementation live after a refund gives
+  a double spend. The code is unchanged. (`downgradeHardened` records that a one-line change would
+  also have made such a rollback safe; it was not adopted.)
 - **The locked Lagoon NUT bundle**, which is the bundle of the interop activation fork, still ships
-  the pre-expiry contracts. It is safe, but it disables the feature, permanently for the messages
-  sent while it is in force. See BC1.
+  the pre-expiry contracts, including the 1.3.1 messenger. Shipped as locked, it would break AC2 and
+  disable the feature, permanently for the messages sent while it is in force. Re-snapshotting it
+  before Lagoon ships is the launch blocker that makes AC2 hold. See BC1.
 
 All statements below are about this model. "Checked" means Apalache bounded model checking to the
 stated depth (section **Results**). "Trace" means a scripted `run` that `quint test` executes; it
@@ -207,7 +210,8 @@ messages had been relayed. Both are outside AC5 and AC2 as stated.
   - *Necessary*: `noWindowRuleOnB` (no rule) and `windowAbovePOnC` (W = 9 on one chain).
 - **AC2 (no resend after timestamps).** Once a source chain's messenger has recorded a timestamp
   for some message, it never again runs code that can re-emit that message's `SentMessage`. For
-  the released versions: never below 2.0.0.
+  the released versions: no resend-capable implementation (1.3.x) is ever live on a chain with
+  expiry (the deployment decision; see BC2 and BC1).
   - *Scoped*: a rollback before the chain recorded any timestamp is safe; `rolloutSafe` allows it
     (`NoRefundAfterMessengerRollback`).
   - *Necessary*: `govMessengerDowngrade`, and `lagoonWithoutGuard` for the NUT path.
@@ -256,7 +260,7 @@ forever because the destination's clock and AC1 are monotone.
 | Condition | Enforced by code | Left to process |
 |---|---|---|
 | AC1 | op-core `StaticConfigDependencySet.hydrate` rejects overrides > 7d (`static_depset.go:141`); kona `DependencySet` serde rejects > 7d (`genesis/src/interop/depset.rs:39`) and `get_message_expiry_window` ignores a larger override set directly (`:54-56`), and that path covers the embedded registry (`registry/src/lib.rs:52`, serde) and the host-fallback depset (`proof-interop/src/boot.rs:281-284`, serde); `op-interop-filter` rejects > 7d (`filter/config.go:80`); op-node's registry depset (`op-node/superchain/depset.go:17-35`) has no override, so W = 7; `EXPIRY_PERIOD = 8 days` | every node, filter and **absolute prestate** that judges a destination's relays must include the cap (or have no override) **before** that destination's exporter goes live; the destination's withdrawals must be finalized by an interop (super-root) proof that enforces W. A pre-cap build with an override > 8d breaks AC1. |
-| AC2 | NUT path: `L2ContractsManagerUtils.upgradeTo` reverts on a semver decrease (`:61-67`), so the Lagoon bundle after the tip reverts | **governance path not enforced**: `ProxyAdmin.upgrade` (`ProxyAdmin.sol:152`) can set 1.3.1 (see BC2) |
+| AC2 | NUT path: `L2ContractsManagerUtils.upgradeTo` reverts on a semver decrease (`:61-67`), so the Lagoon bundle after the tip reverts | deployment assumption: no resend-capable implementation (1.3.x) is ever live on a chain with expiry; `ProxyAdmin.upgrade` (`ProxyAdmin.sol:152`) has no version check (BC2), and the Lagoon re-snapshot (BC1) is required |
 | AC3 | genesis proxy without implementation; L2CM only sets the standard implementation | the L2 ProxyAdmin owner can set anything (the named governance assumption); `ETHLockbox.authorizePortal` (`ETHLockbox.sol:124`, `_authorizePortal:220`) checks only the shared ProxyAdmin owner and SuperchainConfig, not the joiner's history (BC4) |
 | AC4 | `OPContractsManagerMigrator._validateChainSystemConfigs` (`:295-330`) rejects duplicate L2 chain IDs among the chains it migrates | `ETHLockbox.authorizePortal` does not check chain IDs (BC4); nothing on chain checks the IDs of non-member chains in a member's dependency set (dependency-set configuration) |
 | AC5 | tip L1CrossDomainMessenger check (c) | never deploy an L1CrossDomainMessenger built from a PR-branch commit before `1086b6de3e` (e.g. `37b44c48c7`, `cf3d730591`), whose check (c) is `L2_TO_L2_CROSS_DOMAIN_MESSENGER` |
@@ -287,18 +291,12 @@ forever because the destination's clock and AC1 are monotone.
   that.
 - **NUT path.** It is protected only by the semver guard: without it, the Lagoon bundle activating
   after the tip does the same (`lagoonWithoutGuard`).
-- **Fix options.**
-  - (a) 2.0.0 stops writing `sentMessages`. `downgradeHardened` checks that this makes **any**
-    rollback to 1.3.1 safe: 1.3.1 can then resend only its own messages, which have `sentAt = 0`.
-    The cost is that the public `sentMessages(nonce)` getter returns zero for messages sent under
-    2.0.0. That breaks an existing test assertion (`test/L2/L2ToL2CrossDomainMessenger.t.sol:231`),
-    and a rolled-back 1.3.1 can no longer resend messages sent under 2.0.0.
-    - The fix must ship in the **first** 2.0.0 deployed on any chain. `downgradeHardened` assumes
-      it from genesis, and entries an unhardened 2.0.0 has already written stay resendable.
-    - Storage layout and nonces must be preserved.
-    - A rollback to 1.3.1 still needs AC5, because 1.3.1 has no target rule.
-    - An alternative with the same effect is to write the hash to a new slot.
-  - (b) Document AC2 as a governance obligation next to the exporter assumption.
+- **Decision.** No code change. AC2 is a deployment assumption: no resend-capable messenger
+  implementation (1.3.x) is ever live on a chain with expiry, because 1.3.x is never shipped to a
+  production chain. In practice this requires the Lagoon re-snapshot (BC1), since the locked bundle
+  carries 1.3.1. For the record, `downgradeHardened` checks that 2.0.0 not writing `sentMessages`
+  would make any rollback to 1.3.1 safe (cost: the public getter returns zero for 2.0.0 messages);
+  that change was not adopted.
 
 **BC1: the locked Lagoon bundle still ships the pre-expiry L2 contracts.**
 - **Severity.** Not a safety bug (checked safe); a feature and process bug.

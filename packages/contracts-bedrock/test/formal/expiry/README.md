@@ -84,24 +84,25 @@ shows that dropping any one of them gives a double spend. Several are process, n
 | Condition | Requires | Enforced by code | Left to process |
 |---|---|---|---|
 | **AC1** (window) | from the moment a destination's exporter first has an implementation, every relay on it is judged with W ≤ P, forever after | op-core, kona and op-interop-filter reject overrides above 7 days; kona's getter also falls back to 7 days (since `d36e37862b`) | every node, filter and **absolute prestate** that judges the destination's relays must include the cap before its exporter goes live (BC3) |
-| **AC2** (no resend after timestamps) | once a source messenger has recorded a timestamp, it never again runs code that can re-emit `SentMessage`; for released versions, never below 2.0.0 | NUT path only: the L2ContractsManager's semver guard | **not enforced on the ProxyAdmin path** (BC2) |
+| **AC2** (no resend-capable messenger) | no resend-capable messenger implementation (1.3.x, with `resendMessage`) is ever live on a chain with expiry | NUT path: the L2ContractsManager's semver guard | deployment assumption: 1.3.x is never shipped to a production chain, so no rollback target with `resendMessage` exists. Requires the Lagoon re-snapshot (BC1) |
 | **AC3** (exporter provenance) | on every current or future lockbox member, the exporter address only ever ran the standard implementation or nothing | genesis proxy without implementation; the L2ContractsManager sets only the standard implementation | the member's L2 ProxyAdmin owner can set anything; `ETHLockbox.authorizePortal` does not check a joiner's history (BC4) |
 | **AC4** (chain IDs) | no chain that can relay messages sent from a lockbox member shares the L2 chain ID of a member or of another such chain | the OPCM migrator rejects duplicates among the chains it migrates | lockbox joins and every chain in members' dependency sets (BC4) |
 | **AC5** (L1 implementation) | no L1CrossDomainMessenger that trusts 0x..23 is ever installed, even briefly | the tip's check (c) | never deploy an L1CrossDomainMessenger built from a PR-branch commit before `1086b6de3e` |
 
-These findings need a decision before rollout:
-- **BC2: an honest messenger rollback double-spends.** AC2 is not enforced on the ProxyAdmin path:
-  `ProxyAdmin.upgrade` can set the messenger back to 1.3.1. 1.3.1's `resendMessage` checks only
-  `sentMessages`, which 2.0.0 still writes, so after a refund a rollback lets anyone resend the
-  message and relay it within the new window (`govMessengerDowngrade`, 11 events). No malice is
-  needed: an emergency rollback to the previous release is enough. Options (in `rollout/`): 2.0.0
-  stops writing `sentMessages` (checked: `downgradeHardened` makes any rollback safe), or AC2 is
-  documented as a governance obligation.
-- **BC1: the locked Lagoon bundle ships the pre-expiry contracts.** `fork_lock.toml` pins `lagoon`
-  to `fa9974a2`, whose bundle deploys messenger 1.3.1, bridge 1.0.1 and no exporter. That is safe,
-  but it disables expiry, permanently for messages sent while 1.3.1 is live (they have no
-  timestamp). The bundle must be re-snapshotted (`just nut-snapshot-for lagoon`) before Lagoon is
-  scheduled on any chain that should have expiry.
+**Deployment assumption (AC2): no resend-capable messenger implementation is ever live on a chain
+with expiry.** The 1.3.x messenger, which has `resendMessage`, is never shipped to a production
+chain, so there is no resend-capable implementation to roll back to. The rollout model shows why the
+assumption is needed (BC2): `ProxyAdmin.upgrade` has no version check, and 1.3.1's `resendMessage`
+checks only `sentMessages`, which 2.0.0 still writes, so a 1.3.1 implementation live after a refund
+would let anyone resend the message and relay it within a new window (`govMessengerDowngrade`, 11
+events). The code is unchanged; the assumption carries this.
+
+**Launch blocker (BC1): the locked Lagoon bundle ships the 1.3.1 messenger.** `fork_lock.toml` pins
+`lagoon` to `fa9974a2`, whose bundle deploys messenger 1.3.1, bridge 1.0.1 and no exporter. Shipped
+as locked, it would put a resend-capable messenger on production chains and break AC2; it would also
+disable expiry, permanently for messages sent while 1.3.1 is live (they have no timestamp). The
+bundle must be re-snapshotted (`just nut-snapshot-for lagoon`) before Lagoon ships. This is the
+concrete step that makes AC2 hold.
 
 `rollout/` also lists BC3 (the cap holds only for software that includes it; kona-host's fallback
 dependency set is local key 8, which `SuperFaultDisputeGame.addLocalData` cannot supply, so a
@@ -116,7 +117,8 @@ reproduced from it; it is cited only as the source of these assumptions, each of
 or stated in the layers named.
 1. **Upgrade invariant.**
    - No implementation of a source messenger may re-emit `SentMessage` for a hash that already has a
-     send timestamp. That includes a rollback to an implementation with `resendMessage` (AC2, BC2).
+     send timestamp. In practice no resend-capable implementation (1.3.x) is ever live on a chain with
+     expiry (AC2; BC1 is the step that ensures it).
      A re-emitted event restarts the relay window; this is `resendNoRestart` / `cex_resendNoRestart`.
    - Every relay path on the destination sets `successfulMessages`.
    - Upgrades and rollbacks preserve storage layout, nonces, send timestamps and the successful,
@@ -173,8 +175,8 @@ Each layer states which of these it assumes and which it checks:
     a member's chain ID can deliver that member's messages (`rollout/`, `cexNonMember`);
   - authorized portals' SystemConfigs name their real L1CrossDomainMessenger;
   - no implementation was set at the exporter address before the upgrade;
-  - no messenger rollback below 2.0.0 once timestamps exist (AC2), and no L1CrossDomainMessenger
-    that trusts 0x..23 (AC5).
+  - no resend-capable messenger implementation (1.3.x) is ever live on a chain with expiry (AC2;
+    requires the Lagoon re-snapshot, BC1), and no L1CrossDomainMessenger that trusts 0x..23 (AC5).
 - **Protocol window:** W ≤ P from the moment a destination's exporter goes live, in every node,
   filter and absolute prestate that judges its relays (AC1), and W never later rises above P.
   Lean and Quint fix W from genesis.
