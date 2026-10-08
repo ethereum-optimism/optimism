@@ -312,6 +312,7 @@ impl NodeCommand {
         let dependency_set = self.load_dependency_set(&cfg)?;
 
         RollupNodeBuilder::new(
+            crate::version::version().to_owned(),
             cfg,
             l1_config,
             self.l2_client_args.l2_trust_rpc,
