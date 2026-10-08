@@ -1,15 +1,16 @@
 //! The interop message-validity rules.
 //!
 //! This module is the single home of the rules that decide whether an interop message is valid:
-//! the activation invariant, timestamp ordering, the message expiry window and the same-timestamp
-//! cycle check. Both the fault-proof consolidation path ([`MessageGraph`](crate::MessageGraph))
-//! and the node-side verifier apply these rules via [`MessageRules`] so that the two never
-//! drift — a divergence here is a prestate divergence.
+//! the activation invariant, timestamp ordering, the message expiry window, the initiating block
+//! number and the same-timestamp cycle check. Both the fault-proof consolidation path
+//! ([`MessageGraph`](crate::MessageGraph)) and the node-side verifier apply these rules via
+//! [`MessageRules`] so that the two never drift — a divergence here is a prestate divergence.
 //!
 //! Rules reference: <https://specs.optimism.io/interop/messaging.html#invalid-messages>
 
 use crate::{errors::MessageGraphError, message::EnrichedExecutingMessage};
 use alloc::{collections::BTreeMap, string::ToString, vec, vec::Vec};
+use alloy_primitives::U256;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
@@ -116,6 +117,33 @@ impl<'a> MessageRules<'a> {
         (executing_timestamp - initiating_timestamp <= self.message_expiry_window)
             .then_some(())
             .ok_or(MessageGraphError::MessageExpired { initiating_timestamp, executing_timestamp })
+    }
+
+    /// Initiating block invariant: the identifier's block number must be the block the
+    /// initiating chain produced at `initiating_timestamp`.
+    ///
+    /// Derivation only accepts an L2 block at `parent.timestamp + block_time`, so block `n` has
+    /// timestamp `genesis.l2_time + (n - genesis.l2.number) * block_time`. op-node's span-batch
+    /// overlap check and super-root construction (`TargetBlockNumber`) rely on the same grid.
+    /// An identifier off this grid cannot reference a real log, so it is rejected before any
+    /// history lookup. Together with the expiry window, this bounds every lookup to the window.
+    pub fn check_initiating_block_number<E: Debug>(
+        initiating_config: &RollupConfig,
+        initiating_timestamp: u64,
+        block_number: U256,
+    ) -> Result<(), MessageGraphError<E>> {
+        let block_time = initiating_config.block_time;
+        // Block number at this timestamp; None if pre-genesis, between blocks, or block time is 0.
+        let grid_block = initiating_timestamp
+            .checked_sub(initiating_config.genesis.l2_time)
+            .filter(|elapsed| block_time != 0 && elapsed.is_multiple_of(block_time))
+            .map(|_| initiating_config.block_number_from_timestamp(initiating_timestamp));
+        (grid_block.map(U256::from) == Some(block_number)).then_some(()).ok_or(
+            MessageGraphError::InvalidMessageBlockNumber {
+                block_number,
+                timestamp: initiating_timestamp,
+            },
+        )
     }
 
     /// Same-timestamp cycle check over a whole set of executing messages: runs the crate-private
@@ -359,4 +387,75 @@ pub(crate) fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u6
     cycle_chains.sort();
     cycle_chains.dedup();
     cycle_chains
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_eips::BlockNumHash;
+    use kona_genesis::ChainGenesis;
+
+    type E = core::convert::Infallible;
+
+    const GENESIS_TIME: u64 = 1_686_068_903;
+    const GENESIS_NUMBER: u64 = 105_235_063;
+
+    fn config(block_time: u64) -> RollupConfig {
+        RollupConfig {
+            block_time,
+            genesis: ChainGenesis {
+                l2_time: GENESIS_TIME,
+                l2: BlockNumHash { number: GENESIS_NUMBER, ..Default::default() },
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_check_initiating_block_number() {
+        let cases = [
+            ("on grid", config(2), GENESIS_TIME + 10, U256::from(GENESIS_NUMBER + 5), true),
+            ("genesis block", config(2), GENESIS_TIME, U256::from(GENESIS_NUMBER), true),
+            ("stale block number", config(2), GENESIS_TIME + 10, U256::from(1), false),
+            (
+                "next block number",
+                config(2),
+                GENESIS_TIME + 10,
+                U256::from(GENESIS_NUMBER + 6),
+                false,
+            ),
+            (
+                "misaligned timestamp",
+                config(2),
+                GENESIS_TIME + 11,
+                U256::from(GENESIS_NUMBER + 5),
+                false,
+            ),
+            // Claims the block `block_number_from_timestamp` clamps pre-genesis timestamps to.
+            ("before genesis", config(2), GENESIS_TIME - 2, U256::from(GENESIS_NUMBER), false),
+            ("zero block time", config(0), GENESIS_TIME, U256::from(GENESIS_NUMBER), false),
+            (
+                // Low 64 bits equal the grid block, so only a full-width comparison rejects it.
+                "number above u64",
+                config(2),
+                GENESIS_TIME + 10,
+                U256::from(GENESIS_NUMBER + 5) + (U256::from(1) << 64),
+                false,
+            ),
+        ];
+        for (name, config, timestamp, block_number, valid) in cases {
+            let result =
+                MessageRules::check_initiating_block_number::<E>(&config, timestamp, block_number);
+            if valid {
+                assert_eq!(result, Ok(()), "{name}");
+            } else {
+                assert_eq!(
+                    result,
+                    Err(MessageGraphError::InvalidMessageBlockNumber { block_number, timestamp }),
+                    "{name}"
+                );
+            }
+        }
+    }
 }
