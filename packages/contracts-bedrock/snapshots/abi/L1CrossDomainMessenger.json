@@ -366,6 +366,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_messageHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_undeliveredAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "relayUndeliveredMessage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_target",
         "type": "address"
@@ -551,6 +569,16 @@
     ],
     "name": "SentMessageExtension1",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "L1CrossDomainMessenger_InteropNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1CrossDomainMessenger_NotInteropMessenger",
+    "type": "error"
   },
   {
     "inputs": [],
