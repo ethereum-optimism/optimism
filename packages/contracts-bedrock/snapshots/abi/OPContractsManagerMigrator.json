@@ -192,6 +192,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_WithdrawalDelayMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_ZKDisputeGameNotEnabled",
     "type": "error"
   },

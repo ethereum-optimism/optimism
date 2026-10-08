@@ -81,11 +81,6 @@
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "_withdrawalDelaySeconds",
-        "type": "uint256"
-      },
-      {
         "internalType": "string",
         "name": "_errorPrefix",
         "type": "string"
@@ -256,11 +251,6 @@
             "internalType": "address",
             "name": "l1PAOMultisig",
             "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawalDelaySeconds",
-            "type": "uint256"
           }
         ],
         "internalType": "struct DisputeGameConfig",
