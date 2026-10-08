@@ -48,6 +48,13 @@ The contract is initialized with a very large balance (type(uint248).max wei) to
 *   **Source code:** [`ETHLiquidity`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/ETHLiquidity.sol)
 
 
+## UndeliveredMessageExporter
+
+The `UndeliveredMessageExporter` tells a message's source chain, through L1, that the message was not relayed on this chain. Once the message's expiry period has passed, the source chain's `L2ToL2CrossDomainMessenger` reports it in `expiredMessages`, so applications can undo the send. See [message expiration](/app-developers/guides/interoperability/message-expiration).
+
+*   **Address:** `0x4200000000000000000000000000000000000030`
+*   **Source code:** [`UndeliveredMessageExporter`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/UndeliveredMessageExporter.sol)
+
 ## SuperchainTokenBridge
 
 The `SuperchainTokenBridge` is an abstraction on top of the `L2ToL2CrossDomainMessenger` that facilitates token bridging using interop, as described in the [token bridging spec](https://specs.optimism.io/interop/token-bridging.html).
