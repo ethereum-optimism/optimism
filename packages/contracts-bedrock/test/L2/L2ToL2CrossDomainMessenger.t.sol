@@ -839,7 +839,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
     /// @notice Tests that word dated after the expiry period marks the message expired, and that
     ///         more word changes nothing and emits nothing.
     function testFuzz_expireMessage_succeeds(uint256 _afterWindow) external {
-        uint256 window = l2ToL2CrossDomainMessenger.EXPIRY_PERIOD();
+        uint256 window = l2ToL2CrossDomainMessenger.expiryPeriod();
         uint256 undeliveredAt = sentAt + window + bound(_afterWindow, 1, type(uint64).max);
 
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
@@ -856,7 +856,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
     /// @notice Tests that the period is exclusive: word dated exactly at its end does not expire the
     ///         message.
     function test_expireMessage_atWindowEnd_reverts() external {
-        uint256 windowEnd = sentAt + l2ToL2CrossDomainMessenger.EXPIRY_PERIOD();
+        uint256 windowEnd = sentAt + l2ToL2CrossDomainMessenger.expiryPeriod();
 
         vm.expectRevert(L2ToL2CrossDomainMessenger_MessageNotExpired.selector);
         _expireMessage(l1Messenger, messageHash, windowEnd);
@@ -867,7 +867,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
 
     /// @notice Tests that word dated within the window does not expire the message.
     function testFuzz_expireMessage_withinWindow_reverts(uint256 _undeliveredAt) external {
-        _undeliveredAt = bound(_undeliveredAt, 0, sentAt + l2ToL2CrossDomainMessenger.EXPIRY_PERIOD());
+        _undeliveredAt = bound(_undeliveredAt, 0, sentAt + l2ToL2CrossDomainMessenger.expiryPeriod());
 
         vm.expectRevert(L2ToL2CrossDomainMessenger_MessageNotExpired.selector);
         _expireMessage(l1Messenger, messageHash, _undeliveredAt);
@@ -885,7 +885,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
     ///         and emits nothing, while unauthenticated calls still revert.
     function testFuzz_expireMessage_afterExpiry_succeeds(uint256 _undeliveredAt, address _xDomainSender) external {
         vm.assume(_xDomainSender != l1Messenger);
-        _expireMessage(l1Messenger, messageHash, sentAt + l2ToL2CrossDomainMessenger.EXPIRY_PERIOD() + 1);
+        _expireMessage(l1Messenger, messageHash, sentAt + l2ToL2CrossDomainMessenger.expiryPeriod() + 1);
 
         vm.recordLogs();
         _expireMessage(l1Messenger, messageHash, _undeliveredAt);
@@ -948,7 +948,7 @@ contract L2ToL2CrossDomainMessenger_Uncategorized_Test is L2ToL2CrossDomainMesse
     /// @notice Tests that the genesis messenger uses the production expiry period.
     function test_genesisExpiryPeriod_isProduction_succeeds() external view {
         assertEq(
-            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(),
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
             Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
         );
     }
@@ -960,7 +960,7 @@ contract L2ToL2CrossDomainMessenger_Constructor_Test is Test {
     /// @notice Tests that the constructor sets the expiry period.
     function testFuzz_constructor_expiryPeriod_succeeds(uint256 _expiryPeriod) external {
         _expiryPeriod = bound(_expiryPeriod, 1, type(uint64).max);
-        assertEq(new L2ToL2CrossDomainMessenger(_expiryPeriod).EXPIRY_PERIOD(), _expiryPeriod);
+        assertEq(new L2ToL2CrossDomainMessenger(_expiryPeriod).expiryPeriod(), _expiryPeriod);
     }
 
     /// @notice Tests that the constructor rejects a zero expiry period.

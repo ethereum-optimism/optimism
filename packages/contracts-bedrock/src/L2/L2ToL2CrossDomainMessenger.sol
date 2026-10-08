@@ -80,7 +80,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     ///         message is only marked expired once no relay of it can be valid. Production
     ///         deployments use 8 days: the window plus a day of margin. It is set at deployment so
     ///         that test networks with a shorter window can use a shorter period.
-    uint256 public immutable EXPIRY_PERIOD;
+    uint256 internal immutable EXPIRY_PERIOD;
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -140,6 +140,13 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     constructor(uint256 _expiryPeriod) {
         if (_expiryPeriod == 0) revert L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
         EXPIRY_PERIOD = _expiryPeriod;
+    }
+
+    /// @notice Returns how long after it is sent a message must go unrelayed before it can be
+    ///         marked expired. See `EXPIRY_PERIOD`.
+    /// @return The expiry period, in seconds.
+    function expiryPeriod() public view returns (uint256) {
+        return EXPIRY_PERIOD;
     }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.

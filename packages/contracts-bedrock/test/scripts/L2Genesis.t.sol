@@ -328,7 +328,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         _setInputInteropEnabled();
         genesis.run(input);
         assertEq(
-            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(),
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
             Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
         );
     }
@@ -339,7 +339,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         _setInputInteropEnabled();
         input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
         genesis.run(input);
-        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(), _expiryPeriod);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), _expiryPeriod);
     }
 
     /// @notice Tests that the run function succeeds when interop is enabled.
