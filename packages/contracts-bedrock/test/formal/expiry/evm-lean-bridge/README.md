@@ -3,7 +3,7 @@
 Status: **all claimed theorems proved.** `lake build BridgeEvm BridgeEvm.Axioms` passes. There is
 no `sorry` or `admit`. Every headline theorem depends only on `propext`, `Classical.choice` and
 `Quot.sound`: there are **0 `native_decide` axioms**, and `BridgeEvm/Axioms.lean` asserts this at
-build time with `#assert_std_axioms`. Soundness and the outcome classification are claimed;
+build time with `#assert_headline`, which also requires a non-vacuity partner per theorem. Soundness and the outcome classification are claimed;
 completeness is not (see "Not covered").
 
 This is a sibling of `../evm-lean/` (the `expireMessage` proof). It uses the same toolchain pins and
@@ -224,8 +224,8 @@ callees and transactions do to the bridge's storage and code. That is not proved
    axioms.** Before the kernel switch there were 947. Instruction decodes, pc arithmetic, JUMPDEST
    membership, the JUMPDEST table, the SafeSend bytes and the selector bytes are all checked by the
    kernel (`decide +kernel`) through the proved `decode_eq_decodeList` and `D_J_eq_jumpdestScan`.
-   The `Concrete.*` tests use `native_decide` (compiled evaluation of `Ξ`). They are tests, not
-   dependencies.
+   The `Concrete.*` tests and the `native_*` lemmas of `NonVacuous.lean` use `native_decide`
+   (compiled evaluation of `Ξ`). They are not dependencies of any headline theorem (checked).
 7. **Trusted semantics.** The Lean kernel, EVMLean's definitions (`Ξ`, `Θ`, `Lambda`, gas, `KEC`)
    and EquiVM's `Reasoning` library (proved).
 
@@ -266,35 +266,45 @@ callees and transactions do to the bridge's storage and code. That is not proved
 ## Non-vacuity (automated, `BridgeEvm/NonVacuous.lean`)
 
 Every headline theorem has a partner `nonvacuous_<name>`. The partner exhibits concrete values that
-satisfy all of the theorem's hypotheses jointly, instantiates the theorem on them, and derives its
-conclusion. For the theorems about success it uses the concrete *successful* run.
-`Axioms.lean` runs `#assert_headline` on each theorem. That asserts the standard-axiom footprint
-**and** fails the build if the `nonvacuous_` partner is missing. A mutation test confirmed this:
-renaming one partner fails the build with "… has no non-vacuity partner …".
+satisfy all of the theorem's hypotheses jointly, applies the theorem to them, and states which case
+of its conclusion is realized. For the theorems about success it uses the concrete *successful*
+run. `Axioms.lean` runs `#assert_headline` on each theorem, and the build fails unless:
+1. the theorem depends only on `propext`, `Classical.choice`, `Quot.sound`;
+2. the partner exists and its proof term applies the theorem;
+3. every non-standard axiom of the partner comes from a theorem named `native_*` (the traversal
+   stops at those and lists them; each may carry only its own `native_decide` axiom).
 
-| theorem | witness |
-|---|---|
-| `refundETH_trace` | `Concrete.env 7` on `Concrete.σ 0`. `w_code` holds by `rfl`; `w_sel` and `w_cds` by `decide +kernel`. |
-| `refundETH_outcome` | the same; on the successful run the success disjunct is derived |
-| `refundETH_success` | the successful run `w_success` (`Ξ … = .ok (.success …)`) gives `RefundRun (σ 0) (σ 0) (env 7) σ'` |
-| `refundETH_no_other_error` | the statically entered run (`perm := false`) errors; the theorem gives `StaticModeViolation ∧ perm = false` |
-| `createStep_success` | `CreateStep … x σ' rd'` and `x ≠ 0` taken from the concrete `RefundRun` |
-| `storedMap_post` | `σ₁`, `hst` and `hcd` from the concrete `RefundRun`; `hcode` from `bridge_has_code` (`decide +kernel`) |
-| `refundETH_store` | the concrete `RefundRun` and `bridge_has_code` |
-| `RD.create` | a one-byte program `CREATE` with stack `[0,0,0]`; the `RD` hypothesis is built by `RD.start`, and the decode is checked by `evm_kdecide` (fully kernel-checked) |
-| `refundPreimage_size` | instantiated at `env 7` (no hypotheses) |
+Mutation tests, each run once on a copy and reverted, all fail the build: renaming a partner ("…
+has no non-vacuity partner …"); proving `nonvacuous_refundPreimage_size` by `decide +kernel` instead
+of applying the theorem ("… does not apply …"); renaming `native_run_static` to a non-`native_`
+name ("… uses non-standard axioms outside `native_*` lemmas …").
+
+| theorem | hypotheses (all jointly) | conclusion instantiated |
+|---|---|---|
+| `refundETH_trace` | `Concrete.env 7` on `Concrete.σ 0`: `w_code` (`rfl`), `w_sel`, `w_cds` (`decide +kernel`) | the success disjunct (`RefundRun` and `RDret`): the other two would make the concrete run end in out of gas, a revert or a static violation, contradicting the successful run |
+| `refundETH_outcome` | the same | the success disjunct with `RefundRun` |
+| `refundETH_success` | the same + the successful run (`hres`) | `RefundRun`, empty output; consistent with the kernel-checked pre-state `refundHash (env 7) = Hgood`, `refunded[Hgood] = 0` |
+| `refundETH_no_other_error` | the same on the statically entered run (`perm := false`) + `he = StaticModeViolation` | `perm = false` (the second disjunct) |
+| `createStep_success` | `CreateStep … x σ' rd'` and `x ≠ 0` from the concrete run; endowment `amount` and beneficiary `0xf0f0` (kernel) | the nonce bound, `x` = the created address, empty return data |
+| `storedMap_post` | `σ₁`, `hst`, `hcd` from the concrete run; `hcode` (`bridge_has_code`, kernel) | at `H = Hgood`, with the kernel-checked empty pre-state storage: the bridge's storage after the store is exactly `{refunded[Hgood] ↦ 1}`, and `refunded[Hgood]` reads true |
+| `refundETH_store` | the concrete `RefundRun` and `bridge_has_code` | `refunded[Hgood]` true after the store; the `mint(amount)` call; the SafeSend creation with `x ≠ 0` |
+| `RD.create` | a one-byte program `CREATE` with stack `[0,0,0]`; the `RD` cursor by `RD.start`, the decode by `evm_kdecide`, `perm`, the size bound (fully kernel-checked) | the `CreateStep` relation and the `RD` cursor after it |
+| `refundPreimage_size` | (no hypotheses) instantiated at `env 7` | size 352 |
+
+`RD.create` is a general opcode lemma, so its partner uses a synthetic program; the bridge's own
+`CREATE` is exercised through `createStep_success` / `refundETH_store` on the concrete run.
 
 **Trust.** Everything is kernel-checked except two facts that need `Ξ` evaluated on the concrete
-bytecode: `run_success_native` (the concrete run succeeds) and `run_static_native` (the static run
-raises `StaticModeViolation`). These are named `native_decide` lemmas. They are used only by the
-partners. They are outside every headline theorem's axiom cone, as the `#assert_std_axioms` check
-proves. Each success partner's footprint is the standard axioms plus exactly
-`run_success_native._native.native_decide.ax_1_1`.
+bytecode: `native_run_success` (the concrete run succeeds) and `native_run_static` (the static run
+raises `StaticModeViolation`). The kernel cannot evaluate `Ξ` (well-founded recursion). They are used
+only by the partners and are outside every headline theorem's axiom cone (checked). The concrete
+hash `Concrete.refundHash_matches_cast` (keccak256 of the 352-byte preimage, ≈ 26 s) and the slot
+facts (`w_unrefunded`, `w_storage_empty`) are kernel-checked.
 
 **Hypotheses quantified over all states or callees.** No headline theorem has one any more.
 `StaticCall`, `CallTo` and `CreateStep` are existential facts about the actual run. The former
-universal `MintFrame`/`CreateFrame` are removed. Every remaining hypothesis is discharged by the
-witnesses above.
+universal `MintFrame`/`CreateFrame` (round 1: false in practice) are removed. Every remaining
+hypothesis is discharged by the witnesses above.
 
 ## Non-vacuity and checks (`BridgeEvm/Concrete.lean`, executed with `Ξ`)
 
@@ -303,7 +313,7 @@ The setup is the bridge code at 0x4200…0024 with balance `amount`, a mock mess
 
 | theorem | checks |
 |---|---|
-| `refundHash_matches_cast` | `refundHash` equals foundry's `cast keccak (cast abi-encode … (cast calldata relayETH …))` = `0x9fea071a…4d43`. This checks the statement's preimage against Solidity's `abi.encode`. |
+| `refundHash_matches_cast` (kernel-checked) | `refundHash` equals foundry's `cast keccak (cast abi-encode … (cast calldata relayETH …))` = `0x9fea071a…4d43`. This checks the statement's preimage against Solidity's `abi.encode`. |
 | `success_reachable` | succeeds; `refunded[H] = 1`; `from` receives `amount` (SafeSend beneficiary). |
 | `success_storage_exact` | after success the bridge's storage is exactly `{refunded[H] ↦ 1}`. This is an observation about this run, not a frame theorem. |
 | `bridge_has_code` | the hypothesis of `storedMap_post`/`refundETH_store` holds in the pre-state. |
@@ -350,8 +360,8 @@ Supporting files:
 ```sh
 cd packages/contracts-bedrock/test/formal/expiry/evm-lean-bridge
 lake exe cache get                  # Mathlib cache (or copy ../evm-lean/.lake/packages: same pins)
-lake build BridgeEvm BridgeEvm.Axioms   # must print "Build completed successfully", 9
-                                        # "standard axioms only" and 9 "partner … present" lines
+lake build BridgeEvm BridgeEvm.Axioms   # must print "Build completed successfully" and one
+                                        # "standard axioms only. Partner … applies it" line per theorem
 grep -rn "sorry\|admit" BridgeEvm/      # nothing
 ```
 
@@ -398,7 +408,7 @@ each.
 | `BridgeEvm/Trace*.lean`, `BridgeEvm/Refund.lean`, `BridgeEvm/Post.lean` | proof |
 | `BridgeEvm/Concrete.lean` | executable checks |
 | `BridgeEvm/NonVacuous.lean` | one `nonvacuous_` partner per headline theorem |
-| `BridgeEvm/Axioms.lean` | `#assert_headline`: standard axioms + partner present |
+| `BridgeEvm/Axioms.lean` | `#assert_headline`: standard axioms + partner applies the theorem + compiled evaluation only in `native_*` lemmas |
 
 ## Review log
 
@@ -438,3 +448,12 @@ each.
   `regen.sh` validated the new artifact against `semver-lock.json` (`0xa9040c1c…`). Only the two
   selector operands changed. The proof and the non-vacuity partners rebuilt unchanged; the
   concrete selector checks were updated.
+* **Round 3: stronger non-vacuity check.** `#assert_headline` now also requires that each partner's
+  proof term applies its theorem and that compiled evaluation occurs only inside `native_*`
+  lemmas (`run_success_native`/`run_static_native` renamed `native_run_success`/
+  `native_run_static`); three mutations confirm each check fails the build. Partners strengthened:
+  `refundETH_trace` now shows the success disjunct is realized; `refundETH_success`,
+  `_no_other_error`, `createStep_success` and `storedMap_post` state their hypotheses jointly with
+  the instantiated conclusion; `storedMap_post` and `refundETH_store` are instantiated at
+  `H = Hgood` with kernel-checked pre-state facts; `refundHash_matches_cast` moved from
+  `native_decide` to the kernel. No hypothesis found unsatisfiable. Incremental build 21–47 s.

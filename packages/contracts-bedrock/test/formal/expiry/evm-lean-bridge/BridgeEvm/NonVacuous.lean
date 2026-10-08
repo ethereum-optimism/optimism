@@ -9,11 +9,13 @@ instantiated on them, and its conclusion derived. `Axioms.lean` fails the build 
 theorem has no partner.
 
 Trust: every step is kernel-checked except the facts that need *evaluating `Ξ` on the concrete
-bytecode* (a successful run, a static-mode run, and the concrete hash). Those are isolated as the
-named `native_decide` lemmas `run_success_native`, `run_static_native` (and `Concrete.*`), which
-appear only here and in `Concrete.lean`, never in a headline theorem's axiom cone (the assertion
-in `Axioms.lean` proves this). The witness is `Concrete.σ 0` / `Concrete.env 7` (bridge code at
-0x…24, mock messenger, mock ETHLiquidity; see `Concrete.lean`).
+bytecode* (a successful run and a static-mode run). Those are isolated as the named
+`native_decide` lemmas `native_run_success`, `native_run_static`; `Axioms.lean`
+(`#assert_headline`) checks that every non-standard axiom of a partner comes from a `native_*`
+lemma and that no headline theorem depends on one. The concrete hash
+(`Concrete.refundHash_matches_cast`, keccak256 of the 352-byte preimage) and the slot facts are
+kernel-checked. The witness is `Concrete.σ 0` / `Concrete.env 7` (bridge code at 0x…24, mock
+messenger, mock ETHLiquidity; see `Concrete.lean`).
 
 Hypotheses quantified over all states or callees: none remain in the headline theorems
 (`StaticCall`, `CallTo`, `CreateStep` are existential facts about the actual run; the earlier
@@ -48,10 +50,10 @@ def isStaticViolation
   | _ => false
 
 /-- `Ξ` on the concrete success scenario succeeds (compiled evaluation). -/
-theorem run_success_native : isSuccess (run 0 7) = true := by native_decide
+theorem native_run_success : isSuccess (run 0 7) = true := by native_decide
 
 /-- `Ξ` on the concrete scenario entered statically raises `StaticModeViolation`. -/
-theorem run_static_native :
+theorem native_run_static :
     isStaticViolation (runx (σ 0) { env 7 with perm := false }) = true := by native_decide
 
 theorem success_of_isSuccess {r : Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate))}
@@ -71,23 +73,55 @@ theorem static_of_isStatic {r : Except ExecutionException (ExecutionResult (Acco
 /-- The concrete successful run, as an equation about `Ξ`. -/
 theorem w_success : ∃ σ' g' A' o,
     Ξ (σ 0) (σ 0) (UInt256.ofNat 10000000) default (env 7) = .ok (.success (σ', g', A') o) :=
-  success_of_isSuccess run_success_native
+  success_of_isSuccess native_run_success
+
+/-! ## Kernel-checked facts of the witness -/
+
+/-- `refunded[Hgood]` is unset in the pre-state (kernel: keccak slot lookup). -/
+theorem w_unrefunded : refundedWord (σ 0) (env 7) Hgood = ⟨0⟩ := by decide +kernel
+
+/-- The bridge's storage is empty in the pre-state. -/
+theorem w_storage_empty : ((σ 0).getD (env 7).codeOwner default).storage = ∅ := by decide +kernel
+
+theorem w_setTrue : setTrueWord ⟨0⟩ = UInt256.ofNat 1 := by decide +kernel
+
+/-- The `CREATE`'s endowment and beneficiary argument in the witness. -/
+theorem w_args : argAmount (env 7) = UInt256.ofNat amount ∧ argFrom (env 7) = UInt256.ofNat 0xf0f0 := by
+  decide +kernel
+
+theorem w_hg : (Sat256.ofUInt256 (UInt256.ofNat 10000000)).toUInt256 = UInt256.ofNat 10000000 := rfl
 
 /-! ## One partner per headline theorem -/
 
-/-- `refundETH_trace`: hypotheses satisfied; conclusion instantiated. -/
+/-- `refundETH_trace`: hypotheses satisfied (kernel); the theorem applies, and the disjunct realized
+    is the success one (`RefundRun` and `RDret`): the other two would make the concrete run end in
+    out of gas, a revert or a static violation, contradicting `native_run_success`. -/
 theorem nonvacuous_refundETH_trace :
-    let g : Sat256 := Sat256.ofUInt256 (UInt256.ofNat 10000000)
-    RDrev ethbridgeRuntime g (initState (σ 0) (σ 0) g default (env 7)) ∨
-    ((env 7).perm = false ∧ RDstatic ethbridgeRuntime g (initState (σ 0) (σ 0) g default (env 7))) ∨
-    (∃ σ', RefundRun (σ 0) (σ 0) (env 7) σ' ∧
-      RDret ethbridgeRuntime g (initState (σ 0) (σ 0) g default (env 7)) σ' ByteArray.empty) :=
-  refundETH_trace w_code w_sel w_cds
+    (env 7).code = ethbridgeRuntime ∧ selectorWord (env 7) = refundSelector ∧
+    (env 7).calldata.size < 2 ^ 256 ∧
+    ∃ σ', RefundRun (σ 0) (σ 0) (env 7) σ' ∧
+      RDret ethbridgeRuntime (Sat256.ofUInt256 (UInt256.ofNat 10000000))
+        (initState (σ 0) (σ 0) (Sat256.ofUInt256 (UInt256.ofNat 10000000)) default (env 7)) σ'
+        ByteArray.empty := by
+  refine ⟨w_code, w_sel, w_cds, ?_⟩
+  obtain ⟨σ₁, g₁, A₁, o₁, hres⟩ := w_success
+  rcases refundETH_trace (σ := σ 0) (σ₀ := σ 0) (A := default)
+      (g := Sat256.ofUInt256 (UInt256.ofNat 10000000)) w_code w_sel w_cds with hrev | ⟨_, hstat⟩ | h
+  · rcases RDrev.xiResult w_code hrev with h | ⟨_, _, h⟩
+    · rw [w_hg, hres] at h; cases h
+    · rw [w_hg, hres] at h; cases h
+  · rcases RDstatic.xiResult w_code hstat with h | h
+    · rw [w_hg, hres] at h; cases h
+    · rw [w_hg, hres] at h; cases h
+  · exact h
 
 /-- `refundETH_outcome`: on the concrete success run the outcome is the success disjunct. -/
 theorem nonvacuous_refundETH_outcome :
+    (env 7).code = ethbridgeRuntime ∧ selectorWord (env 7) = refundSelector ∧
+    (env 7).calldata.size < 2 ^ 256 ∧
     ∃ σ' g' A', Ξ (σ 0) (σ 0) (UInt256.ofNat 10000000) default (env 7) =
       .ok (.success (σ', g', A') ByteArray.empty) ∧ RefundRun (σ 0) (σ 0) (env 7) σ' := by
+  refine ⟨w_code, w_sel, w_cds, ?_⟩
   obtain ⟨σ', g', A', o, hres⟩ := w_success
   rcases refundETH_outcome (σ := σ 0) (σ₀ := σ 0) (A := default) (g := UInt256.ofNat 10000000)
       w_code w_sel w_cds with h | ⟨_, _, h⟩ | ⟨h, _⟩ | h
@@ -96,51 +130,84 @@ theorem nonvacuous_refundETH_outcome :
   · rw [hres] at h; cases h
   · exact h
 
-/-- `refundETH_success`: all hypotheses (incl. a successful `Ξ` run) hold; `RefundRun` follows. -/
+/-- `refundETH_success`: all hypotheses (including a successful `Ξ` run) hold jointly; the theorem
+    yields `RefundRun` and empty output. Its "`refunded[H]` was false" clause is consistent with the
+    kernel-checked pre-state (`refundHash (env 7) = Hgood`, `refunded[Hgood] = 0`). -/
 theorem nonvacuous_refundETH_success :
-    ∃ σ', RefundRun (σ 0) (σ 0) (env 7) σ' := by
+    ∃ σ' g' A' o,
+      (env 7).code = ethbridgeRuntime ∧ selectorWord (env 7) = refundSelector ∧
+      (env 7).calldata.size < 2 ^ 256 ∧
+      Ξ (σ 0) (σ 0) (UInt256.ofNat 10000000) default (env 7) = .ok (.success (σ', g', A') o) ∧
+      RefundRun (σ 0) (σ 0) (env 7) σ' ∧ o = ByteArray.empty ∧
+      refundHash (env 7) = Hgood ∧ refundedWord (σ 0) (env 7) Hgood = ⟨0⟩ := by
   obtain ⟨σ', g', A', o, hres⟩ := w_success
-  exact ⟨σ', (refundETH_success w_code w_sel w_cds hres).1⟩
+  obtain ⟨hrun, ho⟩ := refundETH_success w_code w_sel w_cds hres
+  exact ⟨σ', g', A', o, w_code, w_sel, w_cds, hres, hrun, ho, refundHash_matches_cast, w_unrefunded⟩
 
-/-- `refundETH_no_other_error`: the statically entered concrete run errors; the theorem says the
-    error is a static-mode violation with `perm = false`. -/
+/-- `refundETH_no_other_error`: all hypotheses hold for the statically entered concrete run, which
+    errors with `StaticModeViolation` (`he`); the theorem applies and yields `perm = false`. -/
 theorem nonvacuous_refundETH_no_other_error :
-    let I := { env 7 with perm := false }
-    (ExecutionException.StaticModeViolation = .OutOfGass ∨
-      (ExecutionException.StaticModeViolation = .StaticModeViolation ∧ I.perm = false)) :=
-  refundETH_no_other_error (σ := σ 0) (σ₀ := σ 0) (A := default) (g := UInt256.ofNat 10000000)
-    (I := { env 7 with perm := false }) rfl w_sel w_cds (static_of_isStatic run_static_native)
+    let I : ExecutionEnv := { env 7 with perm := false }
+    I.code = ethbridgeRuntime ∧ selectorWord I = refundSelector ∧ I.calldata.size < 2 ^ 256 ∧
+    Ξ (σ 0) (σ 0) (UInt256.ofNat 10000000) default I = .error .StaticModeViolation ∧
+    I.perm = false := by
+  intro I
+  have he : Ξ (σ 0) (σ 0) (UInt256.ofNat 10000000) default I = .error .StaticModeViolation :=
+    static_of_isStatic native_run_static
+  refine ⟨rfl, w_sel, w_cds, he, ?_⟩
+  rcases refundETH_no_other_error (σ := σ 0) (σ₀ := σ 0) (A := default)
+      (g := UInt256.ofNat 10000000) (I := I) rfl w_sel w_cds he with h | ⟨_, h⟩
+  · cases h
+  · exact h
 
 /-- The `RefundRun` of the concrete success run, unpacked. -/
-theorem w_run : ∃ σ', RefundRun (σ 0) (σ 0) (env 7) σ' := nonvacuous_refundETH_success
+theorem w_run : ∃ σ', RefundRun (σ 0) (σ 0) (env 7) σ' := by
+  obtain ⟨σ', _, _, _, hres⟩ := w_success
+  exact ⟨σ', (refundETH_success w_code w_sel w_cds hres).1⟩
 
-/-- `createStep_success`: its hypotheses (`CreateStep` and `x ≠ 0`) are those of the concrete run. -/
+/-- `createStep_success`: its hypotheses (`CreateStep` and `x ≠ 0`) are those of the concrete
+    successful run (endowment `amount`, beneficiary `0xf0f0`, kernel); the theorem yields the
+    nonce bound, the created address and empty return data. -/
 theorem nonvacuous_createStep_success :
+    argAmount (env 7) = UInt256.ofNat amount ∧ argFrom (env 7) = UInt256.ofNat 0xf0f0 ∧
     ∃ σ₃ σ' x rd', CreateStep (env 7) (σ 0) σ₃ (argAmount (env 7)) (safeSendDeploy (argFrom (env 7)))
       x σ' rd' ∧ x ≠ UInt256.ofNat 0 ∧
-      ((σ₃.get? (env 7).codeOwner |>.getD default).nonce.toNat < 2 ^ 64 - 1) := by
+      (σ₃.get? (env 7).codeOwner |>.getD default).nonce.toNat < 2 ^ 64 - 1 ∧
+      ∃ a : AccountAddress, x = UInt256.ofNat a ∧ rd' = .empty := by
   obtain ⟨σ', _, _, σ₁, oE, _, _, _, _, _, _, _, σ₃, oM, _, x, rd', hcs, hx⟩ := w_run
-  exact ⟨σ₃, σ', x, rd', hcs, hx, (createStep_success hcs hx).1⟩
+  obtain ⟨hn, _, _, _, a, _, _, _, _, hxa, hrd⟩ := createStep_success hcs hx
+  exact ⟨w_args.1, w_args.2, σ₃, σ', x, rd', hcs, hx, hn, a, hxa, hrd⟩
 
 /-- The concrete pre-state: the executing account has code (needed by the post-state lemmas). -/
 theorem w_hascode : ((σ 0).getD (env 7).codeOwner default).code.size ≠ 0 := bridge_has_code
 
-/-- `storedMap_post`: `σ₁` from the concrete run, with `hst`, `hcd`, `hcode` all satisfied. -/
+/-- `storedMap_post`: `σ₁` from the concrete run, with `hst`, `hcd`, `hcode` all satisfied; the
+    theorem applies at `H = Hgood`, and with the kernel-checked pre-state (empty storage,
+    `refunded[Hgood] = 0`) the bridge's storage after the store is exactly `{refunded[Hgood] ↦ 1}`. -/
 theorem nonvacuous_storedMap_post :
-    ∃ σ₁, UInt256.land (UInt256.ofNat 255)
-      (refundedWord (storedMap σ₁ (env 7) (refundHash (env 7))) (env 7) (refundHash (env 7))) =
+    ∃ σ₁, accountStorageStateEq (σ 0) σ₁ ∧ accountCodeStateEq (σ 0) σ₁ ∧
+      ((σ 0).getD (env 7).codeOwner default).code.size ≠ 0 ∧
+      ((storedMap σ₁ (env 7) Hgood).getD (env 7).codeOwner default).storage =
+        (∅ : Storage).insert (refundedSlot Hgood) (UInt256.ofNat 1) ∧
+      UInt256.land (UInt256.ofNat 255) (refundedWord (storedMap σ₁ (env 7) Hgood) (env 7) Hgood) =
         UInt256.ofNat 1 := by
   obtain ⟨σ', _, _, σ₁, oE, _, _, _, hst, hcd, _⟩ := w_run
-  exact ⟨σ₁, (storedMap_post hst hcd w_hascode).2.2.2⟩
+  obtain ⟨h1, _, _, h4⟩ := storedMap_post (H := Hgood) hst hcd w_hascode
+  refine ⟨σ₁, hst, hcd, w_hascode, ?_, h4⟩
+  rw [h1, w_storage_empty, w_unrefunded, w_setTrue]
 
-/-- `refundETH_store`: hypotheses (`RefundRun`, code present) satisfied by the concrete run. -/
+/-- `refundETH_store`: hypotheses (`RefundRun`, code present) satisfied by the concrete run; the
+    theorem yields the store, the `mint(amount)` call and the SafeSend creation. -/
 theorem nonvacuous_refundETH_store :
     ∃ σ' σ₂ σ₃, RefundRun (σ 0) (σ 0) (env 7) σ' ∧
-      UInt256.land (UInt256.ofNat 255) (refundedWord σ₂ (env 7) (refundHash (env 7))) = UInt256.ofNat 1 ∧
-      (∃ oM, CallTo (σ 0) (env 7) ethLiq (mintCalldata (argAmount (env 7))) σ₂ σ₃ true oM) := by
+      UInt256.land (UInt256.ofNat 255) (refundedWord σ₂ (env 7) Hgood) = UInt256.ofNat 1 ∧
+      (∃ oM, CallTo (σ 0) (env 7) ethLiq (mintCalldata (argAmount (env 7))) σ₂ σ₃ true oM) ∧
+      (∃ x rd', CreateStep (env 7) (σ 0) σ₃ (argAmount (env 7)) (safeSendDeploy (argFrom (env 7)))
+        x σ' rd' ∧ x ≠ UInt256.ofNat 0) := by
   obtain ⟨σ', hrun⟩ := w_run
-  obtain ⟨σ₂, σ₃, _, _, _, h4, h5, _⟩ := refundETH_store hrun w_hascode
-  exact ⟨σ', σ₂, σ₃, hrun, h4, h5⟩
+  obtain ⟨σ₂, σ₃, _, _, _, h4, h5, h6⟩ := refundETH_store hrun w_hascode
+  rw [refundHash_matches_cast] at h4
+  exact ⟨σ', σ₂, σ₃, hrun, h4, h5, h6⟩
 
 /-! `RD.create` on a one-byte program `CREATE` with stack `[0, 0, 0]`, entered at pc 0
 (all kernel-checked): the `RD` hypothesis is built directly with `RD.start`. -/

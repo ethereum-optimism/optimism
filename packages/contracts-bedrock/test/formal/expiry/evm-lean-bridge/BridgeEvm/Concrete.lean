@@ -109,8 +109,9 @@ def revertSelector (refundedPre nonce : ℕ) : Option (List UInt8) :=
 def selMessageNotExpired : List UInt8 := [0x09, 0x78, 0x27, 0x5c]
 def selAlreadyRefunded : List UInt8 := [0x2b, 0x79, 0x22, 0x86]
 
-/-- The statement's preimage definition reproduces Solidity's `abi.encode` hash (cast). -/
-theorem refundHash_matches_cast : refundHash (env 7) = Hgood := by native_decide
+/-- The statement's preimage definition reproduces Solidity's `abi.encode` hash (cast).
+    Kernel-checked: `decide +kernel` evaluates keccak256 of the 352-byte preimage (≈ 26 s). -/
+theorem refundHash_matches_cast : refundHash (env 7) = Hgood := by decide +kernel
 
 /-- Reachability witness (success): `refunded[H]` becomes 1 and `from` receives `amount` from
     the SafeSend `SELFDESTRUCT` — the beneficiary of the created contract is `from`. -/
