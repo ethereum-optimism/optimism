@@ -44,7 +44,6 @@ discv5.workspace = true
 futures.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-tokio-util.workspace = true
 async-trait.workspace = true
 async-stream.workspace = true
 tokio-stream.workspace = true

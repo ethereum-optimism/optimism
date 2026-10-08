@@ -39,7 +39,6 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
-use tokio_util::sync::CancellationToken;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -358,7 +357,6 @@ impl RollupNode {
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_state: watch::Receiver<L1State>,
         builder: sequencer::Builder<ConductorClient>,
-        cancellation: CancellationToken,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.l1_config.engine_provider.clone(),
@@ -377,7 +375,6 @@ impl RollupNode {
             delayed_origin_selector,
             self.config.clone(),
             signer,
-            cancellation,
         )
     }
 
@@ -474,16 +471,12 @@ impl RollupNode {
     /// ## Shutdown
     ///
     /// Shutdown is unordered: when any actor exits (success, error, or panic),
-    /// the umbrella cancellation token fires and all peer actors observe it on their
-    /// next `select!`. Actors may log channel-closed errors while peers are torn down
-    /// concurrently; this is expected and not a sign of an unclean exit.
+    /// the supervisor aborts the remaining actors. Actors may log channel-closed errors
+    /// while peers are torn down concurrently.
     ///
     /// Dropping this future aborts the remaining actors. Callers are responsible for handling
     /// OS shutdown signals.
     pub async fn start(&self) -> Result<(), String> {
-        // Single umbrella cancellation token shared by the supervisor and actor lifetimes.
-        let cancellation = CancellationToken::new();
-
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
@@ -537,7 +530,6 @@ impl RollupNode {
                 self.config.l2_chain_id.id(),
                 signer_rx.clone(),
                 signed_payload_tx,
-                cancellation.clone(),
             )
         });
 
@@ -572,7 +564,6 @@ impl RollupNode {
                 unsafe_head_rx,
                 l1_state.clone(),
                 builder,
-                cancellation.clone(),
             )
         });
 
@@ -588,9 +579,9 @@ impl RollupNode {
             )
             .await?;
 
-        let mut supervisor = Supervisor::new(cancellation.clone());
+        let mut supervisor = Supervisor::new();
         if let Some(rpc) = rpc {
-            supervisor.spawn("rpc", run_node_actor(rpc, cancellation.clone()));
+            supervisor.spawn("rpc", run_node_actor(rpc));
         }
         if let Some(sequencer) = sequencer_actor {
             supervisor.spawn("sequencer", sequencer);
@@ -598,44 +589,32 @@ impl RollupNode {
         if let Some(signer) = signer_actor {
             supervisor.spawn("signer", signer);
         }
-        supervisor.spawn("network", run_node_actor(network, cancellation.clone()));
-        supervisor.spawn("l1", run_node_actor(l1_watcher, cancellation.clone()));
-        supervisor.spawn("derivation", run_node_actor(derivation, cancellation.clone()));
-        supervisor.spawn("engine", run_node_actor(engine_actor, cancellation));
+        supervisor.spawn("network", run_node_actor(network));
+        supervisor.spawn("l1", run_node_actor(l1_watcher));
+        supervisor.spawn("derivation", run_node_actor(derivation));
+        supervisor.spawn("engine", run_node_actor(engine_actor));
         supervisor.wait().await
     }
 }
 
-/// Adapts an existing step-based actor into a cancellable lifetime future.
-async fn run_node_actor<A: NodeActor>(
-    mut actor: A,
-    cancellation: CancellationToken,
-) -> Result<(), A::Error> {
+/// Adapts an existing step-based actor into a lifetime future.
+async fn run_node_actor<A: NodeActor>(mut actor: A) -> Result<(), A::Error> {
     loop {
-        tokio::select! {
-            biased;
-            _ = cancellation.cancelled() => return Ok(()),
-            result = actor.step() => result?,
-        }
+        actor.step().await?;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        future::pending,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
     };
-    use tokio::sync::oneshot;
 
     struct StepActor {
         calls: Arc<AtomicUsize>,
-        fail_after: Option<usize>,
-        started: Option<oneshot::Sender<()>>,
+        fail_after: usize,
     }
 
     #[async_trait::async_trait]
@@ -644,56 +623,15 @@ mod tests {
 
         async fn step(&mut self) -> Result<(), Self::Error> {
             let calls = self.calls.fetch_add(1, Ordering::Relaxed) + 1;
-            if let Some(started) = self.started.take() {
-                let _ = started.send(());
-            }
-            match self.fail_after {
-                Some(limit) if calls >= limit => Err("step failed"),
-                Some(_) => Ok(()),
-                None => pending().await,
-            }
+            if calls >= self.fail_after { Err("step failed") } else { Ok(()) }
         }
     }
 
     #[tokio::test]
     async fn adapter_repeats_steps_until_error() {
         let calls = Arc::new(AtomicUsize::new(0));
-        let actor = StepActor { calls: calls.clone(), fail_after: Some(3), started: None };
-
-        let result = run_node_actor(actor, CancellationToken::new()).await;
-
-        assert_eq!(result, Err("step failed"));
+        let actor = StepActor { calls: calls.clone(), fail_after: 3 };
+        assert_eq!(run_node_actor(actor).await, Err("step failed"));
         assert_eq!(calls.load(Ordering::Relaxed), 3);
-    }
-
-    #[tokio::test]
-    async fn adapter_prioritizes_cancellation_before_stepping() {
-        let cancellation = CancellationToken::new();
-        cancellation.cancel();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let actor = StepActor { calls: calls.clone(), fail_after: Some(1), started: None };
-
-        assert_eq!(run_node_actor(actor, cancellation).await, Ok(()));
-        assert_eq!(calls.load(Ordering::Relaxed), 0);
-    }
-
-    #[tokio::test]
-    async fn successful_lifetime_cancels_pending_step_actor() {
-        let cancellation = CancellationToken::new();
-        let mut supervisor = Supervisor::new(cancellation.clone());
-        let (started_tx, started_rx) = oneshot::channel();
-        let actor = StepActor {
-            calls: Arc::new(AtomicUsize::new(0)),
-            fail_after: None,
-            started: Some(started_tx),
-        };
-        supervisor.spawn("stepping", run_node_actor(actor, cancellation.clone()));
-        supervisor.spawn("lifetime", async move {
-            started_rx.await.unwrap();
-            Ok::<(), std::io::Error>(())
-        });
-
-        assert_eq!(supervisor.wait().await, Ok(()));
-        assert!(cancellation.is_cancelled());
     }
 }

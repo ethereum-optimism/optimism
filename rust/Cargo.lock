@@ -7650,7 +7650,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
- "tokio-util",
  "tower 0.5.3",
  "tracing",
  "url",
@@ -7706,7 +7705,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-util",
  "tower 0.5.3",
  "tracing",
  "url",
@@ -7984,7 +7982,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-util",
  "tracing",
  "url",
 ]

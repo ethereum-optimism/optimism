@@ -20,7 +20,6 @@ use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::{mpsc, watch};
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -129,7 +128,6 @@ impl TestNetworkBuilder {
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
             signed_payload_tx,
-            CancellationToken::new(),
         );
         tokio::spawn(async move {
             if let Err(err) = signer.await {

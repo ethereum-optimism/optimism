@@ -20,7 +20,6 @@ use tokio::{
     sync::{Notify, mpsc, watch},
     time::{self, Duration},
 };
-use tokio_util::sync::CancellationToken;
 
 fn config() -> Arc<RollupConfig> {
     Arc::new(RollupConfig { block_time: 2, ..Default::default() })
@@ -57,7 +56,6 @@ fn construction_and_build_do_not_require_a_runtime() {
         MockOriginSelector::new(),
         config(),
         MockUnsafePayloadGossipClient::new(),
-        CancellationToken::new(),
     );
     assert_eq!(handle.snapshot().unwrap(), initial);
     drop(task);
@@ -65,41 +63,23 @@ fn construction_and_build_do_not_require_a_runtime() {
 }
 
 #[tokio::test]
-async fn cancellation_before_startup_skips_the_engine_reset() {
-    let cancellation = CancellationToken::new();
-    cancellation.cancel();
-    let task = Builder::new(Capacity::try_from(1).unwrap(), None::<MockConductor>, true, false)
-        .build(
-            TestAttributesBuilder { attributes: vec![] },
-            MockSequencerEngineClient::new(),
-            MockOriginSelector::new(),
-            config(),
-            MockUnsafePayloadGossipClient::new(),
-            cancellation,
-        );
-    task.await.unwrap();
-}
-
-#[tokio::test]
-async fn cancellation_interrupts_a_pending_initial_reset() {
+async fn aborting_lifetime_interrupts_a_pending_initial_reset() {
     let builder = Builder::new(Capacity::try_from(1).unwrap(), None::<MockConductor>, true, false);
     let handle = builder.handle();
     let (engine_actor_request_tx, mut requests) = mpsc::channel(1);
     let (_, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
-    let cancellation = CancellationToken::new();
     let task = tokio::spawn(builder.build(
         TestAttributesBuilder { attributes: vec![] },
         QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx },
         MockOriginSelector::new(),
         config(),
         MockUnsafePayloadGossipClient::new(),
-        cancellation.clone(),
     ));
     let EngineActorRequest::Reset(request) = requests.recv().await.unwrap() else {
         panic!("expected initial reset");
     };
-    cancellation.cancel();
-    task.await.unwrap().unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
     assert!(request.result_tx.is_closed());
     assert!(matches!(handle.snapshot(), Err(HandleError::RequestError(_))));
 }
@@ -110,12 +90,12 @@ async fn sequencing_continues_without_command_handles() {
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     let ticks = Arc::new(AtomicUsize::new(0));
     let observed_ticks = ticks.clone();
-    let cancellation = CancellationToken::new();
-    let cancel_after_ticks = cancellation.clone();
+    let reached_ticks = Arc::new(Notify::new());
+    let notify_after_ticks = reached_ticks.clone();
     let mut gossip = MockUnsafePayloadGossipClient::new();
     gossip.expect_has_capacity().times(3).returning(move || {
         if observed_ticks.fetch_add(1, Ordering::Relaxed) == 2 {
-            cancel_after_ticks.cancel();
+            notify_after_ticks.notify_one();
         }
         false
     });
@@ -126,17 +106,18 @@ async fn sequencing_continues_without_command_handles() {
             MockOriginSelector::new(),
             config(),
             gossip,
-            cancellation,
         );
-    time::timeout(Duration::from_secs(5), task).await.unwrap().unwrap();
+    let task = tokio::spawn(task);
+    time::timeout(Duration::from_secs(5), reached_ticks.notified()).await.unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
     assert_eq!(ticks.load(Ordering::Relaxed), 3);
 }
 
 #[tokio::test]
-async fn stopped_actor_without_command_handles_waits_for_cancellation() {
+async fn stopped_actor_without_command_handles_stays_pending() {
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-    let cancellation = CancellationToken::new();
     let task = Builder::new(Capacity::try_from(1).unwrap(), None::<MockConductor>, false, false)
         .build(
             TestAttributesBuilder { attributes: vec![] },
@@ -144,16 +125,14 @@ async fn stopped_actor_without_command_handles_waits_for_cancellation() {
             MockOriginSelector::new(),
             config(),
             MockUnsafePayloadGossipClient::new(),
-            cancellation.clone(),
         );
-    tokio::pin!(task);
+    let mut task = Box::pin(task);
     tokio::select! {
         biased;
         result = &mut task => panic!("stopped actor exited: {result:?}"),
         _ = ready(()) => {}
     }
-    cancellation.cancel();
-    task.await.unwrap();
+    drop(task);
 }
 
 #[tokio::test]
@@ -178,7 +157,6 @@ async fn failed_startup_rejects_a_previously_queued_command() {
         MockOriginSelector::new(),
         config(),
         MockUnsafePayloadGossipClient::new(),
-        CancellationToken::new(),
     );
     assert!(matches!(task.await, Err(ActorError::EngineError(_))));
     assert!(matches!(command.await, Err(HandleError::RequestError(_))));
@@ -186,14 +164,13 @@ async fn failed_startup_rejects_a_previously_queued_command() {
 }
 
 #[tokio::test]
-async fn cancellation_interrupts_an_in_flight_block_build() {
+async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
     let (engine_actor_request_tx, mut requests) = mpsc::channel(1);
     let (_, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
     let mut origin = MockOriginSelector::new();
     origin.expect_next_l1_origin().times(1).return_once(|_, _| Ok(Default::default()));
     let mut gossip = MockUnsafePayloadGossipClient::new();
     gossip.expect_has_capacity().times(1).return_const(true);
-    let cancellation = CancellationToken::new();
     let task = tokio::spawn(
         Builder::new(Capacity::try_from(1).unwrap(), None::<MockConductor>, true, false).build(
             TestAttributesBuilder { attributes: vec![Ok(Default::default())] },
@@ -201,7 +178,6 @@ async fn cancellation_interrupts_an_in_flight_block_build() {
             origin,
             config(),
             gossip,
-            cancellation.clone(),
         ),
     );
     let EngineActorRequest::Reset(reset) = requests.recv().await.unwrap() else {
@@ -211,13 +187,13 @@ async fn cancellation_interrupts_an_in_flight_block_build() {
     let EngineActorRequest::Build(build) = requests.recv().await.unwrap() else {
         panic!("expected block build");
     };
-    cancellation.cancel();
-    task.await.unwrap().unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
     assert!(build.result_tx.is_closed());
 }
 
 #[tokio::test]
-async fn cancellation_interrupts_an_in_flight_message() {
+async fn aborting_lifetime_interrupts_an_in_flight_message() {
     let started = Arc::new(Notify::new());
     let builder = Builder::new(
         Capacity::try_from(1).unwrap(),
@@ -228,18 +204,16 @@ async fn cancellation_interrupts_an_in_flight_message() {
     let handle = builder.handle();
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-    let cancellation = CancellationToken::new();
     let task = tokio::spawn(builder.build(
         TestAttributesBuilder { attributes: vec![] },
         engine,
         MockOriginSelector::new(),
         config(),
         MockUnsafePayloadGossipClient::new(),
-        cancellation.clone(),
     ));
     let command = tokio::spawn(async move { handle.override_leader().await });
     started.notified().await;
-    cancellation.cancel();
-    task.await.unwrap().unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
     assert!(matches!(command.await.unwrap(), Err(HandleError::RequestError(_))));
 }

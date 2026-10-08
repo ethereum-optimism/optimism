@@ -24,7 +24,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::{
-    future::Future,
+    future::{Future, pending},
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -33,7 +33,6 @@ use tokio::{
     sync::{mpsc, watch},
     time::Interval,
 };
-use tokio_util::sync::CancellationToken;
 
 /// Constructs the handle and task.
 #[derive(Debug)]
@@ -70,6 +69,7 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
     /// Supplies dependencies and produces the actor's lifetime future without spawning it.
     ///
     /// Runtime work begins when the future is polled.
+    /// Dropping the future stops the actor.
     pub fn build<
         AttributesBuilder_: AttributesBuilder + Sync + 'static,
         OriginSelector_: OriginSelector + 'static,
@@ -82,7 +82,6 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
-        cancellation: CancellationToken,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, commands, published, conductor } = self;
         let state = *published.borrow();
@@ -98,7 +97,7 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
                 rollup_config,
                 unsafe_payload_gossip_client,
             )
-            .run(cancellation)
+            .run()
             .await
         }
     }
@@ -531,33 +530,19 @@ where
     SequencerEngineClient_: SequencerEngineClient + Sync + 'static,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient + Sync + 'static,
 {
-    async fn run(mut self, cancellation: CancellationToken) -> Result<(), ActorError> {
-        select! {
-            biased;
-            _ = cancellation.cancelled() => return Ok(()),
-            result = async {
-                // Publish the initial state and metrics before beginning block building.
-                self.update_state(|_| {});
-                // Reset the engine state prior to beginning block building.
-                self.schedule_initial_reset().await
-            } => result?,
-        }
+    async fn run(mut self) -> Result<(), ActorError> {
+        // Publish the initial state and metrics before beginning block building.
+        self.update_state(|_| {});
+        // Reset the engine state prior to beginning block building.
+        self.schedule_initial_reset().await?;
         loop {
             select! {
-                // Prioritize cancellation and admin messages over block building.
+                // Prioritize admin messages over block building.
                 biased;
-                _ = cancellation.cancelled() => return Ok(()),
-                Some(message) = self.admin_command_rx.recv() => {
-                    if cancellation.run_until_cancelled(self.handle_message(message)).await.is_none() {
-                        return Ok(());
-                    }
-                }
-                _ = self.build_ticker.tick(), if self.state().active => {
-                    let Some(result) = cancellation.run_until_cancelled(self.build()).await else {
-                        return Ok(());
-                    };
-                    result?;
-                }
+                Some(message) = self.admin_command_rx.recv() => self.handle_message(message).await,
+                _ = self.build_ticker.tick(), if self.state().active => self.build().await?,
+                // A stopped actor with no command handles stays pending until dropped.
+                else => pending().await,
             }
         }
     }

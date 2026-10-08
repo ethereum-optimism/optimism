@@ -42,7 +42,6 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
 url.workspace = true
 libp2p = { workspace = true, features = ["metrics"] }
 tracing.workspace = true
-tokio-util.workspace = true
 async-trait.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }

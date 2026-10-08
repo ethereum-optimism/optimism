@@ -136,7 +136,6 @@ mod tests {
         sync::Arc,
     };
     use tokio::sync::watch;
-    use tokio_util::sync::CancellationToken;
 
     #[derive(Debug)]
     struct PausedGossip;
@@ -175,7 +174,6 @@ mod tests {
         Handle,
         impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static,
         mpsc::Receiver<EngineActorRequest>,
-        CancellationToken,
     ) {
         let builder = sequencer::Builder::new(
             sequencer::Capacity::try_from(1).unwrap(),
@@ -190,16 +188,14 @@ mod tests {
             block_info: BlockInfo { hash: B256::repeat_byte(42), ..Default::default() },
             ..Default::default()
         });
-        let cancellation = CancellationToken::new();
         let task = builder.build(
             TestAttributesBuilder { attributes: vec![] },
             QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx },
             UnusedOriginSelector,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
             PausedGossip,
-            cancellation.clone(),
         );
-        (handle, task, requests, cancellation)
+        (handle, task, requests)
     }
 
     async fn acknowledge_startup(requests: &mut mpsc::Receiver<EngineActorRequest>) {
@@ -211,7 +207,7 @@ mod tests {
 
     #[tokio::test]
     async fn reads_published_state_without_queueing_and_rejects_closed_publisher() {
-        let (handle, task, _requests, _) = sequencer(true);
+        let (handle, task, _requests) = sequencer(true);
         // Queue a command without running the actor, leaving the mailbox full.
         tokio::select! {
             biased;
@@ -252,7 +248,7 @@ mod tests {
 
     #[tokio::test]
     async fn commands_return_actor_results_and_map_failures() {
-        let (handle, task, mut requests, cancellation) = sequencer(false);
+        let (handle, task, mut requests) = sequencer(false);
         let task = tokio::spawn(task);
         acknowledge_startup(&mut requests).await;
         let rpc = AdminRpc::new(Some(handle), mpsc::channel(1).0, mpsc::channel(1).0);
@@ -266,8 +262,8 @@ mod tests {
         rpc.admin_start_sequencer().await.unwrap();
         assert!(rpc.admin_sequencer_active().await.unwrap());
 
-        cancellation.cancel();
-        task.await.unwrap().unwrap();
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
         assert_eq!(
             rpc.admin_start_sequencer().await.unwrap_err().code(),
             ErrorCode::InternalError.code()

@@ -9,7 +9,6 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::future::Future;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
-use tokio_util::sync::CancellationToken;
 
 pub use crate::capacity::{Capacity, InvalidCapacity};
 
@@ -79,17 +78,17 @@ impl Builder {
     /// Supplies dependencies and produces the signer's lifetime future without spawning it.
     ///
     /// The caller must retain a handle to keep the input channel open.
+    /// Dropping the future stops the actor.
     pub fn build(
         self,
         signer: BlockSignerHandler,
         chain_id: u64,
         unsafe_block_signer: watch::Receiver<Address>,
         signed: mpsc::Sender<Payload>,
-        cancellation: CancellationToken,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let actor =
             Actor { signer, chain_id, unsafe_block_signer, payloads: self.payloads, signed };
-        actor.run(cancellation)
+        actor.run()
     }
 }
 
@@ -135,27 +134,20 @@ pub enum ActorError {
 }
 
 impl Actor {
-    async fn run(mut self, cancellation: CancellationToken) -> Result<(), ActorError> {
+    async fn run(mut self) -> Result<(), ActorError> {
         loop {
-            tokio::select! {
-                biased;
-                _ = cancellation.cancelled() => return Ok(()),
-                result = self.sign() => result?,
-            }
+            let payload = self.payloads.recv().await.ok_or(ActorError::ChannelClosed)?;
+            // A remote signer rejects an address that is not its own, so a rotation seen before
+            // this call fails with `InvalidAddress`. A local signer ignores the
+            // address.
+            let sender = *self.unsafe_block_signer.borrow();
+            let signature =
+                self.signer.sign_block(payload.payload_hash(), self.chain_id, sender).await?;
+            self.signed
+                .send(Payload { payload, signature })
+                .await
+                .map_err(|_| ActorError::ChannelClosed)?;
         }
-    }
-
-    async fn sign(&mut self) -> Result<(), ActorError> {
-        let payload = self.payloads.recv().await.ok_or(ActorError::ChannelClosed)?;
-        // A remote signer rejects an address that is not its own, so a rotation seen before this
-        // call fails with `InvalidAddress`. A local signer ignores the address.
-        let sender = *self.unsafe_block_signer.borrow();
-        let signature =
-            self.signer.sign_block(payload.payload_hash(), self.chain_id, sender).await?;
-        self.signed
-            .send(Payload { payload, signature })
-            .await
-            .map_err(|_| ActorError::ChannelClosed)
     }
 }
 
@@ -234,7 +226,6 @@ mod tests {
         payloads: Handle,
         signed: mpsc::Receiver<Payload>,
         task: tokio::task::JoinHandle<Result<(), ActorError>>,
-        cancellation: CancellationToken,
     }
 
     impl Drop for Harness {
@@ -247,15 +238,13 @@ mod tests {
         let builder = Builder::new(Capacity::try_from(8).unwrap());
         let payloads = builder.handle();
         let (signed_tx, signed) = mpsc::channel(8);
-        let cancellation = CancellationToken::new();
         let task = tokio::spawn(builder.build(
             signer,
             CHAIN_ID,
             watch::channel(unsafe_block_signer).1,
             signed_tx,
-            cancellation.clone(),
         ));
-        Harness { payloads, signed, task, cancellation }
+        Harness { payloads, signed, task }
     }
 
     #[test]
@@ -322,8 +311,6 @@ mod tests {
             assert_eq!(signed.payload, payload(number));
             assert_eq!(signed.signature, signature(&key, &signed.payload));
         }
-        h.cancellation.cancel();
-        assert!((&mut h.task).await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -355,7 +342,6 @@ mod tests {
             CHAIN_ID,
             watch::channel(address).1,
             signed_tx,
-            CancellationToken::new(),
         );
         drop(handle);
 
@@ -363,30 +349,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancellation_interrupts_full_output_queue() {
+    async fn dropping_lifetime_closes_a_full_output_queue() {
         let builder = Builder::new(Capacity::try_from(2).unwrap());
         let handle = builder.handle();
         let key = PrivateKeySigner::random();
         let address = key.address();
         let (signed_tx, mut signed_rx) = mpsc::channel(1);
-        let cancellation = CancellationToken::new();
-        let task = builder.build(
+        let mut task = Box::pin(builder.build(
             BlockSignerHandler::Local(key),
             CHAIN_ID,
             watch::channel(address).1,
             signed_tx,
-            cancellation.clone(),
-        );
-        tokio::pin!(task);
+        ));
         handle.send(payload(1)).await.unwrap();
         handle.send(payload(2)).await.unwrap();
 
-        assert!(futures::poll!(&mut task).is_pending());
+        assert!(futures::poll!(task.as_mut()).is_pending());
         assert_eq!(signed_rx.len(), 1);
         assert_eq!(handle.payloads.capacity(), 2);
-        cancellation.cancel();
-
-        assert!(task.await.is_ok());
+        drop(task);
         assert_eq!(signed_rx.recv().await.unwrap().payload, payload(1));
         assert!(signed_rx.recv().await.is_none());
     }

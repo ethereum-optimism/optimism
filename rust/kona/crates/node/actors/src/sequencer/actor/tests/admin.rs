@@ -11,7 +11,6 @@ use tokio::{
     sync::oneshot,
     time::{self, Duration},
 };
-use tokio_util::sync::CancellationToken;
 
 async fn command<T>(
     actor: &mut TestActor,
@@ -51,12 +50,11 @@ async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     let (tx, rx) = oneshot::channel();
     commands.send(Message::StopSequencer(tx)).await.unwrap();
-    let cancellation = CancellationToken::new();
-    let task = tokio::spawn(actor.run(cancellation.clone()));
+    let task = tokio::spawn(actor.run());
     assert_eq!(time::timeout(Duration::from_secs(10), rx).await.unwrap().unwrap().unwrap(), hash);
     assert!(!state.borrow().active);
-    cancellation.cancel();
-    task.await.unwrap().unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
 }
 
 #[tokio::test(start_paused = true)]
@@ -158,16 +156,15 @@ async fn handle_reads_published_state_after_commands() {
     assert!(!handle.snapshot().unwrap().recovery_mode);
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(false);
-    let cancellation = CancellationToken::new();
-    let task = tokio::spawn(actor.run(cancellation.clone()));
+    let task = tokio::spawn(actor.run());
     handle.start().await.unwrap();
     assert!(handle.snapshot().unwrap().active);
     handle.set_recovery_mode(true).await.unwrap();
     assert!(handle.snapshot().unwrap().recovery_mode);
     assert_eq!(handle.stop().await.unwrap(), hash);
     assert!(!handle.snapshot().unwrap().active);
-    cancellation.cancel();
-    task.await.unwrap().unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
 }
 
 #[tokio::test(start_paused = true)]
@@ -198,7 +195,7 @@ async fn failed_startup_does_not_apply_a_queued_command() {
     let (tx, mut rx) = oneshot::channel();
     commands.send(Message::StartSequencer(tx)).await.unwrap();
     let state = actor.admin_state_receiver();
-    assert!(actor.run(CancellationToken::new()).await.is_err());
+    assert!(actor.run().await.is_err());
     assert!(!state.borrow().active);
     assert!(matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
 }

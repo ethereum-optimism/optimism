@@ -148,12 +148,14 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task.
+    /// Dropping the ENR receiver stops the service.
     pub fn start(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
         let chain_id = self.chain_id;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
-        tokio::spawn(async move {
+        let receiver_closed = enr_sender.clone();
+        let task = async move {
             let remove = self.remove_interval.is_some();
             let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
             let mut removal_interval = tokio::time::interval(remove_dur);
@@ -184,8 +186,7 @@ impl Discv5Driver {
                 }
             }
 
-            // Continuously attempt to start the event stream with a retry limit and shutdown
-            // signal.
+            // Continuously attempt to start the event stream with a retry limit.
             let mut retries = 0;
             let max_retries = 10; // Maximum number of retries before giving up.
             let mut event_stream = loop {
@@ -266,7 +267,8 @@ impl Discv5Driver {
                                 },
                             }
                             None => {
-                                trace!(target: "discovery", "Receiver `None` peer enr");
+                                trace!(target: "discovery", "Request channel closed");
+                                return;
                             }
                         }
                     }
@@ -360,6 +362,13 @@ impl Discv5Driver {
                     }
                 }
             }
+        };
+        tokio::spawn(async move {
+            tokio::select! {
+                biased;
+                _ = receiver_closed.closed() => {},
+                _ = task => {},
+            }
         });
 
         (Discv5Handler::new(chain_id, req_sender), enr_recv)
@@ -377,6 +386,51 @@ mod tests {
 
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+    fn local_driver() -> Discv5Driver {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        Discv5Driver::builder(
+            LocalNode::new(secret_key, ip, 0, 0),
+            0,
+            ConfigBuilder::new(SocketAddr::new(ip, 0).into()).build(),
+        )
+        .with_bootnodes(BootNodes(vec![]))
+        .with_bootstore_file(None)
+        .build()
+        .unwrap()
+    }
+
+    async fn wait_until_started(handle: &Discv5Handler) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        handle.sender.send(HandlerRequest::PeerCount(tx)).await.unwrap();
+        assert_eq!(tokio::time::timeout(Duration::from_secs(5), rx).await.unwrap().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn dropping_enr_receiver_stops_unpolled_driver() {
+        let (handle, enrs) = local_driver().start();
+        drop(enrs);
+        tokio::time::timeout(Duration::from_secs(5), handle.sender.closed()).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn dropping_enr_receiver_stops_running_driver() {
+        let (handle, enrs) = local_driver().start();
+        wait_until_started(&handle).await;
+        drop(enrs);
+        tokio::time::timeout(Duration::from_secs(5), handle.sender.closed()).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn dropping_request_handles_stops_running_driver() {
+        let (handle, mut enrs) = local_driver().start();
+        wait_until_started(&handle).await;
+        drop(handle);
+        assert!(tokio::time::timeout(Duration::from_secs(5), enrs.recv()).await.unwrap().is_none());
+    }
+
     #[tokio::test]
     async fn test_online_discv5_driver() {
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
@@ -391,7 +445,7 @@ mod tests {
         )
         .build()
         .expect("Failed to build discovery service");
-        let (handle, _) = discovery.start();
+        let (handle, _enrs) = discovery.start();
         assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
     }
 
