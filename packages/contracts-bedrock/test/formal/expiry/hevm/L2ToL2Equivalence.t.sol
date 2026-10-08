@@ -20,10 +20,19 @@ pragma solidity 0.8.25;
 //       only the entered flag, not the stored sender/source);
 //   (S) same storage, in two forms:
 //       (S-map) Halmos, solidity storage layout: for a symbolic key q, equal msgNonce (slot 1),
-//               successfulMessages[q] and sentMessages[q]; the new-only mappings are pinned
-//               exactly in NEW (sentMessageTimestamps[q], expiredMessages[q]) and zero in OLD;
-//       (S-all) every raw slot s outside the pinned new-only slots is equal: hevm (empty message)
-//               and Halmos with the generic storage layout (every length; check_allSlots_*).
+//               successfulMessages[q] (slot 0) and sentMessages[q] (slot 2); the new-only
+//               mappings are pinned exactly in NEW (sentMessageTimestamps[q], slot 3;
+//               expiredMessages[q], slot 4) and zero in OLD. Slots 0-4 are every storage
+//               variable of both versions (the cross-domain context is transient). This is the
+//               only check of MAPPING ENTRIES: one symbolic key per mapping, so any one entry.
+//       (S-all) a symbolic raw slot s outside the pinned new-only slots is equal: hevm (empty
+//               message) and Halmos with the generic storage layout (every length;
+//               check_allSlots_*). Under Halmos 0.3.3 this covers only NON-HASH-DERIVED slots:
+//               its generic layout keeps keccak-derived slots (mapping entries) in separate
+//               arrays, so s never aliases a mapping entry and a changed entry is invisible to it
+//               (run.sh mutants M5/M6, caught by S-map). It catches stray writes to plain slots
+//               (mutants M1/M2). hevm's storage model for prove_sendMessage_len0 is not shown to
+//               have this limitation, nor shown free of it.
 // Engines: L2ToL2CrossDomainMessenger_EquivalenceHevm (prove_*, hevm test) and
 // L2ToL2CrossDomainMessenger_EquivalenceHalmos (check_*, halmos). hevm 0.58 cannot reason about
 // develop's sendMessage once the message is non-empty ("CopySlice with a symbolically sized region
@@ -344,7 +353,9 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         ok_ = t == TARGET || t == EOA;
     }
 
-    /// @notice (S-all): every raw slot outside the pinned new-only slots is equal.
+    /// @notice (S-all): the symbolic raw slot `_s`, if outside the pinned new-only slots, is equal.
+    ///         Under Halmos's generic layout `_s` ranges over non-hash-derived slots only (see the
+    ///         header); mapping entries are compared by S-map.
     function _checkAllSlots(Pre memory _p, bool _sent, bytes32 _h, bytes32 _s) internal view {
         bool pinned = _s == _mapSlot(_p.y, 3) || _s == _mapSlot(_p.z, 4) || (_sent && _s == _mapSlot(_h, 3));
         if (!pinned) assert(vm.load(OLD, _s) == vm.load(NEW, _s));

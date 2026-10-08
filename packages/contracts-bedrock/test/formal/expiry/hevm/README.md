@@ -27,8 +27,17 @@ The full statement, with every exclusion and bound, is the header of
     the mocks revert on a predicate of their arguments and return or revert with their argument
     hash); the cross-domain context the target reads back; a reentrant relay attempt; the
     entered flag afterwards;
-  - **(S)** the same storage: every raw slot except the pinned new-only slots (S-all), and per
-    mapping key with the new-only mappings pinned exactly (S-map).
+  - **(S)** the same storage, in two forms:
+    - **(S-map)**, the only check of mapping entries: for one symbolic key `q`, equal
+      `msgNonce` (slot 1), `successfulMessages[q]` (slot 0) and `sentMessages[q]` (slot 2), with
+      the new-only `sentMessageTimestamps[q]` (slot 3) and `expiredMessages[q]` (slot 4) pinned
+      exactly in NEW and zero in OLD. Slots 0 to 4 are every storage variable of both versions
+      (the cross-domain context is transient), so any single entry of any mapping is compared.
+    - **(S-all)**: a symbolic raw slot outside the pinned new-only slots is equal. Under Halmos
+      0.3.3 (`check_allSlots_*`, generic layout) this covers **non-hash-derived slots only**:
+      Halmos keeps keccak-derived slots in separate arrays, so the symbolic slot never aliases a
+      mapping entry, and a changed mapping entry passes S-all (mutants M5 and M6 in `run.sh`
+      record this; S-map catches both). S-all catches stray writes to plain slots (M1, M2).
 - **Excluded on purpose**: an unsafe target (L2CrossDomainMessenger or L2ToL1MessagePasser), the
   new `sentMessageTimestamps` write, the new-only mappings, the removed/added/changed selectors,
   a relay to the messenger itself (unreachable through a valid identifier), and errors renamed
@@ -46,8 +55,10 @@ The full statement, with every exclusion and bound, is the header of
   handle develop's `sendMessage` with a non-empty message ("CopySlice with a symbolically sized
   region not currently implemented"), and its `relayMessage` run exceeds 16 GB.
 - **Halmos 0.3.3** (`check_*`): every listed length, (O), (X), (S-map) with the solidity storage
-  layout and (S-all) with the generic layout (`check_allSlots_*`). The generic layout reasons
-  about raw slots with fewer keccak axioms, so a PASS there is at least as strong.
+  layout and (S-all) with the generic layout (`check_allSlots_*`). The two are complementary, not
+  ordered: S-all sees plain slots at a symbolic index but not mapping entries; S-map sees one
+  symbolic entry of every mapping. hevm's storage model for `prove_sendMessage_len0` (S-all) is
+  not shown to share the Halmos limitation, nor shown free of it.
 
 ## Results (`run.sh`, all as expected)
 
@@ -62,8 +73,9 @@ The full statement, with every exclusion and bound, is the header of
 | Halmos relay (S-map, S-all), lengths 0/4/37/100 | 8 | PASS, 6 to 12 s each |
 | Halmos relay, arbitrary and non-canonical payloads | 9 | PASS, 3 to 13 s each |
 | Halmos non-vacuity | 6 | counterexamples, each replayed concretely |
-| Mutants M1 to M4 (stray SSTORE in relay / send, wrong inbox argument, no ETH forwarded) | 4 | each caught by the check named for it |
-| Mutant M0 (unmutated source, same compile) | 3 | PASS |
+| Mutants M1 to M6 (stray SSTORE in relay / send, wrong inbox argument, no ETH forwarded, relay does not set `successfulMessages[H]`, send does not set `sentMessages[nonce]`) | 6 | each caught by the check named for it (M5, M6: by S-map) |
+| Known blind spot: M5, M6 under S-all (`check_allSlots_*`) | 2 | PASS, as expected (S-all does not see mapping entries) |
+| Mutant M0 (unmutated source, same compile) | 4 | PASS |
 | Concrete tests: event fuzz (4 tests) and witness replays (6 tests) | 10 | PASS |
 
 A PASS means: complete exploration, no counterexample, no timeout or unknown result, no bounded
@@ -107,7 +119,7 @@ mutant step runs and deleted afterwards.
     bytecode witness is relabelled (E2 also separates safe-target sends) and records the targets
     of the counterexamples hevm reports instead of asserting them.
   - Storage was compared only at slot 1 and mapping entries under Halmos, so a stray SSTORE could
-    survive. Added `check_allSlots_*` (every raw slot, generic layout) for every send and relay
+    survive. Added `check_allSlots_*` (a symbolic raw slot, generic layout; see v4 for its limit) for every send and relay
     length, and mutants M1/M2 that a stray `sstore(5, 1)` is caught.
   - Call equality covered only committed effects. The mocks now revert on a predicate of their
     arguments and return or revert with their argument hash, so arguments are compared on
@@ -141,3 +153,18 @@ mutant step runs and deleted afterwards.
   Two fixes to the runner setup: `run.sh` is now executable (it was committed as `100644`), and
   `foundry.toml` sets `[lint] lint_on_build = false` as the repo's own `foundry.toml` does (with
   `deny = 'warnings'`, forge 1.8.1's post-build lint failed the harness build on lint findings).
+- **v4** (cross-layer mutation campaign, `../mutation/README.md` "Findings"): the Halmos S-all
+  checks cannot see a changed mapping entry. Mutant K07 there (relay does not set
+  `successfulMessages[H]`) passed all nine `check_allSlots_*` and was caught only by S-map.
+  Cause: Halmos 0.3.3's generic layout decodes a keccak-derived slot into its preimage and keeps a
+  separate array per preimage width, so the free raw slot never aliases a mapping entry.
+  - The README and the harness header no longer say "every raw slot" or "a PASS there is at
+    least as strong": S-all covers non-hash-derived slots; S-map is the only check of mapping
+    entries, and it already compares every mapping both versions have (slots 0 to 4: one
+    symbolic key each, with the new-only ones pinned), so no new assertion was needed.
+  - `run.sh` gains mutants M5 (relay does not set `successfulMessages[H]`, i.e. K07) and M6
+    (send does not set `sentMessages[nonce]`): each must be caught by its S-map check, and each
+    must PASS its S-all check, recorded as a known blind spot so a change in either direction
+    shows up as UNEXPECTED. M0 now also runs `check_sendMessage_len37`.
+  - hevm's `prove_sendMessage_len0` (S-all under hevm's storage model) is not claimed to share
+    or avoid the limitation.

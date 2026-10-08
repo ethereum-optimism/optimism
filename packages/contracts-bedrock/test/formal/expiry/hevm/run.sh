@@ -201,19 +201,24 @@ while IFS= read -r fn; do
 done < <(grep -oE 'function check_[A-Za-z0-9_]+' "$HARNESS" | cut -d' ' -f2 | grep -E "$MATCH")
 
 # 4. Mutants. Each patches the current source, is compiled here (optimizer off), and replaces NEW;
-#    the check after the colon must then find a counterexample. M0 is the unpatched source compiled
-#    the same way: it must pass every one of those checks. The generated files live in mutants/
+#    each check in the third field must then find a counterexample. M0 is the unpatched source
+#    compiled the same way: it must pass every one of those checks. The optional fourth field lists
+#    checks that are KNOWN BLIND to the mutant and must PASS: Halmos 0.3.3's generic storage keeps
+#    keccak-derived slots apart from raw slots, so S-all (check_allSlots_*) cannot see a changed
+#    mapping entry; M5/M6 record that limitation and that S-map catches those mutants. The generated files live in mutants/
 #    only for the duration of this step (they must never reach the repo build).
 if [ -z "${SKIP_MUTANTS:-}" ]; then
   trap 'rm -rf "$HERE/mutants"' EXIT
   mkdir -p mutants
   SRC="$HERE/../../../../src/L2/L2ToL2CrossDomainMessenger.sol"
   MUTANTS=(
-    "M0|identity|check_allSlots_relayMessage_len37 check_allSlots_sendMessage_len37 check_relayMessage_len37"
+    "M0|identity|check_allSlots_relayMessage_len37 check_allSlots_sendMessage_len37 check_relayMessage_len37 check_sendMessage_len37"
     "M1|relay writes a stray slot (sstore(5, 1))|check_allSlots_relayMessage_len37"
     "M2|send writes a stray slot (sstore(5, 1))|check_allSlots_sendMessage_len37"
     "M3|relay passes another hash to the inbox|check_relayMessage_len37"
     "M4|relay forwards no ETH to the target|check_relayMessage_len37"
+    "M5|relay does not set successfulMessages[H]|check_relayMessage_len37|check_allSlots_relayMessage_len37"
+    "M6|send does not set sentMessages[nonce]|check_sendMessage_len37|check_allSlots_sendMessage_len37"
   )
   python3 -I - "$SRC" mutants <<'PY' || { note "mutant generation FAILED"; exit 1; }
 import sys
@@ -228,6 +233,8 @@ patches = {
     "M3": [("validateMessage(_id, keccak256(_sentMessage));",
             "validateMessage(_id, bytes32(uint256(keccak256(_sentMessage)) ^ 1));")],
     "M4": [("target.call{ value: msg.value }(message)", "target.call{ value: 0 }(message)")],
+    "M5": [("successfulMessages[messageHash] = true;", "")],
+    "M6": [("sentMessages[nonce] = messageHash_;", "")],
 }
 for name, ps in patches.items():
     m = s.replace("contract L2ToL2CrossDomainMessenger is", f"contract L2ToL2CrossDomainMessenger{name} is")
@@ -250,12 +257,17 @@ contract {name}_EquivalenceHalmos is L2ToL2CrossDomainMessenger_EquivalenceHalmo
 PY
   forge build >"$OUT/forge-build-mutants.log" 2>&1 || { note "mutant build FAILED"; exit 1; }
   for entry in "${MUTANTS[@]}"; do
-    IFS='|' read -r name what checks <<<"$entry"
+    IFS='|' read -r name what checks blind <<<"$entry"
     read -r -a check_list <<<"$checks"
+    read -r -a blind_list <<<"${blind:-}"
     want=WITNESS
     [ "$name" = M0 ] && want=PASS
     for fn in "${check_list[@]}"; do
       run_halmos "$want" "${name}_EquivalenceHalmos" "$fn" "$OUT/mutant-$name-$fn"
+    done
+    for fn in "${blind_list[@]}"; do
+      run_halmos PASS "${name}_EquivalenceHalmos" "$fn" "$OUT/mutant-$name-$fn-blind"
+      note "            (known blind spot: $fn does not see $name)"
     done
     note "            ($name: $what)"
   done
