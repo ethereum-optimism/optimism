@@ -505,10 +505,13 @@ impl RollupNode {
     ///
     /// ## Shutdown
     ///
-    /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
-    /// received, the umbrella cancellation token fires and all peer actors observe it on their
+    /// Shutdown is unordered: when any actor exits (success, error, or panic),
+    /// the umbrella cancellation token fires and all peer actors observe it on their
     /// next `select!`. Actors may log channel-closed errors while peers are torn down
     /// concurrently; this is expected and not a sign of an unclean exit.
+    ///
+    /// Dropping this future aborts the remaining actors. Callers are responsible for handling
+    /// OS shutdown signals.
     pub async fn start(&self) -> Result<(), String> {
         // Single umbrella cancellation token shared by the supervisor and actor lifetimes.
         let cancellation = CancellationToken::new();
@@ -613,33 +616,7 @@ impl RollupNode {
         supervisor.spawn("l1", run_node_actor(l1_watcher, cancellation.clone()));
         supervisor.spawn("derivation", run_node_actor(derivation, cancellation.clone()));
         supervisor.spawn("engine", run_node_actor(engine_actor, cancellation));
-        let shutdown = async {
-            let ctrl_c = async {
-                tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
-            };
-
-            #[cfg(unix)]
-            let terminate = async {
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                    .expect("failed to install SIGTERM handler")
-                    .recv()
-                    .await;
-            };
-
-            #[cfg(not(unix))]
-            let terminate = std::future::pending::<()>();
-
-            tokio::select! {
-                _ = ctrl_c => {
-                    info!(target: "rollup_node", "Received SIGINT (Ctrl+C)");
-                },
-                _ = terminate => {
-                    info!(target: "rollup_node", "Received SIGTERM");
-                },
-            }
-        };
-
-        supervisor.wait(shutdown).await
+        supervisor.wait().await
     }
 }
 
@@ -730,7 +707,7 @@ mod tests {
             Ok::<(), std::io::Error>(())
         });
 
-        assert_eq!(supervisor.wait(pending()).await, Ok(()));
+        assert_eq!(supervisor.wait().await, Ok(()));
         assert!(cancellation.is_cancelled());
     }
 }

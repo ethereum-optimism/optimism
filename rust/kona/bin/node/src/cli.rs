@@ -82,17 +82,31 @@ impl Cli {
         }
     }
 
-    /// Run until ctrl-c is pressed.
+    /// Run until Ctrl-C or SIGTERM is received.
     pub fn run_until_ctrl_c<F>(fut: F) -> Result<()>
     where
         F: std::future::Future<Output = Result<()>>,
     {
         let rt = Self::tokio_runtime().map_err(|e| anyhow::anyhow!(e))?;
         rt.block_on(async move {
+            #[cfg(unix)]
+            let mut terminate =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+            #[cfg(unix)]
+            let terminate = terminate.recv();
+
+            #[cfg(not(unix))]
+            let terminate = std::future::pending::<Option<()>>();
+
             tokio::select! {
                 res = fut => res,
-                _ = tokio::signal::ctrl_c() => {
+                res = tokio::signal::ctrl_c() => {
+                    res?;
                     tracing::info!(target: "cli", "Received Ctrl-C, shutting down...");
+                    Ok(())
+                }
+                _ = terminate => {
+                    tracing::info!(target: "cli", "Received SIGTERM, shutting down...");
                     Ok(())
                 }
             }
@@ -110,6 +124,47 @@ impl Cli {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[test]
+    fn run_until_ctrl_c_returns_when_future_completes() {
+        assert!(Cli::run_until_ctrl_c(async { Ok(()) }).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_until_ctrl_c_handles_shutdown_signals() {
+        let Ok(signal) = std::env::var("KONA_TEST_SHUTDOWN_SIGNAL") else {
+            // Isolate real signals from any other tests running in this process.
+            for signal in ["-INT", "-TERM"] {
+                let output = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "cli::tests::run_until_ctrl_c_handles_shutdown_signals"])
+                    .env("KONA_TEST_SHUTDOWN_SIGNAL", signal)
+                    .output()
+                    .expect("failed to spawn signal test process");
+                assert!(
+                    output.status.success(),
+                    "{signal} test failed:\n{}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr),
+                );
+            }
+            return;
+        };
+
+        let result = Cli::run_until_ctrl_c(async {
+            // Let the select poll the Ctrl-C handler before sending a signal to this test process.
+            tokio::task::yield_now().await;
+            let status = std::process::Command::new("kill")
+                .args([&signal, &std::process::id().to_string()])
+                .status()
+                .expect("failed to signal test process");
+            assert!(status.success());
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            Err(anyhow::anyhow!("shutdown signal was not handled"))
+        });
+
+        assert!(result.is_ok());
+    }
 
     #[rstest]
     #[case::node_subcommand_long(Commands::Node(Default::default()), "node")]

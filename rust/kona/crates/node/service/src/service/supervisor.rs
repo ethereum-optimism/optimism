@@ -32,36 +32,20 @@ impl Supervisor {
         self.names.insert(handle.id(), name);
     }
 
-    /// Waits for tasks and a caller-provided shutdown future.
-    pub(super) async fn wait(mut self, shutdown: impl Future<Output = ()>) -> Result<(), String> {
-        tokio::pin!(shutdown);
+    /// Waits for tasks, relying on their drop guards to cancel peers on exit.
+    pub(super) async fn wait(mut self) -> Result<(), String> {
+        while let Some(result) = self.tasks.join_next_with_id().await {
+            let (id, result) = result.map_err(|error| {
+                let name =
+                    self.names.get(&error.id()).expect("supervised task has a registered name");
+                format!("join task {name}: {error}")
+            })?;
 
-        loop {
-            tokio::select! {
-                _ = &mut shutdown => {
-                    self.cancellation.cancel();
-                    return Ok(());
-                }
-                result = self.tasks.join_next_with_id() => {
-                    match result {
-                        Some(Ok((id, result))) => {
-                            self.names.remove(&id);
-                            if let Err(error) = result {
-                                self.cancellation.cancel();
-                                return Err(error);
-                            }
-                        }
-                        Some(Err(error)) => {
-                            let name = self.names.remove(&error.id())
-                                .expect("supervised task has a registered name");
-                            self.cancellation.cancel();
-                            return Err(format!("join task {name}: {error}"));
-                        }
-                        None => return Ok(()),
-                    }
-                }
-            }
+            self.names.remove(&id);
+            result?;
         }
+
+        Ok(())
     }
 }
 
@@ -89,7 +73,7 @@ mod tests {
             Err::<(), _>("engine failed")
         });
 
-        let error = supervisor.wait(pending()).await.unwrap_err();
+        let error = supervisor.wait().await.unwrap_err();
 
         assert_eq!(error, "task engine: \"engine failed\"");
         assert!(cancellation.is_cancelled());
@@ -107,7 +91,7 @@ mod tests {
             Ok::<(), &'static str>(())
         });
 
-        let error = supervisor.wait(pending()).await.unwrap_err();
+        let error = supervisor.wait().await.unwrap_err();
 
         assert!(error.starts_with("join task derivation:"));
         assert!(error.contains("derivation panicked"));
@@ -115,7 +99,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn shutdown_signal_cancels_and_aborts_pending_lifetime() {
+    async fn dropping_wait_cancels_and_aborts_pending_lifetime() {
         let cancellation = CancellationToken::new();
         let mut supervisor = Supervisor::new(cancellation.clone());
         let (started_tx, started_rx) = oneshot::channel();
@@ -126,11 +110,13 @@ mod tests {
             pending::<Result<(), &'static str>>().await
         });
 
-        let result = supervisor.wait(async { started_rx.await.unwrap() }).await;
+        tokio::select! {
+            result = supervisor.wait() => panic!("pending task unexpectedly exited: {result:?}"),
+            result = started_rx => result.unwrap(),
+        }
 
-        assert_eq!(result, Ok(()));
-        assert!(cancellation.is_cancelled());
         assert!(dropped_rx.await.is_err());
+        assert!(cancellation.is_cancelled());
     }
 
     #[tokio::test]
