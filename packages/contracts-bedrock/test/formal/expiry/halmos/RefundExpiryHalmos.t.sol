@@ -16,7 +16,8 @@ pragma solidity 0.8.15;
 //   - composed with the real L2ToL2CrossDomainMessenger: the hash sendETH's message gets is H for the same
 //     arguments, sendMessage records block.timestamp for it, and once it is expired the refund pays `from`.
 
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { SuperchainETHBridge } from "src/L2/SuperchainETHBridge.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -38,15 +39,15 @@ contract RefundExpiryHalmos is Test {
     address internal constant BRIDGE = 0x4200000000000000000000000000000000000024;
     address internal constant LIQUIDITY = 0x4200000000000000000000000000000000000025;
 
-    /// @dev Bound on every symbolic balance and amount. Halmos 0.3.3 prunes any path that READS a balance above
-    ///      MAX_ETH (2^128 stock, 2^200 with halmos-selfdestruct.patch); with inputs <= 2^198, every sum of at most
-    ///      four of them stays <= 2^200, so no path is pruned by that cap. (Total ETH supply is ~2^87 wei.)
+    /// @notice Bound on every symbolic balance and amount. Halmos 0.3.3 prunes any path that READS a balance above
+    ///         MAX_ETH (2^128 stock, 2^200 with halmos-selfdestruct.patch); with inputs <= 2^198, every sum of at most
+    ///         four of them stays <= 2^200, so no path is pruned by that cap. (Total ETH supply is ~2^87 wei.)
     uint256 internal constant BAL_BOUND = 1 << 198;
 
-    /// @dev Halmos allocates CREATE addresses sequentially from 0xaaaa0000 (+1, +2, ...) and CREATE2 addresses from
-    ///      0xbbbb0000. ASSUMPTION: `from` is not in those ranges, i.e. not one of the SafeSend helpers created during
-    ///      the check (on a real chain those are CREATE(bridge|liquidity, nonce) addresses, which only the bridge /
-    ///      ETHLiquidity can deploy to, so a sender there is not a realistic `from`).
+    /// @notice Halmos allocates CREATE addresses sequentially from 0xaaaa0000 (+1, +2, ...) and CREATE2 addresses from
+    ///         0xbbbb0000. ASSUMPTION: `from` is not in those ranges, i.e. not one of the SafeSend helpers created
+    /// during the check (on a real chain those are CREATE(bridge|liquidity, nonce) addresses, which only the bridge /
+    ///         ETHLiquidity can deploy to, so a sender there is not a realistic `from`).
     uint160 internal constant FRESH_LO = 0xaaaa0000;
     uint160 internal constant FRESH2_LO = 0xbbbb0000;
 
@@ -88,20 +89,21 @@ contract RefundExpiryHalmos is Test {
                 _a.nonce,
                 BRIDGE,
                 BRIDGE,
-                abi.encodeWithSelector(SuperchainETHBridge.relayETH.selector, _a.from, _a.to, _a.amount)
+                abi.encodeCall(SuperchainETHBridge.relayETH, (_a.from, _a.to, _a.amount))
             )
         );
     }
 
     function _assumeRealisticFrom(address _from) internal view {
-        vm.assume(_from != BRIDGE && _from != LIQUIDITY);
+        // address(0) is never a real sender of sendETH (msg.sender != 0 on chain).
+        vm.assume(_from != BRIDGE && _from != LIQUIDITY && _from != address(0));
         vm.assume(uint160(_from) < FRESH_LO || uint160(_from) > FRESH_LO + 0xffff);
         vm.assume(uint160(_from) < FRESH2_LO || uint160(_from) > FRESH2_LO + 0xffff);
         vm.assume(_from.balance <= BAL_BOUND);
     }
 
-    /// @dev Symbolic expired set and refunded map; symbolic balances; pre-sent ETH at the two SafeSend addresses the
-    ///      refund will create (the next two CREATE addresses after a probe deployment).
+    /// @notice Symbolic expired set and refunded map; symbolic balances; pre-sent ETH at the two SafeSend addresses the
+    ///         refund will create (the next two CREATE addresses after a probe deployment).
     function _world(Env memory _e, Args memory _a) internal {
         vm.chainId(_e.chainId);
         svm.enableSymbolicStorage(BRIDGE);
@@ -196,7 +198,9 @@ contract RefundExpiryHalmos is Test {
     ///         expiredMessages[H] is set (written directly: expireMessage itself is checked in L2ToL2ExpiryHalmos)
     ///         the refund succeeds and pays `from` exactly `amount`.
     function check_sendETH_then_refund(uint256 _chainId, uint256 _ts, uint256 _liq0, Args memory _a) public {
-        bytes memory code = vm.getCode("halmos-out/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json");
+        bytes memory code = DeployUtils.getCode(
+            "test/formal/expiry/halmos/out/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json"
+        );
         address real;
         assembly {
             real := create(0, add(code, 32), mload(code))

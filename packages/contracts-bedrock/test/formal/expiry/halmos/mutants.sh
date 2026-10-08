@@ -9,8 +9,9 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$here/../../../.." # packages/contracts-bedrock
 export FOUNDRY_SRC=test/formal/expiry/halmos FOUNDRY_TEST=test/formal/expiry/halmos FOUNDRY_SCRIPT=test/formal/expiry/halmos
-export FOUNDRY_OUT=halmos-out FOUNDRY_CACHE_PATH=halmos-cache
+export FOUNDRY_OUT=test/formal/expiry/halmos/out FOUNDRY_CACHE_PATH=test/formal/expiry/halmos/cache
 H="${HALMOS:-halmos}"
+HALMOS_WRAP="${HALMOS_WRAP:-}" # optional command prefix (e.g. a memory cap), see run.sh
 
 L2=src/L2/L2ToL2CrossDomainMessenger.sol
 L1=src/L1/L1CrossDomainMessenger.sol
@@ -19,7 +20,8 @@ BR=src/L2/SuperchainETHBridge.sol
 L2CDMSRC=src/L2/L2CrossDomainMessenger.sol
 TC=src/libraries/TransientContext.sol
 EXP=src/L2/UndeliveredMessageExporter.sol
-FILES="$L2 $L1 $CDM $BR $L2CDMSRC $TC $EXP"
+ENC=src/libraries/Encoding.sol
+FILES="$L2 $L1 $CDM $BR $L2CDMSRC $TC $EXP $ENC"
 bak="$(mktemp -d)"
 for f in $FILES; do cp "$f" "$bak/$(basename "$f")"; done
 restore() { for f in $FILES; do cp "$bak/$(basename "$f")" "$f"; done; }
@@ -36,12 +38,20 @@ run() {
   local regex
   regex="($(echo "$checks" | sed 's/^check_//; s/ check_/|/g'))\\("
   local json; json="$(mktemp)"
+  # Force a full rebuild: test contracts embed creation code (`new X()`), and an incremental build can miss them.
+  # shellcheck disable=SC2086
+  if ! $HALMOS_WRAP forge build --force >/dev/null 2>&1; then
+    echo "BAD $name: mutant does not compile"; survivors=$((survivors + 1)); return
+  fi
   set +e
-  "$H" --forge-build-out halmos-out --no-status --default-bytes-lengths 0,32,100 \
+  # shellcheck disable=SC2086
+  $HALMOS_WRAP "$H" --forge-build-out test/formal/expiry/halmos/out --no-status --default-bytes-lengths 0,32,100 \
     --match-contract "^${contract}\$" --match-test "$regex" --json-output "$json" >/dev/null 2>&1
   local code=$?
   set -e
-  python3 - "$name" "$contract" "$json" "$code" $checks <<'EOF' || survivors=$((survivors + 1))
+  local -a check_args
+  read -ra check_args <<<"$checks"
+  python3 - "$name" "$contract" "$json" "$code" "${check_args[@]}" <<'EOF' || survivors=$((survivors + 1))
 import json, sys
 name, contract, path, code, checks = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5:]
 if code != 1:
@@ -72,18 +82,32 @@ EOF
 run_forge() {
   local name=$1 file=$2 expr=$3 path=$4 test=$5
   if [ -n "${ONLY:-}" ] && ! [[ $name =~ $ONLY ]]; then return; fi
+  local log="$bak/$name.log"
+  # Baseline: the designated test must PASS on the unmutated code (so setUp works).
   restore
+  set +e
+  ( unset FOUNDRY_SRC FOUNDRY_TEST FOUNDRY_SCRIPT FOUNDRY_OUT FOUNDRY_CACHE_PATH
+    # shellcheck disable=SC2086
+    $HALMOS_WRAP forge test --match-path "$path" --match-test "$test" >"$log.base" 2>&1 )
+  local base=$?
+  set -e
+  if [ "$base" -ne 0 ] || ! grep -q "\[PASS\] $test(" "$log.base"; then
+    echo "BAD $name: baseline forge test $test does not pass (exit $base)"; survivors=$((survivors + 1)); return
+  fi
   sed -i.mut "$expr" "$file" && rm -f "$file.mut"
   if cmp -s "$file" "$bak/$(basename "$file")"; then echo "BAD $name: sed did not apply"; survivors=$((survivors + 1)); return; fi
   set +e
   ( unset FOUNDRY_SRC FOUNDRY_TEST FOUNDRY_SCRIPT FOUNDRY_OUT FOUNDRY_CACHE_PATH
-    forge test --match-path "$path" --match-test "$test" >"$bak/$name.log" 2>&1 )
+    # shellcheck disable=SC2086
+    $HALMOS_WRAP forge test --match-path "$path" --match-test "$test" >"$log" 2>&1 )
   local code=$?
   set -e
-  if [ "$code" -ne 0 ] && grep -q "FAIL" "$bak/$name.log" && ! grep -q "Compiler run failed" "$bak/$name.log"; then
+  # Killed only if the designated test itself failed after a successful setUp (not a setUp/compile failure).
+  if [ "$code" -ne 0 ] && grep -q "\[FAIL[^]]*\] $test(" "$log" && ! grep -q "setUp()" "$log" \
+      && ! grep -q "Compiler run failed" "$log"; then
     echo "killed $name (forge): $path::$test"
   else
-    echo "BAD $name: forge test $test did not fail (exit $code)"; survivors=$((survivors + 1))
+    echo "BAD $name: forge test $test did not fail as required (exit $code)"; survivors=$((survivors + 1))
   fi
 }
 
@@ -131,11 +155,19 @@ run M26_relay_not_nonReentrant $L2 '/^        nonReentrant$/d' \
   L2ToL2ExpiryHalmos "check_relay_delivery_value_context_failure"
 run M27_entered_not_cleared $TC 's/tstore(ENTERED_SLOT, 0)/tstore(ENTERED_SLOT, 1)/' \
   L2ToL2ExpiryHalmos "check_relay_delivery_value_context_failure"
+run M36_no_nested_relay_guard $TC 's/        if (_entered()) revert ReentrantCall();//' \
+  L2ToL2ExpiryHalmos "check_OnlyExportReachesL1_relay_reentrant"
 run M28_context_sender_is_target $L2 's/_storeMessageMetadata(source, sender);/_storeMessageMetadata(source, target);/' \
   L2ToL2ExpiryHalmos "check_relay_delivery_value_context_failure"
 run M29_relay_drops_value $L2 's/target.call{ value: msg.value }(message)/target.call(message)/' \
   L2ToL2ExpiryHalmos "check_relay_delivery_value_context_failure"
 # --- L1CrossDomainMessenger / CrossDomainMessenger / L2CrossDomainMessenger
+run M35_cdm_unauthorized_marks_failed $CDM 's/            require(failedMessages\[versionedHash\], "CrossDomainMessenger: message cannot be replayed");/            if (!failedMessages[versionedHash]) { failedMessages[versionedHash] = true; return; }/' \
+  L1CDMExpiryHalmos "check_L1_relayGate_and_delivery"
+run M35b_cdm_unauthorized_marks_failed_L2 $CDM 's/            require(failedMessages\[versionedHash\], "CrossDomainMessenger: message cannot be replayed");/            if (!failedMessages[versionedHash]) { failedMessages[versionedHash] = true; return; }/' \
+  L2CDMGateHalmos "check_L2_relayGate_and_delivery"
+run M37_encoding_drops_sender $ENC '/function encodeCrossDomainMessageV1/,/^    }/ s/^            _sender,$/            address(uint160(_sender) \& 0),/' \
+  L1CDMExpiryHalmos "check_L1_failedEntryNotReplayableWithAlteredField"
 run M33_l1_no_interop_gate $L1 's/        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();//' \
   L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
 run M34_l1_trusts_l2tol2 $L1 's/!= Predeploys.UNDELIVERED_MESSAGE_EXPORTER/!= Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER/' \

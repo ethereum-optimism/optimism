@@ -1,7 +1,7 @@
 # Halmos checks: per-message interop expiry
 
-Symbolic checks, using Halmos 0.3.3, on the real contracts at the exporter-design tip **5992028e08**
-(`karl/message-expiry-refunds`, merged into the formal branch as 4cc498f516): `L2ToL2CrossDomainMessenger`,
+Symbolic checks, using Halmos 0.3.3, on the real contracts of the exporter design (base PR #23259):
+`L2ToL2CrossDomainMessenger`,
 `UndeliveredMessageExporter`, `L1CrossDomainMessenger` and `L2CrossDomainMessenger` (with the `CrossDomainMessenger` code they inherit),
 `SuperchainETHBridge`, `ETHLiquidity` and `SafeSend`. Each check is a statement about **one call, or a short fixed
 sequence of calls, made from a symbolic state**. These checks do not cover multi-chain or multi-transaction
@@ -18,7 +18,7 @@ composition; that belongs to the Quint model, Kontrol and Lean, which cross-chec
 | `HalmosMocks.sol` | L2-side mocks: the inbox, call recorders, L2CDM getters, a re-entrant relay target and an observing (optionally reverting) relay target. |
 | `expected.tsv` | The inventory: contract, check, expected outcome. `run.sh` fails on any deviation. |
 | `run.sh` | Builds and runs everything, then validates against `expected.tsv`. |
-| `mutants.sh` | 39 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
+| `mutants.sh` | 43 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
 | `halmos-selfdestruct.patch` | Patch to halmos 0.3.3: SELFDESTRUCT in constructors, and MAX_ETH raised to 2^200. See below. |
 
 ## How to run
@@ -28,13 +28,13 @@ cd packages/contracts-bedrock
 uv venv /tmp/halmos-sd --python 3.12
 uv pip install --link-mode copy --python /tmp/halmos-sd/bin/python halmos==0.3.3   # copy mode: never patch uv's cache
 patch -d /tmp/halmos-sd/lib/python3.12/site-packages -p1 < test/formal/expiry/halmos/halmos-selfdestruct.patch
-HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # about 2 min on a 32-core box
+HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # a few minutes on a 32-core Linux host
 HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/mutants.sh    # ONLY=<regex> selects mutants
 ```
 
 Options and settings:
 - **No foundry.toml change needed.** `run.sh` sets `FOUNDRY_SRC`, `FOUNDRY_TEST` and `FOUNDRY_SCRIPT` to this directory, with
-  `FOUNDRY_OUT=halmos-out` and `FOUNDRY_CACHE_PATH=halmos-cache`.
+  `FOUNDRY_OUT` and `FOUNDRY_CACHE_PATH` pointing at `out/` and `cache/` in this directory, which `.gitignore` excludes.
 - **Halmos flags:** `--solver-timeout-assertion 60s --default-bytes-lengths 0,1,32,33,100,132,260`, and halmos's default
   `--loop 2`. The one exception is `check_exporter_anyCalldata_onlyExportPayload`, which sets `@custom:halmos --loop 40`
   so the word-by-word copies of its symbolic-length `bytes` argument (up to 1024 bytes) are explored in full. You can override
@@ -69,9 +69,9 @@ Notation: H(d, s, n, snd, tgt, msg) = `keccak256(abi.encode(d, s, n, snd, tgt, m
 | `check_UnsafeTargetRule_send` | Symbolic storage. If sendMessage succeeds, then target ∉ {0x..23, 0x..07, 0x..16} and destination ≠ chainid. | PASS |
 | `check_UnsafeTargetRule_relay` | Symbolic storage, any non-harness target ≠ 0x..23. If relayMessage succeeds, then target ∉ {0x..07, 0x..16}, id.origin = 0x..23 and destination = chainid. | PASS |
 | `check_UnsafeTargetRule_relay_l2cdm` | Symbolic storage. A relay to 0x..07 always reverts. | PASS |
-| `check_UnsafeTargetRule_send_passer` / `_relay_passer` | Send and relay to 0x..16 revert. This rule landed at the tip; at 37b44c48c7 these were `_PENDING` checks and failed. | PASS |
+| `check_UnsafeTargetRule_send_passer` / `_relay_passer` | Send and relay to 0x..16 revert. This rule landed at the tip; in the earlier design these were `_PENDING` checks and failed. | PASS |
 | `check_INFO_relayDoesNotRejectTarget23` | relayMessage itself accepts target 0x..23. The relay checks exclude 0x..23 because every source chain's sendMessage rejects it. | FAIL |
-| `check_FALSE_send_neverSucceeds` / `check_FALSE_relay_neverSucceeds` | Non-vacuity: the success paths are reachable. Relay succeeds to 0x0, 0x..22 and 0x..16. | FAIL |
+| `check_FALSE_send_neverSucceeds` / `check_FALSE_relay_neverSucceeds` | Non-vacuity: the success paths are reachable. Relay succeeds to 0x0 and 0x..22. | FAIL |
 
 ### (2) OnlyExportReachesL1 (L2ToL2 + exporter)
 
@@ -81,8 +81,8 @@ calls from 0x..23 and from the exporter separately.
 | Check | Statement | Expected |
 |---|---|---|
 | `check_OnlyExportReachesL1_send` | Symbolic storage. sendMessage makes 0x..23 call neither 0x..07 nor 0x..16. | PASS |
-| `check_OnlyExportReachesL1_relay_l2cdm` / `_relay_passer` | A relay to a target that does not re-enter makes 0x..23 call 0x..07 zero times, and 0x..16 zero times. The passer half was `_PENDING` at 37b44c48c7 and is now PASS. | PASS |
-| `check_OnlyExportReachesL1_relay_reentrant` | Symbolic storage. The relay target is `ReentrantTarget`. During the relayed call it either calls `exportUndeliveredMessage` on the **exporter** (mode 1) or re-enters `sendMessage` on 0x..23 (mode 2), with symbolic arguments. 0x..23 makes **no** call to 0x..07 or 0x..16. The exporter makes at most one call to 0x..07, exactly `sendMessage(sm', relayUndeliveredMessage(H', block.timestamp), g')`, where H' ≠ the hash being relayed and `successfulMessages[H']` was false before, i.e. H' was unrelayed at that time. | PASS |
+| `check_OnlyExportReachesL1_relay_l2cdm` / `_relay_passer` | A relay to a target that does not re-enter makes 0x..23 call 0x..07 zero times, and 0x..16 zero times. The passer half was `_PENDING` in the earlier design and is now PASS. | PASS |
+| `check_OnlyExportReachesL1_relay_reentrant` | Symbolic storage. The relay target is `ReentrantTarget`. During the relayed call it either calls `exportUndeliveredMessage` on the **exporter** (mode 1) or re-enters `sendMessage` on 0x..23 (mode 2), with symbolic arguments. A third mode (mode 3) attempts a **nested relayMessage** of another well-formed message, and that must never succeed; this is the reentrancy guard itself (mutant M36 removes only `if (_entered()) revert`). 0x..23 makes **no** call to 0x..07 or 0x..16. The exporter makes at most one call to 0x..07, exactly `sendMessage(sm', relayUndeliveredMessage(H', block.timestamp), g')`, where H' ≠ the hash being relayed and `successfulMessages[H']` was false before, i.e. H' was unrelayed at that time. | PASS |
 | `check_FALSE_relay_reentrantExportNeverReachesL2CDM` | Non-vacuity: the re-entrant export does reach 0x..07. | FAIL |
 
 At the tip, OnlyExportReachesL1 is stronger than before: **0x..23 never calls 0x..07 or 0x..16**. Every withdrawal
@@ -96,7 +96,7 @@ The exporter is the real contract at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`; 
 | Check | Statement | Expected |
 |---|---|---|
 | `check_export_binding` | Any caller. Export succeeds **iff** `!successfulMessages[H]`, where H = H(chainid, source, nonce, sender, target, message). It returns H. On success it makes exactly one call, to 0x..07, whose calldata (checked by keccak) is exactly `sendMessage(sourceMessenger, relayUndeliveredMessage(H, block.timestamp), minGas)`; that is the only call 0x..07 receives. On revert, no call. Never a call to 0x..16. successfulMessages is unchanged at H and at k. | PASS |
-| `check_exporter_anyCalldata_onlyExportPayload` | **Arbitrary calldata** to the exporter: every function, with symbolic arguments from `svm.createCalldata("UndeliveredMessageExporter")`, from any caller. Every call it makes to 0x..07 (at most one) is the export payload for the decoded arguments, and it never calls 0x..16. So **the exporter only ever calls L2CDM.sendMessage with exactly that payload.** | PASS |
+| `check_exporter_anyCalldata_onlyExportPayload` | Calldata from `svm.createCalldata("UndeliveredMessageExporter")`, from any caller. That means every non-view function, with canonical ABI encodings, symbolic arguments and `bytes` lengths from the configured set; it does not mean every byte string. Every call the exporter makes to 0x..07 (at most one) is the export payload for the decoded arguments, and it never calls 0x..16. **Observation scope:** only calls to 0x..07 and 0x..16 are recorded. A call to any other address, which would be a codeless account in the harness, is not observed. By inspection the exporter has exactly one external call besides the `successfulMessages` read. | PASS |
 | `check_FALSE_export_neverCallsL2CDM`, `check_FALSE_export_hashUsesSourceAsDestination` | Non-vacuity. | FAIL |
 
 ### Storage effects and frames (L2ToL2)
@@ -148,11 +148,14 @@ Relay targets are `GateProbe`, which has only a fallback and records the ETH it 
 
 | Check | Statement | Expected |
 |---|---|---|
-| `check_L1_relayGate_and_delivery` | Real L1CDM. The target runs **only if** not paused ∧ not already successful ∧ ((caller == portal ∧ portal.l2Sender() == otherMessenger) ∨ failedMessages[vh]). Whenever it runs, it receives exactly `_value`, and `xDomainMessageSender()` succeeds and returns exactly `_sender`. **No skipped delivery:** if the message becomes successful, the target ran. Afterwards `xDomainMessageSender()` reverts again. | PASS |
+| `check_L1_relayGate_and_delivery` | Real L1CDM. The target runs **only if** not paused ∧ not already successful ∧ ((caller == portal ∧ portal.l2Sender() == otherMessenger) ∨ failedMessages[vh]). Whenever it runs, it receives exactly `_value`, and `xDomainMessageSender()` succeeds and returns exactly `_sender`. **No skipped delivery:** if the message becomes successful, the target ran. **No forged replay eligibility:** an unauthorized attempt changes neither failedMessages[vh] nor successfulMessages[vh]. An unauthorized attempt is anything other than an authentic first delivery with msg.value == `_value` or a replay of an already-failed message; this includes the portal with msg.value ≠ `_value`. vh is computed with an independent formula (`specVersionedHash`), not the production `Hashing`. Afterwards `xDomainMessageSender()` reverts again. | PASS |
+| `check_L1_replayNeedsExactFailedEntry` / `check_L2_replayNeedsExactFailedEntry` | When only a message differing in one field (sender, value, nonce, minGasLimit or target) is marked failed, this message cannot be replayed and none of its flags change. | PASS |
+| `check_L1_failedEntryNotReplayableWithAlteredField` | Two steps. Step 1: the portal delivers authentically to a failing target, so the **messenger itself** records the failure under its own key. Step 2: anyone replays with one field altered (sender, value, nonce or minGasLimit). The target never runs. This also catches a message hash that stopped binding a field (mutant M37). | PASS |
+| `check_FALSE_L1_failedMessageNeverReplayable` | Non-vacuity: the exact replay of such a message does run. | FAIL |
 | `check_L1_relayMessage_rejectsSelfAndPortalTargets` | relayMessage with target ∈ {A's L1CDM, A's portal} always reverts and never deposits, for every input above. | PASS |
 | `check_L1_xDomainMessageSender_revertsOutsideRelay` | xDomainMessageSender() reverts when no message is being relayed. | PASS |
 | `check_L1_sendMessage_senderFieldIsCaller` | sendMessage from any caller ≠ A's L1CDM, with any msg.value, makes exactly one deposit, sent by A's L1CDM. It carries msg.value, goes to 0x..07, uses gas = baseGas computed **independently** (the formula is restated in the test), and its data is relayMessage(nonce, **caller**, target, msg.value, minGas, message). | PASS |
-| `check_L2_relayGate_and_delivery` | Real L2CrossDomainMessenger at 0x..07, with otherMessenger = A's L1CDM. The target runs **only if** not already successful ∧ (caller == alias(otherMessenger) ∨ failedMessages[vh]). It then receives exactly `_value` and sees `xDomainMessageSender() == _sender`. No skipped delivery, and the getter reverts afterwards. So expireMessage's check (msg.sender == 0x..07 ∧ xDomainMessageSender == otherMessenger) holds only while 0x..07 relays a message whose `_sender` field is A's L1CDM, delivered by the aliased A's L1CDM or replayed after failing. | PASS |
+| `check_L2_relayGate_and_delivery` | Real L2CrossDomainMessenger at 0x..07, with otherMessenger = A's L1CDM. The target runs **only if** not already successful ∧ (caller == alias(otherMessenger) ∨ failedMessages[vh]). It then receives exactly `_value` and sees `xDomainMessageSender() == _sender`. No skipped delivery, no forged replay eligibility (same frame as on L1), and the getter reverts afterwards. So expireMessage's check (msg.sender == 0x..07 ∧ xDomainMessageSender == otherMessenger) holds only while 0x..07 relays a message whose `_sender` field is A's L1CDM, delivered by the aliased A's L1CDM or replayed after failing. | PASS |
 | `check_L2_relayMessage_rejectsSelfAndPasser` | The real L2CDM never relays to itself or to 0x..16, for every input above. | PASS |
 | `check_FALSE_L1_probeNeverCalled`, `check_FALSE_L2_probeNeverCalled` | Non-vacuity: an authentic delivery reaches the target. | FAIL |
 
@@ -198,6 +201,30 @@ These belong to Kontrol, Lean, Quint and the forge test, or to the brief's liste
 
 **Preimage binding.** The expired set is an arbitrary map, so "success ⇒ expiredMessages[H]" can hold only if the
 bridge queries exactly H. Mutants M18 (nonce+1) and M19 (sender = from) confirm this, and so does the composed check.
+
+## Reachability (phase 2): whole-contract properties over call sequences
+
+These checks target each contract as deployed, behind the real `Proxy` with admin = the L2 ProxyAdmin, at its
+predeploy address. The L1 messenger is the exception: it is called directly, without its `ResolvedDelegateProxy`, which
+only forwards. Each check runs a SEQUENCE of steps. A step is one call from a symbolic caller, with symbolic msg.value
+and a non-decreasing symbolic timestamp, choosing symbolically among every state-changing entry point, unknown
+selectors (the proxy's own `upgradeTo`, `admin`, ... included, since a non-admin call to them is forwarded) and,
+where relevant, empty calldata. The properties are checked after **every** step.
+
+**Callers.** Not the ProxyAdmin, by the governance assumption. Not address(0), which only `eth_call` can be. Not the
+contract under test or its implementation, which act only through their own code. Predeploys that legitimately call
+the contract are allowed: 0x..07 for expireMessage and 0x..23 for relayETH, with symbolic oracle answers.
+
+**View functions** are not steps, because the compiler forbids state writes in them.
+
+| Check | Statement | Expected |
+|---|---|---|
+| `ReachL2ToL2Halmos.check_reach_sequence3` | Three steps from the deployed state, so every state is reachable. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0 and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
+| `ReachL2ToL2Halmos.check_reach_step_symbolicStorage` | The same for one step from **fully symbolic** storage. (T) is weakened to "only a sendMessage step sending K, to block.timestamp", because an unreachable state can already hold a value for the next nonce's hash. | PASS |
+| `ReachExporterHalmos.check_reach_exporter_sequence2` | Two steps over export (symbolic arguments and message), version(), unknown selectors and empty calldata; three steps exceeded 40 minutes. successfulMessages is fully symbolic, so the first step already starts from every messenger state. Every call the exporter makes to 0x..07 is exactly the export payload for that step's arguments, with H computed with block.chainid and block.timestamp, and only when `successfulMessages[H]` was false before the step. It never calls 0x..16. The proxy slots and slots 0..3 never change; the implementation has no state variables. | PASS |
+| `ReachBridgeHalmos.check_reach_bridge_sequence2` | Two steps over the bridge (sendETH, relayETH, refundETH) **and** ETHLiquidity (burn, fund, mint), plus unknown selectors. refunded[K] never goes true → false, and goes false → true only in refundETH whose arguments hash to K with expiredMessages[K]. ETHLiquidity's balance decreases, i.e. a mint, only in relayETH called by 0x..23 with context sender == the bridge, or in refundETH, and by exactly the amount. With three steps the run exceeded 20 minutes. | PASS |
+| `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` | Two steps, each one of: sendMessage, relayMessage (any caller including A's portal), relayUndeliveredMessage (any caller, including the mock messengers through symbolic aliasing), initialize, or an unknown selector, all with symbolic arguments. Three steps exceeded 40 minutes, and the earlier `createCalldata` form got stuck on symbolic offsets. A's L1CDM is the **envelope sender** of a deposit only in a relayUndeliveredMessage step. A sendMessage step's deposit carries that step's caller as the sender. Nothing else deposits, and there is at most one deposit per step. | PASS |
+| `check_FALSE_reach_*` (one per contract) | Non-vacuity: expiry is reached, the exporter does call 0x..07, liquidity is minted, and the L1CDM is the self-sender. | FAIL |
 
 ## Assumptions, mocks and bounds
 
@@ -277,8 +304,12 @@ which fails only because p2 lands at the bridge's SafeSend, and by the PASS chec
 **keccak.** Halmos models keccak as an injective uninterpreted function. This matches the brief's collision-resistance
 assumption.
 
-**Expected-FAIL checks.**
-- Each one contains exactly one assertion of its own.
+**Expected-FAIL checks and solver timeouts.**
+- Halmos 0.3.3 reports a counterexample in preference to solver timeouts on other assertion queries of the same check,
+  and it does not serialize those timeouts. So for an expected-FAIL check, `run.sh` cannot rule out a timeout on some
+  other path; the reported counterexample is still valid. PASS checks are fully enforced, with no timeouts, stuck
+  paths or bounded loops.
+- Each expected-FAIL check contains exactly one assertion of its own.
 - The only other assertions on their paths are shared slot or layout sanity asserts, and the PASS checks prove those
   never fail. So a counterexample means the intended assertion failed. Halmos 0.3.3 does not report which assert fired.
 
@@ -303,7 +334,12 @@ every refund success path needs the opcode. The patch does two things:
 
 ## Mutation check
 
-`mutants.sh` covers 39 halmos mutants and 2 forge mutants. Each must make **all** of its designated checks FAIL with a valid counterexample, and the
+Before each mutant, `mutants.sh` runs `forge build --force`. Test contracts embed creation code (`new X()`), and an
+incremental build can miss them; in a copied tree it did, and 16 of a reviewer's mutants falsely survived until a clean
+build. For the forge mutants, the designated test must first PASS on the unmutated code. Under the mutant it must then
+fail itself after a successful `setUp`; a setUp or compile failure does not count as a kill.
+
+`mutants.sh` covers 43 halmos mutants and 2 forge mutants. Each must make **all** of its designated checks FAIL with a valid counterexample, and the
 halmos process must exit 1. Stuck paths are tolerated for mutants only: a mutant can open code halmos cannot finish.
 For example, M20 lets the messenger call itself with symbolic calldata. The script exits nonzero on any survivor, any sed that does not
 apply, any other exit status, any halmos error or timeout, or any missing result.
@@ -329,18 +365,21 @@ apply, any other exit status, any halmos error or timeout, or any missing result
 | M10 refund skips the refunded check; M12 refund does not mark | refund_iff_effects_singleUse |
 | M11 refund pays `to`; M18 hash nonce+1; M19 hash sender = from | refund_iff_effects_singleUse, sendETH_then_refund |
 | M25 relay swallows a target revert; M26 relayMessage not `nonReentrant`; M27 entered flag never cleared; M28 context sender = target; M29 relay drops msg.value | relay_delivery_value_context_failure |
-| X2 L1 gate ignores l2Sender (Claude's round-2 mutant); X3a replay gate deleted; M21; M30 CDM relay drops `_value` | L1_relayGate_and_delivery |
+| X2 L1 gate ignores l2Sender (R1's round-2 mutant); X3a replay gate deleted; M21; M30 CDM relay drops `_value` | L1_relayGate_and_delivery |
 | X3b replay gate deleted; X2b L2 gate accepts any caller | L2_relayGate_and_delivery |
 | M31 CDM sendMessage records `_value` 0 | L1_sendMessage_senderFieldIsCaller |
+| M35 / M35b an unauthorized relay marks the message failed instead of reverting | L1_relayGate_and_delivery / L2_relayGate_and_delivery |
+| M36 nonReentrant without its `if (_entered()) revert` | OnlyExportReachesL1_relay_reentrant |
+| M37 `Encoding.encodeCrossDomainMessageV1` stops binding `_sender` | L1_failedEntryNotReplayableWithAlteredField |
 | M32 L2CDM relays to itself | L2_relayMessage_rejectsSelfAndPasser |
 | X1 event nonce+1; X1b event sender = tx.origin (forge) | `test/L2/L2ToL2CrossDomainMessenger.t.sol::testFuzz_sendMessage_succeeds` |
 
 The reviewers' combined mutant (send writes timestamp 1 plus relay sets expiredMessages) is covered by M13 and M14
 separately.
 
-## Retarget to the exporter design (tip 5992028e08)
+## Retarget to the exporter design
 
-What changed from the 37b44c48c7 suite:
+What changed from the suite for the earlier design (export inside the L2ToL2CrossDomainMessenger):
 - `exportUndeliveredMessage` moved to `UndeliveredMessageExporter`. Its checks now live in `ExporterExpiryHalmos`,
   including the new "any calldata ⇒ only the export payload" check.
 - relayUndeliveredMessage trusts the exporter, read from `Predeploys`, and is gated on INTEROP. The new checks are
@@ -348,38 +387,51 @@ What changed from the 37b44c48c7 suite:
 - The messenger's unsafe-target rule now includes 0x..16, so the former `_PENDING` checks are expected PASS.
 - `MESSAGE_EXPIRY_WINDOW` became `EXPIRY_PERIOD` (8 days).
 - SuperchainETHBridge, ETHLiquidity, CrossDomainMessenger, L2CrossDomainMessenger and TransientContext are unchanged.
-- The same v3 suite also passed in full at 37b44c48c7, before the retarget (round-2 log below).
+- The same v3 suite also passed in full on the earlier design, before the retarget (round-2 log below).
 
 ## Review log
 
-Round 1, 2026-10-07. Reviewers: Claude, Codex gpt-6-astra and gpt-6.1-sol.
+Round 1, 2026-10-07. Reviewers: R1 (fresh-context reviewer), R2 and R3 (independent model-based reviewers).
 
 | # | Reviewer(s) | Finding | Disposition |
 |---|---|---|---|
-| 1 | all three | sendMessage's timestamp write is unchecked, and relay and export have no full storage frame. A combined mutant survived. | **Fixed.** Added `check_send_effects_and_frame` and `check_relay_effects_and_frame`, and full frames in `check_export_binding` and `check_expire_iff`, all at symbolic keys. Added mutants M13–M17 and M24, all killed. |
-| 2 | all three | run.sh passes when checks never run, and mutants.sh does not enforce kills. | **Fixed.** Added the `expected.tsv` inventory; missing, extra or empty results fail, and so does a halmos exit code other than 0 or 1. Both cases were reproduced and are now rejected. mutants.sh now enforces kills per mutant. |
-| 3 | astra, sol | The SELFDESTRUCT patch keeps the balance when the beneficiary is the account itself, which could give an unsound refund PASS. | **Fixed.** EIP-6780 burn for the self-beneficiary; constructor-only support; `from` assumed outside the fresh range (stated). Without that assumption halmos finds the burn counterexample. |
-| 4 | astra, sol | Refund environment: pre-funded SafeSend, bridge balance, insufficient liquidity, MAX_ETH. | **Fixed.** Symbolic p1, p2 and bridge balance in the effect statement. Insufficient liquidity is now in the iff; my earlier pruning rationale was wrong for CREATE. MAX_ETH raised to 2^200, with an explicit 2^198 bound. |
-| 5 | astra, sol, Claude | Relay callbacks: targets were codeless only. | **Fixed.** Added `ReentrantTarget` and `check_OnlyExportReachesL1_relay_reentrant`, with OnlyExportReachesL1 restated per call. Remaining limits (one re-entry, export or send) are stated above. |
-| 6 | sol, Claude | The L1 group covers one topology. | **Partly fixed.** Added the claim-A's-portal, self-call, relay-to-self/portal and reverting-getter variants. The unexplored topologies are listed above. |
-| 7 | Claude | Names read as end-to-end claims; L1 sender exclusivity is assumed. | **Fixed.** Added the (7) checks on the real L1CDM. What is delegated is listed above. The group names describe contract-level statements, defined in this file. |
-| 8 | all three | Low: no composed send→refund check; expected-FAIL attribution; `hashBindsFromAsSender` fails trivially; recorder misses call-then-revert; byte lengths. | **Fixed or noted.** Added `check_sendETH_then_refund`. One own assert per expected-FAIL check. Replaced `hashBindsFromAsSender`: no FALSE check against an arbitrary map can tell implementations apart, so binding rests on the PASS iff plus M18 and M19. The recorder limit is noted. Default lengths are now 0,1,32,33,100,132,260. |
+| 1 | R1, R2, R3 | sendMessage's timestamp write is unchecked, and relay and export have no full storage frame. A combined mutant survived. | **Fixed.** Added `check_send_effects_and_frame` and `check_relay_effects_and_frame`, and full frames in `check_export_binding` and `check_expire_iff`, all at symbolic keys. Added mutants M13–M17 and M24, all killed. |
+| 2 | R1, R2, R3 | run.sh passes when checks never run, and mutants.sh does not enforce kills. | **Fixed.** Added the `expected.tsv` inventory; missing, extra or empty results fail, and so does a halmos exit code other than 0 or 1. Both cases were reproduced and are now rejected. mutants.sh now enforces kills per mutant. |
+| 3 | R2, R3 | The SELFDESTRUCT patch keeps the balance when the beneficiary is the account itself, which could give an unsound refund PASS. | **Fixed.** EIP-6780 burn for the self-beneficiary; constructor-only support; `from` assumed outside the fresh range (stated). Without that assumption halmos finds the burn counterexample. |
+| 4 | R2, R3 | Refund environment: pre-funded SafeSend, bridge balance, insufficient liquidity, MAX_ETH. | **Fixed.** Symbolic p1, p2 and bridge balance in the effect statement. Insufficient liquidity is now in the iff; my earlier pruning rationale was wrong for CREATE. MAX_ETH raised to 2^200, with an explicit 2^198 bound. |
+| 5 | R1, R2, R3 | Relay callbacks: targets were codeless only. | **Fixed.** Added `ReentrantTarget` and `check_OnlyExportReachesL1_relay_reentrant`, with OnlyExportReachesL1 restated per call. Remaining limits (one re-entry, export or send) are stated above. |
+| 6 | R1, R3 | The L1 group covers one topology. | **Partly fixed.** Added the claim-A's-portal, self-call, relay-to-self/portal and reverting-getter variants. The unexplored topologies are listed above. |
+| 7 | R1 | Names read as end-to-end claims; L1 sender exclusivity is assumed. | **Fixed.** Added the (7) checks on the real L1CDM. What is delegated is listed above. The group names describe contract-level statements, defined in this file. |
+| 8 | R1, R2, R3 | Low: no composed send→refund check; expected-FAIL attribution; `hashBindsFromAsSender` fails trivially; recorder misses call-then-revert; byte lengths. | **Fixed or noted.** Added `check_sendETH_then_refund`. One own assert per expected-FAIL check. Replaced `hashBindsFromAsSender`: no FALSE check against an arbitrary map can tell implementations apart, so binding rests on the PASS iff plus M18 and M19. The recorder limit is noted. Default lengths are now 0,1,32,33,100,132,260. |
 | 9 | integrator | Write a README. | This file. |
 | 10 | integrator | Retarget to the exporter design. | Not landed yet; see "Pending design changes". |
 
-Round 2, 2026-10-07. Reviewers: Claude, Codex gpt-6-astra and gpt-6.1-sol. Verdict: the round-1 fixes are real, and
+Round 2, 2026-10-07. Reviewers: R1 (fresh-context reviewer), R2 and R3 (independent model-based reviewers). Verdict: the round-1 fixes are real, and
 nothing is critical.
 
 | # | Reviewer(s) | Finding | Disposition |
 |---|---|---|---|
-| 1 | Claude (HIGH) | The CrossDomainMessenger relay gates behind check (c) and behind expireMessage's authorization were neither checked nor listed as delegated. X2 and X3 survived. | **Fixed.** Added `check_L1_relayGate_and_delivery` and the `L2CDMGateHalmos` checks on the real L2CrossDomainMessenger, with symbolic caller, l2Sender, failed and successful flags, value and paused. X2, X3a, X3b and X2b are now killed. |
-| 2 | all three | The send→relay binding through the emitted SentMessage event is unchecked; X1 survived. | **Delegated, and enforced.** Halmos 0.3.3 has no recordLogs or log cheatcode: I checked its cheatcode table. `mutants.sh` runs X1 and X1b against the forge test `testFuzz_sendMessage_succeeds`, which kills both. |
-| 3 | astra, sol | The L1 sender probe could pass vacuously if the getter reverts or delivery is skipped for 0x..23. | **Fixed.** Getter success is recorded through a low-level call and asserted. There is a no-skipped-delivery assertion (message becomes successful ⇒ target ran), the sender is symbolic including 0x..23, and the probe has only a fallback. |
-| 4 | astra, sol | ETH-bearing messages were not covered. | **Fixed.** Symbolic `_value`, msg.value and messenger balance in the L1 and L2 gate and self-target checks. sendMessage uses a symbolic msg.value. L2ToL2 relay forwards a symbolic msg.value. Mutants M29, M30 and M31 are killed. |
-| 5 | astra | Transient state was not checked. | **Fixed where observable.** During the call the context getter returns (sender, source). Afterwards it reverts (entered flag cleared), and a second relay in the same transaction succeeds. Mutants M26, M27 and M28 are killed. Resetting the sender and source slots cannot be observed through the interface (`onlyEntered`); this is noted. |
-| 6 | sol | Target failure propagation was not checked. | **Fixed.** A reverting RelayProbe makes the relay revert with nothing consumed, and there is a liveness assertion for a non-reverting target. M25 (swallowed revert) is killed. |
-| 7 | astra, sol, Claude | run.sh accepted an expected FAIL that also had stuck paths; mutants.sh ignored the exit status; test contracts could be missing from the inventory. | **Fixed.** run.sh now requires zero stuck paths in every check, rejects any non-benign WARNING, ERROR or TIMEOUT log line, and cross-checks the source's `contract … is Test` against `expected.tsv`. mutants.sh requires exit 1 and zero stuck paths. |
-| 8 | astra, sol | `check_FALSE_refund_paysTo` could fail for an unrelated reason. | **Fixed.** `to` is realistic (outside the helper ranges, not the bridge or liquidity), `to` ≠ `from`, and amount > 0. |
-| 9 | Claude | Notes: export ⇐ depends on the Recorder; baseGas was taken from the contract; the composed check binds at nonce 0 only; relay value paths. | **Fixed or noted.** The export ⇐ dependence is noted. baseGas is now an independent formula in both deposit checks. The composed check uses a symbolic prior nonce. Value paths are covered (item 4). |
-| 10 | Claude | "No relay after export" was not listed as delegated. | **Added** to the delegated list: Lean, Quint and the window differential. |
-| 11 | integrator | Retarget to the exporter design. | **Done** at tip 5992028e08; see "Retarget" above. The exporter address comes from `Predeploys`. The governance assumption is added. |
+| 1 | R1 (HIGH) | The CrossDomainMessenger relay gates behind check (c) and behind expireMessage's authorization were neither checked nor listed as delegated. X2 and X3 survived. | **Fixed.** Added `check_L1_relayGate_and_delivery` and the `L2CDMGateHalmos` checks on the real L2CrossDomainMessenger, with symbolic caller, l2Sender, failed and successful flags, value and paused. X2, X3a, X3b and X2b are now killed. |
+| 2 | R1, R2, R3 | The send→relay binding through the emitted SentMessage event is unchecked; X1 survived. | **Delegated, and enforced.** Halmos 0.3.3 has no recordLogs or log cheatcode: I checked its cheatcode table. `mutants.sh` runs X1 and X1b against the forge test `testFuzz_sendMessage_succeeds`, which kills both. |
+| 3 | R2, R3 | The L1 sender probe could pass vacuously if the getter reverts or delivery is skipped for 0x..23. | **Fixed.** Getter success is recorded through a low-level call and asserted. There is a no-skipped-delivery assertion (message becomes successful ⇒ target ran), the sender is symbolic including 0x..23, and the probe has only a fallback. |
+| 4 | R2, R3 | ETH-bearing messages were not covered. | **Fixed.** Symbolic `_value`, msg.value and messenger balance in the L1 and L2 gate and self-target checks. sendMessage uses a symbolic msg.value. L2ToL2 relay forwards a symbolic msg.value. Mutants M29, M30 and M31 are killed. |
+| 5 | R2 | Transient state was not checked. | **Fixed where observable.** During the call the context getter returns (sender, source). Afterwards it reverts (entered flag cleared), and a second relay in the same transaction succeeds. Mutants M26, M27 and M28 are killed. Resetting the sender and source slots cannot be observed through the interface (`onlyEntered`); this is noted. |
+| 6 | R3 | Target failure propagation was not checked. | **Fixed.** A reverting RelayProbe makes the relay revert with nothing consumed, and there is a liveness assertion for a non-reverting target. M25 (swallowed revert) is killed. |
+| 7 | R1, R2, R3 | run.sh accepted an expected FAIL that also had stuck paths; mutants.sh ignored the exit status; test contracts could be missing from the inventory. | **Fixed.** run.sh now requires zero stuck paths in every check, rejects any non-benign WARNING, ERROR or TIMEOUT log line, and cross-checks the source's `contract … is Test` against `expected.tsv`. mutants.sh requires exit 1 and a valid counterexample. Stuck paths are tolerated for mutants only; see "Mutation check". (Round 3 corrected this entry, which first said "zero stuck paths".) |
+| 8 | R2, R3 | `check_FALSE_refund_paysTo` could fail for an unrelated reason. | **Fixed.** `to` is realistic (outside the helper ranges, not the bridge or liquidity), `to` ≠ `from`, and amount > 0. |
+| 9 | R1 | Notes: export ⇐ depends on the Recorder; baseGas was taken from the contract; the composed check binds at nonce 0 only; relay value paths. | **Fixed or noted.** The export ⇐ dependence is noted. baseGas is now an independent formula in both deposit checks. The composed check uses a symbolic prior nonce. Value paths are covered (item 4). |
+| 10 | R1 | "No relay after export" was not listed as delegated. | **Added** to the delegated list: Lean, Quint and the window differential. |
+| 11 | integrator | Retarget to the exporter design. | **Done**; see "Retarget" above. The exporter address comes from `Predeploys`. The governance assumption is added. |
+
+Round 3. Reviewers: R1 (fresh-context reviewer, who also ran the suite plus 27 extra mutants and vacuity probes), R2
+and R3. Verdict: high confidence in the local statements, with no critical findings.
+
+| # | Reviewer(s) | Finding | Disposition |
+|---|---|---|---|
+| 1 | R1 | mutants.sh trusted forge's incremental build: test contracts that embed creation code were not rebuilt, so mutants survived falsely. | **Fixed.** `forge build --force` before every halmos mutant, and a mutant that does not compile is reported. |
+| 2 | R2 (HIGH) | Replay eligibility: the gate checks never asserted the post-call `failedMessages`, so an unauthorized attempt that marked a message failed would pass. | **Fixed.** Both gate checks assert that an unauthorized attempt changes neither flag; this includes the portal with msg.value ≠ `_value`. Mutants M35 and M35b are killed. |
+| 3 | R3 | Storage keys came from the production `Hashing`; replay with altered fields was untested. | **Fixed.** Added an independent `specVersionedHash`, `check_{L1,L2}_replayNeedsExactFailedEntry`, and the two-step `check_L1_failedEntryNotReplayableWithAlteredField` with its FALSE witness. M37 (hash stops binding `_sender`) is killed. |
+| 4 | R2, R3 | Nested relay rejection was untested. | **Fixed.** ReentrantTarget mode 3 attempts a nested relayMessage, and the check asserts it never succeeds. M36 (only `if (_entered()) revert` removed) is killed. |
+| 5 | R2, R3 | Forge mutants could be "killed" by a setUp failure. | **Fixed.** The designated test must pass on the unmutated code, and under the mutant that test itself must fail with no setUp or compile failure. |
+| 6 | R1, R2, R3 | Expected-FAIL timeouts, the createCalldata wording, the exporter's observation scope, whole-contract frames, the portal value-mismatch replay path, the scope of the benign-warning whitelist, and `from == 0`. | **Fixed or documented.** The timeout limitation is stated exactly. The createCalldata wording is narrowed, and the exporter's observation scope is stated. Whole-contract frames are now the phase-2 reachability checks. The value mismatch is in the gate frame. The whitelist applies only to the refund groups. `from != 0` is assumed in the refund checks, since msg.sender is never 0 on chain. |
+| 7 | R1 | Stale text (old NatSpec, orphan struct doc, a sentence about relay to 0x..16, commit references). | **Fixed.** Commit hashes are replaced by design descriptions. |

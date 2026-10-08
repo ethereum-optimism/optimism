@@ -2,6 +2,7 @@
 pragma solidity 0.8.25;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
 // Mocks for the Halmos expiry checks. Every mock is an ORACLE: it returns whatever the test (or a
 // symbolic storage slot) says, so the checks hold for every possible answer of the real contract
@@ -94,16 +95,21 @@ interface IExportAndSend {
     function sendMessage(uint256 _destination, address _target, bytes calldata _message) external returns (bytes32);
 }
 
+interface IRelayMessage {
+    function relayMessage(Identifier calldata _id, bytes calldata _sentMessage) external payable returns (bytes memory);
+}
+
 /// @notice A relay target with code that, while the L2ToL2CrossDomainMessenger relays to it, calls
 ///         exportUndeliveredMessage on the UndeliveredMessageExporter (mode 1) or RE-ENTERS sendMessage on 0x..23
 ///         (mode 2), armed at construction with symbolic arguments, ignoring the outcome (the relay succeeds either
 /// way).
 contract ReentrantTarget {
     address internal constant L2_TO_L2 = 0x4200000000000000000000000000000000000023;
+    bytes32 internal constant SENT_MESSAGE_SELECTOR = keccak256("SentMessage(uint256,address,uint256,address,bytes)");
     address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     struct Args {
-        uint256 mode; // 1 = exportUndeliveredMessage, 2 = sendMessage, else nothing
+        uint256 mode; // 1 = exportUndeliveredMessage, 2 = sendMessage, 3 = a NESTED relayMessage, else nothing
         address sourceMessenger;
         uint256 source;
         uint256 nonce;
@@ -113,11 +119,13 @@ contract ReentrantTarget {
         uint256 destination;
     }
 
+    /// @notice Slot 0 (read with vm.load): 1 if a nested relayMessage (mode 3) succeeded.
+    uint256 internal nestedRelayOk;
     Args internal a;
     bytes internal message;
 
-    /// @dev Armed at construction, so the deployed code has ONLY the fallback: whatever calldata a relay sends, it
-    ///      reaches the fallback (no selector can hit a setter and re-arm it).
+    /// @notice Armed at construction, so the deployed code has ONLY the fallback: whatever calldata a relay sends, it
+    ///         reaches the fallback (no selector can hit a setter and re-arm it).
     constructor(Args memory _a, bytes memory _message) {
         a = _a;
         message = _message;
@@ -134,6 +142,15 @@ contract ReentrantTarget {
             );
         } else if (a.mode == 2) {
             (ok,) = L2_TO_L2.call(abi.encodeCall(IExportAndSend.sendMessage, (a.destination, a.target, message)));
+        } else if (a.mode == 3) {
+            // A nested relay of a (different, well-formed) message to this chain, while the outer relay is running.
+            bytes memory payload = abi.encodePacked(
+                abi.encode(SENT_MESSAGE_SELECTOR, block.chainid, a.target, a.nonce), abi.encode(a.sender, message)
+            );
+            (ok,) = L2_TO_L2.call(
+                abi.encodeCall(IRelayMessage.relayMessage, (Identifier(L2_TO_L2, 0, 0, 0, a.source), payload))
+            );
+            if (ok) nestedRelayOk = 1;
         }
         ok;
     }
@@ -149,6 +166,8 @@ interface IL2ToL2Context {
 ///         revert is recorded rather than unwinding the record), slot 3 = context sender, slot 4 = context source.
 ///         If `shouldRevert`, it reverts after recording (and the record is rolled back with it).
 contract RelayProbe {
+    error RelayProbe_Revert();
+
     address internal constant L2_TO_L2 = 0x4200000000000000000000000000000000000023;
     bool internal immutable shouldRevert;
 
@@ -172,7 +191,7 @@ contract RelayProbe {
             ctxSender = uint256(uint160(snd));
             ctxSource = src;
         }
-        if (shouldRevert) revert("RelayProbe: revert");
+        if (shouldRevert) revert RelayProbe_Revert();
     }
 
     receive() external payable {

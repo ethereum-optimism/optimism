@@ -23,15 +23,15 @@ pragma solidity 0.8.15;
 // (svm.enableSymbolicStorage) or symbolic check parameters. Addresses of the mock contracts themselves are fixed
 // (see README "Topologies explored / not explored").
 
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 
 interface SVM {
     function enableSymbolicStorage(address) external;
@@ -54,19 +54,19 @@ contract MockSystemConfig {
         interop = _interop;
     }
 
-    /// @dev Only the INTEROP feature can be enabled here (the real SystemConfig keeps a feature map).
+    /// @notice Only the INTEROP feature can be enabled here (the real SystemConfig keeps a feature map).
     function isFeatureEnabled(bytes32 _feature) external view returns (bool) {
-        require(!rv);
+        require(!rv, "MockSystemConfig: reverts");
         return _feature == "INTEROP" && interop;
     }
 
     function l1CrossDomainMessenger() external view returns (address) {
-        require(!rv);
+        require(!rv, "MockSystemConfig: reverts");
         return messenger;
     }
 
     function paused() external view returns (bool) {
-        require(!rv);
+        require(!rv, "MockSystemConfig: reverts");
         return pausedFlag;
     }
 }
@@ -80,7 +80,7 @@ contract MockCallerPortal {
     }
 
     function systemConfig() external view returns (address) {
-        require(!rv);
+        require(!rv, "MockCallerPortal: reverts");
         return sc;
     }
 }
@@ -96,12 +96,12 @@ contract MockCallerMessenger {
     }
 
     function portal() external view returns (address) {
-        require(!rvPortal);
+        require(!rvPortal, "MockCallerMessenger: reverts");
         return portalAddr;
     }
 
     function xDomainMessageSender() external view returns (address) {
-        require(!rvX);
+        require(!rvX, "MockCallerMessenger: reverts");
         return xSender;
     }
 }
@@ -111,7 +111,7 @@ contract MockLockbox {
     mapping(address => bool) internal authorized;
 
     function authorizedPortals(address _p) external view returns (bool) {
-        require(!rv);
+        require(!rv, "MockLockbox: reverts");
         return authorized[_p];
     }
 }
@@ -150,7 +150,7 @@ contract MockPortalA {
     }
 
     function ethLockbox() external view returns (address) {
-        require(!rvLockbox);
+        require(!rvLockbox, "MockPortalA: reverts");
         return lockbox;
     }
 
@@ -172,7 +172,7 @@ contract MockPortalA {
         external
         payable
     {
-        require(!rvDeposit);
+        require(!rvDeposit, "MockPortalA: reverts");
         deposits++;
         lastFrom = msg.sender;
         lastTo = _to;
@@ -197,12 +197,61 @@ contract GateProbe {
     function _record() internal {
         called = 1;
         value = msg.value;
-        (bool ok, bytes memory ret) = msg.sender.staticcall(abi.encodeWithSignature("xDomainMessageSender()"));
+        (bool ok, bytes memory ret) =
+            msg.sender.staticcall(abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()));
         if (ok && ret.length == 32) {
             getterOk = 1;
             address a = abi.decode(ret, (address));
             seen = uint256(uint160(a));
         }
+    }
+
+    receive() external payable {
+        _record();
+    }
+
+    fallback() external payable {
+        _record();
+    }
+}
+
+/// @notice The versioned message hash, written out INDEPENDENTLY of src/libraries/Hashing.sol: keccak256 of the
+///         relayMessage calldata (CrossDomainMessenger message version 1 encoding).
+function specVersionedHash(
+    uint256 _nonce,
+    address _sender,
+    address _target,
+    uint256 _value,
+    uint256 _minGas,
+    bytes memory _message
+)
+    pure
+    returns (bytes32)
+{
+    // The ABI-encoded relayMessage call, written through the interface rather than Encoding/Hashing.
+    return keccak256(
+        abi.encodeCall(ICrossDomainMessenger.relayMessage, (_nonce, _sender, _target, _value, _minGas, _message))
+    );
+}
+
+/// @notice GateProbe whose failure the test can switch (owner-only): slot 0 = 1 if it ran without failing.
+contract GateProbeToggle {
+    uint256 internal called;
+    bool internal failing;
+    address internal immutable owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function setFailing(bool _failing) external {
+        require(msg.sender == owner, "GateProbeToggle: not owner");
+        failing = _failing;
+    }
+
+    function _record() internal {
+        require(!failing, "GateProbeToggle: failing");
+        called = 1;
     }
 
     receive() external payable {
@@ -225,9 +274,32 @@ struct GateIn {
     uint256 nonce;
     address sender;
     uint256 value; // the message's _value
-    uint256 mv; // msg.value when the caller is `other`
+    uint256 mv; // msg.value when the caller is `other`, or the portal with exactPortalValue == false
+    bool exactPortalValue; // portal delivery with msg.value == _value (true) or msg.value == mv (false)
     uint256 minGas;
     uint256 bal; // messenger's ETH balance before
+}
+
+/// @notice specVersionedHash of the same message with one field altered (0 sender, 1 value, 2 nonce, 3 minGasLimit,
+///         4 target).
+function alteredVersionedHash(
+    GateIn memory _g,
+    address _target,
+    bytes memory _message,
+    uint8 _field
+)
+    pure
+    returns (bytes32)
+{
+    uint8 f = _field % 5;
+    return specVersionedHash(
+        f == 2 ? _g.nonce ^ 1 : _g.nonce,
+        f == 0 ? address(uint160(_g.sender) ^ 1) : _g.sender,
+        f == 4 ? address(uint160(_target) ^ 1) : _target,
+        f == 1 ? _g.value ^ 1 : _g.value,
+        f == 3 ? _g.minGas ^ 1 : _g.minGas,
+        _message
+    );
 }
 
 contract L1CDMExpiryHalmos is Test {
@@ -235,7 +307,7 @@ contract L1CDMExpiryHalmos is Test {
     address internal constant L2_TO_L2 = 0x4200000000000000000000000000000000000023;
     address internal constant L2CDM = 0x4200000000000000000000000000000000000007;
     uint32 internal constant EXPIRE_MESSAGE_GAS_LIMIT = 100_000; // internal constant in L1CrossDomainMessenger
-    /// @dev The L2 sender relayUndeliveredMessage trusts (check (c)): the UndeliveredMessageExporter (dd0931a540).
+    /// @notice The L2 sender relayUndeliveredMessage trusts (check (c)): the UndeliveredMessageExporter.
     address internal immutable TRUSTED_EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     // Storage slots of L1CrossDomainMessenger (forge inspect L1CrossDomainMessenger storageLayout).
@@ -280,8 +352,8 @@ contract L1CDMExpiryHalmos is Test {
 
     // ---------------------------------------------------------------- helpers
 
-    /// @dev Symbolic answers + revert flags for the caller side and A's lockbox; symbolic L1CDM nonce. Returns the
-    ///      versioned nonce the next L1CDM message will carry (messageNonce(), read before the call).
+    /// @notice Symbolic answers + revert flags for the caller side and A's lockbox; symbolic L1CDM nonce. Returns the
+    ///         versioned nonce the next L1CDM message will carry (messageNonce(), read before the call).
     function _symbolicWorld(bool _rvLockbox, bool _rvDeposit) internal returns (uint256 versionedNonce_) {
         sysCfgA.setInterop(svm.createUint256("interop") & 1 == 1); // A's INTEROP feature: symbolic
         svm.enableSymbolicStorage(address(sysCfg));
@@ -300,13 +372,13 @@ contract L1CDMExpiryHalmos is Test {
         (ok_,) = address(l1cdm).call(abi.encodeCall(l1cdm.relayUndeliveredMessage, (_h, _t)));
     }
 
-    /// @dev No dependency getter reverts (each flag read without calling the guarded getter).
+    /// @notice No dependency getter reverts (each flag read without calling the guarded getter).
     function _noRevert() internal view returns (bool) {
         return !caller.rvPortal() && !callerPortal.rv() && !sysCfg.rv() && !portalA.rvLockbox() && !lockbox.rv()
             && !caller.rvX() && !portalA.rvDeposit();
     }
 
-    /// @dev The three checks, each evaluated only when its getters do not revert.
+    /// @notice The three checks, each evaluated only when its getters do not revert.
     function _checks() internal view returns (bool a_, bool b_, bool c_) {
         a_ = !sysCfg.rv() && sysCfg.l1CrossDomainMessenger() == address(caller);
         b_ = !lockbox.rv() && lockbox.authorizedPortals(address(callerPortal));
@@ -329,14 +401,9 @@ contract L1CDMExpiryHalmos is Test {
         assert(ok == (interop && noRevert && a && b && c));
         if (ok) {
             bytes memory inner = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (_h, _t));
-            bytes memory data = abi.encodeWithSelector(
-                CrossDomainMessenger.relayMessage.selector,
-                nonce,
-                address(l1cdm),
-                L2_TO_L2,
-                uint256(0),
-                uint256(EXPIRE_MESSAGE_GAS_LIMIT),
-                inner
+            bytes memory data = abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (nonce, address(l1cdm), L2_TO_L2, uint256(0), uint256(EXPIRE_MESSAGE_GAS_LIMIT), inner)
             );
             assert(portalA.deposits() == 1);
             assert(portalA.lastFrom() == address(l1cdm));
@@ -421,8 +488,8 @@ contract L1CDMExpiryHalmos is Test {
         vm.assume(_g.value <= 1 << 128 && _g.mv <= 1 << 128 && _g.bal <= 1 << 128);
     }
 
-    /// @dev Calls relayMessage on A's L1CDM from the portal (msg.value = message value) or from `other` (msg.value =
-    ///      mv), with the given failed/successful flags and messenger balance.
+    /// @notice Calls relayMessage on A's L1CDM from the portal (msg.value = message value) or from `other` (msg.value =
+    ///         mv), with the given failed/successful flags and messenger balance.
     function _l1Relay(
         GateIn memory _g,
         address _target,
@@ -433,11 +500,11 @@ contract L1CDMExpiryHalmos is Test {
     {
         sysCfgA.set(address(l1cdm), _g.paused);
         portalA.setL2Sender(_g.l2Sender);
-        vh_ = Hashing.hashCrossDomainMessageV1(_g.nonce, _g.sender, _target, _g.value, _g.minGas, _message);
+        vh_ = specVersionedHash(_g.nonce, _g.sender, _target, _g.value, _g.minGas, _message);
         _flags(address(l1cdm), vh_, _g.failed, _g.succ);
         vm.deal(address(l1cdm), _g.bal);
         address from = _g.fromPortal ? address(portalA) : _g.other;
-        uint256 v = _g.fromPortal ? _g.value : _g.mv;
+        uint256 v = (_g.fromPortal && _g.exactPortalValue) ? _g.value : _g.mv;
         vm.deal(from, v);
         vm.prank(from);
         (ok_,) = address(l1cdm).call{ value: v }(
@@ -478,7 +545,8 @@ contract L1CDMExpiryHalmos is Test {
 
         (, bytes32 vh) = _l1Relay(_g, p, _message);
 
-        bool gate = (_g.fromPortal && _g.l2Sender == L2CDM) || _g.failed;
+        bool first = _g.fromPortal && _g.l2Sender == L2CDM; // authentic first delivery
+        bool gate = first || _g.failed;
         if (uint256(vm.load(p, 0)) == 1) {
             assert(!_g.paused && !_g.succ && gate);
             assert(uint256(vm.load(p, bytes32(uint256(1)))) == _g.value);
@@ -486,8 +554,109 @@ contract L1CDMExpiryHalmos is Test {
             assert(uint256(vm.load(p, bytes32(uint256(3)))) == uint256(uint160(_g.sender)));
         }
         if (l1cdm.successfulMessages(vh) && !_g.succ) assert(uint256(vm.load(p, 0)) == 1);
+        // An UNAUTHORIZED attempt (neither an authentic first delivery with msg.value == _value, nor a replay of a
+        // failed message) changes neither flag: in particular it cannot make the message replayable.
+        bool exactValue = _g.exactPortalValue || _g.mv == _g.value; // msg.value == _value on a portal delivery
+        if (!(first && exactValue) && !_g.failed) {
+            assert(!l1cdm.failedMessages(vh) && l1cdm.successfulMessages(vh) == _g.succ);
+        }
         (bool okAfter,) = address(l1cdm).staticcall(abi.encodeCall(l1cdm.xDomainMessageSender, ()));
         assert(!okAfter);
+    }
+
+    /// @notice Replay needs the EXACT failed entry: when only a message differing in one field (sender, value, nonce,
+    ///         minGasLimit or target) is marked failed, a non-portal caller cannot deliver this one, and no flag of
+    /// this message changes. (Keys are computed with the independent specVersionedHash.)
+    function check_L1_replayNeedsExactFailedEntry(GateIn memory _g, uint8 _field, bytes calldata _message) public {
+        _bounds(_g);
+        vm.assume(_g.other != address(portalA) && _g.other != address(l1cdm));
+        _g.fromPortal = false;
+        _g.failed = false;
+        address p = address(new GateProbe());
+        bytes32 alt = alteredVersionedHash(_g, p, _message, _field);
+        vm.store(address(l1cdm), keccak256(abi.encode(alt, SLOT_FAILED_MESSAGES)), bytes32(uint256(1)));
+        assert(l1cdm.failedMessages(alt));
+        (bool ok, bytes32 vh) = _l1Relay(_g, p, _message);
+        assert(!ok && uint256(vm.load(p, 0)) == 0);
+        assert(!l1cdm.failedMessages(vh) && l1cdm.successfulMessages(vh) == _g.succ);
+    }
+
+    /// @notice relayMessage calldata for the message with field `_f` altered (0 sender, 1 value, 2 nonce, 3
+    /// minGasLimit; anything else: unaltered).
+    function _replayCall(
+        GateIn memory _g,
+        address _p,
+        uint8 _f,
+        bytes calldata _message
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeCall(
+            l1cdm.relayMessage,
+            (
+                _f == 2 ? _g.nonce ^ 1 : _g.nonce,
+                _f == 0 ? address(uint160(_g.sender) ^ 1) : _g.sender,
+                _p,
+                _f == 1 ? _g.value ^ 1 : _g.value,
+                _f == 3 ? _g.minGas ^ 1 : _g.minGas,
+                _message
+            )
+        );
+    }
+
+    /// @notice Step 1: A's portal delivers the message authentically to a FAILING target (so the messenger itself
+    /// records it failed). Step 2: the target stops failing and `other` replays the message with field `_field` altered
+    ///         (0 sender, 1 value, 2 nonce, 3 minGasLimit) or, if `_exact`, unaltered.
+    function _failThenReplay(
+        GateIn memory _g,
+        uint8 _field,
+        bool _exact,
+        bytes calldata _message
+    )
+        internal
+        returns (address p_)
+    {
+        _bounds(_g);
+        vm.assume(_g.other != address(portalA) && _g.other != address(l1cdm) && _g.other != address(this));
+        vm.assume(_g.sender != Constants.DEFAULT_L2_SENDER);
+        GateProbeToggle p = new GateProbeToggle();
+        p_ = address(p);
+        p.setFailing(true);
+        sysCfgA.set(address(l1cdm), false);
+        portalA.setL2Sender(L2CDM);
+        vm.deal(address(portalA), _g.value);
+        vm.prank(address(portalA));
+        (bool ok1,) = address(l1cdm).call{ value: _g.value }(
+            abi.encodeCall(l1cdm.relayMessage, (_g.nonce, _g.sender, p_, _g.value, _g.minGas, _message))
+        );
+        ok1;
+        p.setFailing(false);
+        vm.prank(_g.other);
+        (bool ok2,) = address(l1cdm).call(_replayCall(_g, p_, _exact ? 255 : _field % 4, _message));
+        ok2;
+    }
+
+    /// @notice A message the messenger ITSELF recorded as failed (authentic delivery to a failing target) cannot be
+    ///         replayed with any one field altered (sender, value, nonce, minGasLimit): the replayed target never runs.
+    ///         This exercises the contract's own failed-message key, so it also catches a hash that stopped binding a
+    ///         field (mutant M37).
+    function check_L1_failedEntryNotReplayableWithAlteredField(
+        GateIn memory _g,
+        uint8 _field,
+        bytes calldata _message
+    )
+        public
+    {
+        address p = _failThenReplay(_g, _field, false, _message);
+        assert(uint256(vm.load(p, 0)) == 0);
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): the exact replay of such a failed message never runs the target.
+    function check_FALSE_L1_failedMessageNeverReplayable(GateIn memory _g, bytes calldata _message) public {
+        address p = _failThenReplay(_g, 0, true, _message);
+        assert(uint256(vm.load(p, 0)) == 0);
     }
 
     /// @notice NON-VACUITY (expected FAIL): a portal-delivered message from the L2CrossDomainMessenger never reaches
@@ -495,6 +664,7 @@ contract L1CDMExpiryHalmos is Test {
     function check_FALSE_L1_probeNeverCalled(GateIn memory _g) public {
         _bounds(_g);
         _g.fromPortal = true;
+        _g.exactPortalValue = true;
         _g.l2Sender = L2CDM;
         address p = address(new GateProbe());
         _l1Relay(_g, p, "");
@@ -544,14 +714,8 @@ contract L1CDMExpiryHalmos is Test {
         assert(
             portalA.lastDataHash()
                 == keccak256(
-                    abi.encodeWithSelector(
-                        CrossDomainMessenger.relayMessage.selector,
-                        nonce,
-                        _from,
-                        _target,
-                        _mv,
-                        uint256(_minGas),
-                        _message
+                    abi.encodeCall(
+                        ICrossDomainMessenger.relayMessage, (nonce, _from, _target, _mv, uint256(_minGas), _message)
                     )
                 )
         );
@@ -593,13 +757,13 @@ contract L2CDMGateHalmos is Test {
         returns (bool ok_, bytes32 vh_)
     {
         vm.assume(_g.value <= 1 << 128 && _g.mv <= 1 << 128 && _g.bal <= 1 << 128);
-        vh_ = Hashing.hashCrossDomainMessageV1(_g.nonce, _g.sender, _target, _g.value, _g.minGas, _message);
+        vh_ = specVersionedHash(_g.nonce, _g.sender, _target, _g.value, _g.minGas, _message);
         vm.store(L2CDM, keccak256(abi.encode(vh_, SLOT_FAILED_MESSAGES)), bytes32(uint256(_g.failed ? 1 : 0)));
         vm.store(L2CDM, keccak256(abi.encode(vh_, SLOT_SUCCESSFUL_MESSAGES)), bytes32(uint256(_g.succ ? 1 : 0)));
         assert(l2cdm.failedMessages(vh_) == _g.failed && l2cdm.successfulMessages(vh_) == _g.succ); // slot check
         vm.deal(L2CDM, _g.bal);
         address from = _g.fromPortal ? AddressAliasHelper.applyL1ToL2Alias(A_L1CDM) : _g.other;
-        uint256 v = _g.fromPortal ? _g.value : _g.mv;
+        uint256 v = (_g.fromPortal && _g.exactPortalValue) ? _g.value : _g.mv;
         vm.deal(from, v);
         vm.prank(from);
         (ok_,) = L2CDM.call{ value: v }(
@@ -619,6 +783,10 @@ contract L2CDMGateHalmos is Test {
 
         (, bytes32 vh) = _l2Relay(_g, p, _message);
 
+        bool exactValue = _g.exactPortalValue || _g.mv == _g.value; // msg.value == _value on an aliased delivery
+        if (!(_g.fromPortal && exactValue) && !_g.failed) {
+            assert(!l2cdm.failedMessages(vh) && l2cdm.successfulMessages(vh) == _g.succ);
+        }
         if (uint256(vm.load(p, 0)) == 1) {
             assert(!_g.succ && (_g.fromPortal || _g.failed));
             assert(uint256(vm.load(p, bytes32(uint256(1)))) == _g.value);
@@ -645,9 +813,24 @@ contract L2CDMGateHalmos is Test {
         assert(!ok);
     }
 
+    /// @notice Replay needs the EXACT failed entry on the real L2CrossDomainMessenger (see the L1 check).
+    function check_L2_replayNeedsExactFailedEntry(GateIn memory _g, uint8 _field, bytes calldata _message) public {
+        vm.assume(_g.other != AddressAliasHelper.applyL1ToL2Alias(A_L1CDM) && _g.other != L2CDM);
+        _g.fromPortal = false;
+        _g.failed = false;
+        address p = address(new GateProbe());
+        bytes32 alt = alteredVersionedHash(_g, p, _message, _field);
+        vm.store(L2CDM, keccak256(abi.encode(alt, SLOT_FAILED_MESSAGES)), bytes32(uint256(1)));
+        assert(l2cdm.failedMessages(alt));
+        (bool ok, bytes32 vh) = _l2Relay(_g, p, _message);
+        assert(!ok && uint256(vm.load(p, 0)) == 0);
+        assert(!l2cdm.failedMessages(vh) && l2cdm.successfulMessages(vh) == _g.succ);
+    }
+
     /// @notice NON-VACUITY (expected FAIL): a message deposited by A's L1CDM never reaches its target.
     function check_FALSE_L2_probeNeverCalled(GateIn memory _g) public {
         _g.fromPortal = true;
+        _g.exactPortalValue = true;
         address p = address(new GateProbe());
         _l2Relay(_g, p, "");
         assert(uint256(vm.load(p, 0)) == 0);

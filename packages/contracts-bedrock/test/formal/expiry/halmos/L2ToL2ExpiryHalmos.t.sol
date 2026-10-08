@@ -2,8 +2,9 @@
 pragma solidity 0.8.25;
 
 // Halmos symbolic checks on the REAL L2ToL2CrossDomainMessenger (src/L2/L2ToL2CrossDomainMessenger.sol) at
-// dd0931a540, etched at its predeploy address 0x4200..0023, with the REAL UndeliveredMessageExporter at
-// Predeploys.UNDELIVERED_MESSAGE_EXPORTER. Exact statements, assumptions and bounds: README.md in this directory.
+// the exporter design (base PR #23259), etched at its predeploy address 0x4200..0023, with the REAL
+// UndeliveredMessageExporter at Predeploys.UNDELIVERED_MESSAGE_EXPORTER. Exact statements, assumptions and bounds:
+// README.md in this directory.
 //   (1) UnsafeTargetRule      sendMessage / relayMessage never succeed for target 0x..07 or 0x..16 (and 0x..23 on
 // send). (2) OnlyExportReachesL1   0x..23 never calls 0x..07 or 0x..16 (send, relay, re-entrant relay); an export made
 //                             re-entrantly during a relay carries exactly the export payload for an unrelayed hash.
@@ -14,7 +15,8 @@ pragma solidity 0.8.25;
 // Symbolic inputs: every check_ parameter (block.chainid / block.timestamp via vm.chainId / vm.warp). `bytes`
 // parameters take each length in --default-bytes-lengths (run.sh: 0,1,32,33,100,132,260).
 
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { L2ToL2CrossDomainMessenger } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
@@ -40,8 +42,9 @@ contract L2ToL2ExpiryHalmos is Test {
 
     L2ToL2CrossDomainMessenger internal m = L2ToL2CrossDomainMessenger(L2_TO_L2);
 
-    /// @dev Template deployments whose code is etched at the predeploys. They (and the test contract and the cheatcode
-    ///      addresses) are harness accounts, not chain accounts, so symbolic relay targets are assumed to avoid them.
+    /// @notice Template deployments whose code is etched at the predeploys. They (and the test contract and the
+    /// cheatcode addresses) are harness accounts, not chain accounts, so symbolic relay targets are assumed to avoid
+    /// them.
     address[5] internal templates;
     address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
@@ -51,7 +54,9 @@ contract L2ToL2ExpiryHalmos is Test {
         templates[2] = address(new Recorder());
         templates[3] = address(new Recorder());
         // The real UndeliveredMessageExporter (solc 0.8.15, compiled by ExporterExpiryHalmos.t.sol).
-        bytes memory code = vm.getCode("halmos-out/UndeliveredMessageExporter.sol/UndeliveredMessageExporter.json");
+        bytes memory code = DeployUtils.getCode(
+            "test/formal/expiry/halmos/out/UndeliveredMessageExporter.sol/UndeliveredMessageExporter.json"
+        );
         address exporter;
         assembly {
             exporter := create(0, add(code, 32), mload(code))
@@ -64,9 +69,9 @@ contract L2ToL2ExpiryHalmos is Test {
         vm.etch(EXPORTER, templates[4].code);
     }
 
-    /// @dev ASSUMPTION for symbolic relay targets: the target is not a harness account. It may still be any of the
-    ///      predeploys above (0x..22, 0x..07, 0x..16) or any account without code. 0x..23 is excluded separately
-    ///      (see check_UnsafeTargetRule_relay).
+    /// @notice ASSUMPTION for symbolic relay targets: the target is not a harness account. It may still be any of the
+    ///         predeploys above (0x..22, 0x..07, 0x..16) or any account without code. 0x..23 is excluded separately
+    ///         (see check_UnsafeTargetRule_relay).
     function _assumeNotHarness(address _target) internal view {
         vm.assume(_target != address(this));
         vm.assume(_target != address(vm));
@@ -105,15 +110,15 @@ contract L2ToL2ExpiryHalmos is Test {
         return vm.load(_recorder, bytes32(uint256(5)));
     }
 
-    /// @dev Symbolic probe keys for storage-frame assertions: `k` is an arbitrary message hash, `j` an arbitrary nonce.
-    ///      Because the messenger storage is fully symbolic and k, j are unconstrained (except where a check excludes
-    ///      the slot it legitimately writes), "unchanged at k / j" means unchanged at EVERY key.
+    /// @notice Symbolic probe keys for storage-frame assertions: `k` is an arbitrary message hash, `j` an arbitrary
+    /// nonce. Because the messenger storage is fully symbolic and k, j are unconstrained (except where a check excludes
+    ///         the slot it legitimately writes), "unchanged at k / j" means unchanged at EVERY key.
     struct FrameKeys {
         bytes32 k;
         uint256 j;
     }
 
-    /// @dev Everything in messenger storage, observed at the probe keys (mappings) plus the nonce.
+    /// @notice Everything in messenger storage, observed at the probe keys (mappings) plus the nonce.
     struct Snap {
         uint256 nonce;
         bytes32 sentJ;
@@ -154,8 +159,8 @@ contract L2ToL2ExpiryHalmos is Test {
         return keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
     }
 
-    /// @dev A well-formed SentMessage payload: abi.encode(selector, destination, target, nonce) ++
-    ///      abi.encode(sender, message). Malformed payloads are not explored (the decoder reverts on them).
+    /// @notice A well-formed SentMessage payload: abi.encode(selector, destination, target, nonce) ++
+    ///         abi.encode(sender, message). Malformed payloads are not explored (the decoder reverts on them).
     function _payload(
         uint256 _destination,
         address _target,
@@ -205,7 +210,7 @@ contract L2ToL2ExpiryHalmos is Test {
 
     // ================================================================ (1) UnsafeTargetRule
 
-    /// @notice sendMessage succeeds only if target is neither 0x..23 nor 0x..07 and destination != chainid.
+    /// @notice sendMessage succeeds only if target is none of 0x..23, 0x..07, 0x..16 and destination != chainid.
     ///         Symbolic: caller, destination, target, message, chainid, timestamp, all messenger storage.
     function check_UnsafeTargetRule_send(
         address _caller,
@@ -228,7 +233,8 @@ contract L2ToL2ExpiryHalmos is Test {
         }
     }
 
-    /// @notice Rule landed at dd0931a540 (was pending at 37b44c48c7): sendMessage to the L2ToL1MessagePasser reverts.
+    /// @notice Rule in the exporter design (pending in the earlier design): sendMessage to the L2ToL1MessagePasser
+    /// reverts.
     function check_UnsafeTargetRule_send_passer(
         address _caller,
         uint256 _chainId,
@@ -304,7 +310,8 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(!ok);
     }
 
-    /// @notice Rule landed at dd0931a540 (was pending at 37b44c48c7): relayMessage to the L2ToL1MessagePasser reverts.
+    /// @notice Rule in the exporter design (pending in the earlier design): relayMessage to the L2ToL1MessagePasser
+    /// reverts.
     function check_UnsafeTargetRule_relay_passer(
         address _caller,
         uint256 _chainId,
@@ -382,8 +389,8 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(_callsFrom23(L2CDM) == 0);
     }
 
-    /// @notice Rule landed at dd0931a540 (was pending at 37b44c48c7): relayMessage never makes 0x..23 call the
-    ///         L2ToL1MessagePasser. The counterexample is a relay with target 0x..16.
+    /// @notice Rule in the exporter design (pending in the earlier design): relayMessage never makes 0x..23 call the
+    ///         L2ToL1MessagePasser.
     function check_OnlyExportReachesL1_relay_passer(
         address _caller,
         uint256 _chainId,
@@ -406,12 +413,7 @@ contract L2ToL2ExpiryHalmos is Test {
     // ================================================================ export arguments (the exporter is checked in
     // ExporterExpiryHalmos)
 
-    /// @notice With fully symbolic messenger storage: export succeeds iff !successfulMessages[H] where
-    ///         H = keccak256(abi.encode(block.chainid, source, nonce, sender, target, message)); on success it
-    ///         returns H and makes exactly one call from 0x..23 to 0x..07 whose calldata is exactly
-    ///         sendMessage(sourceMessenger, relayUndeliveredMessage(H, block.timestamp), minGas); on revert it makes
-    ///         none. Storage frame: nonce, sentMessages[j], sentMessageTimestamps[k], successfulMessages[k] and
-    ///         expiredMessages[k] are unchanged for symbolic k, j (i.e. for every key), whether it succeeds or not.
+    /// @notice Symbolic arguments of an exportUndeliveredMessage call (used by the re-entrant relay target).
     struct ExportArgs {
         address sourceMessenger;
         uint256 source;
@@ -510,7 +512,7 @@ contract L2ToL2ExpiryHalmos is Test {
         }
     }
 
-    /// @dev keccak256 of the exact calldata exportUndeliveredMessage must send to the L2CrossDomainMessenger.
+    /// @notice keccak256 of the exact calldata exportUndeliveredMessage must send to the L2CrossDomainMessenger.
     function _exportPayloadHash(address _sm, bytes32 _h, uint256 _ts, uint32 _minGas) internal pure returns (bytes32) {
         return keccak256(
             abi.encodeCall(
@@ -520,8 +522,8 @@ contract L2ToL2ExpiryHalmos is Test {
         );
     }
 
-    /// @dev Relays (from this contract) message `_message` to `_t` with sender = low 160 bits of _rel.k and nonce
-    ///      _rel.j, destination = block.chainid; returns the hash of the relayed message.
+    /// @notice Relays (from this contract) message `_message` to `_t` with sender = low 160 bits of _rel.k and nonce
+    ///         _rel.j, destination = block.chainid; returns the hash of the relayed message.
     function _relayTo(
         Identifier memory _id,
         FrameKeys memory _rel,
@@ -549,22 +551,24 @@ contract L2ToL2ExpiryHalmos is Test {
         });
     }
 
-    /// @dev Deploys a ReentrantTarget armed with the given symbolic export/send arguments; returns it and the hash an
-    ///      export with those arguments computes (destination = block.chainid).
+    /// @notice Deploys a ReentrantTarget armed with the given symbolic export/send arguments; returns it and the hash
+    /// an export with those arguments computes (destination = block.chainid).
     function _armReentrant(
-        bool _doExport,
+        uint256 _mode,
         ExportArgs memory _a2,
         bytes calldata _message2
     )
         internal
         returns (address t_, bytes32 h2_)
     {
-        t_ = address(new ReentrantTarget(_reentryArgs(_doExport ? 1 : 2, _a2), _message2));
+        t_ = address(new ReentrantTarget(_reentryArgs(_mode, _a2), _message2));
         h2_ = _hash(block.chainid, _a2.source, _a2.nonce, _a2.sender, _a2.target, _message2);
     }
 
     /// @notice OnlyExportReachesL1 under RE-ENTRY: relay to a target with code that, during the relayed call, calls
-    ///         exportUndeliveredMessage (mode 1) or sendMessage (mode 2) on 0x..23 with symbolic arguments. Every call
+    ///         exportUndeliveredMessage on the exporter (mode 1), sendMessage on 0x..23 (mode 2), or a NESTED
+    /// relayMessage of another well-formed message (mode 3; it must never succeed: the reentrancy guard), with symbolic
+    ///         arguments. Every call
     ///         0x..23 makes to 0x..07 in this whole execution (here: at most one) has exactly the export payload
     ///         sendMessage(sm', relayUndeliveredMessage(H', block.timestamp), g') for H' = keccak256(abi.encode(
     ///         block.chainid, src', nonce', sender', target', msg')), and H' was not relayed at that time
@@ -577,7 +581,7 @@ contract L2ToL2ExpiryHalmos is Test {
         Identifier memory _id,
         FrameKeys memory _rel, // relayed message: k = sender (low 160 bits), j = nonce
         bytes calldata _message,
-        bool _doExport,
+        uint8 _modeSel,
         ExportArgs memory _a2,
         bytes calldata _message2
     )
@@ -585,7 +589,8 @@ contract L2ToL2ExpiryHalmos is Test {
     {
         _env(_chainId, _ts);
         svm.enableSymbolicStorage(L2_TO_L2);
-        (address t, bytes32 h2) = _armReentrant(_doExport, _a2, _message2);
+        // mode: 1 export, 2 send, 3 nested relay
+        (address t, bytes32 h2) = _armReentrant(1 + uint256(_modeSel) % 3, _a2, _message2);
         bool succH2Before = m.successfulMessages(h2);
 
         bool h2IsRelayed = h2 == _relayTo(_id, _rel, t, _message);
@@ -593,11 +598,12 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(_callsFrom23(L2CDM) == 0); // 0x..23 itself never calls the L2CrossDomainMessenger
         assert(_callsFromExporter(L2CDM) <= 1);
         if (_callsFromExporter(L2CDM) == 1) {
-            assert(_doExport);
+            assert(uint256(_modeSel) % 3 == 0); // mode 1 (export)
             assert(!h2IsRelayed && !succH2Before);
             assert(_lastHashFromExporter(L2CDM) == _exportPayloadHash(_a2.sourceMessenger, h2, _ts, _a2.minGas));
         }
         assert(_callsFrom23(PASSER) == 0 && _callsFromExporter(PASSER) == 0);
+        assert(uint256(vm.load(t, bytes32(0))) == 0); // a nested relayMessage (mode 3) never succeeds
     }
 
     /// @notice NON-VACUITY (expected FAIL): a re-entrant export during a relay never reaches 0x..07. The
@@ -689,7 +695,7 @@ contract L2ToL2ExpiryHalmos is Test {
         _assertSecondRelayNotBlocked(_id, _rel, _message);
     }
 
-    /// @dev A second relay in the same transaction (different nonce, codeless target) is not blocked by the guard.
+    /// @notice A second relay in the same transaction (different nonce, codeless target) is not blocked by the guard.
     function _assertSecondRelayNotBlocked(
         Identifier memory _id,
         FrameKeys memory _rel,

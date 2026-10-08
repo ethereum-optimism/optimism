@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Halmos symbolic checks on the REAL UndeliveredMessageExporter (src/L2/UndeliveredMessageExporter.sol, dd0931a540),
+// Halmos symbolic checks on the REAL UndeliveredMessageExporter (src/L2/UndeliveredMessageExporter.sol),
 // etched at its predeploy address Predeploys.UNDELIVERED_MESSAGE_EXPORTER (never hardcoded). See README.md for exact
 // statements.
 // Group (3), retargeted: exportUndeliveredMessage
@@ -16,7 +16,7 @@ pragma solidity 0.8.15;
 // Mocks: 0x..23 is MockSuccessful (successfulMessages is an arbitrary symbolic mapping: the real getter is a plain
 // mapping read); 0x..07 and 0x..16 are fallback-only call recorders.
 
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
 import { UndeliveredMessageExporter } from "src/L2/UndeliveredMessageExporter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -175,8 +175,8 @@ contract ExporterExpiryHalmos is Test {
         }
     }
 
-    /// @dev The arguments after the selector, as a bytes view into `_data` (no copy loop). Overwrites `_data`'s
-    ///      length word and selector, so `_data` must not be used afterwards.
+    /// @notice The arguments after the selector, as a bytes view into `_data` (no copy loop). Overwrites `_data`'s
+    ///         length word and selector, so `_data` must not be used afterwards.
     function _tail(bytes memory _data) internal pure returns (bytes memory t_) {
         assembly {
             let len := mload(_data)
