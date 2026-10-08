@@ -64,7 +64,7 @@ var (
 
 // expiryTestsSkipReason holds the message expiry tests back until the contracts they exercise
 // land (ethereum-optimism/specs#960).
-const expiryTestsSkipReason = "requires the message expiry contracts, which {L2X} adds and which re-enables this test"
+const expiryTestsSkipReason = "requires the message expiry contracts, which #23284 adds and which re-enables this test"
 
 // shortClocks shrinks the L1 dispute windows and game clocks until they can be waited out in
 // wall-clock time.
