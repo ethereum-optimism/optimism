@@ -9,7 +9,7 @@
   },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
     "initCodeHash": "0x63999a03c6a2afbcb90f0cac34a962502c0d70209a0e0366336a43e132df74ec",
-    "sourceCodeHash": "0x64665a2070d6237b42e0d4cf8d154e2141d5eb879e4ce7aceae2878bb21f443b"
+    "sourceCodeHash": "0x56afc049496f8b4b8611c10ddf4eaf654457ee00a1e0779ec60fc7b5fa578bb7"
   },
   "src/L1/L1ERC721Bridge.sol:L1ERC721Bridge": {
     "initCodeHash": "0x8754f400a5110749e26f9820e0532b86f0122a6b8ceb10028fd997d39b023ff7",
@@ -72,7 +72,7 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x9b2b3486541ce385c5be745e043f0a8c8745e83f1fbb2aa0cd120764b5dc224a",
+    "initCodeHash": "0x5f2e9c36cfeb2d9c5922f2fc67bf0c58cdb900859a9064c3c99599653812c83b",
     "sourceCodeHash": "0x5dcc738ab7671e73bd926ceb29469ca25b8d925ddd8f0212d66fc31abdaf933e"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
@@ -105,7 +105,7 @@
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
     "initCodeHash": "0x99e34c525728e96efd1764f62ad4acabeb44253bf428609bb92fbc5736840b14",
-    "sourceCodeHash": "0x7624d0ac84d8d21deb151c3687d68efa54861404a762d540bfc3b9b781479af3"
+    "sourceCodeHash": "0x1f02bb9646b945cc226f7b4df3a85acbece0ea922843e3c1b103a32bf6e2c5bc"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
