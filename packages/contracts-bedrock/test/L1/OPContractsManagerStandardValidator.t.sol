@@ -2596,6 +2596,14 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
         );
         assertEq("ZKDG-160", _validate(true));
     }
+
+    /// @notice Tests ZKDG-DWETH-40 when the DelayedWETH delay is outside the standard range. The ZK
+    ///         game shares the DelayedWETH with the active permissionless super game, so that game
+    ///         reports the same code.
+    function test_validate_zkDisputeGameDelayedWETHDelayOutOfRange_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1));
+        assertEq("SCKDG-DWETH-40,ZKDG-DWETH-40", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_ValidateMigratedChain_Test
