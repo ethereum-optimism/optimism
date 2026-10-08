@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -55,8 +56,8 @@ func TestConfigCheck_MessageExpiryWindow(t *testing.T) {
 		RPCConcurrency:     1,
 		FetchConcurrency:   1,
 	}
-	cfg.MessageExpiryWindow = uint64(DefaultMessageExpiryWindow.Seconds())
+	cfg.MessageExpiryWindow = depset.MessageExpiryTimeSecondsInterop
 	require.NoError(t, cfg.Check())
-	cfg.MessageExpiryWindow = uint64(DefaultMessageExpiryWindow.Seconds()) + 1
-	require.ErrorContains(t, cfg.Check(), "message-expiry-window must not exceed 7 days")
+	cfg.MessageExpiryWindow = depset.MessageExpiryTimeSecondsInterop + 1
+	require.ErrorContains(t, cfg.Check(), "message-expiry-window 604801s exceeds protocol window 604800s")
 }
