@@ -683,6 +683,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
                 && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != Predeploys.L2_TO_L1_MESSAGE_PASSER
                 && _target != foundryVMAddress
         );
+        assumeNotForgeAddress(_target);
 
         // Ensure that the target contract does not revert (using the message also as the return
         // data)
@@ -744,6 +745,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
                 && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != Predeploys.L2_TO_L1_MESSAGE_PASSER
                 && _target != foundryVMAddress
         );
+        assumeNotForgeAddress(_target);
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
