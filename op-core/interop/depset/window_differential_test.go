@@ -3,6 +3,7 @@ package depset
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"math/rand"
 	"os"
@@ -84,6 +85,12 @@ func newWindowDepSet(t *testing.T, override uint64) *StaticConfigDependencySet {
 	require.Equal(t, ctorErr == nil, jsonErr == nil, "constructor and JSON disagree on override %d (ctor: %v, json: %v)", override, ctorErr, jsonErr)
 	require.Equal(t, ctorErr == nil, tomlErr == nil, "constructor and TOML disagree on override %d (ctor: %v, toml: %v)", override, ctorErr, tomlErr)
 	if ctorErr != nil {
+		// Rejected by the cap itself, not by something else on the way.
+		require.ErrorContains(t, ctorErr, "exceeds")
+		require.ErrorContains(t, jsonErr, "exceeds")
+		if override <= math.MaxInt64 {
+			require.ErrorContains(t, tomlErr, "exceeds")
+		} // else TOML integers are int64: the TOML parser rejects the value before the cap sees it.
 		return nil
 	}
 	require.Equal(t, fromCtor.MessageExpiryWindow(), fromJSON.MessageExpiryWindow())

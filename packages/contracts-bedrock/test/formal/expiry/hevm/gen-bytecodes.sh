@@ -4,6 +4,7 @@
 # at two checkouts:
 #   DEVELOP  the develop baseline (origin/develop c2fe2a991b by default), a separate git worktree
 #   CURRENT  this checkout
+# It also generates mapRenamedError (E6 in L2ToL2Equivalence.t.sol), from both sources.
 # Usage: gen-bytecodes.sh <develop-contracts-bedrock-dir> [--check]
 #   --check  regenerate into a temp file and fail if it differs from the committed L2ToL2Bytecodes.sol
 # Create the develop checkout with:
@@ -42,6 +43,33 @@ CUR_REV="$(git -C "$CURRENT" rev-parse --short=10 HEAD)$(git -C "$CURRENT" diff 
 DEV_SHA="$(printf %s "$DEV_HEX" | sha256sum | cut -d' ' -f1)"
 CUR_SHA="$(printf %s "$CUR_HEX" | sha256sum | cut -d' ' -f1)"
 
+# E6: errors the current messenger renamed with its contract-name prefix. For each one whose
+# unprefixed name (same parameter types) exists in develop's messenger, map the current selector to
+# develop's, so revert data can be compared modulo the rename.
+MAP_LINES=""
+while read -r cur_sig dev_sig; do
+  [ -n "$cur_sig" ] || continue
+  cur_sel="$(cast sig "$cur_sig")"
+  dev_sel="$(cast sig "$dev_sig")"
+  MAP_LINES+="        if (_selector == ${cur_sel}) selector_ = ${dev_sel}; // ${cur_sig} -> ${dev_sig}"$'\n'
+done < <(python3 - "$DEVELOP/src/L2/L2ToL2CrossDomainMessenger.sol" "$CURRENT/src/L2/L2ToL2CrossDomainMessenger.sol" <<'PY2'
+import re, sys
+
+def errors(path):
+    out = {}
+    for name, params in re.findall(r"error\s+(\w+)\s*\(([^)]*)\)\s*;", open(path).read()):
+        out[name] = ",".join(p.split()[0] for p in params.split(",") if p.strip())
+    return out
+
+dev, cur = errors(sys.argv[1]), errors(sys.argv[2])
+prefix = "L2ToL2CrossDomainMessenger_"
+for name, types in sorted(cur.items()):
+    base = name[len(prefix):]
+    if name.startswith(prefix) and dev.get(base) == types:
+        print(f"{name}({types}) {base}({types})")
+PY2
+)
+
 OUT="$TMP/L2ToL2Bytecodes.sol"
 cat >"$OUT" <<EOF
 // SPDX-License-Identifier: MIT
@@ -60,17 +88,29 @@ library L2ToL2Bytecodes {
     // $CUR_SHA
     bytes internal constant CURRENT =
         hex"$CUR_HEX";
+
+    /// @notice Maps a selector of an error the current messenger renamed with its contract-name
+    ///         prefix to develop's selector for the same error; other selectors are unchanged.
+    function mapRenamedError(bytes4 _selector) internal pure returns (bytes4 selector_) {
+        selector_ = _selector;
+${MAP_LINES}    }
 }
 EOF
 printf %s "$DEV_HEX" >"$TMP/develop.runtime.hex"
 printf %s "$CUR_HEX" >"$TMP/current.runtime.hex"
 
 if [ "$MODE" = "--check" ]; then
-  # Compare only the bytecode lines, so a different checkout revision label does not fail the check.
-  if diff <(grep -E '^ +hex"' "$OUT") <(grep -E '^ +hex"' "$HERE/L2ToL2Bytecodes.sol") >/dev/null; then
-    echo "L2ToL2Bytecodes.sol is up to date (develop $DEV_SHA, current $CUR_SHA)"
+  # Compare the bytecode lines of the .sol (so a different checkout revision label does not fail
+  # the check) and both standalone .runtime.hex files (the bytecode-level hevm checks read those).
+  stale=0
+  diff <(grep -E '^ +hex"|_selector ==' "$OUT") <(grep -E '^ +hex"|_selector ==' "$HERE/L2ToL2Bytecodes.sol") \
+    >/dev/null || stale=1
+  cmp -s "$TMP/develop.runtime.hex" "$HERE/develop.runtime.hex" || stale=1
+  cmp -s "$TMP/current.runtime.hex" "$HERE/current.runtime.hex" || stale=1
+  if [ "$stale" = 0 ]; then
+    echo "L2ToL2Bytecodes.sol and *.runtime.hex are up to date (develop $DEV_SHA, current $CUR_SHA)"
   else
-    echo "L2ToL2Bytecodes.sol is STALE: rerun gen-bytecodes.sh" >&2
+    echo "L2ToL2Bytecodes.sol or *.runtime.hex is STALE: rerun gen-bytecodes.sh" >&2
     exit 1
   fi
 else

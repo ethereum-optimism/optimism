@@ -37,20 +37,19 @@ it checked.
 
 | Property | Lean (unbounded) | Quint / Apalache (bounded) | Halmos (symbolic, bytecode) | EVM-Lean (bytecode refinement) | Others |
 |---|---|---|---|---|---|
-| **NoDoubleSpend**: never both relayed on the destination and refunded on the source | proved for any `SafeConfig` (exporter design) | checked to depth 15 in 5 safe instances; 10 mitigation-off instances double-spend | (local properties only) | (`expireMessage` only) | Foundry invariants (pending) |
+| **NoDoubleSpend**: never both relayed on the destination and refunded on the source | proved for any `SafeConfig` (exporter design) | checked to depth 15 in 5 safe instances; 10 mitigation-off instances double-spend | (local properties only) | (`expireMessage` only) | Foundry invariants |
 | **ExpiredImpliesNeverRelayable** | proved, for all extensions of the execution | checked | — | — | — |
 | **NoForgedFact / OnlyDestinationCanExport** | proved | checked | export hash binding | — | — |
-| **RefundImpliesExpired, AtMostOneRefund** | proved (standard chains) | checked | refund iff + single use | pending | — |
+| **RefundImpliesExpired, AtMostOneRefund** | proved (standard chains) | checked | refund iff + single use | `refundETH`: refunded set only after reading `expiredMessages(H)` true and `refunded[H]` false | Foundry invariants |
 | **Exporter silent before upgrade** (derived activation) | proved, no axioms | modeled via `upgrade` | — | — | — |
-| **Target rule** (defense in depth: an upgraded 0x..23 never initiates a withdrawal) | lemma; safety is proved without it | `MessengerSilentAfterUpgrade` | for all targets, including re-entrant relay targets; the L2ToL1MessagePasser case is pending in the code | — | Kontrol (pending) |
-| **`expireMessage` auth + strict boundary + effects** | abstract guard | abstract guard | iff, full frame, unbounded overflow | proved on bytecode (sound; complete modulo gas) | Kontrol (pending) |
-| **`relayUndeliveredMessage` three checks + exact deposit** | abstract guard | abstract guard incl. fake callers | iff, deposit envelope, topologies | in progress | Kontrol (pending) |
-| **`refundETH` preimage binding, single use, balances** | `isBridge` abstraction | abstract | iff, balances, composed with real `sendETH` | in progress | — |
-| **P_contract ≥ W_protocol required** | `cex_periodBelowWindow` (W=7, P=6) | `periodBelowWindow` | contract constant ≥ 7 days | constant parameterized | Go/Rust window differential (pending) |
-| **Messenger behaviour unchanged for allowed targets** | — | — | — | — | hevm equivalence (pending) |
+| **Target rule** (defense in depth: an upgraded 0x..23 never initiates a withdrawal) | lemma; safety is proved without it | `MessengerSilentAfterUpgrade` | for all targets, including re-entrant relay targets; including the L2ToL1MessagePasser | — | Kontrol, Foundry invariants |
+| **`expireMessage` auth + strict boundary + effects** | abstract guard | abstract guard | iff, full frame, unbounded overflow | soundness proved on bytecode | Kontrol |
+| **`relayUndeliveredMessage` three checks + exact deposit** | abstract guard | abstract guard incl. fake callers | iff, deposit envelope, topologies | see `evm-lean-l1cdm/` | Kontrol |
+| **`refundETH` preimage binding, single use, balances** | `isBridge` abstraction | abstract | iff, balances, composed with real `sendETH` | soundness proved on bytecode (exact preimage, store point) | — |
+| **P_contract ≥ W_protocol required** | `cex_periodBelowWindow` (W=7, P=6) | `periodBelowWindow` | contract constant ≥ 7 days | constant read from bytecode | Dafny lemmas; Go/Rust window differential (overrides above 7 days rejected) |
+| **Messenger behaviour unchanged for allowed targets** | — | — | — | — | hevm + Halmos equivalence with develop (every storage slot; events by concrete fuzz) |
 
-"Pending" means a worker is still running, or the code it targets has not landed. Each subdirectory
-README is authoritative for its exact statement.
+Each subdirectory README is authoritative for its exact statement, bounds and assumptions.
 
 ## Named assumptions confirmed by an independent model
 
@@ -84,7 +83,7 @@ the repo:
 
 The Lean and Quint relay rule (`t ≤ e + W`) matches its boundary exactly. Ours omits `init ≤ exec`,
 which only makes the models more permissive. `dafny/` proves the off-chain half of the expiry
-argument against that model's own definitions (in progress).
+argument against that model's own definitions.
 
 ## Assumptions, all layers
 
@@ -108,15 +107,15 @@ Each layer states which of these it assumes and which it checks:
 
 ## Layout
 
-| Directory | Tool | Status |
+| Directory | Tool | Notes |
 |---|---|---|
 | `lean/` | Lean 4 protocol model and proof | done (v2.1), reviewed twice |
-| `quint/` | Quint model; Apalache and simulation | v2.1; Apalache at depth 15 running |
-| `halmos/` | Halmos symbolic checks on bytecode | v2, reviewed twice; v3 in progress |
-| `evm-lean/` | EquiVM/EVMLean bytecode proof of `expireMessage` | done; review running |
-| `evm-lean-l1cdm/`, `evm-lean-bridge/` | the same, for `relayUndeliveredMessage` and `refundETH` | in progress |
-| `kontrol/` | Kontrol (KEVM) proofs | in progress |
-| `invariants/` | Foundry stateful invariant harness | in progress |
-| `hevm/`, `window-differential/` | hevm equivalence; Go/Rust window rule differential | in progress |
-| `dafny/` | lemmas over the existing supernode Dafny model | in progress |
-| `rollout/` | rollout orderings and misconfigurations (Quint) | in progress |
+| `quint/` | Quint model; Apalache and simulation | protocol model; Apalache and simulation |
+| `halmos/` | Halmos symbolic checks on bytecode | contract-level symbolic checks with an enforced mutant suite |
+| `evm-lean/` | EquiVM/EVMLean bytecode proof of `expireMessage` | bytecode soundness, kernel-checked |
+| `evm-lean-l1cdm/`, `evm-lean-bridge/` | the same, for `relayUndeliveredMessage` and `refundETH` | see each README |
+| `kontrol/` | Kontrol (KEVM) proofs | see its README |
+| `invariants/` | Foundry stateful invariant harness | runs in contracts-bedrock CI |
+| `hevm/`, `window-differential/` | hevm equivalence; Go/Rust window rule differential | Go/Rust tests run in CI |
+| `dafny/` | lemmas over the existing supernode Dafny model | — |
+| `rollout/` | rollout orderings and misconfigurations (Quint) | see its README |

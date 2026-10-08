@@ -22,7 +22,9 @@ U64 = 2**64 - 1
 DEFAULT = 604800
 CAP = 604800  # protocol cap on overrides (7 days)
 
-OVERRIDES = [0, 1, 2, 3600, DEFAULT - 1, DEFAULT, DEFAULT + 1, 8 * 86400, U64 - 1, U64]
+# 2**63 - 1 is the largest TOML integer, so it reaches op-core's cap check through every config path;
+# U64 - 1 and U64 are rejected by the TOML parser (int64) before the cap is reached.
+OVERRIDES = [0, 1, 2, 3600, DEFAULT - 1, DEFAULT, DEFAULT + 1, 8 * 86400, 2**63 - 1, U64 - 1, U64]
 
 
 def window(override):

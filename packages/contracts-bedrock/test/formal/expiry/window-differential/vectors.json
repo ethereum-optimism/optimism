@@ -2114,6 +2114,16 @@
    "reason": "configRejected"
   },
   {
+   "name": "override=9223372036854775807 (above the cap: config rejected)",
+   "init": 1,
+   "exec": 1,
+   "override": 9223372036854775807,
+   "window": 9223372036854775807,
+   "configRejected": true,
+   "valid": false,
+   "reason": "configRejected"
+  },
+  {
    "name": "override=18446744073709551614 (above the cap: config rejected)",
    "init": 1,
    "exec": 1,
