@@ -18,6 +18,8 @@ workspace = true
 # Workspace
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 kona-gossip.workspace = true
+kona-disc.workspace = true
+kona-peers.workspace = true
 kona-engine.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
 
@@ -42,6 +44,7 @@ derive_more = { workspace = true, default-features = false, features = [
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 ipnet = { workspace = true }
+enr.workspace = true
 backon = { workspace = true }
 
 # `serde`

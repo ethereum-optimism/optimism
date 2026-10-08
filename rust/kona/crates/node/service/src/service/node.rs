@@ -18,7 +18,6 @@ use jsonrpsee::{RpcModule, server::ServerHandle};
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineQueryClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
@@ -405,7 +404,7 @@ impl RollupNode {
         l2_query_client: EngineQueryClient,
         engine_state_rx: watch::Receiver<EngineState>,
         sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
-        p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
+        p2p_rpc: P2pRpc,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
@@ -418,7 +417,7 @@ impl RollupNode {
             .merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone())))
             .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
         modules
-            .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
+            .merge(p2p_rpc.into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
         // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
         if config.enable_admin() {
@@ -486,7 +485,7 @@ impl RollupNode {
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
         let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
         // Network actor inbound channels
-        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
@@ -527,13 +526,16 @@ impl RollupNode {
             .await
             .map_err(|e| format!("Failed to start network: {e:?}"))?;
 
+        let discovery = handler.discovery.clone();
         let network = NetworkActor::new(
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
-            p2p_rpc_rx,
+            gossip_command_rx,
             network_admin_rx,
             signed_payload_rx,
         );
+
+        let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
@@ -558,7 +560,7 @@ impl RollupNode {
                 l2_query_client,
                 engine_state_rx,
                 sequencer_admin_client,
-                p2p_rpc_tx,
+                p2p_rpc,
                 network_admin_tx,
                 l1_query_tx,
             )

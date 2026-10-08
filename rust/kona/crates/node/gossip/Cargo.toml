@@ -19,7 +19,6 @@ workspace = true
 # Kona
 kona-peers.workspace = true
 kona-genesis.workspace = true
-kona-disc.workspace = true
 
 # Alloy
 alloy-rlp.workspace = true
@@ -38,7 +37,6 @@ snap.workspace = true
 futures.workspace = true
 libp2p-stream.workspace = true
 discv5.workspace = true
-enr.workspace = true
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
 libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
