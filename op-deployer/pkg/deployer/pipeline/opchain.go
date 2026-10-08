@@ -215,12 +215,12 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (state.ChainProofParams, error) {
 	return jsonutil.MergeJSON(
 		state.ChainProofParams{
-			DisputeGameType:         standard.DisputeGameType,
-			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:       standard.DisputeSplitDepth,
-			DisputeClockExtension:   standard.DisputeClockExtension,
-			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+			DisputeGameType:                 standard.DisputeGameType,
+			DisputeAbsolutePrestate:         standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:             standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:               standard.DisputeSplitDepth,
+			DisputeClockExtension:           standard.DisputeClockExtension,
+			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		},

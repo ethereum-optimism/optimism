@@ -45,8 +45,8 @@ type ChainProofParams struct {
 	DisputeClockExtension                   uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
 	DisputeMaxClockDuration                 uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
 	DangerouslyAllowCustomDisputeParameters bool        `json:"dangerouslyAllowCustomDisputeParameters" toml:"dangerouslyAllowCustomDisputeParameters"`
-	ProofMaturityDelaySeconds       uint64 `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64 `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
+	ProofMaturityDelaySeconds               uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
+	DisputeGameFinalityDelaySeconds         uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
 }
 
 type AdditionalDisputeGame struct {

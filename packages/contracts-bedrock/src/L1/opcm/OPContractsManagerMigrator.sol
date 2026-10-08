@@ -521,12 +521,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         _systemConfig.setFeature(Features.INTEROP, true);
 
         // Attach the portal directly to the shared ETHLockbox before migrating portal-held ETH.
+        // NOTE: The portal's proof maturity delay is read here, before the implementation swap,
+        // and carried forward unchanged. At the time of the migration, it is assumed that all chains will
+        // have the same proof maturity delay.
         _upgrade(
             _systemConfig.proxyAdmin(),
             address(portal),
             _impls.optimismPortalImpl,
-            // The portal's proof maturity delay is read here, before the implementation swap,
-            // and carried forward unchanged.
             abi.encodeCall(
                 IOptimismPortal.initialize, (_systemConfig, oldASR, _newLockbox, portal.proofMaturityDelaySeconds())
             )

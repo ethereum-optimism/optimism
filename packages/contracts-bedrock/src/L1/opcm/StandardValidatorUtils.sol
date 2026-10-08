@@ -308,7 +308,7 @@ contract StandardValidatorUtils {
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         _errors = internalRequire(IProxyAdminOwnedBase(address(_portal)).proxyAdmin() == _admin, "PORTAL-90", _errors);
-        // The proof maturity delay is per chain; "standard" means within the sanctioned range.
+        // The proof maturity delay is per chain and "standard" means within the configured bounds.
         uint256 proofMaturityDelay = _portal.proofMaturityDelaySeconds();
         _errors = internalRequire(
             proofMaturityDelay >= EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS
@@ -426,7 +426,7 @@ contract StandardValidatorUtils {
             string.concat(_errorPrefix, "-70"),
             _errors
         );
-        // The finality delay is per chain; "standard" means within the sanctioned range.
+        // The finality delay is per chain and "standard" means within the configured bounds.
         uint256 finalityDelay = _asr.disputeGameFinalityDelaySeconds();
         _errors = internalRequire(
             finalityDelay >= EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS

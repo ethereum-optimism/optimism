@@ -43,10 +43,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         uint64 timestamp;
     }
 
-    /// @notice The lowest value that `proofMaturityDelaySeconds` may be set to.
+    /// @notice The lowest value in seconds that `proofMaturityDelaySeconds` may be set to.
     uint256 internal immutable MIN_PROOF_MATURITY_DELAY_SECONDS;
 
-    /// @notice The highest value that `proofMaturityDelaySeconds` may be set to.
+    /// @notice The highest value in seconds that `proofMaturityDelaySeconds` may be set to.
     uint256 internal immutable MAX_PROOF_MATURITY_DELAY_SECONDS;
 
     /// @notice Version of the deposit event.
@@ -314,7 +314,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
 
-        // Set the proof maturity delay. Bounds-checked and emits the same event as the setter.
+        // Set the proof maturity delay and check it against the configured bounds.
         _setProofMaturityDelaySeconds(_proofMaturityDelaySeconds);
 
         // Set the l2Sender slot, only if it is currently empty. This signals the first

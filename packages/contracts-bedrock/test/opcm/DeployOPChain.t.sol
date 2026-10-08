@@ -717,6 +717,18 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
+    function test_run_zeroProofMaturityDelaySeconds_reverts() public {
+        deployOPChainInput.proofMaturityDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: proofMaturityDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_zeroDisputeGameFinalityDelaySeconds_reverts() public {
+        deployOPChainInput.disputeGameFinalityDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
     function test_run_zeroDisputeMaxGameDepth_reverts() public {
         deployOPChainInput.disputeMaxGameDepth = 0;
         vm.expectRevert("DeployOPChainInput: disputeMaxGameDepth not set");

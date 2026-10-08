@@ -682,11 +682,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ),
                 (bool)
             ),
-            // NOTE: These are read before any implementation is swapped, so on the first upgrade
-            // to a release with per-chain delays they return the legacy immutable values, which
+            // NOTE: The delays are read before any implementation is swapped, so on the first upgrade
+            // to a release with per-chain delays they return the legacy immutable values from the same selectors, which
             // are then carried forward into proxy storage. The keys are deliberately not
-            // allow-listed in _isPermittedInstruction: an upgrade always carries the live values
-            // forward and only the L1PAO setters change them.
+            // allow-listed in _isPermittedInstruction. An upgrade always leaves the live values
+            // which can only be changed by the L1PAO setters.
             proofMaturityDelaySeconds: abi.decode(
                 _loadBytes(
                     address(_chainContracts.optimismPortal),

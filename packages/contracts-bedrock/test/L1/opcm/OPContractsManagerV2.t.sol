@@ -3689,6 +3689,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IDisputeGameFactory sharedDgf = sharedAsr.disputeGameFactory();
         IETHLockbox sharedLockbox = portal1.ethLockbox();
         IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+        uint256 sharedFinalityDelayBefore = sharedAsr.disputeGameFinalityDelaySeconds();
 
         // Sanity: the members have distinct ProxyAdmins, but the shared contracts are administered
         // by the first chain's ProxyAdmin — the exact condition that breaks the naive upgrade path.
@@ -3750,6 +3751,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             address(sharedAsr.ethLockbox()),
             address(sharedLockbox),
             "shared AnchorStateRegistry re-pointed away from the shared ETHLockbox"
+        );
+        // Each member's upgrade re-initializes the shared registry with the delay it reads back.
+        assertEq(
+            sharedAsr.disputeGameFinalityDelaySeconds(),
+            sharedFinalityDelayBefore,
+            "shared AnchorStateRegistry finality delay changed"
         );
         assertEq(
             address(sharedLockbox.superchainConfig()),

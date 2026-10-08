@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -199,4 +200,59 @@ func newValidIntentBuilder() intentbuilder.Builder {
 	l2.WithChallenger(common.HexToAddress("0xf"))
 
 	return builder
+}
+
+func TestWithDelaySecondsWidensBounds(t *testing.T) {
+	dt := devtest.SerialT(t)
+	options := []struct {
+		name   string
+		opt    func(uint64) DeployerOption
+		key    string
+		minKey string
+		maxKey string
+		stdMin uint64
+		stdMax uint64
+	}{
+		{
+			name:   "proof maturity",
+			opt:    WithProofMaturityDelaySeconds,
+			key:    "proofMaturityDelaySeconds",
+			minKey: "minProofMaturityDelaySeconds",
+			maxKey: "maxProofMaturityDelaySeconds",
+			stdMin: standard.MinProofMaturityDelaySeconds,
+			stdMax: standard.MaxProofMaturityDelaySeconds,
+		},
+		{
+			name:   "dispute game finality",
+			opt:    WithDisputeGameFinalityDelaySeconds,
+			key:    "disputeGameFinalityDelaySeconds",
+			minKey: "minDisputeGameFinalityDelaySeconds",
+			maxKey: "maxDisputeGameFinalityDelaySeconds",
+			stdMin: standard.MinDisputeGameFinalityDelaySeconds,
+			stdMax: standard.MaxDisputeGameFinalityDelaySeconds,
+		},
+	}
+	for _, o := range options {
+		t.Run(o.name, func(t *testing.T) {
+			cases := []struct {
+				name    string
+				delay   uint64
+				wantMin any
+				wantMax any
+			}{
+				{name: "below standard min", delay: o.stdMin - 1, wantMin: o.stdMin - 1, wantMax: nil},
+				{name: "within standard range", delay: o.stdMin, wantMin: nil, wantMax: nil},
+				{name: "above standard max", delay: o.stdMax + 1, wantMin: nil, wantMax: o.stdMax + 1},
+			}
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					b := intentbuilder.New()
+					o.opt(c.delay)(dt, nil, b)
+					require.Equal(t, c.delay, b.GlobalOverride(o.key))
+					require.Equal(t, c.wantMin, b.GlobalOverride(o.minKey))
+					require.Equal(t, c.wantMax, b.GlobalOverride(o.maxKey))
+				})
+			}
+		})
+	}
 }
