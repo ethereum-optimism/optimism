@@ -20,7 +20,7 @@ use super::{
 pub struct NullRefundPolicy;
 
 impl PostExecRefundInspector for NullRefundPolicy {
-    type Snapshot = ();
+    type Checkpoint = ();
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
@@ -70,9 +70,9 @@ impl PostExecRefundInspector for NullRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {}
+    fn checkpoint(&self) -> Self::Checkpoint {}
 
-    fn restore(&mut self, _snapshot: Self::Snapshot) {}
+    fn revert_to_checkpoint(&mut self, _checkpoint: Self::Checkpoint) {}
 }
 
 impl PostExecRefundPolicyFactory for NullRefundPolicy {
@@ -95,7 +95,7 @@ mod tests {
             policy.begin_tx(PostExecTxContext { tx_index: 1, kind });
             policy.note_account_touch(Address::ZERO);
             assert_eq!(policy.finish_tx(), PostExecExecutedTx::default());
-            policy.restore(());
+            policy.revert_to_checkpoint(());
         }
     }
 }

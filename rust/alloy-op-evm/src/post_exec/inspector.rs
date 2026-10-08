@@ -125,14 +125,14 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
         self.post_exec.begin_tx(ctx);
     }
 
-    /// Snapshot refund state to carry across subblock executors.
-    pub fn refund_snapshot(&self) -> R::Snapshot {
-        self.post_exec.snapshot()
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    pub fn refund_checkpoint(&self) -> R::Checkpoint {
+        self.post_exec.checkpoint()
     }
 
-    /// Seed refund state captured from a prior subblock.
-    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
-        self.post_exec.restore(state);
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    pub fn revert_refund_checkpoint(&mut self, checkpoint: R::Checkpoint) {
+        self.post_exec.revert_to_checkpoint(checkpoint);
     }
 
     /// Notes an account touch that happened outside opcode stepping.
