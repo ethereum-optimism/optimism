@@ -45,18 +45,10 @@ pub struct Builder<Conductor_> {
 
 impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
     /// Creates the builder with its initial state.
-    pub fn new(
-        capacity: Capacity,
-        conductor: Option<Conductor_>,
-        is_active: bool,
-        in_recovery_mode: bool,
-    ) -> Self {
+    pub fn new(capacity: Capacity, conductor: Option<Conductor_>, is_active: bool) -> Self {
         let (messages_tx, messages) = mpsc::channel(capacity.get());
-        let (published, state) = watch::channel(State {
-            active: is_active,
-            conductor_enabled: conductor.is_some(),
-            recovery_mode: in_recovery_mode,
-        });
+        let (published, state) =
+            watch::channel(State { active: is_active, conductor_enabled: conductor.is_some() });
         Self { handle: Handle::new(state, messages_tx), messages, published, conductor }
     }
 
@@ -218,10 +210,7 @@ where
 
     /// Publishes sequencer state and updates its metrics.
     fn update_state(&self) {
-        let state_flags = [
-            ("active", self.state.active.to_string()),
-            ("recovery", self.state.recovery_mode.to_string()),
-        ];
+        let state_flags = [("active", self.state.active.to_string())];
         metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags).set(1);
         self.published.send_replace(self.state);
     }
@@ -335,9 +324,7 @@ where
         &mut self,
         unsafe_head: L2BlockInfo,
     ) -> Result<Option<BlockInfo>, ActorError> {
-        let recovery_mode = self.state.recovery_mode;
-        let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head, recovery_mode).await
-        {
+        let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head).await {
             Ok(l1_origin) => l1_origin,
             Err(L1OriginSelectorError::OriginNotFound(hash)) => {
                 warn!(
@@ -418,11 +405,6 @@ where
     /// Determines, for the provided L1 origin block and payload attributes being constructed, if
     /// transaction pool transactions should be enabled.
     fn should_use_tx_pool(&self, l1_origin: BlockInfo, attributes: &OpPayloadAttributes) -> bool {
-        if self.state.recovery_mode {
-            warn!(target: "sequencer", "Sequencer is in recovery mode, producing empty block");
-            return false;
-        }
-
         // If the next L2 block is beyond the sequencer drift threshold, we must produce an empty
         // block.
         if attributes.payload_attributes.timestamp >
@@ -556,11 +538,6 @@ where
                         )
                     });
                 let _ = tx.send(result);
-            }
-            Message::SetRecoveryMode(mode, tx) => {
-                self.state.recovery_mode = mode;
-                self.update_state();
-                let _ = tx.send(Ok(()));
             }
             Message::OverrideLeader(tx) => {
                 let result = match self.conductor.as_mut() {

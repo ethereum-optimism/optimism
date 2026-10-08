@@ -35,7 +35,7 @@ async fn build_handles_payload_attributes_errors(
 
     let l1_origin = BlockInfo::default();
     let mut origin_selector = MockOriginSelector::new();
-    origin_selector.expect_next_l1_origin().times(1).return_once(move |_, _| Ok(l1_origin));
+    origin_selector.expect_next_l1_origin().times(1).return_once(move |_| Ok(l1_origin));
 
     let attributes_builder = TestAttributesBuilder { attributes: vec![Err(forced_error)] };
 
@@ -61,7 +61,7 @@ async fn build_handles_payload_attributes_errors(
 /// blocking the actor, so admin queries such as op-conductor's `StopSequencer` are still answered.
 #[tokio::test(start_paused = true)]
 async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
-    let (mut actor, _, handle) = test_actor_with_config(true, false, None);
+    let (mut actor, _, handle) = test_actor_with_config(true, None);
     let mut engine = MockSequencerEngineClient::new();
     // No block is built or sealed while the queue is full.
     engine.expect_start_build_block().times(0);
@@ -95,7 +95,7 @@ async fn building_resumes_once_the_gossip_queue_drains() {
 
     // Building starts again on the second attempt: the origin selector is consulted once.
     let mut origin_selector = MockOriginSelector::new();
-    origin_selector.expect_next_l1_origin().times(1).return_once(|_, _| Ok(BlockInfo::default()));
+    origin_selector.expect_next_l1_origin().times(1).return_once(|_| Ok(BlockInfo::default()));
     actor.origin_selector = origin_selector;
     actor.attributes_builder = TestAttributesBuilder {
         attributes: vec![Err(PipelineErrorKind::Temporary(

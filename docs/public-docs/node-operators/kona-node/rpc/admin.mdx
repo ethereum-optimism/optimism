@@ -92,27 +92,6 @@ Returns whether the conductor is enabled.
 
 **Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
 
-## `admin_setRecoverMode`
-
-Sets the recovery mode for the sequencer.
-
-| Client | Method invocation                                         |
-| ------ | --------------------------------------------------------- |
-| RPC    | `{"method": "admin_setRecoverMode", "params": [mode]}`    |
-
-### Parameters
-
-- `mode` (`bool`): Whether to enable recovery mode (true) or disable it (false)
-
-### Example
-
-```js
-// > {"jsonrpc":"2.0","id":1,"method":"admin_setRecoverMode","params":[true]}
-{"jsonrpc":"2.0","id":1,"result":null}
-```
-
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
-
 ## `admin_overrideLeader`
 
 Overrides the leader in the conductor.

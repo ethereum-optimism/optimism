@@ -83,21 +83,6 @@ impl AdminApiServer for AdminRpc {
             .conductor_enabled)
     }
 
-    async fn admin_recover_mode(&self) -> RpcResult<bool> {
-        Ok(self
-            .sequencer()?
-            .snapshot()
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
-            .recovery_mode)
-    }
-
-    async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()> {
-        self.sequencer()?
-            .set_recovery_mode(mode)
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-    }
-
     async fn admin_override_leader(&self) -> RpcResult<()> {
         self.sequencer()?
             .override_leader()
@@ -162,7 +147,6 @@ mod tests {
         async fn next_l1_origin(
             &mut self,
             _unsafe_head: L2BlockInfo,
-            _is_recovery_mode: bool,
         ) -> Result<BlockInfo, L1OriginSelectorError> {
             panic!("a full gossip queue must pause building")
         }
@@ -179,7 +163,6 @@ mod tests {
             sequencer::Capacity::try_from(1).unwrap(),
             conductor_enabled
                 .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),
-            false,
             false,
         );
         let handle = builder.handle();
@@ -217,14 +200,9 @@ mod tests {
         let rpc = AdminRpc::new(Some(handle), mpsc::channel(1).0, mpsc::channel(1).0);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(rpc.admin_conductor_enabled().await.unwrap());
-        assert!(!rpc.admin_recover_mode().await.unwrap());
 
         drop(task);
-        for result in [
-            rpc.admin_sequencer_active().await,
-            rpc.admin_conductor_enabled().await,
-            rpc.admin_recover_mode().await,
-        ] {
+        for result in [rpc.admin_sequencer_active().await, rpc.admin_conductor_enabled().await] {
             assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
         }
     }
@@ -236,10 +214,8 @@ mod tests {
         for result in [
             rpc.admin_sequencer_active().await.map(|_| ()),
             rpc.admin_conductor_enabled().await.map(|_| ()),
-            rpc.admin_recover_mode().await.map(|_| ()),
             rpc.admin_start_sequencer().await,
             rpc.admin_stop_sequencer().await.map(|_| ()),
-            rpc.admin_set_recover_mode(true).await,
             rpc.admin_override_leader().await,
         ] {
             assert_eq!(result.unwrap_err().code(), ErrorCode::MethodNotFound.code());
@@ -257,8 +233,6 @@ mod tests {
             rpc.admin_override_leader().await.unwrap_err().code(),
             ErrorCode::InternalError.code()
         );
-        rpc.admin_set_recover_mode(true).await.unwrap();
-        assert!(rpc.admin_recover_mode().await.unwrap());
         rpc.admin_start_sequencer().await.unwrap();
         assert!(rpc.admin_sequencer_active().await.unwrap());
 
@@ -276,12 +250,10 @@ mod tests {
             sequencer::Capacity::try_from(1).unwrap(),
             None::<ConductorClient>,
             true,
-            true,
         );
         let rpc = AdminRpc::new(Some(builder.handle()), mpsc::channel(1).0, mpsc::channel(1).0);
         assert!(rpc.admin_sequencer_active().await.unwrap());
         assert!(!rpc.admin_conductor_enabled().await.unwrap());
-        assert!(rpc.admin_recover_mode().await.unwrap());
     }
 
     #[tokio::test]
@@ -290,7 +262,6 @@ mod tests {
             let builder = sequencer::Builder::new(
                 sequencer::Capacity::try_from(1).unwrap(),
                 None::<ConductorClient>,
-                false,
                 false,
             );
             let handle = builder.handle();

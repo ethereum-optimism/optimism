@@ -24,7 +24,7 @@ async fn command<T>(
 #[rstest]
 #[tokio::test(start_paused = true)]
 async fn start_sequencer(#[values(true, false)] already_started: bool) {
-    let (mut actor, _, handle) = test_actor_with_config(already_started, false, None);
+    let (mut actor, _, handle) = test_actor_with_config(already_started, None);
     assert_eq!(handle.snapshot().unwrap().active, already_started);
     command(&mut actor, Message::StartSequencer).await.unwrap();
     assert!(handle.snapshot().unwrap().active);
@@ -34,7 +34,7 @@ async fn start_sequencer(#[values(true, false)] already_started: bool) {
 #[rstest]
 #[tokio::test(start_paused = true)]
 async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
-    let (mut actor, commands, handle) = test_actor_with_config(!already_stopped, false, None);
+    let (mut actor, commands, handle) = test_actor_with_config(!already_stopped, None);
     let hash = B256::repeat_byte(1);
     actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || {
         Ok(L2BlockInfo {
@@ -57,7 +57,7 @@ async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
 
 #[tokio::test(start_paused = true)]
 async fn stop_is_published_before_a_failed_unsafe_head_read() {
-    let (mut actor, _, handle) = test_actor_with_config(true, false, None);
+    let (mut actor, _, handle) = test_actor_with_config(true, None);
     let observed_state = handle.clone();
     actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || {
         assert!(!observed_state.snapshot().unwrap().active);
@@ -66,18 +66,6 @@ async fn stop_is_published_before_a_failed_unsafe_head_read() {
     let error = command(&mut actor, Message::StopSequencer).await.unwrap_err();
     assert!(matches!(error, HandleError::ErrorAfterSequencerWasStopped(_)));
     assert!(!handle.snapshot().unwrap().active);
-}
-
-#[rstest]
-#[tokio::test(start_paused = true)]
-async fn set_recovery_mode(
-    #[values(true, false)] starting_mode: bool,
-    #[values(true, false)] mode: bool,
-) {
-    let (mut actor, _, handle) = test_actor_with_config(true, starting_mode, None);
-    assert_eq!(handle.snapshot().unwrap().recovery_mode, starting_mode);
-    command(&mut actor, |tx| Message::SetRecoveryMode(mode, tx)).await.unwrap();
-    assert_eq!(handle.snapshot().unwrap().recovery_mode, mode);
 }
 
 #[rstest]
@@ -97,7 +85,7 @@ async fn override_leader(#[case] configured: bool, #[case] fail: bool) {
         });
         conductor
     });
-    let (mut actor, _, _) = test_actor_with_config(true, false, conductor);
+    let (mut actor, _, _) = test_actor_with_config(true, conductor);
     let result = command(&mut actor, Message::OverrideLeader).await;
     if !configured || fail {
         let error = result.unwrap_err();
@@ -113,7 +101,7 @@ async fn override_leader(#[case] configured: bool, #[case] fail: bool) {
 async fn accepted_commands_run_when_response_receivers_are_dropped() {
     let mut conductor = MockConductor::new();
     conductor.expect_override_leader().times(1).return_once(|| Ok(()));
-    let (mut actor, _, handle) = test_actor_with_config(true, false, Some(conductor));
+    let (mut actor, _, handle) = test_actor_with_config(true, Some(conductor));
     actor
         .engine_client
         .expect_get_unsafe_head()
@@ -125,19 +113,16 @@ async fn accepted_commands_run_when_response_receivers_are_dropped() {
     let (tx, _) = oneshot::channel();
     commands.push(Message::StopSequencer(tx));
     let (tx, _) = oneshot::channel();
-    commands.push(Message::SetRecoveryMode(true, tx));
-    let (tx, _) = oneshot::channel();
     commands.push(Message::OverrideLeader(tx));
     for command in commands {
         time::timeout(Duration::from_secs(10), actor.handle_message(command)).await.unwrap();
     }
     assert!(!handle.snapshot().unwrap().active);
-    assert!(handle.snapshot().unwrap().recovery_mode);
 }
 
 #[tokio::test(start_paused = true)]
 async fn handle_reads_published_state_after_commands() {
-    let (mut actor, _, handle) = test_actor_with_config(false, false, Some(MockConductor::new()));
+    let (mut actor, _, handle) = test_actor_with_config(false, Some(MockConductor::new()));
     let hash = B256::repeat_byte(42);
     actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || {
         Ok(L2BlockInfo {
@@ -147,14 +132,11 @@ async fn handle_reads_published_state_after_commands() {
     });
     assert!(!handle.snapshot().unwrap().active);
     assert!(handle.snapshot().unwrap().conductor_enabled);
-    assert!(!handle.snapshot().unwrap().recovery_mode);
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(false);
     let task = tokio::spawn(actor.run());
     handle.start().await.unwrap();
     assert!(handle.snapshot().unwrap().active);
-    handle.set_recovery_mode(true).await.unwrap();
-    assert!(handle.snapshot().unwrap().recovery_mode);
     assert_eq!(handle.stop().await.unwrap(), hash);
     assert!(!handle.snapshot().unwrap().active);
     task.abort();
@@ -163,26 +145,26 @@ async fn handle_reads_published_state_after_commands() {
 
 #[tokio::test(start_paused = true)]
 async fn state_updates_without_rpc_subscribers() {
-    let (mut actor, commands, handle) = test_actor_with_config(true, false, None);
+    let (mut actor, commands, handle) = test_actor_with_config(true, None);
     drop(handle);
     assert_eq!(actor.published.receiver_count(), 0);
-    command(&mut actor, |tx| Message::SetRecoveryMode(true, tx)).await.unwrap();
-    let handle = Handle::new(actor.published.subscribe(), commands.clone());
-    assert!(handle.snapshot().unwrap().recovery_mode);
-    drop(handle);
     actor
         .engine_client
         .expect_get_unsafe_head()
         .times(1)
         .return_once(|| Ok(L2BlockInfo::default()));
     command(&mut actor, Message::StopSequencer).await.unwrap();
-    let handle = Handle::new(actor.published.subscribe(), commands);
+    let handle = Handle::new(actor.published.subscribe(), commands.clone());
     assert!(!handle.snapshot().unwrap().active);
+    drop(handle);
+    command(&mut actor, Message::StartSequencer).await.unwrap();
+    let handle = Handle::new(actor.published.subscribe(), commands);
+    assert!(handle.snapshot().unwrap().active);
 }
 
 #[tokio::test(start_paused = true)]
 async fn failed_startup_does_not_apply_a_queued_command() {
-    let (mut actor, commands, handle) = test_actor_with_config(false, false, None);
+    let (mut actor, commands, handle) = test_actor_with_config(false, None);
     let observed_state = handle.clone();
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(move || {
         assert!(!observed_state.snapshot().unwrap().active);

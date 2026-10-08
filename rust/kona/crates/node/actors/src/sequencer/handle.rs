@@ -9,8 +9,6 @@ pub struct State {
     pub active: bool,
     /// Whether a conductor is configured.
     pub conductor_enabled: bool,
-    /// Whether the sequencer is in recovery mode.
-    pub recovery_mode: bool,
 }
 
 /// State-changing admin commands executed by the sequencer actor.
@@ -20,8 +18,6 @@ pub(super) enum Message {
     StartSequencer(oneshot::Sender<Result<(), HandleError>>),
     /// Stop sequencing and return the current unsafe block hash.
     StopSequencer(oneshot::Sender<Result<B256, HandleError>>),
-    /// Set recovery mode.
-    SetRecoveryMode(bool, oneshot::Sender<Result<(), HandleError>>),
     /// Override the conductor leader.
     OverrideLeader(oneshot::Sender<Result<(), HandleError>>),
 }
@@ -59,11 +55,6 @@ impl Handle {
     /// Stops sequencing and returns the unsafe head hash.
     pub async fn stop(&self) -> Result<B256, HandleError> {
         self.command(Message::StopSequencer).await
-    }
-
-    /// Sets recovery mode.
-    pub async fn set_recovery_mode(&self, enabled: bool) -> Result<(), HandleError> {
-        self.command(|tx| Message::SetRecoveryMode(enabled, tx)).await
     }
 
     /// Overrides the conductor leader.
@@ -106,7 +97,7 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_reads_state_with_a_full_mailbox_and_rejects_closed_publisher() {
-        let initial = State { active: false, conductor_enabled: true, recovery_mode: false };
+        let initial = State { active: false, conductor_enabled: true };
         let (published, state) = watch::channel(initial);
         let (commands, _receiver) = mpsc::channel(1);
         let (reply, _) = oneshot::channel();
@@ -114,7 +105,7 @@ mod tests {
         let handle = Handle::new(state, commands);
         assert_eq!(handle.snapshot().unwrap(), initial);
 
-        let updated = State { active: true, recovery_mode: true, ..initial };
+        let updated = State { active: true, ..initial };
         published.send_replace(updated);
         assert_eq!(handle.snapshot().unwrap(), updated);
         // Reject closed publishers even when their final update is unread.
@@ -124,8 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn commands_return_actor_results_and_channel_errors() {
-        let (_published, state) =
-            watch::channel(State { active: true, conductor_enabled: false, recovery_mode: false });
+        let (_published, state) = watch::channel(State { active: true, conductor_enabled: false });
         let (commands, mut receiver) = mpsc::channel(1);
         let handle = Handle::new(state, commands);
         let hash = B256::repeat_byte(42);

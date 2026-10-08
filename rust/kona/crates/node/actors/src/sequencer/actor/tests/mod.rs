@@ -21,16 +21,15 @@ type TestActor = Actor<
 
 fn test_actor() -> TestActor {
     // Drop the sender so block-building tests have no admin requests.
-    test_actor_with_config(true, false, None).0
+    test_actor_with_config(true, None).0
 }
 
 fn test_actor_with_config(
     active: bool,
-    recovery_mode: bool,
     conductor: Option<MockConductor>,
 ) -> (TestActor, mpsc::Sender<Message>, Handle) {
     let (commands_tx, commands_rx) = mpsc::channel(20);
-    let state = State { active, recovery_mode, conductor_enabled: conductor.is_some() };
+    let state = State { active, conductor_enabled: conductor.is_some() };
     let (published, state_rx) = watch::channel(state);
     let handle = Handle::new(state_rx, commands_tx.clone());
     let actor = Actor::new(

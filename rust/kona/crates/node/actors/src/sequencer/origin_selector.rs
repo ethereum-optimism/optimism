@@ -21,14 +21,12 @@ pub trait OriginSelector: Debug + Send + Sync {
     ///
     /// # Arguments
     /// * `unsafe_head` - The current unsafe head of the L2 chain
-    /// * `is_recovery_mode` - Whether the sequencer is in recovery mode
     ///
     /// # Returns
     /// The selected L1 origin block information, or an error if selection failed.
     async fn next_l1_origin(
         &mut self,
         unsafe_head: L2BlockInfo,
-        is_recovery_mode: bool,
     ) -> Result<BlockInfo, L1OriginSelectorError>;
 }
 
@@ -58,9 +56,8 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
     async fn next_l1_origin(
         &mut self,
         unsafe_head: L2BlockInfo,
-        is_recovery_mode: bool,
     ) -> Result<BlockInfo, L1OriginSelectorError> {
-        self.select_origins(&unsafe_head, is_recovery_mode).await?;
+        self.select_origins(&unsafe_head).await?;
 
         // Start building on the next L1 origin block if the next L2 block's timestamp is
         // greater than or equal to the next L1 origin's timestamp.
@@ -126,19 +123,7 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
     async fn select_origins(
         &mut self,
         unsafe_head: &L2BlockInfo,
-        in_recovery_mode: bool,
     ) -> Result<(), L1OriginSelectorError> {
-        if in_recovery_mode {
-            self.current = Some(
-                self.l1
-                    .get_block_by_hash(unsafe_head.l1_origin.hash)
-                    .await?
-                    .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
-            );
-            self.next = self.l1.get_block_by_number(unsafe_head.l1_origin.number + 1).await?;
-            return Ok(());
-        }
-
         if self.current.map(|c| c.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
             // Do nothing; The next L2 block exists in the same epoch as the current L1 origin.
         } else if self.next.map(|n| n.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
@@ -356,7 +341,7 @@ mod test {
                 },
                 seq_num: 0,
             };
-            let next = selector.next_l1_origin(unsafe_head, false).await.unwrap();
+            let next = selector.next_l1_origin(unsafe_head).await.unwrap();
 
             // The expected L1 origin block is the one corresponding to the epoch of the current L2
             // block.
@@ -417,7 +402,7 @@ mod test {
             },
             seq_num: 0,
         };
-        let next = selector.next_l1_origin(unsafe_head, false).await.unwrap();
+        let next = selector.next_l1_origin(unsafe_head).await.unwrap();
 
         // The expected L1 origin block is the one corresponding to the epoch of the current L2
         // block. Assuming the next L1 origin block is not available from the eyes of the
@@ -485,7 +470,7 @@ mod test {
         };
 
         if next_available {
-            let next = selector.next_l1_origin(unsafe_head, false).await.unwrap();
+            let next = selector.next_l1_origin(unsafe_head).await.unwrap();
             if next_ahead_of_unsafe {
                 // If the next L1 origin is available and ahead of the unsafe head, the L1 origin
                 // should not change.
@@ -501,86 +486,13 @@ mod test {
             // If we're past the sequencer drift, and the next L1 block is not available, a
             // `NotEnoughData` error should be returned signifying that we cannot
             // proceed with the next L1 origin until the block is present.
-            let next_err = selector.next_l1_origin(unsafe_head, false).await.unwrap_err();
+            let next_err = selector.next_l1_origin(unsafe_head).await.unwrap_err();
             assert!(matches!(next_err, L1OriginSelectorError::NotEnoughData(_)));
         }
     }
 
     #[tokio::test]
-    async fn test_next_l1_origin_recovery_mode_found() {
-        const L2_BLOCK_TIME: u64 = 2;
-
-        let cfg = Arc::new(RollupConfig {
-            block_time: L2_BLOCK_TIME,
-            max_sequencer_drift: 600,
-            ..Default::default()
-        });
-
-        let mut provider = MockOriginSelectorProvider::default();
-        provider.with_block(BlockInfo {
-            parent_hash: B256::ZERO,
-            hash: B256::with_last_byte(1),
-            number: 1,
-            timestamp: 12,
-        });
-        provider.with_block(BlockInfo {
-            parent_hash: B256::with_last_byte(1),
-            hash: B256::with_last_byte(2),
-            number: 2,
-            timestamp: 24,
-        });
-
-        let mut selector = L1OriginSelector::new(cfg, provider);
-
-        let unsafe_head = L2BlockInfo {
-            block_info: BlockInfo {
-                hash: B256::ZERO,
-                number: 5,
-                timestamp: 10,
-                ..Default::default()
-            },
-            l1_origin: NumHash { number: 1, hash: B256::with_last_byte(1) },
-            seq_num: 0,
-        };
-
-        let origin = selector.next_l1_origin(unsafe_head, true).await.unwrap();
-        assert_eq!(origin.number, 1);
-        assert_eq!(origin.hash, B256::with_last_byte(1));
-    }
-
-    #[tokio::test]
-    async fn test_next_l1_origin_recovery_mode_not_found() {
-        const L2_BLOCK_TIME: u64 = 2;
-
-        let cfg = Arc::new(RollupConfig {
-            block_time: L2_BLOCK_TIME,
-            max_sequencer_drift: 600,
-            ..Default::default()
-        });
-
-        let provider = MockOriginSelectorProvider::default();
-        let mut selector = L1OriginSelector::new(cfg, provider);
-
-        let unsafe_head = L2BlockInfo {
-            block_info: BlockInfo {
-                hash: B256::ZERO,
-                number: 5,
-                timestamp: 10,
-                ..Default::default()
-            },
-            l1_origin: NumHash { number: 1, hash: B256::with_last_byte(1) },
-            seq_num: 0,
-        };
-
-        let result = selector.next_l1_origin(unsafe_head, true).await;
-        assert!(matches!(
-            result,
-            Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == B256::with_last_byte(1)
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_next_l1_origin_normal_mode_origin_not_found() {
+    async fn test_next_l1_origin_origin_not_found() {
         const L2_BLOCK_TIME: u64 = 2;
 
         let cfg = Arc::new(RollupConfig {
@@ -610,7 +522,7 @@ mod test {
             l1_origin: NumHash { number: 0, hash: B256::ZERO },
             seq_num: 0,
         };
-        let _ = selector.next_l1_origin(unsafe_head_epoch0, false).await.unwrap();
+        let _ = selector.next_l1_origin(unsafe_head_epoch0).await.unwrap();
 
         // Second call: reference a non-existent L1 origin hash, triggering the else branch.
         let unsafe_head_missing = L2BlockInfo {
@@ -624,7 +536,7 @@ mod test {
             seq_num: 0,
         };
 
-        let result = selector.next_l1_origin(unsafe_head_missing, false).await;
+        let result = selector.next_l1_origin(unsafe_head_missing).await;
         assert!(matches!(
             result,
             Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == B256::with_last_byte(0xFF)

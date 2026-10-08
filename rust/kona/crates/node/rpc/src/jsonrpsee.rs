@@ -145,14 +145,6 @@ pub trait AdminApi {
     #[method(name = "conductorEnabled")]
     async fn admin_conductor_enabled(&self) -> RpcResult<bool>;
 
-    /// Gets the recover mode.
-    #[method(name = "adminRecoverMode")]
-    async fn admin_recover_mode(&self) -> RpcResult<bool>;
-
-    /// Sets the recover mode.
-    #[method(name = "setRecoverMode")]
-    async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()>;
-
     /// Overrides the leader in the conductor.
     #[method(name = "overrideLeader")]
     async fn admin_override_leader(&self) -> RpcResult<()>;

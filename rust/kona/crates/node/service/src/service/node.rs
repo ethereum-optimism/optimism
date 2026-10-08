@@ -488,7 +488,6 @@ impl RollupNode {
                 sequencer::Capacity::try_from(1024).map_err(|error| error.to_string())?,
                 self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
                 false,
-                self.sequencer_config.sequencer_recovery_mode,
             ))
         } else {
             None

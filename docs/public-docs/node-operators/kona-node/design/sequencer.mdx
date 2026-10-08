@@ -50,8 +50,6 @@ Sequencers start stopped. Enable the admin API and issue `admin_startSequencer` 
 
 ```rust
 pub struct SequencerConfig {
-    /// Whether or not the sequencer is in recovery mode.
-    pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
     /// The confirmation delay for the sequencer.
@@ -70,7 +68,6 @@ use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
-    sequencer_recovery_mode: false,     // Normal operation mode
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
     ),
@@ -98,7 +95,6 @@ RollupNodeBuilder::new(
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
 | `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
 | `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
 

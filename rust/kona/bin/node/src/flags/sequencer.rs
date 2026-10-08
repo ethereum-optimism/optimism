@@ -26,14 +26,6 @@ pub struct SequencerArgs {
     #[arg(long = "sequencer.l1-confs", default_value = "4", env = "KONA_NODE_SEQUENCER_L1_CONFS")]
     pub l1_confs: u64,
 
-    /// Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks
-    #[arg(
-        long = "sequencer.recover",
-        default_value = "false",
-        env = "KONA_NODE_SEQUENCER_RECOVER"
-    )]
-    pub recover: bool,
-
     /// Conductor service rpc endpoint. Providing this value will enable the conductor service.
     #[arg(long = "conductor.rpc", env = "KONA_NODE_CONDUCTOR_RPC")]
     pub conductor_rpc: Option<Url>,
@@ -60,7 +52,6 @@ impl SequencerArgs {
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
-            sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
             l1_conf_delay: self.l1_confs,
         }
