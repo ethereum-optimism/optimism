@@ -85,15 +85,25 @@ impl RpcMock {
 
     /// Expects a call that fails with a specific JSON-RPC error code.
     pub fn expect_error_code(&self, method: &'static str, code: i64) {
-        self.push(method, None, MockResponse::Failure(ErrorPayload {
-            code, message: "injected RPC failure".into(), data: None,
-        }), Duration::ZERO);
+        self.push(
+            method,
+            None,
+            MockResponse::Failure(ErrorPayload {
+                code,
+                message: "injected RPC failure".into(),
+                data: None,
+            }),
+            Duration::ZERO,
+        );
     }
 
     /// Expects a call that fails before receiving a JSON-RPC response.
     pub fn expect_transport_error(&self, method: &'static str) {
         self.requests.lock().unwrap().push_back(ExpectedRequest {
-            method, params: None, response: None, delay: Duration::ZERO,
+            method,
+            params: None,
+            response: None,
+            delay: Duration::ZERO,
         });
     }
 
@@ -145,7 +155,9 @@ impl Service<RequestPacket> for RpcMock {
         }
         let replies = Asserter::new();
         let Some(reply) = expected.response else {
-            return Box::pin(async { Err(TransportErrorKind::custom_str("injected transport failure")) });
+            return Box::pin(async {
+                Err(TransportErrorKind::custom_str("injected transport failure"))
+            });
         };
         replies.push(reply);
         let response = MockTransport::new(replies).call(request);

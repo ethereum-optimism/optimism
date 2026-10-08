@@ -7,8 +7,7 @@ use crate::{
     NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
     QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
-    SequencerConfig, SignedPayload, SignerActor,
-    SystemClock,
+    SequencerConfig, SignedPayload, SignerActor, SystemClock,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };

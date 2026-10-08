@@ -194,7 +194,9 @@ mod recovery_tests {
     use super::*;
     use crate::{
         ConsolidateInput, ConsolidateTask, InsertTask, NoopBlockSink,
-        test_utils::{TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client},
+        test_utils::{
+            TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
+        },
     };
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceUpdated, PayloadId,
@@ -302,11 +304,19 @@ mod recovery_tests {
         let (client, l1, l2) = test_engine_client(config.clone());
         let client = Arc::new(client);
         l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
-        let forkchoice = TestEngineStateBuilder::new().with_unsafe_head(parent).build()
-            .sync_state.create_forkchoice_state();
-        l2.expect_params("engine_forkchoiceUpdatedV3", serde_json::json!([
-            forkchoice, attributes.as_deposits_only().attributes
-        ]), ForkchoiceUpdated { payload_status: valid.clone(), payload_id: Some(PayloadId::new([1; 8])) });
+        let forkchoice = TestEngineStateBuilder::new()
+            .with_unsafe_head(parent)
+            .build()
+            .sync_state
+            .create_forkchoice_state();
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
+            ForkchoiceUpdated {
+                payload_status: valid.clone(),
+                payload_id: Some(PayloadId::new([1; 8])),
+            },
+        );
         l2.expect("engine_getPayloadV3", replacement);
         l2.expect("engine_newPayloadV3", valid.clone());
         l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid));
@@ -314,8 +324,7 @@ mod recovery_tests {
         // consolidating them against an unsafe block.
         let state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
         let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
-        let (queue_tx, queue_rx) = tokio::sync::watch::channel(0);
-        let mut engine = Engine::new(state, state_tx, queue_tx);
+        let mut engine = Engine::new(state, state_tx);
         engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
             client.clone(),
             config,
@@ -328,7 +337,6 @@ mod recovery_tests {
         l1.assert_finished();
         l2.assert_finished();
         assert!(engine.is_empty());
-        assert_eq!(*queue_rx.borrow(), 0);
         // The task updates `engine.state()` itself; only drain publishes it.
         assert_eq!(
             state_rx.borrow().sync_state.safe_head().block_info.hash,
