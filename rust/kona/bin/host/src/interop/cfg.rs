@@ -151,6 +151,14 @@ pub enum InteropHostError {
         /// The `lagoon_time` from that rollup config.
         lagoon_time: Option<u64>,
     },
+    /// The dependency-set file does not parse.
+    #[error("Failed deserializing dependency set {path:?}: {source}")]
+    InvalidDependencySet {
+        /// The dependency-set file.
+        path: PathBuf,
+        /// The parse error.
+        source: serde_json::Error,
+    },
     /// Any other error.
     #[error("Error: {0}")]
     Other(&'static str),
@@ -299,8 +307,9 @@ impl InteropHost {
 
         Some((|| {
             let ser_config = std::fs::read_to_string(path)?;
-            let dep_set: DependencySet = serde_json::from_str(&ser_config)?;
-            Ok(dep_set)
+            serde_json::from_str(&ser_config).map_err(|source| {
+                InteropHostError::InvalidDependencySet { path: path.clone(), source }
+            })
         })())
     }
 

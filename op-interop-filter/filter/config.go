@@ -127,6 +127,10 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	if messageExpiryWindow <= 0 {
 		return nil, fmt.Errorf("message-expiry-window must be positive, got %s", messageExpiryWindow)
 	}
+	// Check the duration before it is truncated to whole seconds below.
+	if maxWindow := time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second; messageExpiryWindow > maxWindow {
+		return nil, fmt.Errorf("message-expiry-window %s exceeds protocol window %s", messageExpiryWindow, maxWindow)
+	}
 
 	pollInterval := ctx.Duration(flags.PollIntervalFlag.Name)
 	if pollInterval <= 0 {
