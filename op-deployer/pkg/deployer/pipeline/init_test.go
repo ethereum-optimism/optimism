@@ -46,6 +46,41 @@ func TestValidateInputsRejectsSP1VerifierWithPredeployedOPCM(t *testing.T) {
 	require.ErrorContains(t, err, "sp1Verifier must not be specified when using a predeployed OPCM")
 }
 
+func TestValidateInputsWithdrawalDelayBounds(t *testing.T) {
+	newIntent := func(t *testing.T) (*state.Intent, *state.State) {
+		_, _, dk := shared.DefaultPrivkey(t)
+		loc := artifacts.MustNewLocatorFromURL("file:///test-artifacts")
+		return shared.NewIntent(t, big.NewInt(900), dk, uint256.NewInt(1), loc, loc, standard.GasLimit)
+	}
+
+	t.Run("out-of-range delay rejected when deploying the implementations", func(t *testing.T) {
+		intent, st := newIntent(t)
+		intent.Chains[0].DeployOverrides = map[string]any{"faultGameWithdrawalDelay": uint64(1)}
+
+		err := ValidateInputs(intent, st)
+		require.ErrorContains(t, err, "outside the DelayedWETH bounds")
+	})
+
+	t.Run("in-range delay accepted", func(t *testing.T) {
+		intent, st := newIntent(t)
+		intent.Chains[0].DeployOverrides = map[string]any{"faultGameWithdrawalDelay": standard.MinWithdrawalDelaySeconds}
+
+		require.NoError(t, ValidateInputs(intent, st))
+	})
+
+	t.Run("not checked against a predeployed OPCM", func(t *testing.T) {
+		// A predeployed DelayedWETH carries whatever bounds it was bootstrapped with, which the
+		// intent cannot know, so the on-chain initializer is the only check.
+		intent, st := newIntent(t)
+		opcmAddress := common.Address{0x06}
+		intent.OPCMAddress = &opcmAddress
+		intent.SuperchainRoles = nil
+		intent.Chains[0].DeployOverrides = map[string]any{"faultGameWithdrawalDelay": uint64(1)}
+
+		require.NoError(t, ValidateInputs(intent, st))
+	})
+}
+
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 

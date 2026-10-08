@@ -805,6 +805,7 @@ func TestResolveChainProofParams(t *testing.T) {
 			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 		}, got)
 	})
 
@@ -812,15 +813,18 @@ func TestResolveChainProofParams(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
 			"proofMaturityDelaySeconds":       uint64(2 * 86400),
 			"disputeGameFinalityDelaySeconds": uint64(86400),
+			"faultGameWithdrawalDelay":        uint64(86400),
 		}}
 		chain := &state.ChainIntent{DeployOverrides: map[string]any{
 			"proofMaturityDelaySeconds": uint64(3 * 86400),
+			"faultGameWithdrawalDelay":  uint64(2 * 86400),
 		}}
 
 		got, err := ResolveChainProofParams(intent, chain)
 		require.NoError(t, err)
 		require.Equal(t, uint64(3*86400), got.ProofMaturityDelaySeconds)
 		require.Equal(t, uint64(86400), got.DisputeGameFinalityDelaySeconds)
+		require.Equal(t, uint64(2*86400), got.WithdrawalDelaySeconds)
 	})
 
 	t.Run("chain overrides global", func(t *testing.T) {
@@ -850,6 +854,66 @@ func TestResolveChainProofParams(t *testing.T) {
 		_, err := ResolveChainProofParams(intent, &state.ChainIntent{})
 		require.Error(t, err)
 	})
+}
+
+func TestCheckWithdrawalDelayBounds(t *testing.T) {
+	tests := []struct {
+		name    string
+		global  map[string]any
+		chain   map[string]any
+		wantErr bool
+	}{
+		{name: "standard default accepted"},
+		{
+			name:    "below the standard minimum rejected",
+			chain:   map[string]any{"faultGameWithdrawalDelay": standard.MinWithdrawalDelaySeconds - 1},
+			wantErr: true,
+		},
+		{
+			name:    "above the standard maximum rejected",
+			chain:   map[string]any{"faultGameWithdrawalDelay": standard.MaxWithdrawalDelaySeconds + 1},
+			wantErr: true,
+		},
+		{
+			name:    "zero rejected",
+			chain:   map[string]any{"faultGameWithdrawalDelay": uint64(0)},
+			wantErr: true,
+		},
+		{
+			name:   "global minimum override admits a short delay",
+			global: map[string]any{"minWithdrawalDelaySeconds": uint64(1)},
+			chain:  map[string]any{"faultGameWithdrawalDelay": uint64(1)},
+		},
+		{
+			name:   "global maximum override admits a long delay",
+			global: map[string]any{"maxWithdrawalDelaySeconds": standard.MaxWithdrawalDelaySeconds + 1},
+			chain:  map[string]any{"faultGameWithdrawalDelay": standard.MaxWithdrawalDelaySeconds + 1},
+		},
+		{
+			// The bounds are implementation inputs and only read from the global overrides, the
+			// same way DeployImplementations resolves them.
+			name: "chain-level bounds override is ignored",
+			chain: map[string]any{
+				"minWithdrawalDelaySeconds": uint64(1),
+				"faultGameWithdrawalDelay":  uint64(1),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent := &state.Intent{GlobalDeployOverrides: tt.global}
+			chain := &state.ChainIntent{DeployOverrides: tt.chain}
+			params, err := ResolveChainProofParams(intent, chain)
+			require.NoError(t, err)
+			err = checkWithdrawalDelayBounds(intent, params.WithdrawalDelaySeconds)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "outside the DelayedWETH bounds")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestResolveInitialDeployRequirements(t *testing.T) {
@@ -1268,6 +1332,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 		UseCustomGasToken:               false,
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
 	}
 	beforeExecution, err := json.Marshal(st)
 	require.NoError(t, err)

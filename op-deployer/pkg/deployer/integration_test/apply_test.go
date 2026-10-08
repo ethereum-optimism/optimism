@@ -107,7 +107,8 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			PrivateKey:                         pkHex,
 			ArtifactsLocator:                   loc,
 			MIPSVersion:                        int(standard.MIPSVersion),
-			WithdrawalDelaySeconds:             standard.WithdrawalDelaySeconds,
+			MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
 			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
 			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
@@ -195,7 +196,8 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		PrivateKey:                         pkHex,
 		ArtifactsLocator:                   loc,
 		MIPSVersion:                        int(standard.MIPSVersion),
-		WithdrawalDelaySeconds:             standard.WithdrawalDelaySeconds,
+		MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+		MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
 		MinProposalSizeBytes:               standard.MinProposalSizeBytes,
 		ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
 		MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
@@ -736,7 +738,6 @@ func TestProofParamOverrides(t *testing.T) {
 
 	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	intent.GlobalDeployOverrides = map[string]any{
-		"faultGameWithdrawalDelay":      standard.WithdrawalDelaySeconds + 1,
 		"preimageOracleMinProposalSize": standard.MinProposalSizeBytes + 1,
 		"preimageOracleChallengePeriod": standard.ChallengePeriodSeconds + 1,
 		// Implementation bounds, and per-chain delays that sit inside them.
@@ -744,8 +745,11 @@ func TestProofParamOverrides(t *testing.T) {
 		"maxProofMaturityDelaySeconds":            standard.MaxProofMaturityDelaySeconds + 1,
 		"minDisputeGameFinalityDelaySeconds":      standard.MinDisputeGameFinalityDelaySeconds + 1,
 		"maxDisputeGameFinalityDelaySeconds":      standard.MaxDisputeGameFinalityDelaySeconds + 1,
+		"minWithdrawalDelaySeconds":               standard.MinWithdrawalDelaySeconds + 1,
+		"maxWithdrawalDelaySeconds":               standard.MaxWithdrawalDelaySeconds + 1,
 		"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
 		"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
+		"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
 		"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
 		"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
 		"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
@@ -772,7 +776,12 @@ func TestProofParamOverrides(t *testing.T) {
 		address common.Address
 	}{
 		{
-			"faultGameWithdrawalDelay",
+			"minWithdrawalDelaySeconds",
+			uint64Caster,
+			st.ImplementationsDeployment.DelayedWethImpl,
+		},
+		{
+			"maxWithdrawalDelaySeconds",
 			uint64Caster,
 			st.ImplementationsDeployment.DelayedWethImpl,
 		},
@@ -834,8 +843,13 @@ func TestProofParamOverrides(t *testing.T) {
 	}
 
 	// The per-chain delays are no longer immutables: they live in proxy storage on the
-	// OptimismPortal (slot 64) and the AnchorStateRegistry (slot 7).
+	// OptimismPortal (slot 64), the AnchorStateRegistry (slot 7) and the DelayedWETH (slot 6).
 	chainState := st.Chains[0]
+	t.Run("faultGameWithdrawalDelay", func(t *testing.T) {
+		expected := uint64Caster(t, intent.GlobalDeployOverrides["faultGameWithdrawalDelay"])
+		checkStorageSlot(t, allocs, chainState.DelayedWethPermissionlessGameProxy, common.BigToHash(big.NewInt(6)), expected)
+		checkStorageSlot(t, allocs, chainState.DelayedWethPermissionedGameProxy, common.BigToHash(big.NewInt(6)), expected)
+	})
 	t.Run("proofMaturityDelaySeconds", func(t *testing.T) {
 		checkStorageSlot(
 			t,

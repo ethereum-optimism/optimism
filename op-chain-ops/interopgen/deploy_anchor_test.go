@@ -91,6 +91,7 @@ func TestInProcessAnchorProposalTransport(t *testing.T) {
 			UseCustomGasToken:               l2Cfg.UseCustomGasToken,
 			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(l2Cfg.ProofMaturityDelaySeconds),
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(l2Cfg.DisputeGameFinalityDelaySeconds),
+			WithdrawalDelaySeconds:          new(big.Int).SetUint64(l2Cfg.WithdrawalDelaySeconds),
 		})
 		require.NoError(t, err)
 
