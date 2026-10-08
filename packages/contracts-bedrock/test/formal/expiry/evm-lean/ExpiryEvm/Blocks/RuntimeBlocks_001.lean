@@ -18,15 +18,15 @@ theorem l2tol2_block_0_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem 
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 217) R (l2tol2_block_0_taken_memory (mem := mem)) (M aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)) rdata σ (k + 8) (C + ((30) + (memExpansionCost aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)))) := by
   let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 128) (by native_decide) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
-  have r4 := r3.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r5 := r4.calldatasize (by native_decide) (by evm_ov)
-  have r6 := r5.lt (by native_decide) (by evm_ov)
-  have r7 := r6.push2 (UInt256.ofNat 217) (by native_decide) (by evm_ov)
-  have r8 := r7.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 217)) r8 (by native_decide)
+  have r1 := r0.push1 (UInt256.ofNat 128) (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
+  have r3 := RD.genMstore r2 (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.calldatasize (by evm_kdecide) (by evm_ov)
+  have r6 := r5.lt (by evm_kdecide) (by evm_ov)
+  have r7 := r6.push2 (UInt256.ofNat 217) (by evm_kdecide) (by evm_ov)
+  have r8 := r7.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 217)) r8 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -50,15 +50,15 @@ theorem l2tol2_block_0_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State}
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 13) R (l2tol2_block_0_fallthrough_memory (mem := mem)) (M aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)) rdata σ (k + 8) (C + ((30) + (memExpansionCost aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)))) := by
   let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 128) (by native_decide) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
-  have r4 := r3.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r5 := r4.calldatasize (by native_decide) (by evm_ov)
-  have r6 := r5.lt (by native_decide) (by evm_ov)
-  have r7 := r6.push2 (UInt256.ofNat 217) (by native_decide) (by evm_ov)
-  have r8 := r7.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 13)) r8 (by native_decide)
+  have r1 := r0.push1 (UInt256.ofNat 128) (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
+  have r3 := RD.genMstore r2 (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.calldatasize (by evm_kdecide) (by evm_ov)
+  have r6 := r5.lt (by evm_kdecide) (by evm_ov)
+  have r7 := r6.push2 (UInt256.ofNat 217) (by evm_kdecide) (by evm_ov)
+  have r8 := r7.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 13)) r8 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -82,16 +82,16 @@ theorem l2tol2_block_13_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 13) R mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 124) (l2tol2_block_13_taken_stack (ee := ee) (R := R)) mem aw rdata σ (k + 9) (C + ((33))) := by
   let r0 := h
-  have r1 := r0.push0 (by native_decide) (by evm_ov)
-  have r2 := r1.calldataload (by native_decide) (by evm_ov)
-  have r3 := r2.push1 (UInt256.ofNat 224) (by native_decide) (by evm_ov)
-  have r4 := r3.shr (by native_decide) (by evm_ov)
-  have r5 := r4.dup1 (by native_decide) (by evm_ov)
-  have r6 := r5.push4 (UInt256.ofNat 1983519927) (by native_decide) (by evm_ov)
-  have r7 := r6.gt (by native_decide) (by evm_ov)
-  have r8 := r7.push2 (UInt256.ofNat 124) (by native_decide) (by evm_ov)
-  have r9 := r8.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 124)) r9 (by native_decide)
+  have r1 := r0.push0 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.calldataload (by evm_kdecide) (by evm_ov)
+  have r3 := r2.push1 (UInt256.ofNat 224) (by evm_kdecide) (by evm_ov)
+  have r4 := r3.shr (by evm_kdecide) (by evm_ov)
+  have r5 := r4.dup1 (by evm_kdecide) (by evm_ov)
+  have r6 := r5.push4 (UInt256.ofNat 1983519927) (by evm_kdecide) (by evm_ov)
+  have r7 := r6.gt (by evm_kdecide) (by evm_ov)
+  have r8 := r7.push2 (UInt256.ofNat 124) (by evm_kdecide) (by evm_ov)
+  have r9 := r8.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 124)) r9 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -115,16 +115,16 @@ theorem l2tol2_block_13_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 13) R mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 29) (l2tol2_block_13_fallthrough_stack (ee := ee) (R := R)) mem aw rdata σ (k + 9) (C + ((33))) := by
   let r0 := h
-  have r1 := r0.push0 (by native_decide) (by evm_ov)
-  have r2 := r1.calldataload (by native_decide) (by evm_ov)
-  have r3 := r2.push1 (UInt256.ofNat 224) (by native_decide) (by evm_ov)
-  have r4 := r3.shr (by native_decide) (by evm_ov)
-  have r5 := r4.dup1 (by native_decide) (by evm_ov)
-  have r6 := r5.push4 (UInt256.ofNat 1983519927) (by native_decide) (by evm_ov)
-  have r7 := r6.gt (by native_decide) (by evm_ov)
-  have r8 := r7.push2 (UInt256.ofNat 124) (by native_decide) (by evm_ov)
-  have r9 := r8.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 29)) r9 (by native_decide)
+  have r1 := r0.push0 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.calldataload (by evm_kdecide) (by evm_ov)
+  have r3 := r2.push1 (UInt256.ofNat 224) (by evm_kdecide) (by evm_ov)
+  have r4 := r3.shr (by evm_kdecide) (by evm_ov)
+  have r5 := r4.dup1 (by evm_kdecide) (by evm_ov)
+  have r6 := r5.push4 (UInt256.ofNat 1983519927) (by evm_kdecide) (by evm_ov)
+  have r7 := r6.gt (by evm_kdecide) (by evm_ov)
+  have r8 := r7.push2 (UInt256.ofNat 124) (by evm_kdecide) (by evm_ov)
+  have r9 := r8.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 29)) r9 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -144,12 +144,12 @@ theorem l2tol2_block_29_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 29) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 87) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by native_decide) (by evm_ov)
-  have r3 := r2.gt (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 87) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 87)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.gt (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 87) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 87)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -169,12 +169,12 @@ theorem l2tol2_block_29_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 29) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 40) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by native_decide) (by evm_ov)
-  have r3 := r2.gt (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 87) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 40)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.gt (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 87) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 40)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -194,12 +194,12 @@ theorem l2tol2_block_40_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 40) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 652) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 652) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 652)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 652) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 652)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -219,12 +219,12 @@ theorem l2tol2_block_40_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 40) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 51) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 652) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 51)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2981212681) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 652) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 51)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -244,12 +244,12 @@ theorem l2tol2_block_51_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 51) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 714) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 3156823421) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 714) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 714)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 3156823421) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 714) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 714)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -269,12 +269,12 @@ theorem l2tol2_block_51_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 51) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 62) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 3156823421) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 714) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 62)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 3156823421) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 714) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 62)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -294,12 +294,12 @@ theorem l2tol2_block_62_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 62) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 757) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 3584369406) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 757) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 757)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 3584369406) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 757) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 757)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -319,12 +319,12 @@ theorem l2tol2_block_62_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 62) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 73) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 3584369406) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 757) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 73)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 3584369406) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 757) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 73)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -344,12 +344,12 @@ theorem l2tol2_block_73_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 73) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 803) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 3972465704) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 803) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 803)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 3972465704) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 803) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 803)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -369,12 +369,12 @@ theorem l2tol2_block_73_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 73) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 84) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 3972465704) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 803) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 84)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 3972465704) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 803) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 84)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -392,9 +392,9 @@ theorem l2tol2_block_84 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : Byt
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 84) R mem aw rdata σ k C)
     : RDrev ExpiryEvm.l2tol2Runtime g s0 := by
   let r0 := h
-  have r1 := r0.push0 (by native_decide) (by evm_ov)
-  have r2 := r1.dup1 (by native_decide) (by evm_ov)
-  exact RD.genRev r2 (by native_decide) (by evm_ov)
+  have r1 := r0.push0 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.dup1 (by evm_kdecide) (by evm_ov)
+  exact RD.genRev r2 (by evm_kdecide) (by evm_ov)
 
 /-- Automatically generated RD summary for bytecode block at pc 87. -/
 theorem l2tol2_block_87_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -404,13 +404,13 @@ theorem l2tol2_block_87_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 87) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 536) (x0 :: R) mem aw rdata σ (k + 6) (C + ((23))) := by
   let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.dup1 (by native_decide) (by evm_ov)
-  have r3 := r2.push4 (UInt256.ofNat 1983519927) (by native_decide) (by evm_ov)
-  have r4 := r3.eq (by native_decide) (by evm_ov)
-  have r5 := r4.push2 (UInt256.ofNat 536) (by native_decide) (by evm_ov)
-  have r6 := r5.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 536)) r6 (by native_decide)
+  have r1 := r0.jumpdest (by evm_kdecide) (by evm_ov)
+  have r2 := r1.dup1 (by evm_kdecide) (by evm_ov)
+  have r3 := r2.push4 (UInt256.ofNat 1983519927) (by evm_kdecide) (by evm_ov)
+  have r4 := r3.eq (by evm_kdecide) (by evm_ov)
+  have r5 := r4.push2 (UInt256.ofNat 536) (by evm_kdecide) (by evm_ov)
+  have r6 := r5.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 536)) r6 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -430,13 +430,13 @@ theorem l2tol2_block_87_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 87) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 99) (x0 :: R) mem aw rdata σ (k + 6) (C + ((23))) := by
   let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.dup1 (by native_decide) (by evm_ov)
-  have r3 := r2.push4 (UInt256.ofNat 1983519927) (by native_decide) (by evm_ov)
-  have r4 := r3.eq (by native_decide) (by evm_ov)
-  have r5 := r4.push2 (UInt256.ofNat 536) (by native_decide) (by evm_ov)
-  have r6 := r5.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 99)) r6 (by native_decide)
+  have r1 := r0.jumpdest (by evm_kdecide) (by evm_ov)
+  have r2 := r1.dup1 (by evm_kdecide) (by evm_ov)
+  have r3 := r2.push4 (UInt256.ofNat 1983519927) (by evm_kdecide) (by evm_ov)
+  have r4 := r3.eq (by evm_kdecide) (by evm_ov)
+  have r5 := r4.push2 (UInt256.ofNat 536) (by evm_kdecide) (by evm_ov)
+  have r6 := r5.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 99)) r6 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -456,12 +456,12 @@ theorem l2tol2_block_99_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 99) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 569) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2033634286) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 569) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 569)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2033634286) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 569) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 569)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -481,12 +481,12 @@ theorem l2tol2_block_99_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 99) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 110) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2033634286) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 569) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 110)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2033634286) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 569) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiNT (by evm_kdecide) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 110)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
@@ -506,12 +506,12 @@ theorem l2tol2_block_110_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {me
     (h : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 110) (x0 :: R) mem aw rdata σ k C)
     : RD ExpiryEvm.l2tol2Runtime ee g s0 (UInt256.ofNat 633) (x0 :: R) mem aw rdata σ (k + 5) (C + ((22))) := by
   let r0 := h
-  have r1 := r0.dup1 (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 2367498639) (by native_decide) (by evm_ov)
-  have r3 := r2.eq (by native_decide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 633) (by native_decide) (by evm_ov)
-  have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 633)) r5 (by native_decide)
+  have r1 := r0.dup1 (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push4 (UInt256.ofNat 2367498639) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.eq (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 633) (by evm_kdecide) (by evm_ov)
+  have r5 := r4.jumpiT (by evm_kdecide) hcond hvalid (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 633)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/

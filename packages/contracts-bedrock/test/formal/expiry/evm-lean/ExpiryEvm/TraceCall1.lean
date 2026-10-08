@@ -67,7 +67,7 @@ theorem seg_call1 {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
       memLoad_wordsMem _ 2 (by simp) _ (by decide)
     simp only [l2tol2_block_1743_stack, l2tol2_block_1743_memory, hA, hB, hC] at r2
     have hdec : decode l2tol2Runtime (UInt256.ofNat 1821) = some (.STATICCALL, .none) := by
-      native_decide
+      evm_kdecide
     by_cases hd : I.depth.val < 1024
     · obtain ⟨σ', z, o, A_in, callGas, k3, C3, ⟨g'', A', hΘ⟩, r3, _hosize⟩ :=
         RD.solcStaticcall r2 hdec hd (by simp)
@@ -104,9 +104,9 @@ theorem seg_call1 {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
           exact wordsMem_write _ 4 (by simp) _ _ (by decide)
         rw [hW] at r3
         have r3' := RD.normalizePC (pc' := UInt256.ofNat 1822) r3 (by decide)
-        have r4 := l2tol2_block_1822_taken (by simp) (by decide) (by jump_dest) r3'
+        have r4 := l2tol2_block_1822_taken (by simp) (by decide) (by kjump_dest) r3'
         simp only [l2tol2_block_1822_taken_stack] at r4
-        have r5 := l2tol2_block_1836 (by simp) (by jump_dest) r4
+        have r5 := l2tol2_block_1836 (by simp) (by kjump_dest) r4
         set j := 4 + (o.size + 31) / 32 with hj
         have hD : memLoad (UInt256.ofNat 64) (wordsMem [⟨0⟩, ⟨0⟩, ⟨128⟩, ⟨0⟩, addrWord vO]) = ⟨128⟩ :=
           memLoad_wordsMem _ 2 (by simp) _ (by decide)
@@ -122,18 +122,18 @@ theorem seg_call1 {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
         simp only [l2tol2_block_1836_stack, l2tol2_block_1836_memory, hD, hE, hF] at r5
         have hlen := Words.retlen_ok o.size hsz (by omega)
         rw [← Words.add_sub_cancel' 128 o.size (by omega)] at hlen
-        have r6 := l2tol2_block_4576_taken (by simp) hlen (by jump_dest) r5
+        have r6 := l2tol2_block_4576_taken (by simp) hlen (by kjump_dest) r5
         simp only [l2tol2_block_4576_taken_stack] at r6
-        have r7 := l2tol2_block_4592 (by simp) (by jump_dest) r6
+        have r7 := l2tol2_block_4592 (by simp) (by kjump_dest) r6
         have hG : memLoad (UInt256.ofNat 128) (wordsMem [⟨0⟩, ⟨0⟩, UInt256.ofNat (32 * j), ⟨0⟩, addrWord vO]) =
             addrWord vO :=
           memLoad_wordsMem _ 4 (by simp) _ (by decide)
         simp only [l2tol2_block_4592_stack, hG] at r7
         have r8 := l2tol2_block_4055_taken (by simp)
-          (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by jump_dest) r7
-        have r9 := l2tol2_block_4088 (by simp) (by jump_dest) r8
+          (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by kjump_dest) r7
+        have r9 := l2tol2_block_4088 (by simp) (by kjump_dest) r8
         simp only [l2tol2_block_4088_stack] at r9
-        have r10 := l2tol2_block_4025 (by simp) (by jump_dest) r9
+        have r10 := l2tol2_block_4025 (by simp) (by kjump_dest) r9
         simp only [l2tol2_block_4025_stack] at r10
         right
         exact ⟨hsrc, σ', o, j, _, _, _, hst, hcd, hcall, by omega, by omega, r10⟩
@@ -147,7 +147,7 @@ theorem seg_call1 {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
   · -- caller is not the L2CrossDomainMessenger: NotOtherMessenger
     left
     refine ⟨?_, Or.inl ?_⟩
-    · have r1 := l2tol2_block_1713_taken (by simp) hc (by jump_dest) h
+    · have r1 := l2tol2_block_1713_taken (by simp) hc (by kjump_dest) h
       simp only [l2tol2_block_1713_taken_stack] at r1
       have r2 := l2tol2_block_2048_fallthrough (by simp) (Words.isZero_eq0.mpr hc) r1
       exact l2tol2_block_2054 (by simp [l2tol2_block_2048_fallthrough_stack]) r2

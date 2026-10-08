@@ -31,26 +31,26 @@ theorem seg_entry {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
     have r2 := l2tol2_block_13_fallthrough (by simp) (by rw [hsel']; decide) r1
     simp only [l2tol2_block_13_fallthrough_stack] at r2
     rw [hsel'] at r2
-    have r3 := l2tol2_block_29_taken (by simp) (by decide) (by jump_dest) r2
-    have r4 := l2tol2_block_87_taken (by simp) (by decide) (by jump_dest) r3
+    have r3 := l2tol2_block_29_taken (by simp) (by decide) (by kjump_dest) r2
+    have r4 := l2tol2_block_87_taken (by simp) (by decide) (by kjump_dest) r3
     by_cases hv : UInt256.isZero I.weiValue = UInt256.ofNat 0
     · left
       refine ⟨l2tol2_block_544 (by simp [l2tol2_block_536_fallthrough_stack])
         (l2tol2_block_536_fallthrough (by simp) hv r4), fun hc => Words.isZero_eq0.mp hv hc.2.1⟩
-    · have r5 := l2tol2_block_536_taken (by simp) hv (by jump_dest) r4
+    · have r5 := l2tol2_block_536_taken (by simp) hv (by kjump_dest) r4
       simp only [l2tol2_block_536_taken_stack] at r5
-      have r6 := l2tol2_block_547 (by simp) (by jump_dest) r5
+      have r6 := l2tol2_block_547 (by simp) (by kjump_dest) r5
       simp only [l2tol2_block_547_stack] at r6
       by_cases hcd : UInt256.isZero (UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size)
           (UInt256.ofNat 4)) (UInt256.ofNat 64)) = UInt256.ofNat 0
       · left
         refine ⟨l2tol2_block_4262 (by simp [l2tol2_block_4248_fallthrough_stack])
           (l2tol2_block_4248_fallthrough (by simp) hcd r6), fun hc => hc.2.2 hcd⟩
-      · have r7 := l2tol2_block_4248_taken (by simp) hcd (by jump_dest) r6
+      · have r7 := l2tol2_block_4248_taken (by simp) hcd (by kjump_dest) r6
         simp only [l2tol2_block_4248_taken_stack] at r7
-        have r8 := l2tol2_block_4265 (by simp) (by jump_dest) r7
+        have r8 := l2tol2_block_4265 (by simp) (by kjump_dest) r7
         simp only [l2tol2_block_4265_stack] at r8
-        have r9 := l2tol2_block_562 (by simp) (by jump_dest) r8
+        have r9 := l2tol2_block_562 (by simp) (by kjump_dest) r8
         right
         have hm : l2tol2_block_0_fallthrough_memory (mem := ByteArray.empty) = solcFreePtrMem := rfl
         have h36 : (UInt256.ofNat 4 + UInt256.ofNat 32).toNat = 36 := by decide
@@ -58,7 +58,7 @@ theorem seg_entry {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
         rw [hm, h36, h4, Mem.solcFreePtrMem_eq_wordsMem] at r9
         exact ⟨hlt, Words.isZero_ne0.mp hv, hcd, _, _, _, r9⟩
   · left
-    exact ⟨l2tol2_block_217 (by simp) (l2tol2_block_0_taken (by simp) hlt (by jump_dest) r0),
+    exact ⟨l2tol2_block_217 (by simp) (l2tol2_block_0_taken (by simp) hlt (by kjump_dest) r0),
       fun hc => hlt hc.1⟩
 
 end ExpiryEvm

@@ -253,25 +253,25 @@ These two are proved theorems, not executions:
    that `H'`'s slot differs from `expiredSlot H`. Keys whose slot collides, if any exist, are not
    covered. This replaces the earlier global `NoSlotCollision`, which reviewers rightly called an
    idealized assumption.
-4. **Lean axioms** (`lake env lean ExpiryEvm/Axioms.lean`). Each headline theorem depends on
-   `propext`, `Classical.choice`, `Quot.sound` and 585 `…._native.native_decide.ax_*` axioms; there
-   is no `sorryAx` and no project `axiom`. The `native_decide` axioms are closed boolean facts about
-   the concrete bytecode, checked by compiled evaluation, so they trust the Lean compiler (EquiVM's
-   accepted trust base):
-   * 529 come from the generated block summaries: instruction decodes
-     `decode l2tol2Runtime pc = some (op, arg)` at concrete pcs, and concrete pc arithmetic;
-   * 1 is the JUMPDEST table `l2tol2ValidJumps : D_J l2tol2Runtime 0 = #[…]`, whose list is also
-     computed independently by `scripts/gen_bytecode.py`;
-   * 55 are in `seg_*`: the decodes of the two `STATICCALL`s and JUMPDEST membership of jump
-     targets.
+4. **Lean axioms and trust base.** Every headline theorem is checked by the Lean 4.29.0 kernel and
+   depends on `propext`, `Classical.choice` and `Quot.sound` only. `ExpiryEvm/Axioms.lean` asserts
+   this with `#assert_std_axioms`, so `lake build` fails if any other axiom appears. There is no
+   `sorryAx`, no project `axiom` and no `native_decide`.
+   * **How the bytecode facts are kernel-checked.** The 585 closed facts about the concrete bytecode
+     are instruction decodes at concrete pcs, pc arithmetic, JUMPDEST membership and the JUMPDEST
+     table. They are proved via two axiom-free lemmas, in `ExpiryEvm/KernelDecide.lean`, that restate
+     EVMLean's `decode` and `D_J` as list recursions the kernel evaluates quickly. The bytecode is one
+     flat literal. Details, timings and mutation checks are in `../evm-lean-kernel/README.md`.
+   * **The trust base:**
+     - the kernel, including its built-in acceleration of closed `Nat` operations;
+     - EVMLean's definitions;
+     - EquiVM's proved `Reasoning` library.
 
-   Replacing them with kernel `decide` was measured at 0.75 s per decode; the JUMPDEST scan is too
-   slow in the kernel. This is left as follow-up.
-
-   The `Concrete.lean` theorems each add one `native_decide` that evaluates `Ξ` itself. Caveat:
-   EVMLean implements some precompiles with `@[implemented_by]`, so compiled evaluation may not
-   match their Lean definitions. None of these runs calls a precompile (0x..07 is not one), and
-   the headline theorems do not depend on these axioms.
+     No compiled code, `@[implemented_by]`, `@[extern]` or `@[csimp]` is trusted.
+   * **The `Concrete.lean` witnesses** still use `native_decide`, which evaluates `Ξ` by compiled
+     code; kernel reduction gets stuck on its well-founded recursion. They are executable tests, not
+     dependencies of any headline theorem. Caveat: EVMLean implements some precompiles with
+     `@[implemented_by]`, but none of these runs calls a precompile.
 5. **Trusted semantics:** EVMLean's `Ξ`/`Θ`/gas model (Cancun; conformance-tested upstream) and
    EquiVM's `Reasoning` library (all proved; no axioms beyond the above).
 6. **Context, not used by these proofs:** the branch's named governance assumption that each
@@ -431,5 +431,4 @@ artifacts and hashes check out.
 * Assert the `MessageExpired` event (topics, data); the `LOG2` arguments are already in the trace.
 * A `Θ`-level statement (message call into the proxy, value transfer, rollback) instead of `Ξ`.
 * Import the protocol model directly once it and this project share a toolchain.
-* Reduce the `native_decide` trust.
 * The other functions: see HOWTO.md.

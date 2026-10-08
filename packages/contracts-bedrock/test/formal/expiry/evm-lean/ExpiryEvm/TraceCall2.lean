@@ -56,7 +56,7 @@ theorem seg_call2 {σ σ₁ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
     rw [memLoad_wordsMem _ 2 (by simp only [memList_length]; omega) _ (by decide), memList_get2]
   simp only [l2tol2_block_1872_stack, l2tol2_block_1872_memory, hA, hB, hC] at r2
   have hdec : decode l2tol2Runtime (UInt256.ofNat 1972) = some (.STATICCALL, .none) := by
-    native_decide
+    evm_kdecide
   by_cases hd : I.depth.val < 1024
   · obtain ⟨σ', z, o, A_in, callGas, k3, C3, ⟨g'', A', hΘ⟩, r3, _hosize⟩ :=
       RD.solcStaticcall r2 hdec hd (by simp)
@@ -97,9 +97,9 @@ theorem seg_call2 {σ σ₁ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
           wordsMem_write _ (5 + kk) (by simp only [memList_length]; omega) _ _ hPn, memList_setLast]
       rw [hW] at r3
       have r3' := RD.normalizePC (pc' := UInt256.ofNat 1973) r3 (by decide)
-      have r4 := l2tol2_block_1973_taken (by simp) (by decide) (by jump_dest) r3'
+      have r4 := l2tol2_block_1973_taken (by simp) (by decide) (by kjump_dest) r3'
       simp only [l2tol2_block_1973_taken_stack] at r4
-      have r5 := l2tol2_block_1987 (by simp) (by jump_dest) r4
+      have r5 := l2tol2_block_1987 (by simp) (by kjump_dest) r4
       set P2 := UInt256.ofNat (32 * (5 + kk) + 32 * ((o.size + 31) / 32)) with hP2
       have hD : memLoad (UInt256.ofNat 64) (wordsMem (memList P (addrWord vO) kk (addrWord vS))) = P := by
         rw [memLoad_wordsMem _ 2 (by simp only [memList_length]; omega) _ (by decide), memList_get2]
@@ -113,24 +113,24 @@ theorem seg_call2 {σ σ₁ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
       simp only [l2tol2_block_1987_stack, l2tol2_block_1987_memory, hD, hE, hF] at r5
       have hlen := Words.retlen_ok o.size hsz (by omega)
       rw [← Words.add_sub_cancel' (32 * (5 + kk)) o.size (by omega)] at hlen
-      have r6 := l2tol2_block_4576_taken (by simp) hlen (by jump_dest) r5
+      have r6 := l2tol2_block_4576_taken (by simp) hlen (by kjump_dest) r5
       simp only [l2tol2_block_4576_taken_stack] at r6
-      have r7 := l2tol2_block_4592 (by simp) (by jump_dest) r6
+      have r7 := l2tol2_block_4592 (by simp) (by kjump_dest) r6
       have hG : memLoad (UInt256.ofNat (32 * (5 + kk))) (wordsMem (memList P2 (addrWord vO) kk (addrWord vS))) = addrWord vS := by
         rw [memLoad_wordsMem _ (5 + kk) (by simp only [memList_length]; omega) _ hPn, memList_getLast]
       simp only [l2tol2_block_4592_stack, hG] at r7
       have r8 := l2tol2_block_4055_taken (by simp)
-        (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by jump_dest) r7
-      have r9 := l2tol2_block_4088 (by simp) (by jump_dest) r8
+        (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by kjump_dest) r7
+      have r9 := l2tol2_block_4088 (by simp) (by kjump_dest) r8
       simp only [l2tol2_block_4088_stack] at r9
-      have r10 := l2tol2_block_4025 (by simp) (by jump_dest) r9
+      have r10 := l2tol2_block_4025 (by simp) (by kjump_dest) r9
       simp only [l2tol2_block_4025_stack] at r10
       have r11 := l2tol2_block_2023 (by simp) r10
       simp only [l2tol2_block_2023_stack, addrWord_clean_left] at r11
       by_cases heq : vS = vO
       · subst heq
         have r12 := l2tol2_block_2048_taken (by simp)
-          (Words.isZero_ne0.mpr (Words.isZero_eq0.mpr (Words.eq_ne0.mpr rfl))) (by jump_dest) r11
+          (Words.isZero_ne0.mpr (Words.isZero_eq0.mpr (Words.eq_ne0.mpr rfl))) (by kjump_dest) r11
         simp only [l2tol2_block_2048_taken_stack] at r12
         right
         exact ⟨rfl, σ', o, _, _, _, _, hst, hcd, r12⟩

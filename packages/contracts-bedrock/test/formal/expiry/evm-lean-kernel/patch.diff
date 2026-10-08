@@ -1,0 +1,617 @@
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/Axioms.lean b/evm-lean/ExpiryEvm/Axioms.lean
+--- a/evm-lean/ExpiryEvm/Axioms.lean	2026-10-07 20:48:02
++++ b/evm-lean/ExpiryEvm/Axioms.lean	2026-10-07 20:48:03
+@@ -1,17 +1,32 @@
+ import ExpiryEvm
+ 
+ /-! `lake env lean ExpiryEvm/Axioms.lean` prints the axiom footprint of the headline theorems.
+-Expected: `propext`, `Classical.choice`, `Quot.sound`, and `…._native.native_decide.ax_*`
+-(closed facts about the concrete bytecode — instruction decodes at concrete pcs, the JUMPDEST
+-table, a few closed word computations — checked by compiled evaluation; see README). -/
+ 
+-#print axioms ExpiryEvm.expireMessage_outcome
+-#print axioms ExpiryEvm.expireMessage_success
+-#print axioms ExpiryEvm.expireMessage_revert_cause
+-#print axioms ExpiryEvm.expireMessage_no_other_error
+-#print axioms ExpiryEvm.Abstract.refines_expire
++Expected for the soundness theorems and the bridge: exactly `propext`, `Classical.choice`,
++`Quot.sound`. Every closed bytecode fact (instruction decodes, pc arithmetic, the JUMPDEST table,
++JUMPDEST membership) is checked by the Lean kernel (`decide +kernel`, see
++`ExpiryEvm/KernelDecide.lean`); no `native_decide` / `Lean.ofReduceBool` axiom remains.
++`#assert_std_axioms` below makes `lake build` fail if one comes back.
++
++The `Concrete.*` executable witnesses still run `Ξ` by compiled evaluation (`native_decide`);
++they are tests, not dependencies of the headline theorems. -/
++
++open Lean Elab Command in
++/-- Fail unless the constant depends on no axiom beyond `propext`, `Classical.choice`,
++`Quot.sound`. -/
++elab "#assert_std_axioms " id:ident : command => do
++  let n ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo id
++  let axs ← liftCoreM <| Lean.collectAxioms n
++  let bad := axs.filter (fun a => !(#[``propext, ``Classical.choice, ``Quot.sound].contains a))
++  unless bad.isEmpty do
++    throwError m!"{n} depends on non-standard axioms ({bad.size}): {bad.toList.take 5} …"
++  logInfo m!"{n}: standard axioms only ({axs.toList})"
++
++#assert_std_axioms ExpiryEvm.expireMessage_outcome
++#assert_std_axioms ExpiryEvm.expireMessage_success
++#assert_std_axioms ExpiryEvm.expireMessage_revert_cause
++#assert_std_axioms ExpiryEvm.expireMessage_no_other_error
++#assert_std_axioms ExpiryEvm.Abstract.refines_expire
++
+ #print axioms ExpiryEvm.Concrete.success_reachable
+ #print axioms ExpiryEvm.Concrete.boundary_reverts
+-#print axioms ExpiryEvm.Concrete.mock_returnsAddress
+-#print axioms ExpiryEvm.Concrete.success_instance
+-#print axioms ExpiryEvm.Abstract.frame_other_maps
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/KernelDecide.lean b/evm-lean/ExpiryEvm/KernelDecide.lean
+--- a/evm-lean/ExpiryEvm/KernelDecide.lean	1969-12-31 19:00:00
++++ b/evm-lean/ExpiryEvm/KernelDecide.lean	2026-10-07 20:48:03
+@@ -0,0 +1,178 @@
++import Ethereum.Semantics
++import Reasoning.JumpDest
++
++/-!
++# Kernel-checked bytecode facts (replacing `native_decide`)
++
++The block summaries and trace segments need closed facts about the concrete bytecode:
++instruction decodes `decode code pc = some (op, arg)`, pc arithmetic, the JUMPDEST table
++`D_J code 0 = #[…]` and JUMPDEST membership. They used to be closed by `native_decide`, which
++trusts the Lean compiler and runtime (`Lean.ofReduceBool`). This file lets the **kernel** check
++them instead (`decide +kernel`; no `Lean.ofReduceBool`, no new axiom), via two *proved*
++reformulations of EVMLean's definitions:
++
++* `decode_eq_decodeList` : `decode code pc = decodeList (code.data.toList.drop pc.toNat)`
++* `D_J_eq_jumpdestScan`  : `D_J code i = jumpdestScan (len + 1) (code.data.toList.drop i) i #[]`
++
++`decodeList` and `jumpdestScan` walk the byte *list* by structural recursion, which the kernel
++reduces in tens of milliseconds per decode, and in a few seconds for the whole JUMPDEST scan.
++Unfolding EVMLean's own definitions in the kernel is slower: `ByteArray.get?`/`extract'` go
++through `Array` operations (and `++` of byte chunks is quadratic), and `D_J_aux` is
++well-founded recursion. Both lemmas hold for every `ByteArray` and are proved below from the
++definitions, so the trusted base is the kernel plus EVMLean's definitions, as for every other
++proof here.
++-/
++
++namespace Ethereum.EVM.KernelDecide
++
++open Ethereum Ethereum.EVM
++
++/-! ## Byte-array lemmas -/
++
++/-- `ByteArray.toList` (a reversing loop) is `data.toList`. (Same proof as EquiVM's
++`Reasoning.Theory.byteArray_toList_eq`; restated to keep this file's imports light.) -/
++theorem byteArray_toList_eq (b : ByteArray) : b.toList = b.data.toList := by
++  show ByteArray.toList.loop b 0 [] = _
++  suffices h : ∀ i r, ByteArray.toList.loop b i r = r.reverse ++ b.data.toList.drop i by
++    simpa using h 0 []
++  intro i r
++  induction i, r using ByteArray.toList.loop.induct (bs := b) with
++  | case1 i r hlt ih =>
++    rw [ByteArray.toList.loop, if_pos hlt, ih, List.reverse_cons, List.append_assoc]
++    congr 1
++    have hi : i < b.data.size := hlt
++    have hlen : i < b.data.toList.length := by rw [Array.length_toList]; exact hi
++    have hget : b.get! i = b.data.toList[i]'hlen := by
++      rw [Array.getElem_toList]; exact getElem!_pos b.data i hi
++    rw [hget, List.singleton_append, List.getElem_cons_drop]
++  | case2 i r hge =>
++    rw [ByteArray.toList.loop, if_neg hge]
++    have : b.data.toList.length ≤ i := by rw [Array.length_toList]; exact Nat.le_of_not_lt hge
++    rw [List.drop_eq_nil_of_le this, List.append_nil]
++
++theorem byteArray_get?_eq (a : ByteArray) (n : Nat) : a.get? n = a.data.toList[n]? := by
++  rcases a with ⟨d⟩
++  unfold ByteArray.get?
++  by_cases h : n < d.size
++  · rw [dif_pos (by simpa [ByteArray.size] using h)]
++    simp [ByteArray.get, h]; rfl
++  · rw [dif_neg (by simpa [ByteArray.size] using h)]
++    simp [h]
++
++theorem extract'_toList (a : ByteArray) (b e : Nat) :
++    (a.extract' b e).data.toList = (a.data.toList.drop b).take (e - b) := by
++  unfold ByteArray.extract'
++  split
++  · rw [ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop]
++  · simp [byteArray_toList_eq]
++
++/-! ## Decoding -/
++
++/-- `decode`, reading the instruction byte and its immediate from a byte list that starts at the
++instruction. -/
++def decodeList : List UInt8 → Option (Operation × Option (UInt256 × Nat))
++  | [] => none
++  | b :: rest =>
++    match parseInstr b with
++    | none => none
++    | some instr =>
++      let w := argOnNBytesOfInstr instr
++      some (instr, if w == 0 then none
++        else some (UInt256.ofNat (fromBytes' (rest.take w).reverse), w))
++
++/-- EVMLean's `decode` agrees with `decodeList` on every byte array and pc. -/
++theorem decode_eq_decodeList (code : ByteArray) (pc : UInt256) :
++    decode code pc = decodeList (code.data.toList.drop pc.toNat) := by
++  unfold decode
++  rw [byteArray_get?_eq]
++  cases hl : code.data.toList.drop pc.toNat with
++  | nil =>
++    have : code.data.toList[pc.toNat]? = none := by
++      rw [← List.head?_drop, hl]; rfl
++    simp [this, decodeList]
++  | cons b rest =>
++    have hb : code.data.toList[pc.toNat]? = some b := by
++      rw [← List.head?_drop, hl]; rfl
++    have hr : code.data.toList.drop pc.toNat.succ = rest := by
++      rw [Nat.succ_eq_add_one, ← List.drop_drop, hl]; rfl
++    simp only [hb, decodeList, Option.bind_eq_bind, Option.bind_some]
++    cases parseInstr b with
++    | none => rfl
++    | some instr =>
++      simp only [Option.bind_some, Option.some.injEq, Prod.mk.injEq, true_and]
++      split
++      · rfl
++      · simp only [uInt256OfByteArray, extract'_toList, hr, Nat.add_sub_cancel_left]
++
++/-! ## JUMPDEST analysis -/
++
++/-- `D_J_aux` as a fuelled structural scan over the byte list starting at index `i`. -/
++def jumpdestScan : Nat → List UInt8 → Nat → Array UInt256 → Array UInt256
++  | 0, _, _, r => r
++  | _ + 1, [], _, r => r
++  | fuel + 1, b :: rest, i, r =>
++    match parseInstr b with
++    | none => r
++    | some ci => jumpdestScan fuel (rest.drop (argOnNBytesOfInstr ci)) (N i ci)
++        (if ci = .JUMPDEST then r.push (UInt256.ofNat i) else r)
++
++theorem D_J_aux_eq_jumpdestScan (code : ByteArray) :
++    ∀ fuel i r, code.data.toList.length - i < fuel →
++      D_J_aux code i r = jumpdestScan fuel (code.data.toList.drop i) i r := by
++  intro fuel
++  induction fuel with
++  | zero => intro i r h; omega
++  | succ fuel ih =>
++    intro i r hf
++    unfold D_J_aux
++    split
++    · rename_i hget
++      rw [byteArray_get?_eq] at hget
++      cases hl : code.data.toList.drop i with
++      | nil => rfl
++      | cons b rest =>
++        have hb : code.data.toList[i]? = some b := by rw [← List.head?_drop, hl]; rfl
++        rw [hb] at hget
++        simp only [jumpdestScan]
++        simp only [Option.bind_eq_bind, Option.bind_some] at hget
++        rw [hget]
++    · rename_i ci hget
++      rw [byteArray_get?_eq] at hget
++      cases hl : code.data.toList.drop i with
++      | nil =>
++        have : code.data.toList[i]? = none := by rw [← List.head?_drop, hl]; rfl
++        rw [this] at hget; simp at hget
++      | cons b rest =>
++        have hb : code.data.toList[i]? = some b := by rw [← List.head?_drop, hl]; rfl
++        rw [hb] at hget
++        simp only [Option.bind_eq_bind, Option.bind_some] at hget
++        have hlt : i < code.data.toList.length := by
++          by_contra hc; rw [List.drop_eq_nil_of_le (by omega)] at hl; cases hl
++        simp only [jumpdestScan, hget]
++        have hdrop : code.data.toList.drop (N i ci) = rest.drop (argOnNBytesOfInstr ci) := by
++          have hN : N i ci = (i + 1) + argOnNBytesOfInstr ci := rfl
++          rw [hN, ← List.drop_drop, ← List.drop_drop, hl]; simp
++        rw [← hdrop]
++        apply ih
++        simp only [N]; omega
++
++/-- EVMLean's `D_J` agrees with `jumpdestScan` on every byte array. -/
++theorem D_J_eq_jumpdestScan (code : ByteArray) (i : Nat) :
++    D_J code i = jumpdestScan (code.data.toList.length + 1) (code.data.toList.drop i) i #[] :=
++  D_J_aux_eq_jumpdestScan code _ i #[] (by omega)
++
++end Ethereum.EVM.KernelDecide
++
++/-! ## Tactics -/
++
++/-- Close a closed bytecode fact in the kernel: a `decode` goal through `decode_eq_decodeList`,
++anything else (pc arithmetic, equalities of words) directly. Never uses `native_decide`. -/
++macro "evm_kdecide" : tactic =>
++  `(tactic| first
++    | (rw [Ethereum.EVM.KernelDecide.decode_eq_decodeList]; decide +kernel)
++    | decide +kernel)
++
++/-- Kernel version of EquiVM's `jump_dest`: rewrite by the `@[valid_jumps]` table, turn the array
++membership into list membership, decide in the kernel. -/
++macro "kjump_dest" : tactic =>
++  `(tactic| (simp only [valid_jumps, List.contains_toArray]; decide +kernel))
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/KernelRun.lean b/evm-lean/ExpiryEvm/KernelRun.lean
+--- a/evm-lean/ExpiryEvm/KernelRun.lean	1969-12-31 19:00:00
++++ b/evm-lean/ExpiryEvm/KernelRun.lean	2026-10-07 20:48:03
+@@ -0,0 +1,28 @@
++import Reasoning.Reach
++import ExpiryEvm.KernelDecide
++
++/-!
++`kevm_run`: EquiVM's `evm_run` with every auto-supplied `decode` obligation discharged by
++`evm_kdecide` (kernel) instead of `native_decide`. Same syntax and same steps otherwise
++(copied from `Reasoning/Reach.lean` at EquiVM `b0e9d55a`).
++-/
++
++open Reasoning.Reach in
++syntax "kevm_run " term:max " with " "[" evmStep,* "]" : term
++
++open Lean in
++macro_rules
++  | `(kevm_run $base:term with [ $steps,* ]) => do
++      let mut acc := base
++      for s in steps.getElems do
++        match s with
++        | `(evmStep| raw $op:ident $args*) =>
++            acc ← `($(acc).$op $args*)
++        | `(evmStep| $op:ident $args*) =>
++            match op.getId with
++            | `jump    => acc ← `($(acc).jump (by evm_kdecide) $(args[0]!) (by evm_ov))
++            | `jumpiT  => acc ← `($(acc).jumpiT (by evm_kdecide) $(args[0]!) $(args[1]!) (by evm_ov))
++            | `jumpiNT => acc ← `($(acc).jumpiNT (by evm_kdecide) $(args[0]!) (by evm_ov))
++            | _        => acc ← `($(acc).$op $args* (by evm_kdecide) (by evm_ov))
++        | _ => Macro.throwUnsupported
++      return acc
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/TraceCall1.lean b/evm-lean/ExpiryEvm/TraceCall1.lean
+--- a/evm-lean/ExpiryEvm/TraceCall1.lean	2026-10-07 20:48:02
++++ b/evm-lean/ExpiryEvm/TraceCall1.lean	2026-10-07 20:48:03
+@@ -67,7 +67,7 @@
+       memLoad_wordsMem _ 2 (by simp) _ (by decide)
+     simp only [l2tol2_block_1743_stack, l2tol2_block_1743_memory, hA, hB, hC] at r2
+     have hdec : decode l2tol2Runtime (UInt256.ofNat 1821) = some (.STATICCALL, .none) := by
+-      native_decide
++      evm_kdecide
+     by_cases hd : I.depth.val < 1024
+     · obtain ⟨σ', z, o, A_in, callGas, k3, C3, ⟨g'', A', hΘ⟩, r3, _hosize⟩ :=
+         RD.solcStaticcall r2 hdec hd (by simp)
+@@ -104,9 +104,9 @@
+           exact wordsMem_write _ 4 (by simp) _ _ (by decide)
+         rw [hW] at r3
+         have r3' := RD.normalizePC (pc' := UInt256.ofNat 1822) r3 (by decide)
+-        have r4 := l2tol2_block_1822_taken (by simp) (by decide) (by jump_dest) r3'
++        have r4 := l2tol2_block_1822_taken (by simp) (by decide) (by kjump_dest) r3'
+         simp only [l2tol2_block_1822_taken_stack] at r4
+-        have r5 := l2tol2_block_1836 (by simp) (by jump_dest) r4
++        have r5 := l2tol2_block_1836 (by simp) (by kjump_dest) r4
+         set j := 4 + (o.size + 31) / 32 with hj
+         have hD : memLoad (UInt256.ofNat 64) (wordsMem [⟨0⟩, ⟨0⟩, ⟨128⟩, ⟨0⟩, addrWord vO]) = ⟨128⟩ :=
+           memLoad_wordsMem _ 2 (by simp) _ (by decide)
+@@ -122,18 +122,18 @@
+         simp only [l2tol2_block_1836_stack, l2tol2_block_1836_memory, hD, hE, hF] at r5
+         have hlen := Words.retlen_ok o.size hsz (by omega)
+         rw [← Words.add_sub_cancel' 128 o.size (by omega)] at hlen
+-        have r6 := l2tol2_block_4576_taken (by simp) hlen (by jump_dest) r5
++        have r6 := l2tol2_block_4576_taken (by simp) hlen (by kjump_dest) r5
+         simp only [l2tol2_block_4576_taken_stack] at r6
+-        have r7 := l2tol2_block_4592 (by simp) (by jump_dest) r6
++        have r7 := l2tol2_block_4592 (by simp) (by kjump_dest) r6
+         have hG : memLoad (UInt256.ofNat 128) (wordsMem [⟨0⟩, ⟨0⟩, UInt256.ofNat (32 * j), ⟨0⟩, addrWord vO]) =
+             addrWord vO :=
+           memLoad_wordsMem _ 4 (by simp) _ (by decide)
+         simp only [l2tol2_block_4592_stack, hG] at r7
+         have r8 := l2tol2_block_4055_taken (by simp)
+-          (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by jump_dest) r7
+-        have r9 := l2tol2_block_4088 (by simp) (by jump_dest) r8
++          (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by kjump_dest) r7
++        have r9 := l2tol2_block_4088 (by simp) (by kjump_dest) r8
+         simp only [l2tol2_block_4088_stack] at r9
+-        have r10 := l2tol2_block_4025 (by simp) (by jump_dest) r9
++        have r10 := l2tol2_block_4025 (by simp) (by kjump_dest) r9
+         simp only [l2tol2_block_4025_stack] at r10
+         right
+         exact ⟨hsrc, σ', o, j, _, _, _, hst, hcd, hcall, by omega, by omega, r10⟩
+@@ -147,7 +147,7 @@
+   · -- caller is not the L2CrossDomainMessenger: NotOtherMessenger
+     left
+     refine ⟨?_, Or.inl ?_⟩
+-    · have r1 := l2tol2_block_1713_taken (by simp) hc (by jump_dest) h
++    · have r1 := l2tol2_block_1713_taken (by simp) hc (by kjump_dest) h
+       simp only [l2tol2_block_1713_taken_stack] at r1
+       have r2 := l2tol2_block_2048_fallthrough (by simp) (Words.isZero_eq0.mpr hc) r1
+       exact l2tol2_block_2054 (by simp [l2tol2_block_2048_fallthrough_stack]) r2
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/TraceCall2.lean b/evm-lean/ExpiryEvm/TraceCall2.lean
+--- a/evm-lean/ExpiryEvm/TraceCall2.lean	2026-10-07 20:48:02
++++ b/evm-lean/ExpiryEvm/TraceCall2.lean	2026-10-07 20:48:03
+@@ -56,7 +56,7 @@
+     rw [memLoad_wordsMem _ 2 (by simp only [memList_length]; omega) _ (by decide), memList_get2]
+   simp only [l2tol2_block_1872_stack, l2tol2_block_1872_memory, hA, hB, hC] at r2
+   have hdec : decode l2tol2Runtime (UInt256.ofNat 1972) = some (.STATICCALL, .none) := by
+-    native_decide
++    evm_kdecide
+   by_cases hd : I.depth.val < 1024
+   · obtain ⟨σ', z, o, A_in, callGas, k3, C3, ⟨g'', A', hΘ⟩, r3, _hosize⟩ :=
+       RD.solcStaticcall r2 hdec hd (by simp)
+@@ -97,9 +97,9 @@
+           wordsMem_write _ (5 + kk) (by simp only [memList_length]; omega) _ _ hPn, memList_setLast]
+       rw [hW] at r3
+       have r3' := RD.normalizePC (pc' := UInt256.ofNat 1973) r3 (by decide)
+-      have r4 := l2tol2_block_1973_taken (by simp) (by decide) (by jump_dest) r3'
++      have r4 := l2tol2_block_1973_taken (by simp) (by decide) (by kjump_dest) r3'
+       simp only [l2tol2_block_1973_taken_stack] at r4
+-      have r5 := l2tol2_block_1987 (by simp) (by jump_dest) r4
++      have r5 := l2tol2_block_1987 (by simp) (by kjump_dest) r4
+       set P2 := UInt256.ofNat (32 * (5 + kk) + 32 * ((o.size + 31) / 32)) with hP2
+       have hD : memLoad (UInt256.ofNat 64) (wordsMem (memList P (addrWord vO) kk (addrWord vS))) = P := by
+         rw [memLoad_wordsMem _ 2 (by simp only [memList_length]; omega) _ (by decide), memList_get2]
+@@ -113,24 +113,24 @@
+       simp only [l2tol2_block_1987_stack, l2tol2_block_1987_memory, hD, hE, hF] at r5
+       have hlen := Words.retlen_ok o.size hsz (by omega)
+       rw [← Words.add_sub_cancel' (32 * (5 + kk)) o.size (by omega)] at hlen
+-      have r6 := l2tol2_block_4576_taken (by simp) hlen (by jump_dest) r5
++      have r6 := l2tol2_block_4576_taken (by simp) hlen (by kjump_dest) r5
+       simp only [l2tol2_block_4576_taken_stack] at r6
+-      have r7 := l2tol2_block_4592 (by simp) (by jump_dest) r6
++      have r7 := l2tol2_block_4592 (by simp) (by kjump_dest) r6
+       have hG : memLoad (UInt256.ofNat (32 * (5 + kk))) (wordsMem (memList P2 (addrWord vO) kk (addrWord vS))) = addrWord vS := by
+         rw [memLoad_wordsMem _ (5 + kk) (by simp only [memList_length]; omega) _ hPn, memList_getLast]
+       simp only [l2tol2_block_4592_stack, hG] at r7
+       have r8 := l2tol2_block_4055_taken (by simp)
+-        (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by jump_dest) r7
+-      have r9 := l2tol2_block_4088 (by simp) (by jump_dest) r8
++        (by rw [addrWord_clean]; exact Words.eq_ne0.mpr rfl) (by kjump_dest) r7
++      have r9 := l2tol2_block_4088 (by simp) (by kjump_dest) r8
+       simp only [l2tol2_block_4088_stack] at r9
+-      have r10 := l2tol2_block_4025 (by simp) (by jump_dest) r9
++      have r10 := l2tol2_block_4025 (by simp) (by kjump_dest) r9
+       simp only [l2tol2_block_4025_stack] at r10
+       have r11 := l2tol2_block_2023 (by simp) r10
+       simp only [l2tol2_block_2023_stack, addrWord_clean_left] at r11
+       by_cases heq : vS = vO
+       · subst heq
+         have r12 := l2tol2_block_2048_taken (by simp)
+-          (Words.isZero_ne0.mpr (Words.isZero_eq0.mpr (Words.eq_ne0.mpr rfl))) (by jump_dest) r11
++          (Words.isZero_ne0.mpr (Words.isZero_eq0.mpr (Words.eq_ne0.mpr rfl))) (by kjump_dest) r11
+         simp only [l2tol2_block_2048_taken_stack] at r12
+         right
+         exact ⟨rfl, σ', o, _, _, _, _, hst, hcd, r12⟩
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/TraceEntry.lean b/evm-lean/ExpiryEvm/TraceEntry.lean
+--- a/evm-lean/ExpiryEvm/TraceEntry.lean	2026-10-07 20:48:02
++++ b/evm-lean/ExpiryEvm/TraceEntry.lean	2026-10-07 20:48:03
+@@ -31,26 +31,26 @@
+     have r2 := l2tol2_block_13_fallthrough (by simp) (by rw [hsel']; decide) r1
+     simp only [l2tol2_block_13_fallthrough_stack] at r2
+     rw [hsel'] at r2
+-    have r3 := l2tol2_block_29_taken (by simp) (by decide) (by jump_dest) r2
+-    have r4 := l2tol2_block_87_taken (by simp) (by decide) (by jump_dest) r3
++    have r3 := l2tol2_block_29_taken (by simp) (by decide) (by kjump_dest) r2
++    have r4 := l2tol2_block_87_taken (by simp) (by decide) (by kjump_dest) r3
+     by_cases hv : UInt256.isZero I.weiValue = UInt256.ofNat 0
+     · left
+       refine ⟨l2tol2_block_544 (by simp [l2tol2_block_536_fallthrough_stack])
+         (l2tol2_block_536_fallthrough (by simp) hv r4), fun hc => Words.isZero_eq0.mp hv hc.2.1⟩
+-    · have r5 := l2tol2_block_536_taken (by simp) hv (by jump_dest) r4
++    · have r5 := l2tol2_block_536_taken (by simp) hv (by kjump_dest) r4
+       simp only [l2tol2_block_536_taken_stack] at r5
+-      have r6 := l2tol2_block_547 (by simp) (by jump_dest) r5
++      have r6 := l2tol2_block_547 (by simp) (by kjump_dest) r5
+       simp only [l2tol2_block_547_stack] at r6
+       by_cases hcd : UInt256.isZero (UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size)
+           (UInt256.ofNat 4)) (UInt256.ofNat 64)) = UInt256.ofNat 0
+       · left
+         refine ⟨l2tol2_block_4262 (by simp [l2tol2_block_4248_fallthrough_stack])
+           (l2tol2_block_4248_fallthrough (by simp) hcd r6), fun hc => hc.2.2 hcd⟩
+-      · have r7 := l2tol2_block_4248_taken (by simp) hcd (by jump_dest) r6
++      · have r7 := l2tol2_block_4248_taken (by simp) hcd (by kjump_dest) r6
+         simp only [l2tol2_block_4248_taken_stack] at r7
+-        have r8 := l2tol2_block_4265 (by simp) (by jump_dest) r7
++        have r8 := l2tol2_block_4265 (by simp) (by kjump_dest) r7
+         simp only [l2tol2_block_4265_stack] at r8
+-        have r9 := l2tol2_block_562 (by simp) (by jump_dest) r8
++        have r9 := l2tol2_block_562 (by simp) (by kjump_dest) r8
+         right
+         have hm : l2tol2_block_0_fallthrough_memory (mem := ByteArray.empty) = solcFreePtrMem := rfl
+         have h36 : (UInt256.ofNat 4 + UInt256.ofNat 32).toNat = 36 := by decide
+@@ -58,7 +58,7 @@
+         rw [hm, h36, h4, Mem.solcFreePtrMem_eq_wordsMem] at r9
+         exact ⟨hlt, Words.isZero_ne0.mp hv, hcd, _, _, _, r9⟩
+   · left
+-    exact ⟨l2tol2_block_217 (by simp) (l2tol2_block_0_taken (by simp) hlt (by jump_dest) r0),
++    exact ⟨l2tol2_block_217 (by simp) (l2tol2_block_0_taken (by simp) hlt (by kjump_dest) r0),
+       fun hc => hlt hc.1⟩
+ 
+ end ExpiryEvm
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/ExpiryEvm/TraceStore.lean b/evm-lean/ExpiryEvm/TraceStore.lean
+--- a/evm-lean/ExpiryEvm/TraceStore.lean	2026-10-07 20:48:02
++++ b/evm-lean/ExpiryEvm/TraceStore.lean	2026-10-07 20:48:03
+@@ -1,3 +1,4 @@
++import ExpiryEvm.KernelRun
+ import ExpiryEvm.TraceCall2
+ 
+ /-! # Trace segment 4: `sentMessageTimestamps` read, expiry check, `expiredMessages` write,
+@@ -70,10 +71,10 @@
+       (by rw [hM1, hM2, hK, optWord_eq, hS, hs0]; rfl) h
+     exact l2tol2_block_2126 (by simp [l2tol2_block_2103_fallthrough_stack]) r1
+   obtain ⟨k1, C1, r1⟩ := l2tol2_block_2103_taken (by simp)
+-    (by rw [hM1, hM2, hK, optWord_eq, hS]; exact (Words.sub_zero_ne0 _).mpr hs0) (by jump_dest) h
++    (by rw [hM1, hM2, hK, optWord_eq, hS]; exact (Words.sub_zero_ne0 _).mpr hs0) (by kjump_dest) h
+   simp only [l2tol2_block_2103_taken_stack, l2tol2_block_2103_taken_memory, hM1, hM2, hK,
+     optWord_eq, hS] at r1
+-  have r2 := l2tol2_block_2175 (by simp) (by jump_dest) r1
++  have r2 := l2tol2_block_2175 (by simp) (by kjump_dest) r1
+   simp only [l2tol2_block_2175_stack] at r2
+   by_cases hov : (sentAt σ I).toNat + P_contract < 2 ^ 256
+   swap
+@@ -85,12 +86,12 @@
+         by_contra hne
+         exact hov ((Words.noOverflow_iff _ P_contract (by decide)).mp hne)) r2
+     simp only [l2tol2_block_4603_fallthrough_stack] at r3
+-    have r4 := l2tol2_block_4615 (by simp) (by jump_dest) r3
++    have r4 := l2tol2_block_4615 (by simp) (by kjump_dest) r3
+     exact l2tol2_block_4366 (by simp [l2tol2_block_4615_stack]) r4
+   have r3 := l2tol2_block_4603_taken (by simp)
+-    ((Words.noOverflow_iff _ P_contract (by decide)).mpr hov) (by jump_dest) r2
++    ((Words.noOverflow_iff _ P_contract (by decide)).mpr hov) (by kjump_dest) r2
+   simp only [l2tol2_block_4603_taken_stack] at r3
+-  have r4 := l2tol2_block_3588 (by simp) (by jump_dest) r3
++  have r4 := l2tol2_block_3588 (by simp) (by kjump_dest) r3
+   simp only [l2tol2_block_3588_stack] at r4
+   by_cases hexp : (sentAt σ I).toNat + P_contract < t.toNat
+   swap
+@@ -104,29 +105,29 @@
+     exact l2tol2_block_2195 (by simp [l2tol2_block_2188_fallthrough_stack]) r5
+   have hc : StoreConds σ I := ⟨hs0, hov, hexp⟩
+   have r5 := l2tol2_block_2188_taken (by simp)
+-    ((Words.expired_iff _ _ P_contract (by decide) hov).mpr hexp) (by jump_dest) r4
++    ((Words.expired_iff _ _ P_contract (by decide) hov).mpr hexp) (by kjump_dest) r4
+   simp only [l2tol2_block_2188_taken_stack] at r5
+   cases hp : I.perm with
+   | false =>
+     right; left
+     refine ⟨hc, rfl, ?_⟩
+-    have q := evm_run r5 with [jumpdest, push0, dup4, dup2]
+-    have q5 := RD.genMstore q (by native_decide) (by evm_ov)
+-    have q6 := evm_run q5 with [push1 (UInt256.ofNat 4), push1 (UInt256.ofNat 32)]
+-    have q8 := RD.genMstore q6 (by native_decide) (by evm_ov)
+-    have q11 := evm_run q8 with [push1 (UInt256.ofNat 64), swap1, dup2, swap1]
+-    have q13 := RD.genKeccak256 q11 (by native_decide) (by evm_ov)
+-    have q14 := evm_run q13 with [dup1]
+-    obtain ⟨_, _, q15⟩ := RD.sload q14 (by native_decide) (by evm_ov)
++    have q := kevm_run r5 with [jumpdest, push0, dup4, dup2]
++    have q5 := RD.genMstore q (by evm_kdecide) (by evm_ov)
++    have q6 := kevm_run q5 with [push1 (UInt256.ofNat 4), push1 (UInt256.ofNat 32)]
++    have q8 := RD.genMstore q6 (by evm_kdecide) (by evm_ov)
++    have q11 := kevm_run q8 with [push1 (UInt256.ofNat 64), swap1, dup2, swap1]
++    have q13 := RD.genKeccak256 q11 (by evm_kdecide) (by evm_ov)
++    have q14 := kevm_run q13 with [dup1]
++    obtain ⟨_, _, q15⟩ := RD.sload q14 (by evm_kdecide) (by evm_ov)
+     have q16 := q15.pushConst (UInt256.ofNat
+       115792089237316195423570985008687907853269984665640564039457584007913129639680)
+-      (width := 32) (op := .PUSH32) (by decide) (by native_decide) (by evm_ov)
+-    have q20 := evm_run q16 with [and, push1 (UInt256.ofNat 1), or, swap1]
+-    exact RD.sstoreStatic q20 hp (by native_decide) (by evm_ov)
++      (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
++    have q20 := kevm_run q16 with [and, push1 (UInt256.ofNat 1), or, swap1]
++    exact RD.sstoreStatic q20 hp (by evm_kdecide) (by evm_ov)
+   | true =>
+     right; right
+     refine ⟨hc, rfl, ?_⟩
+-    obtain ⟨k6, C6, r6⟩ := l2tol2_block_2244 (by simp) hp (by jump_dest) r5
++    obtain ⟨k6, C6, r6⟩ := l2tol2_block_2244 (by simp) hp (by kjump_dest) r5
+     have hN1 : (UInt256.toByteArray H).write 0 (wordsMem (H :: UInt256.ofNat 3 :: rest))
+         (⟨0⟩ : UInt256).toNat 32 = wordsMem (H :: UInt256.ofNat 3 :: rest) :=
+       wordsMem_write (H :: UInt256.ofNat 3 :: rest) 0 (by simp) H _ rfl
+@@ -139,7 +140,7 @@
+       keccakWord_wordsMem _ _ _
+     simp only [l2tol2_block_2244_stack, l2tol2_block_2244_memory, hN1, hN2, hK2,
+       optWord_eq] at r6
+-    have r7 := l2tol2_block_2350 (by simp) hp (by jump_dest) r6
++    have r7 := l2tol2_block_2350 (by simp) hp (by kjump_dest) r6
+     simp only [l2tol2_block_2350_stack] at r7
+     have r8 := l2tol2_block_567 (by simp) r7
+     exact r8
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/scripts/gen_bytecode.py b/evm-lean/scripts/gen_bytecode.py
+--- a/evm-lean/scripts/gen_bytecode.py	2026-10-07 20:48:02
++++ b/evm-lean/scripts/gen_bytecode.py	2026-10-07 20:48:03
+@@ -1,22 +1,35 @@
+ #!/usr/bin/env python3
+ """Write ExpiryEvm/Bytecode.lean from bytecode/L2ToL2CrossDomainMessenger.runtime.hex.
+ 
+-The Lean file holds the exact deployed runtime bytes (metadata trailer included) as chunked
+-ByteArray literals, and its JUMPDEST table (computed here, checked in Lean by `native_decide`).
+-Rerun after recompiling the contract (scripts/regen.sh does):
++The Lean file holds the exact deployed runtime bytes (metadata trailer included) as ONE flat
++ByteArray literal, plus the JUMPDEST table, which the Lean kernel checks against EVMLean's `D_J`
++(no `native_decide`). Rerun after recompiling the contract:
+ 
+     python3 scripts/gen_bytecode.py bytecode/L2ToL2CrossDomainMessenger.runtime.hex \
+         ExpiryEvm/Bytecode.lean [defName]
+ 
+-`defName` (default `l2tol2Runtime`) names the ByteArray; its chunks are `<defName>Chunk<i>` and
+-its JUMPDEST theorem `<defName without "Runtime">ValidJumps`, so several contracts can share the namespace.
++`defName` (default `l2tol2Runtime`) names the ByteArray and its JUMPDEST theorem
++`<defName without "Runtime">ValidJumps`, so several contracts can share the namespace.
++
++The literal is deliberately not split into appended chunks: the kernel would have to evaluate
++`ByteArray.append` (quadratic in the code size) in every decode proof.
+ """
+ import sys
+ from pathlib import Path
+ 
+-CHUNK = 1000
+ 
++def wrap(items, width=96):
++    lines, cur = [], ""
++    for p in items:
++        if cur and len(cur) + len(p) + 2 > width:
++            lines.append(cur)
++            cur = p
++        else:
++            cur = p if not cur else cur + ", " + p
++    lines.append(cur)
++    return lines
+ 
++
+ def main() -> None:
+     src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+     name = sys.argv[3] if len(sys.argv) > 3 else "l2tol2Runtime"
+@@ -24,32 +37,17 @@
+     if hexstr.startswith("0x"):
+         hexstr = hexstr[2:]
+     code = bytes.fromhex(hexstr)
+-    chunks = [code[i:i + CHUNK] for i in range(0, len(code), CHUNK)]
+     out = []
+-    out.append("import Ethereum.Semantics\nimport Reasoning.JumpDest\n")
++    out.append("import Ethereum.Semantics\nimport Reasoning.JumpDest\nimport ExpiryEvm.KernelDecide\n")
+     out.append("/-!\n# L2ToL2CrossDomainMessenger deployed runtime bytecode (generated)\n")
+     out.append("Generated by `scripts/gen_bytecode.py` from")
+-    out.append("`bytecode/L2ToL2CrossDomainMessenger.runtime.hex`; do not edit by hand.\n")
++    out.append(f"`{src.as_posix()}`; do not edit by hand.\n")
+     out.append(f"Size: {len(code)} bytes. See README.md for the compiler invocation and hashes.\n-/\n")
+     out.append("namespace ExpiryEvm\n")
+     out.append("set_option maxRecDepth 50000000\n")
+-    for i, ch in enumerate(chunks):
+-        body = ", ".join(f"0x{b:02x}" for b in ch)
+-        # wrap lines
+-        parts = body.split(", ")
+-        lines, cur = [], ""
+-        for p in parts:
+-            if len(cur) + len(p) + 2 > 96:
+-                lines.append(cur)
+-                cur = p
+-            else:
+-                cur = p if not cur else cur + ", " + p
+-        lines.append(cur)
+-        joined = ",\n    ".join(lines)
+-        out.append(f"def {name}Chunk{i} : ByteArray :=\n  ⟨#[{joined}]⟩\n")
+-    cat = " ++ ".join(f"{name}Chunk{i}" for i in range(len(chunks)))
++    body = ",\n    ".join(wrap([f"0x{b:02x}" for b in code]))
+     out.append("/-- The deployed runtime code of L2ToL2CrossDomainMessenger at the pinned commit. -/")
+-    out.append(f"def {name} : ByteArray :=\n  {cat}\n")
++    out.append(f"def {name} : ByteArray :=\n  ⟨#[{body}]⟩\n")
+     # JUMPDEST analysis (positions of 0x5b outside PUSH immediates), as EVM D_J computes it.
+     dests, i = [], 0
+     while i < len(code):
+@@ -58,11 +56,12 @@
+             dests.append(i)
+         i += 1 + (op - 0x5F if 0x60 <= op <= 0x7F else 0)
+     lst = ", ".join(f"⟨{d}⟩" for d in dests)
+-    out.append(f"/-- The JUMPDEST set of `{name}` (checked by `native_decide`, which runs the")
+-    out.append("    compiled `D_J`; kernel evaluation of the scan is too slow, see README). -/")
++    out.append(f"/-- The JUMPDEST set of `{name}`, computed by this script and checked by the Lean")
++    out.append("    kernel against EVMLean's `D_J` (through the proved `D_J_eq_jumpdestScan`). -/")
+     out.append(f"@[valid_jumps] theorem {name.replace('Runtime', '')}ValidJumps :")
+     out.append(f"    Ethereum.EVM.D_J {name} 0 = #[" + lst + "] := by")
+-    out.append("  native_decide\n")
++    out.append("  rw [Ethereum.EVM.KernelDecide.D_J_eq_jumpdestScan]")
++    out.append("  decide +kernel\n")
+     out.append("end ExpiryEvm\n")
+     dst.write_text("\n".join(out))
+ 
+diff --color -ruN --exclude=Blocks --exclude=Bytecode.lean a/evm-lean/scripts/regen.sh b/evm-lean/scripts/regen.sh
+--- a/evm-lean/scripts/regen.sh	2026-10-07 20:48:02
++++ b/evm-lean/scripts/regen.sh	2026-10-07 20:48:03
+@@ -47,6 +47,7 @@
+ python3 .lake/packages/EquiVM/scripts/generate_rd_blocks.py "bytecode/$NAME.runtime.hex" \
+   --name l2tol2 --code-term ExpiryEvm.l2tol2Runtime --bytecode-import ExpiryEvm.Bytecode \
+   --output ExpiryEvm/Blocks/RuntimeBlocks.lean --shard-size 20 > /dev/null
++perl -pi -e "s/native_decide/evm_kdecide/g" ExpiryEvm/Blocks/RuntimeBlocks_*.lean  # kernel-checked facts (evm-lean-kernel)
+ # One import point for all shards (shard boundaries move when the bytecode changes).
+ { echo "-- Generated by scripts/regen.sh: imports every block-summary shard."
+   for f in ExpiryEvm/Blocks/RuntimeBlocks_*.lean; do m=${f%.lean}; echo "import ${m//\//.}"; done
