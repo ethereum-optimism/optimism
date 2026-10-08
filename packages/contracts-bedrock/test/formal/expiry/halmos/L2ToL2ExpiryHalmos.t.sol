@@ -729,6 +729,22 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(ok);
     }
 
+    /// @notice NON-VACUITY (expected FAIL): a relay to a non-reverting observing target never runs it. Witness for
+    ///         the success side of check_relay_delivery_value_context_failure.
+    function check_FALSE_relay_probeNeverRuns(
+        uint256 _chainId,
+        Identifier memory _id,
+        FrameKeys memory _rel,
+        bytes calldata _message
+    )
+        public
+    {
+        vm.chainId(_chainId);
+        address p = address(new RelayProbe(false));
+        _relayWithValue(_id, _rel, p, _message, 0);
+        assert(_probe(p, 0) == 0);
+    }
+
     // ================================================================ (5) expireMessage
 
     function _setupExpire(address _xSender, address _other) internal {
@@ -828,6 +844,20 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(ok == (_t >= sentAt + w));
     }
 
+    /// @notice NON-VACUITY (expected FAIL): expireMessage never succeeds (same symbolic world as check_expire_iff).
+    function check_FALSE_expire_neverSucceeds(
+        address _caller,
+        address _xSender,
+        address _other,
+        bytes32 _h,
+        uint256 _t
+    )
+        public
+    {
+        _setupExpire(_xSender, _other);
+        assert(!_expire(_caller, _h, _t));
+    }
+
     /// @notice NON-VACUITY (expected FAIL): the auth check ignores xDomainMessageSender.
     function check_FALSE_expire_ignoresXDomainSender(address _xSender, address _other, bytes32 _h, uint256 _t) public {
         _setupExpire(_xSender, _other);
@@ -850,6 +880,11 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice The expiry period is the protocol cap (7 days) plus the 1-day margin.
     function check_expiryPeriodIsCapPlusMargin() public view {
         assert(m.EXPIRY_PERIOD() == 7 days + 1 days);
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): the expiry period equals the bare protocol cap (it has the 1-day margin).
+    function check_FALSE_expiryPeriodIsProtocolCap() public view {
+        assert(m.EXPIRY_PERIOD() == 7 days);
     }
 
     /// @notice INFO (expected FAIL, documents an assumption): relayMessage ITSELF does not reject target 0x..23; the

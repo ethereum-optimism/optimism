@@ -120,9 +120,9 @@ run_forge X1b_event_sender_origin $L2 's/emit SentMessage(_destination, _target,
 # --- L2ToL2CrossDomainMessenger
 run M1_window_lt $L2 's/if (_undeliveredAt <= sentAt + EXPIRY_PERIOD)/if (_undeliveredAt < sentAt + EXPIRY_PERIOD)/' \
   L2ToL2ExpiryHalmos "check_expire_iff check_expire_iff_unbounded check_expire_boundary"
-run M2_relay_skips_unsafe_check $L2 's/^        if (_isUnsafeTarget(target)) revert MessageTargetUnsafe();$//' \
+run M2_relay_skips_unsafe_check $L2 's/^        if (_isUnsafeTarget(target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();$//' \
   L2ToL2ExpiryHalmos "check_UnsafeTargetRule_relay check_UnsafeTargetRule_relay_l2cdm check_UnsafeTargetRule_relay_passer check_OnlyExportReachesL1_relay_l2cdm check_OnlyExportReachesL1_relay_passer"
-run M3_send_skips_unsafe_check $L2 's/^        if (_isUnsafeTarget(_target)) revert MessageTargetUnsafe();$//' \
+run M3_send_skips_unsafe_check $L2 's/^        if (_isUnsafeTarget(_target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();$//' \
   L2ToL2ExpiryHalmos "check_UnsafeTargetRule_send check_UnsafeTargetRule_send_passer"
 run M3b_send_no23 $L2 's/if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();//' \
   L2ToL2ExpiryHalmos "check_UnsafeTargetRule_send"
@@ -197,7 +197,7 @@ run M31_cdm_send_drops_value $CDM 's/            _value: msg.value,/            
 run M32_l2cdm_self_not_unsafe $L2CDMSRC 's/return _target == address(this) || _target == address(Predeploys.L2_TO_L1_MESSAGE_PASSER);/return _target == address(otherMessenger) || _target == address(Predeploys.L2_TO_L1_MESSAGE_PASSER);/' \
   L2CDMGateHalmos "check_L2_relayMessage_rejectsSelfAndPasser"
 # --- SuperchainETHBridge
-run M10_refund_no_refunded_check $BR 's/if (refunded\[messageHash\]) revert AlreadyRefunded();//' \
+run M10_refund_no_refunded_check $BR 's/if (refunded\[messageHash\]) revert SuperchainETHBridge_AlreadyRefunded();//' \
   RefundExpiryHalmos "check_refund_iff_effects_singleUse"
 run M11_refund_pays_to $BR 's/new SafeSend{ value: _amount }(payable(_from));/new SafeSend{ value: _amount }(payable(_to));/' \
   RefundExpiryHalmos "check_refund_iff_effects_singleUse check_sendETH_then_refund"

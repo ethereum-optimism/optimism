@@ -9,7 +9,8 @@ pragma solidity 0.8.25;
 // which only eth_call can be) with symbolic msg.value, at a symbolic non-decreasing block.timestamp, choosing
 // symbolically among every state-changing entry point and an UNKNOWN selector:
 //   SEND    sendMessage(dest, target, message)
-//   RELAY   relayMessage(id, canonical SentMessage payload(dest, target, nonce, sender, message))
+//   RELAY   relayMessage(id, canonical SentMessage payload(dest, target, nonce, sender, message)), target one of a
+//           codeless account, 0x..07, 0x..16
 //   EXPIRE  expireMessage(h, t)          (0x..07 answers xDomainMessageSender() with a per-step symbolic value)
 //   OTHER   a symbolic 4-byte selector that is none of the contract's selectors, plus 64 symbolic bytes
 // View functions are not steps: the compiler forbids state writes in them (and the proxy forwards them unchanged).
@@ -20,7 +21,7 @@ pragma solidity 0.8.25;
 //       t > sentMessageTimestamps[K] + EXPIRY_PERIOD (all as they were before the step).
 //   (T) sentMessageTimestamps[K] changes only in a SEND step that sends K, from 0 to block.timestamp.
 //   (S) successfulMessages[K] changes only in a RELAY step that relays K, from false to true.
-// check_reach_sequence3: three steps from the deployed (fresh) state, so every state is reachable.
+// check_reach_sequence2: two steps from the deployed (fresh) state, so every state is reachable.
 // check_reach_step_symbolicStorage: one step from FULLY symbolic storage (every state, reachable or not); there (T) is
 // weakened to "changes only in a SEND step that sends K, to block.timestamp" (an unreachable state may already hold a
 // value for the next nonce's hash).
@@ -148,13 +149,11 @@ contract ReachL2ToL2Halmos is Test {
         vm.assume(_s.value <= 1 << 128);
         if (kind == OTHER) vm.assume(!_isKnownSelector(_s.sel));
         if (kind == RELAY) {
-            // Relay targets: any codeless account or a mock predeploy; not the messenger itself (no valid SentMessage
-            // targets it: every source's sendMessage rejects it) and not a harness account.
-            vm.assume(_s.target != L2_TO_L2 && _s.target != SVM_ADDRESS && _s.target != address(vm));
-            vm.assume(_s.target != CREATE2_FACTORY && _s.target != 0x000000000000000000636F6e736F6c652e6c6f67);
-            for (uint256 i = 0; i < 3; i++) {
-                vm.assume(_s.target != harness[i]);
-            }
+            // Relay targets: a codeless account, 0x..07 or 0x..16 (the two blocked targets). Relayed calls into
+            // arbitrary code are covered by L2ToL2ExpiryHalmos (re-entrant and observing targets); letting the symbolic
+            // target alias every account here made two steps exceed 40 minutes.
+            uint256 choice = uint160(_s.target) % 3;
+            _s.target = choice == 0 ? address(0xC0DE) : (choice == 1 ? L2CDM : PASSER);
         }
         vm.warp(_s.ts);
         MockL2CDMGetters(L2CDM).setGetters(_s.xSender, _other);
@@ -189,25 +188,23 @@ contract ReachL2ToL2Halmos is Test {
         if (kind == OTHER) assert(!ok); // no fallback: unknown selectors always revert
     }
 
-    /// @notice Three symbolic steps from the deployed state (every state reachable).
+    /// @notice Two symbolic steps from the deployed state (every state reachable; three exceeded 40 minutes). Two
+    ///         steps already cover send-then-expire and send-then-relay.
     /// @custom:halmos --default-bytes-lengths 0,33
-    function check_reach_sequence3(
+    function check_reach_sequence2(
         uint256 _chainId,
         bytes32 _k,
         address _other,
         Step memory _s1,
         bytes calldata _m1,
         Step memory _s2,
-        bytes calldata _m2,
-        Step memory _s3,
-        bytes calldata _m3
+        bytes calldata _m2
     )
         public
     {
         vm.chainId(_chainId);
         _step(_s1, _m1, _k, _other, true);
         _step(_s2, _m2, _k, _other, true);
-        _step(_s3, _m3, _k, _other, true);
     }
 
     /// @notice One symbolic step from FULLY symbolic messenger storage (proxy admin/implementation slots kept).
@@ -225,6 +222,28 @@ contract ReachL2ToL2Halmos is Test {
         vm.store(L2_TO_L2, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(PROXY_ADMIN))));
         vm.store(L2_TO_L2, Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(impl))));
         _step(_s, _m, _k, _other, false);
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): from fully symbolic storage, one step never changes any of the three
+    ///         observations at K (witness for check_reach_step_symbolicStorage: send, relay and expire transitions are
+    ///         reachable there).
+    function check_FALSE_reach_step_noTransition(
+        uint256 _chainId,
+        bytes32 _k,
+        address _other,
+        Step memory _s,
+        bytes calldata _m
+    )
+        public
+    {
+        vm.chainId(_chainId);
+        svm.enableSymbolicStorage(L2_TO_L2);
+        vm.store(L2_TO_L2, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(PROXY_ADMIN))));
+        vm.store(L2_TO_L2, Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(impl))));
+        Obs memory pre = _obs(_k);
+        _step(_s, _m, _k, _other, false);
+        Obs memory post = _obs(_k);
+        assert(post.exp == pre.exp && post.ts == pre.ts && post.succ == pre.succ);
     }
 
     /// @notice NON-VACUITY (expected FAIL): expiredMessages[K] never becomes true within three steps. The

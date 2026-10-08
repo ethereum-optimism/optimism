@@ -720,6 +720,15 @@ contract L1CDMExpiryHalmos is Test {
                 )
         );
     }
+
+    /// @notice NON-VACUITY (expected FAIL): sendMessage from a non-L1CDM caller never deposits.
+    function check_FALSE_L1_sendMessage_neverDeposits(address _from, address _target, uint32 _minGas) public {
+        vm.assume(_from != address(l1cdm));
+        vm.prank(_from);
+        (bool ok,) = address(l1cdm).call(abi.encodeCall(l1cdm.sendMessage, (_target, "", _minGas)));
+        ok;
+        assert(portalA.deposits() == 0);
+    }
 }
 
 /// @notice The same relay gate on the REAL L2CrossDomainMessenger (etched at 0x4200..0007, otherMessenger = A's L1CDM),
@@ -825,6 +834,19 @@ contract L2CDMGateHalmos is Test {
         (bool ok, bytes32 vh) = _l2Relay(_g, p, _message);
         assert(!ok && uint256(vm.load(p, 0)) == 0);
         assert(!l2cdm.failedMessages(vh) && l2cdm.successfulMessages(vh) == _g.succ);
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): the EXACT failed entry never lets a non-aliased caller replay the message
+    ///         (it does: witness for check_L2_replayNeedsExactFailedEntry).
+    function check_FALSE_L2_exactReplayNeverRuns(GateIn memory _g) public {
+        vm.assume(_g.other != AddressAliasHelper.applyL1ToL2Alias(A_L1CDM) && _g.other != L2CDM);
+        _g.fromPortal = false;
+        _g.failed = true;
+        _g.succ = false;
+        _g.mv = 0;
+        address p = address(new GateProbe());
+        _l2Relay(_g, p, "");
+        assert(uint256(vm.load(p, 0)) == 0);
     }
 
     /// @notice NON-VACUITY (expected FAIL): a message deposited by A's L1CDM never reaches its target.

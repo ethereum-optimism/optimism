@@ -191,6 +191,16 @@ contract ExporterExpiryHalmos is Test {
         assert(_calls(L2CDM) == 0);
     }
 
+    /// @notice NON-VACUITY (expected FAIL): createCalldata-generated calls never make the exporter call 0x..07.
+    /// @custom:halmos --loop 40
+    function check_FALSE_exporter_anyCalldata_neverCalls(uint256 _chainId) public {
+        vm.chainId(_chainId);
+        bytes memory data = svm.createCalldata("UndeliveredMessageExporter");
+        (bool ok,) = EXPORTER.call(data);
+        ok;
+        assert(_calls(L2CDM) == 0);
+    }
+
     /// @notice NON-VACUITY (expected FAIL): export hashes with the SOURCE as destination.
     function check_FALSE_export_hashUsesSourceAsDestination(
         uint256 _chainId,

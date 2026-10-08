@@ -10,6 +10,8 @@
 #     LIMITATION: halmos reports a FAIL (counterexample) in preference to solver timeouts on other assertion
 #     queries of the same check and does not serialize those timeouts, so for expected-FAIL checks a timeout on some
 #     other path cannot be excluded (the counterexample itself is still valid); PASS checks are fully enforced;
+#   - every PASS check names a non-vacuity witness (4th column of expected.tsv): an expected-FAIL check of the same
+#     contract under the same assumptions, which must itself produce a validated counterexample;
 #   - every `contract X is Test` (or `is ProxyHarness`) in this directory's .t.sol files must appear in expected.tsv, and vice versa;
 #   - each halmos process must exit 0 or 1 (1 = some check failed, expected here) and write its JSON.
 # Exit status is nonzero on any deviation.
@@ -60,17 +62,24 @@ while IFS= read -r contract; do
     tail -20 "$out/$contract.log"
     status=1
   fi
-done < <(cut -f1 "$here/expected.tsv" | sort -u)
+done < <(grep -v "^#" "$here/expected.tsv" | cut -f1 | sort -u)
 
 python3 - "$here/expected.tsv" "$out" "$here" <<'EOF' || status=1
 import glob, json, os, re, sys
 expected_path, out, here = sys.argv[1], sys.argv[2], sys.argv[3]
 expected = {}
+witness = {}
 for line in open(expected_path):
-    if line.strip():
-        c, n, e = line.rstrip("\n").split("\t")
+    if line.strip() and not line.startswith("#"):
+        c, n, e, w = line.rstrip("\n").split("\t")
         expected[(c, n)] = e
+        witness[(c, n)] = w
 bad = 0
+# Non-vacuity: every PASS check names a witness that is an expected-FAIL check of the same contract.
+for (c, n), e in expected.items():
+    if e == "PASS" and expected.get((c, witness[(c, n)])) != "FAIL":
+        print(f"BAD {c}.{n}: no non-vacuity witness (got {witness[(c, n)]!r})"); bad += 1
+results = {}
 seen = set()
 in_source = set()
 for f in glob.glob(os.path.join(here, "*.t.sol")):
@@ -111,7 +120,11 @@ for c in sorted({c for c, _ in expected}):
             ok = code == 1 and models > 0 and valid
             got = "FAIL (expected; valid counterexample)" if ok else f"exitcode={code} models={models} valid={valid}"
         bad += not ok
+        results[key] = ok
         print(f"{'ok ' if ok else 'BAD'} {c}.{name}: {got} ({r['time'][0]:.2f}s, paths={r['num_paths'][0]})")
+for (c, n), e in sorted(expected.items()):
+    if e == "PASS" and not results.get((c, witness[(c, n)]), False):
+        print(f"BAD {c}.{n}: its witness {witness[(c, n)]} did not produce a validated counterexample"); bad += 1
 for key in sorted(set(expected) - seen):
     print(f"BAD {key[0]}.{key[1]}: expected {expected[key]} but it did not run"); bad += 1
 print("all results as expected" if bad == 0 else f"{bad} unexpected result(s)")

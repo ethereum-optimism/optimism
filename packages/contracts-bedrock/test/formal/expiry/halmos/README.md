@@ -28,8 +28,10 @@ cd packages/contracts-bedrock
 uv venv /tmp/halmos-sd --python 3.12
 uv pip install --link-mode copy --python /tmp/halmos-sd/bin/python halmos==0.3.3   # copy mode: never patch uv's cache
 patch -d /tmp/halmos-sd/lib/python3.12/site-packages -p1 < test/formal/expiry/halmos/halmos-selfdestruct.patch
-HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # a few minutes on a 32-core Linux host
+HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # the phase-2 reachability checks dominate: tens of minutes
 HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/mutants.sh    # ONLY=<regex> selects mutants
+# On a shared host, cap memory (and time) per halmos process:
+#   HALMOS_WRAP="systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 timeout 3600" ...
 ```
 
 Options and settings:
@@ -219,12 +221,68 @@ the contract are allowed: 0x..07 for expireMessage and 0x..23 for relayETH, with
 
 | Check | Statement | Expected |
 |---|---|---|
-| `ReachL2ToL2Halmos.check_reach_sequence3` | Three steps from the deployed state, so every state is reachable. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0 and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
+| `ReachL2ToL2Halmos.check_reach_sequence2` | Two steps from the deployed state, so every state is reachable; three steps exceeded 40 minutes. Relay targets are a codeless account, 0x..07 or 0x..16; arbitrary relay targets are covered by the L2ToL2ExpiryHalmos relay checks. Two steps already cover send-then-expire and send-then-relay. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0 and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
 | `ReachL2ToL2Halmos.check_reach_step_symbolicStorage` | The same for one step from **fully symbolic** storage. (T) is weakened to "only a sendMessage step sending K, to block.timestamp", because an unreachable state can already hold a value for the next nonce's hash. | PASS |
 | `ReachExporterHalmos.check_reach_exporter_sequence2` | Two steps over export (symbolic arguments and message), version(), unknown selectors and empty calldata; three steps exceeded 40 minutes. successfulMessages is fully symbolic, so the first step already starts from every messenger state. Every call the exporter makes to 0x..07 is exactly the export payload for that step's arguments, with H computed with block.chainid and block.timestamp, and only when `successfulMessages[H]` was false before the step. It never calls 0x..16. The proxy slots and slots 0..3 never change; the implementation has no state variables. | PASS |
 | `ReachBridgeHalmos.check_reach_bridge_sequence2` | Two steps over the bridge (sendETH, relayETH, refundETH) **and** ETHLiquidity (burn, fund, mint), plus unknown selectors. refunded[K] never goes true → false, and goes false → true only in refundETH whose arguments hash to K with expiredMessages[K]. ETHLiquidity's balance decreases, i.e. a mint, only in relayETH called by 0x..23 with context sender == the bridge, or in refundETH, and by exactly the amount. With three steps the run exceeded 20 minutes. | PASS |
-| `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` | Two steps, each one of: sendMessage, relayMessage (any caller including A's portal), relayUndeliveredMessage (any caller, including the mock messengers through symbolic aliasing), initialize, or an unknown selector, all with symbolic arguments. Three steps exceeded 40 minutes, and the earlier `createCalldata` form got stuck on symbolic offsets. A's L1CDM is the **envelope sender** of a deposit only in a relayUndeliveredMessage step. A sendMessage step's deposit carries that step's caller as the sender. Nothing else deposits, and there is at most one deposit per step. | PASS |
+| `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` | Two steps, each one of: sendMessage, relayMessage (any caller including A's portal; target a codeless account, A's L1CDM or A's portal, because arbitrary relay targets are the gate checks' job), relayUndeliveredMessage (any caller, including the mock messengers through symbolic aliasing), initialize, or an unknown selector, all with symbolic arguments. Three steps exceeded 40 minutes, and the earlier `createCalldata` form got stuck on symbolic offsets. A's L1CDM is the **envelope sender** of a deposit only in a relayUndeliveredMessage step. A sendMessage step's deposit carries that step's caller as the sender. Nothing else deposits, and there is at most one deposit per step. | PASS |
 | `check_FALSE_reach_*` (one per contract) | Non-vacuity: expiry is reached, the exporter does call 0x..07, liquidity is minted, and the L1CDM is the self-sender. | FAIL |
+
+## Non-vacuity
+
+Every PASS check is paired with a **witness**: an expected-FAIL `check_FALSE_*` check of the same test contract, under
+the same assumptions. Its validated counterexample shows that the branch the PASS check constrains is reachable: the
+success path, the delivery, the transition, the deposit. The pairs are the 4th column of `expected.tsv`. `run.sh`
+fails if a PASS check names no witness, if the witness is not an expected-FAIL check of the same contract, or if the
+witness does not produce a validated counterexample in the same run.
+
+A PASS check that asserts "always reverts" (the `reject*` checks) is paired with the witness for the success path of
+the same entry point under the same harness. Its counterexample shows that the harness can reach success, so the
+revert is not an artefact of the setup. The two constant checks on `EXPIRY_PERIOD` are paired with a FALSE check on the
+constant's value.
+
+| Contract | PASS check | Witness |
+|---|---|---|
+| `L2ToL2ExpiryHalmos` | `check_UnsafeTargetRule_send` | `check_FALSE_send_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_UnsafeTargetRule_send_passer` | `check_FALSE_send_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_UnsafeTargetRule_relay` | `check_FALSE_relay_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_UnsafeTargetRule_relay_l2cdm` | `check_FALSE_relay_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_UnsafeTargetRule_relay_passer` | `check_FALSE_relay_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_OnlyExportReachesL1_send` | `check_FALSE_send_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_OnlyExportReachesL1_relay_l2cdm` | `check_FALSE_relay_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_OnlyExportReachesL1_relay_passer` | `check_FALSE_relay_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_send_effects_and_frame` | `check_FALSE_send_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_relay_effects_and_frame` | `check_FALSE_relay_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_OnlyExportReachesL1_relay_reentrant` | `check_FALSE_relay_reentrantExportNeverReachesL2CDM` |
+| `L2ToL2ExpiryHalmos` | `check_relay_delivery_value_context_failure` | `check_FALSE_relay_probeNeverRuns` |
+| `L2ToL2ExpiryHalmos` | `check_expire_iff` | `check_FALSE_expire_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_expire_iff_unbounded` | `check_FALSE_expire_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_expire_boundary` | `check_FALSE_expire_windowIsGte` |
+| `L2ToL2ExpiryHalmos` | `check_contractWindowCoversProtocolCap` | `check_FALSE_expiryPeriodIsProtocolCap` |
+| `L2ToL2ExpiryHalmos` | `check_expiryPeriodIsCapPlusMargin` | `check_FALSE_expiryPeriodIsProtocolCap` |
+| `ExporterExpiryHalmos` | `check_export_binding` | `check_FALSE_export_neverCallsL2CDM` |
+| `ExporterExpiryHalmos` | `check_exporter_anyCalldata_onlyExportPayload` | `check_FALSE_exporter_anyCalldata_neverCalls` |
+| `L1CDMExpiryHalmos` | `check_relayUndelivered_iff_and_deposit` | `check_FALSE_relayUndelivered_neverDeposits` |
+| `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsL2ToL2AsSender` | `check_FALSE_relayUndelivered_neverDeposits` |
+| `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsCallerClaimingPortalA` | `check_FALSE_relayUndelivered_neverDeposits` |
+| `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsSelfCallOutsideRelay` | `check_FALSE_relayUndelivered_neverDeposits` |
+| `L1CDMExpiryHalmos` | `check_L1_relayMessage_rejectsSelfAndPortalTargets` | `check_FALSE_L1_probeNeverCalled` |
+| `L1CDMExpiryHalmos` | `check_L1_relayGate_and_delivery` | `check_FALSE_L1_probeNeverCalled` |
+| `L1CDMExpiryHalmos` | `check_L1_replayNeedsExactFailedEntry` | `check_FALSE_L1_failedMessageNeverReplayable` |
+| `L1CDMExpiryHalmos` | `check_L1_failedEntryNotReplayableWithAlteredField` | `check_FALSE_L1_failedMessageNeverReplayable` |
+| `L1CDMExpiryHalmos` | `check_L1_xDomainMessageSender_revertsOutsideRelay` | `check_FALSE_L1_probeNeverCalled` |
+| `L1CDMExpiryHalmos` | `check_L1_sendMessage_senderFieldIsCaller` | `check_FALSE_L1_sendMessage_neverDeposits` |
+| `L2CDMGateHalmos` | `check_L2_relayGate_and_delivery` | `check_FALSE_L2_probeNeverCalled` |
+| `L2CDMGateHalmos` | `check_L2_relayMessage_rejectsSelfAndPasser` | `check_FALSE_L2_probeNeverCalled` |
+| `L2CDMGateHalmos` | `check_L2_replayNeedsExactFailedEntry` | `check_FALSE_L2_exactReplayNeverRuns` |
+| `RefundExpiryHalmos` | `check_refund_iff_effects_singleUse` | `check_FALSE_refund_failsWhenExpired` |
+| `RefundExpiryHalmos` | `check_refund_frame` | `check_FALSE_refund_failsWhenExpired` |
+| `RefundExpiryHalmos` | `check_sendETH_then_refund` | `check_FALSE_refund_failsWhenExpired` |
+| `ReachL2ToL2Halmos` | `check_reach_sequence2` | `check_FALSE_reach_expiredNeverSet` |
+| `ReachL2ToL2Halmos` | `check_reach_step_symbolicStorage` | `check_FALSE_reach_step_noTransition` |
+| `ReachExporterHalmos` | `check_reach_exporter_sequence2` | `check_FALSE_reach_exporterNeverCalls` |
+| `ReachBridgeHalmos` | `check_reach_bridge_sequence2` | `check_FALSE_reach_liquidityNeverMints` |
+| `ReachL1CDMHalmos` | `check_reach_l1cdm_sequence2` | `check_FALSE_reach_l1cdmNeverSelfSender` |
 
 ## Assumptions, mocks and bounds
 
@@ -435,3 +493,4 @@ and R3. Verdict: high confidence in the local statements, with no critical findi
 | 5 | R2, R3 | Forge mutants could be "killed" by a setUp failure. | **Fixed.** The designated test must pass on the unmutated code, and under the mutant that test itself must fail with no setUp or compile failure. |
 | 6 | R1, R2, R3 | Expected-FAIL timeouts, the createCalldata wording, the exporter's observation scope, whole-contract frames, the portal value-mismatch replay path, the scope of the benign-warning whitelist, and `from == 0`. | **Fixed or documented.** The timeout limitation is stated exactly. The createCalldata wording is narrowed, and the exporter's observation scope is stated. Whole-contract frames are now the phase-2 reachability checks. The value mismatch is in the gate frame. The whitelist applies only to the refund groups. `from != 0` is assumed in the refund checks, since msg.sender is never 0 on chain. |
 | 7 | R1 | Stale text (old NatSpec, orphan struct doc, a sentence about relay to 0x..16, commit references). | **Fixed.** Commit hashes are replaced by design descriptions. |
+| 8 | integrator | Every headline PASS property needs an automated non-vacuity check. | **Done.** Each PASS check is paired with an expected-FAIL witness in `expected.tsv`, and seven witnesses were added. `run.sh` enforces the pairing and requires every witness to produce a validated counterexample. See "Non-vacuity". |
