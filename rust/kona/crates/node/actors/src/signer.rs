@@ -8,36 +8,10 @@ use kona_sources::{BlockSignerError, BlockSignerHandler};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::future::Future;
 use thiserror::Error;
-use tokio::sync::{Semaphore, mpsc, watch};
+use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
-/// A value in `1..=tokio::sync::Semaphore::MAX_PERMITS`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Capacity(usize);
-
-impl Capacity {
-    /// Returns the value.
-    pub const fn get(self) -> usize {
-        self.0
-    }
-}
-
-impl TryFrom<usize> for Capacity {
-    type Error = InvalidCapacity;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        if (1..=Semaphore::MAX_PERMITS).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(InvalidCapacity(value))
-        }
-    }
-}
-
-/// An integer outside the supported range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
-#[error("mailbox capacity {0} must be between 1 and {max}", max = Semaphore::MAX_PERMITS)]
-pub struct InvalidCapacity(usize);
+pub use crate::capacity::{Capacity, InvalidCapacity};
 
 /// Queues unsigned payloads for signing and gossip.
 ///
@@ -203,6 +177,7 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+    use tokio::sync::Semaphore;
 
     const CHAIN_ID: u64 = 10;
 

@@ -11,9 +11,6 @@ extern crate tracing;
 
 mod admin;
 pub use admin::AdminRpc;
-pub use kona_node_actors::sequencer::{
-    Handle as SequencerAdminHandle, SequencerAdminAPIError, SequencerAdminCommand, SequencerState,
-};
 
 mod config;
 pub use config::RpcBuilder;

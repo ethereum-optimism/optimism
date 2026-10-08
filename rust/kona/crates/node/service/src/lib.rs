@@ -28,8 +28,8 @@ pub use kona_node_actors::{
     NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
     QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
-    RpcActorError, SealRequest, SequencerActor, SequencerActorError, SequencerConfig,
-    SequencerEngineClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError, signer,
+    RpcActorError, SealRequest, SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
+    UnsafePayloadGossipClientError, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

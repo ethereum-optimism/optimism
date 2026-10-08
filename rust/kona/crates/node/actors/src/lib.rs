@@ -11,6 +11,8 @@ extern crate tracing;
 
 use async_trait::async_trait;
 
+mod capacity;
+
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
@@ -50,7 +52,7 @@ pub mod sequencer;
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerActor, SequencerActorError, SequencerConfig, SequencerEngineClient,
+    SequencerConfig, SequencerEngineClient,
 };
 
 #[cfg(test)]

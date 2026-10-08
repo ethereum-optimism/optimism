@@ -64,6 +64,8 @@ op-alloy-rpc-jsonrpsee.workspace = true
 alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 
 [dev-dependencies]
+kona-derive = { workspace = true, features = ["test-utils"] }
+tokio-util.workspace = true
 alloy-rpc-types-eth.workspace = true
 op-alloy-rpc-types.workspace = true
 serde_json.workspace = true

@@ -10,12 +10,12 @@ pub use origin_selector::{
 };
 
 mod actor;
-pub use actor::SequencerActor;
+pub use actor::Builder;
 
 mod metrics;
 
 mod error;
-pub use error::SequencerActorError;
+pub use error::ActorError;
 
 mod conductor;
 
@@ -34,4 +34,5 @@ pub use engine_client::MockSequencerEngineClient;
 pub use origin_selector::MockOriginSelector;
 
 mod handle;
-pub use handle::{Handle, SequencerAdminAPIError, SequencerAdminCommand, SequencerState};
+pub use crate::capacity::{Capacity, InvalidCapacity};
+pub use handle::{Handle, HandleError, State};

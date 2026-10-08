@@ -1,12 +1,8 @@
-//! Configuration for the [`SequencerActor`].
-//!
-//! [`SequencerActor`]: super::SequencerActor
+//! Sequencer configuration.
 
 use url::Url;
 
-/// Configuration for the [`SequencerActor`].
-///
-/// [`SequencerActor`]: super::SequencerActor
+/// Sequencer configuration.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct SequencerConfig {
     /// Whether or not the sequencer is enabled at startup.

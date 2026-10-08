@@ -2,9 +2,9 @@ use crate::{L1OriginSelectorError, UnsafePayloadGossipClientError, engine::Engin
 use kona_derive::PipelineErrorKind;
 use kona_engine::BuildTaskError;
 
-/// An error produced by the [`crate::SequencerActor`].
+/// An error returned by the actor.
 #[derive(Debug, thiserror::Error)]
-pub enum SequencerActorError {
+pub enum ActorError {
     /// An error occurred while building payload attributes.
     #[error(transparent)]
     AttributesBuilder(#[from] PipelineErrorKind),

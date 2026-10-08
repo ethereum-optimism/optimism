@@ -7,7 +7,7 @@ use crate::{
     L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
     NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    RpcActor, SequencerActor, SequencerConfig, service::BufferImportedBlocks, signer,
+    RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -23,10 +23,7 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{
-    DerivationStatus, L1State,
-    sequencer::{self, SequencerAdminCommand},
-};
+use kona_node_actors::{DerivationStatus, L1State, sequencer};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -143,15 +140,6 @@ where
 
 /// Concrete type of the engine actor used by `RollupNode`.
 type ConfiguredEngineActor = EngineActor<QueuedEngineDerivationClient>;
-
-/// Concrete type of the sequencer actor used by `RollupNode`.
-type ConfiguredSequencerActor = SequencerActor<
-    StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider>,
-    ConductorClient,
-    L1OriginSelector<DelayedL1OriginSelectorProvider>,
-    QueuedSequencerEngineClient,
-    signer::Handle,
->;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -362,19 +350,16 @@ impl RollupNode {
         Ok(Some(signer))
     }
 
-    /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
+    /// Wires the sequencer dependencies and returns its lifetime future.
     fn build_sequencer(
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         signer: signer::Handle,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_state: watch::Receiver<L1State>,
-        sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
-    ) -> Option<ConfiguredSequencerActor> {
-        if !self.mode().is_sequencer() {
-            return None;
-        }
-
+        builder: sequencer::Builder<ConductorClient>,
+        cancellation: CancellationToken,
+    ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.l1_config.engine_provider.clone(),
             l1_state,
@@ -383,23 +368,17 @@ impl RollupNode {
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
 
-        let conductor =
-            self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http);
-
         let sequencer_engine_client =
             QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx };
 
-        Some(SequencerActor::new(
-            sequencer_admin_command_rx,
+        builder.build(
             self.create_attributes_builder(),
-            conductor,
             sequencer_engine_client,
-            self.sequencer_config.sequencer_stopped.not(),
-            self.sequencer_config.sequencer_recovery_mode,
             delayed_origin_selector,
             self.config.clone(),
             signer,
-        ))
+            cancellation,
+        )
     }
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
@@ -511,7 +490,17 @@ impl RollupNode {
             mpsc::channel::<DerivationActorRequest>(1024);
         let (engine_actor_request_tx, engine_actor_request_rx) =
             mpsc::channel::<EngineActorRequest>(1024);
-        let (sequencer_admin_command_tx, sequencer_admin_command_rx) = mpsc::channel(1024);
+        let sequencer_builder = if self.mode().is_sequencer() {
+            Some(sequencer::Builder::new(
+                sequencer::Capacity::try_from(1024).map_err(|error| error.to_string())?,
+                self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
+                self.sequencer_config.sequencer_stopped.not(),
+                self.sequencer_config.sequencer_recovery_mode,
+            ))
+        } else {
+            None
+        };
+        let sequencer_admin = sequencer_builder.as_ref().map(sequencer::Builder::handle);
         // Network actor inbound channels
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (admin_payload_tx, admin_payload_rx) =
@@ -576,15 +565,15 @@ impl RollupNode {
         let (l1_watcher, l1_state) =
             self.build_l1_watcher(derivation_actor_request_tx, signer_tx)?;
 
-        let sequencer_actor = self.build_sequencer(
-            engine_actor_request_tx.clone(),
-            signer_handle,
-            unsafe_head_rx,
-            l1_state.clone(),
-            sequencer_admin_command_rx,
-        );
-        let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
-            sequencer::Handle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
+        let sequencer_actor = sequencer_builder.map(|builder| {
+            self.build_sequencer(
+                engine_actor_request_tx.clone(),
+                signer_handle,
+                unsafe_head_rx,
+                l1_state.clone(),
+                builder,
+                cancellation.clone(),
+            )
         });
 
         let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
@@ -604,7 +593,7 @@ impl RollupNode {
             supervisor.spawn("rpc", run_node_actor(rpc, cancellation.clone()));
         }
         if let Some(sequencer) = sequencer_actor {
-            supervisor.spawn("sequencer", run_node_actor(sequencer, cancellation.clone()));
+            supervisor.spawn("sequencer", sequencer);
         }
         if let Some(signer) = signer_actor {
             supervisor.spawn("signer", signer);
