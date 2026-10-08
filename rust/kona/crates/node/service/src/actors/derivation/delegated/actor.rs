@@ -7,8 +7,13 @@ use async_trait::async_trait;
 use kona_derive::ChainProvider;
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{L2BlockInfo, SyncStatus};
+use kona_rpc::DerivationStatus;
 use thiserror::Error;
-use tokio::{select, sync::mpsc, time};
+use tokio::{
+    select,
+    sync::{mpsc, watch},
+    time,
+};
 
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
@@ -30,6 +35,9 @@ where
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
+
+    /// Validated progress published to RPC readers.
+    status: watch::Sender<DerivationStatus>,
 
     /// Derivation delegate provider.
     derivation_delegate_provider: DelegateProvider,
@@ -61,7 +69,9 @@ where
         let mut delegated_derivation_ticker =
             time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+        let (status, _) = watch::channel(DerivationStatus::default());
         Self {
+            status,
             inbound_request_rx,
             engine_client,
             derivation_delegate_provider,
@@ -70,6 +80,11 @@ where
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
         }
+    }
+
+    /// Subscribes to the actor’s validated derivation progress.
+    pub fn state_receiver(&self) -> watch::Receiver<DerivationStatus> {
+        self.status.subscribe()
     }
 }
 
@@ -184,6 +199,8 @@ where
             return Ok(());
         }
 
+        self.status.send_replace(DerivationStatus { current_l1: Some(sync_status.current_l1) });
+
         self.engine_client
             .send_safe_l2_signal(sync_status.safe_l2.into())
             .await
@@ -242,4 +259,67 @@ enum DerivationDelegationError {
     /// The hash provided by the derivation delegation does not match the canonical chain.
     #[error("L1 inconsistency in {context} at block {number}: expected {expected}, got {actual}")]
     L1ValidationFailed { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::derivation::{
+        DerivationDelegateClientError, engine_client::MockDerivationEngineClient,
+    };
+    use kona_derive::test_utils::TestChainProvider;
+    use kona_protocol::BlockInfo;
+    use std::{collections::VecDeque, sync::Mutex};
+
+    struct TestDelegate(Mutex<VecDeque<SyncStatus>>);
+
+    #[async_trait]
+    impl DerivationDelegateProvider for TestDelegate {
+        async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
+            Ok(self.0.lock().unwrap().pop_front().unwrap())
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn publishes_only_validated_delegate_progress() {
+        let current = BlockInfo {
+            number: 7,
+            hash: alloy_primitives::B256::repeat_byte(1),
+            ..Default::default()
+        };
+        // Fill the delegate's unused sync fields with zero values.
+        let status = SyncStatus {
+            current_l1: current,
+            current_l1_finalized: BlockInfo::default(),
+            head_l1: BlockInfo::default(),
+            safe_l1: BlockInfo::default(),
+            finalized_l1: BlockInfo::default(),
+            unsafe_l2: L2BlockInfo::default(),
+            local_safe_l2: L2BlockInfo::default(),
+            safe_l2: L2BlockInfo::default(),
+            finalized_l2: L2BlockInfo::default(),
+        };
+        let mut invalid = status.clone();
+        invalid.current_l1.hash = alloy_primitives::B256::repeat_byte(2);
+        let delegate = TestDelegate(Mutex::new(VecDeque::from([invalid.clone(), status, invalid])));
+        let mut provider = TestChainProvider::default();
+        provider.insert_block(0, BlockInfo::default());
+        provider.insert_block(current.number, current);
+        let mut engine = MockDerivationEngineClient::new();
+        engine.expect_send_safe_l2_signal().times(1).returning(|_| Ok(()));
+        engine.expect_send_finalized_l2_block().times(1).returning(|_| Ok(()));
+        let (tx, rx) = mpsc::channel(1);
+        let mut actor = DelegateDerivationActor::new(engine, rx, delegate, provider);
+        let progress = actor.state_receiver();
+        tx.send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(progress.borrow().current_l1, None);
+        actor.step().await.unwrap();
+        assert_eq!(progress.borrow().current_l1, Some(current));
+        actor.step().await.unwrap();
+        assert_eq!(progress.borrow().current_l1, Some(current));
+    }
 }

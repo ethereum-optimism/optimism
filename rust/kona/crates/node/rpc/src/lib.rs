@@ -30,10 +30,10 @@ pub use jsonrpsee::{
 pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
-pub use rollup::{OutputError, OutputProvider, OutputResponse, RollupRpc};
+pub use rollup::{DerivationStatus, OutputError, OutputProvider, OutputResponse, RollupRpc};
 
 mod l1_watcher;
-pub use l1_watcher::{L1State, L1WatcherQueries, L1WatcherQuerySender};
+pub use l1_watcher::L1State;
 
 mod health;
 pub use health::{HealthzResponse, HealthzRpc};

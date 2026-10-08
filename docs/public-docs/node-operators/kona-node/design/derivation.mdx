@@ -39,10 +39,14 @@ where
     derivation_state_machine: DerivationStateMachine,
     /// The L2Finalizer tracks derived L2 blocks awaiting finalization.
     finalizer: L2Finalizer,
+    /// Progress published to RPC readers.
+    status: watch::Sender<DerivationStatus>,
 }
 ```
 
 Inbound requests are expressed as the `DerivationActorRequest` enum: L1 head updates, finalized L1 block updates, engine safe head updates, engine sync completion, and pipeline signals from the engine (for example flush or reset).
+
+The actor publishes `DerivationStatus` through a watch channel after pipeline steps and signals. Its `current_l1` is the pipeline's current origin, so observing a newer L1 head does not advance this field until derivation processes it. Resets can move the published origin backwards. In delegated mode, the actor publishes the delegate's current L1 block only after validating the reported L1 information against the canonical chain.
 
 The actor coordinates with several other node components:
 - **Engine Actor**: Receives payload attributes for execution and sends back safe head updates and pipeline signals

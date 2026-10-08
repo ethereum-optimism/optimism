@@ -6,6 +6,7 @@ use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::L1State;
 use std::{fmt::Debug, sync::Arc};
 use tokio::sync::watch;
 
@@ -220,8 +221,8 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
 pub struct DelayedL1OriginSelectorProvider {
     /// The inner [`RootProvider`].
     inner: RootProvider,
-    /// The L1 head watch channel.
-    l1_head: watch::Receiver<Option<BlockInfo>>,
+    /// The L1 watcher’s published observations.
+    l1_state: watch::Receiver<L1State>,
     /// The confirmation depth to delay the view of the L1 chain.
     confirmation_depth: u64,
 }
@@ -230,10 +231,10 @@ impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
     pub const fn new(
         inner: RootProvider,
-        l1_head: watch::Receiver<Option<BlockInfo>>,
+        l1_state: watch::Receiver<L1State>,
         confirmation_depth: u64,
     ) -> Self {
-        Self { inner, l1_head, confirmation_depth }
+        Self { inner, l1_state, confirmation_depth }
     }
 }
 
@@ -251,7 +252,7 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        let Some(l1_head) = *self.l1_head.borrow() else {
+        let Some(l1_head) = self.l1_state.borrow().head_l1 else {
             // If the L1 head is not available, do not enforce a confirmation delay.
             return Ok(Provider::get_block_by_number(&self.inner, number.into())
                 .await?

@@ -32,8 +32,8 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
-    P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
+    AdminApiServer, AdminRpc, DerivationStatus, HealthzApiServer, HealthzRpc, L1State,
+    OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
     SequencerAdminHandle,
 };
 use op_alloy_network::Optimism;
@@ -259,35 +259,37 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
-    ) -> Result<ConfiguredDerivationActor, String> {
+    ) -> Result<(ConfiguredDerivationActor, watch::Receiver<DerivationStatus>), String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             );
-            Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
+            let actor = DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
                 provider,
                 l1_provider,
-            ))))
+            );
+            let status = actor.state_receiver();
+            Ok((ConfiguredDerivationActor::Delegate(Box::new(actor)), status))
         } else {
             let pipeline = self
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(ConfiguredDerivationActor::Normal(Box::new(
-                DerivationActor::<_, OnlinePipeline>::new(
-                    QueuedDerivationEngineClient { engine_actor_request_tx },
-                    derivation_actor_request_rx,
-                    pipeline,
-                ),
-            )))
+            let actor = DerivationActor::<_, OnlinePipeline>::new(
+                QueuedDerivationEngineClient { engine_actor_request_tx },
+                derivation_actor_request_rx,
+                pipeline,
+            );
+            let status = actor.state_receiver();
+            Ok((ConfiguredDerivationActor::Normal(Box::new(actor)), status))
         }
     }
 
-    /// Builds the L1 watcher actor along with its head and finalized block streams.
+    /// Builds the L1 watcher actor with independent head, safe, and finalized block streams.
     ///
     /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
     /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
@@ -297,10 +299,13 @@ impl RollupNode {
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         signer_tx: watch::Sender<Address>,
-        l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
-        l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
-    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
-    {
+    ) -> Result<
+        (
+            impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static,
+            watch::Receiver<L1State>,
+        ),
+        String,
+    > {
         let head_stream = BlockStream::new_as_stream(
             self.l1_config.engine_provider.clone(),
             BlockNumberOrTag::Latest,
@@ -312,20 +317,27 @@ impl RollupNode {
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         )?;
 
+        let safe_stream = BlockStream::new_as_stream(
+            self.l1_config.engine_provider.clone(),
+            BlockNumberOrTag::Safe,
+            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
+        )?;
+
         let chain = L1WatcherChain::new(
             self.config.clone(),
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
             signer_tx,
-            l1_query_rx,
         );
 
-        Ok(L1WatcherActor::new(
+        let actor = L1WatcherActor::new(
             self.l1_config.engine_provider.clone(),
-            l1_head_updates_tx,
             head_stream,
             finalized_stream,
+            safe_stream,
             vec![chain],
-        ))
+        );
+        let state = actor.state_receiver();
+        Ok((actor, state))
     }
 
     /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -365,7 +377,7 @@ impl RollupNode {
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
-        l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
+        l1_state: watch::Receiver<L1State>,
         sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
     ) -> Option<ConfiguredSequencerActor> {
         if !self.mode().is_sequencer() {
@@ -374,7 +386,7 @@ impl RollupNode {
 
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.l1_config.engine_provider.clone(),
-            l1_head_updates_rx,
+            l1_state,
             self.sequencer_config.l1_conf_delay,
         );
         let delayed_origin_selector =
@@ -409,7 +421,8 @@ impl RollupNode {
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
-        l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+        l1_state: watch::Receiver<L1State>,
+        derivation_status: watch::Receiver<DerivationStatus>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -435,7 +448,8 @@ impl RollupNode {
                     self.config.clone(),
                     engine_state_rx,
                     l2_query_client,
-                    l1_watcher_queries_tx,
+                    l1_state,
+                    derivation_status,
                 )
                 .into_rpc(),
             )
@@ -505,7 +519,6 @@ impl RollupNode {
             mpsc::channel::<DerivationActorRequest>(1024);
         let (engine_actor_request_tx, engine_actor_request_rx) =
             mpsc::channel::<EngineActorRequest>(1024);
-        let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
         let (sequencer_admin_command_tx, sequencer_admin_command_rx) = mpsc::channel(1024);
         // Network actor inbound channels
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
@@ -521,7 +534,6 @@ impl RollupNode {
         // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
         // from the value read at startup.
         let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
-        let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let (engine_actor, l2_query_client, engine_state_rx) = self.build_engine_actor(
@@ -530,7 +542,7 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
-        let derivation = self
+        let (derivation, derivation_status) = self
             .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
             .await?;
 
@@ -561,18 +573,14 @@ impl RollupNode {
 
         let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
 
-        let l1_watcher = self.build_l1_watcher(
-            derivation_actor_request_tx,
-            signer_tx,
-            l1_query_rx,
-            l1_head_updates_tx,
-        )?;
+        let (l1_watcher, l1_state) =
+            self.build_l1_watcher(derivation_actor_request_tx, signer_tx)?;
 
         let sequencer_actor = self.build_sequencer(
             engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
-            l1_head_updates_rx,
+            l1_state.clone(),
             sequencer_admin_command_rx,
         );
         let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
@@ -581,7 +589,14 @@ impl RollupNode {
 
         let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
-            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
+            .build_rpc_actor(
+                l2_query_client,
+                engine_state_rx,
+                admin_rpc,
+                p2p_rpc,
+                l1_state,
+                derivation_status,
+            )
             .await?;
 
         crate::service::spawn_and_wait!(

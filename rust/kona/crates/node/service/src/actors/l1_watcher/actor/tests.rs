@@ -6,13 +6,12 @@ use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportError, TransportErrorKind};
 use kona_genesis::RollupConfig;
-use kona_rpc::L1WatcherQueries;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use tokio::{
-    sync::{Notify, mpsc, oneshot},
+    sync::{Notify, mpsc},
     time::{self, Duration},
 };
 use tokio_stream::wrappers::ReceiverStream;
@@ -59,18 +58,6 @@ fn provider(state: Arc<RpcState>) -> RootProvider {
                         let signer = Address::repeat_byte(hash[0] + address[0]);
                         serde_json::to_string(&U256::from_be_slice(signer.as_slice())).unwrap()
                     }
-                    "eth_getBlockByNumber" => {
-                        let mut block = alloy_rpc_types_eth::Block::<
-                            alloy_rpc_types_eth::Transaction,
-                        >::default();
-                        block.header.inner.number = match params[0].as_str().unwrap() {
-                            "latest" => 100,
-                            "finalized" => 80,
-                            "safe" => 90,
-                            tag => panic!("unexpected tag {tag}"),
-                        };
-                        serde_json::to_string(&block).unwrap()
-                    }
                     method => panic!("unexpected RPC {method}"),
                 };
                 Ok::<_, TransportError>(ResponsePacket::Single(Response {
@@ -86,7 +73,6 @@ fn provider(state: Arc<RpcState>) -> RootProvider {
 }
 
 struct ChainHandles {
-    queries: Option<mpsc::Sender<L1WatcherQueries>>,
     signer: watch::Receiver<Address>,
     derivation: mpsc::Receiver<DerivationActorRequest>,
 }
@@ -100,6 +86,8 @@ impl ChainHandles {
 struct Harness {
     heads: mpsc::Sender<BlockInfo>,
     finalized: mpsc::Sender<BlockInfo>,
+    safe: mpsc::Sender<BlockInfo>,
+    state: watch::Receiver<L1State>,
     chains: Vec<ChainHandles>,
     tasks: JoinSet<Result<(), L1WatcherActorError<BlockInfo>>>,
     rpc: Arc<RpcState>,
@@ -114,7 +102,6 @@ impl Harness {
         let mut chains = Vec::new();
         for index in 0..count {
             let (signer_tx, signer) = watch::channel(Address::ZERO);
-            let (query_tx, queries) = mpsc::channel(4);
             let (derivation_tx, derivation) = mpsc::channel(1);
             configs.push(L1WatcherChain::new(
                 Arc::new(RollupConfig {
@@ -124,20 +111,20 @@ impl Harness {
                 }),
                 QueuedL1WatcherDerivationClient { derivation_actor_request_tx: derivation_tx },
                 signer_tx,
-                queries,
             ));
-            chains.push(ChainHandles { queries: Some(query_tx), signer, derivation });
+            chains.push(ChainHandles { signer, derivation });
         }
         let (heads, head_rx) = mpsc::channel(4);
         let (finalized, finalized_rx) = mpsc::channel(4);
-        let (latest, _) = watch::channel(None);
+        let (safe, safe_rx) = mpsc::channel(4);
         let mut actor = L1WatcherActor::new(
             provider(rpc.clone()),
-            latest,
             ReceiverStream::new(head_rx),
             ReceiverStream::new(finalized_rx),
+            ReceiverStream::new(safe_rx),
             configs,
         );
+        let state = actor.state_receiver();
         let mut tasks = JoinSet::new();
         tasks.spawn(async move {
             loop {
@@ -146,7 +133,7 @@ impl Harness {
             #[allow(unreachable_code)]
             Ok(())
         });
-        Self { heads, finalized, chains, tasks, rpc }
+        Self { heads, finalized, safe, state, chains, tasks, rpc }
     }
 
     async fn send_head_and_receive(&mut self, block: BlockInfo, chain: usize) {
@@ -162,22 +149,10 @@ impl Harness {
             other => panic!("unexpected request {other:?}"),
         }
     }
-
-    async fn config(&self, chain: usize) -> RollupConfig {
-        let (tx, rx) = oneshot::channel();
-        self.chains[chain]
-            .queries
-            .as_ref()
-            .unwrap()
-            .send(L1WatcherQueries::Config(tx))
-            .await
-            .unwrap();
-        time::timeout(Duration::from_secs(1), rx).await.unwrap().unwrap()
-    }
 }
 
 #[tokio::test(start_paused = true)]
-async fn slow_chain_does_not_block_subsequent_heads_finality_or_queries() {
+async fn slow_chain_does_not_block_subsequent_heads_finality_or_state_reads() {
     let mut h = Harness::new(2);
     // Chain 0's derivation queue fills. Healthy chain 1 still receives later heads.
     for number in 1..=5 {
@@ -188,9 +163,8 @@ async fn slow_chain_does_not_block_subsequent_heads_finality_or_queries() {
     assert!(
         matches!(h.chains[1].derivation.recv().await.unwrap(), DerivationActorRequest::ProcessFinalizedL1Block(block) if *block == head(4))
     );
-    assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
-    // Even the blocked chain's own configuration queries are independent of its full queues.
-    assert_eq!(h.config(0).await.l2_chain_id.id(), 0);
+    assert_eq!(h.state.borrow().head_l1, Some(head(5)));
+    assert_eq!(h.state.borrow().finalized_l1, Some(head(4)));
     // When it resumes, the slow chain eventually receives the latest observation.
     time::timeout(Duration::from_secs(1), async {
         loop {
@@ -208,7 +182,7 @@ async fn stalled_rpc_is_isolated_and_retried_without_a_new_head() {
     assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(8));
     h.send_head_and_receive(head(8), 1).await;
     assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(9));
-    assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
+    assert_eq!(h.state.borrow().head_l1, Some(head(8)));
     h.rpc.stall.store(false, Ordering::SeqCst);
     time::advance(Duration::from_secs(10)).await;
     assert_eq!(
@@ -234,28 +208,22 @@ async fn failed_snapshot_recovers_and_same_height_reorg_restores_signer() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn closed_chain_query_channel_detaches_only_that_chain() {
-    let mut h = Harness::new(2);
-    h.chains[0].queries.take();
-    assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
-    for number in 1..=3 {
-        h.send_head_and_receive(head(number), 1).await;
-        assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(number as u8 + 1));
-    }
-    h.chains[1].queries.take();
-    assert!(h.tasks.join_next().await.unwrap().unwrap().is_err());
-}
-
-#[tokio::test(start_paused = true)]
-async fn l1_state_queries_read_all_tags_without_new_heads() {
-    let h = Harness::new(2);
-    let (tx, rx) = oneshot::channel();
-    h.chains[1].queries.as_ref().unwrap().send(L1WatcherQueries::L1State(tx)).await.unwrap();
-    let state = rx.await.unwrap();
-    assert_eq!(state.head_l1.unwrap().number, 100);
-    assert_eq!(state.finalized_l1.unwrap().number, 80);
-    assert_eq!(state.safe_l1.unwrap().number, 90);
-    assert!(state.current_l1.is_none());
+async fn publishes_safe_and_finalized_without_new_heads() {
+    let mut h = Harness::new(1);
+    h.send_head_and_receive(head(100), 0).await;
+    h.state.borrow_and_update();
+    h.safe.send(head(90)).await.unwrap();
+    h.state.changed().await.unwrap();
+    assert_eq!(h.state.borrow_and_update().safe_l1, Some(head(90)));
+    assert!(h.chains[0].derivation.try_recv().is_err());
+    h.finalized.send(head(80)).await.unwrap();
+    assert!(
+        matches!(h.chains[0].derivation.recv().await.unwrap(), DerivationActorRequest::ProcessFinalizedL1Block(block) if *block == head(80))
+    );
+    assert_eq!(
+        *h.state.borrow(),
+        L1State { head_l1: Some(head(100)), safe_l1: Some(head(90)), finalized_l1: Some(head(80)) }
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -278,7 +246,19 @@ async fn closed_derivation_receiver_detaches_only_that_chain() {
         h.send_head_and_receive(head(number), 1).await;
         assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(number as u8 + 1));
     }
-    assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
+    assert_eq!(h.state.borrow().head_l1, Some(head(3)));
+    // The watcher exits once every chain has detached, closing its published state.
+    h.chains[1].derivation.close();
+    h.heads.send(head(4)).await.unwrap();
+    assert!(
+        time::timeout(Duration::from_secs(1), h.tasks.join_next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .is_err()
+    );
+    assert!(h.state.has_changed().is_err());
 }
 
 #[tokio::test(start_paused = true)]

@@ -224,7 +224,7 @@ The `EngineActor` receives all state-mutating input through a single inbound req
 
 ### Rollup RPC Reads
 
-`RollupRpc` clones the rollup configuration for `optimism_rollupConfig`, combines the engine-state snapshot with the L1 watcher state for `optimism_syncStatus`, and calls `OutputProvider::output_at_block` with its rollup configuration for `optimism_outputAtBlock`. Any Alloy `Provider<Optimism>`, including `EngineClient`, implements this trait without dynamic dispatch or boxed futures for the output query. The RPC module computes the output using the configured genesis and fork rules. These reads run in jsonrpsee request handlers, so a slow output-root query does not block other engine-state reads.
+`RollupRpc` clones the rollup configuration for `optimism_rollupConfig`, combines published engine, L1 watcher, and derivation snapshots for `optimism_syncStatus`, and calls `OutputProvider::output_at_block` with its rollup configuration for `optimism_outputAtBlock`. The L1 watcher publishes observed head, safe, and finalized blocks; derivation publishes its current L1 origin. Sync-status reads do not queue actor requests or make L1 RPC calls. The legacy `current_l1_finalized` field uses the watcher's finalized block. Any Alloy `Provider<Optimism>`, including `EngineClient`, implements the output trait without dynamic dispatch or boxed futures. The RPC module computes the output using the configured genesis and fork rules. These reads run in jsonrpsee request handlers, so a slow output-root query does not block other state reads.
 
 ## Usage Patterns
 
