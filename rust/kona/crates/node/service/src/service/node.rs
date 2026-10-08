@@ -14,7 +14,7 @@ use crate::{
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
-use jsonrpsee::RpcModule;
+use jsonrpsee::{RpcModule, server::ServerHandle};
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineQueryClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -146,7 +146,7 @@ type ConfiguredSequencerActor = SequencerActor<
 >;
 
 /// Concrete type of the rpc actor used by `RollupNode`.
-type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
+type ConfiguredRpcActor = RpcActor<ServerHandle>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -439,14 +439,12 @@ impl RollupNode {
             )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
 
-        let restarts_remaining = config.restart_count();
-        let launcher = JsonrpseeServerLauncher::new(config);
-        let handle = launcher
-            .launch(modules.clone())
+        let handle = JsonrpseeServerLauncher::new(config)
+            .launch(modules)
             .await
             .map_err(|e: std::io::Error| format!("Failed to launch rpc server: {e:?}"))?;
 
-        Ok(Some(RpcActor::new(launcher, modules, handle, restarts_remaining)))
+        Ok(Some(RpcActor::new(handle)))
     }
 
     /// Starts the rollup node service.

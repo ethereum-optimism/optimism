@@ -5,14 +5,12 @@ use std::{net::SocketAddr, path::PathBuf};
 /// The RPC configuration.
 #[derive(Debug, Clone)]
 pub struct RpcBuilder {
-    /// Prevent the rpc server from being restarted.
-    pub no_restart: bool,
     /// The RPC socket address.
     pub socket: SocketAddr,
     /// Enable the admin API.
     pub enable_admin: bool,
     /// File path used to persist state changes made via the admin API so they persist across
-    /// restarts.
+    /// node restarts.
     pub admin_persistence: Option<PathBuf>,
 }
 
@@ -25,11 +23,6 @@ impl RpcBuilder {
     /// Returns the socket address of the [`RpcBuilder`].
     pub const fn socket(&self) -> SocketAddr {
         self.socket
-    }
-
-    /// Returns the number of times the RPC server will attempt to restart if it stops.
-    pub const fn restart_count(&self) -> u32 {
-        if self.no_restart { 0 } else { 3 }
     }
 
     /// Sets the given [`SocketAddr`] on the [`RpcBuilder`].

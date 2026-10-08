@@ -1,8 +1,7 @@
-//! Server launcher and handle traits used by [`crate::RpcActor`].
+//! RPC server launcher and handle traits.
 //!
-//! These traits decouple [`crate::RpcActor`] from the concrete [`jsonrpsee::server::Server`] so
-//! the actor's restart logic can be unit-tested with a controllable mock. The production
-//! [`JsonrpseeServerLauncher`] implementation is a thin pass-through over jsonrpsee.
+//! The handle trait lets [`crate::RpcActor`]'s lifecycle be tested with a controllable mock.
+//! The production [`JsonrpseeServerLauncher`] implementation is a thin pass-through over jsonrpsee.
 
 use async_trait::async_trait;
 use jsonrpsee::{
@@ -19,15 +18,12 @@ use super::middleware::RpcMetricsLayer;
 
 /// A handle to a running RPC server.
 ///
-/// The actor awaits [`Self::stopped`] to detect that the server has terminated, and calls
-/// [`Self::stop`] from its `Drop` impl to request graceful termination on shutdown.
+/// The actor awaits [`Self::stopped`] to detect that the server has terminated.
+/// Dropping the last production handle requests graceful termination on shutdown.
 #[async_trait]
 pub trait RpcServerHandle: Send + Sync + 'static {
     /// Resolves when the server has stopped.
     async fn stopped(&self);
-
-    /// Requests that the server stop. May be a no-op if already stopped.
-    fn stop(&self);
 }
 
 /// Launches an RPC server bound to the configuration carried by the implementor.
@@ -44,17 +40,6 @@ pub trait RpcServerLauncher: Send + Sync + 'static {
 impl RpcServerHandle for ServerHandle {
     async fn stopped(&self) {
         self.clone().stopped().await;
-    }
-
-    fn stop(&self) {
-        // jsonrpsee returns `Err` only when the server is already stopped; for the actor's
-        // purposes that is indistinguishable from success.
-        //
-        // UFCS is required here to disambiguate: `self.stop()` and `Self::stop(self)` would both
-        // resolve to this trait method (infinite recursion). We want the inherent
-        // `ServerHandle::stop` from jsonrpsee, which clippy's `use_self` lint can't model.
-        #[allow(clippy::use_self)]
-        let _ = ServerHandle::stop(self);
     }
 }
 

@@ -15,9 +15,6 @@ pub struct RpcArgs {
     /// Whether to disable the rpc server.
     #[arg(long = "rpc.disabled", default_value = "false", env = "KONA_NODE_RPC_DISABLED")]
     pub rpc_disabled: bool,
-    /// Prevent the RPC server from attempting to restart.
-    #[arg(long = "rpc.no-restart", default_value = "false", env = "KONA_NODE_RPC_NO_RESTART")]
-    pub no_restart: bool,
     /// RPC listening address.
     ///
     /// Defaults to `0.0.0.0`: the node is released as a Docker image, where binding `127.0.0.1`
@@ -33,7 +30,7 @@ pub struct RpcArgs {
     #[arg(long = "rpc.enable-admin", env = "KONA_NODE_RPC_ENABLE_ADMIN")]
     pub enable_admin: bool,
     /// File path used to persist state changes made via the admin API so they persist across
-    /// restarts. Disabled if not set.
+    /// node restarts. Disabled if not set.
     #[arg(long = "rpc.admin-state", env = "KONA_NODE_RPC_ADMIN_STATE")]
     pub admin_persistence: Option<PathBuf>,
 }
@@ -52,7 +49,6 @@ impl From<RpcArgs> for Option<RpcBuilder> {
             return None;
         }
         Some(RpcBuilder {
-            no_restart: args.no_restart,
             socket: SocketAddr::new(args.listen_addr, args.listen_port),
             enable_admin: args.enable_admin,
             admin_persistence: args.admin_persistence,
@@ -68,7 +64,6 @@ mod tests {
 
     #[rstest]
     #[case::disable_rpc(&["--rpc.disabled"], |args: &mut RpcArgs| { args.rpc_disabled = true; })]
-    #[case::no_restart(&["--rpc.no-restart"], |args: &mut RpcArgs| { args.no_restart = true; })]
     #[case::disable_rpc(&["--rpc.addr", "1.1.1.1"], |args: &mut RpcArgs| { args.listen_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)); })]
     #[case::disable_rpc(&["--port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
     #[case::disable_rpc_alias(&["--rpc.port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
