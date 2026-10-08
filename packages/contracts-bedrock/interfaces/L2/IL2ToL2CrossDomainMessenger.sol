@@ -116,11 +116,12 @@ interface IL2ToL2CrossDomainMessenger {
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
 
-    /// @notice Sends a message to some target address on a destination chain. The destination chain
-    ///         must differ from the current chain. The target cannot be the
-    ///         L2ToL2CrossDomainMessenger, the L2CrossDomainMessenger or the L2ToL1MessagePasser. This
-    ///         function is not payable, so no ETH can be sent with the message. If the relayed call
-    ///         reverts, the message can be relayed again until it expires.
+    /// @notice Sends a message to some target address on a destination chain. The destination
+    ///         chain must differ from the current chain. The target cannot be the
+    ///         L2ToL2CrossDomainMessenger, the L2CrossDomainMessenger or the
+    ///         L2ToL1MessagePasser. This function is not payable, so no ETH can be sent with the
+    ///         message. If the relayed call reverts, the message can be relayed again until it
+    ///         expires.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
