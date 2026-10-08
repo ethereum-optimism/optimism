@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
-use kona_rpc::NetworkAdminQuery;
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
@@ -31,8 +30,8 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     gossip_state_tx: watch::Sender<Arc<GossipState>>,
     /// A channel to receive gossip commands.
     gossip_command_rx: GossipCommandReceiver,
-    /// A channel to receive admin RPC queries.
-    admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
+    /// A channel to receive unsafe payloads submitted through admin RPC.
+    admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
     publish_rx: mpsc::Receiver<SignedPayload>,
     /// A client to use to interact with the engine actor.
@@ -55,7 +54,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
         gossip_command_rx: GossipCommandReceiver,
-        admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
+        admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
         publish_rx: mpsc::Receiver<SignedPayload>,
     ) -> Self {
         let (gossip_state_tx, _) = watch::channel(Arc::new(handler.gossip.snapshot()));
@@ -64,7 +63,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
             handler,
             gossip_state_tx,
             gossip_command_rx,
-            admin_query_rx,
+            admin_payload_rx,
             publish_rx,
             engine_client,
             unsafe_block_tx,
@@ -155,12 +154,12 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 self.handler.handle_peer_monitoring().await;
                 Ok(())
             }
-            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if !self.admin_query_rx.is_closed() => {
-                debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                if self.unsafe_block_tx.send(payload).is_err() {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
-                }
-                Ok(())
+            Some(payload) = self.admin_payload_rx.recv(), if !self.admin_payload_rx.is_closed() => {
+                debug!(target: "node::p2p", "Forwarding unsafe payload from admin API to engine");
+                self.engine_client.send_unsafe_block(payload).await.map_err(|_| {
+                    warn!(target: "network", "Failed to forward unsafe block to engine");
+                    NetworkActorError::ChannelClosed
+                })
             }
             Some((req, applied_tx)) = self.gossip_command_rx.recv(), if !self.gossip_command_rx.is_closed() => {
                 req.handle(&mut self.handler.gossip);

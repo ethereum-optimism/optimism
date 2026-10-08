@@ -9,21 +9,27 @@ use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-// Returns a test SequencerActor with mocks that can be used or overridden.
-pub(crate) fn test_actor() -> SequencerActor<
+pub(crate) type TestSequencerActor = SequencerActor<
     TestAttributesBuilder,
     MockConductor,
     MockOriginSelector,
     MockSequencerEngineClient,
     MockUnsafePayloadGossipClient,
-> {
+>;
+
+// Returns a test SequencerActor with mocks that can be used or overridden.
+pub(crate) fn test_actor() -> TestSequencerActor {
+    test_actor_with_conductor(None)
+}
+
+pub(crate) fn test_actor_with_conductor(conductor: Option<MockConductor>) -> TestSequencerActor {
     // The sender is intentionally dropped, so the channel starts closed.
     // If future tests need to send messages, keep the sender instead of dropping it.
     let (_admin_api_tx, admin_api_rx) = mpsc::channel(20);
     SequencerActor::new(
         admin_api_rx,
         TestAttributesBuilder { attributes: vec![] },
-        None,
+        conductor,
         MockSequencerEngineClient::new(),
         true,
         false,

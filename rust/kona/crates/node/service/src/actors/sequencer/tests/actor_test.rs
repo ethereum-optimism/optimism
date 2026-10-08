@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::{
-    NodeActor, SequencerActorError, SequencerAdminQuery,
+    NodeActor, SequencerActorError,
     actors::{
         MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
         sequencer::tests::test_util::test_actor,
@@ -8,6 +8,7 @@ use crate::{
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::SequencerAdminCommand;
 use rstest::rstest;
 use std::sync::{
     Arc,
@@ -66,7 +67,7 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
 async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     let mut actor = test_actor();
     let (admin_tx, admin_rx) = mpsc::channel(1);
-    actor.admin_api_rx = admin_rx;
+    actor.admin_command_rx = admin_rx;
 
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
@@ -84,10 +85,10 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 
     let (tx, rx) = oneshot::channel();
-    admin_tx.send(SequencerAdminQuery::StopSequencer(tx)).await.unwrap();
+    admin_tx.send(SequencerAdminCommand::StopSequencer(tx)).await.unwrap();
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     assert_eq!(rx.await.unwrap().unwrap(), L2BlockInfo::default().hash());
-    assert!(!actor.is_active);
+    assert!(!actor.state().active);
 }
 
 /// Block building resumes on the first tick after the gossip queue has room again.

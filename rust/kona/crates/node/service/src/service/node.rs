@@ -5,9 +5,8 @@ use crate::{
     EngineActorRequest, EngineConfig, JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor,
     L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
     NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
-    QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
-    SignedPayload, SignerActor,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
+    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -26,8 +25,9 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, NetworkAdminQuery,
-    OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder,
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
+    P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
+    SequencerAdminHandle,
 };
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -362,7 +362,7 @@ impl RollupNode {
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
-        sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
+        sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
     ) -> Option<ConfiguredSequencerActor> {
         if !self.mode().is_sequencer() {
             return None;
@@ -385,7 +385,7 @@ impl RollupNode {
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
         Some(SequencerActor::new(
-            sequencer_admin_api_rx,
+            sequencer_admin_command_rx,
             self.create_attributes_builder(),
             conductor,
             sequencer_engine_client,
@@ -403,9 +403,9 @@ impl RollupNode {
         &self,
         l2_query_client: EngineQueryClient,
         engine_state_rx: watch::Receiver<EngineState>,
-        sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
+        sequencer_admin: Option<SequencerAdminHandle>,
         p2p_rpc: P2pRpc,
-        network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+        admin_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
@@ -422,7 +422,7 @@ impl RollupNode {
         // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
         if config.enable_admin() {
             modules
-                .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
+                .merge(AdminRpc::new(sequencer_admin, admin_payload_tx).into_rpc())
                 .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
         }
         modules
@@ -483,10 +483,11 @@ impl RollupNode {
         let (engine_actor_request_tx, engine_actor_request_rx) =
             mpsc::channel::<EngineActorRequest>(1024);
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
-        let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
+        let (sequencer_admin_command_tx, sequencer_admin_command_rx) = mpsc::channel(1024);
         // Network actor inbound channels
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
+        let (admin_payload_tx, admin_payload_rx) =
+            mpsc::channel::<OpExecutionPayloadEnvelope>(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let (gossip_payload_tx, gossip_payload_rx) =
@@ -531,7 +532,7 @@ impl RollupNode {
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
             gossip_command_rx,
-            network_admin_rx,
+            admin_payload_rx,
             signed_payload_rx,
         );
 
@@ -549,19 +550,19 @@ impl RollupNode {
             gossip_payload_tx,
             unsafe_head_rx,
             l1_head_updates_rx,
-            sequencer_admin_api_rx,
+            sequencer_admin_command_rx,
         );
-        let sequencer_admin_client = sequencer_actor
-            .is_some()
-            .then(|| QueuedSequencerAdminAPIClient::new(sequencer_admin_api_tx));
+        let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
+            SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
+        });
 
         let rpc = self
             .build_rpc_actor(
                 l2_query_client,
                 engine_state_rx,
-                sequencer_admin_client,
+                sequencer_admin,
                 p2p_rpc,
-                network_admin_tx,
+                admin_payload_tx,
                 l1_query_tx,
             )
             .await?;
