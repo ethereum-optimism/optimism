@@ -48,7 +48,7 @@ sequenceDiagram
 3.  `L2ToL2CrossDomainMessenger` on the source chain verifies the message is legitimate:
     *   The destination chain is one to which this chain can send messages.
     *   The destination chain is *not* the source chain.
-    *   The target is not `CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `L2CrossDomainMessenger` or `L2ToL1MessagePasser`.
+    *   The target is not `L2ToL2CrossDomainMessenger`, `L2CrossDomainMessenger` or `L2ToL1MessagePasser`.
 
 4.  `L2ToL2CrossDomainMessenger` emits a log entry.
     In addition to the parameters, the log entry also includes:
