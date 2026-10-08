@@ -101,6 +101,8 @@ func newWindowDepSet(t *testing.T, override uint64) *StaticConfigDependencySet {
 func TestWindowDifferentialVectors(t *testing.T) {
 	f := loadWindowVectors(t)
 	require.Equal(t, MessageExpiryTimeSecondsInterop, f.DefaultWindow)
+	// The override cap is the protocol window itself.
+	require.Equal(t, MessageExpiryTimeSecondsInterop, f.Cap)
 
 	for _, v := range f.Vectors {
 		t.Run(v.Name, func(t *testing.T) {

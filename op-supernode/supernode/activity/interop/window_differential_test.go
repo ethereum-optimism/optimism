@@ -52,6 +52,8 @@ func newWindowInterop(t *testing.T, override uint64) *Interop {
 		windowExecutingChain: {},
 	}, override)
 	if err != nil {
+		// Rejected by the cap itself, not by something else on the way.
+		require.ErrorContains(t, err, "exceeds")
 		return nil
 	}
 	h := newInteropTestHarness(t).WithActivation(0).WithChain(900, nil).WithChain(901, nil).SkipBuild()
@@ -99,6 +101,7 @@ func TestVerifyExecutingMessageWindowVectors(t *testing.T) {
 		t.Run(fmt.Sprintf("override=%d", ov), func(t *testing.T) {
 			i := newWindowInterop(t, ov)
 			for _, v := range vs {
+				require.Equal(t, v.Valid, v.Reason == "ok", v.Name)
 				// An override above the cap is rejected (never clamped); every other one is accepted.
 				require.Equal(t, v.Rejected, i == nil, "%s: rejected=%v", v.Name, i == nil)
 				if i == nil {

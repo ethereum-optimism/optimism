@@ -50,6 +50,7 @@ tokio = { workspace = true, features = ["full"] }
 alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
 arbitrary = { workspace = true, features = ["derive"] }
 rand = { workspace = true, features = ["thread_rng"] }
+serde = { workspace = true, features = ["derive"] }
 
 [features]
 default = []
