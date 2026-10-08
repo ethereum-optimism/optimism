@@ -35,4 +35,4 @@ pub use origin_selector::MockOriginSelector;
 
 mod handle;
 pub use crate::capacity::{Capacity, InvalidCapacity};
-pub use handle::{Handle, HandleError, State};
+pub use handle::{Handle, HandleError};

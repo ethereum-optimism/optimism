@@ -81,7 +81,7 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
         .await
         .unwrap();
     assert_eq!(rx.await.unwrap().unwrap(), L2BlockInfo::default().hash());
-    assert!(!handle.snapshot().unwrap().active);
+    assert!(!handle.is_active().unwrap());
 }
 
 /// Block building resumes after the gossip queue has room again.

@@ -17,18 +17,20 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub struct AdminRpc {
     sequencer: Option<Handle>,
+    conductor_enabled: bool,
     engine: mpsc::Sender<EngineActorRequest>,
     unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
 impl AdminRpc {
-    /// Construct the admin RPC server from the sequencer, engine, and payload handles.
+    /// Constructs the admin RPC server.
     pub const fn new(
         sequencer: Option<Handle>,
+        conductor_enabled: bool,
         engine: mpsc::Sender<EngineActorRequest>,
         unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
     ) -> Self {
-        Self { sequencer, engine, unsafe_payloads }
+        Self { sequencer, conductor_enabled, engine, unsafe_payloads }
     }
 
     fn sequencer(&self) -> RpcResult<&Handle> {
@@ -60,11 +62,7 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_sequencer_active(&self) -> RpcResult<bool> {
-        Ok(self
-            .sequencer()?
-            .snapshot()
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
-            .active)
+        self.sequencer()?.is_active().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn admin_start_sequencer(&self) -> RpcResult<()> {
@@ -76,11 +74,8 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_conductor_enabled(&self) -> RpcResult<bool> {
-        Ok(self
-            .sequencer()?
-            .snapshot()
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
-            .conductor_enabled)
+        self.sequencer()?;
+        Ok(self.conductor_enabled)
     }
 
     async fn admin_override_leader(&self) -> RpcResult<()> {
@@ -159,12 +154,7 @@ mod tests {
         impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static,
         mpsc::Receiver<EngineActorRequest>,
     ) {
-        let builder = sequencer::Builder::new(
-            sequencer::Capacity::try_from(1).unwrap(),
-            conductor_enabled
-                .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),
-            false,
-        );
+        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
         let handle = builder.handle();
         let (engine_actor_request_tx, requests) = mpsc::channel(1);
         let (_, unsafe_head_rx) = watch::channel(L2BlockInfo {
@@ -176,6 +166,8 @@ mod tests {
             QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx },
             UnusedOriginSelector,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
+            conductor_enabled
+                .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),
             PausedGossip,
         );
         (handle, task, requests)
@@ -197,20 +189,22 @@ mod tests {
             result = handle.start() => panic!("command completed before startup: {result:?}"),
             _ = ready(()) => {}
         }
-        let rpc = AdminRpc::new(Some(handle), mpsc::channel(1).0, mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(handle), true, mpsc::channel(1).0, mpsc::channel(1).0);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(rpc.admin_conductor_enabled().await.unwrap());
 
         drop(task);
-        for result in [rpc.admin_sequencer_active().await, rpc.admin_conductor_enabled().await] {
-            assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
-        }
+        assert_eq!(
+            rpc.admin_sequencer_active().await.unwrap_err().code(),
+            ErrorCode::InternalError.code()
+        );
+        assert!(rpc.admin_conductor_enabled().await.unwrap());
     }
 
     #[tokio::test]
     async fn sequencer_methods_are_unavailable_on_validators() {
         let (tx, _) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, mpsc::channel(1).0, tx);
+        let rpc = AdminRpc::new(None, false, mpsc::channel(1).0, tx);
         for result in [
             rpc.admin_sequencer_active().await.map(|_| ()),
             rpc.admin_conductor_enabled().await.map(|_| ()),
@@ -227,7 +221,7 @@ mod tests {
         let (handle, task, mut requests) = sequencer(false);
         let task = tokio::spawn(task);
         acknowledge_startup(&mut requests).await;
-        let rpc = AdminRpc::new(Some(handle), mpsc::channel(1).0, mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(handle), false, mpsc::channel(1).0, mpsc::channel(1).0);
         assert_eq!(rpc.admin_stop_sequencer().await.unwrap(), B256::repeat_byte(42));
         assert_eq!(
             rpc.admin_override_leader().await.unwrap_err().code(),
@@ -246,24 +240,17 @@ mod tests {
 
     #[tokio::test]
     async fn reads_initial_state_before_build() {
-        let builder = sequencer::Builder::new(
-            sequencer::Capacity::try_from(1).unwrap(),
-            None::<ConductorClient>,
-            true,
-        );
-        let rpc = AdminRpc::new(Some(builder.handle()), mpsc::channel(1).0, mpsc::channel(1).0);
-        assert!(rpc.admin_sequencer_active().await.unwrap());
+        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
+        let rpc =
+            AdminRpc::new(Some(builder.handle()), false, mpsc::channel(1).0, mpsc::channel(1).0);
+        assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(!rpc.admin_conductor_enabled().await.unwrap());
     }
 
     #[tokio::test]
     async fn resets_engine_on_sequencers_and_validators_and_waits_for_acknowledgement() {
         for is_sequencer in [true, false] {
-            let builder = sequencer::Builder::new(
-                sequencer::Capacity::try_from(1).unwrap(),
-                None::<ConductorClient>,
-                false,
-            );
+            let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
             let handle = builder.handle();
             // Reset must bypass even a full sequencer command queue.
             tokio::select! {
@@ -273,7 +260,7 @@ mod tests {
             }
             let sequencer = is_sequencer.then_some(handle);
             let (engine_tx, mut engine_rx) = mpsc::channel(1);
-            let rpc = AdminRpc::new(sequencer, engine_tx, mpsc::channel(1).0).into_rpc();
+            let rpc = AdminRpc::new(sequencer, false, engine_tx, mpsc::channel(1).0).into_rpc();
             let reset =
                 rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);
             tokio::pin!(reset);
@@ -298,7 +285,7 @@ mod tests {
     #[tokio::test]
     async fn maps_engine_reset_failures_and_closed_channels() {
         let (engine_tx, mut engine_rx) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, engine_tx, mpsc::channel(1).0);
+        let rpc = AdminRpc::new(None, false, engine_tx, mpsc::channel(1).0);
         let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
             let EngineActorRequest::Reset(request) = engine_rx.recv().await.unwrap() else {
                 panic!("expected engine reset");
@@ -326,7 +313,7 @@ mod tests {
     #[tokio::test]
     async fn validates_payloads_before_forwarding_on_validators() {
         let (tx, mut rx) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, mpsc::channel(1).0, tx);
+        let rpc = AdminRpc::new(None, false, mpsc::channel(1).0, tx);
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),
             fee_recipient: Default::default(),

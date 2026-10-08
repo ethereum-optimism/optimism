@@ -2,15 +2,6 @@ use alloy_primitives::B256;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 
-/// Sequencer state shared by the actor and admin RPC readers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct State {
-    /// Whether the sequencer is active.
-    pub active: bool,
-    /// Whether a conductor is configured.
-    pub conductor_enabled: bool,
-}
-
 /// State-changing admin commands executed by the sequencer actor.
 #[derive(Debug)]
 pub(super) enum Message {
@@ -25,26 +16,28 @@ pub(super) enum Message {
 /// Published sequencer state and its admin command queue.
 #[derive(Debug, Clone)]
 pub struct Handle {
-    state: watch::Receiver<State>,
+    is_active: watch::Receiver<bool>,
     commands: mpsc::Sender<Message>,
 }
 
 impl Handle {
     /// Construct a handle from the sequencer's published state and command sender.
     pub(super) const fn new(
-        state: watch::Receiver<State>,
+        is_active: watch::Receiver<bool>,
         commands: mpsc::Sender<Message>,
     ) -> Self {
-        Self { state, commands }
+        Self { is_active, commands }
     }
 
-    /// Returns the latest published state.
+    /// Returns whether sequencing is active.
     ///
     /// Fails after the publisher closes.
-    pub fn snapshot(&self) -> Result<State, HandleError> {
+    pub fn is_active(&self) -> Result<bool, HandleError> {
         // Fail if the actor exited, even if its final update has not been read yet.
-        self.state.has_changed().map_err(|error| HandleError::RequestError(error.to_string()))?;
-        Ok(*self.state.borrow())
+        self.is_active
+            .has_changed()
+            .map_err(|error| HandleError::RequestError(error.to_string()))?;
+        Ok(*self.is_active.borrow())
     }
 
     /// Starts sequencing.
@@ -96,26 +89,26 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn snapshot_reads_state_with_a_full_mailbox_and_rejects_closed_publisher() {
-        let initial = State { active: false, conductor_enabled: true };
+    async fn is_active_reads_with_a_full_mailbox_and_rejects_closed_publisher() {
+        let initial = false;
         let (published, state) = watch::channel(initial);
         let (commands, _receiver) = mpsc::channel(1);
         let (reply, _) = oneshot::channel();
         commands.send(Message::StartSequencer(reply)).await.unwrap();
         let handle = Handle::new(state, commands);
-        assert_eq!(handle.snapshot().unwrap(), initial);
+        assert_eq!(handle.is_active().unwrap(), initial);
 
-        let updated = State { active: true, ..initial };
+        let updated = true;
         published.send_replace(updated);
-        assert_eq!(handle.snapshot().unwrap(), updated);
+        assert_eq!(handle.is_active().unwrap(), updated);
         // Reject closed publishers even when their final update is unread.
         drop(published);
-        assert!(matches!(handle.snapshot(), Err(HandleError::RequestError(_))));
+        assert!(matches!(handle.is_active(), Err(HandleError::RequestError(_))));
     }
 
     #[tokio::test]
     async fn commands_return_actor_results_and_channel_errors() {
-        let (_published, state) = watch::channel(State { active: true, conductor_enabled: false });
+        let (_published, state) = watch::channel(true);
         let (commands, mut receiver) = mpsc::channel(1);
         let handle = Handle::new(state, commands);
         let hash = B256::repeat_byte(42);

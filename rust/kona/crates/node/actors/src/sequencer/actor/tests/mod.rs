@@ -1,7 +1,7 @@
 use super::Actor;
 use crate::{
     MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-    sequencer::{Handle, State, handle::Message},
+    sequencer::{Handle, handle::Message},
 };
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
@@ -29,13 +29,11 @@ fn test_actor_with_config(
     conductor: Option<MockConductor>,
 ) -> (TestActor, mpsc::Sender<Message>, Handle) {
     let (commands_tx, commands_rx) = mpsc::channel(20);
-    let state = State { active, conductor_enabled: conductor.is_some() };
-    let (published, state_rx) = watch::channel(state);
-    let handle = Handle::new(state_rx, commands_tx.clone());
+    let (is_active_tx, is_active_rx) = watch::channel(active);
+    let handle = Handle::new(is_active_rx, commands_tx.clone());
     let actor = Actor::new(
         commands_rx,
-        published,
-        state,
+        is_active_tx,
         TestAttributesBuilder { attributes: vec![] },
         conductor,
         MockSequencerEngineClient::new(),

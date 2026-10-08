@@ -5,7 +5,7 @@ use crate::{
     SequencerEngineClient, UnsafePayloadGossipClient,
     engine::EngineClientError,
     sequencer::{
-        Handle, HandleError, State,
+        Handle, HandleError,
         conductor::Conductor,
         error::ActorError,
         handle::Message,
@@ -36,20 +36,18 @@ use tokio::{
 
 /// Constructs the handle and task.
 #[derive(Debug)]
-pub struct Builder<Conductor_> {
+pub struct Builder {
     handle: Handle,
     messages: mpsc::Receiver<Message>,
-    published: watch::Sender<State>,
-    conductor: Option<Conductor_>,
+    is_active_tx: watch::Sender<bool>,
 }
 
-impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
+impl Builder {
     /// Creates the builder with its initial state.
-    pub fn new(capacity: Capacity, conductor: Option<Conductor_>, is_active: bool) -> Self {
+    pub fn new(capacity: Capacity) -> Self {
         let (messages_tx, messages) = mpsc::channel(capacity.get());
-        let (published, state) =
-            watch::channel(State { active: is_active, conductor_enabled: conductor.is_some() });
-        Self { handle: Handle::new(state, messages_tx), messages, published, conductor }
+        let (is_active_tx, is_active_rx) = watch::channel(false);
+        Self { handle: Handle::new(is_active_rx, messages_tx), messages, is_active_tx }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -63,6 +61,7 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
     /// Dropping the future stops the actor.
     pub fn build<
         AttributesBuilder_: AttributesBuilder + Sync + 'static,
+        Conductor_: Conductor + 'static,
         OriginSelector_: OriginSelector + 'static,
         SequencerEngineClient_: SequencerEngineClient + 'static,
         UnsafePayloadGossipClient_: UnsafePayloadGossipClient + Sync + 'static,
@@ -72,15 +71,14 @@ impl<Conductor_: Conductor + 'static> Builder<Conductor_> {
         engine_client: SequencerEngineClient_,
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
+        conductor: Option<Conductor_>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, messages, published, conductor } = self;
-        let state = *published.borrow();
+        let Self { handle: _, messages, is_active_tx } = self;
         async move {
             Actor::new(
                 messages,
-                published,
-                state,
+                is_active_tx,
                 attributes_builder,
                 conductor,
                 engine_client,
@@ -132,10 +130,10 @@ struct Actor<
 {
     /// Receives messages from handles.
     messages: mpsc::Receiver<Message>,
-    /// Sequencer state shared with admin RPC readers.
-    state: State,
+    /// Whether sequencing is active.
+    is_active: bool,
     /// Publishes state to handle readers.
-    published: watch::Sender<State>,
+    is_active_tx: watch::Sender<bool>,
     /// The attributes builder used for block building.
     attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
@@ -182,8 +180,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn new(
         messages: mpsc::Receiver<Message>,
-        published: watch::Sender<State>,
-        state: State,
+        is_active_tx: watch::Sender<bool>,
         attributes_builder: AttributesBuilder_,
         conductor: Option<Conductor_>,
         engine_client: SequencerEngineClient_,
@@ -191,11 +188,12 @@ where
         rollup_config: Arc<RollupConfig>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> Self {
+        let is_active = *is_active_tx.borrow();
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         Self {
             messages,
-            state,
-            published,
+            is_active,
+            is_active_tx,
             attributes_builder,
             conductor,
             engine_client,
@@ -210,9 +208,9 @@ where
 
     /// Publishes sequencer state and updates its metrics.
     fn update_state(&self) {
-        let state_flags = [("active", self.state.active.to_string())];
+        let state_flags = [("active", self.is_active.to_string())];
         metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags).set(1);
-        self.published.send_replace(self.state);
+        self.is_active_tx.send_replace(self.is_active);
     }
 
     /// Seals and commits the last pending block, if one exists and starts the build job for the
@@ -511,7 +509,7 @@ where
                 // Prioritize admin messages over block building.
                 biased;
                 Some(message) = self.messages.recv() => self.handle_message(message).await,
-                _ = self.build_ticker.tick(), if self.state.active => self.build().await?,
+                _ = self.build_ticker.tick(), if self.is_active => self.build().await?,
                 // A stopped actor with no command handles stays pending until dropped.
                 else => pending().await,
             }
@@ -522,14 +520,14 @@ where
         // A dropped RPC response receiver does not cancel an accepted command.
         match message {
             Message::StartSequencer(tx) => {
-                self.state.active = true;
+                self.is_active = true;
                 self.update_state();
                 let _ = tx.send(Ok(()));
             }
             Message::StopSequencer(tx) => {
                 // Publish before awaiting the unsafe head: sequencing is stopped even if that read
                 // fails.
-                self.state.active = false;
+                self.is_active = false;
                 self.update_state();
                 let result =
                     self.engine_client.get_unsafe_head().await.map(|h| h.hash()).map_err(|_| {

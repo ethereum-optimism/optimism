@@ -25,9 +25,9 @@ async fn command<T>(
 #[tokio::test(start_paused = true)]
 async fn start_sequencer(#[values(true, false)] already_started: bool) {
     let (mut actor, _, handle) = test_actor_with_config(already_started, None);
-    assert_eq!(handle.snapshot().unwrap().active, already_started);
+    assert_eq!(handle.is_active().unwrap(), already_started);
     command(&mut actor, Message::StartSequencer).await.unwrap();
-    assert!(handle.snapshot().unwrap().active);
+    assert!(handle.is_active().unwrap());
 }
 
 /// A queued stop wins over the initially ready build tick.
@@ -44,13 +44,13 @@ async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
     });
     // Block building must not run while the stop is queued.
     actor.unsafe_payload_gossip_client.expect_has_capacity().times(0);
-    assert_eq!(handle.snapshot().unwrap().active, !already_stopped);
+    assert_eq!(handle.is_active().unwrap(), !already_stopped);
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     let (tx, rx) = oneshot::channel();
     commands.send(Message::StopSequencer(tx)).await.unwrap();
     let task = tokio::spawn(actor.run());
     assert_eq!(time::timeout(Duration::from_secs(10), rx).await.unwrap().unwrap().unwrap(), hash);
-    assert!(!handle.snapshot().unwrap().active);
+    assert!(!handle.is_active().unwrap());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
 }
@@ -60,12 +60,12 @@ async fn stop_is_published_before_a_failed_unsafe_head_read() {
     let (mut actor, _, handle) = test_actor_with_config(true, None);
     let observed_state = handle.clone();
     actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || {
-        assert!(!observed_state.snapshot().unwrap().active);
+        assert!(!observed_state.is_active().unwrap());
         Err(EngineClientError::RequestError("whoops!".to_string()))
     });
     let error = command(&mut actor, Message::StopSequencer).await.unwrap_err();
     assert!(matches!(error, HandleError::ErrorAfterSequencerWasStopped(_)));
-    assert!(!handle.snapshot().unwrap().active);
+    assert!(!handle.is_active().unwrap());
 }
 
 #[rstest]
@@ -117,7 +117,7 @@ async fn accepted_commands_run_when_response_receivers_are_dropped() {
     for command in commands {
         time::timeout(Duration::from_secs(10), actor.handle_message(command)).await.unwrap();
     }
-    assert!(!handle.snapshot().unwrap().active);
+    assert!(!handle.is_active().unwrap());
 }
 
 #[tokio::test(start_paused = true)]
@@ -130,15 +130,14 @@ async fn handle_reads_published_state_after_commands() {
             ..Default::default()
         })
     });
-    assert!(!handle.snapshot().unwrap().active);
-    assert!(handle.snapshot().unwrap().conductor_enabled);
+    assert!(!handle.is_active().unwrap());
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(false);
     let task = tokio::spawn(actor.run());
     handle.start().await.unwrap();
-    assert!(handle.snapshot().unwrap().active);
+    assert!(handle.is_active().unwrap());
     assert_eq!(handle.stop().await.unwrap(), hash);
-    assert!(!handle.snapshot().unwrap().active);
+    assert!(!handle.is_active().unwrap());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
 }
@@ -147,19 +146,19 @@ async fn handle_reads_published_state_after_commands() {
 async fn state_updates_without_rpc_subscribers() {
     let (mut actor, commands, handle) = test_actor_with_config(true, None);
     drop(handle);
-    assert_eq!(actor.published.receiver_count(), 0);
+    assert_eq!(actor.is_active_tx.receiver_count(), 0);
     actor
         .engine_client
         .expect_get_unsafe_head()
         .times(1)
         .return_once(|| Ok(L2BlockInfo::default()));
     command(&mut actor, Message::StopSequencer).await.unwrap();
-    let handle = Handle::new(actor.published.subscribe(), commands.clone());
-    assert!(!handle.snapshot().unwrap().active);
+    let handle = Handle::new(actor.is_active_tx.subscribe(), commands.clone());
+    assert!(!handle.is_active().unwrap());
     drop(handle);
     command(&mut actor, Message::StartSequencer).await.unwrap();
-    let handle = Handle::new(actor.published.subscribe(), commands);
-    assert!(handle.snapshot().unwrap().active);
+    let handle = Handle::new(actor.is_active_tx.subscribe(), commands);
+    assert!(handle.is_active().unwrap());
 }
 
 #[tokio::test(start_paused = true)]
@@ -167,12 +166,12 @@ async fn failed_startup_does_not_apply_a_queued_command() {
     let (mut actor, commands, handle) = test_actor_with_config(false, None);
     let observed_state = handle.clone();
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(move || {
-        assert!(!observed_state.snapshot().unwrap().active);
+        assert!(!observed_state.is_active().unwrap());
         Err(EngineClientError::RequestError("startup reset failed".to_string()))
     });
     let (tx, mut rx) = oneshot::channel();
     commands.send(Message::StartSequencer(tx)).await.unwrap();
     assert!(actor.run().await.is_err());
-    assert!(matches!(handle.snapshot(), Err(HandleError::RequestError(_))));
+    assert!(matches!(handle.is_active(), Err(HandleError::RequestError(_))));
     assert!(matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
 }

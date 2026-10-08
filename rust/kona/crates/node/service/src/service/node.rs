@@ -356,7 +356,7 @@ impl RollupNode {
         signer: signer::Handle,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_state: watch::Receiver<L1State>,
-        builder: sequencer::Builder<ConductorClient>,
+        builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.l1_config.engine_provider.clone(),
@@ -374,6 +374,7 @@ impl RollupNode {
             sequencer_engine_client,
             delayed_origin_selector,
             self.config.clone(),
+            self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
             signer,
         )
     }
@@ -486,8 +487,6 @@ impl RollupNode {
         let sequencer_builder = if self.mode().is_sequencer() {
             Some(sequencer::Builder::new(
                 sequencer::Capacity::try_from(1024).map_err(|error| error.to_string())?,
-                self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
-                false,
             ))
         } else {
             None
@@ -566,7 +565,12 @@ impl RollupNode {
             )
         });
 
-        let admin_rpc = AdminRpc::new(sequencer_handle, engine_actor_request_tx, admin_payload_tx);
+        let admin_rpc = AdminRpc::new(
+            sequencer_handle,
+            self.sequencer_config.conductor_rpc_url.is_some(),
+            engine_actor_request_tx,
+            admin_payload_tx,
+        );
         let rpc = self
             .build_rpc_actor(
                 l2_query_client,
