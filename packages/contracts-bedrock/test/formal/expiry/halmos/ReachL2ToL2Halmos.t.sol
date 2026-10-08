@@ -171,7 +171,9 @@ contract ReachL2ToL2Halmos is Test {
         if (!pre.exp && post.exp) {
             assert(ok && kind == EXPIRE);
             assert(_s.caller == L2CDM && _s.xSender == _other && _s.h == _k);
-            assert(pre.ts != 0 && _s.t > pre.ts + period);
+            // Bounded before adding, so a wrapped sentAt + EXPIRY_PERIOD is a counterexample, not a 0x11 panic
+            // (which halmos would not count as a failure).
+            assert(pre.ts != 0 && pre.ts <= type(uint256).max - period && _s.t > pre.ts + period);
         }
         // (T)
         if (post.ts != pre.ts) {

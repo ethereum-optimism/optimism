@@ -128,7 +128,12 @@ run M3b_send_no23 $L2 's/if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENG
   L2ToL2ExpiryHalmos "check_UnsafeTargetRule_send"
 run M3c_unsafe_drops_passer $L2 's/ || _target == Predeploys.L2_TO_L1_MESSAGE_PASSER;/;/' \
   L2ToL2ExpiryHalmos "check_UnsafeTargetRule_send_passer check_UnsafeTargetRule_relay_passer check_OnlyExportReachesL1_relay_passer"
-run M7_expire_no_xdomain_check $L2 's/|| ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()/|| address(0)/' \
+# M7: replaces the xDomainMessageSender() operand with address(0), so expireMessage compares otherMessenger() with 0
+# (it reverts whenever otherMessenger != 0 on a real chain; it is NOT the removal of the check, see M7b).
+run M7_expire_compares_other_with_zero $L2 's/|| ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()/|| address(0)/' \
+  L2ToL2ExpiryHalmos "check_expire_iff check_expire_iff_unbounded"
+# M7b (campaign K10): the real removal of the xDomainMessageSender == otherMessenger check (both operands -> 0).
+run M7b_expire_drops_xdomain_check $L2 's/|| ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()$/|| address(0)/; s/!= address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger())$/!= address(0)/' \
   L2ToL2ExpiryHalmos "check_expire_iff check_expire_iff_unbounded"
 # --- UndeliveredMessageExporter
 run M4_export_dest_is_source $EXP 's/_destination: block.chainid,/_destination: _source,/' \
@@ -168,6 +173,11 @@ run M35b_cdm_unauthorized_marks_failed_L2 $CDM 's/            require(failedMess
   L2CDMGateHalmos "check_L2_relayGate_and_delivery"
 run M37_encoding_drops_sender $ENC '/function encodeCrossDomainMessageV1/,/^    }/ s/^            _sender,$/            address(uint160(_sender) \& 0),/' \
   L1CDMExpiryHalmos "check_L1_failedEntryNotReplayableWithAlteredField"
+# K41 / K42 (campaign): check (a) / (b) consult the attacker-controlled getters instead of the real ones.
+run K41_check_a_reads_callers_own_systemConfig $L1 's/callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender/caller.systemConfig().l1CrossDomainMessenger() != msg.sender/' \
+  L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
+run K42_check_b_reversed $L1 's/|| !portal.ethLockbox().authorizedPortals(callerPortal)/|| !callerPortal.ethLockbox().authorizedPortals(portal)/' \
+  L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
 run M33_l1_no_interop_gate $L1 's/        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();//' \
   L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
 run M34_l1_trusts_l2tol2 $L1 's/!= Predeploys.UNDELIVERED_MESSAGE_EXPORTER/!= Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER/' \

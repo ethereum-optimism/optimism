@@ -71,12 +71,30 @@ contract MockSystemConfig {
     }
 }
 
+/// @notice Getter answers an attacker controls on the OTHER chain's contracts: never reverting, fully symbolic
+///         (symbolic storage). The real relayUndeliveredMessage must not consult them; a mutant that does (K41: the
+///         caller's own systemConfig(); K42: the caller portal's lockbox) is then exercised against a forged answer.
+contract AttackerSystemConfig {
+    address public l1CrossDomainMessenger; // symbolic
+}
+
+contract AttackerLockbox {
+    mapping(address => bool) public authorizedPortals; // symbolic
+}
+
 contract MockCallerPortal {
     address internal immutable sc;
+    address internal immutable attackerLockbox;
     bool public rv;
 
-    constructor(address _systemConfig) {
+    constructor(address _systemConfig, address _attackerLockbox) {
         sc = _systemConfig;
+        attackerLockbox = _attackerLockbox;
+    }
+
+    /// @notice The caller portal's own lockbox: attacker-chosen answers (the real code reads A's lockbox instead).
+    function ethLockbox() external view returns (address) {
+        return attackerLockbox;
     }
 
     function systemConfig() external view returns (address) {
@@ -87,12 +105,19 @@ contract MockCallerPortal {
 
 contract MockCallerMessenger {
     address internal immutable portalAddr;
+    address internal immutable ownSystemConfig;
     bool public rvPortal;
     bool public rvX;
     address internal xSender;
 
-    constructor(address _portal) {
+    constructor(address _portal, address _ownSystemConfig) {
         portalAddr = _portal;
+        ownSystemConfig = _ownSystemConfig;
+    }
+
+    /// @notice The caller's OWN systemConfig(): attacker-chosen answers (the real code reads its portal's instead).
+    function systemConfig() external view returns (address) {
+        return ownSystemConfig;
     }
 
     function portal() external view returns (address) {
@@ -323,14 +348,18 @@ contract L1CDMExpiryHalmos is Test {
     MockSystemConfig internal sysCfg; // the caller chain's SystemConfig
     MockCallerPortal internal callerPortal;
     MockCallerMessenger internal caller;
+    AttackerSystemConfig internal attackerCfg; // the caller's own systemConfig() (attacker-chosen answers)
+    AttackerLockbox internal attackerLockbox; // the caller portal's ethLockbox() (attacker-chosen answers)
     MockLockbox internal lockbox; // A's lockbox
     MockSystemConfig internal sysCfgA; // A's SystemConfig: names A's L1CDM
     MockPortalA internal portalA;
 
     function setUp() public {
         sysCfg = new MockSystemConfig();
-        callerPortal = new MockCallerPortal(address(sysCfg));
-        caller = new MockCallerMessenger(address(callerPortal));
+        attackerCfg = new AttackerSystemConfig();
+        attackerLockbox = new AttackerLockbox();
+        callerPortal = new MockCallerPortal(address(sysCfg), address(attackerLockbox));
+        caller = new MockCallerMessenger(address(callerPortal), address(attackerCfg));
         lockbox = new MockLockbox();
         sysCfgA = new MockSystemConfig();
         portalA = new MockPortalA(address(lockbox), address(sysCfgA));
@@ -355,6 +384,8 @@ contract L1CDMExpiryHalmos is Test {
     /// @notice Symbolic answers + revert flags for the caller side and A's lockbox; symbolic L1CDM nonce. Returns the
     ///         versioned nonce the next L1CDM message will carry (messageNonce(), read before the call).
     function _symbolicWorld(bool _rvLockbox, bool _rvDeposit) internal returns (uint256 versionedNonce_) {
+        svm.enableSymbolicStorage(address(attackerCfg));
+        svm.enableSymbolicStorage(address(attackerLockbox));
         sysCfgA.setInterop(svm.createUint256("interop") & 1 == 1); // A's INTEROP feature: symbolic
         svm.enableSymbolicStorage(address(sysCfg));
         svm.enableSymbolicStorage(address(callerPortal));
@@ -441,7 +472,8 @@ contract L1CDMExpiryHalmos is Test {
     ///         not the claimant, so (a) fails. Its xDomainMessageSender and A's lockbox answers are symbolic.
     function check_relayUndelivered_rejectsCallerClaimingPortalA(bytes32 _h, uint256 _t, bool _interop) public {
         sysCfgA.setInterop(_interop);
-        MockCallerMessenger claimant = new MockCallerMessenger(address(portalA));
+        MockCallerMessenger claimant = new MockCallerMessenger(address(portalA), address(attackerCfg));
+        svm.enableSymbolicStorage(address(attackerCfg));
         svm.enableSymbolicStorage(address(claimant));
         svm.enableSymbolicStorage(address(lockbox));
         assert(!_relayUndeliveredFrom(address(claimant), _h, _t));

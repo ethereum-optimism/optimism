@@ -14,7 +14,14 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { MockSystemConfig, MockCallerPortal, MockCallerMessenger, MockLockbox } from "./L1CDMExpiryHalmos.t.sol";
+import {
+    MockSystemConfig,
+    MockCallerPortal,
+    MockCallerMessenger,
+    MockLockbox,
+    AttackerSystemConfig,
+    AttackerLockbox
+} from "./L1CDMExpiryHalmos.t.sol";
 
 interface SVMReachL1 {
     function enableSymbolicStorage(address) external;
@@ -65,14 +72,18 @@ contract ReachL1CDMHalmos is Test {
     MockSystemConfig internal sysCfg; // caller chain's SystemConfig
     MockCallerPortal internal callerPortal;
     MockCallerMessenger internal caller;
+    AttackerSystemConfig internal attackerCfg;
+    AttackerLockbox internal attackerLockbox;
     MockLockbox internal lockbox;
     MockSystemConfig internal sysCfgA;
     PortalRecorder internal portalA;
 
     function setUp() public {
         sysCfg = new MockSystemConfig();
-        callerPortal = new MockCallerPortal(address(sysCfg));
-        caller = new MockCallerMessenger(address(callerPortal));
+        attackerCfg = new AttackerSystemConfig();
+        attackerLockbox = new AttackerLockbox();
+        callerPortal = new MockCallerPortal(address(sysCfg), address(attackerLockbox));
+        caller = new MockCallerMessenger(address(callerPortal), address(attackerCfg));
         lockbox = new MockLockbox();
         sysCfgA = new MockSystemConfig();
         portalA = new PortalRecorder(address(lockbox), address(sysCfgA));
@@ -200,6 +211,8 @@ contract ReachL1CDMHalmos is Test {
         svm.enableSymbolicStorage(address(callerPortal));
         svm.enableSymbolicStorage(address(caller));
         svm.enableSymbolicStorage(address(lockbox));
+        svm.enableSymbolicStorage(address(attackerCfg));
+        svm.enableSymbolicStorage(address(attackerLockbox));
     }
 
     /// @notice NON-VACUITY (expected FAIL): A's L1CDM is never the envelope sender in one step (the

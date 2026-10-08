@@ -23,7 +23,7 @@ the messenger's version string differs.
 | `run.sh` | Builds and runs everything, then validates against `expected.tsv`. |
 | `halmos.toml` | Default halmos options (byte lengths, solver timeout). Function annotations override them; command-line flags override both. |
 | `.gitignore` | Ignores the build output (`out/`, `cache/`) and the per-contract halmos logs and JSON that `run.sh` keeps in `results/`. |
-| `mutants.sh` | 43 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
+| `mutants.sh` | 46 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
 | `halmos-selfdestruct.patch` | Patch to halmos 0.3.3: SELFDESTRUCT in constructors, and MAX_ETH raised to 2^200. See below. |
 
 ## How to run
@@ -227,7 +227,7 @@ the contract are allowed: 0x..07 for expireMessage and 0x..23 for relayETH, with
 
 | Check | Statement | Expected |
 |---|---|---|
-| `ReachL2ToL2Halmos.check_reach_sequence2` | Two steps from the deployed state, so every state is reachable; three steps exceeded 40 minutes. Relay targets are a codeless account, 0x..07 or 0x..16; arbitrary relay targets are covered by the L2ToL2ExpiryHalmos relay checks. Two steps already cover send-then-expire and send-then-relay. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0 and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
+| `ReachL2ToL2Halmos.check_reach_sequence2` | Two steps from the deployed state, so every state is reachable; three steps exceeded 40 minutes. Relay targets are a codeless account, 0x..07 or 0x..16; arbitrary relay targets are covered by the L2ToL2ExpiryHalmos relay checks. Two steps already cover send-then-expire and send-then-relay. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0, sentAt ≤ 2^256−1−EXPIRY_PERIOD (so a wrapped sum is a counterexample, not a dropped panic) and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
 | `ReachL2ToL2Halmos.check_reach_step_symbolicStorage` | The same for one step from **fully symbolic** storage. (T) is weakened to "only a sendMessage step sending K, to block.timestamp", because an unreachable state can already hold a value for the next nonce's hash. | PASS |
 | `ReachExporterHalmos.check_reach_exporter_sequence2` | Two steps over export (symbolic arguments and message), version(), unknown selectors and empty calldata; three steps exceeded 40 minutes. successfulMessages is fully symbolic, so the first step already starts from every messenger state. Every call the exporter makes to 0x..07 is exactly the export payload for that step's arguments, with H computed with block.chainid and block.timestamp, and only when `successfulMessages[H]` was false before the step. It never calls 0x..16. The proxy slots and slots 0..3 never change; the implementation has no state variables. | PASS |
 | `ReachBridgeHalmos.check_reach_bridge_step` | One step from fully symbolic bridge and messenger storage, which covers every state, reachable or not; two- and three-step sequences exceeded 40 minutes, and every property here is a one-step transition property. The step is over the bridge (sendETH, relayETH, refundETH) **and** ETHLiquidity (burn, fund, mint), plus unknown selectors. refunded[K] never goes true → false, and goes false → true only in refundETH whose arguments hash to K with expiredMessages[K]. ETHLiquidity's balance decreases, i.e. a mint, only in relayETH called by 0x..23 with context sender == the bridge, or in refundETH, and by exactly the amount. With three steps the run exceeded 20 minutes. | PASS |
@@ -302,6 +302,10 @@ could give.
 - `MockL2CDMGetters` at 0x..07, for group 5: xDomainMessageSender() and otherMessenger() are symbolic. The real getter
   reverts when unset, so the mock only adds behaviours.
 - L1 mocks: every getter has a symbolic revert flag and returns symbolic values. The mocks' own addresses are fixed.
+- Attacker-controlled getters on the OTHER chain's contracts, which the real code must not consult: the caller's own
+  `systemConfig()` (answered by `AttackerSystemConfig`) and the caller portal's `ethLockbox()` (`AttackerLockbox`).
+  They never revert and give fully symbolic answers, so a mutant that consults them (K41, K42) is tested against a
+  forged answer, not killed by a missing getter.
   A's SystemConfig names A's L1CDM. `paused()` is symbolic in the gate checks.
 - Probes (`RelayProbe`, `GateProbe`) have only a fallback and receive, and are read with `vm.load`. No relayed selector
   can hit a getter and bypass the recorder.
@@ -403,7 +407,7 @@ incremental build can miss them; in a copied tree it did, and 16 of a reviewer's
 build. For the forge mutants, the designated test must first PASS on the unmutated code. Under the mutant it must then
 fail itself after a successful `setUp`; a setUp or compile failure does not count as a kill.
 
-`mutants.sh` covers 43 halmos mutants and 2 forge mutants. Each must make **all** of its designated checks FAIL with a valid counterexample, and the
+`mutants.sh` covers 46 halmos mutants and 2 forge mutants. Each must make **all** of its designated checks FAIL with a valid counterexample, and the
 halmos process must exit 1. Stuck paths are tolerated for mutants only: a mutant can open code halmos cannot finish.
 For example, M20 lets the messenger call itself with symbolic calldata. The script exits nonzero on any survivor, any sed that does not
 apply, any other exit status, any halmos error or timeout, or any missing result.
@@ -417,7 +421,8 @@ apply, any other exit status, any halmos error or timeout, or any missing result
 | M4 exporter destination = source; M6 exporter sends t = 0; M15 exporter sends to sourceMessenger+1 | export_binding, exporter_anyCalldata_onlyExportPayload |
 | M5 exporter reads expiredMessages instead of successfulMessages | export_binding |
 | M33 L1 skips the INTEROP gate; M34 L1 trusts 0x..23 instead of the exporter | relayUndelivered_iff_and_deposit (and rejectsL2ToL2AsSender for M34) |
-| M7 expire skips the xDomainMessageSender check | expire_iff, expire_iff_unbounded |
+| M7 expire compares otherMessenger() with 0 instead of xDomainMessageSender(), so it always reverts on a real chain; M7b (campaign K10) drops the check, both operands set to 0 | expire_iff, expire_iff_unbounded |
+| K41 check (a) reads the caller's OWN systemConfig(); K42 check (b) reversed (the caller portal's lockbox must authorize A's portal) | relayUndelivered_iff_and_deposit. The kill comes from the gate property against the attacker's forged answer, not from a missing getter. |
 | M13 send records timestamp 1; M16 send skips sentMessages | send_effects_and_frame |
 | M14 relay also sets expiredMessages | relay_effects_and_frame |
 | M17 expire also sets successfulMessages | expire_iff |
@@ -503,3 +508,12 @@ and R3. Verdict: high confidence in the local statements, with no critical findi
 | 9 | non-vacuity rule | The new witness pairing caught a vacuous PASS: in `ReachL1CDMHalmos`, A's SystemConfig mock kept INTEROP and paused at their concrete `false`, because they are packed with the messenger in a slot written in setUp, so symbolic storage left them concrete. relayUndeliveredMessage therefore always reverted, and the witness `check_FALSE_reach_l1cdmNeverSelfSender` PASSED. | **Fixed.** Both flags are now set from fresh symbolic values, and the witness fails with a validated counterexample. This was a harness bug, not a contract bug. |
 | 10 | (self) | `run.sh` passed `--default-bytes-lengths` on the command line, which silently overrode the reachability checks' smaller per-function sets and made them time out. | **Fixed.** Defaults moved to `halmos.toml`; `BYTES_LENGTHS` remains an explicit global override. |
 | 11 | (self) | The L2ToL2 reach check's unknown-selector step sent two symbolic words. Through the proxy's `upgradeToAndCall(address,bytes)` selector, the second word became a symbolic ABI offset, and halmos got stuck on it. | **Fixed.** One word of arguments, as in the other reach contracts. A non-admin call to any proxy selector is still covered: it is forwarded and must revert. |
+
+Round 4: cross-layer mutation campaign (`../mutation`).
+
+| # | Source | Finding | Disposition |
+|---|---|---|---|
+| 1 | campaign K41, K42 (HIGH: both double spends) | Killed only "for the wrong reason". The stand-ins for the other chain's messenger and portal had no `systemConfig()` or `ethLockbox()`, so every forged-caller attempt reverted on a missing getter, honest attempts included, and the forged answer was never explored. | **Fixed.** The stand-ins now answer those getters with attacker-chosen, never-reverting symbolic values (`AttackerSystemConfig`, `AttackerLockbox`). K41 and K42 are added to `mutants.sh` and killed by `check_relayUndelivered_iff_and_deposit` through an acceptance the property forbids. |
+| 2 | campaign | M7 was mislabeled: it compares otherMessenger() with 0, so expireMessage always reverts on a real chain; it does not drop the check. | **Relabeled**, and the real removal (campaign K10) is added as M7b. Both are killed. |
+| 3 | campaign K04 | `ReachL2ToL2Halmos` lost the wrapped `sentAt + EXPIRY_PERIOD` case to a checked-arithmetic panic (0x11) in its own assertion (E), and halmos 0.3.3 does not count that panic as a failure. | **Fixed.** (E) now bounds `sentAt <= 2^256-1-EXPIRY_PERIOD` before adding, as `check_expire_iff_unbounded` does. |
+
