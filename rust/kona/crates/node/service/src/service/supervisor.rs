@@ -1,6 +1,5 @@
 //! Supervise tokio tasks.
 
-use crate::NodeActor;
 use std::{collections::HashMap, fmt::Debug, future::Future};
 use tokio::task::{Id, JoinSet};
 use tokio_util::sync::CancellationToken;
@@ -66,96 +65,11 @@ impl Supervisor {
     }
 }
 
-/// Adapts an existing step-based actor into a cancellable lifetime future.
-pub(super) async fn run_node_actor<A: NodeActor>(
-    mut actor: A,
-    cancellation: CancellationToken,
-) -> Result<(), A::Error> {
-    loop {
-        tokio::select! {
-            biased;
-            _ = cancellation.cancelled() => return Ok(()),
-            result = actor.step() => result?,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        future::pending,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
-    };
+    use std::future::pending;
     use tokio::sync::oneshot;
-
-    struct StepActor {
-        calls: Arc<AtomicUsize>,
-        fail_after: Option<usize>,
-        started: Option<oneshot::Sender<()>>,
-    }
-
-    #[async_trait::async_trait]
-    impl NodeActor for StepActor {
-        type Error = &'static str;
-
-        async fn step(&mut self) -> Result<(), Self::Error> {
-            let calls = self.calls.fetch_add(1, Ordering::Relaxed) + 1;
-            if let Some(started) = self.started.take() {
-                let _ = started.send(());
-            }
-            match self.fail_after {
-                Some(limit) if calls >= limit => Err("step failed"),
-                Some(_) => Ok(()),
-                None => pending().await,
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn adapter_repeats_steps_until_error() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let actor = StepActor { calls: calls.clone(), fail_after: Some(3), started: None };
-
-        let result = run_node_actor(actor, CancellationToken::new()).await;
-
-        assert_eq!(result, Err("step failed"));
-        assert_eq!(calls.load(Ordering::Relaxed), 3);
-    }
-
-    #[tokio::test]
-    async fn adapter_prioritizes_cancellation_before_stepping() {
-        let cancellation = CancellationToken::new();
-        cancellation.cancel();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let actor = StepActor { calls: calls.clone(), fail_after: Some(1), started: None };
-
-        assert_eq!(run_node_actor(actor, cancellation).await, Ok(()));
-        assert_eq!(calls.load(Ordering::Relaxed), 0);
-    }
-
-    #[tokio::test]
-    async fn successful_lifetime_cancels_pending_step_actor() {
-        let cancellation = CancellationToken::new();
-        let mut supervisor = Supervisor::new(cancellation.clone());
-        let (started_tx, started_rx) = oneshot::channel();
-        let actor = StepActor {
-            calls: Arc::new(AtomicUsize::new(0)),
-            fail_after: None,
-            started: Some(started_tx),
-        };
-        supervisor.spawn("stepping", run_node_actor(actor, cancellation.clone()));
-        supervisor.spawn("lifetime", async move {
-            started_rx.await.unwrap();
-            Ok::<(), std::io::Error>(())
-        });
-
-        assert_eq!(supervisor.wait(pending()).await, Ok(()));
-        assert!(cancellation.is_cancelled());
-    }
 
     #[tokio::test]
     async fn actor_error_identifies_actor_and_cancels_peers() {

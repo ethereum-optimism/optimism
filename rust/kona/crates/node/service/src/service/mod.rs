@@ -18,4 +18,4 @@ mod node;
 pub use node::{L1Config, RollupNode};
 
 mod supervisor;
-use supervisor::{Supervisor, run_node_actor};
+use supervisor::Supervisor;
