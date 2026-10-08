@@ -13,21 +13,13 @@ use jsonrpsee::{
 };
 use kona_engine::EngineState;
 use kona_genesis::RollupConfig;
-use kona_protocol::{BlockInfo, FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
+use kona_protocol::{FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
 use op_alloy_network::Optimism;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
-use crate::{L1State, RollupNodeApiServer};
-
-/// Progress published by the derivation actor.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct DerivationStatus {
-    /// The L1 block at the derivation pipeline's current origin.
-    /// This block may not yet have been fully derived into L2 data.
-    pub current_l1: Option<BlockInfo>,
-}
+use crate::{DerivationStatus, L1State, RollupNodeApiServer};
 
 /// An [output response][or] for Optimism Rollup.
 ///

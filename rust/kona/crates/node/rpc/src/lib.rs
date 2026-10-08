@@ -10,8 +10,9 @@
 extern crate tracing;
 
 mod admin;
-pub use admin::{
-    AdminRpc, SequencerAdminAPIError, SequencerAdminCommand, SequencerAdminHandle, SequencerState,
+pub use admin::AdminRpc;
+pub use kona_node_actors::sequencer::{
+    Handle as SequencerAdminHandle, SequencerAdminAPIError, SequencerAdminCommand, SequencerState,
 };
 
 mod config;
@@ -30,10 +31,13 @@ pub use jsonrpsee::{
 pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
-pub use rollup::{DerivationStatus, OutputError, OutputProvider, OutputResponse, RollupRpc};
-
-mod l1_watcher;
-pub use l1_watcher::L1State;
+pub use kona_node_actors::{DerivationStatus, L1State};
+pub use rollup::{OutputError, OutputProvider, OutputResponse, RollupRpc};
 
 mod health;
 pub use health::{HealthzResponse, HealthzRpc};
+
+#[cfg(feature = "client")]
+mod delegate;
+#[cfg(feature = "client")]
+pub use delegate::DerivationDelegateClient;

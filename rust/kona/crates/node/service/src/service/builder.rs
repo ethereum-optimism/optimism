@@ -1,7 +1,7 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, NetworkConfig, RollupNode, SequencerConfig, actors::DerivationDelegateClient,
+    DerivationDelegateClient, EngineConfig, NetworkConfig, RollupNode, SequencerConfig,
     service::node::L1Config,
 };
 use alloy_primitives::Bytes;

@@ -11,8 +11,7 @@ pub use builder::{DerivationDelegateConfig, L1ConfigBuilder, RollupNodeBuilder};
 
 mod middleware;
 
-mod mode;
-pub use mode::NodeMode;
+pub use kona_node_actors::NodeMode;
 
 mod node;
 pub use node::{L1Config, RollupNode};

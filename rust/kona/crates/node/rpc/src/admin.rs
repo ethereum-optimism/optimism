@@ -9,77 +9,14 @@ use jsonrpsee::{
     types::{ErrorCode, ErrorObject},
 };
 use kona_engine::{EngineActorRequest, ResetRequest};
+use kona_node_actors::sequencer::Handle;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
-use thiserror::Error;
-use tokio::sync::{mpsc, oneshot, watch};
-
-/// Sequencer state shared by the actor and admin RPC readers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SequencerState {
-    /// Whether the sequencer is active.
-    pub active: bool,
-    /// Whether a conductor is configured.
-    pub conductor_enabled: bool,
-    /// Whether the sequencer is in recovery mode.
-    pub recovery_mode: bool,
-}
-
-/// State-changing admin commands executed by the sequencer actor.
-#[derive(Debug)]
-pub enum SequencerAdminCommand {
-    /// Start sequencing.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-    /// Stop sequencing and return the current unsafe block hash.
-    StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
-    /// Set recovery mode.
-    SetRecoveryMode(bool, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-    /// Override the conductor leader.
-    OverrideLeader(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-}
-
-/// Published sequencer state and its admin command queue.
-#[derive(Debug, Clone)]
-pub struct SequencerAdminHandle {
-    state: watch::Receiver<SequencerState>,
-    commands: mpsc::Sender<SequencerAdminCommand>,
-}
-
-impl SequencerAdminHandle {
-    /// Construct a handle from the sequencer's published state and command sender.
-    pub const fn new(
-        state: watch::Receiver<SequencerState>,
-        commands: mpsc::Sender<SequencerAdminCommand>,
-    ) -> Self {
-        Self { state, commands }
-    }
-
-    fn snapshot(&self) -> RpcResult<SequencerState> {
-        // Fail if the actor exited, even if its final update has not been read yet.
-        self.state.has_changed().map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        Ok(*self.state.borrow())
-    }
-}
-
-/// Errors that can occur when using the sequencer admin API.
-#[derive(Debug, Error)]
-pub enum SequencerAdminAPIError {
-    /// Error sending request.
-    #[error("Error sending request: {0}.")]
-    RequestError(String),
-
-    /// Sequencer stopped successfully, followed by some error.
-    #[error("Sequencer stopped successfully, followed by error: {0}.")]
-    ErrorAfterSequencerWasStopped(String),
-
-    /// Error overriding leader.
-    #[error("Error overriding leader: {0}.")]
-    LeaderOverrideError(String),
-}
+use tokio::sync::mpsc;
 
 /// The admin RPC server.
 #[derive(Debug)]
 pub struct AdminRpc {
-    sequencer: Option<SequencerAdminHandle>,
+    sequencer: Option<Handle>,
     engine: mpsc::Sender<EngineActorRequest>,
     unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
@@ -87,33 +24,15 @@ pub struct AdminRpc {
 impl AdminRpc {
     /// Construct the admin RPC server from the sequencer, engine, and payload handles.
     pub const fn new(
-        sequencer: Option<SequencerAdminHandle>,
+        sequencer: Option<Handle>,
         engine: mpsc::Sender<EngineActorRequest>,
         unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
     ) -> Self {
         Self { sequencer, engine, unsafe_payloads }
     }
 
-    fn sequencer(&self) -> RpcResult<&SequencerAdminHandle> {
+    fn sequencer(&self) -> RpcResult<&Handle> {
         self.sequencer.as_ref().ok_or_else(|| ErrorObject::from(ErrorCode::MethodNotFound))
-    }
-
-    async fn command<T>(
-        &self,
-        command: impl FnOnce(
-            oneshot::Sender<Result<T, SequencerAdminAPIError>>,
-        ) -> SequencerAdminCommand,
-    ) -> RpcResult<T> {
-        let sequencer = self.sequencer()?;
-        let (tx, rx) = oneshot::channel();
-        sequencer
-            .commands
-            .send(command(tx))
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        rx.await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 }
 
@@ -141,31 +60,49 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_sequencer_active(&self) -> RpcResult<bool> {
-        Ok(self.sequencer()?.snapshot()?.active)
+        Ok(self
+            .sequencer()?
+            .snapshot()
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
+            .active)
     }
 
     async fn admin_start_sequencer(&self) -> RpcResult<()> {
-        self.command(SequencerAdminCommand::StartSequencer).await
+        self.sequencer()?.start().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
-        self.command(SequencerAdminCommand::StopSequencer).await
+        self.sequencer()?.stop().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn admin_conductor_enabled(&self) -> RpcResult<bool> {
-        Ok(self.sequencer()?.snapshot()?.conductor_enabled)
+        Ok(self
+            .sequencer()?
+            .snapshot()
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
+            .conductor_enabled)
     }
 
     async fn admin_recover_mode(&self) -> RpcResult<bool> {
-        Ok(self.sequencer()?.snapshot()?.recovery_mode)
+        Ok(self
+            .sequencer()?
+            .snapshot()
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
+            .recovery_mode)
     }
 
     async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()> {
-        self.command(|tx| SequencerAdminCommand::SetRecoveryMode(mode, tx)).await
+        self.sequencer()?
+            .set_recovery_mode(mode)
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn admin_override_leader(&self) -> RpcResult<()> {
-        self.command(SequencerAdminCommand::OverrideLeader).await
+        self.sequencer()?
+            .override_leader()
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
@@ -186,6 +123,10 @@ impl AdminApiServer for AdminRpc {
 mod tests {
     use super::*;
     use alloy_rpc_types_engine::ExecutionPayloadV1;
+    use kona_node_actors::sequencer::{
+        SequencerAdminAPIError, SequencerAdminCommand, SequencerState,
+    };
+    use tokio::sync::{oneshot, watch};
 
     #[tokio::test]
     async fn reads_published_state_without_queueing_and_rejects_closed_publisher() {
@@ -197,7 +138,7 @@ mod tests {
         commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
         let (payloads_tx, _) = mpsc::channel(1);
         let rpc = AdminRpc::new(
-            Some(SequencerAdminHandle::new(state_rx, commands_tx)),
+            Some(Handle::new(state_rx, commands_tx)),
             mpsc::channel(1).0,
             payloads_tx,
         );
@@ -248,7 +189,7 @@ mod tests {
         let (commands_tx, mut commands_rx) = mpsc::channel(1);
         let (payloads_tx, _) = mpsc::channel(1);
         let rpc = AdminRpc::new(
-            Some(SequencerAdminHandle::new(state_rx, commands_tx)),
+            Some(Handle::new(state_rx, commands_tx)),
             mpsc::channel(1).0,
             payloads_tx,
         );
@@ -296,7 +237,7 @@ mod tests {
             // Reset must bypass even a full sequencer command queue.
             let (reply, _) = oneshot::channel();
             commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
-            let sequencer = is_sequencer.then(|| SequencerAdminHandle::new(state_rx, commands_tx));
+            let sequencer = is_sequencer.then(|| Handle::new(state_rx, commands_tx));
             let (engine_tx, mut engine_rx) = mpsc::channel(1);
             let rpc = AdminRpc::new(sequencer, engine_tx, mpsc::channel(1).0).into_rpc();
             let reset =

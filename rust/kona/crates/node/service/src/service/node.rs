@@ -1,13 +1,13 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, middleware::RpcMetricsLayer};
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain,
-    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
-    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
-    SequencerConfig, actors::BlockStream, service::BufferImportedBlocks, signer,
+    BlockStream, ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor,
+    DerivationActor, DerivationActorRequest, DerivationDelegateClient, DerivationError,
+    EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor,
+    L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
+    NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
+    RpcActor, SequencerActor, SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -23,6 +23,10 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
+use kona_node_actors::{
+    DerivationStatus, L1State,
+    sequencer::{self, SequencerAdminCommand},
+};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -30,9 +34,8 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, DerivationStatus, HealthzApiServer, HealthzRpc, L1State,
-    OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
-    SequencerAdminHandle,
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
+    RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
 use kona_sources::BlockSignerHandler;
 use op_alloy_network::Optimism;
@@ -581,7 +584,7 @@ impl RollupNode {
             sequencer_admin_command_rx,
         );
         let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
-            SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
+            sequencer::Handle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
         });
 
         let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);

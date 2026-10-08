@@ -14,30 +14,23 @@ pub use service::{
     DerivationDelegateConfig, L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder,
 };
 
-mod actors;
-pub use actors::{
+pub use kona_node_actors::{
     BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
     DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationClientError, DerivationClientResult,
-    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, EngineActor, EngineActorRequest,
-    EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
-    L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
-    L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient, NetworkActor,
-    NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver,
-    NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
-    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient,
-    ResetRequest, RpcActor, RpcActorError, SealRequest, SequencerActor, SequencerActorError,
-    SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError, signer,
+    DerivationDelegateClientError, DerivationDelegateProvider, DerivationEngineClient,
+    DerivationError, DerivationState, DerivationStateMachine, DerivationStateTransitionError,
+    DerivationStateUpdate, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
+    EngineConfig, EngineDerivationClient, EngineError, L1OriginSelector, L1OriginSelectorError,
+    L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError, L1WatcherChain,
+    L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
+    NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
+    NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
+    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
+    RpcActorError, SealRequest, SequencerActor, SequencerActorError, SequencerConfig,
+    SequencerEngineClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError, signer,
 };
 
-mod metrics;
-pub use metrics::Metrics;
-
-#[cfg(test)]
-pub use actors::{
-    MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-};
+pub use kona_node_actors::Metrics;
+pub use kona_rpc::DerivationDelegateClient;

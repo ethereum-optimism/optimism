@@ -1,0 +1,85 @@
+#![doc = include_str!("../README.md")]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/ethereum-optimism/optimism/develop/rust/kona/assets/square.png",
+    html_favicon_url = "https://raw.githubusercontent.com/ethereum-optimism/optimism/develop/rust/kona/assets/favicon.ico",
+    issue_tracker_base_url = "https://github.com/ethereum-optimism/optimism/issues/"
+)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+#[macro_use]
+extern crate tracing;
+
+use async_trait::async_trait;
+
+mod engine;
+pub use engine::{
+    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
+    EngineConfig, EngineDerivationClient, EngineError, QueuedEngineDerivationClient, ResetRequest,
+    SealRequest,
+};
+
+mod rpc;
+pub use rpc::{RpcActor, RpcActorError};
+
+mod derivation;
+pub use derivation::{
+    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
+    DerivationClientResult, DerivationDelegateClientError, DerivationDelegateProvider,
+    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
+    DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
+};
+
+mod l1_watcher;
+pub use l1_watcher::{
+    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient,
+    QueuedL1WatcherDerivationClient,
+};
+
+pub mod signer;
+
+mod network;
+pub use network::{
+    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
+    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
+    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
+    UnsafePayloadGossipClientError,
+};
+
+pub mod sequencer;
+
+pub use sequencer::{
+    Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
+    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
+    SequencerActor, SequencerActorError, SequencerConfig, SequencerEngineClient,
+};
+
+#[cfg(test)]
+pub use network::MockUnsafePayloadGossipClient;
+#[cfg(test)]
+pub use sequencer::{MockConductor, MockOriginSelector, MockSequencerEngineClient};
+
+/// The [`NodeActor`] is an actor-like service for the node.
+///
+/// Callers may call [`Self::step`] to execute a single inbound request,
+/// event, or tick.
+#[async_trait]
+pub trait NodeActor: Send + 'static {
+    /// The error type for the actor.
+    type Error: std::fmt::Debug;
+
+    /// Handle the next inbound request, event, or scheduled tick.
+    ///
+    /// Returning `Ok(())` indicates the actor is ready to be stepped again.
+    /// Returning `Err(_)` indicates the actor has encountered a fatal
+    /// condition and should not be stepped further.
+    async fn step(&mut self) -> Result<(), Self::Error>;
+}
+
+mod mode;
+pub use mode::NodeMode;
+
+mod metrics;
+pub use metrics::Metrics;
+
+pub use derivation::DerivationStatus;
+pub use l1_watcher::L1State;
