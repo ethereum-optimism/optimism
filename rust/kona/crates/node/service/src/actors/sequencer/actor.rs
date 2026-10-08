@@ -490,43 +490,27 @@ where
                 // A dropped RPC response receiver does not cancel an accepted command.
                 match command {
                     SequencerAdminCommand::StartSequencer(tx) => {
-                        if self.state().active {
-                            info!(target: "sequencer", "received request to start sequencer, but it is already started");
-                        } else {
-                            info!(target: "sequencer", "Starting sequencer");
-                            self.update_state(|state| state.active = true);
-                        }
+                        self.update_state(|state| state.active = true);
                         let _ = tx.send(Ok(()));
                     }
                     SequencerAdminCommand::StopSequencer(tx) => {
-                        info!(target: "sequencer", "Stopping sequencer");
                         // Publish before awaiting the unsafe head: sequencing is stopped even if that read fails.
                         self.update_state(|state| state.active = false);
                         let result = self.engine_client.get_unsafe_head().await
                             .map(|h| h.hash())
-                            .map_err(|e| {
-                                error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer, which should never happen.");
+                            .map_err(|_| {
                                 SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
                             });
                         let _ = tx.send(result);
                     }
                     SequencerAdminCommand::SetRecoveryMode(mode, tx) => {
                         self.update_state(|state| state.recovery_mode = mode);
-                        info!(target: "sequencer", is_active = mode, "Updated recovery mode");
                         let _ = tx.send(Ok(()));
                     }
                     SequencerAdminCommand::OverrideLeader(tx) => {
                         let result = match self.conductor.as_mut() {
-                            Some(conductor) => match conductor.override_leader().await {
-                                Ok(()) => {
-                                    info!(target: "sequencer", "Overrode leader via the conductor service");
-                                    Ok(())
-                                }
-                                Err(e) => {
-                                    error!(target: "sequencer::rpc", "Failed to override leader: {}", e);
-                                    Err(SequencerAdminAPIError::LeaderOverrideError(e.to_string()))
-                                }
-                            },
+                            Some(conductor) => conductor.override_leader().await
+                                .map_err(|e| SequencerAdminAPIError::LeaderOverrideError(e.to_string())),
                             None => Err(SequencerAdminAPIError::LeaderOverrideError(
                                 "No conductor configured".to_string(),
                             )),
