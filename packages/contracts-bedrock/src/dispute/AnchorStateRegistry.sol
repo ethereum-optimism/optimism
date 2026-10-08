@@ -27,10 +27,10 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @custom:semver 5.0.0
     string public constant version = "5.0.0";
 
-    /// @notice The lowest value that `disputeGameFinalityDelaySeconds` may be set to.
+    /// @notice The lowest value in seconds that `disputeGameFinalityDelaySeconds` may be set to.
     uint256 internal immutable MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
-    /// @notice The highest value that `disputeGameFinalityDelaySeconds` may be set to.
+    /// @notice The highest value in seconds that `disputeGameFinalityDelaySeconds` may be set to.
     uint256 internal immutable MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
     /// @custom:legacy
@@ -142,7 +142,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         disputeGameFactory = _disputeGameFactory;
         respectedGameType = _startingRespectedGameType;
 
-        // Set the finality delay. Bounds-checked and emits the same event as the setter.
+        // Set the finality delay and check it against the configured bounds.
         _setDisputeGameFinalityDelaySeconds(_disputeGameFinalityDelaySeconds);
 
         // If the starting anchor root is changing and an anchor game exists, verify the new root
@@ -180,12 +180,12 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         return ethLockbox.superchainConfig();
     }
 
-    /// @notice Returns the lowest value that the dispute game finality delay may be set to.
+    /// @notice Returns the lowest value in seconds that the dispute game finality delay may be set to.
     function minDisputeGameFinalityDelaySeconds() external view returns (uint256) {
         return MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
     }
 
-    /// @notice Returns the highest value that the dispute game finality delay may be set to.
+    /// @notice Returns the highest value in seconds that the dispute game finality delay may be set to.
     function maxDisputeGameFinalityDelaySeconds() external view returns (uint256) {
         return MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
     }

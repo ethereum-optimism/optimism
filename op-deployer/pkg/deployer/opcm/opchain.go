@@ -71,8 +71,6 @@ type DeployOPChainInput struct {
 
 	UseCustomGasToken bool
 
-	// Per-chain withdrawal delays, stored on the OptimismPortal and AnchorStateRegistry proxies.
-	// Appended last to match the Solidity struct, which op-deployer encodes positionally.
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
 }

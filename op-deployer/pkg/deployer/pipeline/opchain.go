@@ -221,7 +221,6 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 			DisputeSplitDepth:       standard.DisputeSplitDepth,
 			DisputeClockExtension:   standard.DisputeClockExtension,
 			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
-			// Per-chain withdrawal delays default to the standard values.
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		},

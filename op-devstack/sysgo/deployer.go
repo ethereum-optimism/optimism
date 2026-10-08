@@ -457,7 +457,7 @@ func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 
 // WithProofMaturityDelaySeconds sets the per-chain proof maturity delay. The delay is bounded by
 // the OptimismPortal implementation, so the bounds are widened when the requested value falls
-// outside the standard range; this only takes effect when the implementations are deployed by
+// outside the standard range. This only takes effect when the implementations are deployed by
 // this devstack run.
 func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
@@ -471,8 +471,10 @@ func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
 	}
 }
 
-// WithDisputeGameFinalityDelaySeconds sets the per-chain dispute game finality delay. See
-// WithProofMaturityDelaySeconds for how the AnchorStateRegistry bounds are widened.
+// WithDisputeGameFinalityDelaySeconds sets the per-chain dispute game finality delay. The delay is bounded by
+// the AnchorStateRegistry implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
 func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		if seconds < standard.MinDisputeGameFinalityDelaySeconds {

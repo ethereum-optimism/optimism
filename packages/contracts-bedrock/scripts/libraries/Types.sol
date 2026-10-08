@@ -54,8 +54,7 @@ library Types {
         ISuperchainConfig superchainConfig;
         // Whether to use the custom gas token.
         bool useCustomGasToken;
-        // Per-chain withdrawal timing. Appended last because op-deployer encodes this struct
-        // positionally.
+        // Per-chain withdrawal timing.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
     }

@@ -37,8 +37,6 @@ type SuperchainProofParams struct {
 	WithdrawalDelaySeconds uint64 `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
 	MinProposalSizeBytes   uint64 `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
 	ChallengePeriodSeconds uint64 `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	// Bounds baked into the OptimismPortal and AnchorStateRegistry implementations. The per-chain
-	// delays themselves live in ChainProofParams.
 	MinProofMaturityDelaySeconds       uint64      `json:"minProofMaturityDelaySeconds" toml:"minProofMaturityDelaySeconds"`
 	MaxProofMaturityDelaySeconds       uint64      `json:"maxProofMaturityDelaySeconds" toml:"maxProofMaturityDelaySeconds"`
 	MinDisputeGameFinalityDelaySeconds uint64      `json:"minDisputeGameFinalityDelaySeconds" toml:"minDisputeGameFinalityDelaySeconds"`
