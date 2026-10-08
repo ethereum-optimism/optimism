@@ -227,14 +227,6 @@ where
         Ok(())
     }
 
-    async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
-        info!(target: "sequencer", "Resetting derivation pipeline");
-        self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
-            error!(target: "sequencer", err=?e, "Failed to reset engine forkchoice");
-            SequencerAdminAPIError::RequestError(format!("Failed to reset engine: {e}"))
-        })
-    }
-
     /// Seals and commits the last pending block, if one exists and starts the build job for the
     /// next L2 block, on top of the current unsafe head.
     ///
@@ -560,9 +552,6 @@ where
                     }
                     SequencerAdminCommand::OverrideLeader(tx) => {
                         let _ = tx.send(self.override_leader().await);
-                    }
-                    SequencerAdminCommand::ResetDerivationPipeline(tx) => {
-                        let _ = tx.send(self.reset_derivation_pipeline().await);
                     }
                 }
 

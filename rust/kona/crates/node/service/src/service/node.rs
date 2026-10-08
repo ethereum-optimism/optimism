@@ -403,9 +403,8 @@ impl RollupNode {
         &self,
         l2_query_client: EngineQueryClient,
         engine_state_rx: watch::Receiver<EngineState>,
-        sequencer_admin: Option<SequencerAdminHandle>,
+        admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
-        admin_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
@@ -422,7 +421,7 @@ impl RollupNode {
         // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
         if config.enable_admin() {
             modules
-                .merge(AdminRpc::new(sequencer_admin, admin_payload_tx).into_rpc())
+                .merge(admin_rpc.into_rpc())
                 .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
         }
         modules
@@ -546,7 +545,7 @@ impl RollupNode {
         )?;
 
         let sequencer_actor = self.build_sequencer(
-            engine_actor_request_tx,
+            engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
             l1_head_updates_rx,
@@ -556,15 +555,9 @@ impl RollupNode {
             SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
         });
 
+        let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
-            .build_rpc_actor(
-                l2_query_client,
-                engine_state_rx,
-                sequencer_admin,
-                p2p_rpc,
-                admin_payload_tx,
-                l1_query_tx,
-            )
+            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
             .await?;
 
         crate::service::spawn_and_wait!(

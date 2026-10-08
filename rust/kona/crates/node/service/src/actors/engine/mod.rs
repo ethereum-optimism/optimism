@@ -1,7 +1,7 @@
 //! The [`EngineActor`] and its components.
 
 mod actor;
-pub use actor::{EngineActor, EngineActorRequest};
+pub use actor::EngineActor;
 
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
@@ -12,8 +12,10 @@ pub use config::EngineConfig;
 mod error;
 pub use error::EngineError;
 
-mod request;
-pub use request::{BuildRequest, EngineClientError, EngineClientResult, ResetRequest, SealRequest};
+pub use kona_engine::{
+    BuildRequest, EngineActorRequest, EngineRequestError as EngineClientError,
+    EngineRequestResult as EngineClientResult, ResetRequest, SealRequest,
+};
 
 #[cfg(test)]
 mod tests;
