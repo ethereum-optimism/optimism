@@ -23,9 +23,6 @@ pub use net::P2pRpc;
 
 mod p2p;
 
-mod response;
-pub use response::SafeHeadResponse;
-
 mod output;
 pub use output::OutputResponse;
 

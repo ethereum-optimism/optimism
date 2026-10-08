@@ -7927,7 +7927,6 @@ dependencies = [
  "op-alloy-rpc-jsonrpsee",
  "op-alloy-rpc-types-engine",
  "serde",
- "serde_json",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
