@@ -1,13 +1,14 @@
-use super::{EngineActor, EngineActorRequest, QueuedEngineDerivationClient, ResetRequest};
+use super::{EngineActor, QueuedEngineDerivationClient};
 use crate::{DerivationActorRequest, NodeActor};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
-    Engine, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
+    Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
     test_utils::test_engine_client,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::{AdminApiServer, AdminRpc};
 use std::sync::Arc;
 use tokio::{
     sync::mpsc,
@@ -21,7 +22,7 @@ use tokio::{
 #[case(false, Duration::ZERO)]
 #[case(false, Duration::from_secs(4))]
 #[tokio::test(start_paused = true)]
-async fn reset_recovers_and_completes_original_request(
+async fn admin_reset_recovers_and_completes_original_request(
     #[case] l1_failure: bool,
     #[case] read_delay: Duration,
 ) {
@@ -58,14 +59,12 @@ async fn reset_recovers_and_completes_original_request(
         request_rx,
         Arc::new(NoopBlockSink),
     );
-    let (reply, mut reply_rx) = mpsc::channel(1);
-    requests
-        .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx: reply })))
-        .await
-        .unwrap();
+    // Validators have no sequencer; admin reset goes directly to the engine.
+    let rpc = AdminRpc::new(None, requests, mpsc::channel(1).0);
+    let reset = tokio::spawn(async move { rpc.admin_reset_derivation_pipeline().await });
     actor.step().await.unwrap(); // retain the reset
     actor.step().await.unwrap(); // failed attempt, then wait for backoff
-    assert!(reply_rx.try_recv().is_err());
+    assert!(!reset.is_finished());
     for _ in 0..3 {
         l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
     }
@@ -86,7 +85,7 @@ async fn reset_recovers_and_completes_original_request(
         #[allow(unreachable_code)]
         Ok::<(), crate::EngineError>(())
     });
-    time::timeout(Duration::from_secs(20), reply_rx.recv()).await.unwrap().unwrap().unwrap();
+    time::timeout(Duration::from_secs(20), reset).await.unwrap().unwrap().unwrap();
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessL1HeadUpdateRequest(_)
@@ -142,12 +141,11 @@ async fn derivation_is_handed_the_local_safe_head() {
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
     let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
-    let (queue_tx, _queue_rx) = tokio::sync::watch::channel(0);
     let mut actor = EngineActor::new(
         client,
         config,
         derivation,
-        Engine::new(state, state_tx, queue_tx),
+        Engine::new(state, state_tx),
         None,
         request_rx,
         Arc::new(NoopBlockSink),
