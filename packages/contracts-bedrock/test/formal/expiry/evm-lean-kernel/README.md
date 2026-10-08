@@ -7,8 +7,8 @@ kernel.** `expireMessage_outcome`, `expireMessage_success`, `expireMessage_rever
 no longer trusted. `ExpiryEvm/Axioms.lean` now asserts this, so `lake build` fails if a
 `native_decide` returns. The full rebuild costs about 45 s more wall time (1:07 → 1:52 on hel1).
 
-This directory is a self-contained patch for `../evm-lean/`. Nothing in `../evm-lean/` was
-modified. The work was done on copies on hel1 (`~/work/ef-evmlean-kernel/`).
+This directory records how the `../evm-lean/` proof was moved from `native_decide` to kernel checking. The change is applied in `../evm-lean/` (`ExpiryEvm/KernelDecide.lean`, `ExpiryEvm/KernelRun.lean`, `ExpiryEvm/Axioms.lean`, `scripts/gen_bytecode.py`); what remains here is the measurement harness and data.
+
 
 ## What the 585 facts were
 
@@ -43,7 +43,7 @@ trusted EVMLean's precompile shims. With this patch neither matters: the kernel 
 
 ## Approach
 
-Two lemmas, both **proved for every `ByteArray`** in `files/ExpiryEvm/KernelDecide.lean`, with no
+Two lemmas, both **proved for every `ByteArray`** in `../evm-lean/ExpiryEvm/KernelDecide.lean`, with no
 axioms:
 
 ```lean
@@ -166,43 +166,15 @@ evaluation of `Ξ`). They are executable tests, not dependencies.
 * Timings come from a heavily shared box (other workers' forge/halmos/kontrol jobs). Ratios are
   more reliable than absolute numbers.
 
-## How to apply
+## Applying
 
-```sh
-cd packages/contracts-bedrock/test/formal/expiry
-evm-lean-kernel/apply.sh            # or: evm-lean-kernel/apply.sh path/to/evm-lean
-cd evm-lean && lake build           # Axioms.lean asserts the axiom footprint
-```
-
-`apply.sh` is idempotent and was tested twice in a row on a copy of the current worktree. It:
-
-* copies `files/ExpiryEvm/{KernelDecide,KernelRun,Axioms}.lean` and
-  `files/scripts/gen_bytecode.py`;
-* regenerates `ExpiryEvm/Bytecode.lean` from `bytecode/…runtime.hex` (or `artifacts/`);
-* patches `regen.sh`;
-* seds the shards and the four trace files;
-* prints any `native_decide` left outside `Concrete.lean` (expected: none).
-
-`patch.diff` shows the same changes for review (`diff -ruN a/evm-lean b/evm-lean`). It omits the
-generated `Bytecode.lean` and `Blocks/`. Prefer `apply.sh`.
-
-Suggested README text for `../evm-lean/README.md`:
-
-* Item 4 of "Hypotheses, summaries, axioms": replace it with the "Remaining trust" paragraph above.
-* Remove "Reduce the `native_decide` trust" from "What's left".
-* Add `KernelDecide.lean`/`KernelRun.lean` to the file table.
-* Build timings: incremental ≈ 2 min on hel1.
+Already applied in `../evm-lean/` (commit "kernel-check every bytecode fact in the expireMessage proof"). `../evm-lean/scripts/regen.sh` keeps it applied when the block summaries are regenerated (it rewrites `native_decide` to `evm_kdecide`).
 
 ## Files
 
 | path | content |
 |---|---|
-| `apply.sh` | applies everything to `../evm-lean` |
-| `files/ExpiryEvm/KernelDecide.lean` | the two proved reformulations, `evm_kdecide`, `kjump_dest` |
-| `files/ExpiryEvm/KernelRun.lean` | `kevm_run` (EquiVM `evm_run` with kernel decodes) |
-| `files/ExpiryEvm/Axioms.lean` | `#assert_std_axioms` on the five headline theorems |
-| `files/scripts/gen_bytecode.py` | flat literal; kernel-proved JUMPDEST table |
-| `patch.diff` | review diff of the hand-written changes |
+| `../evm-lean/ExpiryEvm/KernelDecide.lean` | the two proved reformulations, `evm_kdecide`, `kjump_dest` |
 | `measure/ListAx.lean`, `native_axioms.tsv` | dump and list of the 585 facts |
 | `measure/Measure.lean`, `KTime.lean`, `KD.lean`, `gen_flat.py` | per-fact kernel timing harness (variants `flat`, `list`, `listchunk`; `KD.lean` is an earlier copy of `KernelDecide.lean` in namespace `KD`; it needs a `Kernel` lean_lib with `Kernel.Flat`, `Kernel.KTime`, `Kernel.KD` in the lakefile) |
 | `measure/flat_all.tsv`, `list_all.tsv` | per-fact results (index, class, axiom, ok/FAIL, ms) |

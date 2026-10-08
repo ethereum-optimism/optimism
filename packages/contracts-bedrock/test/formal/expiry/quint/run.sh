@@ -13,7 +13,7 @@
 # servers, one per check, on ports BASE_PORT..).
 # Requires quint (npm i -g @informalsystems/quint); `verify` needs Java 17+ (quint fetches Apalache).
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 
 MODE="${1:-all}"
 case "$MODE" in simulate|verify|all) ;; *) echo "unknown mode: $MODE" >&2; exit 2 ;; esac
@@ -75,19 +75,18 @@ fi
 if [[ "$MODE" == verify || "$MODE" == all ]]; then
   # One Apalache server per running check, so checks run in parallel.
   i=0
-  pids=()
   for c in "${CHECKS[@]}"; do
     read -r want m inv <<<"$c"
-    port=$((BASE_PORT + (i % JOBS)))
+    port=$((BASE_PORT + i))
     out="$LOGDIR/verify-$m-$inv.log"
     ( start=$(date +%s)
       quint verify expiry.qnt --main="$m" --invariant="$inv" --max-steps="$DEPTH" \
         --server-endpoint="localhost:$port" > "$out" 2>&1
       code=$?
       echo "EXIT=$code SECONDS=$(( $(date +%s) - start ))" >> "$out" ) &
-    pids+=($!)
     i=$((i + 1))
-    if (( ${#pids[@]} >= JOBS )); then wait "${pids[0]}"; pids=("${pids[@]:1}"); fi
+    # Keep at most JOBS checks running; start the next one as soon as any finishes.
+    while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n; done
   done
   wait
   for c in "${CHECKS[@]}"; do
