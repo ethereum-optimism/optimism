@@ -7,7 +7,7 @@ This directory is a review aid for the interop message-expiry change (PR #23259)
 
 Several independent tools each check part of the safety argument. Every subdirectory has its own
 README with exact statements, assumptions, bounds, run commands and a review log. Every layer was
-reviewed by a fresh-context Claude reviewer and by Codex gpt-6-astra and gpt-6.1-sol. Each finding
+reviewed by three independent model-based reviewers (R1, R2, R3). Each finding
 was triaged against the code and either fixed or recorded with a reason.
 
 ## Read this first: which design is verified

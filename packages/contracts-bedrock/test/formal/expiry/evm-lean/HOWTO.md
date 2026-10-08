@@ -4,7 +4,7 @@ Read README.md first (what is proved, trust base). This note is for the worker p
 `relayUndeliveredMessage` (L1CrossDomainMessenger), `refundETH` (SuperchainETHBridge) or the
 exporter's `exportUndeliveredMessage`.
 
-## 0. Setup (hel1)
+## 0. Setup
 
 ```sh
 export PATH=$HOME/.elan/bin:$HOME/.foundry/bin:$PATH
@@ -12,7 +12,7 @@ cd <worktree>/packages/contracts-bedrock/test/formal/expiry/evm-lean
 lake exe cache get && lake build          # ~5 min cold (Mathlib from cache), ~1 min warm
 ```
 
-hel1 is shared; with load > 100, single-file rebuilds still take 5–20 s. Iterate on one module
+the build host is shared; with load > 100, single-file rebuilds still take 5–20 s. Iterate on one module
 with `lake build ExpiryEvm.<Module>` and filter the log for `error:` lines in your files (the
 dependencies print hundreds of linter warnings).
 

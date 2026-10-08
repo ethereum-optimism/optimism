@@ -5,7 +5,7 @@ kernel.** `expireMessage_outcome`, `expireMessage_success`, `expireMessage_rever
 `expireMessage_no_other_error` and `Abstract.refines_expire` depend only on `propext`,
 `Classical.choice` and `Quot.sound`. No `…native_decide.ax_*` axiom remains, and the compiler is
 no longer trusted. `ExpiryEvm/Axioms.lean` now asserts this, so `lake build` fails if a
-`native_decide` returns. The full rebuild costs about 45 s more wall time (1:07 → 1:52 on hel1).
+`native_decide` returns. The full rebuild costs about 45 s more wall time (1:07 → 1:52 on a 32-core Linux build host).
 
 This directory records how the `../evm-lean/` proof was moved from `native_decide` to kernel checking. The change is applied in `../evm-lean/` (`ExpiryEvm/KernelDecide.lean`, `ExpiryEvm/KernelRun.lean`, `ExpiryEvm/Axioms.lean`, `scripts/gen_bytecode.py`); what remains here is the measurement harness and data.
 
@@ -90,7 +90,7 @@ The patch changes these things:
 The `Concrete.lean` executable witnesses keep `native_decide`; they are tests, not dependencies
 (see "Not done").
 
-## Measurements (hel1, Lean 4.29.0, shared box at load 20–90, so ±30% noise)
+## Measurements (32-core Linux build host, Lean 4.29.0, shared box at load 20–90, so ±30% noise)
 
 ### Per fact, kernel only (`measure/Measure.lean`)
 

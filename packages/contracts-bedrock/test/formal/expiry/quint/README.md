@@ -180,68 +180,68 @@ shows the same premise failing for the earlier design.
 
 ## Review log
 
-**v1**, reviewed by Claude, Codex gpt-6-astra and gpt-6.1-sol. All findings were addressed in v2
+**v1**, reviewed by R1, R2 and R3 (independent model-based reviewers). All findings were addressed in v2
 except where marked "partly".
 - **All reviewers:** the unsafe instances were checked against `Safety`, so the counterexamples
   stopped at an earlier conjunct. The runner now asserts that `NoDoubleSpend` itself is violated.
-- **astra, sol:** `run.sh` returned 0 regardless of results. It now asserts every outcome and exits
+- **R2, R3:** `run.sh` returned 0 regardless of results. It now asserts every outcome and exits
   nonzero on any surprise.
-- **Claude:** lockbox membership was static. `join` is now modeled, with the check read at relay time,
+- **R1:** lockbox membership was static. `join` is now modeled, with the check read at relay time,
   plus the governance assumption and the `nonstandardJoin` counterexample.
-- **Claude:** only one of the three L1 checks was exercised. `fakeCaller`, `userWithdrawal` and
+- **R1:** only one of the three L1 checks was exercised. `fakeCaller`, `userWithdrawal` and
   per-check instances are added.
-- **Claude:** `exportUndelivered` had a fixed route and a single source. Routes are now chosen by the
+- **R1:** `exportUndelivered` had a fixed route and a single source. Routes are now chosen by the
   caller and there are two sources.
-- **astra, sol:** attacker coverage was assumed. Partly addressed: the attacker is now written per
+- **R2, R3:** attacker coverage was assumed. Partly addressed: the attacker is now written per
   target and per recorded sender, and arbitrary code on non-standard chains is modeled. Completeness
   is still enumerated by hand; the Lean model derives it.
-- **astra, sol:** `externalRawTrust` modeled a privileged path that doesn't exist. It is removed, and
+- **R2, R3:** `externalRawTrust` modeled a privileged path that doesn't exist. It is removed, and
   the scope note above replaces it.
-- **Claude:** the windows didn't match the code. The model is now in days with W=7, P=8, and an
+- **R1:** the windows didn't match the code. The model is now in days with W=7, P=8, and an
   instance where P = W.
-- **Claude, sol:** the README and runner disagreed on depth, the results file was missing, and there
+- **R1, R3:** the README and runner disagreed on depth, the results file was missing, and there
   was no boundary mutation. `DEPTH` is now consistent, the results are recorded in the top-level
   README, and `expireGeNoMargin` is added.
-- **Claude, astra:** a single global clock was a stronger assumption than needed. Clocks are now per
+- **R1, R2:** a single global clock was a stronger assumption than needed. Clocks are now per
   chain.
-- **astra:** the refund's preimage binding was absent. It is now an explicitly stated delegation to
+- **R2:** the refund's preimage binding was absent. It is now an explicitly stated delegation to
   Halmos and Kontrol.
 
 **v1 fixes from the Lean v2 review**, which applied to this model too:
-- **Claude:** a fake L1 caller can pass check (a) with a fake portal and SystemConfig; only check (b)
+- **R1:** a fake L1 caller can pass check (a) with a fake portal and SystemConfig; only check (b)
   stops it. `fakeCaller` is now guarded by `¬(a) ∨ ¬(b)`.
-- **Claude:** "0x..2E never had code" was wrong. The genesis proxy has no implementation, so the
+- **R1:** "0x..2E never had code" was wrong. The genesis proxy has no implementation, so the
   residual assumption is that no ProxyAdmin action set one before the upgrade. Both the model text and
   the README are corrected.
 
-- **astra:** pre-upgrade resends were not representable. `resend` is now enabled before the
+- **R2:** pre-upgrade resends were not representable. `resend` is now enabled before the
   source's upgrade.
 
-**v2**, reviewed by Claude, Codex gpt-6-astra and gpt-6.1-sol. sol found no critical or high issue; its
+**v2**, reviewed by R1, R2 and R3 (independent model-based reviewers). R3 found no critical or high issue; its
 medium and low findings duplicate the runner, depth, joins, witness and documentation items below.
 Each finding and what became of it:
-- **Claude C1, astra:** the README didn't say the code at this commit is the model's own
+- **R1 C1, R2:** the README didn't say the code at this commit is the model's own
   counterexample. Added the scope box at the top.
-- **Claude H1:** "only the exporter can make the trusted sender speak" was described as derived; it
+- **R1 H1:** "only the exporter can make the trusted sender speak" was described as derived; it
   is hand-enumerated here. Reworded, with a pointer to the Lean derivation.
-- **Claude H2, astra:** chain-ID uniqueness was missing. Added `CHAIN_ID`, `UNIQUE_IDS`, the
+- **R1 H2, R2:** chain-ID uniqueness was missing. Added `CHAIN_ID`, `UNIQUE_IDS`, the
   `duplicateChainId` counterexample and a governance assumption.
-- **Claude M1:** W activation and W changing over time. Named as assumptions; not modeled.
-- **Claude M2, astra:** depth, step counts and results were misstated. `DEPTH` is now 15, the step
+- **R1 M1:** W activation and W changing over time. Named as assumptions; not modeled.
+- **R1 M2, R2:** depth, step counts and results were misstated. `DEPTH` is now 15, the step
   counts are corrected, and the results are in `../README.md`.
-- **Claude M3, astra:** joins were vacuous in the safe instances. Added `m3` to C, which joins later,
+- **R1 M3, R2:** joins were vacuous in the safe instances. Added `m3` to C, which joins later,
   and the `NoRefundOfM3` witness.
-- **astra:** the INTEROP gate was claimed checked on bytecode. Marked as not landed and not modeled.
-- **astra:** the runner accepted unknown modes and treated tool errors as violations. It now
+- **R2:** the INTEROP gate was claimed checked on bytecode. Marked as not landed and not modeled.
+- **R2:** the runner accepted unknown modes and treated tool errors as violations. It now
   validates the mode and classifies errors separately; witnesses are checked in every safe instance.
-- **Claude L2, astra:** some counterexamples didn't isolate their attack:
+- **R1 L2, R2:** some counterexamples didn't isolate their attack:
   - `messengerTrustedNoTargetRule` now switches off pre-upgrade forgeries;
   - `arbitraryCode` only works outside the lockbox, so `nonstandardJoin` shows withdrawals made
     before the join;
   - `noLockboxCheck` keeps two paths, both described.
-- **Claude L1:** two properties follow from guards. Noted.
-- **Claude L4:** missing assumptions (legacy withdrawals, addresses, `<=`). Added.
-- **Claude L5:** overclaiming "every finding fixed". Reworded.
+- **R1 L1:** two properties follow from guards. Noted.
+- **R1 L4:** missing assumptions (legacy withdrawals, addresses, `<=`). Added.
+- **R1 L5:** overclaiming "every finding fixed". Reworded.
 - **Later additions:**
   - pre-upgrade `resend` (from the Lean v2 review);
   - `fakeCaller` passing check (a) with a fake portal (from the Lean v2 review);

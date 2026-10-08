@@ -46,7 +46,7 @@ therefore use the latest release:
   **Z3 4.12.1**.
 - The release zip is `dafny-4.11.0-x64-ubuntu-22.04.zip`, sha256
   `a46a9ff7cdd720f7955854c78e95df13f4cfe6b80691b05f8654fe19e8267179`. It is self-contained, so no
-  .NET install is needed. On hel1 it is at `~/tools/dafny-4.11.0/dafny/dafny`.
+  .NET install is needed. Any Dafny 4.11.0 install works.
 
 ```sh
 curl -sSLo dafny.zip https://github.com/dafny-lang/dafny/releases/download/v4.11.0/dafny-4.11.0-x64-ubuntu-22.04.zip
@@ -61,7 +61,7 @@ DAFNY=/path/to/dafny ./run.sh            # ExpiryBridge.dfy must verify; ExpectF
 DAFNY=/path/to/dafny ./run.sh --model    # first re-verify the whole existing model (all six files)
 ```
 
-On the shared hel1 box, run it under a memory cap:
+On a shared build host, run it under a memory cap:
 `systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 ./run.sh --model`.
 
 **Flags.**
@@ -86,7 +86,7 @@ Two mutants of `ExpectFail.dfy` were run against this check, and both were caugh
 - `requires false` added to `ExclusiveBoundary`;
 - `ensures false` added to `NoPeriodAssumption`.
 
-## Results (hel1, branch tip `5992028e08`, Dafny 4.11.0)
+## Results (branch tip `5992028e08`, Dafny 4.11.0)
 
 | Check | Result | Wall time |
 |---|---|---|
@@ -97,7 +97,7 @@ Two mutants of `ExpectFail.dfy` were run against this check, and both were caugh
 | Existing model, `Interop.dfy` only (v1 run, without `--verify-included-files`) | `7313 verified, 0 errors`, exit 0, but this covers only `Interop.dfy`'s own declarations | 10 min 19 s wall, 1118 s CPU, peak RSS 1.5 GB |
 | Existing model, first attempt (default time limit, `--cores 16`, load average about 330) | Internal error "The operation has timed out" on `ApplyPendingTransition` (`Interop.dfy:1054`), plus Z3 pipe "Prover error" lines | 10 min 01 s |
 
-Other jobs loaded hel1 heavily during these runs (load average 35 to 330 on 32 cores), so the
+Other jobs loaded the build host heavily during these runs (load average 35 to 330 on 32 cores), so the
 times are upper bounds.
 
 **Task 1 verdict.** The existing model, all six files, verifies as-is with Dafny 4.11.0. The only
@@ -374,10 +374,10 @@ not affect the expiry argument, because the theorem needs no activation hypothes
 ## Review log
 
 - **v1** (2026-10-07): the bridge lemmas, the expected-fail file and the agreement table.
-- **v1 review** by three reviewers: Claude, Codex gpt-6 ("astra") and Codex gpt-6.1 ("sol").
+- **v1 review** by three independent model-based reviewers (R1, R2, R3).
   - Verdict: sound, no axioms added, not vacuous, boundary agrees everywhere, no critical or high
     findings.
-  - Claude's mutants were all rejected by Dafny: dropping `exec >= tExport`; a non-strict export
+  - R1's mutants were all rejected by Dafny: dropping `exec >= tExport`; a non-strict export
     check; dropping activation; `ensures false`; `assert false` after `new Interop`; the imperative
     form without `W <= P`.
   - Deleting the `LogsDB.Contains` axiom breaks only `TimestampBoundToInitBlock`.
@@ -388,11 +388,11 @@ not affect the expiry argument, because the theorem needs no activation hypothes
      (`chains[..].BlockInfo(..)`). The trust base lists the frontier axiom (`Interop.dfy:1889`),
      the FindSealedBlock and BlockInfo axioms, and `AllLogsDBsConsistentWithChainData`. The README
      now says the checksum is abstract, so the step to `sentAt` is outside the model.
-  2. *Medium, Claude: hand-copied guards.* The second `ensures` of `ExpiredAtExportNeverValid` and
+  2. *Medium, R1: hand-copied guards.* The second `ensures` of `ExpiredAtExportNeverValid` and
      `ExpiryIsTheFailingGuard` are labelled RESTATEMENT, in the source and here. The claim
      "nothing restated" is softened, and the headline's `ErrMessageExpired` claim is qualified by
      the activation hypotheses.
-  3. *Medium, astra: model coverage.* `run.sh --model` now passes `--verify-included-files`, so
+  3. *Medium, R2: model coverage.* `run.sh --model` now passes `--verify-included-files`, so
      all six model files are verified; the new VC count is in Results. The trust base names the
      `LogsDB` constructor and `LatestSealedBlock` axioms.
   4. *Low, all three reviewers:*

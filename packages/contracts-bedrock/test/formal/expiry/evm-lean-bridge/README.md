@@ -352,4 +352,4 @@ each.
   * No per-key no-collision hypothesis is used.
   * `regen.sh` forces the default profile and validates against `semver-lock.json` before writing.
   * The frame hypotheses are shown to hold in the concrete success run.
-* External reviews (Codex, Astra, Sol 6.1): *pending*.
+* Independent model-based reviews: *pending*.

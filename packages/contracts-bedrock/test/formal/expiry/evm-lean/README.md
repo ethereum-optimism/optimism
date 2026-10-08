@@ -53,7 +53,7 @@ and static flag:
 Exact transitive pins are in `lake-manifest.json`.
 
 Why EquiVM rather than raw EVMYulLean: Nethermind's EVMYulLean (`047f630`, Lean 4.22) builds
-fine (2 min with the Mathlib cache on hel1), but has no symbolic-execution library; EquiVM
+fine (2 min with the Mathlib cache on a 32-core Linux build host), but has no symbolic-execution library; EquiVM
 (published, MIT) is built on a port of it and adds exactly what a dispatcher of this size needs:
 a reached-or-out-of-gas invariant `RD` with one lemma per opcode, `STATICCALL`/`CALL` lemmas
 that keep the callee as an opaque `Θ` result, and a generator that proves an `RD` summary for
@@ -356,7 +356,7 @@ lake build                # everything; must report "Build completed successfull
 lake env lean ExpiryEvm/Axioms.lean
 ```
 
-All timings are on hel1 (32 cores, shared, load 35–180 during this work).
+All timings are on a shared 32-core Linux host (, load 35–180 during this work).
 * **Fresh build:** at `37b44c48c7`, a copy of this directory with no `.lake` built completely with
   `lake exe cache get && lake build` in 5 min 16 s wall, dependencies included.
 * **Incremental:** with dependencies built, rebuilding everything in this directory takes about
@@ -365,7 +365,7 @@ All timings are on hel1 (32 cores, shared, load 35–180 during this work).
 
 ## Review log
 
-**Round 1 (3-way review: Claude, Codex astra, Codex sol) of the `37b44c48c7` version, and the
+**Round 1 (3-way review: R1, R2, R3) of the `37b44c48c7` version, and the
 fixes in this version:**
 1. **HIGH, all three reviewers: completeness was vacuous.** `CallFailed` did not require code
    equality and quantified gas existentially, so it was satisfiable everywhere.
@@ -392,7 +392,7 @@ fixes in this version:**
    * The README now states that the substate is not asserted, records the precompile
      `implemented_by` caveat, and notes that the restated bridge was compared by hand.
 
-**Round 2 (Claude, Codex astra, Codex sol) of the `5992028e08` version.** No critical or high
+**Round 2 (R1, R2, R3) of the `5992028e08` version.** No critical or high
 findings; all round-1 fixes were verified (mutations of P, of the tightened check, of the slot,
 and a 31-byte summary all break the build). Fixes:
 1. **MEDIUM: the hex artifacts were gitignored.** `artifacts/` matched

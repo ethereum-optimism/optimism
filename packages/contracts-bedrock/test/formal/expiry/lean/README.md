@@ -60,7 +60,7 @@ The model mirrors `../quint/expiry.qnt`, with the same action and property names
 ## Build
 
 ```
-lake build        # 2–6 s from clean on hel1; prints the #print axioms report
+lake build        # 2–6 s from clean on a 32-core Linux build host; prints the #print axioms report
 ```
 
 | File | Contents |
@@ -445,29 +445,29 @@ re-targeted names (exporter in place of 0x..23 for check (c) and for the export)
 
 | Round | Reviewer | Finding | Disposition |
 | --- | --- | --- | --- |
-| v1 | Codex astra, Codex sol | Attacker completeness assumed: forging disabled by `SafeConfig` flags | v2: target-level relay (`decode`), senders recorded per call, `userWithdrawal`/`arbitraryCode`; "only the exporter speaks" derived |
-| v1 | astra, sol | Activation premise assumed, not enforced | v2: genesis-based model with `upgrade`; `exporterSilentBeforeUpgrade` derived; residual is the governance plus historical-inertness assumption (v2.1) |
-| v1 | astra, sol | Global injectivity is unsatisfiable for keccak | Reworded as an idealization (v2; tightened in v2.1) |
-| v1 | sol | P < W counterexample used W = 9 > cap | v2: P = 6, W = 7 |
-| v1 | sol, astra | `NoForgedFact` not a named conjunct | v2: `noForgedFact`, a conjunct of `safety` |
-| v1 | sol | Refund binding, per-chain clocks, overflow | v2: source-bound `refund`, per-chain clocks; overflow noted |
-| v1 | astra, sol | README 7/8-day drift; no interop gate | v2: two parameters W_d and P; gate modeled; code citations |
-| v1 | sol | `externalRawTrust` models a non-existent contract | v2: dropped |
-| v1 | Claude | Cite W cap and P code | v2: "Where W and P are enforced" |
-| v1 | Claude | `>=` boundary counterexample | v2: `cex_nonStrict` |
-| v1 | Claude | Per-destination windows | v2: `protocolWindow : Chain → Nat` |
-| v1 | Claude | Witness that a relay is reachable | v2: `relay_reachable_at_edge` |
-| v1 | Claude | SystemConfig ↔ L1CDM consistency | v2: README; v2.1: `sysConfigConsistent` field and counterexample |
-| v1 | Claude | Joins need no history re-check | v2: `joinNeedsNoHistoryCheck`; governance counterexample |
-| v2 | Claude M1, sol M1 | "0x..2E never had code" is false: the genesis Proxy is at every slot | v2.1: wording fixed; silence comes from the empty proxy implementation; historical-inertness assumption stated; theorems scoped to "within the model" |
-| v2 | Claude M2 | `fakeCaller` mis-attributed: a fake portal passes the real-messenger check | v2.1: guard `¬real ∨ ¬lockbox ∨ ¬sysConfig`; `cex_noLockboxCheck_fakePortal`, `cex_sysConfigInconsistent` |
-| v2 | sol M2 | RefundImpliesExpired / AtMostOneRefund claimed for all chains | v2.1: scoped to standard chains; `arbitraryRefund` for non-standard bridges |
-| v2 | astra M | Pre-upgrade resends not representable | v2.1: `resendLegacy` modeled; `legacyResend_reachable` |
-| v2 | astra L | `cex_nonStrict` changes two fields | v2.1: wording fixed; single-field `≥` (P = 8) proved safe in `safe_variants` (window hypothesis generalized) |
-| v2 | Claude L1 | README overstated `HashInjective` | v2.1: README matches the formal statement; envelope integrity listed as a separate obligation |
-| v2 | Claude L2 | `_isUnsafeTarget` labeling | v2.1: the safety-relevant fact is stated; `l1cdmSelfRelay` plus `cex_noUnsafeTargetCheck` |
-| v2 | Claude H1, astra, sol | Make clear what is certified | v2.1: first paragraph; 37b44c48c7 = `cfgMessengerTrusted`; list of code changes that must land |
+| v1 | R2, R3 | Attacker completeness assumed: forging disabled by `SafeConfig` flags | v2: target-level relay (`decode`), senders recorded per call, `userWithdrawal`/`arbitraryCode`; "only the exporter speaks" derived |
+| v1 | R2, R3 | Activation premise assumed, not enforced | v2: genesis-based model with `upgrade`; `exporterSilentBeforeUpgrade` derived; residual is the governance plus historical-inertness assumption (v2.1) |
+| v1 | R2, R3 | Global injectivity is unsatisfiable for keccak | Reworded as an idealization (v2; tightened in v2.1) |
+| v1 | R3 | P < W counterexample used W = 9 > cap | v2: P = 6, W = 7 |
+| v1 | R3, R2 | `NoForgedFact` not a named conjunct | v2: `noForgedFact`, a conjunct of `safety` |
+| v1 | R3 | Refund binding, per-chain clocks, overflow | v2: source-bound `refund`, per-chain clocks; overflow noted |
+| v1 | R2, R3 | README 7/8-day drift; no interop gate | v2: two parameters W_d and P; gate modeled; code citations |
+| v1 | R3 | `externalRawTrust` models a non-existent contract | v2: dropped |
+| v1 | R1 | Cite W cap and P code | v2: "Where W and P are enforced" |
+| v1 | R1 | `>=` boundary counterexample | v2: `cex_nonStrict` |
+| v1 | R1 | Per-destination windows | v2: `protocolWindow : Chain → Nat` |
+| v1 | R1 | Witness that a relay is reachable | v2: `relay_reachable_at_edge` |
+| v1 | R1 | SystemConfig ↔ L1CDM consistency | v2: README; v2.1: `sysConfigConsistent` field and counterexample |
+| v1 | R1 | Joins need no history re-check | v2: `joinNeedsNoHistoryCheck`; governance counterexample |
+| v2 | R1 M1, R3 M1 | "0x..2E never had code" is false: the genesis Proxy is at every slot | v2.1: wording fixed; silence comes from the empty proxy implementation; historical-inertness assumption stated; theorems scoped to "within the model" |
+| v2 | R1 M2 | `fakeCaller` mis-attributed: a fake portal passes the real-messenger check | v2.1: guard `¬real ∨ ¬lockbox ∨ ¬sysConfig`; `cex_noLockboxCheck_fakePortal`, `cex_sysConfigInconsistent` |
+| v2 | R3 M2 | RefundImpliesExpired / AtMostOneRefund claimed for all chains | v2.1: scoped to standard chains; `arbitraryRefund` for non-standard bridges |
+| v2 | R2 M | Pre-upgrade resends not representable | v2.1: `resendLegacy` modeled; `legacyResend_reachable` |
+| v2 | R2 L | `cex_nonStrict` changes two fields | v2.1: wording fixed; single-field `≥` (P = 8) proved safe in `safe_variants` (window hypothesis generalized) |
+| v2 | R1 L1 | README overstated `HashInjective` | v2.1: README matches the formal statement; envelope integrity listed as a separate obligation |
+| v2 | R1 L2 | `_isUnsafeTarget` labeling | v2.1: the safety-relevant fact is stated; `l1cdmSelfRelay` plus `cex_noUnsafeTargetCheck` |
+| v2 | R1 H1, R2, R3 | Make clear what is certified | v2.1: first paragraph; 37b44c48c7 = `cfgMessengerTrusted`; list of code changes that must land |
 | v2.1 | coordinator (Karl's decision) | Keep the target rule as defense in depth; safety must not depend on it | v2.1: `safety_without_targetRule`, `messengerSilentAfterUpgrade`, `messengerSpeaks_without_targetRule`; passer path delegated to Halmos/Kontrol |
 | v2.1 | coordinator (Quint v2 review) | Chains are identified by chain ID only; duplicate IDs among lockbox members allow a double spend without any hash collision | v2.1: `Chain` separated from `chainId`; hash on chain IDs; hypothesis `ChainIdUnique`; `cex_duplicateChainId`; W activation, predeploy preimage hardness and pre-Bedrock withdrawals listed as named assumptions |
 | v2.2 | coordinator (design landed) | Cite the landed code; refer to the exporter by its constant; name the member-governance exporter-upgrade assumption; note the passer target rule | v2.2: citations at `5992028e08`; no hardcoded exporter address; `exporterGovernance` field, `exporterGovernanceUpgrade` action, `cex_exporterGovernanceUpgrade`; passer rule noted |
-| v2 | Claude L4 | "Every configuration" is vacuous when trusted ≠ exporter | v2.1: qualified in the docstring and README |
+| v2 | R1 L4 | "Every configuration" is vacuous when trusted ≠ exporter | v2.1: qualified in the docstring and README |
