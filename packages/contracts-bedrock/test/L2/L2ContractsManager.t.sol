@@ -13,6 +13,7 @@ import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
+import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 
@@ -112,7 +113,10 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
         for (uint256 i = 0; i < impls.length; i++) {
             _implRecords.push(
-                L2ContractsManagerTypes.ImplRecord({ name: impls[i].name, impl: deployCode(impls[i].artifactPath) })
+                L2ContractsManagerTypes.ImplRecord({
+                    name: impls[i].name,
+                    impl: deployCode(impls[i].artifactPath, UpgradeUtils.implementationConstructorArgs(impls[i].name))
+                })
             );
         }
     }

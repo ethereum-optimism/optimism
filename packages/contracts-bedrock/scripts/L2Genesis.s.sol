@@ -24,6 +24,7 @@ import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -75,6 +76,7 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
+        uint256 l2ToL2MessageExpiryPeriod;
     }
 
     using ForkUtils for Fork;
@@ -278,7 +280,7 @@ contract L2Genesis is Script {
         if (_isGenesisInteropEnabled(_input)) {
             // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
-            setL2ToL2CrossDomainMessenger(); // 23
+            setL2ToL2CrossDomainMessenger(_input); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
             setUndeliveredMessageExporter(); // 30
@@ -288,7 +290,8 @@ contract L2Genesis is Script {
             setNativeAssetLiquidity(_input); // 2A
         }
         vm.stopPrank();
-        // The pranked `create` calls in setEAS() and setGovernanceToken() bump the proxy admin
+        // The pranked `create` calls in setEAS(), setGovernanceToken() and
+        // setL2ToL2CrossDomainMessenger() bump the proxy admin
         // owner's nonce. Reset it so the account does not appear in the genesis state dump.
         vm.resetNonce(_input.opChainProxyAdminOwner);
         // These calls don't need the opChainProxyAdminOwner prank: setConditionalDeployer uses
@@ -608,13 +611,30 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
-    /// @notice This predeploy is following the safety invariant #1.
+    /// @notice This predeploy is following the safety invariant #2: its expiry period is an
+    ///         immutable, so the implementation is deployed with its constructor and its code
+    ///         etched. The period is the production one unless the input sets another.
     ///         This contract has no initializer.
-    function setL2ToL2CrossDomainMessenger() internal {
+    function setL2ToL2CrossDomainMessenger(Input memory _input) internal {
         Predeploys.assertGates(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
         );
-        _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        uint256 expiryPeriod = _input.l2ToL2MessageExpiryPeriod == 0
+            ? Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+            : _input.l2ToL2MessageExpiryPeriod;
+        address messenger = DeployUtils.create1({
+            _name: "L2ToL2CrossDomainMessenger",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(IL2ToL2CrossDomainMessenger.__constructor__, (expiryPeriod))
+            )
+        });
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.etch(impl, messenger.code);
+        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
+
+        /// Reset so its not included state dump
+        vm.etch(messenger, "");
+        vm.resetNonce(messenger);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
