@@ -195,7 +195,7 @@ theorem l2tol2_block_2054 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : B
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r2 := RD.genMload r1 (by evm_kdecide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 93545514728453368016867473155542155214588639737833566317075367692838136446976) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 43567913465810058724261664650223677796354988101714134327086120826989828898816) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r4 := r3.dup2 (by evm_kdecide) (by evm_ov)
   have r5 := RD.genMstore r4 (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)
@@ -418,7 +418,7 @@ theorem l2tol2_block_2195 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : B
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r2 := RD.genMload r1 (by evm_kdecide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 18074760117491723492711543516830290912764447529838340178131556265193451290624) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 8251958574566535537980437485252481083890958852897448999949889803360120340480) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r4 := r3.dup2 (by evm_kdecide) (by evm_ov)
   have r5 := RD.genMstore r4 (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)

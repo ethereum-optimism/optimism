@@ -6,9 +6,11 @@ import L1cdmEvm.Outer
 
 The frame created by `relayUndeliveredMessage`'s self-call runs the same code with calldata
 `sendMessageCd H t`, no value, and `msg.sender` = the contract itself. `send_success`: if that run
-succeeds, it made exactly one external call, the deposit `portal.depositTransaction(...)` with
-calldata `depositCd (otherMessenger) (versioned nonce) (msg.sender) H t`, which succeeded, and the
-only other state change is `++msgNonce` on top of the deposit call's resulting account map.
+succeeds, its final account map is the result of a successful call `portal.depositTransaction(...)`
+with calldata `depositCd (otherMessenger) (versioned nonce) (msg.sender) H t`, made from the frame's
+starting account map, followed by `++msgNonce` on top of that call's resulting account map (a
+frame-local decomposition of the final state; what the portal's code did inside its call is not
+described).
 -/
 
 namespace L1cdmEvm

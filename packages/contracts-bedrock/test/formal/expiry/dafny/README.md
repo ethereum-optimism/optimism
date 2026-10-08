@@ -57,7 +57,8 @@ export DAFNY=$PWD/dafny-4.11.0/dafny/dafny
 ## How to run
 
 ```sh
-DAFNY=/path/to/dafny ./run.sh            # ExpiryBridge.dfy must verify; ExpectFail.dfy must fail exactly as expected
+DAFNY=/path/to/dafny ./run.sh            # ExpiryBridge.dfy must verify; ExpectFail.dfy must fail exactly as expected;
+                                         # every lemma has a NonVacuity.dfy witness; witnesses verify; vacuity probe fails
 DAFNY=/path/to/dafny ./run.sh --model    # first re-verify the whole existing model (all six files)
 ```
 
@@ -85,6 +86,42 @@ On a shared build host, run it under a memory cap:
 Two mutants of `ExpectFail.dfy` were run against this check, and both were caught:
 - `requires false` added to `ExclusiveBoundary`;
 - `ensures false` added to `NoPeriodAssumption`.
+
+## Non-vacuity (`NonVacuity.dfy`, checked by `run.sh`)
+
+`NonVacuity.dfy` has one method `Nonvacuous_<Name>` per lemma/method of `ExpiryBridge.dfy`.
+Each builds a `Valid()` instance with the model's constructor (`new I.Interop(map k | k in
+CHAIN_IDS :: cc)`), picks a concrete message (`ExecutingMessage(c, 0, 0, act + 2·BlockTime, 0)`),
+and calls the lemma, so Dafny must prove all of the lemma's `requires` **jointly** at the call; the
+witness then asserts the lemma's conclusion on that instance. For a negative conclusion ("not
+valid", "rejected"), the witness also shows the same message **is** valid at the boundary
+(`BoundaryStillValid`), so the conclusion is not true merely because nothing is valid.
+
+`run.sh` enforces, and fails otherwise:
+1. **Coverage:** every `lemma`/`method` declared in `ExpiryBridge.dfy` has a `Nonvacuous_<Name>`
+   method that calls `B.<Name>(`.
+2. **The witnesses verify** with 0 errors.
+3. **Vacuity probe:** a copy with `assert false;` inserted at the end of every witness must fail at
+   exactly the probe lines, one per witness. A witness whose context (its own `requires` plus the constructor's
+   postconditions) were contradictory would prove `false`. This is a smoke test (Dafny failing to
+   prove `false` is evidence, not proof, that the context is consistent); a manual run with
+   `assert false` in three witnesses failed exactly there.
+
+**Residual hypotheses** of the witnesses. They are about constants and functions the model leaves
+abstract, so they can only enter as `requires`; each is satisfiable by choosing that constant:
+- `c in CHAIN_IDS` (`CHAIN_IDS` non-empty) and a `ChainContainer` object `cc` (no constructor
+  outside its module): all witnesses.
+- `MESSAGE_EXPIRY_WINDOW <= PROTOCOL_WINDOW_CAP`: only the witnesses of the lemmas that themselves
+  assume the cap (`ExpiredAtExportRejectedWithCap`, `EndToEndWitness`, `CapImpliesWindowWithinPeriod`).
+- `MESSAGE_EXPIRY_WINDOW > 0`: only `ShortPeriodCounterexample` (`P < W` needs `W ≥ 1`).
+- `cc.BlockInfo(blk).Some?`: only `TimestampBoundToInitBlock`. Its `IsCorrectFrontierView`
+  hypothesis is supplied by the model's own `ResolveFrontierVerificationView`, whose
+  `ensures {:axiom} IsCorrectFrontierView(...)` is how the model provides it. The *relevant*
+  execution for this lemma (the imperative check accepting, `ok == true`) is **not** exhibited:
+  acceptance depends on abstract logs-DB / frontier contents. Only joint satisfiability of its
+  hypotheses is shown.
+
+No hypothesis of any lemma was found unsatisfiable. `run.sh` total, including the probe: 18 s.
 
 ## Results (branch tip `5992028e08`, Dafny 4.11.0)
 
@@ -381,6 +418,10 @@ not affect the expiry argument, because the theorem needs no activation hypothes
     check; dropping activation; `ensures false`; `assert false` after `new Interop`; the imperative
     form without `W <= P`.
   - Deleting the `LogsDB.Contains` axiom breaks only `TimestampBoundToInitBlock`.
+- **v3** (2026-10-08, non-vacuity audit of all layers): `NonVacuity.dfy` (one witness per
+  lemma/method), and `run.sh` checks coverage, verifies the witnesses and runs the
+  `assert false` vacuity probe. No hypothesis found unsatisfiable; residual hypotheses listed
+  under "Non-vacuity". `TimestampBoundToInitBlock`'s accepting case is not exhibited.
 - **v2** (2026-10-08) addresses the review:
   1. *Medium, all three reviewers: frontier timestamp binding.* The binding held only against an
      arbitrary view. `TimestampBoundToInitBlock` now requires

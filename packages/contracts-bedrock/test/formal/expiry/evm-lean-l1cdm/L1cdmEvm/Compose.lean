@@ -1,10 +1,12 @@
 import L1cdmEvm.Inner
 
 /-!
-# Composition: `relayUndeliveredMessage` succeeds ⇒ exactly one deposit with the exact envelope
+# Unproxied composition: `relayUndeliveredMessage` succeeds ⇒ a deposit call with the exact envelope
 
-`relay_success` (outer frame) says the only state-changing operation is a successful self-call
-`this.sendMessage(...)` (EVMLean `Θ`) with calldata `sendMessageCd H t`. When the contract's account
+`relay_success` (outer frame) says the final account map is the result of one successful self-call
+`this.sendMessage(...)` (EVMLean `Θ`) with calldata `sendMessageCd H t`, made from an account map
+with the original storage and code. This is a frame-local decomposition of the final state (an
+existential `Θ` relation), not a count of operations in the trace. When the contract's account
 holds the L1CrossDomainMessenger code itself (the implementation is called directly, not through a
 proxy) and is not a precompile address, `Θ` runs that code with `Ξ` in the frame `selfCallEnv`, and
 `send_success` (inner frame) applies to it.
@@ -124,12 +126,15 @@ theorem toExecute_self {σ : AccountMap} {a : AccountAddress} (hnp : a ∉ π)
   rw [if_neg hnp]
   simp only [Id.run, hacc, hc]
 
-/-- **Headline (composition).** If the compiled code succeeds on `relayUndeliveredMessage(H, t)` and
-    the executing account holds this code (not a precompile address), then the conditions hold, the
-    run was not static, and the final account map is: one successful deposit
+/-- **Unproxied composition** (deployed messengers sit behind a proxy, which this does not cover;
+    see README "Not covered"). If the compiled code succeeds on `relayUndeliveredMessage(H, t)` and
+    the executing account holds this code itself (no proxy) at an address that is not a precompile,
+    then the conditions hold, the run was not static, and the final account map is the result of: a
+    successful deposit call
     `portal.depositTransaction(otherMessenger, 0, 412835, false, relayMessage(nonce, this,
     0x4200..0023, 0, 100000, expireMessage(H, t)))` made from the self-call frame, from an account map
-    with the original storage and code, followed by `++msgNonce`. -/
+    with the original storage and code, followed by `++msgNonce`. (A frame-local decomposition of the
+    final state: the portal's code, e.g. a re-entrant one, may itself have done anything.) -/
 theorem relay_deposit {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : ExecutionEnv} {g g' : UInt256}
     {o : ByteArray} {v : Views}
     (hcode : I.code = l1cdmRuntime) (hsel : selectorWord I = relaySelector)

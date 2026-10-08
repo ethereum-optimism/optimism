@@ -1,5 +1,6 @@
 import ExpiryEvm.ExpireMessage
 import ExpiryEvm.Post
+import ExpiryEvm.KernelRun
 
 /-!
 # Concrete runs (reachability witnesses and boundary checks)
@@ -174,19 +175,19 @@ theorem mock_xi {σ₁ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g 
     Ξ σ₁ σ₀ g A I = .error .OutOfGass ∨
     ∃ g' A', Ξ σ₁ σ₀ g A I = .ok (.success (σ₁, g', A') (UInt256.toByteArray mockWord)) := by
   have r0 := RD.initState (σ := σ₁) (σ₀ := σ₀) (A := A) (g := Sat256.ofUInt256 g) hcode
-  have r1 := evm_run r0 with [push20 mockWord, push0]
-  have r2 := RD.genMstore r1 (by native_decide) (by evm_ov)
-  have r3 := evm_run r2 with [push1 (UInt256.ofNat 32), push0]
-  have r4 := RD.genRet r3 (by native_decide) (by evm_ov)
+  have r1 := kevm_run r0 with [push20 mockWord, push0]
+  have r2 := RD.genMstore r1 (by evm_kdecide) (by evm_ov)
+  have r3 := kevm_run r2 with [push1 (UInt256.ofNat 32), push0]
+  have r4 := RD.genRet r3 (by evm_kdecide) (by evm_ov)
   have hm : (UInt256.toByteArray mockWord).write 0 ByteArray.empty (⟨0⟩ : UInt256).toNat 32 =
       Mem.wordsMem [mockWord] := Mem.wordsMem_write_end [] mockWord 0 rfl
   rw [hm, show (⟨0⟩ : UInt256).toNat = 0 from rfl, show (UInt256.ofNat 32).toNat = 32 by decide,
     Mem.wordsMem_read32 [mockWord] 0 (by simp) 0 rfl] at r4
   exact rdret_xi hcode r4
 
-theorem l2cdm_not_precompile : ¬ (l2cdm ∈ π) := by native_decide
+theorem l2cdm_not_precompile : ¬ (l2cdm ∈ π) := by decide +kernel
 
-theorem sigma_l2cdm_code : (σ.getD l2cdm default).code = mockL2cdmCode := by native_decide
+theorem sigma_l2cdm_code : (σ.getD l2cdm default).code = mockL2cdmCode := by decide +kernel
 
 /-- From any account map with `σ`'s code, the L2CrossDomainMessenger address runs the mock. -/
 theorem toExecute_mock {σc : AccountMap} (hcd : accountCodeStateEq σ σc) :
@@ -202,7 +203,7 @@ theorem toExecute_mock {σc : AccountMap} (hcd : accountCodeStateEq σ σc) :
       rw [Std.ExtTreeMap.getD_eq_getD_getElem?,
         show σc[l2cdm]? = none by rw [← Std.ExtTreeMap.get?_eq_getElem?]; exact hg]; rfl
     rw [this] at h
-    exact absurd h (by native_decide)
+    exact absurd h (by decide +kernel)
   | some acc =>
     simp only [Id.run]
     have : σc.getD l2cdm default = acc := getD_of_get? hg
@@ -231,6 +232,22 @@ def isSuccess : Except ExecutionException (ExecutionResult (AccountMap × UInt25
   | .ok (.success _ _) => true
   | _ => false
 
+/-- **NATIVE (compiled evaluation).** The concrete run succeeds. This is the only fact of the
+    success witnesses that is not kernel-checked: the kernel cannot evaluate `Ξ` (its
+    well-founded recursion does not reduce). It is used only by `success_instance` and the
+    `nonvacuous_*` witnesses (`NonVacuity.lean`), never by a headline theorem. -/
+theorem native_xi_success :
+    isSuccess (Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS)) = true := by
+  native_decide
+
+/-- The selector of the witness calldata (kernel-checked). -/
+theorem env_sel : selectorWord (env l2cdm tS) = expireSelector := by
+  decide +kernel
+
+/-- The calldata bound of the witness (kernel-checked). -/
+theorem env_cds : (env l2cdm tS).calldata.size < 2 ^ 256 := by
+  decide +kernel
+
 /-- **Non-vacuity of the headline theorem.** All hypotheses of `expireMessage_success` —
     code, selector, calldata bound and both call summaries — hold for the concrete run, which
     succeeds; so `ExpireConds` and `ExpirePost` hold there. -/
@@ -238,8 +255,7 @@ theorem success_instance :
     ∃ σ' g' A' o, Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS) =
         .ok (.success (σ', g', A') o) ∧
       ExpireConds σ (env l2cdm tS) vMock vMock ∧ ExpirePost σ σ' (env l2cdm tS) := by
-  have hs : isSuccess (Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS)) = true := by
-    native_decide
+  have hs := native_xi_success
   cases h : Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS) with
   | error e => rw [h] at hs; cases hs
   | ok r =>
@@ -248,7 +264,7 @@ theorem success_instance :
     | success t o =>
       obtain ⟨σ', g', A'⟩ := t
       obtain ⟨_, hc, hpost, _⟩ := expireMessage_success (σ := σ) (σ₀ := σ) (A := default)
-        (I := env l2cdm tS) (g := UInt256.ofNat 1000000) rfl (by native_decide) (by native_decide)
+        (I := env l2cdm tS) (g := UInt256.ofNat 1000000) rfl env_sel env_cds
         (mock_returnsAddress σ _ _) (mock_returnsAddress σ _ _) h
       exact ⟨σ', g', A', o, rfl, hc, hpost⟩
 

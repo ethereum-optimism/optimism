@@ -69,7 +69,8 @@ lake build        # 2–6 s from clean on a 32-core Linux build host; prints the
 | `Expiry/Invariant.lean` | `HistW` (any config), `Inv` (state invariant), and their preservation proofs |
 | `Expiry/Safety.lean` | Main theorems |
 | `Expiry/Counterexamples.lean` | Concrete instance: witnesses, safe variants, counterexamples |
-| `Expiry/Axioms.lean` | `#print axioms` for each theorem |
+| `Expiry/NonVacuity.lean` | One `nonvacuous_<T>` witness per headline theorem `T` |
+| `Expiry/Axioms.lean` | `#assert_headline` (axioms + witness check, fails the build) and `#print axioms` |
 
 ## The model
 
@@ -176,7 +177,7 @@ Every hypothesis is an explicit argument or structure field.
 | Unique chain IDs (governance) | `hid : ChainIdUnique cfg := ∀ c c', standard c → chainId c = chainId c' → c = c'` | Every standard chain has a chain ID that no other chain uses. Standard chains are those that are or can become lockbox members, and the protected sources. OPCM checks duplicate IDs on migration. Without this, a member sharing B's ID exports "not relayed" for a hash delivered on B (`cex_duplicateChainId`), with no hash collision. |
 | Genesis | `h0 : Init s₀` | At every chain's genesis nothing has been sent, relayed, withdrawn or deposited, and no chain is upgraded. Clocks and initial lockbox memberships are arbitrary. |
 
-The messenger's unsafe-target rule (`cfg.targetRule`) is **not** a hypothesis. Karl kept it as
+The messenger's unsafe-target rule (`cfg.targetRule`) is **not** a hypothesis. The design keeps it as
 defense in depth, and safety does not depend on it:
 
 - `safety_without_targetRule` proves the full `safety` conjunction for configurations with
@@ -375,6 +376,31 @@ Each config is `base` with **one** field changed, with two exceptions:
 | `cex_exporterGovernanceUpgrade` | Member governance keeps the standard exporter | After B's upgrade, B's L2 ProxyAdmin owner replaces B's exporter with arbitrary code, which sends the forged fact as the exporter. B is a lockbox member, so A accepts it. |
 | `cex_duplicateChainId` | Unique chain IDs (`SafeConfig`, `HashInjective` and `GovInit` hold) | C is standard but has B's chain ID. B relays A's message; C joins A's lockbox and exports the same hash; expire and refund. |
 
+## Non-vacuity (`Expiry/NonVacuity.lean`, checked by `lake build`)
+
+For every headline theorem `T` of `Safety.lean`, `nonvacuous_T` takes the concrete instance above,
+shows that **all** of `T`'s hypotheses hold **jointly** on one explicit execution, and applies `T`
+there, so the conclusion is instantiated where its antecedents actually occur. `Axioms.lean` runs
+`#assert_headline T` on the same list of names it reports: the build fails unless `T` uses only
+`propext`, `Classical.choice`, `Quot.sound`, `nonvacuous_T` exists, its proof term applies `T`,
+and it uses only those axioms itself. All witnesses are kernel-checked (`simp`/`decide`; no
+`native_decide`); their footprint is `[propext, Quot.sound]`.
+
+| `T` | Witness execution | Instantiated conclusion |
+| --- | --- | --- |
+| `exporterSilentBeforeUpgrade` | refund execution `NV.sR` (A sends to B, B exports, L1 relay, expire, refund); exporter withdrawal from B | the export step, with B upgraded and the message unrelayed |
+| `joinNeedsNoHistoryCheck` | C upgraded, exports, then `join 0 2` (C joins A's lockbox) | C's honest export before the join |
+| `noDoubleSpend` | `NV.sR`: the refund happened; a relay of the same message is reachable in another execution (`relay_reachable_at_edge`) | no relay in the refund state |
+| `refundImpliesExpired`, `atMostOneRefund`, `noForgedFact` | `NV.sR` | expired; refunds = 1 ≤ 1; the deposit was exported by a standard chain |
+| `expiredImpliesNeverRelayable`, `onlyDestinationCanExport` | `NV.sR` (message expired) | not relayed, outside the window from now on; B's export step |
+| `expired_no_relay_step` | concludes `False`, so its hypotheses are jointly unsatisfiable **by design**: all but the relay step hold at `NV.sR`, and the relay step alone is enabled in another reachable state | no relay step is enabled from `NV.sR` |
+| `safety` | `NV.sR` | each conjunct at the protected message |
+| `safety_without_targetRule` | refund execution of `cfgNoTargetRule` (so `targetRule = false` holds too) | no relay in that refund state |
+| `messengerSilentAfterUpgrade` | B (not upgraded) relays C's body-9 message: a new withdrawal with sender 0x..23 | B was not upgraded |
+
+Hypotheses that quantify over all states or values (`SafeConfig.window`, `HashInjective`,
+`ChainIdUnique`, `Init`, `GovInit`) are all satisfied by the instance; none is unsatisfiable.
+
 ## `#print axioms` (from `lake build`)
 
 ```
@@ -467,7 +493,8 @@ re-targeted names (exporter in place of 0x..23 for check (c) and for the export)
 | v2 | R1 L1 | README overstated `HashInjective` | v2.1: README matches the formal statement; envelope integrity listed as a separate obligation |
 | v2 | R1 L2 | `_isUnsafeTarget` labeling | v2.1: the safety-relevant fact is stated; `l1cdmSelfRelay` plus `cex_noUnsafeTargetCheck` |
 | v2 | R1 H1, R2, R3 | Make clear what is certified | v2.1: first paragraph; 37b44c48c7 = `cfgMessengerTrusted`; list of code changes that must land |
-| v2.1 | coordinator (Karl's decision) | Keep the target rule as defense in depth; safety must not depend on it | v2.1: `safety_without_targetRule`, `messengerSilentAfterUpgrade`, `messengerSpeaks_without_targetRule`; passer path delegated to Halmos/Kontrol |
+| v2.1 | design decision | Keep the target rule as defense in depth; safety must not depend on it | v2.1: `safety_without_targetRule`, `messengerSilentAfterUpgrade`, `messengerSpeaks_without_targetRule`; passer path delegated to Halmos/Kontrol |
 | v2.1 | coordinator (Quint v2 review) | Chains are identified by chain ID only; duplicate IDs among lockbox members allow a double spend without any hash collision | v2.1: `Chain` separated from `chainId`; hash on chain IDs; hypothesis `ChainIdUnique`; `cex_duplicateChainId`; W activation, predeploy preimage hardness and pre-Bedrock withdrawals listed as named assumptions |
 | v2.2 | coordinator (design landed) | Cite the landed code; refer to the exporter by its constant; name the member-governance exporter-upgrade assumption; note the passer target rule | v2.2: citations at `5992028e08`; no hardcoded exporter address; `exporterGovernance` field, `exporterGovernanceUpgrade` action, `cex_exporterGovernanceUpgrade`; passer rule noted |
 | v2 | R1 L4 | "Every configuration" is vacuous when trusted ≠ exporter | v2.1: qualified in the docstring and README |
+| v2.3 | coordinator (non-vacuity audit, all layers) | Every headline theorem needs an automated, joint satisfiability witness | v2.3: `NonVacuity.lean` (one kernel-checked `nonvacuous_*` per headline theorem, each applying its theorem); `#assert_headline` in `Axioms.lean` fails the build if one is missing; no hypothesis found unsatisfiable |

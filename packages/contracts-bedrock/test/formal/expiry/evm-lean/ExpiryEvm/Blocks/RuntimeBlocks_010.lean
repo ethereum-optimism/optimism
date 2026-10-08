@@ -98,7 +98,7 @@ theorem l2tol2_block_3035 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : B
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r2 := RD.genMload r1 (by evm_kdecide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 70304313862865592181084378138880879792529513439229040269615496009570261663744) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 19028870796765811268801303143402889724969580263626230305478884316867708583936) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r4 := r3.dup2 (by evm_kdecide) (by evm_ov)
   have r5 := RD.genMstore r4 (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)

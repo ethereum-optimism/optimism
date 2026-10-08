@@ -6,16 +6,17 @@ import L1cdmEvm.SymMem
 /-!
 # Statement vocabulary for `L1CrossDomainMessenger.relayUndeliveredMessage`
 
-Solidity source (PR #23259 branch, tip 52ff613e14):
+Solidity source (PR #23259 branch, tip c7c51d79e2):
 
 ```solidity
 function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
     if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();
-    IOptimismPortal callerPortal = IL1CrossDomainMessenger(msg.sender).portal();
+    L1CrossDomainMessenger caller = L1CrossDomainMessenger(msg.sender);
+    IOptimismPortal callerPortal = caller.portal();
     if (
         callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender
             || !portal.ethLockbox().authorizedPortals(callerPortal)
-            || IL1CrossDomainMessenger(msg.sender).xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER
+            || caller.xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER
     ) revert L1CrossDomainMessenger_NotInteropMessenger();
     this.sendMessage({
         _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
@@ -37,13 +38,13 @@ open Ethereum Ethereum.EVM Reasoning.Theory L1cdmEvm.SymMem
 
 /-! ## Constants of the compiled artifact -/
 
-/-- `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` as compiled (`PUSH20` at pc 2672). -/
+/-- `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` as compiled (`PUSH20` at pc 2677). -/
 def exporterWord : UInt256 := UInt256.ofNat 0x4200000000000000000000000000000000000030
 
-/-- `Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER` (`PUSH20` at pc 3063). -/
+/-- `Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER` (`PUSH20` at pc 3068). -/
 def l2tol2Word : UInt256 := UInt256.ofNat 0x4200000000000000000000000000000000000023
 
-/-- `EXPIRE_MESSAGE_GAS_LIMIT` (`PUSH3 0x0186a0` at pc 3085). -/
+/-- `EXPIRE_MESSAGE_GAS_LIMIT` (`PUSH3 0x0186a0` at pc 3090). -/
 def expireGasLimit : ℕ := 100000
 
 /-- Storage slots of the L1CrossDomainMessenger (`forge inspect … storageLayout`). -/

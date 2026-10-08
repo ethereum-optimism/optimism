@@ -14,17 +14,17 @@ the EVMLean semantics (`Ethereum.EVM.Ξ`, `Ethereum.EVM.Θ`, `AccountMap`, `Exec
   and the summary hypothesis on their results (`ReturnsAddress`),
 * the success conditions (`ExpireConds`) and the post-state relation (`ExpirePost`).
 
-Solidity source (at commit 5992028e08, tip of `karl/message-expiry-refunds`):
+Solidity source (at commit c7c51d79e2, tip of `karl/message-expiry-refunds`):
 
 ```solidity
 function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
     if (msg.sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER
         || ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()
             != address(ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
-    ) revert NotOtherMessenger();
+    ) revert L2ToL2CrossDomainMessenger_NotOtherMessenger();
     uint256 sentAt = sentMessageTimestamps[_messageHash];
     if (sentAt == 0) revert InvalidMessage();
-    if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert MessageNotExpired();
+    if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
     expiredMessages[_messageHash] = true;
     emit MessageExpired(_messageHash, _undeliveredAt);
 }
@@ -38,8 +38,9 @@ open Ethereum Ethereum.EVM Reasoning.Theory
 /-! ## Constants of the compiled artifact -/
 
 /-- `EXPIRY_PERIOD` as compiled into the artifact (`PUSH3 0x0a8c00` at pc 2179):
-    691200 s = 8 days at commit 5992028e08. The proofs refer to this name only; if the constant
-    changes, regenerate the bytecode and change this one definition (see HOWTO.md). -/
+    691200 s = 8 days at commit c7c51d79e2 (unchanged since 5992028e08). The proofs refer to this
+    name only; if the constant changes, regenerate the bytecode and change this one definition
+    (see HOWTO.md). -/
 def P_contract : ℕ := 691200
 
 /-- `Predeploys.L2_CROSS_DOMAIN_MESSENGER` = 0x4200000000000000000000000000000000000007, as a word. -/

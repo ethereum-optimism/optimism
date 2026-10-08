@@ -5,7 +5,7 @@ is no `sorry`/`admit` and no project `axiom`; the axiom footprint is below. Kont
 primary bytecode tool; this is an independent second track in Lean.
 
 This directory proves facts about the **deployed runtime bytecode** of `L2ToL2CrossDomainMessenger`
-at `5992028e08` (tip of `karl/message-expiry-refunds`: exporter design, `EXPIRY_PERIOD = 8 days`),
+at `c7c51d79e2` (tip of `karl/message-expiry-refunds`: exporter design, `EXPIRY_PERIOD = 8 days`),
 executed by an executable Lean model of the EVM (`Ξ`). The theorems quantify over every account
 map, caller, value, calldata that selects `expireMessage(bytes32 H, uint256 t)`, gas, call depth
 and static flag:
@@ -27,9 +27,10 @@ and static flag:
 * **Outcome classification** (`expireMessage_outcome`, `expireMessage_no_other_error`): every run
   ends in one of four ways: out of gas; a revert; a static-mode violation (only on a static call
   that satisfies all the conditions); or a success as above. No other exceptional halt occurs.
-* **Non-vacuity** (`Concrete.success_instance`): all hypotheses of `expireMessage_success` hold
-  together on a concrete successful run. Both call summaries are **proved** for the concrete
-  mock state (`Concrete.mock_returnsAddress`).
+* **Non-vacuity** (`NonVacuity.lean`, checked at build time): for **every** headline theorem `T`
+  there is a `nonvacuous_T` that satisfies all of `T`'s hypotheses jointly on one concrete run and
+  applies `T` there. Everything except "`Ξ` ends in success / out of gas / static violation on this
+  input" is kernel-checked; see "Non-vacuity" below.
 * **No converse.** I tried to prove "the conditions imply success unless out-of-gas or a callee
   failure", and that statement turned out to be **vacuous**. The framework does not expose how
   much gas a call forwards, so "a callee failure" can be satisfied in any state by a 0-gas call;
@@ -67,11 +68,11 @@ one-transition Sol⁻ spec instead).
 
 | | |
 |---|---|
-| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `5992028e08` (`EXPIRY_PERIOD = 8 days`; semver 2.0.0) |
+| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `c7c51d79e2` (`EXPIRY_PERIOD = 8 days`; semver 1.4.0) |
 | Compiler | solc `0.8.25+commit.b61c2a91` via forge 1.8.1, repository **default** profile |
 | Settings | optimizer on, 999999 runs, `evm_version = cancun`, `bytecode_hash = none` (CBOR trailer `a164736f6c6343000819000a`) |
-| Runtime | 5231 bytes, `keccak256 = 0x5c0f7afd4f437f9ee59c2773c8b559661d64f50f909b66a4b235d07903d57a26` (`bytecode/…runtime.hex`) |
-| Init code | `keccak256 = 0x38ff7c906afa5ccb9b798df325a5b3e4c10725b276859389a0a59c59bec25c4f` = `initCodeHash` in `snapshots/semver-lock.json` at `5992028e08` |
+| Runtime | 5231 bytes, `keccak256 = 0x88b62191b150f3ab3ca680a4f1350a43718374a1758a993407a3b7ac54091346` (`bytecode/…runtime.hex`) |
+| Init code | `keccak256 = 0xf9306d85f68cf91dc7338a758f8294b863beeabaa542610030354a43857f8e6f` = `initCodeHash` in `snapshots/semver-lock.json` at `c7c51d79e2` |
 | Lean | `ExpiryEvm/Bytecode.lean` (`l2tol2Runtime`), generated from the hex by `scripts/gen_bytecode.py` |
 
 To reproduce, run `scripts/regen.sh`. It:
@@ -96,6 +97,11 @@ The pinned hex files live in `bytecode/`, which is not gitignored (check: `git c
 changed: the exporter function moved out, `EXPIRY_PERIOD` was renamed and set to 8 days, and the
 target rule was extended. `expireMessage`'s code shape did not change, so retargeting needed two
 things: renaming the basic-block pcs (one mechanical map) and setting `P_contract := 691200`.
+From `5992028e08` to `c7c51d79e2` (custom errors renamed with the `L2ToL2CrossDomainMessenger_`
+prefix, version string `"2.0.0"` → `"1.4.0"`, natspec) the runtime keeps its size and layout: only
+five `PUSH32` operands changed (the version string at pc 411 and the error selectors at pcs 1296,
+2057, 2198, 3038). `regen.sh` regenerated the bytecode and summaries; no proof file changed (the
+proofs do not mention those operands); full rebuild 280 s.
 
 ## What is proved
 
@@ -228,8 +234,42 @@ These two are proved theorems, not executions:
   the callee code), to an `RD` trace of the mock (`mock_xi`: out of gas, or exactly 32 bytes of
   `0xbeef`).
 * `success_instance`: instantiates `expireMessage_success` on the concrete successful run with
-  every hypothesis discharged (code `rfl`, selector and calldata bound by evaluation, both
-  summaries by `mock_returnsAddress`), yielding `ExpireConds` and `ExpirePost` there.
+  every hypothesis discharged (code `rfl`, selector and calldata bound by `decide +kernel`, both
+  summaries by `mock_returnsAddress`), yielding `ExpireConds` and `ExpirePost` there. Its only
+  compiled-evaluation fact is `native_xi_success` (the run succeeds).
+
+`mock_returnsAddress` and its pieces (`mock_xi`, `toExecute_mock`) are now kernel-checked
+(`kevm_run`/`evm_kdecide`/`decide +kernel` instead of `native_decide`).
+
+## Non-vacuity
+
+`ExpiryEvm/NonVacuity.lean` has one witness per headline theorem; `ExpiryEvm/Axioms.lean`
+(`#assert_headline`) fails `lake build` unless, for each headline theorem `T`: `T` uses only the
+three standard axioms; `nonvacuous_T` exists and its proof term applies `T`; and every non-standard
+axiom of `nonvacuous_T` comes from a theorem named `native_*` (the traversal stops at those and
+lists them). The witness world is `Concrete.lean`'s (`σ`, `env l2cdm (5 + P + 1)`, 10^6 gas).
+
+| headline theorem | witness | hypotheses (all jointly) | conclusion instantiated | compiled evaluation |
+|---|---|---|---|---|
+| `expireMessage_outcome` | `nonvacuous_expireMessage_outcome` | code, selector, calldata bound, both summaries: kernel | the success disjunct, with `ExpireConds` and `ExpirePost` | `native_xi_success` (to rule out the other disjuncts) |
+| `expireMessage_success` | `nonvacuous_expireMessage_success` | as above + `hres` (success) | `perm`, `ExpireConds`, `ExpirePost`, empty output; and from `ExpirePost` (kernel) `expiredMessages[H] = 1` | `native_xi_success` (`hres`) |
+| `expireMessage_revert_cause` | `nonvacuous_expireMessage_revert_cause` | as for outcome + `ExpireConds` (`NV.witness_conds`, every field evaluated by the kernel, keccak slot included) + `perm = true`: **all kernel** | the theorem's disjunction; the realized disjunct is success with `ExpirePost` | `native_xi_success` (only to identify the disjunct) |
+| `expireMessage_no_other_error` | `nonvacuous_expireMessage_no_other_error` | as for outcome + `he` for two runs: 20000 gas (out of gas) and `perm = false` (static violation) | both disjuncts: `OutOfGass`, and `StaticModeViolation ∧ perm = false` | `NV.native_xi_oog`, `NV.native_xi_static` (`he`) |
+| `Abstract.refines_expire` | `Abstract.nonvacuous_refines_expire` | as for success | `absGuard` with the deposit condition, `expired H`; the per-key side conditions `sentAtSlot H ≠ expiredSlot H` and `expiredSlot H' ≠ expiredSlot H` (kernel keccak) hold, so `sentAt H = 5` is kept and `expired H'` stays false | `native_xi_success` (`hres`) |
+
+**Trust, precisely.** The headline theorems' axiom cones contain no `native_*` lemma (checked).
+The witnesses additionally trust Lean's compiler and EVMLean's executable code for exactly these
+closed facts, each a `native_decide` on "`Ξ` on this concrete input ends in success / out of gas /
+static violation": `Concrete.native_xi_success`, `NV.native_xi_oog`, `NV.native_xi_static`. The
+kernel cannot evaluate `Ξ` (its well-founded recursion does not reduce). Everything else in the
+witnesses, including keccak256 of the concrete slots, is evaluated by the kernel.
+
+**Hypotheses that quantify over all states (the vacuity-prone class), checked.** Both
+`ReturnsAddress` summaries quantify over every account map with the same storage/code, every call
+gas and substate; `mock_returnsAddress` proves them for the witness state (any gas, any calldata,
+any environment), so they are satisfiable jointly with a successful run. No other hypothesis
+quantifies over states, targets, calldata or gas. `CallFailed` is a conclusion-side disjunct, known
+weak (see above), not a hypothesis of a headline theorem.
 
 ## Hypotheses, summaries, axioms (complete list)
 
@@ -255,8 +295,8 @@ These two are proved theorems, not executions:
    idealized assumption.
 4. **Lean axioms and trust base.** Every headline theorem is checked by the Lean 4.29.0 kernel and
    depends on `propext`, `Classical.choice` and `Quot.sound` only. `ExpiryEvm/Axioms.lean` asserts
-   this with `#assert_std_axioms`, so `lake build` fails if any other axiom appears. There is no
-   `sorryAx`, no project `axiom` and no `native_decide`.
+   this with `#assert_headline`, so `lake build` fails if any other axiom appears. There is no
+   `sorryAx`, no project `axiom` and no `native_decide` in any headline theorem.
    * **How the bytecode facts are kernel-checked.** The 585 closed facts about the concrete bytecode
      are instruction decodes at concrete pcs, pc arithmetic, JUMPDEST membership and the JUMPDEST
      table. They are proved via two axiom-free lemmas, in `ExpiryEvm/KernelDecide.lean`, that restate
@@ -268,9 +308,9 @@ These two are proved theorems, not executions:
      - EquiVM's proved `Reasoning` library.
 
      No compiled code, `@[implemented_by]`, `@[extern]` or `@[csimp]` is trusted.
-   * **The `Concrete.lean` witnesses** still use `native_decide`, which evaluates `Ξ` by compiled
-     code; kernel reduction gets stuck on its well-founded recursion. They are executable tests, not
-     dependencies of any headline theorem. Caveat: EVMLean implements some precompiles with
+   * **The `Concrete.lean` executable tests and the `native_*` lemmas of the non-vacuity
+     witnesses** use `native_decide`, which evaluates `Ξ` by compiled code; kernel reduction gets
+     stuck on its well-founded recursion. They are not dependencies of any headline theorem. Caveat: EVMLean implements some precompiles with
      `@[implemented_by]`, but none of these runs calls a precompile.
 5. **Trusted semantics:** EVMLean's `Ξ`/`Θ`/gas model (Cancun; conformance-tested upstream) and
    EquiVM's `Reasoning` library (all proved; no axioms beyond the above).
@@ -344,7 +384,8 @@ Limits of the bridge:
 | `ExpiryEvm/ExpireMessage.lean` | headline theorems |
 | `ExpiryEvm/Abstract.lean` | projection bridge to the protocol model's `expire` |
 | `ExpiryEvm/Concrete.lean` | executable witnesses |
-| `ExpiryEvm/Axioms.lean` | `#print axioms` |
+| `ExpiryEvm/NonVacuity.lean` | one `nonvacuous_*` witness per headline theorem |
+| `ExpiryEvm/Axioms.lean` | `#assert_headline`: axiom footprint + witness check (fails the build) |
 | `HOWTO.md` | adding the next function |
 
 ## Build and timings
@@ -361,7 +402,8 @@ All timings are on a shared 32-core Linux host (, load 35–180 during this work
   `lake exe cache get && lake build` in 5 min 16 s wall, dependencies included.
 * **Incremental:** with dependencies built, rebuilding everything in this directory takes about
   1 min (18 summary shards + proofs + concrete runs).
-* **Retarget:** the full rebuild after moving to `5992028e08` took 66 s.
+* **Retarget:** the full rebuild after moving to `5992028e08` took 66 s; to `c7c51d79e2`, 280 s
+  (load ~30; `NonVacuity.lean` alone ≈ 130–150 s, mostly kernel keccak evaluations).
 
 ## Review log
 
@@ -415,6 +457,13 @@ and a 31-byte summary all break the build). Fixes:
    * The README notes that even `sentAt[H]`'s preservation needs a slot side condition.
    * `regen.sh` compares the complete settings and automates `P_contract`.
    * The `gen_bytecode.py` docstring is fixed.
+
+**Round 3 (non-vacuity audit, all headline theorems).** Prompted by an unsatisfiable-hypothesis
+finding in a sibling project (`../evm-lean-l1cdm/`, `BoundedCalls`). No hypothesis of this project
+was found unsatisfiable. Changes: one kernel-checked (except the named `Ξ` evaluations)
+`nonvacuous_*` witness per headline theorem, a build-time check that every headline theorem has
+one, `mock_returnsAddress` moved from `native_decide` to the kernel, and the retarget to
+`c7c51d79e2`.
 
 Round 1 reviewers also confirmed, with no change needed: soundness is bytecode-faithful and
 mutation-sensitive (mutating the `PUSH3` window or `GT`→`LT` breaks the build), and the

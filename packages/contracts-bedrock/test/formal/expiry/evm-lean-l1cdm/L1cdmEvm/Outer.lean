@@ -18,9 +18,11 @@ set_option maxRecDepth 20000
 
 open Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach L1cdmEvm.SymMem
 
-/-- What a successful run did: the seven view calls (static, so storage and code are unchanged,
-    `σc`), then exactly one state-changing operation, the self-call `this.sendMessage(...)` with
-    calldata `sendMessageCd H t`, which succeeded; the final account map is that call's result. -/
+/-- The final account map of a successful run: the result of one successful self-call
+    `this.sendMessage(...)` with calldata `sendMessageCd H t`, made from an account map `σc` with
+    the storage, transient storage and code of `σ` (the seven view calls are static, so they change
+    neither). This decomposes the final state frame-locally (an existential `Θ` relation); it is not
+    a count of operations in the trace, and balances and nonces of `σc` are not constrained. -/
 def RelayPost (σ σ₀ : AccountMap) (I : ExecutionEnv) (σ' : AccountMap) : Prop :=
   ∃ σc o, accountStorageStateEq σ σc ∧ accountCodeStateEq σ σc ∧
     extCodeSizeWord σc (UInt256.ofNat I.codeOwner) ≠ ⟨0⟩ ∧
@@ -111,8 +113,8 @@ theorem relay_outcome {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} 
     feature is enabled, (a) the caller's portal's SystemConfig names the caller as its
     L1CrossDomainMessenger, (b) this chain's ETHLockbox authorizes the caller's portal, (c) the
     caller's `xDomainMessageSender()` is the UndeliveredMessageExporter, no ETH was attached, the
-    calldata is well-formed, and the only state change is the result of one successful self-call
-    `this.sendMessage` with calldata `sendMessageCd H t`. -/
+    calldata is well-formed, and the final account map is the result of one successful self-call
+    `this.sendMessage` with calldata `sendMessageCd H t` (`RelayPost`). -/
 theorem relay_success {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : ExecutionEnv} {g g' : UInt256}
     {o : ByteArray} {v : Views}
     (hcode : I.code = l1cdmRuntime) (hsel : selectorWord I = relaySelector)

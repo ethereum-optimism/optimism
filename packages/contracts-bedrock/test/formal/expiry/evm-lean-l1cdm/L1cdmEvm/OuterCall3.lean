@@ -1,7 +1,7 @@
 import L1cdmEvm.Tails
 import Ethereum.Theory.StaticStorage
 
-/-! # Outer trace, segment 4: `callerPortal.systemConfig()` (pc 2096 → 2232) -/
+/-! # Outer trace, segment 4: `callerPortal.systemConfig()` (pc 2101 → 2237) -/
 
 namespace L1cdmEvm
 
@@ -14,30 +14,30 @@ theorem seg_callerSC {σ σ1 σ₀ : AccountMap} {A : Substate} {I : ExecutionEn
     (hb : CallBound σ σ₀ I (addrOf wP) systemConfigCd)
     (hst : accountStorageStateEq σ σ1) (hcd : accountCodeStateEq σ σ1)
     (hF : Fmp m Bw) (hB : 96 ≤ Bw.toNat) (hBb : Bw.toNat < 2 ^ 40)
-    (h : RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2096)
-      [wP, UInt256.ofNat 0, t, H, UInt256.ofNat 766, relaySelector] m aw rdata σ1 k C) :
+    (h : RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2101)
+      [wP, UInt256.ofNat 0, UInt256.ofNat I.source.val, t, H, UInt256.ofNat 766, relaySelector] m aw rdata σ1 k C) :
     RDrev l1cdmRuntime g (initState σ σ₀ g A I) ∨
     (∃ wS, CallReturned σ σ₀ I (addrOf wP) systemConfigCd wS ∧ CleanAddr wS ∧ ∃ σ2 m2 Bw2 aw2 rd2 k2 C2, accountStorageStateEq σ σ2 ∧
       accountCodeStateEq σ σ2 ∧ Fmp m2 Bw2 ∧ 96 ≤ Bw2.toNat ∧ Bw2.toNat < Bw.toNat + 2 ^ 33 ∧
-      RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2232)
-        [wS, UInt256.land addrMask (UInt256.ofNat I.source.val), wP, t, H, UInt256.ofNat 766,
+      RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2237)
+        [wS, UInt256.land addrMask (UInt256.ofNat I.source.val), wP, UInt256.ofNat I.source.val, t, H, UInt256.ofNat 766,
           relaySelector] m2 aw2 rd2 σ2 k2 C2) := by
-  have r1 := l1cdm_block_2096 (by simp) h
-  simp only [l1cdm_block_2096_stack, l1cdm_block_2096_memory, fmp_load hF (UInt256.ofNat 64) rfl] at r1
+  have r1 := l1cdm_block_2101 (by simp) h
+  simp only [l1cdm_block_2101_stack, l1cdm_block_2101_memory, fmp_load hF (UInt256.ofNat 64) rfl] at r1
   obtain ⟨hF1, hin⟩ := callmem_sel hF hB
     (UInt256.shiftLeft (UInt256.land (UInt256.ofNat 4294967295) (UInt256.ofNat 869786301)) (UInt256.ofNat 224))
     (0x33d7e2bd * 2 ^ 224) 0x33d7e2bd (by decide) (by decide +kernel) _ rfl
   generalize hm1 : (UInt256.toByteArray _).write 0 m Bw.toNat 32 = m1 at r1 hF1 hin
   simp only [fmp_load hF1 (UInt256.ofNat 64) rfl, u_sub_add_comm] at r1
-  have hdec : decode l1cdmRuntime (UInt256.ofNat 2179) = some (.STATICCALL, .none) := by evm_kdecide
+  have hdec : decode l1cdmRuntime (UInt256.ofNat 2184) = some (.STATICCALL, .none) := by evm_kdecide
   by_cases hd : I.depth.val < 1024
   swap
   · have hd' : I.depth = 1024 := by
       apply Fin.ext; have := I.depth.isLt; omega
     obtain ⟨k3, C3, r3⟩ := RD.solcStaticcallDepthLimit r1 hdec hd' (by simp)
     left
-    exact l1cdm_block_2187 (by simp [l1cdm_block_2180_fallthrough_stack])
-      (l1cdm_block_2180_fallthrough (by simp) (by decide) r3)
+    exact l1cdm_block_2192 (by simp [l1cdm_block_2185_fallthrough_stack])
+      (l1cdm_block_2185_fallthrough (by simp) (by decide) r3)
   obtain ⟨σ', z, o, A_in, callGas, k3, C3, ⟨g'', A', hΘ⟩, r3, _hosize⟩ :=
     RD.solcStaticcall r1 hdec hd (by simp)
   rw [show (UInt256.ofNat 4).toNat = 4 from rfl, hin, ofUInt256_mask_land] at hΘ
@@ -50,17 +50,17 @@ theorem seg_callerSC {σ σ1 σ₀ : AccountMap} {A : Substate} {I : ExecutionEn
   | false =>
     left
     simp only [Bool.false_eq_true, if_false] at r3
-    exact l1cdm_block_2187 (by simp [l1cdm_block_2180_fallthrough_stack])
-      (l1cdm_block_2180_fallthrough (by simp) (by decide) r3)
+    exact l1cdm_block_2192 (by simp [l1cdm_block_2185_fallthrough_stack])
+      (l1cdm_block_2185_fallthrough (by simp) (by decide) r3)
   | true =>
     have hosz := hb σ1 σ' o hst hcd hcall
     have hfirst := firstWord_spec o
     generalize firstWord o = wS at hfirst
     simp only [if_true] at r3
-    have r4 := l1cdm_block_2180_taken (by simp) (by decide) (by kjump_dest) r3
-    simp only [l1cdm_block_2180_taken_stack] at r4
-    have r5 := l1cdm_block_2196 (by simp) (by kjump_dest) r4
-    simp only [l1cdm_block_2196_stack, l1cdm_block_2196_memory,
+    have r4 := l1cdm_block_2185_taken (by simp) (by decide) (by kjump_dest) r3
+    simp only [l1cdm_block_2185_taken_stack] at r4
+    have r5 := l1cdm_block_2201 (by simp) (by kjump_dest) r4
+    simp only [l1cdm_block_2201_stack, l1cdm_block_2201_memory,
       fmp_load (fmp_keep_out hF1 hB o (by omega)) (UInt256.ofNat 64) rfl] at r5
     have hAC := fun h32 => aftercall hF1 hB (by omega) o wS h32 (by omega) (hfirst h32)
     rcases tail_addr (w := wS) (by simp) (by kjump_dest) hosz (fun h32 => (hAC h32).2.2.1) r5 with

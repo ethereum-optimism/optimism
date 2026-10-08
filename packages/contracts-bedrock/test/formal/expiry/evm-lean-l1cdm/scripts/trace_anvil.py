@@ -6,6 +6,16 @@ Lean) and the exact call inputs. Needs `anvil` (foundry) on PATH.
 
     python3 scripts/trace_anvil.py bytecode/L1CrossDomainMessenger.runtime.hex [scenario]
 
+Scenarios: success (default), nointerop, notmessenger, unauthorized, badsender. The script exits
+non-zero unless the outcome is the expected one: `success` must succeed and make exactly one
+`depositTransaction` call whose input is byte-for-byte `depositCd` of `L1cdmEvm/Spec.lean`
+(rebuilt here from the constants below); every other scenario must revert.
+
+Mock constants (keep in sync with `L1cdmEvm/Concrete.lean` and `L1cdmEvm/Spec.lean` when
+retargeting): EXPORTER (= Predeploys.UNDELIVERED_MESSAGE_EXPORTER), L2CDM, the storage slots
+204/205/207/252/254, msgNonce 7, DEPOSIT_GAS (= Spec.depositGasLimit), EXPIRE_GAS
+(= EXPIRE_MESSAGE_GAS_LIMIT), the view selectors in SEL.
+
 The mocks are the same bytecodes as `L1cdmEvm/Concrete.lean`:
   * generic mock: returns the word `SLOAD(selector)` (so each view returns what its storage says),
   * portal mock: like the generic mock, but `depositTransaction` stores keccak256(calldata) at slot 0.
@@ -31,7 +41,11 @@ LB = "0x" + "13" * 20        # A's ETHLockbox
 CALLER = "0x" + "20" * 20    # B's L1CrossDomainMessenger (msg.sender)
 P_B = "0x" + "21" * 20       # B's portal
 SC_B = "0x" + "22" * 20      # B's SystemConfig
-EXPORTER = 0x420000000000000000000000000000000000002E
+EXPORTER = 0x4200000000000000000000000000000000000030
+L2TOL2 = 0x4200000000000000000000000000000000000023
+DEPOSIT_GAS = 412835
+EXPIRE_GAS = 100000
+NONCE = 7
 L2CDM = 0x4200000000000000000000000000000000000007
 
 SEL = {
@@ -62,7 +76,7 @@ def setup(s):
     rpc("anvil_setCode", [P_A, "0x" + PORTAL])
     st = lambda a, k, v: rpc("anvil_setStorageAt", [a, w(k), w(v)])
     st(SELF, 252, int(P_A, 16)); st(SELF, 254, int(SC_A, 16)); st(SELF, 207, L2CDM)
-    st(SELF, 205, 7); st(SELF, 204, 0x000000000000000000000000000000000000dEaD)
+    st(SELF, 205, NONCE); st(SELF, 204, 0x000000000000000000000000000000000000dEaD)
     st(SC_A, SEL["isFeatureEnabled"], 0 if s == "nointerop" else 1)
     st(CALLER, SEL["portal"], int(P_B, 16))
     st(CALLER, SEL["xDomainMessageSender"], 0x99 if s == "badsender" else EXPORTER)
@@ -70,6 +84,17 @@ def setup(s):
     st(SC_B, SEL["l1CrossDomainMessenger"], 0x98 if s == "notmessenger" else int(CALLER, 16))
     st(P_A, SEL["ethLockbox"], int(LB, 16))
     st(LB, SEL["authorizedPortals"], 0 if s == "unauthorized" else 1)
+
+
+def expected_deposit(H, t):
+    """`depositCd` of L1cdmEvm/Spec.lean: depositTransaction(otherMessenger, 0, gas, false,
+    relayMessage(versionedNonce, SELF, L2ToL2CrossDomainMessenger, 0, 100000, expireMessage(H, t)))."""
+    ww = lambda x: x.to_bytes(32, "big")
+    expire = bytes.fromhex("763a1cb7") + ww(H) + ww(t)
+    relay = (bytes.fromhex("d764ad0b") + ww((1 << 240) | NONCE) + ww(int(SELF, 16)) + ww(L2TOL2)
+             + ww(0) + ww(EXPIRE_GAS) + ww(0xc0) + ww(len(expire)) + expire + bytes(28))
+    return (bytes.fromhex("e9e05c42") + ww(L2CDM) + ww(0) + ww(DEPOSIT_GAS) + ww(0) + ww(0xa0)
+            + ww(len(relay)) + relay + bytes(28))
 
 
 def main():
@@ -84,6 +109,7 @@ def main():
         print("failed:", tr["failed"], "gas:", tr["gas"])
         logs = tr["structLogs"]
         prev_depth, blocks, jump = None, {}, True
+        deposits = []
         for i, l in enumerate(logs):
             d = l["depth"]
             if d != prev_depth:
@@ -101,6 +127,8 @@ def main():
                     info = f"to={stk[1]:#x} in=[{io:#x}+{isz}] {mem[io:io+isz].hex()}"
                     if l["op"] == "CALL":
                         info = f"value={stk[2]} " + info
+                        if stk[1] == int(P_A, 16) and mem[io:io + 4].hex() == "e9e05c42":
+                            deposits.append(mem[io:io + isz])
                 elif l["op"] == "LOG2":
                     info = f"data=[{stk[0]:#x}+{stk[1]}] topics={stk[2]:#x},{stk[3]:#x}"
                 elif l["op"] == "SSTORE":
@@ -109,6 +137,17 @@ def main():
             prev_depth = d
         for d, b in sorted(blocks.items()):
             print(f"depth {d} blocks ({len(b)}):", b)
+        if SCEN == "success":
+            exp = expected_deposit(H, t)
+            ok = (not tr["failed"]) and deposits == [exp]
+            print(f"deposit calls: {len(deposits)}; input == depositCd ({len(exp)} bytes):",
+                  bool(deposits) and deposits[0] == exp)
+        else:
+            ok = tr["failed"]
+        if not ok:
+            print(f"UNEXPECTED OUTCOME for scenario {SCEN}", file=sys.stderr)
+            sys.exit(1)
+        print(f"OK: scenario {SCEN} behaves as expected")
     finally:
         anvil.terminate()
 

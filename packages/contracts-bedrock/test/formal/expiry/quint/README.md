@@ -245,6 +245,6 @@ Each finding and what became of it:
 - **Later additions:**
   - pre-upgrade `resend` (from the Lean v2 review);
   - `fakeCaller` passing check (a) with a fake portal (from the Lean v2 review);
-  - the `MessengerSilentAfterUpgrade` defense-in-depth property (Karl kept the target rule).
+  - the `MessengerSilentAfterUpgrade` defense-in-depth property (the design keeps the target rule).
 
 **v2.1:** review pending.
