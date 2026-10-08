@@ -1,38 +1,18 @@
-use crate::{
-    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetRequest, SealRequest,
-};
+use crate::{BuildRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest};
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
+    InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::{
     sync::{mpsc, watch},
     time::{self, Duration, Instant},
 };
-
-/// A request handled by the [`EngineActor`].
-#[derive(Debug)]
-pub enum EngineActorRequest {
-    /// Request to start building a block.
-    Build(Box<BuildRequest>),
-    /// Request to process a Safe signal, which can be derived attributes or delegated block info.
-    ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
-    ProcessFinalizedL2Block(Box<FinalizeBlockId>),
-    /// Request to process a received unsafe L2 block.
-    ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
-    /// Request to reset the forkchoice.
-    Reset(Box<ResetRequest>),
-    /// Request to seal a block.
-    Seal(Box<SealRequest>),
-}
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of

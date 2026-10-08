@@ -8,6 +8,7 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
+use kona_engine::{EngineActorRequest, ResetRequest};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -34,8 +35,6 @@ pub enum SequencerAdminCommand {
     SetRecoveryMode(bool, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     /// Override the conductor leader.
     OverrideLeader(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
-    /// Reset the derivation pipeline.
-    ResetDerivationPipeline(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
 }
 
 /// Published sequencer state and its admin command queue.
@@ -81,16 +80,18 @@ pub enum SequencerAdminAPIError {
 #[derive(Debug)]
 pub struct AdminRpc {
     sequencer: Option<SequencerAdminHandle>,
+    engine: mpsc::Sender<EngineActorRequest>,
     unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
 impl AdminRpc {
-    /// Construct the admin RPC server from an optional sequencer and a payload sender.
+    /// Construct the admin RPC server from the sequencer, engine, and payload handles.
     pub const fn new(
         sequencer: Option<SequencerAdminHandle>,
+        engine: mpsc::Sender<EngineActorRequest>,
         unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
     ) -> Self {
-        Self { sequencer, unsafe_payloads }
+        Self { sequencer, engine, unsafe_payloads }
     }
 
     fn sequencer(&self) -> RpcResult<&SequencerAdminHandle> {
@@ -168,7 +169,16 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
-        self.command(SequencerAdminCommand::ResetDerivationPipeline).await
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+        self.engine
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        result_rx
+            .recv()
+            .await
+            .ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 }
 
@@ -186,8 +196,11 @@ mod tests {
         let (reply, _) = oneshot::channel();
         commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
         let (payloads_tx, _) = mpsc::channel(1);
-        let rpc =
-            AdminRpc::new(Some(SequencerAdminHandle::new(state_rx, commands_tx)), payloads_tx);
+        let rpc = AdminRpc::new(
+            Some(SequencerAdminHandle::new(state_rx, commands_tx)),
+            mpsc::channel(1).0,
+            payloads_tx,
+        );
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(rpc.admin_conductor_enabled().await.unwrap());
         assert!(!rpc.admin_recover_mode().await.unwrap());
@@ -211,7 +224,7 @@ mod tests {
     #[tokio::test]
     async fn sequencer_methods_are_unavailable_on_validators() {
         let (tx, _) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, tx);
+        let rpc = AdminRpc::new(None, mpsc::channel(1).0, tx);
         for result in [
             rpc.admin_sequencer_active().await.map(|_| ()),
             rpc.admin_conductor_enabled().await.map(|_| ()),
@@ -220,7 +233,6 @@ mod tests {
             rpc.admin_stop_sequencer().await.map(|_| ()),
             rpc.admin_set_recover_mode(true).await,
             rpc.admin_override_leader().await,
-            rpc.admin_reset_derivation_pipeline().await,
         ] {
             assert_eq!(result.unwrap_err().code(), ErrorCode::MethodNotFound.code());
         }
@@ -235,8 +247,11 @@ mod tests {
         });
         let (commands_tx, mut commands_rx) = mpsc::channel(1);
         let (payloads_tx, _) = mpsc::channel(1);
-        let rpc =
-            AdminRpc::new(Some(SequencerAdminHandle::new(state_rx, commands_tx)), payloads_tx);
+        let rpc = AdminRpc::new(
+            Some(SequencerAdminHandle::new(state_rx, commands_tx)),
+            mpsc::channel(1).0,
+            payloads_tx,
+        );
         let hash = B256::repeat_byte(42);
         let (result, ()) = tokio::join!(rpc.admin_stop_sequencer(), async {
             let SequencerAdminCommand::StopSequencer(reply) = commands_rx.recv().await.unwrap()
@@ -270,9 +285,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resets_engine_on_sequencers_and_validators_and_waits_for_acknowledgement() {
+        for is_sequencer in [true, false] {
+            let (_state_tx, state_rx) = watch::channel(SequencerState {
+                active: true,
+                conductor_enabled: false,
+                recovery_mode: false,
+            });
+            let (commands_tx, mut commands_rx) = mpsc::channel(1);
+            // Reset must bypass even a full sequencer command queue.
+            let (reply, _) = oneshot::channel();
+            commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
+            let sequencer = is_sequencer.then(|| SequencerAdminHandle::new(state_rx, commands_tx));
+            let (engine_tx, mut engine_rx) = mpsc::channel(1);
+            let rpc = AdminRpc::new(sequencer, engine_tx, mpsc::channel(1).0).into_rpc();
+            let reset =
+                rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);
+            tokio::pin!(reset);
+            let request = tokio::select! {
+                result = &mut reset => panic!("reset returned before engine acknowledgement: {result:?}"),
+                request = engine_rx.recv() => request.unwrap(),
+            };
+            let EngineActorRequest::Reset(request) = request else {
+                panic!("expected engine reset");
+            };
+            assert!(matches!(
+                commands_rx.try_recv().unwrap(),
+                SequencerAdminCommand::StartSequencer(_)
+            ));
+            assert!(matches!(
+                commands_rx.try_recv(),
+                Err(mpsc::error::TryRecvError::Empty | mpsc::error::TryRecvError::Disconnected)
+            ));
+            // Receiving the request is insufficient: the engine must acknowledge it.
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(10), &mut reset)
+                    .await
+                    .is_err()
+            );
+            request.result_tx.send(Ok(())).await.unwrap();
+            reset.await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn maps_engine_reset_failures_and_closed_channels() {
+        let (engine_tx, mut engine_rx) = mpsc::channel(1);
+        let rpc = AdminRpc::new(None, engine_tx, mpsc::channel(1).0);
+        let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
+            let EngineActorRequest::Reset(request) = engine_rx.recv().await.unwrap() else {
+                panic!("expected engine reset");
+            };
+            request
+                .result_tx
+                .send(Err(kona_engine::EngineRequestError::ResetForkchoiceError(
+                    "reset failed".to_owned(),
+                )))
+                .await
+                .unwrap();
+        });
+        assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
+        let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
+            drop(engine_rx.recv().await.unwrap());
+        });
+        assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
+        drop(engine_rx);
+        assert_eq!(
+            rpc.admin_reset_derivation_pipeline().await.unwrap_err().code(),
+            ErrorCode::InternalError.code()
+        );
+    }
+
+    #[tokio::test]
     async fn validates_payloads_before_forwarding_on_validators() {
         let (tx, mut rx) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, tx);
+        let rpc = AdminRpc::new(None, mpsc::channel(1).0, tx);
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),
             fee_recipient: Default::default(),

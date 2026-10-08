@@ -1,16 +1,35 @@
+//! Requests sent to the node engine actor and their replies.
+
+use crate::{BuildTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError};
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
-/// The result of an Engine client call.
-pub type EngineClientResult<T> = Result<T, EngineClientError>;
+/// A request handled by the node engine actor.
+#[derive(Debug)]
+pub enum EngineActorRequest {
+    /// Request to start building a block.
+    Build(Box<BuildRequest>),
+    /// Request to process derived attributes or delegated safe block information.
+    ProcessSafeL2Signal(ConsolidateInput),
+    /// Request to process the finalized L2 block.
+    ProcessFinalizedL2Block(Box<FinalizeBlockId>),
+    /// Request to process a received unsafe L2 block.
+    ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
+    /// Request to reset the forkchoice and signal derivation to reset.
+    Reset(Box<ResetRequest>),
+    /// Request to seal a block.
+    Seal(Box<SealRequest>),
+}
 
-/// Error making requests to the `BlockEngine`.
+/// The result of a request to the node engine actor.
+pub type EngineRequestResult<T> = Result<T, EngineRequestError>;
+
+/// Error making requests to the node engine actor.
 #[derive(Debug, Error)]
-pub enum EngineClientError {
+pub enum EngineRequestError {
     /// Error making a request to the engine. The request never made it there.
     #[error("Error making a request to the engine: {0}.")]
     RequestError(String),
@@ -44,12 +63,11 @@ pub struct BuildRequest {
 }
 
 /// A request to reset the engine forkchoice.
-/// Optionally contains a channel to send back the response if the caller would like to know that
-/// the request was successfully processed.
+/// Contains a channel to acknowledge successful processing to the caller.
 #[derive(Debug)]
 pub struct ResetRequest {
-    /// response will be sent to this channel, if `Some`.
-    pub result_tx: mpsc::Sender<EngineClientResult<()>>,
+    /// The channel on which the reset result will be sent.
+    pub result_tx: mpsc::Sender<EngineRequestResult<()>>,
 }
 
 /// A request to seal and canonicalize a payload.
