@@ -10,6 +10,7 @@ import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 
 /// @notice Thrown when attempting to relay a message where payload origin is not L2ToL2CrossDomainMessenger.
 error IdOriginNotL2ToL2CrossDomainMessenger();
@@ -31,6 +32,18 @@ error MessageAlreadyRelayed();
 
 /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
 error InvalidMessage();
+
+/// @notice Thrown when attempting to send or relay a message whose target is the
+///         L2CrossDomainMessenger or the L2ToL1MessagePasser.
+error L2ToL2CrossDomainMessenger_MessageTargetUnsafe();
+
+/// @notice Thrown when a message is marked expired by anything but this chain's
+///         L1CrossDomainMessenger.
+error L2ToL2CrossDomainMessenger_NotOtherMessenger();
+
+/// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed past
+///         the expiry period.
+error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
@@ -57,9 +70,17 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Current message version identifier.
     uint16 public constant messageVersion = uint16(0);
 
+    /// @notice How long after it is sent a message must go unrelayed before it can be marked
+    ///         expired. The protocol rejects an executing message whose block is more than the
+    ///         message expiry window after the block of its initiating message, and the interop
+    ///         specification caps that window at 7 days. This period is that window plus a day of
+    ///         margin, so a message is only marked expired well after any relay of it could still
+    ///         be valid.
+    uint256 public constant EXPIRY_PERIOD = 8 days;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.3.2
-    string public constant version = "1.3.2";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -74,6 +95,17 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     ///         mapping if it has been sent from this chain to a destination chain.
     mapping(uint256 => bytes32) public sentMessages;
 
+    /// @notice Mapping of message hashes to the timestamp of the block they were sent in. Note that
+    ///         a message will only be present in this mapping if it has been sent from this chain
+    ///         to a destination chain. Messages sent before this mapping existed are absent and can
+    ///         never expire.
+    mapping(bytes32 => uint256) public sentMessageTimestamps;
+
+    /// @notice Mapping of message hashes to whether they expired. A message sent from this chain
+    ///         expires when its destination shows it was not relayed by the end of the expiry
+    ///         period, after which it never can be. Applications read this to undo a send.
+    mapping(bytes32 => bool) public expiredMessages;
+
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -83,6 +115,11 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     event SentMessage(
         uint256 indexed destination, address indexed target, uint256 indexed messageNonce, address sender, bytes message
     );
+
+    /// @notice Emitted when a message sent from this chain is marked expired.
+    /// @param messageHash   Hash of the message.
+    /// @param undeliveredAt Destination timestamp at which the message had not been relayed.
+    event MessageExpired(bytes32 indexed messageHash, uint256 undeliveredAt);
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
     /// @param source       Chain ID of the source chain.
@@ -120,9 +157,9 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     }
 
     /// @notice Sends a message to some target address on a destination chain. The destination chain must differ from
-    ///         the current chain, and the target cannot be the L2ToL2CrossDomainMessenger predeploy. This function is
-    ///         not payable, so no ETH can be sent with the message. If the relayed call reverts on the destination
-    ///         chain, the relay transaction reverts and the message can be relayed again later, so it is never stuck.
+    ///         the current chain. The target cannot be the L2ToL2CrossDomainMessenger, the L2CrossDomainMessenger or
+    ///         the L2ToL1MessagePasser. This function is not payable, so no ETH can be sent with the message. If the
+    ///         relayed call reverts, the message can be relayed again until it expires.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
@@ -138,6 +175,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
+        if (_isUnsafeTarget(_target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();
 
         uint256 nonce = messageNonce();
         messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
@@ -150,43 +188,10 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         });
 
         sentMessages[nonce] = messageHash_;
+        sentMessageTimestamps[messageHash_] = block.timestamp;
         msgNonce++;
 
         emit SentMessage(_destination, _target, nonce, msg.sender, _message);
-    }
-
-    /// @notice Re-emits a previously sent message event for old messages that haven't been
-    ///         relayed yet, allowing offchain infrastructure to pick them up and relay them.
-    /// @dev    Emitting a message that has already been relayed will have no effect, as it is only
-    ///         relayed once on the destination chain.
-    /// @param _destination Chain ID of the destination chain.
-    /// @param _nonce Nonce of the message sent
-    /// @param _sender Address that sent the message
-    /// @param _target Target contract or wallet address.
-    /// @param _message Message payload to call target with.
-    /// @return messageHash_ The hash of the message being re-sent.
-    function resendMessage(
-        uint256 _destination,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message
-    )
-        external
-        returns (bytes32 messageHash_)
-    {
-        messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
-            _destination: _destination,
-            _source: block.chainid,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
-
-        if (sentMessages[_nonce] != messageHash_) revert InvalidMessage();
-
-        emit SentMessage(_destination, _target, _nonce, _sender, _message);
     }
 
     /// @notice Relays a message that was sent by the other L2ToL2CrossDomainMessenger contract. Can only be executed
@@ -222,6 +227,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         // Assert invariants on the message
         if (destination != block.chainid) revert MessageDestinationNotRelayChain();
 
+        if (_isUnsafeTarget(target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();
+
         uint256 source = _id.chainId;
         bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
             _destination: destination,
@@ -251,6 +258,44 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         emit RelayedMessage(source, nonce, messageHash, keccak256(returnData_));
 
         _storeMessageMetadata(0, address(0));
+    }
+
+    /// @notice Marks a message sent from this chain expired, on word from this chain's
+    ///         L1CrossDomainMessenger that its destination had not relayed it by `_undeliveredAt`.
+    ///         Only the destination can have produced that word, since it computed the message hash
+    ///         with its own chain ID. Word for a message that already expired changes nothing and
+    ///         emits nothing.
+    /// @param _messageHash   Hash of the message.
+    /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
+    function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
+        if (
+            msg.sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER
+                || ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()
+                    != address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
+        ) {
+            revert L2ToL2CrossDomainMessenger_NotOtherMessenger();
+        }
+        if (expiredMessages[_messageHash]) return;
+
+        uint256 sentAt = sentMessageTimestamps[_messageHash];
+        if (sentAt == 0) revert InvalidMessage();
+        if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
+
+        expiredMessages[_messageHash] = true;
+
+        emit MessageExpired(_messageHash, _undeliveredAt);
+    }
+
+    /// @notice Checks whether a message may not target an address. No relayed message may call the
+    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser, so this contract never initiates
+    ///         a withdrawal, and nothing that trusts it as a withdrawal's sender, today or in a
+    ///         future L1 contract, can be fooled by a relayed message. Expiry does not rely on
+    ///         this: L1CrossDomainMessengers trust a dedicated exporter predeploy as the sender of
+    ///         undelivered-message word, not this contract.
+    /// @param _target Target of the message.
+    /// @return Whether the target is unsafe.
+    function _isUnsafeTarget(address _target) internal pure returns (bool) {
+        return _target == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _target == Predeploys.L2_TO_L1_MESSAGE_PASSER;
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two bytes of the message

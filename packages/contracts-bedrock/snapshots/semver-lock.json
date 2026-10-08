@@ -72,8 +72,8 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x0d508f194491490f3b1391ea21c155ed4f2de5b1c276e1a3f21012257a8827e1",
-    "sourceCodeHash": "0xb0092c9cf0f67cfe2d222fb59aa1940814f59d5bd4418e3f483a9df302358e23"
+    "initCodeHash": "0x0a51d9a9834c740a59172315b9ef7379305232ffd1e3bb3ade33621f3ef8b0ec",
+    "sourceCodeHash": "0x582f082de7d68b7dedb9bdca681ad528b1a276a207ba1273d9c518ff6f668678"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -104,8 +104,8 @@
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x3a12a46c0dac554ed7ecb74d8e56d4b903afd19d5fba7ba9253374bf0d7858c4",
-    "sourceCodeHash": "0x03eed029da48a3893d49d6c049141cceffc7f73f1aa37cf9a067fc9dac9c9c78"
+    "initCodeHash": "0x99e34c525728e96efd1764f62ad4acabeb44253bf428609bb92fbc5736840b14",
+    "sourceCodeHash": "0x7624d0ac84d8d21deb151c3687d68efa54861404a762d540bfc3b9b781479af3"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
