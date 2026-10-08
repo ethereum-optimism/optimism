@@ -47,7 +47,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
 
     // DeployImplementations default inputs.
     // - superchainConfigProxy is set during `setUp` since it is an output of DeploySuperchain.
-    uint256 withdrawalDelaySeconds = 100;
+    uint256 minWithdrawalDelaySeconds = 1;
+    uint256 maxWithdrawalDelaySeconds = 604800;
     uint256 minProposalSizeBytes = 126_000;
     uint256 challengePeriodSeconds = 86_400;
     // Implementation bounds admit the short per-chain delays used below.
@@ -62,6 +63,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     //   defaults, so the assertions prove the input landed.
     uint256 proofMaturityDelaySeconds = 172_800;
     uint256 disputeGameFinalityDelaySeconds = 86_400;
+    uint256 withdrawalDelaySeconds = 86_400;
     // - opcm is set during `setUp` since it is an output of DeployImplementations.
     address opChainProxyAdminOwner = makeAddr("opChainProxyAdminOwner");
     address systemConfigOwner = makeAddr("systemConfigOwner");
@@ -117,7 +119,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         // 2) DeployImplementations (produces OPCM)
         DeployImplementations.Output memory dio = deployImplementations.run(
             DeployImplementations.Input({
-                withdrawalDelaySeconds: withdrawalDelaySeconds,
+                minWithdrawalDelaySeconds: minWithdrawalDelaySeconds,
+                maxWithdrawalDelaySeconds: maxWithdrawalDelaySeconds,
                 minProposalSizeBytes: minProposalSizeBytes,
                 challengePeriodSeconds: challengePeriodSeconds,
                 minProofMaturityDelaySeconds: minProofMaturityDelaySeconds,
@@ -596,6 +599,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             disputeGameFinalityDelaySeconds,
             "disputeGameFinalityDelaySeconds"
         );
+        assertEq(doo.delayedWETHPermissionlessGameProxy.delay(), withdrawalDelaySeconds, "withdrawalDelaySeconds");
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         GameType permType = _permissionedGameType();
