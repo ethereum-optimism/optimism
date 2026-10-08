@@ -771,14 +771,20 @@ func (w *Withdrawal) FinalizeReceipt() *types.Receipt {
 	return w.finalizeReceipt
 }
 
-func (w *Withdrawal) WaitForDisputeGameResolved() {
-	w.WaitForDisputeGameResolvedWithin(60 * time.Second)
+// WaitForDisputeGameOpts configures WaitForDisputeGameResolved.
+type WaitForDisputeGameOpts struct {
+	// Timeout bounds the wait. Tests that wait a game's chess clock out in wall-clock time, rather
+	// than skipping it with time travel, need more than the game's max clock duration.
+	Timeout time.Duration
 }
 
-// WaitForDisputeGameResolvedWithin is WaitForDisputeGameResolved with a caller-chosen budget.
-// Tests that wait the game's chess clock out in wall-clock time (rather than skipping it with
-// time travel) need a budget larger than the game's max clock duration.
-func (w *Withdrawal) WaitForDisputeGameResolvedWithin(timeout time.Duration) {
+// WaitForDisputeGameResolved waits for the dispute game the withdrawal was proven against to
+// resolve in the defender's favour, retrying transient RPC errors.
+func (w *Withdrawal) WaitForDisputeGameResolved(opts ...func(*WaitForDisputeGameOpts)) {
+	o := WaitForDisputeGameOpts{Timeout: 60 * time.Second}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
 
 	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
@@ -793,7 +799,8 @@ func (w *Withdrawal) WaitForDisputeGameResolvedWithin(timeout time.Duration) {
 		}
 		w.log.Info("Waiting for dispute game to resolve", "currentStatus", status)
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
-	}, timeout, 100*time.Millisecond, "wait for dispute game resolved")
+	}, o.Timeout, 100*time.Millisecond, fmt.Sprintf("expected dispute game %s to resolve with the defender winning",
+		w.proveParams.DisputeGameAddress))
 }
 
 func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
