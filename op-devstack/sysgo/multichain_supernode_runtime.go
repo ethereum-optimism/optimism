@@ -274,6 +274,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
+	require.NoError(checkL2ToL2MessageExpiryPeriod(cfg, enableInterop, delaySeconds))
 	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(
 		t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath,
 		chainSpecs, genesisAnchorGameType(cfg),

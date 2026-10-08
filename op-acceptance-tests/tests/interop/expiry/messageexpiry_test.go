@@ -47,10 +47,21 @@ const (
 	faultGameMaxClockDuration       = 40
 	faultGameClockExtension         = 1
 	preimageOracleChallengePeriod   = 10
+
+	// testMessageExpiryWindow and testExpiryPeriod shorten the protocol's message expiry window and
+	// the messenger's expiry period so a message can expire within a test. The period must exceed
+	// the window, as the production 8 days exceed the protocol's 7, so an expired message stays
+	// unrelayable.
+	testMessageExpiryWindow = 12
+	testExpiryPeriod        = 30
 )
+
+// productionExpiryPeriod is the messenger's expiry period on production networks.
+var productionExpiryPeriod = big.NewInt(8 * 24 * 60 * 60)
 
 var (
 	failedRelayedMessageTopic       = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
+	messageExpiredTopic             = crypto.Keccak256Hash([]byte("MessageExpired(bytes32,uint256)"))
 	undeliveredMessageExportedTopic = crypto.Keccak256Hash([]byte("UndeliveredMessageExported(bytes32,uint256,address,uint256)"))
 	expireMessageSelector           = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
 	messageNotExpired               = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
@@ -94,32 +105,56 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	recipient := sys.FunderB.NewFundedEOA(eth.ZeroWei)
 	send := dsl.SendETH(sender, recipient.Address(), sys.L2ChainB.ChainID(), eth.HalfEther)
 
+	messengerA := messengerOnA(t, sys)
+	require.Equal(productionExpiryPeriod, contract.Read(messengerA.ExpiryPeriod()),
+		"A's messenger must use the production expiry period")
+
 	// The export is forced in through B's portal, as it would be if B's sequencer censored it.
 	exportRcpt, exportedAt := exportAsDeposit(t, sys, l1User, send.Message)
 
-	withdrawal := sys.StandardBridge(sys.L2ChainB).WithdrawalFromReceipt(exportRcpt)
-	withdrawal.Prove(l1User)
-	// An unchallenged game resolves once the defender's chess clock runs out. Allow twice the
-	// clock of the game the withdrawal was proven against, plus a minute for blocks and the
-	// proposer.
-	gameClock := withdrawal.DisputeGameMaxClockDuration()
-	require.Equal(faultGameMaxClockDuration*time.Second, gameClock, "the game must use the shortened clock")
-	withdrawal.WaitForDisputeGameResolved(func(o *dsl.WaitForDisputeGameResolvedOpts) {
-		o.Timeout = 2*gameClock + time.Minute
-	})
-	withdrawal.Finalize(l1User)
-
-	deposit := sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
+	deposit := finalizeExport(t, sys, l1User, exportRcpt)
 	word := expireMessageWord(t, sys, deposit)
 	require.Equal(messageNotExpired, word.output, "expireMessage must reject the word as not yet expired")
 	require.Equal(send.Message.Hash, word.messageHash, "the word must carry the message's hash")
 	require.Equal(exportedAt, word.undeliveredAt, "the word must carry the time B exported at")
 
-	messengerA := bindings.NewBindings[bindings.L2ToL2CrossDomainMessenger](bindings.WithClient(sys.L2ELA.EthClient()),
-		bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
 	require.Equal(new(big.Int).SetUint64(send.BlockTime), contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash)),
 		"A must have recorded the message at its send time")
 	require.False(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must not expire early")
+}
+
+// TestUnrelayedMessageExpires runs the expiry path to its end: A sends ETH that B never relays;
+// once B is past the expiry period, B's exporter, forced in as a deposit, tells A through L1, and
+// A marks the message expired. The system deploys the messenger with a short expiry period so it
+// can pass within the test.
+func TestUnrelayedMessageExpires(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t, shortClocks(),
+		presets.WithMessageExpiryWindow(testMessageExpiryWindow),
+		presets.WithL2ToL2MessageExpiryPeriod(testExpiryPeriod))
+	require := t.Require()
+	l1User := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	messengerA := messengerOnA(t, sys)
+	require.Equal(big.NewInt(testExpiryPeriod), contract.Read(messengerA.ExpiryPeriod()),
+		"A's messenger must use the test expiry period")
+
+	sender := sys.FunderA.NewFundedEOA(eth.OneEther)
+	recipient := sys.FunderB.NewFundedEOA(eth.ZeroWei)
+	send := dsl.SendETH(sender, recipient.Address(), sys.L2ChainB.ChainID(), eth.HalfEther)
+
+	// B exports only once its clock is past the send time plus the expiry period.
+	expiresAfter := send.BlockTime + testExpiryPeriod
+	sys.L2ELB.WaitForTime(expiresAfter + 1)
+	exportRcpt, exportedAt := exportAsDeposit(t, sys, l1User, send.Message)
+	require.Greater(exportedAt.Uint64(), expiresAfter, "B must export after the expiry period")
+
+	deposit := finalizeExport(t, sys, l1User, exportRcpt)
+	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
+	require.True(slices.ContainsFunc(deposit.Logs, func(l *types.Log) bool {
+		return l.Address == predeploys.L2toL2CrossDomainMessengerAddr && len(l.Topics) > 1 &&
+			l.Topics[0] == messageExpiredTopic && l.Topics[1] == send.Message.Hash
+	}), "A's messenger must emit MessageExpired for the message")
+	require.True(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must be expired on A")
 }
 
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
@@ -154,6 +189,28 @@ func exportAsDeposit(t devtest.T, sys *presets.SimpleInterop, l1User *dsl.EOA, m
 			l.Topics[0] == undeliveredMessageExportedTopic && l.Topics[1] == m.Hash
 	}), "B's exporter must emit UndeliveredMessageExported for the message")
 	return rcpt, new(big.Int).SetUint64(sys.L2ELB.BlockRefByHash(rcpt.BlockHash).Time)
+}
+
+// finalizeExport proves and finalizes the withdrawal B's export made, and returns the deposit the
+// source L1CrossDomainMessenger made into A in response.
+func finalizeExport(t devtest.T, sys *presets.SimpleInterop, l1User *dsl.EOA, exportRcpt *types.Receipt) *types.Receipt {
+	withdrawal := sys.StandardBridge(sys.L2ChainB).WithdrawalFromReceipt(exportRcpt)
+	withdrawal.Prove(l1User)
+	// An unchallenged game resolves once the defender's chess clock runs out. Allow twice the
+	// clock of the game the withdrawal was proven against, plus a minute for blocks and the
+	// proposer.
+	gameClock := withdrawal.DisputeGameMaxClockDuration()
+	t.Require().Equal(faultGameMaxClockDuration*time.Second, gameClock, "the game must use the shortened clock")
+	withdrawal.WaitForDisputeGameResolved(func(o *dsl.WaitForDisputeGameResolvedOpts) {
+		o.Timeout = 2*gameClock + time.Minute
+	})
+	withdrawal.Finalize(l1User)
+	return sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
+}
+
+func messengerOnA(t devtest.T, sys *presets.SimpleInterop) bindings.L2ToL2CrossDomainMessenger {
+	return bindings.NewBindings[bindings.L2ToL2CrossDomainMessenger](bindings.WithClient(sys.L2ELA.EthClient()),
+		bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
 }
 
 // expiredWord is the expireMessage call that A's deposit made, and its result.
