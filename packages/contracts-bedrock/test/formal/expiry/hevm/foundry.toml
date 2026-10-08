@@ -1,0 +1,15 @@
+# Standalone Foundry project for the hevm equivalence harness, so hevm loads only these artifacts.
+# The code under test is NOT compiled here: it is the repo-built runtime bytecode in L2ToL2Bytecodes.sol.
+[profile.default]
+src = '.'
+test = '.'
+script = '.'
+out = 'out'
+cache_path = 'cache'
+libs = ['../../../../lib']
+remappings = ['forge-std/=../../../../lib/forge-std/src']
+solc_version = '0.8.25'
+evm_version = 'cancun'
+optimizer = false
+ast = true
+bytecode_hash = 'none'

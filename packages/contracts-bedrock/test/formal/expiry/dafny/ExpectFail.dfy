@@ -1,4 +1,6 @@
-// EXPECTED TO FAIL. run.sh checks that Dafny reports exactly two errors here, one per lemma.
+// EXPECTED TO FAIL. run.sh checks that Dafny exits 4 (verification errors) with exactly two
+// errors, both "a postcondition could not be proved", whose related locations are exactly the two
+// ensures lines marked EXPECT-FAIL below (one in each lemma), and nothing else.
 // Each lemma is a too-strong variant of a theorem in ExpiryBridge.dfy; if either ever verified,
 // the main theorem's hypotheses would be shown to be unnecessary or the model vacuous.
 
@@ -16,7 +18,7 @@ module ExpiryBridgeExpectFail {
     requires execChain in CHAIN_IDS
     requires tExport > msg.timestamp + P
     requires exec >= tExport
-    ensures !i.ValidExecutingMessage(exec, execChain, msg)
+    ensures !i.ValidExecutingMessage(exec, execChain, msg) // EXPECT-FAIL NoPeriodAssumption
   {
   }
 
@@ -25,7 +27,7 @@ module ExpiryBridgeExpectFail {
   lemma ExclusiveBoundary(i: I.Interop, execChain: ChainID, msg: ExecutingMessage)
     requires i.Valid()
     requires execChain in CHAIN_IDS
-    ensures !i.ValidExecutingMessage(msg.timestamp + MESSAGE_EXPIRY_WINDOW, execChain, msg)
+    ensures !i.ValidExecutingMessage(msg.timestamp + MESSAGE_EXPIRY_WINDOW, execChain, msg) // EXPECT-FAIL ExclusiveBoundary
   {
   }
 }

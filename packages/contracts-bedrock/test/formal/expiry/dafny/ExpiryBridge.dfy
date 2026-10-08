@@ -3,7 +3,9 @@
 //   - Interop.ValidExecutingMessage   (the declarative validity predicate)
 //   - Interop.VerifyExecutingMessage  (the imperative check; returns false on ErrMessageExpired)
 //   - Interop.messageExpiryWindow / Types.MESSAGE_EXPIRY_WINDOW (the window W)
-// Nothing from the model is restated or re-axiomatized here. This file adds no axioms,
+// The theorems' subjects (ValidExecutingMessage, VerifyExecutingMessage's result) are the model's
+// own, referenced, not restated. Two auxiliary statements hand-copy guard expressions from
+// VerifyExecutingMessage's body and are labelled RESTATEMENT below. This file adds no axioms,
 // no {:axiom}, no assume, and no bodiless lemmas.
 //
 // The on-chain half (L2ToL2CrossDomainMessenger.expireMessage accepts a fact only if
@@ -37,8 +39,9 @@ module ExpiryBridge {
     requires tExport > msg.timestamp + P
     requires exec >= tExport
     ensures !i.ValidExecutingMessage(exec, execChain, msg)
-    // The guard of VerifyExecutingMessage's ErrMessageExpired branch (Interop.dfy, the
-    // `execMsg.timestamp + messageExpiryWindow < executingTimestamp` test) evaluates to true.
+    // RESTATEMENT (hand-copied, not referenced): this is the text of the guard of
+    // VerifyExecutingMessage's ErrMessageExpired branch (Interop.dfy:1748). Dafny cannot refer to
+    // a method's internal guard, so this conjunct is only as faithful as the copy.
     ensures msg.timestamp + i.messageExpiryWindow < exec
   {
   }
@@ -98,11 +101,13 @@ module ExpiryBridge {
     ExpiredAtExportNeverValidGlobal(i, EXPIRY_PERIOD, tExport, exec, execChain, msg);
   }
 
-  // Which branch fails: when the source chain is registered, both activation checks pass and
-  // init <= exec, every guard of VerifyExecutingMessage before the expiry check is false and the
-  // expiry guard is true, so the method returns from the ErrMessageExpired branch. (The guard
-  // expressions below are the ones in VerifyExecutingMessage's body; the model exposes no error
-  // code, so this is the closest statement the model admits.)
+  // Which branch fails (RESTATEMENT). When the source chain is registered, both activation checks
+  // pass and init <= exec, the ensures below say every guard before the expiry check is false and
+  // the expiry guard is true. The guard expressions are HAND-COPIED from VerifyExecutingMessage's
+  // body (Interop.dfy:1722, 1729, 1736, 1742, 1748); Dafny cannot reference a method's internal
+  // guards and the model returns a bool with no error code, so the link to "returns from the
+  // ErrMessageExpired branch" rests on the copy being faithful (checked by reading). The verified,
+  // non-restated result is ExpiredAtExportRejected: the method returns false.
   lemma ExpiryIsTheFailingGuard(
       i: I.Interop, P: nat, tExport: nat, exec: nat, execChain: ChainID, msg: ExecutingMessage)
     requires i.Valid()
@@ -121,25 +126,52 @@ module ExpiryBridge {
   {
   }
 
-  // Timestamp binding: the expiry rule is only meaningful if the executing message cannot claim a
+  // Timestamp binding: the expiry rule is only meaningful if an executing message cannot claim a
   // later initiating timestamp than the real one (else it could stretch its window). When the
-  // model's VerifyExecutingMessage accepts, msg.timestamp is the timestamp of the sealed initiating
-  // block (logsDB path) or of the frontier block (same-timestamp path). This one uses the model's
-  // LogsDB.Contains {:axiom} ensures (timestamp equality), which mirrors raftwallogdb/db.go Contains
-  // (`rec.Timestamp != query.Timestamp` -> ErrConflict), and FrontierView.Contains's body.
+  // model's VerifyExecutingMessage accepts, msg.timestamp equals the timestamp the model's chain
+  // data (ChainContainer.BlockInfo) gives the initiating block:
+  //  - logsDB path (msg.timestamp < exec): via the LogsDB.Contains {:axiom} ensures (timestamp
+  //    equality; mirrors raftwallogdb/db.go Contains `rec.Timestamp != query.Timestamp` ->
+  //    ErrConflict), LogsDB.FindSealedBlock's {:axiom} (id.number == number), and the model's
+  //    proved invariant AllLogsDBsConsistentWithChainData (part of Valid()).
+  //  - frontier path (msg.timestamp == exec): via FrontierView.Contains's body and the HYPOTHESIS
+  //    IsCorrectFrontierView(view, blocksAtTS). In the model that property is supplied by
+  //    ResolveFrontierVerificationView's {:axiom} ensures (Interop.dfy:1889).
+  // Outside the model: ExecutingMessage.checksum is an abstract nat, so the step "this executing
+  // message references H's SentMessage log, hence its timestamp is the contract's sentAt" is an
+  // argument about Go/kona's checksum, not something this lemma proves.
   method TimestampBoundToInitBlock(
-      i: I.Interop, view: I.FrontierView, exec: nat, execChain: ChainID, msg: ExecutingMessage)
+      i: I.Interop, view: I.FrontierView, blocksAtTS: map<ChainID, BlockID>,
+      exec: nat, execChain: ChainID, msg: ExecutingMessage)
     returns (ok: bool)
     requires i.Valid()
     requires execChain in CHAIN_IDS
+    requires blocksAtTS.Keys == CHAIN_IDS
+    requires i.IsCorrectFrontierView(view, blocksAtTS)
     ensures ok ==> msg.chainID in CHAIN_IDS
     ensures ok && msg.timestamp < exec ==>
       i.logsDBs[msg.chainID].FindSealedBlock(msg.blockNum).Some? &&
-      i.logsDBs[msg.chainID].FindSealedBlock(msg.blockNum).value.timestamp == msg.timestamp
+      var sealed := i.logsDBs[msg.chainID].FindSealedBlock(msg.blockNum).value;
+      sealed.timestamp == msg.timestamp &&
+      i.chains[msg.chainID].BlockInfo(sealed.id).Some? &&
+      i.chains[msg.chainID].BlockInfo(sealed.id).value.id.number == msg.blockNum &&
+      i.chains[msg.chainID].BlockInfo(sealed.id).value.timestamp == msg.timestamp
     ensures ok && msg.timestamp == exec ==>
-      view.BlockInfo(msg.chainID).timestamp == msg.timestamp
+      i.chains[msg.chainID].BlockInfo(blocksAtTS[msg.chainID]).Some? &&
+      i.chains[msg.chainID].BlockInfo(blocksAtTS[msg.chainID]).value.id.number == msg.blockNum &&
+      i.chains[msg.chainID].BlockInfo(blocksAtTS[msg.chainID]).value.timestamp == msg.timestamp
   {
     ok := i.VerifyExecutingMessage(execChain, exec, msg, view);
+    if ok && msg.timestamp < exec {
+      var c := msg.chainID;
+      var sealed := i.logsDBs[c].FindSealedBlock(msg.blockNum).value;
+      assert i.LogsDBConsistentWithChainData(c) by {
+        reveal i.AllLogsDBsConsistentWithChainData();
+      }
+      reveal i.LogsDBConsistentWithChainData();
+      assert i.logsDBs[c].FindSealedBlock(sealed.id.number).Some?;
+      assert i.BlockExistedOnChain(c, sealed.id);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -198,9 +230,11 @@ module ExpiryBridge {
   }
 
   // ---------------------------------------------------------------------------
-  // 5. Counterexample when P < W: there is an export time tExport > init + P (so the contract
-  //    would accept the "undelivered" fact) and an exec >= tExport at which the message is still
-  //    valid, i.e. it can be relayed after it was expired and refunded: a double spend.
+  // 5. Counterexample to the timing implication when P < W: there is an export time
+  //    tExport > init + P (so the contract would accept the "undelivered" fact) and an
+  //    exec >= tExport at which the message still satisfies ValidExecutingMessage. This is temporal
+  //    eligibility only: it does not establish initiating-log presence, imperative acceptance,
+  //    export, expiry or refund. The full double-spend execution is Lean's cex_periodBelowWindow.
   // ---------------------------------------------------------------------------
   lemma ShortPeriodCounterexample(i: I.Interop, P: nat, execChain: ChainID, msg: ExecutingMessage)
       returns (tExport: nat, exec: nat)
@@ -234,9 +268,11 @@ module ExpiryBridge {
 
   // ---------------------------------------------------------------------------
   // 7. Relation to the Lean/Quint relay rule `t <= e + W`. Every message valid in the Dafny model
-  //    satisfies the Lean/Quint window check with e = initTimestamp, so the Lean/Quint relay set
-  //    over-approximates the Dafny one (they omit init <= exec and the activation checks). The
-  //    converse fails exactly on those omitted checks (shown by the witness below).
+  //    satisfies the numerical window check t <= e + W with e = initTimestamp (they omit
+  //    init <= exec and the activation checks). Full relay-set inclusion additionally needs the
+  //    event correspondence (Lean `events z h e` / Quint `e in evts` = this message's initiating
+  //    log) and window identification (Quint counts in days); neither is encoded here. The
+  //    converse fails on the omitted checks (shown by the witness below).
   // ---------------------------------------------------------------------------
   lemma DafnyValidImpliesLeanWithinWindow(i: I.Interop, exec: nat, execChain: ChainID, msg: ExecutingMessage)
     requires execChain in CHAIN_IDS
