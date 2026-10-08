@@ -785,6 +785,8 @@ mod tests {
         let mut configs = rollup_configs(&[INITIATING_CHAIN, EXECUTING_CHAIN]);
         for config in configs.values_mut() {
             config.hardforks.lagoon_time = Some(0);
+            // Blocks #3/#4 at ts 100/101 sit on the block-time grid (block_time 1).
+            config.genesis.l2_time = 97;
         }
         block_on(async {
             let (oracle, _) =

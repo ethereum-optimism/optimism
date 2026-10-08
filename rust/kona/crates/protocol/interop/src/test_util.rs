@@ -144,6 +144,10 @@ impl ChainBuilder {
         self.modify_header(|h| h.timestamp = timestamp)
     }
 
+    pub fn with_number(&mut self, number: u64) -> &mut Self {
+        self.modify_header(|h| h.number = number)
+    }
+
     pub fn add_initiating_message(&mut self, message_data: Bytes) -> &mut Self {
         let receipt = OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
             receipt: Receipt {
