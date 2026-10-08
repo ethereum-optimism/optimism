@@ -219,21 +219,30 @@ async fn rejected_payloads_are_replaced_only_if_derived_under_holocene(
     let client = Arc::new(client);
     let payload = OpExecutionPayloadEnvelopeV3 {
         execution_payload: ExecutionPayloadV3::from_block_slow(&block),
-        block_value: Default::default(), blobs_bundle: Default::default(),
-        should_override_builder: false, parent_beacon_block_root: Default::default(),
+        block_value: Default::default(),
+        blobs_bundle: Default::default(),
+        should_override_builder: false,
+        parent_beacon_block_root: Default::default(),
     };
-    let invalid = PayloadStatus::from_status(PayloadStatusEnum::Invalid { validation_error: "invalid".into() });
+    let invalid = PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+        validation_error: "invalid".into(),
+    });
     l2.expect("engine_getPayloadV3", payload.clone());
     l2.expect("engine_newPayloadV3", invalid.clone());
     if expected == Rejection::ReplacementFailed {
-        let forkchoice = TestEngineStateBuilder::new().with_unsafe_head(parent).build()
-            .sync_state.create_forkchoice_state();
-        l2.expect_params("engine_forkchoiceUpdatedV3", serde_json::json!([
-            forkchoice, attributes.as_deposits_only().attributes
-        ]), ForkchoiceUpdated {
-            payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
-            payload_id: Some(PayloadId::new([2; 8])),
-        });
+        let forkchoice = TestEngineStateBuilder::new()
+            .with_unsafe_head(parent)
+            .build()
+            .sync_state
+            .create_forkchoice_state();
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
+            ForkchoiceUpdated {
+                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                payload_id: Some(PayloadId::new([2; 8])),
+            },
+        );
         l2.expect("engine_getPayloadV3", payload);
         l2.expect("engine_newPayloadV3", invalid);
     }
