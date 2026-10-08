@@ -1,3 +1,5 @@
+//! Signer Actor
+
 use crate::NodeActor;
 use alloy_primitives::Address;
 use alloy_signer::Signature;
