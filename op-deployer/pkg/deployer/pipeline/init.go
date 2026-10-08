@@ -29,12 +29,16 @@ func ValidateInputs(intent *state.Intent, st *state.State) error {
 	} else {
 		// This run deploys the implementations, so the intent's bounds are the ones the
 		// DelayedWETH will enforce. Reject a per-chain delay outside them before any tx is sent.
+		bounds, err := ResolveSuperchainProofParams(intent)
+		if err != nil {
+			return fmt.Errorf("error merging proof params from overrides: %w", err)
+		}
 		for _, chain := range intent.Chains {
 			params, err := ResolveChainProofParams(intent, chain)
 			if err != nil {
 				return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 			}
-			if err := checkWithdrawalDelayBounds(intent, params.WithdrawalDelaySeconds); err != nil {
+			if err := checkWithdrawalDelayBounds(bounds, params.WithdrawalDelaySeconds); err != nil {
 				return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 			}
 		}

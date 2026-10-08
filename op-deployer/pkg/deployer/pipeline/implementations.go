@@ -28,20 +28,12 @@ type sp1VerifierOverride struct {
 	SP1Verifier common.Address `json:"sp1Verifier"`
 }
 
-func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
-	lgr := env.Logger.New("stage", "deploy-implementations")
-	if env.DeployMockSP1Verifier && !env.IsGenesis {
-		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
-	}
-
-	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
-	if err != nil {
-		return err
-	}
-	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
-		return fmt.Errorf("sp1Verifier override must not be zero")
-	}
-	proofParams, err := jsonutil.MergeJSON(
+// ResolveSuperchainProofParams merges the standard implementation inputs with the intent's global
+// deploy overrides. These are the values the implementations are deployed with, including the
+// bounds for the per-chain withdrawal delays; the delays themselves are resolved per chain by
+// ResolveChainProofParams.
+func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofParams, error) {
+	return jsonutil.MergeJSON(
 		state.SuperchainProofParams{
 			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
@@ -60,6 +52,22 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		},
 		intent.GlobalDeployOverrides,
 	)
+}
+
+func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
+	lgr := env.Logger.New("stage", "deploy-implementations")
+	if env.DeployMockSP1Verifier && !env.IsGenesis {
+		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
+	}
+
+	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
+	if err != nil {
+		return err
+	}
+	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
+		return fmt.Errorf("sp1Verifier override must not be zero")
+	}
+	proofParams, err := ResolveSuperchainProofParams(intent)
 	if err != nil {
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}

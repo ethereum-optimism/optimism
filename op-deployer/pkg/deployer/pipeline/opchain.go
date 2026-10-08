@@ -234,20 +234,10 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 // checkWithdrawalDelayBounds rejects a per-chain DelayedWETH withdrawal delay that the
 // implementation's initializer would refuse, so a bad intent fails before any L1 transaction is
 // sent instead of inside the deploy with a generic proxy revert. The bounds are the ones this
-// intent deploys the implementation with (standard values unless overridden globally), so the
-// check only applies when the run deploys the implementations itself; a predeployed OPCM's
-// DelayedWETH carries whatever bounds it was bootstrapped with.
-func checkWithdrawalDelayBounds(intent *state.Intent, delay uint64) error {
-	bounds, err := jsonutil.MergeJSON(
-		state.SuperchainProofParams{
-			MinWithdrawalDelaySeconds: standard.MinWithdrawalDelaySeconds,
-			MaxWithdrawalDelaySeconds: standard.MaxWithdrawalDelaySeconds,
-		},
-		intent.GlobalDeployOverrides,
-	)
-	if err != nil {
-		return err
-	}
+// intent deploys the implementation with (see ResolveSuperchainProofParams), so the check only
+// applies when the run deploys the implementations itself; a predeployed OPCM's DelayedWETH
+// carries whatever bounds it was bootstrapped with.
+func checkWithdrawalDelayBounds(bounds state.SuperchainProofParams, delay uint64) error {
 	if delay == 0 || delay < bounds.MinWithdrawalDelaySeconds || delay > bounds.MaxWithdrawalDelaySeconds {
 		return fmt.Errorf(
 			"faultGameWithdrawalDelay %d is outside the DelayedWETH bounds [%d, %d]; "+

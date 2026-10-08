@@ -39,10 +39,10 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
 
     /// @notice The lowest value that `delay` may be set to.
-    uint256 internal immutable MIN_DELAY_SECONDS;
+    uint256 internal immutable MIN_DELAY;
 
     /// @notice The highest value that `delay` may be set to.
-    uint256 internal immutable MAX_DELAY_SECONDS;
+    uint256 internal immutable MAX_DELAY;
 
     /// @custom:legacy
     /// @custom:spacer systemConfig
@@ -53,7 +53,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     IETHLockbox public ethLockbox;
 
     /// @notice Withdrawal delay in seconds. An unlocked withdrawal can only be executed once this much
-    ///         time has passed since the unlock. Bounded by `MIN_DELAY_SECONDS` and `MAX_DELAY_SECONDS`.
+    ///         time has passed since the unlock. Bounded by `MIN_DELAY` and `MAX_DELAY`.
     /// @custom:network-specific
     uint256 public delay;
 
@@ -73,12 +73,14 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
         if (_minDelay == 0 || _minDelay > _maxDelay) {
             revert DelayedWETH_InvalidDelayBounds();
         }
-        MIN_DELAY_SECONDS = _minDelay;
-        MAX_DELAY_SECONDS = _maxDelay;
+        MIN_DELAY = _minDelay;
+        MAX_DELAY = _maxDelay;
         _disableInitializers();
     }
 
-    /// @notice Initializes the contract.
+    /// @notice Initializes the contract. Emits `DelaySet` on every call, including upgrades that
+    ///         pass the current delay back in, so a re-initialization that changes nothing still
+    ///         emits an event carrying the unchanged value.
     /// @param _ethLockbox The address of the ETHLockbox contract.
     /// @param _delay The withdrawal delay in seconds.
     function initialize(IETHLockbox _ethLockbox, uint256 _delay) external reinitializer(initVersion()) {
@@ -95,13 +97,13 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @notice Returns the lowest value that the withdrawal delay may be set to.
     /// @return The minimum withdrawal delay in seconds.
     function minDelay() external view returns (uint256) {
-        return MIN_DELAY_SECONDS;
+        return MIN_DELAY;
     }
 
     /// @notice Returns the highest value that the withdrawal delay may be set to.
     /// @return The maximum withdrawal delay in seconds.
     function maxDelay() external view returns (uint256) {
-        return MAX_DELAY_SECONDS;
+        return MAX_DELAY;
     }
 
     /// @notice Returns the SuperchainConfig contract.
@@ -180,7 +182,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @notice Sets the withdrawal delay after checking it against the configured bounds.
     /// @param _delay The new withdrawal delay in seconds.
     function _setDelay(uint256 _delay) internal {
-        if (_delay < MIN_DELAY_SECONDS || _delay > MAX_DELAY_SECONDS) {
+        if (_delay < MIN_DELAY || _delay > MAX_DELAY) {
             revert DelayedWETH_InvalidDelay();
         }
         delay = _delay;

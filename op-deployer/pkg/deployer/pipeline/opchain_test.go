@@ -904,9 +904,11 @@ func TestCheckWithdrawalDelayBounds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			intent := &state.Intent{GlobalDeployOverrides: tt.global}
 			chain := &state.ChainIntent{DeployOverrides: tt.chain}
+			bounds, err := ResolveSuperchainProofParams(intent)
+			require.NoError(t, err)
 			params, err := ResolveChainProofParams(intent, chain)
 			require.NoError(t, err)
-			err = checkWithdrawalDelayBounds(intent, params.WithdrawalDelaySeconds)
+			err = checkWithdrawalDelayBounds(bounds, params.WithdrawalDelaySeconds)
 			if tt.wantErr {
 				require.ErrorContains(t, err, "outside the DelayedWETH bounds")
 			} else {
