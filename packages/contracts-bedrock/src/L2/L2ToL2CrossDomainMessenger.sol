@@ -78,8 +78,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     uint256 public constant EXPIRY_PERIOD = 8 days;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
