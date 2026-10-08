@@ -1,4 +1,4 @@
-//! Metrics for parsed JSON-RPC calls and notifications, including batch entries.
+//! Metrics and logging for parsed JSON-RPC calls and notifications, including batch entries.
 
 use crate::Metrics;
 use jsonrpsee::{
@@ -9,8 +9,9 @@ use jsonrpsee::{
 };
 use std::{collections::HashSet, sync::Arc, time::Instant};
 use tower::Layer;
+use tracing::{info, warn};
 
-/// Records all registered methods, grouping unregistered names under `unknown`.
+/// Logs RPC requests and records metrics, grouping unregistered names under `unknown` in metrics.
 #[derive(Clone, Debug)]
 pub(super) struct RpcMetricsLayer {
     methods: Arc<HashSet<&'static str>>,
@@ -65,15 +66,24 @@ where
         let method = self.method(req.method_name());
         let inner = self.inner.clone();
         async move {
+            let request_method = req.method.clone();
+            let id = req.id.clone();
             metrics::counter!(Metrics::RPC_REQUESTS, "method" => method, "kind" => "call")
                 .increment(1);
             let start = Instant::now();
             let response = inner.call(req).await;
-            let result = response.as_error_code().map_or("success", |code| {
-                metrics::counter!(Metrics::RPC_ERRORS, "method" => method, "code" => code.to_string())
-                    .increment(1);
-                "error"
-            });
+            let result = response.as_error_code().map_or_else(
+                || {
+                    info!(target: "rpc", method = %request_method, ?id, "RPC request succeeded");
+                    "success"
+                },
+                |code| {
+                    warn!(target: "rpc", method = %request_method, ?id, code, "RPC request failed");
+                    metrics::counter!(Metrics::RPC_ERRORS, "method" => method, "code" => code.to_string())
+                        .increment(1);
+                    "error"
+                },
+            );
             metrics::histogram!(Metrics::RPC_REQUEST_DURATION, "method" => method, "result" => result)
                 .record(start.elapsed().as_secs_f64());
             response
@@ -87,6 +97,7 @@ where
         let method = self.method(&notification.method);
         let inner = self.inner.clone();
         async move {
+            info!(target: "rpc", method = %notification.method, "Received RPC notification");
             // jsonrpsee does not execute notification handlers. Count receipt separately from
             // calls, without reporting a successful method execution or a duration.
             metrics::counter!(Metrics::RPC_REQUESTS, "method" => method, "kind" => "notification")
@@ -114,6 +125,7 @@ where
                     }
                     Err(err) => {
                         let (err, id) = err.into_parts();
+                        warn!(target: "rpc", ?id, code = err.code(), "Invalid RPC batch entry");
                         MethodResponse::error(id, err)
                     }
                 };
