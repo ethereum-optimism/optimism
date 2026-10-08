@@ -27,15 +27,19 @@ and static flag:
 * **Outcome classification** (`expireMessage_outcome`, `expireMessage_no_other_error`): every run
   ends in one of four ways: out of gas; a revert; a static-mode violation (only on a static call
   that satisfies all the conditions); or a success as above. No other exceptional halt occurs.
+* **Non-vacuity** (`Concrete.success_instance`): all hypotheses of `expireMessage_success` hold
+  together on a concrete successful run. Both call summaries are **proved** for the concrete
+  mock state (`Concrete.mock_returnsAddress`).
 * **No converse.** I tried to prove "the conditions imply success unless out-of-gas or a callee
   failure", and that statement turned out to be **vacuous**. The framework does not expose how
   much gas a call forwards, so "a callee failure" can be satisfied in any state by a 0-gas call;
-  `Concrete.callFailed_in_success_state` proves this. The lemma is kept, renamed
-  `expireMessage_revert_cause`, and labelled as not a completeness result. Liveness is
-  demonstrated by executable witnesses only (`Concrete.lean`).
-* **Bridge** (`Abstract.refines_expire`): a successful run is an abstract `expire` step of the
-  protocol model `../lean/`. It is a projection onto the two maps the step touches, with
-  per-key slot-distinctness side conditions; see "Connection to `../lean/`".
+  `Concrete.callFailed_in_success_state` proves this. The lemma survives only as the auxiliary
+  `expireMessage_revert_cause`, labelled as not a completeness result. Liveness is demonstrated by
+  executable witnesses only (`Concrete.lean`).
+* **Bridge** (`Abstract.refines_expire`): a **conditional per-key correspondence** with the
+  protocol model's `expire` step, with the deposit history supplied externally. The model's
+  `deposits f` is replaced by the call-time authorization `RelayFromOtherMessenger`, and each key
+  is covered only under a slot-distinctness side condition; see "Connection to `../lean/`".
 
 ## Toolchain (all pinned)
 
@@ -66,17 +70,23 @@ one-transition Sol⁻ spec instead).
 | Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `5992028e08` (`EXPIRY_PERIOD = 8 days`; semver 2.0.0) |
 | Compiler | solc `0.8.25+commit.b61c2a91` via forge 1.8.1, repository **default** profile |
 | Settings | optimizer on, 999999 runs, `evm_version = cancun`, `bytecode_hash = none` (CBOR trailer `a164736f6c6343000819000a`) |
-| Runtime | 5231 bytes, `keccak256 = 0x5c0f7afd4f437f9ee59c2773c8b559661d64f50f909b66a4b235d07903d57a26` (`artifacts/…runtime.hex`) |
+| Runtime | 5231 bytes, `keccak256 = 0x5c0f7afd4f437f9ee59c2773c8b559661d64f50f909b66a4b235d07903d57a26` (`bytecode/…runtime.hex`) |
 | Init code | `keccak256 = 0x38ff7c906afa5ccb9b798df325a5b3e4c10725b276859389a0a59c59bec25c4f` = `initCodeHash` in `snapshots/semver-lock.json` at `5992028e08` |
 | Lean | `ExpiryEvm/Bytecode.lean` (`l2tol2Runtime`), generated from the hex by `scripts/gen_bytecode.py` |
 
 To reproduce, run `scripts/regen.sh`. It:
 * unsets every `FOUNDRY_*` override and forces `FOUNDRY_PROFILE=default`;
 * builds into a temporary directory;
-* refuses to continue unless solc is `0.8.25+commit.b61c2a91`, the settings are exactly the ones
-  above, and the init-code hash equals the `semver-lock.json` entry;
-* only then records the artifacts and regenerates `ExpiryEvm/Bytecode.lean`, the block summaries
-  `ExpiryEvm/Blocks/` and their import point `ExpiryEvm/AllBlocks.lean`.
+* refuses to continue unless all three match: solc is `0.8.25+commit.b61c2a91`; the *complete*
+  compiler settings minus remappings equal the expected JSON (so any viaIR, optimizer detail or
+  library setting fails the check); and the init-code hash equals the `semver-lock.json` entry;
+* only then writes `bytecode/*.hex` (creating the directory) and regenerates
+  `ExpiryEvm/Bytecode.lean`, the block summaries `ExpiryEvm/Blocks/` and their import point
+  `ExpiryEvm/AllBlocks.lean`;
+* sets `P_contract` in `Spec.lean` from the compiled `PUSH3` operands, failing if they disagree.
+
+The pinned hex files live in `bytecode/`, which is not gitignored (check: `git check-ignore bytecode/*`). The earlier `artifacts/` directory was ignored by
+`packages/contracts-bedrock/.gitignore`, so those files were never committed.
 
 **Constant.** `P_contract` in `ExpiryEvm/Spec.lean` is the compiled `EXPIRY_PERIOD`:
 `PUSH3 0x0a8c00` at pc 2179, i.e. 691200 s = 8 days. The proofs use only the name.
@@ -107,7 +117,7 @@ code owner, block header and the rest. `H = argHash I = CALLDATALOAD(4)` and
 ```lean
 theorem expireMessage_outcome … :
     Ξ σ σ₀ g A I = .error .OutOfGass ∨
-    ((∃ g' o, Ξ σ σ₀ g A I = .ok (.revert g' o)) ∧ (¬ ExpireConds σ I vO vS ∨ CallFailed σ σ₀ I)) ∨
+    (∃ g' o, Ξ σ σ₀ g A I = .ok (.revert g' o)) ∨
     (Ξ σ σ₀ g A I = .error .StaticModeViolation ∧ I.perm = false ∧ ExpireConds σ I vO vS) ∨
     (∃ σ' g' A', Ξ σ σ₀ g A I = .ok (.success (σ', g', A') ByteArray.empty) ∧
       I.perm = true ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I)
@@ -118,7 +128,8 @@ theorem expireMessage_success … (hres : Ξ σ σ₀ g A I = .ok (.success (σ'
 theorem expireMessage_no_other_error … (he : Ξ σ σ₀ g A I = .error e) :
     e = .OutOfGass ∨ (e = .StaticModeViolation ∧ I.perm = false)
 
--- NOT a completeness theorem (see below):
+-- Auxiliary, NOT a completeness theorem (see below; `expireMessage_outcome_aux` likewise
+-- annotates the revert case with `¬ ExpireConds ∨ CallFailed`):
 theorem expireMessage_revert_cause … (hc : ExpireConds σ I vO vS) (hperm : I.perm = true) :
     Ξ … = .error .OutOfGass ∨ (∃ σ' g' A', Ξ … = .ok (.success (σ', g', A') ByteArray.empty) ∧
       ExpirePost σ σ' I) ∨ ((∃ g' o, Ξ … = .ok (.revert g' o)) ∧ CallFailed σ σ₀ I)
@@ -177,14 +188,22 @@ What is shown:
 
 ```lean
 theorem refines_expire … (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    absGuard P_contract (DepositCall I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
+    absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
     (viewOf σ' I.codeOwner).expired (argHash I) ∧
     (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
       (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
     (∀ H, expiredSlot H ≠ expiredSlot (argHash I) →
       ((viewOf σ' I.codeOwner).expired H ↔ (absNext (viewOf σ I.codeOwner) (argHash I)).expired H)) ∧
+    (∀ s, s ≠ expiredSlot (argHash I) → storageWord σ' I.codeOwner s = storageWord σ I.codeOwner s) ∧
     (∀ a, a ≠ I.codeOwner → (σ'.getD a default).storage = (σ.getD a default).storage)
 ```
+
+Notes on reading it:
+* Even `sentMessageTimestamps[H]` for the expired key `H` itself is preserved only under the side
+  condition `sentAtSlot H ≠ expiredSlot H`.
+* The slot frame (`∀ s ≠ expiredSlot H`) covers the messenger's other state, with per-key side
+  conditions. `Abstract.frame_other_maps` names the instances: `successfulMessages[H']`
+  (`keccak(H'‖0)`), `sentMessages[n]` (`keccak(n‖2)`) and `msgNonce` (slot 1).
 
 ### Executable witnesses (`ExpiryEvm/Concrete.lean`)
 
@@ -202,6 +221,16 @@ These run the real bytecode under `Ξ` (compiled evaluation, `native_decide`) in
 | `callee_failure_reverts` | 0x..07 code `PUSH0 PUSH0 REVERT` | revert |
 | `callFailed_in_success_state` | `CallFailed` holds in the success state (0-gas call) | shows `CallFailed` is weak |
 
+These two are proved theorems, not executions:
+* `mock_returnsAddress`: for every calldata, environment and `σ₀`, `ReturnsAddress σ σ₀ I cd vMock`
+  holds in the concrete state. The proof goes from any storage- and code-equal account map, to
+  `toExecute` running the mock, to `theta_code_success` (a successful `Θ` is a successful `Ξ` of
+  the callee code), to an `RD` trace of the mock (`mock_xi`: out of gas, or exactly 32 bytes of
+  `0xbeef`).
+* `success_instance`: instantiates `expireMessage_success` on the concrete successful run with
+  every hypothesis discharged (code `rfl`, selector and calldata bound by evaluation, both
+  summaries by `mock_returnsAddress`), yielding `ExpireConds` and `ExpirePost` there.
+
 ## Hypotheses, summaries, axioms (complete list)
 
 1. `hcode`, `hsel`, `hcds`: the code, the selector, and a calldata bound that holds in any EVM.
@@ -216,10 +245,10 @@ These run the real bytecode under `Ξ` (compiled evaluation, `native_decide`) in
    * The L2CrossDomainMessenger bytecode itself is *not* verified.
    * That static calls change no storage or code is **proved** (EVMLean
      `Theta_static_accountStorageStateEq` and `Theta_static_accountCodeStateEq`), not assumed.
-   * **Satisfiability:** the summary holds for the real L2CrossDomainMessenger, whose two
-     functions are Solidity `address` getters. That is argued, not proved. The concrete mock in
-     `Concrete.lean` is consistent with it, but it is only executed, not proved to satisfy the
-     `∀`-statement.
+   * **Satisfiability:** proved for the concrete mock state (`Concrete.mock_returnsAddress`), and
+     shown jointly satisfiable with success (`Concrete.success_instance`). For the real
+     L2CrossDomainMessenger, whose two functions are Solidity `address` getters, it is argued,
+     not proved.
 3. No hash assumption. The bridge states its view equations per key `H'`, with the side condition
    that `H'`'s slot differs from `expiredSlot H`. Keys whose slot collides, if any exist, are not
    covered. This replaces the earlier global `NoSlotCollision`, which reviewers rightly called an
@@ -281,7 +310,7 @@ These run the real bytecode under `Ξ` (compiled evaluation, `native_decide`) in
 | `next (.expire f) s = { s with expired := … ∨ (c = f.toL1 ∧ h = f.hash) }` | `absNext v h` |
 | `State.sentAt z h` | `(viewOf σ a).sentAt h = sentMessageTimestamps[h].toNat` |
 | `State.expired z h` | `(viewOf σ a).expired h = (expiredMessages slot & 0xff ≠ 0)` |
-| `State.deposits ⟨z, h, t⟩` | `DepositCall I vO vS` (see below) |
+| `State.deposits ⟨z, h, t⟩` | `RelayFromOtherMessenger I vO vS` (see below) |
 | `cfg.contractPeriod` | `P_contract` (compiled constant) |
 | `f.hash`, `f.time` | `argHash I`, `(argTime I).toNat` |
 
@@ -289,7 +318,7 @@ Limits of the bridge:
 * It is a **projection** onto one chain and the two maps that `expire` touches. It is not a
   refinement of the whole model state.
 * **Deposit authenticity is supplied externally.** The model's `s.deposits f` is a history fact.
-  Here it is replaced by the call-time check the code performs, `DepositCall` ("the
+  Here it is replaced by the call-time check the code performs, `RelayFromOtherMessenger` ("the
   L2CrossDomainMessenger relays an L1→L2 message whose L1 sender is `otherMessenger`"). That only
   authentic `expireMessage` deposits satisfy it rests on two things not verified here:
   `L1CrossDomainMessenger.relayUndeliveredMessage`'s checks, and the L2CrossDomainMessenger
@@ -300,8 +329,8 @@ Limits of the bridge:
 | File | Content |
 |---|---|
 | `lakefile.toml`, `lean-toolchain`, `lake-manifest.json` | project, pinned |
-| `artifacts/*.hex` | compiled runtime and init code |
-| `scripts/regen.sh`, `scripts/gen_bytecode.py` | validated recompilation; regenerate Lean bytecode, summaries, `AllBlocks.lean` |
+| `bytecode/*.hex` | compiled runtime and init code (tracked) |
+| `scripts/regen.sh`, `scripts/gen_bytecode.py` | validated recompilation; regenerate Lean bytecode, summaries, `AllBlocks.lean`, `P_contract` |
 | `scripts/trace_paths.py` | concrete mini-EVM tracer listing the block path of each branch |
 | `ExpiryEvm/Bytecode.lean` | generated: runtime bytes + JUMPDEST table |
 | `ExpiryEvm/Blocks/RuntimeBlocks_0NN.lean`, `RuntimeBlocks.index`, `ExpiryEvm/AllBlocks.lean` | generated by EquiVM's `generate_rd_blocks.py`: proved `RD` summary of every basic block (all functions) |
@@ -363,7 +392,31 @@ fixes in this version:**
    * The README now states that the substate is not asserted, records the precompile
      `implemented_by` caveat, and notes that the restated bridge was compared by hand.
 
-Reviewers also confirmed, with no change needed: soundness is bytecode-faithful and
+**Round 2 (Claude, Codex astra, Codex sol) of the `5992028e08` version.** No critical or high
+findings; all round-1 fixes were verified (mutations of P, of the tightened check, of the slot,
+and a 31-byte summary all break the build). Fixes:
+1. **MEDIUM: the hex artifacts were gitignored.** `artifacts/` matched
+   `packages/contracts-bedrock/.gitignore:2`, so regeneration failed in a clean checkout. The
+   directory is renamed `bytecode/` and tracked, and `regen.sh` creates it.
+2. **MEDIUM: bridge wording and frame.**
+   * `DepositCall` is renamed `RelayFromOtherMessenger`.
+   * The bridge is now described as a conditional per-key correspondence, with the deposit
+     history supplied externally.
+   * `refines_expire` now exports the slot frame for every other messenger slot, and
+     `frame_other_maps` names the instances for `successfulMessages`, `sentMessages` and
+     `msgNonce`.
+3. **MEDIUM: non-vacuity of the headline hypotheses.** Both summaries are proved for the
+   concrete mock (`mock_returnsAddress`), and `expireMessage_success` is instantiated on the
+   concrete successful run (`success_instance`).
+4. **LOW items:**
+   * HOWTO no longer recommends `_complete`.
+   * `CallFailed` is dropped from the headline `expireMessage_outcome`; the annotated version is
+     `_outcome_aux`, and `_revert_cause` is auxiliary.
+   * The README notes that even `sentAt[H]`'s preservation needs a slot side condition.
+   * `regen.sh` compares the complete settings and automates `P_contract`.
+   * The `gen_bytecode.py` docstring is fixed.
+
+Round 1 reviewers also confirmed, with no change needed: soundness is bytecode-faithful and
 mutation-sensitive (mutating the `PUSH3` window or `GT`→`LT` breaks the build), and the
 artifacts and hashes check out.
 
@@ -373,7 +426,7 @@ artifacts and hashes check out.
   gas-parametric callee summary.
 * Discharge the two call summaries by proving the L2CrossDomainMessenger's `otherMessenger()` and
   `xDomainMessageSender()` bytecode with the same infrastructure, and prove that its
-  `relayMessage` sets `xDomainMessageSender` (that is what makes `DepositCall` the model's
+  `relayMessage` sets `xDomainMessageSender` (that is what makes `RelayFromOtherMessenger` the model's
   `deposits`).
 * Assert the `MessageExpired` event (topics, data); the `LOG2` arguments are already in the trace.
 * A `Θ`-level statement (message call into the proxy, value transfer, rollback) instead of `Ξ`.

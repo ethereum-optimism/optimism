@@ -12,3 +12,6 @@ table, a few closed word computations — checked by compiled evaluation; see RE
 #print axioms ExpiryEvm.Abstract.refines_expire
 #print axioms ExpiryEvm.Concrete.success_reachable
 #print axioms ExpiryEvm.Concrete.boundary_reverts
+#print axioms ExpiryEvm.Concrete.mock_returnsAddress
+#print axioms ExpiryEvm.Concrete.success_instance
+#print axioms ExpiryEvm.Abstract.frame_other_maps

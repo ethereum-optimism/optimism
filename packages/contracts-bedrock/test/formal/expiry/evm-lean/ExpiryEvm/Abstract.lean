@@ -40,7 +40,7 @@ What this is and is not:
   effect. It is not a refinement of the whole model state, and it does not relate executions.
 * `deposits f` is **not derived**: the model's `s.deposits f` is a history fact (an
   `expireMessage(H, t)` deposit from this chain's L1CrossDomainMessenger exists). Here it is read
-  as the call-time condition `DepositCall` that the code checks. That `DepositCall` holds only for
+  as the call-time condition `RelayFromOtherMessenger` that the code checks. That `RelayFromOtherMessenger` holds only for
   authentic deposits is supplied externally: by the L1CrossDomainMessenger's
   `relayUndeliveredMessage` checks and by the L2CrossDomainMessenger relaying deposits with
   `xDomainMessageSender` = their L1 sender (neither is verified here).
@@ -74,7 +74,7 @@ def viewOf (σ : AccountMap) (a : AccountAddress) : AbsView where
   expired H := UInt256.land (storageWord σ a (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩
 
 /-- The concrete meaning of `deposits ⟨z, H, t⟩` at this call. -/
-def DepositCall (I : ExecutionEnv) (vO vS : AccountAddress) : Prop :=
+def RelayFromOtherMessenger (I : ExecutionEnv) (vO vS : AccountAddress) : Prop :=
   I.source = l2cdm ∧ vS = vO
 
 theorem setTrueWord_testBit0 (old : UInt256) : (setTrueWord old).toNat.testBit 0 = true := by
@@ -139,11 +139,41 @@ theorem post_view {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost �
     rw [hs, storageWord_insert_ne hH]
     exact ⟨fun h => Or.inl h, fun h => h.resolve_right hne⟩
 
-/-- **Projection refinement (soundness).** A successful run of the compiled
-    `expireMessage(H, t)` is an abstract `expire ⟨z, H, t⟩` step on the projection: the abstract
-    guard held before (with `deposits` read as `DepositCall`), `expired` holds at `H` after, every
-    key with a slot distinct from `expiredSlot H` keeps `sentAt` and follows `absNext`, and no
-    other account's storage changed. -/
+/-- Every messenger storage slot other than `expiredSlot H` is unchanged by a successful run. -/
+theorem slot_frame {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
+    ∀ s, s ≠ expiredSlot (argHash I) → storageWord σ' I.codeOwner s = storageWord σ I.codeOwner s := by
+  intro s hs
+  unfold storageWord
+  rw [hpost.self_storage, storageWord_insert_ne hs]
+
+/-- Storage slot of `successfulMessages[H]` (slot 0). -/
+def successfulSlot (H : UInt256) : UInt256 := solcMappingSlot (UInt256.ofNat 0) H
+/-- Storage slot of `sentMessages[n]` (slot 2). -/
+def sentMessagesSlot (n : UInt256) : UInt256 := solcMappingSlot (UInt256.ofNat 2) n
+/-- Storage slot of `msgNonce` (slot 1). -/
+def msgNonceSlot : UInt256 := UInt256.ofNat 1
+
+/-- Per-key frame facts for the messenger's other state, each under its slot side condition. -/
+theorem frame_other_maps {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
+    (∀ H, successfulSlot H ≠ expiredSlot (argHash I) →
+      storageWord σ' I.codeOwner (successfulSlot H) = storageWord σ I.codeOwner (successfulSlot H)) ∧
+    (∀ n, sentMessagesSlot n ≠ expiredSlot (argHash I) →
+      storageWord σ' I.codeOwner (sentMessagesSlot n) = storageWord σ I.codeOwner (sentMessagesSlot n)) ∧
+    (msgNonceSlot ≠ expiredSlot (argHash I) →
+      storageWord σ' I.codeOwner msgNonceSlot = storageWord σ I.codeOwner msgNonceSlot) :=
+  ⟨fun H h => slot_frame hpost _ h, fun n h => slot_frame hpost _ h, fun h => slot_frame hpost _ h⟩
+
+/-- **Conditional per-key correspondence with the `expire` step (soundness); deposit history
+    supplied externally.** After a successful run of the compiled `expireMessage(H, t)`:
+    the abstract guard held before, with the model's history fact `deposits f` *replaced* by the
+    call-time authorization `RelayFromOtherMessenger` (independent of `H` and `t`; that it implies
+    `deposits f` is not proved here); `expired` holds at `H`; every key whose slot differs from
+    `expiredSlot H` keeps `sentAt` (this applies to `H` itself too: `sentAtSlot H ≠ expiredSlot H`
+    is a side condition) and follows `absNext`; every other storage slot of the messenger
+    (`successfulMessages`, `sentMessages`, `msgNonce`, …) is unchanged unless it *is*
+    `expiredSlot H`; and no other account's storage changed. This is not a refinement of the
+    model's full state: colliding keys are excluded and the model's deposit history is not
+    related. -/
 theorem refines_expire {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : ExecutionEnv}
     {g g' : UInt256} {o : ByteArray} {vO vS : AccountAddress}
     (hcode : I.code = l2tol2Runtime) (hsel : selectorWord I = expireSelector)
@@ -151,16 +181,18 @@ theorem refines_expire {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : Execut
     (hO : ReturnsAddress σ σ₀ I otherMessengerCalldata vO)
     (hX : ReturnsAddress σ σ₀ I xDomainMessageSenderCalldata vS)
     (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    absGuard P_contract (DepositCall I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
+    absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
     (viewOf σ' I.codeOwner).expired (argHash I) ∧
     (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
       (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
     (∀ H, expiredSlot H ≠ expiredSlot (argHash I) →
       ((viewOf σ' I.codeOwner).expired H ↔ (absNext (viewOf σ I.codeOwner) (argHash I)).expired H)) ∧
+    (∀ s, s ≠ expiredSlot (argHash I) →
+      storageWord σ' I.codeOwner s = storageWord σ I.codeOwner s) ∧
     (∀ a, a ≠ I.codeOwner → (σ'.getD a default).storage = (σ.getD a default).storage) := by
   obtain ⟨_, hc, hpost, _⟩ := expireMessage_success hcode hsel hcds hO hX hres
   refine ⟨⟨⟨hc.callerIsL2cdm, hc.senderIsOther⟩, ?_, hc.expired⟩, (post_view hpost).1,
-    (post_view hpost).2.1, (post_view hpost).2.2, hpost.other_storage⟩
+    (post_view hpost).2.1, (post_view hpost).2.2, slot_frame hpost, hpost.other_storage⟩
   intro h0
   apply hc.wasSent
   exact Words.ext_iff.mpr h0

@@ -1,4 +1,5 @@
 import ExpiryEvm.ExpireMessage
+import ExpiryEvm.Post
 
 /-!
 # Concrete runs (reachability witnesses and boundary checks)
@@ -127,5 +128,130 @@ theorem callFailed_in_success_state : CallFailed σ σ (env l2cdm tS) := by
     zeroGasCall.2.2.1, ?_⟩)
   show _ = zeroGasCall
   rw [← hz]
+
+/-! ## Non-vacuity of the headline hypotheses
+
+The two call summaries (`ReturnsAddress`) are proved — not just executed — for the concrete state
+`σ`, and `expireMessage_success` is instantiated on the concrete successful run. -/
+
+section NonVacuity
+
+open Reasoning.Theory Reasoning.Reach
+
+/-- A successful `Θ` message call into code `code` came from a successful `Ξ` run of that code
+    whose output is the call's output. -/
+theorem theta_code_success {σ σ₀ : AccountMap} {A : Substate} {s o r : AccountAddress}
+    {code : ByteArray} {g p v v' : UInt256} {d : ByteArray} {e : Fin 1025} {H : BlockHeader}
+    {bvh : List ByteArray} {blocks : ProcessedBlocks}
+    {σ' : AccountMap} {g' : UInt256} {A' : Substate} {out : ByteArray}
+    (h : (σ', g', A', true, out) = Θ σ σ₀ A s o r (.Code code) g p v v' d e H bvh blocks false) :
+    ∃ (σ₁ : AccountMap) (I : ExecutionEnv) (σ'' : AccountMap) (g'' : UInt256) (A'' : Substate),
+      I.code = code ∧ Ξ σ₁ σ₀ g A I = .ok (.success (σ'', g'', A'') out) := by
+  unfold Θ at h
+  simp only [] at h
+  split at h
+  · exfalso
+    have h4 := congrArg (fun x => x.2.2.2.1) h
+    simp at h4
+  · exfalso
+    have h4 := congrArg (fun x => x.2.2.2.1) h
+    simp at h4
+  · rename_i heq
+    have h5 := congrArg (fun x => x.2.2.2.2) h
+    simp only [] at h5
+    exact ⟨_, _, _, _, _, rfl, by rw [heq, h5]⟩
+
+/-- The word the mock returns. -/
+def mockWord : UInt256 := UInt256.ofNat 0xbeef
+
+/-- The address the mock returns for both calls. -/
+def vMock : AccountAddress := AccountAddress.ofUInt256 mockWord
+
+/-- Every run of the mock code (any state, gas, calldata) runs out of gas or returns
+    exactly the 32-byte word `mockWord`. -/
+theorem mock_xi {σ₁ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : UInt256}
+    (hcode : I.code = mockL2cdmCode) :
+    Ξ σ₁ σ₀ g A I = .error .OutOfGass ∨
+    ∃ g' A', Ξ σ₁ σ₀ g A I = .ok (.success (σ₁, g', A') (UInt256.toByteArray mockWord)) := by
+  have r0 := RD.initState (σ := σ₁) (σ₀ := σ₀) (A := A) (g := Sat256.ofUInt256 g) hcode
+  have r1 := evm_run r0 with [push20 mockWord, push0]
+  have r2 := RD.genMstore r1 (by native_decide) (by evm_ov)
+  have r3 := evm_run r2 with [push1 (UInt256.ofNat 32), push0]
+  have r4 := RD.genRet r3 (by native_decide) (by evm_ov)
+  have hm : (UInt256.toByteArray mockWord).write 0 ByteArray.empty (⟨0⟩ : UInt256).toNat 32 =
+      Mem.wordsMem [mockWord] := Mem.wordsMem_write_end [] mockWord 0 rfl
+  rw [hm, show (⟨0⟩ : UInt256).toNat = 0 from rfl, show (UInt256.ofNat 32).toNat = 32 by decide,
+    Mem.wordsMem_read32 [mockWord] 0 (by simp) 0 rfl] at r4
+  exact rdret_xi hcode r4
+
+theorem l2cdm_not_precompile : ¬ (l2cdm ∈ π) := by native_decide
+
+theorem sigma_l2cdm_code : (σ.getD l2cdm default).code = mockL2cdmCode := by native_decide
+
+/-- From any account map with `σ`'s code, the L2CrossDomainMessenger address runs the mock. -/
+theorem toExecute_mock {σc : AccountMap} (hcd : accountCodeStateEq σ σc) :
+    toExecute σc l2cdm = .Code mockL2cdmCode := by
+  have h := hcd l2cdm
+  rw [sigma_l2cdm_code] at h
+  unfold toExecute
+  rw [if_neg l2cdm_not_precompile]
+  cases hg : σc.get? l2cdm with
+  | none =>
+    exfalso
+    have : σc.getD l2cdm default = default := by
+      rw [Std.ExtTreeMap.getD_eq_getD_getElem?,
+        show σc[l2cdm]? = none by rw [← Std.ExtTreeMap.get?_eq_getElem?]; exact hg]; rfl
+    rw [this] at h
+    exact absurd h (by native_decide)
+  | some acc =>
+    simp only [Id.run]
+    have : σc.getD l2cdm default = acc := getD_of_get? hg
+    rw [this] at h
+    rw [h]
+
+/-- **The call summary holds for the concrete state**, for any calldata, environment and `σ₀`:
+    a successful static call to 0x..07 returns exactly the word `mockWord`. -/
+theorem mock_returnsAddress (σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteArray) :
+    ReturnsAddress σ σ₀ I cd vMock := by
+  intro σc σ' z o _hst hcd hcall hz
+  subst hz
+  obtain ⟨A_in, cg, g', A', hΘ⟩ := hcall
+  rw [toExecute_mock hcd] at hΘ
+  obtain ⟨σ₁, I', σ'', g'', A'', hIc, hxi⟩ := theta_code_success hΘ
+  rcases mock_xi (σ₁ := σ₁) (σ₀ := σ₀) (A := A_in) (g := cg) hIc with hoog | ⟨g3, A3, hs⟩
+  · rw [hxi] at hoog; cases hoog
+  · rw [hxi] at hs
+    injection hs with hs
+    injection hs with _ ho
+    subst ho
+    exact ⟨by rw [toByteArray_size], by
+      rw [toByteArray_extract_all]; rfl⟩
+
+def isSuccess : Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate)) → Bool
+  | .ok (.success _ _) => true
+  | _ => false
+
+/-- **Non-vacuity of the headline theorem.** All hypotheses of `expireMessage_success` —
+    code, selector, calldata bound and both call summaries — hold for the concrete run, which
+    succeeds; so `ExpireConds` and `ExpirePost` hold there. -/
+theorem success_instance :
+    ∃ σ' g' A' o, Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS) =
+        .ok (.success (σ', g', A') o) ∧
+      ExpireConds σ (env l2cdm tS) vMock vMock ∧ ExpirePost σ σ' (env l2cdm tS) := by
+  have hs : isSuccess (Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS)) = true := by
+    native_decide
+  cases h : Ξ σ σ (UInt256.ofNat 1000000) default (env l2cdm tS) with
+  | error e => rw [h] at hs; cases hs
+  | ok r =>
+    cases r with
+    | revert g' o => rw [h] at hs; cases hs
+    | success t o =>
+      obtain ⟨σ', g', A'⟩ := t
+      obtain ⟨_, hc, hpost, _⟩ := expireMessage_success (σ := σ) (σ₀ := σ) (A := default)
+        (I := env l2cdm tS) (g := UInt256.ofNat 1000000) rfl (by native_decide) (by native_decide)
+        (mock_returnsAddress σ _ _) (mock_returnsAddress σ _ _) h
+      exact ⟨σ', g', A', o, rfl, hc, hpost⟩
+
+end NonVacuity
 
 end ExpiryEvm.Concrete

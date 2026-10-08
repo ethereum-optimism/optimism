@@ -4,7 +4,7 @@
 Supports only the opcodes on the expireMessage paths (extend as needed). Prints, per scenario,
 the static calls, SSTOREs, the terminal (STOP/REVERT pc) and the list of block entry pcs; the
 block pcs are the `l2tol2_block_<pc>` summaries to chain in Lean (see HOWTO.md).
-Usage: python3 scripts/trace_paths.py artifacts/L2ToL2CrossDomainMessenger.runtime.hex
+Usage: python3 scripts/trace_paths.py bytecode/L2ToL2CrossDomainMessenger.runtime.hex
 Needs `cast` (foundry) for keccak.
 """
 import subprocess

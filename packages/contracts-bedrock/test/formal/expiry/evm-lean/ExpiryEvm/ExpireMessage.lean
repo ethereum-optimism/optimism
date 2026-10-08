@@ -10,9 +10,10 @@ account map `σ`, caller, value, depth, gas and permission, refines the abstract
 * `expireMessage_trace` — the whole symbolic execution, at the level of EquiVM's `RD` invariant.
 * `expireMessage_outcome` — the same at the level of `Ξ`'s result.
 * `expireMessage_success` — soundness: a successful run implies the conditions and the post-state.
-* `expireMessage_revert_cause` — outcome classification under the conditions. **Not** a
-  completeness/liveness theorem (its `revert ∧ CallFailed` disjunct is satisfiable in essentially
-  every state); liveness evidence is the concrete run `Concrete.success_reachable`.
+Auxiliary (not headline): `expireMessage_outcome_aux` and `expireMessage_revert_cause` carry
+the weak `CallFailed` (satisfiable in essentially every state); they are **not** completeness or
+liveness results. Liveness evidence is the concrete run `Concrete.success_reachable`, and
+`Concrete.success_instance` instantiates `expireMessage_success` with all hypotheses proved.
 * `expireMessage_no_other_error` — the run never ends in any other exceptional halt.
 
 Hypotheses common to all of them: `hcode` (the code is the pinned artifact), `hsel` (the
@@ -82,12 +83,12 @@ theorem rdret_xi {σ σ₀ acc : AccountMap} {A : Substate} {I : ExecutionEnv} {
     rw [hacc] at hxi
     exact ⟨_, _, hxi⟩
 
-/-- **Outcome theorem.** Every run of the compiled code on `expireMessage` calldata ends in
-    exactly one of: out of gas; a revert, and then one of the success conditions fails or a call
-    to the L2CrossDomainMessenger failed; a static-mode violation (only when entered by
+/-- Auxiliary outcome theorem (revert case annotated with the weak `CallFailed`). Every run ends
+    in exactly one of: out of gas; a revert, and then one of the success conditions fails or a call
+    to the L2CrossDomainMessenger can fail; a static-mode violation (only when entered by
     `STATICCALL`, at the `SSTORE`); or success with empty output, all success conditions, and the
     post-state `ExpirePost`. -/
-theorem expireMessage_outcome {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : UInt256}
+theorem expireMessage_outcome_aux {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : UInt256}
     {vO vS : AccountAddress}
     (hcode : I.code = l2tol2Runtime) (hsel : selectorWord I = expireSelector)
     (hcds : I.calldata.size < 2 ^ 256)
@@ -112,6 +113,30 @@ theorem expireMessage_outcome {σ σ₀ : AccountMap} {A : Substate} {I : Execut
     · left; exact hoog
     · right; right; right; exact ⟨σ', g', A', hr, hp, hc, hpost⟩
 
+/-- **Outcome theorem.** Every run of the compiled code on `expireMessage` calldata ends in
+    exactly one of: out of gas; a revert; a static-mode violation (only when entered by
+    `STATICCALL`, with all conditions met, at the `SSTORE`); or success with empty output, all
+    conditions, and the post-state `ExpirePost`. (The auxiliary `expireMessage_outcome_aux` also
+    attaches `¬ ExpireConds ∨ CallFailed` to the revert case; since `CallFailed` is weak, that
+    clause is uninformative and left out of the headline.) -/
+theorem expireMessage_outcome {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : UInt256}
+    {vO vS : AccountAddress}
+    (hcode : I.code = l2tol2Runtime) (hsel : selectorWord I = expireSelector)
+    (hcds : I.calldata.size < 2 ^ 256)
+    (hO : ReturnsAddress σ σ₀ I otherMessengerCalldata vO)
+    (hX : ReturnsAddress σ σ₀ I xDomainMessageSenderCalldata vS) :
+    Ξ σ σ₀ g A I = .error .OutOfGass ∨
+    (∃ g' o, Ξ σ σ₀ g A I = .ok (.revert g' o)) ∨
+    (Ξ σ σ₀ g A I = .error .StaticModeViolation ∧ I.perm = false ∧ ExpireConds σ I vO vS) ∨
+    (∃ σ' g' A', Ξ σ σ₀ g A I = .ok (.success (σ', g', A') ByteArray.empty) ∧
+      I.perm = true ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I) := by
+  rcases expireMessage_outcome_aux (g := g) (A := A) hcode hsel hcds hO hX with
+    h | ⟨h, _⟩ | h | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inl h))
+  · exact Or.inr (Or.inr (Or.inr h))
+
 /-- **Soundness.** If the compiled code succeeds on `expireMessage(H, t)`, then the caller is the
     L2CrossDomainMessenger, `xDomainMessageSender() == otherMessenger()`, no ETH was attached, the
     calldata is well-formed, `sentMessageTimestamps[H] ≠ 0`, `sentAt + P` does not overflow,
@@ -125,7 +150,7 @@ theorem expireMessage_success {σ σ₀ σ' : AccountMap} {A A' : Substate} {I :
     (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
     I.perm = true ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I ∧ o = ByteArray.empty := by
   rcases expireMessage_outcome (g := g) (A := A) hcode hsel hcds hO hX with
-    h | ⟨⟨_, _, h⟩, _⟩ | ⟨h, _⟩ | ⟨σ'', g'', A'', h, hp, hc, hpost⟩
+    h | ⟨_, _, h⟩ | ⟨h, _⟩ | ⟨σ'', g'', A'', h, hp, hc, hpost⟩
   · rw [hres] at h; cases h
   · rw [hres] at h; cases h
   · rw [hres] at h; cases h
@@ -151,7 +176,7 @@ theorem expireMessage_revert_cause {σ σ₀ : AccountMap} {A : Substate} {I : E
     (∃ σ' g' A', Ξ σ σ₀ g A I = .ok (.success (σ', g', A') ByteArray.empty) ∧
       ExpirePost σ σ' I) ∨
     ((∃ g' o, Ξ σ σ₀ g A I = .ok (.revert g' o)) ∧ CallFailed σ σ₀ I) := by
-  rcases expireMessage_outcome (g := g) (A := A) hcode hsel hcds hO hX with
+  rcases expireMessage_outcome_aux (g := g) (A := A) hcode hsel hcds hO hX with
     h | ⟨hr, hwhy⟩ | ⟨_, hp, _⟩ | ⟨σ', g', A', h, _, _, hpost⟩
   · exact Or.inl h
   · rcases hwhy with hn | hf
@@ -171,7 +196,7 @@ theorem expireMessage_no_other_error {σ σ₀ : AccountMap} {A : Substate} {I :
     (he : Ξ σ σ₀ g A I = .error e) :
     e = .OutOfGass ∨ (e = .StaticModeViolation ∧ I.perm = false) := by
   rcases expireMessage_outcome (g := g) (A := A) hcode hsel hcds hO hX with
-    h | ⟨⟨_, _, h⟩, _⟩ | ⟨h, hp, _⟩ | ⟨_, _, _, h, _⟩
+    h | ⟨_, _, h⟩ | ⟨h, hp, _⟩ | ⟨_, _, _, h, _⟩
   · rw [he] at h; cases h; exact Or.inl rfl
   · rw [he] at h; cases h
   · rw [he] at h; cases h; exact Or.inr ⟨rfl, hp⟩

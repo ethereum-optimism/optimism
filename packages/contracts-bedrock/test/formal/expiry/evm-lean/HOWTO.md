@@ -35,7 +35,7 @@ the `semver-lock.json` hash to compare).
 
 ## 2. Find the paths
 
-`python3 scripts/trace_paths.py artifacts/<X>.runtime.hex` runs a tiny concrete EVM on the
+`python3 scripts/trace_paths.py bytecode/<X>.runtime.hex` runs a tiny concrete EVM on the
 scenarios at the bottom of the script and prints, per scenario, the external calls, `SSTORE`s,
 the terminal pc, and the list of block entry pcs. Write one scenario per branch (success, each
 revert). Extend the opcode table if your function uses more opcodes (e.g. `CALLDATACOPY`,
@@ -107,8 +107,14 @@ The generator stops at `CALL`/`STATICCALL`/`DELEGATECALL`/`CREATE*` (look for
 
 `RDrev.xiResult`, `RDstatic.xiResult` (EquiVM) and `rdret_xi` (here; the EquiVM version only
 allows an unchanged account map) turn the terminals into `Ξ σ σ₀ g A I = …`. Instantiate the
-segment theorems with `g := Sat256.ofUInt256 g`. Copy the four headline shapes
-(`_outcome`, `_success`, `_complete`, `_no_other_error`) and the post-state structure.
+segment theorems with `g := Sat256.ofUInt256 g`. Copy the headline shapes (`_success`,
+`_outcome`, `_no_other_error`) and the post-state structure. Do **not** state a "conditions ⇒
+success unless OOG or callee failure" theorem as completeness: with existential call gas the
+callee-failure disjunct holds everywhere (see `expireMessage_revert_cause`, kept only as an
+auxiliary lemma). For non-vacuity, prove your call summaries for a concrete mock state and
+instantiate the soundness theorem on a concrete successful run (`Concrete.mock_returnsAddress`,
+`Concrete.success_instance`; the reusable pieces are `theta_code_success`, which turns a
+successful `Θ` into a successful `Ξ` of the callee code, and an `RD` trace of the mock).
 
 Alternatively, EquiVM's own relation: write a one-transition Sol⁻ spec (`Solm/Syntax`, e.g. the
 `Examples/Caller` shape) and prove `runtimeRefinementFor cfg spec σ σ₀ g A I` for calldata with
