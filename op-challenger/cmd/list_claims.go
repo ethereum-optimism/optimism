@@ -78,8 +78,8 @@ type claimRecord struct {
 type claimsReport struct {
 	Status                  string        `json:"status"`
 	ResolutionTime          string        `json:"resolutionTime,omitempty"` // RFC3339, when resolved
-	L2StartBlock            uint64        `json:"l2StartBlock"`
-	L2BlockNumber           uint64        `json:"l2BlockNumber"`
+	L2StartSequenceNumber   uint64        `json:"l2StartSequenceNumber"`
+	L2EndSequenceNumber     uint64        `json:"l2EndSequenceNumber"`
 	L2BlockNumberChallenged bool          `json:"l2BlockNumberChallenged"`
 	L2BlockNumberChallenger string        `json:"l2BlockNumberChallenger,omitempty"`
 	SplitDepth              uint64        `json:"splitDepth"`
@@ -180,7 +180,7 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 		return claimsReport{}, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
 	status := metadata.Status
-	l2StartBlockNum, l2BlockNum, err := game.GetGameRange(ctx)
+	l2StartSeq, l2EndSeq, err := game.GetGameRange(ctx)
 	if err != nil {
 		return claimsReport{}, fmt.Errorf("failed to retrieve status: %w", err)
 	}
@@ -192,8 +192,8 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 
 	report := claimsReport{
 		Status:                  status.String(),
-		L2StartBlock:            l2StartBlockNum,
-		L2BlockNumber:           l2BlockNum,
+		L2StartSequenceNumber:   l2StartSeq,
+		L2EndSequenceNumber:     l2EndSeq,
 		L2BlockNumberChallenged: metadata.L2BlockNumberChallenged,
 		SplitDepth:              uint64(splitDepth),
 		MaxDepth:                uint64(maxDepth),
@@ -355,16 +355,16 @@ func renderText(out io.Writer, report claimsReport, verbose bool) error {
 			c.Index, c.Move, parent, c.Depth, c.TraceIndex, value, c.Claimant, bond,
 			time.Unix(c.Timestamp, 0).Format(time.DateTime), time.Duration(c.ClockUsedSeconds)*time.Second, c.resolution)
 	}
-	blockNumChallenger := "Unchallenged"
+	blockNumChallenge := "Block Num Challenge: none"
 	if report.L2BlockNumberChallenged {
-		blockNumChallenger = "❌ " + report.L2BlockNumberChallenger
+		blockNumChallenge = "Block Num Challenge: ❌ " + report.L2BlockNumberChallenger
 	}
 	statusStr := report.Status
 	if report.ResolutionTime != "" {
 		statusStr = fmt.Sprintf("%v • Resolution Time: %v", statusStr, report.ResolutionTime)
 	}
-	_, err := fmt.Fprintf(out, "Status: %v • L2 Blocks: %v to %v (%v) • Split Depth: %v • Max Depth: %v • Claim Count: %v\n%v\n",
-		statusStr, report.L2StartBlock, report.L2BlockNumber, blockNumChallenger, report.SplitDepth, report.MaxDepth, report.ClaimCount, info)
+	_, err := fmt.Fprintf(out, "Status: %v • L2 Sequence: %v to %v • %v • Split Depth: %v • Max Depth: %v • Claim Count: %v\n%v\n",
+		statusStr, report.L2StartSequenceNumber, report.L2EndSequenceNumber, blockNumChallenge, report.SplitDepth, report.MaxDepth, report.ClaimCount, info)
 	return err
 }
 
