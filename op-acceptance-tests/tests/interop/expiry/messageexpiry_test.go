@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -146,7 +147,7 @@ func TestUnrelayedMessageExpires(gt *testing.T) {
 	expiresAfter := send.BlockTime + testExpiryPeriod
 	sys.L2ELB.WaitForTime(expiresAfter + 1)
 	exportRcpt, exportedAt := exportAsDeposit(t, sys, l1User, send.Message)
-	require.Greater(exportedAt.Uint64(), expiresAfter, "B must export after the expiry period")
+	require.Greater(bigs.Uint64Strict(exportedAt), expiresAfter, "B must export after the expiry period")
 
 	deposit := finalizeExport(t, sys, l1User, exportRcpt)
 	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
