@@ -1,0 +1,16 @@
+name = "l1cdmEvm"
+version = "0.1.0"
+defaultTargets = ["L1cdmEvm"]
+
+# Same pins as ../evm-lean (EquiVM b0e9d55a → EVMLean 63f6133, Mathlib v4.29.0); see lake-manifest.json.
+[[require]]
+name = "EquiVM"
+git = "https://github.com/argotorg/EquiVM.git"
+rev = "b0e9d55a"
+
+[[lean_lib]]
+name = "L1cdmEvm"
+globs = ["L1cdmEvm.*"]
+# The executable witnesses (Concrete.lean, compiled evaluation) walk the flat 11167-byte bytecode
+# literal; the interpreter needs a larger thread stack for it.
+moreLeanArgs = ["--tstack=2000000"]

@@ -1,0 +1,15 @@
+name = "bridgeEvm"
+version = "0.1.0"
+defaultTargets = ["BridgeEvm"]
+
+# EquiVM (argotorg/EquiVM, MIT): Lean refinement framework for EVM bytecode, built on EVMLean
+# (lefterislazar/EVMLean, a port of Nethermind's EVMYulLean). Same pins as ../evm-lean; the
+# transitive pins (evmlean, mathlib v4.29.0, ...) are in lake-manifest.json.
+[[require]]
+name = "EquiVM"
+git = "https://github.com/argotorg/EquiVM.git"
+rev = "b0e9d55a"
+
+[[lean_lib]]
+name = "BridgeEvm"
+globs = ["BridgeEvm.*"]

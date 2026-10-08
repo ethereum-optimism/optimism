@@ -1,0 +1,2147 @@
+{
+ "spec": "valid iff init <= exec && exec - init <= W; W = override > 0 ? override : 604800",
+ "defaultWindow": 604800,
+ "cap": 604800,
+ "vectors": [
+  {
+   "name": "override=0 init=1 exec-init=W-1",
+   "init": 1,
+   "exec": 604800,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1 exec-init=W",
+   "init": 1,
+   "exec": 604801,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1 exec-init=W+1",
+   "init": 1,
+   "exec": 604802,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=0 init=1 exec-init=0",
+   "init": 1,
+   "exec": 1,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1 exec-init=1",
+   "init": 1,
+   "exec": 2,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1 init-exec=1 (init in future)",
+   "init": 2,
+   "exec": 1,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=1 init-exec=W (init in future)",
+   "init": 604801,
+   "exec": 1,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=1 init-exec=W+1 (init in future)",
+   "init": 604802,
+   "exec": 1,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=1e9 exec-init=W-1",
+   "init": 1000000000,
+   "exec": 1000604799,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1e9 exec-init=W",
+   "init": 1000000000,
+   "exec": 1000604800,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1e9 exec-init=W+1",
+   "init": 1000000000,
+   "exec": 1000604801,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=0 init=1e9 exec-init=0",
+   "init": 1000000000,
+   "exec": 1000000000,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1e9 exec-init=1",
+   "init": 1000000000,
+   "exec": 1000000001,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=1e9 init-exec=1 (init in future)",
+   "init": 1000000001,
+   "exec": 1000000000,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=1e9 init-exec=W (init in future)",
+   "init": 1000604800,
+   "exec": 1000000000,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=1e9 init-exec=W+1 (init in future)",
+   "init": 1000604801,
+   "exec": 1000000000,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=2^63 exec-init=W-1",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380607,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=2^63 exec-init=W",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380608,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=2^63 exec-init=W+1",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380609,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=0 init=2^63 exec-init=0",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775808,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=2^63 exec-init=1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775809,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=2^63 init-exec=1 (init in future)",
+   "init": 9223372036854775809,
+   "exec": 9223372036854775808,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=2^63 init-exec=W (init in future)",
+   "init": 9223372036855380608,
+   "exec": 9223372036854775808,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=2^63 init-exec=W+1 (init in future)",
+   "init": 9223372036855380609,
+   "exec": 9223372036854775808,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=max-W-1 exec-init=W-1",
+   "init": 18446744073708946814,
+   "exec": 18446744073709551613,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=max-W-1 exec-init=W",
+   "init": 18446744073708946814,
+   "exec": 18446744073709551614,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=max-W-1 exec-init=W+1",
+   "init": 18446744073708946814,
+   "exec": 18446744073709551615,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=0 init=max-W-1 exec-init=0",
+   "init": 18446744073708946814,
+   "exec": 18446744073708946814,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=max-W-1 exec-init=1",
+   "init": 18446744073708946814,
+   "exec": 18446744073708946815,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=max-W-1 init-exec=1 (init in future)",
+   "init": 18446744073708946815,
+   "exec": 18446744073708946814,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=max-W-1 init-exec=W (init in future)",
+   "init": 18446744073709551614,
+   "exec": 18446744073708946814,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=max-W-1 init-exec=W+1 (init in future)",
+   "init": 18446744073709551615,
+   "exec": 18446744073708946814,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=1 exec=max",
+   "init": 1,
+   "exec": 18446744073709551615,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=0 init=max exec=max",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551615,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=max-W exec=max",
+   "init": 18446744073708946815,
+   "exec": 18446744073709551615,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=0 init=max exec=1 (wraps to 2)",
+   "init": 18446744073709551615,
+   "exec": 1,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=max exec=W (wraps to W+1)",
+   "init": 18446744073709551615,
+   "exec": 604800,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=0 init=max exec=W-1 (wraps to W)",
+   "init": 18446744073709551615,
+   "exec": 604799,
+   "override": 0,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=1 exec-init=W-1",
+   "init": 1,
+   "exec": 1,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=1 exec-init=W",
+   "init": 1,
+   "exec": 2,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=1 exec-init=W+1",
+   "init": 1,
+   "exec": 3,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=1 init=1 init-exec=1 (init in future)",
+   "init": 2,
+   "exec": 1,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=1 init-exec=W+1 (init in future)",
+   "init": 3,
+   "exec": 1,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=1e9 exec-init=W-1",
+   "init": 1000000000,
+   "exec": 1000000000,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=1e9 exec-init=W",
+   "init": 1000000000,
+   "exec": 1000000001,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=1e9 exec-init=W+1",
+   "init": 1000000000,
+   "exec": 1000000002,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=1 init=1e9 init-exec=1 (init in future)",
+   "init": 1000000001,
+   "exec": 1000000000,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=1e9 init-exec=W+1 (init in future)",
+   "init": 1000000002,
+   "exec": 1000000000,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=2^63 exec-init=W-1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775808,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=2^63 exec-init=W",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775809,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=2^63 exec-init=W+1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775810,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=1 init=2^63 init-exec=1 (init in future)",
+   "init": 9223372036854775809,
+   "exec": 9223372036854775808,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=2^63 init-exec=W+1 (init in future)",
+   "init": 9223372036854775810,
+   "exec": 9223372036854775808,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=max-W-1 exec-init=W-1",
+   "init": 18446744073709551613,
+   "exec": 18446744073709551613,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=max-W-1 exec-init=W",
+   "init": 18446744073709551613,
+   "exec": 18446744073709551614,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=max-W-1 exec-init=W+1",
+   "init": 18446744073709551613,
+   "exec": 18446744073709551615,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=1 init=max-W-1 init-exec=1 (init in future)",
+   "init": 18446744073709551614,
+   "exec": 18446744073709551613,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=max-W-1 init-exec=W+1 (init in future)",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551613,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=1 init=1 exec=max",
+   "init": 1,
+   "exec": 18446744073709551615,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=1 init=max exec=max",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551615,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=max-W exec=max",
+   "init": 18446744073709551614,
+   "exec": 18446744073709551615,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=1 init=max exec=1 (wraps to 2)",
+   "init": 18446744073709551615,
+   "exec": 1,
+   "override": 1,
+   "window": 1,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1 exec-init=W-1",
+   "init": 1,
+   "exec": 2,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=1 exec-init=W",
+   "init": 1,
+   "exec": 3,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=1 exec-init=W+1",
+   "init": 1,
+   "exec": 4,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=2 init=1 exec-init=0",
+   "init": 1,
+   "exec": 1,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=1 init-exec=1 (init in future)",
+   "init": 2,
+   "exec": 1,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1 init-exec=W (init in future)",
+   "init": 3,
+   "exec": 1,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1 init-exec=W+1 (init in future)",
+   "init": 4,
+   "exec": 1,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1e9 exec-init=W-1",
+   "init": 1000000000,
+   "exec": 1000000001,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=1e9 exec-init=W",
+   "init": 1000000000,
+   "exec": 1000000002,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=1e9 exec-init=W+1",
+   "init": 1000000000,
+   "exec": 1000000003,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=2 init=1e9 exec-init=0",
+   "init": 1000000000,
+   "exec": 1000000000,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=1e9 init-exec=1 (init in future)",
+   "init": 1000000001,
+   "exec": 1000000000,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1e9 init-exec=W (init in future)",
+   "init": 1000000002,
+   "exec": 1000000000,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1e9 init-exec=W+1 (init in future)",
+   "init": 1000000003,
+   "exec": 1000000000,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=2^63 exec-init=W-1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775809,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=2^63 exec-init=W",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775810,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=2^63 exec-init=W+1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775811,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=2 init=2^63 exec-init=0",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775808,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=2^63 init-exec=1 (init in future)",
+   "init": 9223372036854775809,
+   "exec": 9223372036854775808,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=2^63 init-exec=W (init in future)",
+   "init": 9223372036854775810,
+   "exec": 9223372036854775808,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=2^63 init-exec=W+1 (init in future)",
+   "init": 9223372036854775811,
+   "exec": 9223372036854775808,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=max-W-1 exec-init=W-1",
+   "init": 18446744073709551612,
+   "exec": 18446744073709551613,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=max-W-1 exec-init=W",
+   "init": 18446744073709551612,
+   "exec": 18446744073709551614,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=max-W-1 exec-init=W+1",
+   "init": 18446744073709551612,
+   "exec": 18446744073709551615,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=2 init=max-W-1 exec-init=0",
+   "init": 18446744073709551612,
+   "exec": 18446744073709551612,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=max-W-1 init-exec=1 (init in future)",
+   "init": 18446744073709551613,
+   "exec": 18446744073709551612,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=max-W-1 init-exec=W (init in future)",
+   "init": 18446744073709551614,
+   "exec": 18446744073709551612,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=max-W-1 init-exec=W+1 (init in future)",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551612,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=1 exec=max",
+   "init": 1,
+   "exec": 18446744073709551615,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=2 init=max exec=max",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551615,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=max-W exec=max",
+   "init": 18446744073709551613,
+   "exec": 18446744073709551615,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=2 init=max exec=1 (wraps to 2)",
+   "init": 18446744073709551615,
+   "exec": 1,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=2 init=max exec=W (wraps to W+1)",
+   "init": 18446744073709551615,
+   "exec": 2,
+   "override": 2,
+   "window": 2,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1 exec-init=W-1",
+   "init": 1,
+   "exec": 3600,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1 exec-init=W",
+   "init": 1,
+   "exec": 3601,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1 exec-init=W+1",
+   "init": 1,
+   "exec": 3602,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=3600 init=1 exec-init=0",
+   "init": 1,
+   "exec": 1,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1 exec-init=1",
+   "init": 1,
+   "exec": 2,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1 init-exec=1 (init in future)",
+   "init": 2,
+   "exec": 1,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1 init-exec=W (init in future)",
+   "init": 3601,
+   "exec": 1,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1 init-exec=W+1 (init in future)",
+   "init": 3602,
+   "exec": 1,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1e9 exec-init=W-1",
+   "init": 1000000000,
+   "exec": 1000003599,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1e9 exec-init=W",
+   "init": 1000000000,
+   "exec": 1000003600,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1e9 exec-init=W+1",
+   "init": 1000000000,
+   "exec": 1000003601,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=3600 init=1e9 exec-init=0",
+   "init": 1000000000,
+   "exec": 1000000000,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1e9 exec-init=1",
+   "init": 1000000000,
+   "exec": 1000000001,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=1e9 init-exec=1 (init in future)",
+   "init": 1000000001,
+   "exec": 1000000000,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1e9 init-exec=W (init in future)",
+   "init": 1000003600,
+   "exec": 1000000000,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1e9 init-exec=W+1 (init in future)",
+   "init": 1000003601,
+   "exec": 1000000000,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=2^63 exec-init=W-1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854779407,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=2^63 exec-init=W",
+   "init": 9223372036854775808,
+   "exec": 9223372036854779408,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=2^63 exec-init=W+1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854779409,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=3600 init=2^63 exec-init=0",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775808,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=2^63 exec-init=1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775809,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=2^63 init-exec=1 (init in future)",
+   "init": 9223372036854775809,
+   "exec": 9223372036854775808,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=2^63 init-exec=W (init in future)",
+   "init": 9223372036854779408,
+   "exec": 9223372036854775808,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=2^63 init-exec=W+1 (init in future)",
+   "init": 9223372036854779409,
+   "exec": 9223372036854775808,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=max-W-1 exec-init=W-1",
+   "init": 18446744073709548014,
+   "exec": 18446744073709551613,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=max-W-1 exec-init=W",
+   "init": 18446744073709548014,
+   "exec": 18446744073709551614,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=max-W-1 exec-init=W+1",
+   "init": 18446744073709548014,
+   "exec": 18446744073709551615,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=3600 init=max-W-1 exec-init=0",
+   "init": 18446744073709548014,
+   "exec": 18446744073709548014,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=max-W-1 exec-init=1",
+   "init": 18446744073709548014,
+   "exec": 18446744073709548015,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=max-W-1 init-exec=1 (init in future)",
+   "init": 18446744073709548015,
+   "exec": 18446744073709548014,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=max-W-1 init-exec=W (init in future)",
+   "init": 18446744073709551614,
+   "exec": 18446744073709548014,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=max-W-1 init-exec=W+1 (init in future)",
+   "init": 18446744073709551615,
+   "exec": 18446744073709548014,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=1 exec=max",
+   "init": 1,
+   "exec": 18446744073709551615,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=3600 init=max exec=max",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551615,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=max-W exec=max",
+   "init": 18446744073709548015,
+   "exec": 18446744073709551615,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=3600 init=max exec=1 (wraps to 2)",
+   "init": 18446744073709551615,
+   "exec": 1,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=max exec=W (wraps to W+1)",
+   "init": 18446744073709551615,
+   "exec": 3600,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=3600 init=max exec=W-1 (wraps to W)",
+   "init": 18446744073709551615,
+   "exec": 3599,
+   "override": 3600,
+   "window": 3600,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1 exec-init=W-1",
+   "init": 1,
+   "exec": 604799,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1 exec-init=W",
+   "init": 1,
+   "exec": 604800,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1 exec-init=W+1",
+   "init": 1,
+   "exec": 604801,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604799 init=1 exec-init=0",
+   "init": 1,
+   "exec": 1,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1 exec-init=1",
+   "init": 1,
+   "exec": 2,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1 init-exec=1 (init in future)",
+   "init": 2,
+   "exec": 1,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1 init-exec=W (init in future)",
+   "init": 604800,
+   "exec": 1,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1 init-exec=W+1 (init in future)",
+   "init": 604801,
+   "exec": 1,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1e9 exec-init=W-1",
+   "init": 1000000000,
+   "exec": 1000604798,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1e9 exec-init=W",
+   "init": 1000000000,
+   "exec": 1000604799,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1e9 exec-init=W+1",
+   "init": 1000000000,
+   "exec": 1000604800,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604799 init=1e9 exec-init=0",
+   "init": 1000000000,
+   "exec": 1000000000,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1e9 exec-init=1",
+   "init": 1000000000,
+   "exec": 1000000001,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=1e9 init-exec=1 (init in future)",
+   "init": 1000000001,
+   "exec": 1000000000,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1e9 init-exec=W (init in future)",
+   "init": 1000604799,
+   "exec": 1000000000,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1e9 init-exec=W+1 (init in future)",
+   "init": 1000604800,
+   "exec": 1000000000,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=2^63 exec-init=W-1",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380606,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=2^63 exec-init=W",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380607,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=2^63 exec-init=W+1",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380608,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604799 init=2^63 exec-init=0",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775808,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=2^63 exec-init=1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775809,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=2^63 init-exec=1 (init in future)",
+   "init": 9223372036854775809,
+   "exec": 9223372036854775808,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=2^63 init-exec=W (init in future)",
+   "init": 9223372036855380607,
+   "exec": 9223372036854775808,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=2^63 init-exec=W+1 (init in future)",
+   "init": 9223372036855380608,
+   "exec": 9223372036854775808,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=max-W-1 exec-init=W-1",
+   "init": 18446744073708946815,
+   "exec": 18446744073709551613,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=max-W-1 exec-init=W",
+   "init": 18446744073708946815,
+   "exec": 18446744073709551614,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=max-W-1 exec-init=W+1",
+   "init": 18446744073708946815,
+   "exec": 18446744073709551615,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604799 init=max-W-1 exec-init=0",
+   "init": 18446744073708946815,
+   "exec": 18446744073708946815,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=max-W-1 exec-init=1",
+   "init": 18446744073708946815,
+   "exec": 18446744073708946816,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=max-W-1 init-exec=1 (init in future)",
+   "init": 18446744073708946816,
+   "exec": 18446744073708946815,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=max-W-1 init-exec=W (init in future)",
+   "init": 18446744073709551614,
+   "exec": 18446744073708946815,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=max-W-1 init-exec=W+1 (init in future)",
+   "init": 18446744073709551615,
+   "exec": 18446744073708946815,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=1 exec=max",
+   "init": 1,
+   "exec": 18446744073709551615,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604799 init=max exec=max",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551615,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=max-W exec=max",
+   "init": 18446744073708946816,
+   "exec": 18446744073709551615,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604799 init=max exec=1 (wraps to 2)",
+   "init": 18446744073709551615,
+   "exec": 1,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=max exec=W (wraps to W+1)",
+   "init": 18446744073709551615,
+   "exec": 604799,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604799 init=max exec=W-1 (wraps to W)",
+   "init": 18446744073709551615,
+   "exec": 604798,
+   "override": 604799,
+   "window": 604799,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1 exec-init=W-1",
+   "init": 1,
+   "exec": 604800,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1 exec-init=W",
+   "init": 1,
+   "exec": 604801,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1 exec-init=W+1",
+   "init": 1,
+   "exec": 604802,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604800 init=1 exec-init=0",
+   "init": 1,
+   "exec": 1,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1 exec-init=1",
+   "init": 1,
+   "exec": 2,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1 init-exec=1 (init in future)",
+   "init": 2,
+   "exec": 1,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1 init-exec=W (init in future)",
+   "init": 604801,
+   "exec": 1,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1 init-exec=W+1 (init in future)",
+   "init": 604802,
+   "exec": 1,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1e9 exec-init=W-1",
+   "init": 1000000000,
+   "exec": 1000604799,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1e9 exec-init=W",
+   "init": 1000000000,
+   "exec": 1000604800,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1e9 exec-init=W+1",
+   "init": 1000000000,
+   "exec": 1000604801,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604800 init=1e9 exec-init=0",
+   "init": 1000000000,
+   "exec": 1000000000,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1e9 exec-init=1",
+   "init": 1000000000,
+   "exec": 1000000001,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=1e9 init-exec=1 (init in future)",
+   "init": 1000000001,
+   "exec": 1000000000,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1e9 init-exec=W (init in future)",
+   "init": 1000604800,
+   "exec": 1000000000,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1e9 init-exec=W+1 (init in future)",
+   "init": 1000604801,
+   "exec": 1000000000,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=2^63 exec-init=W-1",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380607,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=2^63 exec-init=W",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380608,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=2^63 exec-init=W+1",
+   "init": 9223372036854775808,
+   "exec": 9223372036855380609,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604800 init=2^63 exec-init=0",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775808,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=2^63 exec-init=1",
+   "init": 9223372036854775808,
+   "exec": 9223372036854775809,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=2^63 init-exec=1 (init in future)",
+   "init": 9223372036854775809,
+   "exec": 9223372036854775808,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=2^63 init-exec=W (init in future)",
+   "init": 9223372036855380608,
+   "exec": 9223372036854775808,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=2^63 init-exec=W+1 (init in future)",
+   "init": 9223372036855380609,
+   "exec": 9223372036854775808,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=max-W-1 exec-init=W-1",
+   "init": 18446744073708946814,
+   "exec": 18446744073709551613,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=max-W-1 exec-init=W",
+   "init": 18446744073708946814,
+   "exec": 18446744073709551614,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=max-W-1 exec-init=W+1",
+   "init": 18446744073708946814,
+   "exec": 18446744073709551615,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604800 init=max-W-1 exec-init=0",
+   "init": 18446744073708946814,
+   "exec": 18446744073708946814,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=max-W-1 exec-init=1",
+   "init": 18446744073708946814,
+   "exec": 18446744073708946815,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=max-W-1 init-exec=1 (init in future)",
+   "init": 18446744073708946815,
+   "exec": 18446744073708946814,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=max-W-1 init-exec=W (init in future)",
+   "init": 18446744073709551614,
+   "exec": 18446744073708946814,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=max-W-1 init-exec=W+1 (init in future)",
+   "init": 18446744073709551615,
+   "exec": 18446744073708946814,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=1 exec=max",
+   "init": 1,
+   "exec": 18446744073709551615,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "expired"
+  },
+  {
+   "name": "override=604800 init=max exec=max",
+   "init": 18446744073709551615,
+   "exec": 18446744073709551615,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=max-W exec=max",
+   "init": 18446744073708946815,
+   "exec": 18446744073709551615,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": true,
+   "reason": "ok"
+  },
+  {
+   "name": "override=604800 init=max exec=1 (wraps to 2)",
+   "init": 18446744073709551615,
+   "exec": 1,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=max exec=W (wraps to W+1)",
+   "init": 18446744073709551615,
+   "exec": 604800,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604800 init=max exec=W-1 (wraps to W)",
+   "init": 18446744073709551615,
+   "exec": 604799,
+   "override": 604800,
+   "window": 604800,
+   "configRejected": false,
+   "valid": false,
+   "reason": "future"
+  },
+  {
+   "name": "override=604801 (above the cap: config rejected)",
+   "init": 1,
+   "exec": 1,
+   "override": 604801,
+   "window": 604801,
+   "configRejected": true,
+   "valid": false,
+   "reason": "configRejected"
+  },
+  {
+   "name": "override=691200 (above the cap: config rejected)",
+   "init": 1,
+   "exec": 1,
+   "override": 691200,
+   "window": 691200,
+   "configRejected": true,
+   "valid": false,
+   "reason": "configRejected"
+  },
+  {
+   "name": "override=9223372036854775807 (above the cap: config rejected)",
+   "init": 1,
+   "exec": 1,
+   "override": 9223372036854775807,
+   "window": 9223372036854775807,
+   "configRejected": true,
+   "valid": false,
+   "reason": "configRejected"
+  },
+  {
+   "name": "override=18446744073709551614 (above the cap: config rejected)",
+   "init": 1,
+   "exec": 1,
+   "override": 18446744073709551614,
+   "window": 18446744073709551614,
+   "configRejected": true,
+   "valid": false,
+   "reason": "configRejected"
+  },
+  {
+   "name": "override=18446744073709551615 (above the cap: config rejected)",
+   "init": 1,
+   "exec": 1,
+   "override": 18446744073709551615,
+   "window": 18446744073709551615,
+   "configRejected": true,
+   "valid": false,
+   "reason": "configRejected"
+  }
+ ]
+}
