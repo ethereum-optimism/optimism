@@ -2,8 +2,8 @@
 
 > **Scope versus the code.** The exporter design landed on `karl/message-expiry-refunds` at
 > `5992028e08`:
-> - `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (currently 0x..2E;
->   moving to the next free predeploy slot);
+> - `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (0x...0030 since
+>   `52ff613e14`; 0x..2E before);
 > - `relayUndeliveredMessage` trusts it and has the INTEROP gate;
 > - P = 8 days;
 > - the Go and kona caps reject W > 7 days.

@@ -13,8 +13,8 @@ was triaged against the code and either fixed or recorded with a reason.
 ## Read this first: which design is verified
 
 The **exporter design** landed on `karl/message-expiry-refunds` at `5992028e08`:
-1. `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`. It is 0x..2E today and
-   is moving to the next free predeploy slot; the models refer to it only by name. Its genesis proxy
+1. `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`. It is 0x...0030 (it was
+   0x..2E in earlier drafts); the models refer to it only by name. Its genesis proxy
    has no implementation before the upgrade.
 2. `L1CrossDomainMessenger.relayUndeliveredMessage` trusts only that sender, behind an INTEROP feature
    gate.
@@ -51,6 +51,27 @@ it checked.
 
 "Pending" means a worker is still running, or the code it targets has not landed. Each subdirectory
 README is authoritative for its exact statement.
+
+## Named assumptions confirmed by an independent model
+
+An independent modeler (code-only, with its own explicit-state model and no access to these models)
+found no violation in 2.7M–5.8M states, and a double spend under each mutation. It also pointed out
+assumptions that should be named explicitly:
+1. **Upgrade invariant.**
+   - No implementation of a source messenger may re-emit `SentMessage` for a hash that already has a
+     send timestamp. That includes a rollback to an implementation with `resendMessage`. A re-emitted
+     event restarts the relay window; this is `resendNoRestart` / `cex_resendNoRestart`.
+   - Every relay path on the destination sets `successfulMessages`.
+   - The exporter's hashing mirrors the messenger's (`hevm/` and Halmos check both against the same
+     formula).
+   - Rollouts, rollbacks and downgrades are modeled in `rollout/`.
+2. **Zero margin is safe.** P = W is still safe with the strict `>`, so the 1-day margin is defense
+   in depth. See Lean `safe_variants` (P = W = 7), Quint `safeNoMargin`, and Dafny
+   `ExpiredAtExportNeverValid` with `W <= P`.
+3. **kona enforces the 7-day cap only at deserialization** (`depset.rs` `deserialize_override_window`).
+   `get_message_expiry_window` does not clamp, and a `DependencySet` built in memory (tests,
+   `arbitrary`) bypasses the cap. This is a trust boundary: every production depset must go through
+   serde. Today the registry and the oracle fallback in `boot.rs` both do.
 
 ## The off-chain rule: existing Dafny model
 

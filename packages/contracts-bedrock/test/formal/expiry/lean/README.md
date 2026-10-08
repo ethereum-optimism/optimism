@@ -14,10 +14,11 @@ and refunded on its (standard) source. It holds for any number of chains, source
 lockbox joins, any length of time, and any attacker-chosen relay targets.
 
 **Exporter address.** The model refers to the exporter only as `Sender.exporter`, never by a
-hardcoded address. At `5992028e08` the constant is
+hardcoded address. Since `52ff613e14` the constant is
 `packages/contracts-bedrock/src/libraries/Predeploys.sol:118`
-(`UNDELIVERED_MESSAGE_EXPORTER = 0x4200…002E`). It is moving to the next free predeploy slot,
-likely `0x4200…0030`. Nothing in the proof depends on which slot it uses.
+(`UNDELIVERED_MESSAGE_EXPORTER = 0x4200…0030`; it was `0x4200…002E` at `5992028e08`). Nothing in the
+proof depends on which slot it uses. The citations below are at `5992028e08`; at `52ff613e14` only
+the exporter address and comments changed.
 
 **Where each design change is, at `5992028e08`.** All paths are under the repo root;
 `cb/` = `packages/contracts-bedrock/`.
