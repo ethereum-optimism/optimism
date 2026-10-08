@@ -66,6 +66,7 @@ var (
 	expireMessageSelector           = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
 	messageNotExpired               = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
 	refundNotExpired                = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
+	alreadyRefunded                 = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_AlreadyRefunded()"))[:4])
 	messageRelayed                  = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
 )
 
@@ -123,18 +124,17 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	require.Equal(new(big.Int).SetUint64(send.BlockTime), contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash)),
 		"A must have recorded the message at its send time")
 	require.False(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must not expire early")
-	bridgeA := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sys.L2ELA.EthClient()),
-		bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
+	bridgeA := bridgeOnA(t, sys)
 	_, err := contractio.Read(bridgeA.RefundETH(sys.L2ChainB.ChainID(), send.Message.Nonce, sender.Address(),
 		recipient.Address(), eth.HalfEther.ToBig()), t.Ctx())
 	require.ErrorContains(errutil.TryAddRevertReason(err), refundNotExpired, "an unexpired send must not be refundable")
 }
 
-// TestUnrelayedMessageExpires runs the expiry path to its end: A sends ETH that B never relays;
-// once B is past the expiry period, B's exporter, forced in as a deposit, tells A through L1, and
-// A marks the message expired. The system deploys the messenger with a short expiry period so it
-// can pass within the test.
-func TestUnrelayedMessageExpires(gt *testing.T) {
+// TestUnrelayedMessageExpiresAndIsRefunded runs the expiry path to a refund: A sends ETH that B
+// never relays; once B is past the expiry period, B's exporter, forced in as a deposit, tells A
+// through L1; A marks the message expired, and anyone can then return the ETH to the sender, once.
+// The system deploys the messenger with a short expiry period so it can pass within the test.
+func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks(),
 		presets.WithMessageExpiryWindow(testMessageExpiryWindow),
@@ -148,6 +148,7 @@ func TestUnrelayedMessageExpires(gt *testing.T) {
 	sender := sys.FunderA.NewFundedEOA(eth.OneEther)
 	recipient := sys.FunderB.NewFundedEOA(eth.ZeroWei)
 	send := dsl.SendETH(sender, recipient.Address(), sys.L2ChainB.ChainID(), eth.HalfEther)
+	balanceAfterSend := sender.GetBalance()
 
 	// B exports only once its clock is past the send time plus the expiry period.
 	expiresAfter := send.BlockTime + testExpiryPeriod
@@ -162,6 +163,16 @@ func TestUnrelayedMessageExpires(gt *testing.T) {
 			l.Topics[0] == messageExpiredTopic && l.Topics[1] == send.Message.Hash
 	}), "A's messenger must emit MessageExpired for the message")
 	require.True(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must be expired on A")
+
+	// Anyone can refund the send; the ETH goes to the sender, once.
+	bridgeA := bridgeOnA(t, sys)
+	refund := bridgeA.RefundETH(sys.L2ChainB.ChainID(), send.Message.Nonce, sender.Address(), recipient.Address(),
+		eth.HalfEther.ToBig())
+	contract.Write(sys.FunderA.NewFundedEOA(eth.OneEther), refund)
+	sender.VerifyBalanceExact(balanceAfterSend.Add(eth.HalfEther))
+	require.True(contract.Read(bridgeA.Refunded(send.Message.Hash)), "the send must be marked refunded")
+	_, err := contractio.Read(refund, t.Ctx())
+	require.ErrorContains(errutil.TryAddRevertReason(err), alreadyRefunded, "a send must be refunded only once")
 }
 
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
@@ -213,6 +224,11 @@ func finalizeExport(t devtest.T, sys *presets.SimpleInterop, l1User *dsl.EOA, ex
 	})
 	withdrawal.Finalize(l1User)
 	return sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
+}
+
+func bridgeOnA(t devtest.T, sys *presets.SimpleInterop) bindings.SuperchainETHBridge {
+	return bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sys.L2ELA.EthClient()),
+		bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
 }
 
 func messengerOnA(t devtest.T, sys *presets.SimpleInterop) bindings.L2ToL2CrossDomainMessenger {
