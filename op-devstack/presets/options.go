@@ -332,7 +332,6 @@ func WithL2ToL2MessageExpiryPeriod(seconds uint64) Option {
 		kinds: optionKindL2ToL2MessageExpiryPeriod,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.L2ToL2MessageExpiryPeriod = seconds
-			cfg.DeployerOptions = append(cfg.DeployerOptions, sysgo.WithL2ToL2MessageExpiryPeriod(seconds))
 		},
 	}
 }

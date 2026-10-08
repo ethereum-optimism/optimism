@@ -487,15 +487,6 @@ func WithFaultGameMaxClockDuration(seconds uint64) DeployerOption {
 	}
 }
 
-// WithL2ToL2MessageExpiryPeriod sets the L2ToL2CrossDomainMessenger's expiry period, in seconds,
-// in every L2 genesis. For tests that watch a message expire: the period must exceed the
-// dependency set's message expiry window.
-func WithL2ToL2MessageExpiryPeriod(seconds uint64) DeployerOption {
-	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		builder.WithGlobalOverride("l2ToL2MessageExpiryPeriod", seconds)
-	}
-}
-
 // WithFaultGameClockExtension overrides the fault dispute game's clock extension. Must be
 // non-zero (DeployImplementations rejects zero) and small enough to satisfy the
 // maxClockDuration relationship documented on WithFaultGameMaxClockDuration.

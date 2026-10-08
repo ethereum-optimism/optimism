@@ -35,9 +35,10 @@ type l2GenesisOverrides struct {
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
 	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
-	// seconds. Zero keeps the production period of 8 days. For test networks only: the period must
-	// exceed the dependency set's message expiry window, or an expired message could still be
-	// relayed.
+	// seconds, in the L2 genesis. Zero keeps the production period of 8 days. For test networks
+	// only, and refused on public L1s: the period must exceed the dependency set's message expiry
+	// window, or an expired message could still be relayed. It only applies when interop is active
+	// at genesis; a later interop activation installs the production period.
 	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
 }
 
@@ -95,6 +96,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 	}
 
 	cgt := buildCGTConfig(thisIntent)
+
+	if err := checkL2ToL2MessageExpiryPeriodOverride(intent.L1ChainID, overrides.L2ToL2MessageExpiryPeriod); err != nil {
+		return err
+	}
 
 	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
 
@@ -257,4 +262,25 @@ func defaultOverrides() l2GenesisOverrides {
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
 	}
+}
+
+// publicL1ChainIDs are the L1 chains a production or public test network settles on.
+var publicL1ChainIDs = map[uint64]string{
+	1:        "mainnet",
+	11155111: "sepolia",
+	17000:    "holesky",
+	560048:   "hoodi",
+}
+
+// checkL2ToL2MessageExpiryPeriodOverride refuses an L2ToL2CrossDomainMessenger expiry period
+// override on a public L1: networks there must use the production period, which exceeds the
+// protocol's message expiry window.
+func checkL2ToL2MessageExpiryPeriodOverride(l1ChainID uint64, period uint64) error {
+	if period == 0 {
+		return nil
+	}
+	if name, ok := publicL1ChainIDs[l1ChainID]; ok {
+		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for chains on %s", period, name)
+	}
+	return nil
 }

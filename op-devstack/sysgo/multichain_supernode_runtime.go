@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -275,13 +276,17 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
 	require.NoError(checkL2ToL2MessageExpiryPeriod(cfg, enableInterop, delaySeconds))
+	deployerOpts := cfg.DeployerOptions
+	if cfg.L2ToL2MessageExpiryPeriod != 0 {
+		deployerOpts = append(slices.Clone(deployerOpts), withL2ToL2MessageExpiryPeriod(cfg.L2ToL2MessageExpiryPeriod))
+	}
 	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(
 		t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath,
 		chainSpecs, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL
-		}, cfg.DeployerOptions...,
+		}, deployerOpts...,
 	)
 	migration := newInteropMigrationState(wb)
 	if cfg.PreGenesisSuperGame != nil {
