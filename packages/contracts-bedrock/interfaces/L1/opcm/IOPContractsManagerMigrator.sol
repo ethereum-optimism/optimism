@@ -73,7 +73,6 @@ interface IOPContractsManagerMigrator {
 
     error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
 
-    /// @notice Thrown when the chains being migrated disagree on the dispute game finality delay.
     error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
 
     error SemverComp_InvalidSemverParts();

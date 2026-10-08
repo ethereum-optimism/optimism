@@ -576,7 +576,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
     /// @notice Initializes the shared AnchorStateRegistry with the finality delay read from the
     ///         legacy registries.
-    /// @dev    DECISION: this is split out of migrate() only because building the initialize
+    /// @dev    This function is split out of migrate() only because building the initialize
     ///         calldata inline, with the extra _sharedDisputeGameFinalityDelay() argument, pushes
     ///         migrate() past the stack limit ("Stack too deep") under the production profile.
     ///         The delay is read before the shared registry is initialized and before any portal

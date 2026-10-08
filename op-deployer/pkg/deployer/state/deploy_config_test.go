@@ -70,6 +70,26 @@ func TestCombineDeployConfig(t *testing.T) {
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisLagoonTimeOffset, hexutil.Uint64(7))
 }
 
+func TestCombineDeployConfig_ProofDelays(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.Equal(t, standard.ProofMaturityDelaySeconds, out.ProofMaturityDelaySeconds)
+		require.Equal(t, standard.DisputeGameFinalityDelaySeconds, out.DisputeGameFinalityDelaySeconds)
+	})
+
+	t.Run("overrides", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		intent.GlobalDeployOverrides = map[string]any{"proofMaturityDelaySeconds": 12}
+		chainIntent.DeployOverrides = map[string]any{"disputeGameFinalityDelaySeconds": 6}
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.Equal(t, uint64(12), out.ProofMaturityDelaySeconds)
+		require.Equal(t, uint64(6), out.DisputeGameFinalityDelaySeconds)
+	})
+}
+
 func TestCombineDeployConfig_GenesisTime(t *testing.T) {
 	t.Run("unset leaves the deploy config timestamp nil", func(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()

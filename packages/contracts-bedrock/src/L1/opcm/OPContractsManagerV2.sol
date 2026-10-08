@@ -729,7 +729,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // NOTE: The withdrawal delays (proofMaturityDelaySeconds, disputeGameFinalityDelaySeconds)
         // are not validated here and their bounds are enforced by the immutables on
         // the OptimismPortal and AnchorStateRegistry implementations.
-        // The check is ommited due to the contract size limit.
+        // The check is omitted due to the contract size limit.
 
         bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 

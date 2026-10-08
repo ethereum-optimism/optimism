@@ -92,6 +92,12 @@ func (c *L2Config) Check(log log.Logger) error {
 	if c.Deployer == (common.Address{}) {
 		return errors.New("missing L2 deployer address")
 	}
+	if c.ProofMaturityDelaySeconds == 0 {
+		return errors.New("missing L2 proof maturity delay")
+	}
+	if c.DisputeGameFinalityDelaySeconds == 0 {
+		return errors.New("missing L2 dispute game finality delay")
+	}
 	if err := c.L2InitializationConfig.Check(log); err != nil {
 		return err
 	}

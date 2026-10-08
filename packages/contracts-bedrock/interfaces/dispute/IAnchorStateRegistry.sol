@@ -39,8 +39,6 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
         uint256 _disputeGameFinalityDelaySeconds
     )
         external;
-    function maxDisputeGameFinalityDelaySeconds() external view returns (uint256);
-    function minDisputeGameFinalityDelaySeconds() external view returns (uint256);
     function isGameBlacklisted(IDisputeGame _game) external view returns (bool);
     function isGameProper(IDisputeGame _game) external view returns (bool);
     function isGameRegistered(IDisputeGame _game) external view returns (bool);
@@ -49,6 +47,8 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function isGameRetired(IDisputeGame _game) external view returns (bool);
     function isGameFinalized(IDisputeGame _game) external view returns (bool);
     function isGameClaimValid(IDisputeGame _game) external view returns (bool);
+    function maxDisputeGameFinalityDelaySeconds() external view returns (uint256);
+    function minDisputeGameFinalityDelaySeconds() external view returns (uint256);
     function paused() external view returns (bool);
     function respectedGameType() external view returns (GameType);
     function retirementTimestamp() external view returns (uint64);
