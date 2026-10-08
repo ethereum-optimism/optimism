@@ -343,10 +343,11 @@ and the payload do not depend on this.
   - re-entry from a dependency getter;
   - the real portal, lockbox and SystemConfig code.
 
-**Governance (named assumption).** Each cluster chain's L2 governance, i.e. its L2 ProxyAdmin owner, can upgrade its
-own UndeliveredMessageExporter. An upgraded exporter could forge undelivered-message facts for any destination. This
-is the same trust as the shared ETHLockbox: lockbox portals must share the proxy admin owner. These checks cover the
-exporter code as deployed; they say nothing about an upgraded exporter.
+**Governance (named assumption).** Each cluster chain's L2 governance, i.e. its L2 ProxyAdmin owner, can upgrade its own
+UndeliveredMessageExporter. An upgraded exporter could forge undelivered-message facts for any destination. This is
+comparable to the trust in the shared ETHLockbox: a member's L2 governance can already make arbitrary withdrawals from
+it by changing its own L2 state (the lockbox's own check compares the portals' L1 ProxyAdmin owners, a separate role).
+These checks cover the exporter code as deployed; they say nothing about an upgraded exporter.
 
 **Expiry.** `check_expire_iff` assumes sentAt ≤ 2^64−1, a block timestamp. `check_expire_iff_unbounded` drops that
 assumption.

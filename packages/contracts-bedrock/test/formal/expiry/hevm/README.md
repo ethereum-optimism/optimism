@@ -138,7 +138,7 @@ mutant step runs and deleted afterwards.
     unchanged.
   - Ready for the error renames of the guideline pass (E6): revert data is compared modulo a
     selector map that `gen-bytecodes.sh` derives from both sources (empty at `52ff613e14`).
-- **Retarget to `448d31ad19`** (tip of `karl/message-expiry-refunds`): regenerated with
+- **Retarget to `448d31ad19`** (tip of the PR #23259 branch): regenerated with
   `gen-bytecodes.sh`. Relative to the committed `52ff613e14` runtime (sha256 `61e81194…c541`), only
   four `PUSH32` operands changed: the error selectors renamed with the
   `L2ToL2CrossDomainMessenger_` prefix (pcs 1296 and 3038 `MessageTargetUnsafe`, 2057

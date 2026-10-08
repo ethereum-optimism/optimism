@@ -1,6 +1,6 @@
 # Quint model: interop message expiry
 
-> **Scope versus the code.** The exporter design landed on `karl/message-expiry-refunds` at
+> **Scope versus the code.** The exporter design landed on the PR #23259 branch at
 > `5992028e08`:
 > - `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (0x...0030 since
 >   `52ff613e14`; 0x..2E before);
@@ -14,8 +14,8 @@
 > - exports come from the L2ToL2 messenger;
 > - `MESSAGE_EXPIRY_WINDOW` is 7 days, and the protocol window has no cap.
 >
-> That is this model's `messengerTrustedPrestaged` configuration (with P = W, as in
-> `safeNoMargin`), which **double-spends**. Before its upgrade, a chain's messenger has no
+> That is this model's `messengerTrustedPrestaged` configuration, which **double-spends** (the
+> instance uses P = 8; the earlier code's P = W = 7 is not a separate instance). Before its upgrade, a chain's messenger has no
 > `relayMessage` target check, so an attacker can relay a message to
 > `L2CrossDomainMessenger.sendMessage(routeL1CDM, relayUndeliveredMessage(H_future, …))` and replay the
 > resulting deposit later.
@@ -27,8 +27,10 @@ implementation before the upgrade, so nothing can be sent from its address (the 
 L2ToL2CrossDomainMessenger itself was trusted, kept as a counterexample.
 
 It is checked two ways:
-- **`quint verify`**: Apalache bounded model checking, every execution up to `DEPTH` steps (default
-  12), with SMT. This is the authoritative check.
+- **`quint verify`**: Apalache bounded model checking, every execution up to a step bound, with SMT.
+  This is the authoritative check. The bound is `DEPTH` (default 15) for the counterexamples and
+  witnesses, and `SAFE_DEPTH` (default 10; `RESEND_SAFE_DEPTH`, default 9, for
+  `safeResendRestarts`) for `Safety` in the safe instances, the depths recorded under **Results**.
 - **`quint run`**: random simulation, a sanity pass.
 
 `./run.sh` asserts every expected outcome and exits nonzero on any surprise, including tool errors.
@@ -84,22 +86,27 @@ failed L1 and L2 relays can be replayed, so keeping them can only add executions
 - `NoDoubleSpend`: no message is both relayed on its destination and refunded on its source.
 - `RefundImpliesExpired`.
 - `ExpiredImpliesNeverRelayable`: an expired message was never relayed, and none of its initiating
-  events is within W of the destination's current clock. That clock only moves forward, and resend
-  is gone, so this is permanent.
+  events is within W of the destination's current clock. That clock only moves forward, and after
+  the source's upgrade no resend can add an initiating event (in `safeResendRestarts`, the
+  hypothetical resend refuses expired messages), so this is permanent.
 - `NoForgedFact`: every fact that expired a message was exported by that message's destination. This
   is a provenance property, stronger than safety strictly needs.
 - `AtMostOneRefund`.
 
 Defense in depth, separate from `Safety`:
 - `MessengerSilentAfterUpgrade`: once a chain is upgraded, its L2ToL2CrossDomainMessenger never
-  initiates a withdrawal through the L2CrossDomainMessenger. This is the target rule's own property.
-  It holds in `safe`, and is violated in `safeNoTargetRule`, where `Safety` still holds. So safety
-  does not depend on the rule. The L2ToL1MessagePasser path (raw withdrawals) is outside this model;
+  initiates a withdrawal through the L2CrossDomainMessenger. This is the target rule's own property,
+  and it is meaningful only in the exporter-trusted instances: its ghost variable tracks
+  `relayToL2CrossDomainMessenger`, not exports, which in the messenger-trusted instances are
+  recorded with the messenger as sender. It holds in `safe` directly from the `TARGET_RULE` guard,
+  and is violated in `safeNoTargetRule`, where `Safety` still holds. So safety does not depend on
+  the rule. The L2ToL1MessagePasser path (raw withdrawals) is outside this model;
   Halmos and Kontrol check it on bytecode.
 
 Non-vacuity witnesses, each of which must be violated in `safe`:
 - `NoRefundEver`: a refund happens.
-- `NoEdgeRelay`: a relay happens exactly at `exec - init == W`.
+- `NoEdgeRelay`: a relay happens exactly at `exec - init == W` (it may be a message sent before
+  the source's upgrade, which can never expire).
 - `NoRefundOfM2`: a refund is routed to a source other than A.
 - `NoRefundOfM3`: a refund happens for a destination that joined the lockbox after genesis.
 
@@ -111,21 +118,23 @@ Non-vacuity witnesses, each of which must be violated in `safe`:
 | `safeNoTargetRule` | no target rule | holds: the rule is defense in depth in this design |
 | `safeNoMargin` | P = W = 7 | holds with the strict `>` |
 | `safeShorterWindow` | W = 5 | holds |
-| `safeResendRestarts` | a hypothetical resend that restarts the timestamp | holds |
+| `safeResendRestarts` | a hypothetical resend that restarts the timestamp **and** refuses an expired message | holds; restarting alone is not enough, since a resend after the refund would open a new relay window |
 | `messengerTrustedPrestaged` | earlier design (0x..23 trusted), even with the target rule | double spend: forgeries made before the upgrade |
 | `messengerTrustedNoTargetRule` | earlier design, no target rule, with pre-upgrade forgeries switched off | double spend on the post-upgrade path |
 | `periodBelowWindow` | W = 7, P = 6 (within the cap) | double spend |
 | `expireGeNoMargin` | `>=` with P = W | double spend at the boundary |
 | `noRealMessengerCheck` | check (a) off | double spend: a fake caller borrowing a real portal |
 | `noLockboxCheck` | check (b) off | double spend: a non-cluster chain, or a fake caller with a fake portal |
-| `noSenderCheck` | check (c) off | double spend: a user withdrawal |
+| `noSenderCheck` | check (c) off | double spend: a user withdrawal (or a pre-upgrade relay through the messenger) |
 | `nonstandardJoin` | a chain that ran arbitrary code joins the lockbox | double spend: its old withdrawals |
 | `resendNoRestart` | the original #22601 resend flaw | double spend |
-| `duplicateChainId` | C (a standard chain that can join) has B's chain ID | double spend: C exports "not relayed" for B's message |
+| `duplicateChainId` | C (a standard chain that can join) has B's chain ID | double spend: member B exports "not relayed" for `m3`, which is addressed to that ID, and C relays it without joining (9 steps); C exporting for B's message needs a join first |
 
-**Derived activation.** In the exporter design, the "no legacy forged facts" premise follows from the
-model instead of being assumed. Before a chain's upgrade, its exporter proxy has no implementation,
-so no withdrawal with the trusted sender can exist from a standard chain. What remains is weaker
+**Activation.** In the exporter design, the "no legacy forged facts" premise is encoded in the
+action set rather than assumed separately: before a chain's upgrade its exporter proxy has no
+implementation, so `exportUndelivered` requires `upgraded`, and no other action on a standard chain
+records the exporter as sender. That rests on the completeness of the hand-enumerated actions; the
+Lean model derives it (`exporterSilentBeforeUpgrade`). What remains is weaker
 than v1's premise: no ProxyAdmin action set an implementation at the exporter address before the
 upgrade, on any chain that is or becomes part of the lockbox. `messengerTrustedPrestaged`
 shows the same premise failing for the earlier design.
@@ -173,17 +182,31 @@ of these configurations is the Lean proof (`safety`, `safety_without_targetRule`
   clocks, so cross-chain drift doesn't matter.
 - **Finality.** Withdrawals reflect their chain's canonical history.
 - **Standard chains run the standard code**, and `relayMessage` only succeeds within the window.
-- **Chain IDs.** L2 chain IDs are unique among the chains that are or become lockbox members
-  (`duplicateChainId` shows why). OPCM's migration checks for duplicate IDs; this is a governance
-  obligation.
+- **Chain IDs.** No chain, inside the lockbox or not, shares a chain ID with a standard chain. This
+  is the Lean model's `ChainIdUnique` (`../lean/Expiry/Model.lean`) and the rollout model's AC4.
+  Uniqueness among lockbox members alone is not enough: a non-member with a member's chain ID can
+  relay that member's messages (`../rollout`, trace `cexNonMember`). This model's
+  `duplicateChainId` gives the duplicate ID to C, a standard chain that can join. OPCM's migration
+  checks for duplicate IDs among the chains it migrates; the rest is a governance obligation.
 - **The protocol W rule** is enforced on a destination before its exporter goes live, and W never
   rises above P later. Changes of W over time are not modeled.
+- **Upgrades are monotone and storage-preserving.** `upgrade` happens once and is never undone,
+  and every map survives it. In particular, once a message has a send timestamp, no later
+  implementation may re-emit its `SentMessage`, including a rollback to the pre-expiry messenger
+  with `resendMessage` (rollout AC2; `../rollout` `govMessengerDowngrade` shows the double spend).
+- **Relay is pinned to the message's assigned destination chain.** The contracts accept a relay on
+  any chain whose `block.chainid` equals the destination. With unique chain IDs (every safe
+  instance) that is the same chain; with `UNIQUE_IDS` off the model omits relays of a message on
+  the other chain with the same ID, so `duplicateChainId` under-approximates what that
+  misconfiguration allows (it double-spends regardless).
 - **Addresses.** No EOA or aliased L1 address equals the exporter's or the messenger's address
   (preimage hardness).
 - **Exporter governance.** Each cluster chain's L2 governance (its L2 ProxyAdmin owner) can upgrade
-  its own exporter, which would let it forge facts for any destination. This is the same trust as the
-  shared ETHLockbox, whose portals must share the proxy admin owner. It is not modeled; a chain whose
-  exporter was replaced is a non-standard chain, as in `nonstandardJoin`.
+  its own exporter, which would let it forge facts for any destination. This is comparable to the
+  trust in the shared ETHLockbox: a member's L2 governance can already make arbitrary withdrawals
+  from it by changing its own L2 state (the lockbox's own check compares the portals' L1 ProxyAdmin
+  owners, a separate role). It is not modeled; a chain whose exporter was replaced is a non-standard
+  chain, as in `nonstandardJoin`.
 - **Legacy withdrawals.** Pre-Bedrock (version 0) withdrawals are irrelevant.
 - **The protocol rule's `<=`** is the conservative reading.
 - **One lockbox.** There is a single authorization set, while the code reads the route's own lockbox.
@@ -204,16 +227,17 @@ of these configurations is the Lean proof (`safety`, `safety_without_targetRule`
   semantics, the `expireMessage` caller check, and the L1 messenger never relaying to itself are
   taken as given here; Halmos and Kontrol check them on bytecode. The INTEROP gate (landed at
   `5992028e08`) is not modeled; it can only restrict.
-- **Bounded.** Two messages, four chains, `MAX_TIME` = 20, and Apalache up to `DEPTH` steps.
+- **Bounded.** Three messages, four chains, `MAX_TIME` = 20, and Apalache up to the step bounds above.
   - An honest refund takes 8–9 steps.
   - The attacks' shortest double spends take 6 steps (`fakeCaller` paths) to 11 (`resendNoRestart`).
-  - The default `DEPTH` is 15. `Safety` in the safe instances was checked to 9–10 steps (see
-    Results).
+  - The default `DEPTH` is 15. `Safety` in the safe instances was checked to 10 steps, 9 for
+    `safeResendRestarts` (see Results); `SAFE_DEPTH` and `RESEND_SAFE_DEPTH` default to those.
   - The Lean proof covers unbounded chains, messages and time.
 - **Not modeled:** gas, ETH amounts, pauses, proof-maturity delays and message nonces. ETH amounts
   are covered by the Foundry invariant harness.
-- **The pending L2ToL1MessagePasser target rule** matters only for external L1 contracts that might
-  trust raw withdrawals from 0x..23. No protocol contract does, so it is out of scope here.
+- **The L2ToL1MessagePasser target rule** (landed in `3b8d14c4ef`) matters only for external L1
+  contracts that might trust raw withdrawals from 0x..23. No protocol contract does, so it is out
+  of scope here; Halmos and Kontrol check it on bytecode.
 
 ## Review log
 
@@ -284,4 +308,38 @@ Each finding and what became of it:
   - `fakeCaller` passing check (a) with a fake portal (from the Lean v2 review);
   - the `MessengerSilentAfterUpgrade` defense-in-depth property (the design keeps the target rule).
 
-**v2.1:** review pending.
+**v2.1** (the exporter design, chain IDs, `m3` and joins, pre-upgrade resend, the `fakeCaller` guard,
+`MessengerSilentAfterUpgrade`, the results and depth knobs), reviewed by R1, R2 and R3. None found a
+critical or high issue or a way the contracts break a stated property; all confirmed that the action
+guards match the code, that the safe instances' guards are not stronger than the code, that the
+witnesses are substantive (`NoRefundOfM3` needs C to join), and that the chain-ID assumption matches
+Lean's `ChainIdUnique`. Each finding and what became of it:
+- **R1, R2, R3: `duplicateChainId`'s mechanism was misdescribed.** The 9-step violation is member B
+  exporting "not relayed" for `m3` (addressed to the shared ID) and C relaying it without joining; C
+  exporting for B's message needs a join (10 steps). Fixed in the instance table and the model comment.
+- **R2, R3: relay is pinned to the assigned destination chain.** With duplicate IDs the contracts would
+  also accept the relay on the other chain. Stated as a limitation of the `duplicateChainId` instance
+  (it under-approximates that misconfiguration, which double-spends regardless); safe instances have
+  unique IDs. Not changed in the model.
+- **R2, R3: `safeResendRestarts` also refuses expired messages.** Restarting the timestamp alone is not
+  enough. Fixed in the instance table and the `ExpiredImpliesNeverRelayable` text.
+- **R2, R3: missing rollback assumption.** Added "upgrades are monotone and storage-preserving", with
+  rollout AC2.
+- **R1, R2, R3: "derived activation" overclaimed.** Reworded here and in the model header: the
+  premise is encoded in the hand-enumerated action set; Lean derives it.
+- **R1: the `UNIQUE_IDS` comment stated the weaker, members-only assumption.** Fixed.
+- **R2, R3: the runner accepted a deadlock trace as the expected violation.** `classify` now requires
+  quint's invariant-counterexample message and treats a deadlock as an error (checked against quint
+  0.33 output).
+- **R1, R2, R3: `wait -n` needs bash 4.3; `JOBS=0` hung.** The runner checks the bash version and that
+  `JOBS` is a positive integer, and states the memory cap used for the results.
+- **R2, R3, R1: `MessengerSilentAfterUpgrade` misses exports in messenger-trusted instances.** Scoped to
+  the exporter-trusted instances, where it is checked; R1 noted it holds in `safe` directly from the
+  guard.
+- **R1: `NoEdgeRelay` can be met by a pre-upgrade message; `noSenderCheck` can also use a pre-upgrade
+  relay; the scope box's "(with P = W)" named no instance; "resend is gone" was stale.** Fixed.
+- **R1: `ExpiredImpliesNeverRelayable` catches a non-restarting resend at step 9, within the bound.**
+  Noted; the README keeps the conservative statement that the `resendNoRestart` double spend (11 steps)
+  is deeper than `safeResendRestarts` was checked.
+- **R1: simulate results not recorded.** `./run.sh simulate` (20,000 samples, 30 steps) was re-run with
+  this runner: every expected outcome, no failures.

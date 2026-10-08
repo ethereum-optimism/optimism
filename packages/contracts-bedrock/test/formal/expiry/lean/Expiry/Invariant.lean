@@ -3,9 +3,9 @@ import Expiry.Model
 /-!
 Inductive invariants.
 
-* `HistW` (any configuration): every withdrawal with sender `exporter` from a standard chain was
-  made by an `exportUndelivered` step of that chain earlier in the execution. Needs only `Init`
-  (genesis has no withdrawals).
+* `HistW` (any configuration with `exporterGovernance = true`): every withdrawal with sender
+  `exporter` from a standard chain was made by an `exportUndelivered` step of that chain earlier in
+  the execution. Needs only `Init` (genesis has no withdrawals) and that governance premise.
 * `Inv` (safe configuration): the state invariant.
 * `HistD` (safe configuration): every deposit fact was exported by a standard chain.
 -/

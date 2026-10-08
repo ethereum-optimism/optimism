@@ -213,7 +213,8 @@ theorem nonvacuous_onlyDestinationCanExport :
     onlyDestinationCanExport base_safe inj_id base_idu s0_init (s0_gov _ rfl) sR_reach 1 0 5 hz
       sR_expired⟩
 
-/-- `safety`, applied on the refund execution, with each conjunct instantiated at `mAB`. -/
+/-- `safety`, applied on the refund execution, with its first four conjuncts instantiated at `mAB`
+(the fifth is `expiredImpliesNeverRelayable`'s conclusion; see its witness). -/
 theorem nonvacuous_safety :
     SafeConfig base ∧ HashInjective base.hash ∧ ChainIdUnique base ∧ Init s0 ∧ GovInit base s0 ∧
     Reach base s0 sR ∧ sR.refunded 0 mAB ∧ sR.deposits fB ∧

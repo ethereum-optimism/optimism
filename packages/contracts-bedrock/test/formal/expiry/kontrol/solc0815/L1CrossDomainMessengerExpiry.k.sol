@@ -45,6 +45,10 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     MockCallerMessenger internal caller;
     MockCallerPortal internal callerPortal;
     MockSystemConfig internal callerSystemConfig;
+    /// @notice What caller.systemConfig() returns: a separate stand-in from the caller portal's
+    ///         SystemConfig, with its own symbolic answers, so a check that reads the caller's own
+    ///         systemConfig() (mutation K41) is distinguishable from the real check (a).
+    MockSystemConfig internal callerOwnSystemConfig;
     MockSystemConfigA internal aSystemConfig;
     MockLockbox internal callerLockbox;
 
@@ -56,6 +60,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         caller = new MockCallerMessenger();
         callerPortal = new MockCallerPortal();
         callerSystemConfig = new MockSystemConfig();
+        callerOwnSystemConfig = new MockSystemConfig();
         callerLockbox = new MockLockbox();
 
         vm.store(address(aCdm), bytes32(SLOT_PORTAL), bytes32(uint256(uint160(address(aPortal)))));
@@ -68,13 +73,14 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         vm.store(address(aPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(aLockbox)))));
         // Pointer getters every stand-in answers (MockPortalA.systemConfigRet is its slot 8).
         vm.store(address(aPortal), bytes32(uint256(8)), bytes32(uint256(uint160(address(aSystemConfig)))));
-        vm.store(address(caller), bytes32(uint256(2)), bytes32(uint256(uint160(address(callerSystemConfig)))));
+        vm.store(address(caller), bytes32(uint256(2)), bytes32(uint256(uint160(address(callerOwnSystemConfig)))));
         vm.store(address(callerPortal), bytes32(uint256(1)), bytes32(uint256(uint160(address(callerLockbox)))));
     }
 
     /// @notice Leaf answers of the caller's SystemConfig and lockbox, ANY values.
     function _symbolicCallerAnswers() internal returns (address l1cdmAnswer_) {
         kevm.symbolicStorage(address(callerSystemConfig));
+        kevm.symbolicStorage(address(callerOwnSystemConfig));
         kevm.symbolicStorage(address(callerLockbox));
         l1cdmAnswer_ = callerSystemConfig.l1CrossDomainMessenger();
     }

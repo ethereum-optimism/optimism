@@ -158,11 +158,12 @@ evaluation of `Ξ`). They are executable tests, not dependencies.
 * **EquiVM's own library** contains `native_decide` (e.g. `Reasoning/EVMWord.lean`, `ABI.lean`,
   `Memory.lean:239`). None is in the dependency cone of the headline theorems: the axiom
   assertion proves it.
-* **Sibling projects** `../evm-lean-bridge` (2136 `native_decide` occurrences) and
-  `../evm-lean-l1cdm` (6453) are untouched. `KernelDecide.lean` and `KernelRun.lean` do not depend
-  on the contract (their namespaces are `Ethereum.EVM.KernelDecide` and top-level tactics), so the
-  same steps apply: flat literal, sed of the shards, tactic renames, axiom assertion. That has
-  not been run or measured.
+* **Sibling projects.** When these measurements were taken, `../evm-lean-bridge` (2136
+  `native_decide` occurrences) and `../evm-lean-l1cdm` (6453) had not been converted. They have
+  been since, with the same steps (flat literal, sed of the shards, tactic renames, axiom
+  assertion), as has `../evm-lean-exporter`: each now asserts at build time that its headline
+  theorems use no `native_decide` (see their READMEs). The per-fact timings here are for
+  `../evm-lean` only.
 * Timings come from a heavily shared box (other workers' forge/halmos/kontrol jobs). Ratios are
   more reliable than absolute numbers.
 
@@ -180,3 +181,9 @@ Already applied in `../evm-lean/` (commit "kernel-check every bytecode fact in t
 | `measure/flat_all.tsv`, `list_all.tsv` | per-fact results (index, class, axiom, ok/FAIL, ms) |
 | `measure/Reach.lean` | `implemented_by`/`extern` reachability of the 585 statements |
 | `measure/Micro*.lean` | micro-benchmarks quoted above |
+
+## Review
+
+This directory holds measurement data and timing harnesses only, no proofs, so it has no review
+log. The kernel-decision lemmas it describes live in `../evm-lean/ExpiryEvm/KernelDecide.lean` and
+its siblings' copies, and are covered by those layers' builds and reviews.

@@ -7,7 +7,8 @@ any lockbox joins, under explicit hypotheses:
 
 * `hc   : SafeConfig cfg`         -- the v2 design: exporter trusted, the three L1 checks,
                                      L1CDM self-target rule, SystemConfig consistency, the
-                                     governance join rule, ∀ d, W_d ≤ P (W_d < P with `≥`),
+                                     governance join rule, member governance keeps the
+                                     standard exporter, ∀ d, W_d ≤ P (W_d < P with `≥`),
                                      no non-restarting resend
 * `hinj : HashInjective cfg.hash` -- idealized collision-free hash on (dest ID, source ID, rest)
 * `hid  : ChainIdUnique cfg`      -- standard chains have chain IDs no other chain uses
@@ -15,7 +16,8 @@ any lockbox joins, under explicit hypotheses:
 * `hg   : GovInit cfg s₀`         -- only standard chains are authorized at genesis
 * `hr   : Reach cfg s₀ s`
 
-`exporterSilentBeforeUpgrade` needs only `Init` and `Reach`: it holds in every configuration.
+`exporterSilentBeforeUpgrade` needs only `Init`, `Reach` and `exporterGovernance = true`: it holds in
+every configuration where member governance keeps the standard exporter.
 -/
 namespace Expiry
 

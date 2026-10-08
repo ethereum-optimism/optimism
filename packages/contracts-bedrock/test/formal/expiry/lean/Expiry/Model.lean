@@ -104,7 +104,7 @@ structure Config (Chain Body Hash : Type) where
   is that chain's real L1CDM. -/
   sysConfigConsistent : Bool
   /-- Governance: no standard chain's L2 governance (its L2 ProxyAdmin owner) replaces its exporter
-  with other code. Same trust as the shared ETHLockbox. -/
+  with other code. Comparable to the trust in the shared ETHLockbox (see the README). -/
   exporterGovernance : Bool
   /-- Boundary mutation: `t ≥ sentAt + P` instead of `t > sentAt + P`. -/
   expireGe : Bool

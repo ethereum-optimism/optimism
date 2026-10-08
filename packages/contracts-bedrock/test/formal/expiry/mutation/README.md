@@ -97,8 +97,8 @@ a change, not as a semantic catch.
 | K37 | refundETH hash preimage uses nonce + 1 | halmos M18 | API shift | K | K(witness) | K | n/a | — | stmt | K |
 | K39 | expireMessage drops its sentAt != 0 check | new; review R1 | unbounded mint | K | K | K | excl. | — (`expire` guard fixes sentAt ≠ 0) | stmt | K |
 | K40 | expireMessage compares the source's block.timestamp instead of _undeliveredAt | new; review R1 | double spend | K | K | K | excl. | — (fact time ignored) | stmt | K |
-| K41 | check (a) reads the caller's own systemConfig() instead of its portal's | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noRealMessengerCheck`; `noRealMessengerCheck` | stmt | K‡ |
-| K42 | check (b) reversed: the caller portal's lockbox must authorize this chain's portal | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noLockboxCheck_fakePortal`; `noLockboxCheck` | stmt | K‡ |
+| K41 | check (a) reads the caller's own systemConfig() instead of its portal's | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noRealMessengerCheck`; `noRealMessengerCheck` | stmt | K |
+| K42 | check (b) reversed: the caller portal's lockbox must authorize this chain's portal | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noLockboxCheck_fakePortal`; `noLockboxCheck` | stmt | K |
 | K43 | refundETH emits RefundETH only for a nonzero amount | new; review R2 | event only | K§ | · | · (phase 2 stopped; raw ERROR) | n/a | — | pin | · |
 | K44 | relayMessage forwards only half the remaining gas to the target | new; review R2 | liveness (gas) | · | · | · | excl. | — (gas) | pin | · |
 | K45 | relayMessage does not call CrossL2Inbox.validateMessage | new; review R2 | forged delivery, unbounded mint | K§ | · | · | K | — (`relay` needs an initiating event) | pin | · |
@@ -113,8 +113,11 @@ K01–K38 are the original catalogue; K39–K51 were added after the first revie
 **K§** caught at `557e7691e9`, after the gap-closing commits, for the right reason (checked per mutant under
 "Re-run at 557e7691e9"); at `e0ffb33a31` the cell was · or K‡. **K‡** caught only because the test stand-in for the other chain's messenger or portal lacks the getter the
 mutant newly calls, so every call reverts, including honest ones; the forged word the mutant would accept is never
-tried (see "Surviving every executed layer"). Only Kontrol's K41/K42 cells are still K‡: its stand-in fix is in
-progress elsewhere, and the column stays "by statement". **· (phase 2 stopped; raw ERROR)**: phase 1 survived, and the bridge's phase-2 check was stopped by hand (its baseline does not
+tried (see "Surviving every executed layer"). Kontrol's K41/K42 cells were K‡ until `4fa18b08ae`, which gave its
+stand-ins every getter. Its stand-in for `caller.systemConfig()` still aliased the caller portal's
+SystemConfig, so K41 stayed indistinguishable (found in Kontrol's review); with a separate stand-in,
+its `relayUndeliveredMessage` iff spec, run on scratch copies with the K41 and K42 edits, fails with
+an assertion counterexample, so both cells are K (run, not only by statement). **· (phase 2 stopped; raw ERROR)**: phase 1 survived, and the bridge's phase-2 check was stopped by hand (its baseline does not
 finish in 90 minutes on the shared host, and it observes neither events nor storage layout, which is what K43
 and K50 change).
 
@@ -413,7 +416,10 @@ Each re-run mutant was checked for **why** it is now caught, not only that it is
 | K45 | unit | `testFuzz_relayMessage_metadataStore_succeeds` | "expected call to 0x4200…0022 with data `validateMessage(…)`": the inbox is never asked. |
 | K04 | Halmos | `check_expire_iff_unbounded`; `ReachL2ToL2Halmos.check_reach_sequence2`, `check_reach_step_symbolicStorage` | The (E) clause now asserts `pre.ts <= type(uint256).max - period`. The counterexample sends at `block.timestamp = 2^256 - 0x80000` and then expires through the wrapped deadline. The fresh phase-2 baseline passed (1096 s for phases 1 and 2). |
 
-Kontrol's stand-ins for K41/K42 are being fixed separately; its column stays "by statement", with K‡ for K41 and K42.
+Kontrol's stand-ins for K41/K42 were fixed in `4fa18b08ae` (every stand-in answers every getter) and, for K41, in
+Kontrol's review round (a separate stand-in for `caller.systemConfig()`). Its `relayUndeliveredMessage` iff spec was
+then run on scratch copies with the `mutants.tsv` edits and fails with an assertion counterexample for each, so the
+Kontrol cells for K41 and K42 are K (see `../kontrol/README.md`).
 
 Narrowest coverage by contract:
 - **L1CrossDomainMessenger** (K21–K30, K41, K42, K48): only the unit tests and Halmos run its code; the invariant
@@ -453,7 +459,8 @@ affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of eac
      The stray-`sstore(5, 1)` mutants of `../hevm/run.sh` are caught because slot 5 is not hash-derived.
    - So Halmos S-all covers the un-hashed slot domain (including symbolic indices into it), not mapping entries. The texts that say "every raw slot" or "every storage
      slot" (`../hevm/README.md`, the header of `../hevm/L2ToL2Equivalence.t.sol`, and the top-level README's
-     equivalence row), and "a PASS there is at least as strong", overstate it. The hevm-engine proof
+     equivalence row), and "a PASS there is at least as strong", overstate it. (All three now state the narrower scope: the
+     hevm texts since `091bcb1500`, the top-level row since this package's claim-fidelity pass.) The hevm-engine proof
      `prove_sendMessage_len0` uses a different storage model and is not shown to be affected.
    - K05 and K06 surviving S-all is by design (`_checkAllSlots` pins `sentMessageTimestamps[h]`), not evidence of
      the blindness; K07 is.

@@ -9,8 +9,9 @@
 //
 // The model is at the level of "who can make which withdrawal / deposit exist": every L2->L1
 // message carries the L2 address that sent it (the L2CrossDomainMessenger records msg.sender), and
-// the attacker's moves are expressed per target contract, so that "only the exporter can make the
-// trusted sender speak" is a consequence of the model, not an assumption.
+// the attacker's moves are expressed per target contract and recorded sender. "Only the exporter can
+// make the trusted sender speak" is therefore built into this hand-enumerated action set, not
+// derived; the Lean model (../lean) derives it from a target-level relay.
 //
 // Each mitigation is a constant; the instances at the bottom switch them off one at a time.
 module expiry {
@@ -37,8 +38,8 @@ module expiry {
   // The removed resendMessage, and whether it would restart the stored timestamp.
   const RESEND: bool
   const RESEND_RESTARTS: bool
-  // Chain IDs are unique among the chains that are or become lockbox members. If false, chain C
-  // has the same L2 chain ID as B (a governance failure: two authorized histories, one ID).
+  // Chain IDs are unique: no chain, member or not, shares a standard chain's ID (Lean ChainIdUnique).
+  // If false, chain C has the same L2 chain ID as B (a governance failure: two histories, one ID).
   const UNIQUE_IDS: bool
   // An attacker can relay to the L2CrossDomainMessenger on a chain before its upgrade (true in
   // reality; switched off only to isolate the post-upgrade path in one counterexample).
@@ -472,7 +473,8 @@ module resendNoRestart {
     CONTRACT_PERIOD = 8, EXPIRE_GE = false, RESEND = true, RESEND_RESTARTS = false, UNIQUE_IDS = true, PRE_UPGRADE_FORGERY = true).*
 }
 
-// Two lockbox members with the same L2 chain ID: C exports "not relayed" for B's message.
+// C has B's L2 chain ID. Shortest double spend: member B exports "not relayed" for m3 (addressed to
+// that ID) and C relays m3, without ever joining. C exporting for B's message needs a join first.
 module duplicateChainId {
   import expiry(TRUSTED_SENDER = "exporter", TARGET_RULE = true, REAL_MESSENGER_CHECK = true,
     LOCKBOX_CHECK = true, SENDER_CHECK = true, JOIN_REQUIRES_STANDARD = true, PROTOCOL_WINDOW = 7,

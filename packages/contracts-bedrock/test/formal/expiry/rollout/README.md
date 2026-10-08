@@ -1,7 +1,7 @@
 # Rollout model: activation orderings and misconfigurations for interop expiry
 
 `rollout.qnt` asks which **deployment orderings and misconfigurations** of the exporter design are
-safe, and which activation conditions are needed. The design is on `karl/message-expiry-refunds` at
+safe, and which activation conditions are needed. The design is on the PR #23259 branch at
 `5992028e08`. The cited code was re-checked at tip `e1b3903ab8`. The changes there are error
 renames, an `UndeliveredMessageExported` event, the exporter's move to `0x4200…0030`, and a kona
 getter guard; none of them changes this model. The model is a copy of `../quint/expiry.qnt` with

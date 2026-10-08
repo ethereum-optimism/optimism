@@ -42,7 +42,7 @@ import { IUndeliveredMessageExporter } from "interfaces/L2/IUndeliveredMessageEx
 ///         - One global, monotone clock (block.timestamp) is shared by all chains.
 ///         - The L1 hop is not executed. TRUSTED_SENDER is the L2 sender L1CrossDomainMessenger.relayUndeliveredMessage
 ///           trusts (xDomainMessageSender): the UndeliveredMessageExporter predeploy
-/// (Predeploys.UNDELIVERED_MESSAGE_EXPORTER) at 52ff613e14; 0x..23 in the legacy design (37b44c48c7), which the
+/// (Predeploys.UNDELIVERED_MESSAGE_EXPORTER) at c7c51d79e2; 0x..23 in the legacy design (37b44c48c7), which the
 /// legacy-mutant configuration models. EXPORTER is the
 ///           contract whose exportUndeliveredMessage the handler calls (the same address). The L1 interop feature gate
 ///           (systemConfig INTEROP) is assumed on for A. A
@@ -57,7 +57,7 @@ import { IUndeliveredMessageExporter } from "interfaces/L2/IUndeliveredMessageEx
 ///         - Raw withdrawals (MessagePassed whose sender is 0x..23 or TRUSTED_SENDER, i.e. the contract calling the
 ///           passer directly) are counted but never delivered: on L1 the portal calls their target directly, so
 ///           relayUndeliveredMessage's caller is a portal (no portal()/xDomainMessageSender), and an
-///           L1CrossDomainMessenger rejects them (portal.l2Sender() != L2CrossDomainMessenger). At 52ff613e14 the
+///           L1CrossDomainMessenger rejects them (portal.l2Sender() != L2CrossDomainMessenger). At c7c51d79e2 the
 ///           messenger rejects the L2ToL1MessagePasser as a target, so none should exist; an invariant checks that.
 contract ExpiryHandler is CommonBase, StdUtils {
     /// @notice Thrown when sendETH returns a hash other than the one recomputed from its arguments.
@@ -212,7 +212,7 @@ contract ExpiryHandler is CommonBase, StdUtils {
     ///         produced on that chain at that time: t != now, H already relayed there, or H is a known message to
     ///         another chain (must stay false).
     bool public dishonestFactCaptured;
-    /// @notice Raw withdrawals (sender == 0x..23 at the passer). Zero with the passer target rule (52ff613e14).
+    /// @notice Raw withdrawals (sender == 0x..23 at the passer). Zero with the passer target rule (c7c51d79e2).
     uint256 public rawWithdrawalsFrom23;
     /// @notice Raw withdrawals with sender == TRUSTED_SENDER at the passer (same as above when it is 0x..23).
     uint256 public rawWithdrawalsFromTrusted;

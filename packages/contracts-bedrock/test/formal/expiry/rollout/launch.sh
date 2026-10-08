@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Waits until at least 40 GB are available (shared-host memory rule), then runs the checks under a 16 GB cap.
 cd "$(dirname "$0")" || exit 1
-export PATH=$HOME/.local/bin:$PATH
+# Needs mise on PATH (q.sh runs `mise exec node@22 -- quint`).
 while (( $(awk "/MemAvailable/ {print int(\$2/1048576)}" /proc/meminfo) < 40 )); do sleep 30; done
 echo "start $(date)"
 exec systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 \

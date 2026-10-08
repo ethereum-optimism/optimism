@@ -29,11 +29,11 @@ interface ILegacyExpiryWindow {
 ///         - Exports go through the real UndeliveredMessageExporter predeploy, whose withdrawals are the only facts
 ///           (the sender L1CrossDomainMessenger.relayUndeliveredMessage trusts), except in the legacy-design mutant.
 ///         - Expected-to-fail variants run only with EXPIRY_INV_EXPECT_FAIL=true (skipped otherwise).
-///         Targets karl/message-expiry-refunds at 52ff613e14 (UndeliveredMessageExporter, EXPIRY_PERIOD = 8 days).
+///         Targets PR #23259 at c7c51d79e2 (UndeliveredMessageExporter, EXPIRY_PERIOD = 8 days).
 abstract contract ExpiryInvariants_TestInit is CommonTest {
     /// @notice Messenger replacements (test-only copies under mutants/; the real contracts are not modified).
     uint8 internal constant MUTANT_NONE = 0;
-    /// @notice 52ff613e14 messenger with _isUnsafeTarget always false (no L2CrossDomainMessenger/passer target rule).
+    /// @notice c7c51d79e2 messenger with _isUnsafeTarget always false (no L2CrossDomainMessenger/passer target rule).
     uint8 internal constant MUTANT_NO_UNSAFE_TARGETS = 1;
     /// @notice Legacy design: the 37b44c48c7 messenger (exports itself; L1 trusted 0x..23) without its target rule.
     uint8 internal constant MUTANT_LEGACY_NO_TARGET_RULE = 2;
@@ -235,7 +235,7 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         vm.writeLine(path, line);
     }
 
-    /// @notice P_contract. Reads the messenger's expiry constant: EXPIRY_PERIOD at 52ff613e14 (8 days), or
+    /// @notice P_contract. Reads the messenger's expiry constant: EXPIRY_PERIOD at c7c51d79e2 (8 days), or
     ///         MESSAGE_EXPIRY_WINDOW for the legacy-design mutant (a 37b44c48c7 copy, 7 days).
     function _contractExpiryPeriod() internal view returns (uint256) {
         if (_mutant() == MUTANT_LEGACY_NO_TARGET_RULE) {

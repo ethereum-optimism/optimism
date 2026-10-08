@@ -309,13 +309,15 @@ effective W is in [1, 604800]:
     no depset it uses `defaultMessageExpiryWindow = 604800`.
 - **kona:** `rust/kona/crates/protocol/genesis/src/interop/depset.rs`.
   - `deserialize_override_window` (`:44-45`) rejects values above `MESSAGE_EXPIRY_WINDOW` (604800).
-  - `get_message_expiry_window` (`:52-56`) maps `None` or `Some(0)` to 604800.
+  - `get_message_expiry_window` (`:54-58`) returns the override only when `0 < w <= 604800`;
+    `None`, `Some(0)` and, since `d36e37862b`, any larger value map to 604800.
   - Both depset sources in the fault proof go through serde: the embedded registry
     `DEPENDENCY_SETS` uses `serde_json::from_str`, and the preimage-oracle fallback in
     `boot.rs:264-286` uses `serde_json::from_slice`. The result reaches `MessageRules` through
     `consolidation.rs:137`.
-  - The field is `pub` and the `arbitrary` derive is on, so a `DependencySet` built in memory
-    skips the cap. Only tests and fuzzing do that; no production loading path does.
+  - The field is `pub` and the `arbitrary` derive is on, so a `DependencySet` built in memory can
+    hold a value above the cap. Since `d36e37862b` the getter falls back to 604800 for it, so such
+    a value never becomes the effective window.
 
 **Per-depset overrides are not modelled as such.** The model has one global window: a single
 depset and a single cluster. `Valid()` pins `messageExpiryWindow == MESSAGE_EXPIRY_WINDOW`, and the
@@ -411,7 +413,7 @@ not affect the expiry argument, because the theorem needs no activation hypothes
 ## Review log
 
 - **v1** (2026-10-07): the bridge lemmas, the expected-fail file and the agreement table.
-- **v1 review** by three independent model-based reviewers (R1, R2, R3).
+- **v1 review** by R1 (fresh-context reviewer) and R2, R3 (independent model-based reviewers).
   - Verdict: sound, no axioms added, not vacuous, boundary agrees everywhere, no critical or high
     findings.
   - R1's mutants were all rejected by Dafny: dropping `exec >= tExport`; a non-strict export

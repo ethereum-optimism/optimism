@@ -14,7 +14,7 @@ the EVMLean semantics (`Ethereum.EVM.Ξ`, `Ethereum.EVM.Θ`, `AccountMap`, `Exec
   and the summary hypothesis on their results (`ReturnsAddress`),
 * the success conditions (`ExpireConds`) and the post-state relation (`ExpirePost`).
 
-Solidity source (at commit 448d31ad19, tip of `karl/message-expiry-refunds`):
+Solidity source (at commit 448d31ad19, tip of the PR #23259 branch):
 
 ```solidity
 function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {

@@ -52,7 +52,11 @@ cd rust && cargo nextest run -p kona-interop --test window_differential
 
 ## Results
 
-All pass at `52ff613e14`. Each of these single-line changes to the implementations makes the
+All pass at `96a08ba3e4` (the formal branch with the tests as tightened after code review; its
+`op-core`, `op-supernode` and `rust/kona` sources match the contracts tip `448d31ad19` apart from
+these tests and kona-interop's test dev-dependency): the op-core vector and property tests, op-supernode's `WindowVectors` and
+`WindowProperty`, and kona's five `window_differential` tests (`cargo test -p kona-interop --test
+window_differential`). They first passed at `52ff613e14`. Each of these single-line changes to the implementations makes the
 tests fail: drop op-core's cap; clamp instead of reject; `>` to `>=` in the op-core window check;
 drop op-supernode's ordering check; drop kona's cap; `<=` to `<` in kona's expiry or ordering
 check; and remove the `check_message_ordering` call from `MessageGraph` (caught by the graph-level
@@ -64,9 +68,11 @@ tests, not by the `MessageRules` ones).
   `check_message_expiry` alone is not total (it documents `init <= exec` as a precondition, and a
   wrapping build would accept `init = 2^64-1, exec = 1`); `MessageGraph` always checks ordering
   first, which the graph-level test exercises.
-- kona enforces the cap only when it deserializes a dependency set; a `DependencySet` built
-  directly in code is not checked. op-interop-filter has its own cap in `Config.Validate`
-  (`op-interop-filter/filter/config.go`).
+- kona rejects an override above the cap when it deserializes a dependency set. Since
+  `d36e37862b`, `get_message_expiry_window` also falls back to 7 days for a larger value set
+  directly in code (kona's own `test_get_message_expiry_window_never_exceeds_protocol_window`), so
+  the effective window never exceeds the cap. op-interop-filter has its own cap in
+  `Config.Validate` (`op-interop-filter/filter/config.go`).
 - An identifier timestamp above 2^64 is decoded differently: Go rejects the log, kona saturates it
   to 2^64-1. The verdicts differ only if `exec = 2^64-1`, which cannot happen.
 

@@ -7,7 +7,7 @@ exporter's `exportUndeliveredMessage`.
 ## 0. Setup
 
 ```sh
-export PATH=$HOME/.elan/bin:$HOME/.foundry/bin:$PATH
+# needs elan's lake and foundry's forge on PATH
 cd <worktree>/packages/contracts-bedrock/test/formal/expiry/evm-lean
 lake exe cache get && lake build          # ~5 min cold (Mathlib from cache), ~1 min warm
 ```

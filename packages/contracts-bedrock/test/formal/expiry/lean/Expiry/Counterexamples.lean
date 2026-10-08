@@ -476,7 +476,7 @@ theorem cex_duplicateChainId :
 
 /-- Member governance dropped: after B's upgrade, B's L2 ProxyAdmin owner replaces B's exporter
 with arbitrary code, which sends the forged fact as the exporter. B is a lockbox member, so A's
-L1CDM accepts it. Same trust as the shared ETHLockbox. -/
+L1CDM accepts it. Comparable to the shared ETHLockbox's trust (see the README). -/
 def cfgNoExporterGov : Config Nat Nat H := { base with exporterGovernance := false }
 
 def govUpgradeTrace : List (Action Nat Nat H) :=

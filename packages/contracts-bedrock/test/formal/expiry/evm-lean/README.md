@@ -5,7 +5,7 @@ is no `sorry`/`admit` and no project `axiom`; the axiom footprint is below. Kont
 primary bytecode tool; this is an independent second track in Lean.
 
 This directory proves facts about the **deployed runtime bytecode** of `L2ToL2CrossDomainMessenger`
-at `448d31ad19` (tip of `karl/message-expiry-refunds`: exporter design, `EXPIRY_PERIOD = 8 days`),
+at `448d31ad19` (tip of the PR #23259 branch: exporter design, `EXPIRY_PERIOD = 8 days`),
 executed by an executable Lean model of the EVM (`Ξ`). The theorems quantify over every account
 map, caller, value, calldata that selects `expireMessage(bytes32 H, uint256 t)`, gas, call depth
 and static flag:

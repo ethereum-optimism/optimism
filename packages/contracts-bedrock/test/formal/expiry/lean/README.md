@@ -1,7 +1,7 @@
-# Lean 4 proof: per-message interop expiry is safe (v2.2, exporter design)
+# Lean 4 proof: per-message interop expiry is safe (v2.3, exporter design)
 
 **What this certifies.** This proves the safety of the **exporter design**. The design has landed on
-`karl/message-expiry-refunds` at tip `5992028e08`, and the formal branch merges it (merge commit
+the PR #23259 branch at tip `5992028e08`, and the formal branch merges it (merge commit
 `4cc498f516`). In that design:
 
 - `relayUndeliveredMessage` trusts only the `UndeliveredMessageExporter` at
@@ -18,7 +18,9 @@ hardcoded address. Since `52ff613e14` the constant is
 `packages/contracts-bedrock/src/libraries/Predeploys.sol:118`
 (`UNDELIVERED_MESSAGE_EXPORTER = 0x4200…0030`; it was `0x4200…002E` at `5992028e08`). Nothing in the
 proof depends on which slot it uses. The citations below are at `5992028e08`; at `52ff613e14` only
-the exporter address and comments changed.
+the exporter address and comments changed. At the contracts tip `448d31ad19` (`c7c51d79e2` plus the messenger's version
+string) the further differences are error names, the `UndeliveredMessageExported` event and NatSpec;
+none changes a modeled guard or effect.
 
 **Where each design change is, at `5992028e08`.** All paths are under the repo root;
 `cb/` = `packages/contracts-bedrock/`.
@@ -38,7 +40,7 @@ the exporter address and comments changed.
    with the strict check at `:273` (`if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert`).
 5. **W_protocol ≤ 7-day cap:**
    - Go: `op-core/interop/depset/static_depset.go:141-142`, in `hydrate`, rejects an override above `MessageExpiryTimeSecondsInterop = 604800` (`:15`). The validity rule is at `op-core/interop/depset/links.go:73`.
-   - kona: `rust/kona/crates/protocol/genesis/src/interop/depset.rs:44-45` (`deserialize_override_window`) rejects an override above `MESSAGE_EXPIRY_WINDOW` (`constants.rs:5`, 7 days).
+   - kona: `rust/kona/crates/protocol/genesis/src/interop/depset.rs:44-45` (`deserialize_override_window`) rejects an override above `MESSAGE_EXPIRY_WINDOW` (`constants.rs:5`, 7 days). Since `d36e37862b`, `get_message_expiry_window` (`:54-58`) also falls back to 7 days for an override above the cap set in memory.
 
 **Defense in depth.** The messenger's unsafe-target rule now also rejects the
 L2ToL1MessagePasser: `_isUnsafeTarget` at `cb/src/L2/L2ToL2CrossDomainMessenger.sol:287-289`,
@@ -53,7 +55,10 @@ The model mirrors `../quint/expiry.qnt`, with the same action and property names
 
 - **Dependencies:** core Lean 4.34.1 only.
 - **Holes:** no `sorry`, `admit` or `native_decide`.
-- **Axioms:** no `axiom` declarations, and no use of `Classical`.
+- **Axioms:** no `axiom` declarations. The build check `#assert_headline` admits Lean's three
+  standard axioms (`propext`, `Classical.choice`, `Quot.sound`), so a later proof could pick up
+  `Classical.choice` through a tactic without failing the build; the footprints it prints (below)
+  contain no `Classical.choice`.
 - **Axiom report:** `#print axioms` lists only `propext` and `Quot.sound`, or nothing at all.
 - **Bounds:** none. Chains, bodies and hashes are arbitrary types, time is `Nat`, and executions are finite but of any length.
 
@@ -66,7 +71,7 @@ lake build        # 2–6 s from clean on a 32-core Linux build host; prints the
 | File | Contents |
 | --- | --- |
 | `Expiry/Model.lean` | Types, `Config`, `State`, actions (`guard`, `next`, `Step`), `Reach`, `Init`, `GovInit`, `HashInjective`, `SafeConfig`, property definitions |
-| `Expiry/Invariant.lean` | `HistW` (any config), `Inv` (state invariant), and their preservation proofs |
+| `Expiry/Invariant.lean` | `HistW` (any config with `exporterGovernance`), `Inv` (state invariant), and their preservation proofs |
 | `Expiry/Safety.lean` | Main theorems |
 | `Expiry/Counterexamples.lean` | Concrete instance: witnesses, safe variants, counterexamples |
 | `Expiry/NonVacuity.lean` | One `nonvacuous_<T>` witness per headline theorem `T` |
@@ -132,6 +137,7 @@ Their relays are unconstrained.
 | --- | --- | --- |
 | `tick y t` | `clock y < t` | `clock y := t` (each chain's clock is monotone on its own) |
 | `upgrade y` | y standard, not yet upgraded | `upgraded y`: the exporter proxy gets its implementation; the messenger records timestamps and has the target rule |
+| `exporterGovernanceUpgrade y f` | `exporterGovernance = false` (excluded by `SafeConfig`) | y's L2 governance replaces its exporter: a withdrawal with sender `exporter` and any fact `f` |
 | `join z y` | `govCheck → standard y` | `lockbox z y` |
 | `send z d b` | `d ≠ z`; fresh hash (unique nonce); after the upgrade with the target rule, the target is not the L2CDM | event at `clock z`; `sentAt := clock z` only if z is upgraded |
 | `resend z d b` | `cfg.resend`, `sentAt ≠ 0`, and `¬expired` if it restarts | event at `clock z`; `sentAt := clock z` if it restarts |
@@ -164,7 +170,7 @@ Every hypothesis is an explicit argument or structure field.
 | Hypothesis | Lean | Real-world fact |
 | --- | --- | --- |
 | Exporter is trusted | `SafeConfig.trusted` | `relayUndeliveredMessage` checks `xDomainMessageSender() == Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (`L1CrossDomainMessenger.sol:114`). |
-| Member governance keeps the standard exporter | `SafeConfig.exporterGovernance` | Each cluster chain's L2 governance (its L2 ProxyAdmin owner) can upgrade its own exporter, and could thereby forge facts for any destination. The design trusts it not to. This is the same trust as the shared ETHLockbox: lockbox portals must share the proxy admin owner. Without it: `cex_exporterGovernanceUpgrade`. |
+| Member governance keeps the standard exporter | `SafeConfig.exporterGovernance` | Each cluster chain's L2 governance (its L2 ProxyAdmin owner) can upgrade its own exporter, and could thereby forge facts for any destination. The design trusts it not to. Lockbox authorization compares the portals' **L1** ProxyAdmin owners, and the exporter is upgraded by the **L2** ProxyAdmin owner, a separate role; the trust is comparable because a member's L2 governance can already make arbitrary withdrawals from the shared lockbox by changing its own L2 state. Without it: `cex_exporterGovernanceUpgrade`. |
 | Real-messenger check | `SafeConfig.realMessengerCheck` | `IL1CDM(msg.sender).portal().systemConfig().l1CrossDomainMessenger() == msg.sender`. |
 | Lockbox check | `SafeConfig.lockboxCheck` | `portal.ethLockbox().authorizedPortals(callerPortal)`, read at L1 relay time. |
 | Sender check | `SafeConfig.senderCheck` | The `xDomainMessageSender()` comparison. |
@@ -174,7 +180,7 @@ Every hypothesis is an explicit argument or structure field.
 | Windows | `SafeConfig.window : ∀ d, W_d + (if expireGe then 1 else 0) ≤ P` | W_d ≤ 7 days (config cap) ≤ P = 8 days with the strict check. With `≥` it requires W_d < P. |
 | No non-restarting resend | `SafeConfig.resend` | `resendMessage` is removed after the upgrade. A restarting resend would also be safe. Pre-upgrade resends are always modeled (`resendLegacy`). |
 | Idealized hash | `hinj : HashInjective cfg.hash` | See "The hash" below. |
-| Unique chain IDs (governance) | `hid : ChainIdUnique cfg := ∀ c c', standard c → chainId c = chainId c' → c = c'` | Every standard chain has a chain ID that no other chain uses. Standard chains are those that are or can become lockbox members, and the protected sources. OPCM checks duplicate IDs on migration. Without this, a member sharing B's ID exports "not relayed" for a hash delivered on B (`cex_duplicateChainId`), with no hash collision. |
+| Unique chain IDs (governance) | `hid : ChainIdUnique cfg := ∀ c c', standard c → chainId c = chainId c' → c = c'` | Every standard chain has a chain ID that no other modeled chain uses. Standard chains are those that are or can become lockbox members, and the protected sources; the modeled chains are every chain whose withdrawals or relays the protocol can see. This is stronger than any on-chain check: OPCM's migrator rejects duplicates only among the chains it migrates, so uniqueness against non-members (and in members' dependency sets) is a configuration obligation (rollout AC4). Without this, a member sharing B's ID exports "not relayed" for a hash delivered on B (`cex_duplicateChainId`), with no hash collision. |
 | Genesis | `h0 : Init s₀` | At every chain's genesis nothing has been sent, relayed, withdrawn or deposited, and no chain is upgraded. Clocks and initial lockbox memberships are arbitrary. |
 
 The messenger's unsafe-target rule (`cfg.targetRule`) is **not** a hypothesis. The design keeps it as
@@ -187,8 +193,9 @@ defense in depth, and safety does not depend on it:
 - `messengerSpeaks_without_targetRule` shows that property fails without the rule.
 - The L2ToL1MessagePasser path (0x..23 → passer) is not modeled as a sender here. Since
   `5992028e08` the messenger rejects that target too (`_isUnsafeTarget`,
-  `L2ToL2CrossDomainMessenger.sol:287-289`). It is checked on bytecode by Halmos/Kontrol (the
-  `*_passer` checks, formerly `*_PENDING`).
+  `L2ToL2CrossDomainMessenger.sol:287-289`). It is checked on bytecode by Halmos
+  (`check_UnsafeTargetRule_*_passer`, `check_OnlyExportReachesL1_relay_passer`) and Kontrol
+  (`prove_sendMessage_rejectsPasser`, `prove_relayMessage_rejectsPasser`).
 
 **Deployment assumption: historical inertness.** The exporter address is not code-free before the upgrade.
 `scripts/L2Genesis.s.sol:226-240` (`setPredeployProxies`) etches the `Proxy` at every proxied
@@ -200,7 +207,8 @@ no implementation.
 The residual assumption is that **no ProxyAdmin action set an implementation at the exporter address before the
 network upgrade, on any chain that is or becomes a lockbox member**. In the model, `Init` says no
 chain is upgraded at genesis, and for a standard chain `upgrade` is the only action that gives the
-exporter an implementation.
+exporter an implementation, as long as `exporterGovernance` holds (`exporterGovernanceUpgrade` is the
+member-governance action that `SafeConfig` excludes).
 
 `exporterSilentBeforeUpgrade` and `joinNeedsNoHistoryCheck` derive silence **within this action
 model**. They do not establish deployment history; historical inertness, together with the
@@ -300,7 +308,7 @@ can fake SentMessage events for its own messages and its bridge can pay anything
 
 ### Proof structure
 
-**`HistW`** (any config, from `Init`): a withdrawal whose sender is the exporter and whose origin
+**`HistW`** (any config with `exporterGovernance = true`, from `Init`): a withdrawal whose sender is the exporter and whose origin
 is standard was created by an `exportUndelivered` step. The other withdrawal-creating steps record
 a different sender:
 
@@ -347,7 +355,7 @@ Only per-chain clock monotonicity is used. No cross-chain clock comparability is
 | `messengerSpeaks_without_targetRule` | With `targetRule = false` (a `SafeConfig`), a reachable relay on upgraded B makes 0x..23 initiate a withdrawal. The defense-in-depth property fails, but safety holds. |
 | `safe_variants` | `SafeConfig` holds with: no target rule; P = W = 7; per-destination windows; a restarting resend; the single-field `≥` mutation with P = 8, W = 7 (still safe because of the margin). |
 
-Each `cex_*` proves `Cex cfg trace`, which is:
+Each `cex_*` except `cex_hashCollision` and `cex_duplicateChainId` proves `Cex cfg trace`, which is:
 
 - genesis, `GovInit` and injectivity hold;
 - `¬ SafeConfig cfg`;
@@ -382,9 +390,13 @@ For every headline theorem `T` of `Safety.lean`, `nonvacuous_T` takes the concre
 shows that **all** of `T`'s hypotheses hold **jointly** on one explicit execution, and applies `T`
 there, so the conclusion is instantiated where its antecedents actually occur. `Axioms.lean` runs
 `#assert_headline T` on the same list of names it reports: the build fails unless `T` uses only
-`propext`, `Classical.choice`, `Quot.sound`, `nonvacuous_T` exists, its proof term applies `T`,
-and it uses only those axioms itself. All witnesses are kernel-checked (`simp`/`decide`; no
-`native_decide`); their footprint is `[propext, Quot.sound]`.
+`propext`, `Classical.choice`, `Quot.sound`; `nonvacuous_T` exists and uses only those axioms;
+`T` occurs in its proof term; and its statement is closed (no universe parameters, no leading
+binder, no mention of `T`, which rules out witnesses such as `@T = @T` or one with an extra
+undischarged premise). These are syntactic guards. That each witness really establishes all of
+`T`'s hypotheses on one execution and applies `T` there was checked by review (R1, R2 and R3 in
+the v2.2–v2.3 round each confirmed it for every witness). All witnesses are kernel-checked
+(`simp`/`decide`; no `native_decide`); their footprint is `[propext, Quot.sound]`.
 
 | `T` | Witness execution | Instantiated conclusion |
 | --- | --- | --- |
@@ -394,14 +406,17 @@ and it uses only those axioms itself. All witnesses are kernel-checked (`simp`/`
 | `refundImpliesExpired`, `atMostOneRefund`, `noForgedFact` | `NV.sR` | expired; refunds = 1 ≤ 1; the deposit was exported by a standard chain |
 | `expiredImpliesNeverRelayable`, `onlyDestinationCanExport` | `NV.sR` (message expired) | not relayed, outside the window from now on; B's export step |
 | `expired_no_relay_step` | concludes `False`, so its hypotheses are jointly unsatisfiable **by design**: all but the relay step hold at `NV.sR`, and the relay step alone is enabled in another reachable state | no relay step is enabled from `NV.sR` |
-| `safety` | `NV.sR` | each conjunct at the protected message |
+| `safety` | `NV.sR` | the first four conjuncts at the protected message (the fifth is `expiredImpliesNeverRelayable`'s conclusion, instantiated by its own witness) |
 | `safety_without_targetRule` | refund execution of `cfgNoTargetRule` (so `targetRule = false` holds too) | no relay in that refund state |
 | `messengerSilentAfterUpgrade` | B (not upgraded) relays C's body-9 message: a new withdrawal with sender 0x..23 | B was not upgraded |
 
 Hypotheses that quantify over all states or values (`SafeConfig.window`, `HashInjective`,
 `ChainIdUnique`, `Init`, `GovInit`) are all satisfied by the instance; none is unsatisfiable.
 
-## `#print axioms` (from `lake build`)
+## Axiom report (from `lake build`)
+
+`#assert_headline` prints each headline theorem's axioms and its witness's axioms (every witness:
+`[propext, Quot.sound]`); the counterexamples use `#print axioms`. The footprints are:
 
 ```
 'Expiry.exporterSilentBeforeUpgrade' does not depend on any axioms
@@ -425,30 +440,32 @@ every other witness and cex_* theorem: [propext, Quot.sound]
 See "Where each design change is" at the top. In short, at `5992028e08`:
 
 - **P:** `L2ToL2CrossDomainMessenger.sol:75` and `:273`.
-- **W cap:** Go `static_depset.go:141-142`, kona `depset.rs:44-45`.
+- **W cap:** Go `static_depset.go:141-142`, kona `depset.rs:44-45` (and, since `d36e37862b`, the getter's fallback).
 - **W validity rule:** Go `links.go:73`. The extra rule `init ≤ exec` is at `links.go:70` and is omitted, which only makes the model more permissive.
 
 ## Discharged outside Lean
 
-The proof names below are from the sibling directories. They were first written against
-`37b44c48c7`; the formal branch now includes `5992028e08`, so check each sibling's README for the
-re-targeted names (exporter in place of 0x..23 for check (c) and for the export).
+The proof names below are from the sibling directories, which were re-targeted to the exporter
+design (each sibling README names the commit it checked: `c7c51d79e2`, or `448d31ad19` for the
+layers pinned to the messenger's bytecode). Only proofs that closed are cited; the Kontrol proofs
+that did not close are listed in `../kontrol/README.md` and in the top-level README's open
+obligations.
 
 | Obligation | Where |
 | --- | --- |
-| **L1 identity and reverse binding.** `relayUndeliveredMessage` succeeds only if the caller's portal's SystemConfig names the caller, the portal is authorized in this chain's lockbox, and `xDomainMessageSender()` is the trusted sender. It then deposits exactly `expireMessage(H, t)`. | `halmos/L1CDMExpiryHalmos.t.sol` (`check_relayUndelivered_iff_and_deposit`), `kontrol/l1` (`prove_relayUndeliveredMessage_spec`, `prove_relayUndeliveredMessage_symbolicPortalChain`) |
+| **L1 identity and reverse binding.** `relayUndeliveredMessage` succeeds only if the caller's portal's SystemConfig names the caller, the portal is authorized in this chain's lockbox, and `xDomainMessageSender()` is the trusted sender. It then deposits exactly `expireMessage(H, t)`. | `halmos/L1CDMExpiryHalmos.t.sol` (`check_relayUndelivered_iff_and_deposit`), `kontrol/solc0815/L1CrossDomainMessengerExpiry.k.sol` (`prove_relayUndeliveredMessage_spec`: every getter answer symbolic, pointer getters fixed stand-ins; the fully symbolic pointer variant `symbolicPortalChain` did not close) |
 | **SystemConfig ↔ L1CDM consistency** for authorized portals. | Governance (lockbox authorization, SystemConfig ownership); the `sysConfigConsistent` field |
-| **`xDomainMessageSender` semantics.** On L1 it is the `msg.sender` that called the L2CDM for that withdrawal. On L2, the L2CDM's `xDomainMessageSender()` equals `otherMessenger` only for deposits sent by this chain's L1CDM. | Standard CrossDomainMessenger code; `prove_expireMessage_spec`, `check_expire_iff` |
+| **`xDomainMessageSender` semantics.** On L1 it is the `msg.sender` that called the L2CDM for that withdrawal. On L2, the L2CDM's `xDomainMessageSender()` equals `otherMessenger` only for deposits sent by this chain's L1CDM. | Standard CrossDomainMessenger code; Halmos `check_L1_relayGate_and_delivery`, `check_L2_relayGate_and_delivery`, `check_L1_sendMessage_senderFieldIsCaller`, `check_L1_xDomainMessageSender_revertsOutsideRelay` (with the portal-delivery and envelope assumptions in `../halmos/README.md`). `prove_expireMessage_spec` and `check_expire_iff` show only that `expireMessage` checks the getter answers it is given. |
 | **The L1CDM is an L1→L2 sender to the L2 messenger only through `relayUndeliveredMessage`** (`_isUnsafeTarget`). | Standard code; encoded by deposits arising only from `l1Relay` / `fakeCaller` / `l1cdmSelfRelay`, the last two only when a check is dropped |
 | **Replay envelopes.** Failed L1 relays and failed L2 deposits replay only the original message (versioned hash). This is not covered by `HashInjective`. | Standard code; withdrawals and deposits are conservatively never removed |
-| **Exporter code.** H uses destination = `block.chainid`; it requires `!successfulMessages(H)`; it calls only `L2CDM.sendMessage(sourceMessenger, relayUndeliveredMessage(H, block.timestamp), gas)`. | To be re-targeted from `check_export_binding`, `prove_exportUndeliveredMessage_reachesL2CDM` |
-| **Messenger code.** External calls happen only in `relayMessage`; `successfulMessages` is set before the call; the target rules hold; `sentAt = block.timestamp`. | `prove_relayMessage_*`, `prove_sendMessage_*`, `check_UnsafeTargetRule_*`, `check_OnlyExportReachesL1_*` |
+| **Exporter code.** H uses destination = `block.chainid`; it requires `!successfulMessages(H)`; it calls only `L2CDM.sendMessage(sourceMessenger, relayUndeliveredMessage(H, block.timestamp), gas)`. | `check_export_binding`, `check_exporter_anyCalldata_onlyExportPayload` (Halmos: finite message lengths, canonical encodings); `prove_exporter_onlyCallsL2CDMWithFixedPayload` (Kontrol: 600-byte messages); `../evm-lean-exporter` (symbolic lengths, calldata < 2^63, chain ID 1 only). Together these do not cover arbitrary lengths at arbitrary chain IDs; the general case rests on code inspection. |
+| **Messenger code.** Non-static external calls happen only in `relayMessage`; `successfulMessages` is set before the relayed target call; the target rules hold; `sentAt = block.timestamp`. | `prove_relayMessage_*` (except `selfTarget_neverCallsL2CDMOrPasser`, which did not close; Halmos excludes that target too), `prove_sendMessage_*`, `check_UnsafeTargetRule_*`, `check_OnlyExportReachesL1_*` |
 | **Expiry check.** Strict boundary, `sentAt ≠ 0`. | `check_expire_boundary`, `check_expire_iff_unbounded` |
-| **P ≥ W cap.** | `check_contractWindowCoversProtocolCap`, `prove_expiryWindow_atLeastProtocolWindow` |
-| **Refund preimage binding.** Source = `block.chainid`, sender = target = bridge, `relayETH(from, to, amount)`, pays at most once. The model keeps the source binding and abstracts the rest as `isBridge`. | `prove_refundETH_preimageBinding`, `prove_refundETH_singleUse`, `check_refund_iff_effects_singleUse` |
+| **P ≥ W cap.** | `check_contractWindowCoversProtocolCap`, `prove_expiryPeriod_atLeastProtocolWindow` |
+| **Refund preimage binding.** Source = `block.chainid`, sender = target = bridge, `relayETH(from, to, amount)`, pays at most once. The model keeps the source binding and abstracts the rest as `isBridge`. | `prove_refundETH_preimageBinding` with `prove_refundETH_alreadyRefundedReverts` (single use; the two-call `prove_refundETH_singleUse` did not close), `check_refund_iff_effects_singleUse` |
 | **Nonce freshness.** | The `send` freshness guard, with `HashInjective` |
 | **Historical inertness of the exporter address.** | Deployment assumption (above) |
-| **Member L2 governance keeps the standard exporter.** | Governance assumption, the `exporterGovernance` field (same trust as the shared ETHLockbox) |
+| **Member L2 governance keeps the standard exporter.** | Governance assumption, the `exporterGovernance` field (comparable to the shared ETHLockbox's trust; see Hypotheses) |
 
 ## Named assumptions not modeled as transitions
 
@@ -498,3 +515,15 @@ re-targeted names (exporter in place of 0x..23 for check (c) and for the export)
 | v2.2 | coordinator (design landed) | Cite the landed code; refer to the exporter by its constant; name the member-governance exporter-upgrade assumption; note the passer target rule | v2.2: citations at `5992028e08`; no hardcoded exporter address; `exporterGovernance` field, `exporterGovernanceUpgrade` action, `cex_exporterGovernanceUpgrade`; passer rule noted |
 | v2 | R1 L4 | "Every configuration" is vacuous when trusted ≠ exporter | v2.1: qualified in the docstring and README |
 | v2.3 | coordinator (non-vacuity audit, all layers) | Every headline theorem needs an automated, joint satisfiability witness | v2.3: `NonVacuity.lean` (one kernel-checked `nonvacuous_*` per headline theorem, each applying its theorem); `#assert_headline` in `Axioms.lean` fails the build if one is missing; no hypothesis found unsatisfiable |
+| v2.3 review | R1, R2, R3 | (all) No critical or high finding and no contract issue; the governance action and `cex_exporterGovernanceUpgrade` (one field changed) check out; all twelve witnesses establish their theorem's hypotheses jointly and apply it; the `expired_no_relay_step` exception is sound | — |
+| v2.3 review | R1 M2, R2 M, R3 M | `#assert_headline` only checks that `T` occurs in the witness; `@T = @T` would pass | Guard strengthened: the witness statement must be closed (no universe parameters, no leading binder, no mention of `T`); negative cases (`@T = @T`, an extra premise) fail the build. README and docstring call it a syntactic guard; witness adequacy is by review |
+| v2.3 review | R1 M1, R2 L, R3 L | The axiom transcript was no longer printed by `lake build` | `#assert_headline` prints both footprints; section retitled; wording on `Classical` tied to the printed footprints |
+| v2.3 review | R2 M, R3 M, R1 L | `ChainIdUnique` is stronger than OPCM's migration check | README: uniqueness over all modeled chains is a configuration obligation (rollout AC4); OPCM covers only migrated chains. Not weakened in the proof |
+| v2.3 review | R2 M, R3 M | "Discharged outside Lean" overstated the exporter coverage | Each tool's scope stated (finite lengths, 600 bytes, chain ID 1); the general case rests on code inspection |
+| v2.3 review | R1 L, R2 L, R3 M | `xDomainMessageSender` row cited proofs that mock the getters | Re-cited to Halmos's relay-gate, sender-field and outside-relay checks |
+| v2.3 review | R1 L, R2 L, R3 L | Descriptions of `HistW` and silence omitted `exporterGovernance`; action table lacked the governance action | Docstrings, README and action table updated |
+| v2.3 review | R1 L, R2 L, R3 L | `nonvacuous_safety` instantiates four of five conjuncts; `Cex` description wrong for two counterexamples | Descriptions narrowed; the two exceptions named |
+| v2.3 review | R1 L, R3 L | Lockbox authorization compares L1 ProxyAdmin owners; the exporter is upgraded by the L2 one | Trust comparison reworded |
+| v2.3 review | R3 L | "External calls only in `relayMessage`" ignores static reads | "Non-static external calls"; "before the relayed target call" |
+| v2.3 review | R3 L | `SafeConfig.window` bounds W on non-standard destinations too | Accepted: an unnecessary restriction on configurations, not a gap; not changed |
+| v2.3 review | R1 L | Kontrol passer names; contract tip not mentioned; supporting lemmas not on the headline list | Names fixed; tip sentence added; `expired_core`/`expired_not_relayable` are helpers, not headline results |

@@ -31,10 +31,8 @@ FUZZ_RUNS="${FUZZ_RUNS:-5000}"
 HALMOS_CONTRACT=L2ToL2CrossDomainMessenger_EquivalenceHalmos
 HARNESS=L2ToL2Equivalence.t.sol
 
-SOLC="${SOLC:-}"
-for c in "$SOLC" "$HOME/.local/share/svm/0.8.25/solc-0.8.25" "$HOME/.svm/0.8.25/solc-0.8.25"; do
-  [ -n "$c" ] && [ -x "$c" ] && { SOLC="$c"; break; }
-done
+# SOLC: a solc 0.8.25 binary; defaults to solc-0.8.25 or solc on PATH (the version is checked below).
+SOLC="${SOLC:-$(command -v solc-0.8.25 || command -v solc || true)}"
 [ -x "$SOLC" ] || { echo "set SOLC to a solc 0.8.25 binary" >&2; exit 1; }
 SOLC_BIN="$(mktemp -d)"
 ln -s "$SOLC" "$SOLC_BIN/solc"

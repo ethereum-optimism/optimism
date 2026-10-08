@@ -4,7 +4,7 @@ Foundry invariant tests that drive the **real** contracts through sends, relays,
 facts and refunds across several chains in one EVM, and check the expiry safety properties after
 every call.
 
-- **Target:** `karl/message-expiry-refunds` at `c7c51d79e2`, the landed exporter design after the
+- **Target:** the PR #23259 branch at `c7c51d79e2`, the landed exporter design after the
   style-guide pass (`ContractName_`-prefixed errors and the exporter's `UndeliveredMessageExported`
   event).
   - `UndeliveredMessageExporter` sits at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`, which is
@@ -315,9 +315,10 @@ The witnesses are:
   Each cluster chain's L2 governance (its L2 ProxyAdmin owner) can upgrade its own exporter, and an
   upgraded exporter could forge facts for any destination.
   `ExpiryInvariants_GovernanceAssumptionWitness_Test` demonstrates this: a forged fact for a relayed
-  send leads to an expiry and a refund, which is a double spend. This is the same trust as the
-  shared ETHLockbox, whose portals must share the proxy admin owner. The harness does not model a
-  malicious cluster chain.
+  send leads to an expiry and a refund, which is a double spend. This is comparable to the trust in
+  the shared ETHLockbox: a member's L2 governance can already make arbitrary withdrawals from it by
+  changing its own L2 state (the lockbox's own check compares the portals' L1 ProxyAdmin owners, a
+  separate role). The harness does not model a malicious cluster chain.
 - **Activation:** the exporter is fresh in genesis, so no withdrawal from it can predate it. The
   harness starts from the post-upgrade genesis and does not model pre-staged legacy withdrawals.
 - **Hashing:** keccak is treated as collision resistant. This is implicit: ghost state is keyed by
