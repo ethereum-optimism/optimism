@@ -36,15 +36,14 @@ echo "semver-lock:      $LOCK"
 [ "$SETTINGS" = "$EXPECT_SETTINGS" ] || { echo "unexpected settings $SETTINGS"; exit 1; }
 [ "$INIT" = "$LOCK" ] || { echo "init-code hash differs from semver-lock.json"; exit 1; }
 
-mkdir -p "$HERE/bytecode"
-jq -r .deployedBytecode.object "$A" > "$HERE/bytecode/$NAME.runtime.hex"
-jq -r .bytecode.object "$S" > "$HERE/bytecode/SafeSend.creation.hex"
-echo "keccak(runtime):  $(cast keccak "$(cat "$HERE/bytecode/$NAME.runtime.hex")")"
-echo "keccak(SafeSend initcode): $(cast keccak "$(cat "$HERE/bytecode/SafeSend.creation.hex")")"
-rm -rf "$OUT"
+# Stage the artifacts in the temp dir and validate them there; only then replace tracked files.
+jq -r .deployedBytecode.object "$A" > "$OUT/$NAME.runtime.hex"
+jq -r .bytecode.object "$S" > "$OUT/SafeSend.creation.hex"
+echo "keccak(runtime):  $(cast keccak "$(cat "$OUT/$NAME.runtime.hex")")"
+echo "keccak(SafeSend initcode): $(cast keccak "$(cat "$OUT/SafeSend.creation.hex")")"
 # SafeSend's creation code must be embedded in the bridge runtime at offset 3030 (the CODECOPY
 # source of `new SafeSend`, used by BridgeEvm/TraceCreate.lean and `safeSendInitcode`).
-python3 - "$HERE/bytecode/$NAME.runtime.hex" "$HERE/bytecode/SafeSend.creation.hex" <<'PY'
+python3 - "$OUT/$NAME.runtime.hex" "$OUT/SafeSend.creation.hex" <<'PY'
 import sys
 rt = bytes.fromhex(open(sys.argv[1]).read().strip()[2:])
 ss = bytes.fromhex(open(sys.argv[2]).read().strip()[2:])
@@ -52,6 +51,9 @@ i = rt.find(ss)
 print(f"runtime: {len(rt)} bytes; SafeSend initcode ({len(ss)} bytes) at offset {i}")
 sys.exit(0 if i == 3030 else 1)
 PY
+mkdir -p "$HERE/bytecode"
+cp "$OUT/$NAME.runtime.hex" "$OUT/SafeSend.creation.hex" "$HERE/bytecode/"
+rm -rf "$OUT"
 
 cd "$HERE"
 python3 scripts/gen_bytecode.py "bytecode/$NAME.runtime.hex" BridgeEvm/Bytecode.lean ethbridgeRuntime

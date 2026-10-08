@@ -1,19 +1,20 @@
 import BridgeEvm.Refund
 import Reasoning.WordArithmetic
 
-/-! # The bridge's storage after a successful `refundETH`
+/-! # The bridge's storage right after the `SSTORE` of a successful `refundETH`
 
-`RefundRun` records the bridge's account map right after the `SSTORE` as
-`storedMap σ₁ I H = sstoreAccountMap I.codeOwner σ₁ (refundedSlot H) (setTrueWord old)`.
+`RefundRun` records the account map right after the `SSTORE` as
+`storedMap σ₁ I H = sstoreAccountMap I.codeOwner σ₁ (refundedSlot H) (setTrueWord old)`, where
+`σ₁` is the map after the `expiredMessages` static call (same storage and code as `σ`).
 `storedMap_post` spells it out: exactly the slot `refunded[H]` changes, to a word whose low byte
-is 1 (so `refunded[H]` reads true and a second `refundETH` for the same `H` fails the
-`AlreadyRefunded` check). EVMLean's `SSTORE` (EquiVM's `sstoreAccountMap`) does nothing on an
-account that is absent from the account map, so the lemma assumes the executing account is
-present in `σ₁` — always the case for a deployed contract (the bridge proxy has code).
+is 1 (so `refunded[H]` reads true). EVMLean's `SSTORE` (EquiVM's `sstoreAccountMap`) is a no-op
+on an account absent from the map; presence of the executing account in `σ₁` is *derived* from
+the hypothesis that it has non-empty code in `σ` (static calls preserve code, proved).
 
-What happens to the bridge's storage *after* the store, during the `mint` call and the SafeSend
-`CREATE`, is not constrained by the bytecode proof (it is whatever the callee code does);
-`refundETH_bridgeStorage` derives the final storage under two explicit frame hypotheses. -/
+`refundETH_store` packages the whole state chain of a successful run:
+`σ` → (store) `σ₂` → (`mint` call) `σ₃` → (SafeSend `CREATE`) `σ'`.
+What the `mint` call and the creation do to the bridge's storage is NOT constrained here: it is
+whatever the callee code / init code does (no frame assumption is made or claimed). -/
 
 namespace BridgeEvm
 
@@ -53,19 +54,32 @@ theorem getD_of_get? {σ : AccountMap} {a : AccountAddress} {acc : Account}
   have this : σ[a]? = some acc := by rw [← Std.ExtTreeMap.get?_eq_getElem?]; exact h
   rw [Std.ExtTreeMap.getD_eq_getD_getElem?, this]; rfl
 
-/-- **The store.** If the executing account is present in `σ₁` (the account map after the
-    `expiredMessages` static call, which has `σ`'s storage and code), then in `storedMap σ₁ I H`
-    the bridge's storage is `σ`'s with exactly `refunded[H]` replaced by `setTrueWord old`, every
+/-- An account with non-empty code in `σ` is present in every map with the same code. -/
+theorem present_of_code {σ σ₁ : AccountMap} {a : AccountAddress} (hcd : accountCodeStateEq σ σ₁)
+    (hc : (σ.getD a default).code.size ≠ 0) : ∃ acc, σ₁.get? a = some acc := by
+  cases h : σ₁.get? a with
+  | some acc => exact ⟨acc, rfl⟩
+  | none =>
+    exfalso; apply hc
+    have this : σ₁[a]? = none := by rw [← Std.ExtTreeMap.get?_eq_getElem?]; exact h
+    have hd : σ₁.getD a default = default := by
+      rw [Std.ExtTreeMap.getD_eq_getD_getElem?, this]; rfl
+    rw [hcd a, hd]; rfl
+
+/-- **The store.** If the executing account has non-empty code in `σ` (a deployed contract; for
+    the predeploy, the proxy), then in `storedMap σ₁ I H` (`σ₁`: same storage and code as `σ`) the
+    bridge's storage is `σ`'s with exactly `refunded[H]` replaced by `setTrueWord old`, every
     other account's storage is `σ`'s, all code is `σ`'s, and `refunded[H]` now reads true. -/
-theorem storedMap_post {σ σ₁ : AccountMap} {I : ExecutionEnv} {H : UInt256} {acc : Account}
+theorem storedMap_post {σ σ₁ : AccountMap} {I : ExecutionEnv} {H : UInt256}
     (hst : accountStorageStateEq σ σ₁) (hcd : accountCodeStateEq σ σ₁)
-    (hex : σ₁.get? I.codeOwner = some acc) :
+    (hcode : (σ.getD I.codeOwner default).code.size ≠ 0) :
     ((storedMap σ₁ I H).getD I.codeOwner default).storage =
       (σ.getD I.codeOwner default).storage.insert (refundedSlot H)
         (setTrueWord (refundedWord σ I H)) ∧
     (∀ a, a ≠ I.codeOwner → ((storedMap σ₁ I H).getD a default).storage = (σ.getD a default).storage) ∧
     accountCodeStateEq σ (storedMap σ₁ I H) ∧
     UInt256.land (UInt256.ofNat 255) (refundedWord (storedMap σ₁ I H) I H) = UInt256.ofNat 1 := by
+  obtain ⟨acc, hex⟩ := present_of_code hcd hcode
   have hrw : refundedWord σ₁ I H = refundedWord σ I H := by
     unfold refundedWord; exact storageWord_eq_of_storageEq hst _ _
   have hfin : storedMap σ₁ I H = σ₁.insert I.codeOwner
@@ -102,28 +116,26 @@ theorem storedMap_post {σ σ₁ : AccountMap} {I : ExecutionEnv} {H : UInt256} 
     rw [hself, Std.ExtTreeMap.getD_insert_self]
     exact setTrueWord_lowByte _
 
-/-- **Final bridge storage under frame hypotheses.** If successful `mint` calls to ETHLiquidity
-    and successful SafeSend creations do not change the bridge's storage (`MintFrame`,
-    `CreateFrame` — assumptions about the callee/init code, not proved here), then after a
-    successful `refundETH` the bridge's storage is the pre-state's with exactly `refunded[H]`
-    set to true. -/
-def MintFrame (σ₀ : AccountMap) (I : ExecutionEnv) : Prop :=
-  ∀ σc σ' o, CallTo σ₀ I ethLiq (mintCalldata (argAmount I)) σc σ' true o →
-    (σ'.getD I.codeOwner default).storage = (σc.getD I.codeOwner default).storage
-
-def CreateFrame (σ₀ : AccountMap) (I : ExecutionEnv) : Prop :=
-  ∀ σc x σ' rd', CreateStep I σ₀ σc (argAmount I) (safeSendDeploy (argFrom I)) x σ' rd' →
-    x ≠ UInt256.ofNat 0 → (σ'.getD I.codeOwner default).storage = (σc.getD I.codeOwner default).storage
-
-theorem refundETH_bridgeStorage {σ σ₀ σ' : AccountMap} {I : ExecutionEnv}
-    (hrun : RefundRun σ σ₀ I σ') (hmint : MintFrame σ₀ I) (hcreate : CreateFrame σ₀ I)
-    (hex : ∀ σ₁, accountStorageStateEq σ σ₁ → (σ₁.get? I.codeOwner).isSome) :
-    (σ'.getD I.codeOwner default).storage =
-      (σ.getD I.codeOwner default).storage.insert (refundedSlot (refundHash I))
-        (setTrueWord (refundedWord σ I (refundHash I))) := by
+/-- **The state chain of a successful `refundETH`.** From `RefundRun` and non-empty code at the
+    executing account: there are maps `σ₂` (right after the store) and `σ₃` (after `mint`) such
+    that `σ₂` is `σ` with exactly `refunded[H]` set to true (other storage and all code as in `σ`),
+    the `mint(amount)` call from `σ₂` succeeded with result map `σ₃`, and the SafeSend creation
+    from `σ₃` succeeded with result map `σ'`. The bridge's storage in `σ'` is not constrained
+    (it depends on the callee and init code). -/
+theorem refundETH_store {σ σ₀ σ' : AccountMap} {I : ExecutionEnv}
+    (hrun : RefundRun σ σ₀ I σ') (hcode : (σ.getD I.codeOwner default).code.size ≠ 0) :
+    ∃ σ₂ σ₃,
+      ((σ₂.getD I.codeOwner default).storage =
+        (σ.getD I.codeOwner default).storage.insert (refundedSlot (refundHash I))
+          (setTrueWord (refundedWord σ I (refundHash I)))) ∧
+      (∀ a, a ≠ I.codeOwner → (σ₂.getD a default).storage = (σ.getD a default).storage) ∧
+      accountCodeStateEq σ σ₂ ∧
+      UInt256.land (UInt256.ofNat 255) (refundedWord σ₂ I (refundHash I)) = UInt256.ofNat 1 ∧
+      (∃ oM, CallTo σ₀ I ethLiq (mintCalldata (argAmount I)) σ₂ σ₃ true oM) ∧
+      (∃ x rd', CreateStep I σ₀ σ₃ (argAmount I) (safeSendDeploy (argFrom I)) x σ' rd' ∧
+        x ≠ UInt256.ofNat 0) := by
   obtain ⟨_, _, σ₁, oE, _, _, _, hst, hcd, _, _, σ₃, oM, hm, x, rd', hcs, hx⟩ := hrun
-  obtain ⟨acc, hacc⟩ := Option.isSome_iff_exists.mp (hex σ₁ hst)
-  rw [hcreate _ _ _ _ hcs hx, hmint _ _ _ hm]
-  exact (storedMap_post hst hcd hacc).1
+  obtain ⟨h1, h2, h3, h4⟩ := storedMap_post (H := refundHash I) hst hcd hcode
+  exact ⟨_, σ₃, h1, h2, h3, h4, ⟨oM, hm⟩, ⟨x, rd', hcs, hx⟩⟩
 
 end BridgeEvm

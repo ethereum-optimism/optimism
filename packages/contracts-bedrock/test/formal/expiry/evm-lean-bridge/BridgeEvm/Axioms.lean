@@ -29,7 +29,7 @@ elab "#assert_std_axioms " id:ident : command => do
 #assert_std_axioms BridgeEvm.refundETH_no_other_error
 #assert_std_axioms BridgeEvm.createStep_success
 #assert_std_axioms BridgeEvm.storedMap_post
-#assert_std_axioms BridgeEvm.refundETH_bridgeStorage
+#assert_std_axioms BridgeEvm.refundETH_store
 #assert_std_axioms BridgeEvm.RD.create
 #assert_std_axioms BridgeEvm.refundPreimage_size
 

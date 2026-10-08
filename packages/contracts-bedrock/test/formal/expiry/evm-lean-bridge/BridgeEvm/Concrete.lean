@@ -19,7 +19,9 @@ Arguments: `destination = 901`, `nonce = 7`, `from = 0xf0f0`, `to = 0x7070`, `am
 definition `refundHash` (the statement's preimage) gives exactly this value.
 
 These are tests checked by `native_decide` (compiled evaluation), not part of the proof of the
-headline theorems. -/
+headline theorems. They call the implementation directly (`codeOwner` = 0x…24 holding the
+implementation's code), so they do not exercise the predeploy `Proxy`'s `DELEGATECALL`; the
+theorems cover that frame (any `I.codeOwner`), the tests do not. -/
 
 namespace BridgeEvm.Concrete
 
@@ -79,6 +81,11 @@ def revertedx (σ0 : AccountMap) (I : ExecutionEnv) : Bool :=
   | .ok (.revert _ _) => true
   | _ => false
 
+def revertSelectorx (σ0 : AccountMap) (I : ExecutionEnv) : Option (List UInt8) :=
+  match runx σ0 I with
+  | .ok (.revert _ o) => some (o.data.toList.take 4)
+  | _ => none
+
 /-- `(refunded[Hgood], balance of from)` after a successful run, `none` otherwise. -/
 def afterSuccess (refundedPre nonce : ℕ) : Option (UInt256 × UInt256) :=
   match run refundedPre nonce with
@@ -91,6 +98,16 @@ def reverted (refundedPre nonce : ℕ) : Bool :=
   | .ok (.revert _ _) => true
   | _ => false
 
+/-- The first 4 bytes of the revert data (the custom-error selector), if the run reverted. -/
+def revertSelector (refundedPre nonce : ℕ) : Option (List UInt8) :=
+  match run refundedPre nonce with
+  | .ok (.revert _ o) => some (o.data.toList.take 4)
+  | _ => none
+
+/-- `MessageNotExpired()` = `0x27f5f3a2` and `AlreadyRefunded()` = `0xa85e6f1a` (`cast sig`). -/
+def selMessageNotExpired : List UInt8 := [0x27, 0xf5, 0xf3, 0xa2]
+def selAlreadyRefunded : List UInt8 := [0xa8, 0x5e, 0x6f, 0x1a]
+
 /-- The statement's preimage definition reproduces Solidity's `abi.encode` hash (cast). -/
 theorem refundHash_matches_cast : refundHash (env 7) = Hgood := by native_decide
 
@@ -101,10 +118,10 @@ theorem success_reachable :
 
 /-- Not expired: with `nonce = 8` the recomputed hash is not `Hgood` (wrong preimage), so the
     mock messenger returns false and the code reverts (`MessageNotExpired`). -/
-theorem wrong_preimage_reverts : reverted 0 8 = true := by native_decide
+theorem wrong_preimage_reverts : revertSelector 0 8 = some selMessageNotExpired := by native_decide
 
 /-- Already refunded: `refunded[Hgood] = 1` makes the code revert (`AlreadyRefunded`). -/
-theorem already_refunded_reverts : reverted 1 7 = true := by native_decide
+theorem already_refunded_reverts : revertSelector 1 7 = some selAlreadyRefunded := by native_decide
 
 /-- A dirty slot whose low byte is 0 still reads `refunded = false` (the success path runs and
     keeps the high bytes: the new word is `old & ~0xff | 1`). -/
@@ -113,8 +130,8 @@ theorem dirty_high_bytes_success :
 
 /-- Not expired with the right preimage: a messenger mock that returns `0` for every call. -/
 theorem not_expired_reverts :
-    revertedx (σx 0 ⟨#[0x60, 0x00, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3]⟩ ⟨#[0x00]⟩ amount)
-      (env 7) = true := by native_decide
+    revertSelectorx (σx 0 ⟨#[0x60, 0x00, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3]⟩ ⟨#[0x00]⟩
+      amount) (env 7) = some selMessageNotExpired := by native_decide
 
 /-- No code at ETHLiquidity: solc's `EXTCODESIZE` check reverts. -/
 theorem no_liquidity_code_reverts : revertedx (σx 0 mockL2l2Code ByteArray.empty amount) (env 7) = true := by
@@ -131,13 +148,17 @@ theorem static_violation :
      | .error .StaticModeViolation => true | _ => false) = true := by native_decide
 
 /-- In the success run the bridge's storage afterwards has exactly one entry, `refunded[Hgood] = 1`
-    (the pre-state storage is empty): the frame hypotheses `MintFrame`/`CreateFrame` hold for this
-    run (the `mint` call and the SafeSend creation left the bridge's storage alone). -/
+    (the pre-state storage is empty). This is an observation about this one run (the mock `mint`
+    and the SafeSend creation left the bridge's storage alone), not a frame theorem. -/
 theorem success_storage_exact :
     (match run 0 7 with
      | .ok (.success (σ', _, _) _) =>
         ((σ'.getD bridgeAddr default).storage.size == 1) &&
           ((σ'.getD bridgeAddr default).storage.getD (refundedSlot Hgood) ⟨0⟩ == UInt256.ofNat 1)
      | _ => false) = true := by native_decide
+
+/-- The hypothesis of `storedMap_post` / `refundETH_store` holds in the concrete pre-state: the
+    executing account has non-empty code. -/
+theorem bridge_has_code : ((σ 0).getD bridgeAddr default).code.size ≠ 0 := by native_decide
 
 end BridgeEvm.Concrete

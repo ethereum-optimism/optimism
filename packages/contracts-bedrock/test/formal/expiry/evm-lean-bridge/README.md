@@ -28,8 +28,10 @@ the following hold:
   `expiredMessages(H)`. That call succeeded and returned at least 32 bytes, and the first word was
   `1`. Here `H = keccak256(refundPreimage)`, and the 352 preimage bytes are given below.
 * `refunded[H]` was false in the pre-state.
-* The bridge's storage became the pre-state's storage with `refunded[H]` set to true. Nothing else
-  changed.
+* Right after the `SSTORE` (before the `mint` call and the `CREATE`), the bridge's storage is the
+  pre-state's with exactly `refunded[H]` set to true; other accounts' storage and all code are
+  unchanged (`refundETH_store`, given that the executing account has code). What the `mint` call
+  and the creation do afterwards to any storage, including the bridge's, is not constrained.
 * ETHLiquidity (0x4200…0025) had code, and a `CALL` to it with value 0 and calldata `mint(amount)`
   succeeded.
 * A `CREATE` ran with endowment `amount` and init code `SafeSend.creationCode ‖ abi.encode(from)`.
@@ -166,24 +168,35 @@ selector merge and the `KECCAK256` (`TraceHash.lean`, `seg_hash`).
 
 ```lean
 theorem storedMap_post (hst : accountStorageStateEq σ σ₁) (hcd : accountCodeStateEq σ σ₁)
-    (hex : σ₁.get? I.codeOwner = some acc) :
+    (hcode : (σ.getD I.codeOwner default).code.size ≠ 0) :
     (storedMap σ₁ I H).getD I.codeOwner default |>.storage =
         (σ.getD I.codeOwner default).storage.insert (refundedSlot H) (setTrueWord (refundedWord σ I H)) ∧
     (∀ a ≠ I.codeOwner, storage of a in storedMap σ₁ I H = storage of a in σ) ∧
     accountCodeStateEq σ (storedMap σ₁ I H) ∧
     land 0xff (refundedWord (storedMap σ₁ I H) I H) = 1          -- refunded[H] now reads true
 
-theorem refundETH_bridgeStorage (hrun : RefundRun σ σ₀ I σ') (hmint : MintFrame σ₀ I)
-    (hcreate : CreateFrame σ₀ I) (hex : ∀ σ₁, accountStorageStateEq σ σ₁ → (σ₁.get? I.codeOwner).isSome) :
-    (σ'.getD I.codeOwner default).storage =
-      (σ.getD I.codeOwner default).storage.insert (refundedSlot H) (setTrueWord (refundedWord σ I H))
+theorem refundETH_store (hrun : RefundRun σ σ₀ I σ') (hcode : (σ.getD I.codeOwner default).code.size ≠ 0) :
+    ∃ σ₂ σ₃,
+      σ₂'s bridge storage = σ's with only refunded[H] := setTrueWord old ∧
+      other accounts' storage in σ₂ = σ's ∧ accountCodeStateEq σ σ₂ ∧ refunded[H] reads true in σ₂ ∧
+      (∃ oM, CallTo σ₀ I ethLiq (mintCalldata amount) σ₂ σ₃ true oM) ∧
+      (∃ x rd', CreateStep I σ₀ σ₃ amount (safeSendDeploy from) x σ' rd' ∧ x ≠ 0)
 ```
 
-`storedMap_post` is the "only `refunded[H]` changes" statement for the store, and it is
-unconditional apart from `hex`. `refundETH_bridgeStorage` carries it to the *final* map. For that it
-needs the frame hypotheses listed below. The last conjunct of `storedMap_post` and
-`setTrueWord_lowByte` show that a second `refundETH` for the same `H` from that state fails the
-`AlreadyRefunded` check.
+`storedMap_post` is the "only `refunded[H]` changes" statement for the store. Its one extra
+hypothesis is that the executing account has non-empty code in the pre-state (a deployed contract;
+for the predeploy, the proxy). Presence of the account in the post-`STATICCALL` map is *derived*
+from it (`present_of_code`; static calls preserve code, proved). Presence matters because EVMLean's
+`SSTORE` (EquiVM's `sstoreAccountMap`) does nothing on an account absent from the map.
+`refundETH_store` exposes the state chain of a successful run, `σ → σ₂ (store) → σ₃ (mint) → σ'
+(CREATE)`. **The final storage is not constrained:** the `mint` callee and the SafeSend init code
+run arbitrary code as far as this proof is concerned, so a claim about `σ'` would need verified (or
+assumed) callee code. No frame assumption is made.
+
+**At most once, within this proof's scope:** in `σ₂`, `refunded[H]` reads true
+(`setTrueWord_lowByte`), so a later `refundETH` for the same `H` reverts with `AlreadyRefunded`
+*provided the slot still holds that value when it runs*. Whether it does depends on what the later
+callees and transactions do to the bridge's storage and code. That is not proved here.
 
 ## Hypotheses, summaries, axioms (complete list)
 
@@ -196,23 +209,17 @@ needs the frame hypotheses listed below. The last conjunct of `storedMap_post` a
 3. **CREATE is extended, not summarized.** `RD.create` (`Create.lean`) is proved from EVMLean's
    `step_create` in the style of EquiVM's `RD.call`, with gas accounting. It assumes nothing and
    depends on the standard axioms only.
-4. **Frame hypotheses, used only by `refundETH_bridgeStorage`** (`Post.lean`):
-   * `MintFrame σ₀ I`: a successful `mint(amount)` call to ETHLiquidity leaves the bridge's storage
-     unchanged. ETHLiquidity's code is not verified here.
-   * `CreateFrame σ₀ I`: a successful SafeSend creation leaves the bridge's storage unchanged.
-     SafeSend's constructor only `SELFDESTRUCT`s, but its execution inside `Lambda` is not proved
-     symbolically.
-   * `hex`: the executing account is present in every map with σ's storage. EVMLean's `SSTORE`
-     (EquiVM's `sstoreAccountMap`) is a no-op on an absent account. That is a modelling quirk, and
-     a deployed contract's account always exists.
-
-   All three hold in the concrete success run (`Concrete.success_storage_exact`: afterwards the
-   bridge's storage has exactly one entry, `refunded[H] = 1`).
+4. **No frame hypothesis.** The post-state lemmas assume only that the executing account has
+   non-empty code in the pre-state (`storedMap_post`, `refundETH_store`). This holds in the
+   concrete pre-state (`Concrete.bridge_has_code`). An earlier version stated final-storage
+   preservation under universal frame hypotheses on the `mint` call and the creation. The reviews
+   showed those hypotheses were false for general maps, so that theorem was removed (see "Review
+   log").
 5. **No collision or injectivity hypothesis about keccak is used.** `H` is defined as the keccak of
    the preimage, and the statements are about that word.
 6. **Lean axioms** (`lake build BridgeEvm.Axioms`). `refundETH_trace`, `refundETH_outcome`,
    `refundETH_success`, `refundETH_no_other_error`, `createStep_success`, `storedMap_post`,
-   `refundETH_bridgeStorage`, `RD.create` and `refundPreimage_size` all depend on exactly
+   `refundETH_store`, `RD.create` and `refundPreimage_size` all depend on exactly
    `[propext, Classical.choice, Quot.sound]`, and the build asserts it. **0 `native_decide`
    axioms.** Before the kernel switch there were 947. Instruction decodes, pc arithmetic, JUMPDEST
    membership, the JUMPDEST table, the SafeSend bytes and the selector bytes are all checked by the
@@ -229,8 +236,9 @@ needs the frame hypotheses listed below. The last conjunct of `storedMap_post` a
   all symbolic. The only loop on the path is solc's `bytes` copy loop. Its trip count is fixed by
   the constant 100-byte message (4 iterations, unrolled), so the unrolling loses no generality.
 * **`block.chainid`.** EVMLean's `CHAINID` returns the constant `Ethereum.chainId` (= 1), not a
-  field of the environment. The theorems therefore talk about that constant. The proof never
-  inspects its value: it is carried as the opaque word `chainIdWord`.
+  field of the environment. The theorems are therefore stated for that constant, not for an
+  arbitrary chain id. The proof never unfolds the constant (it appears as the word `chainIdWord`),
+  but this is an observation about the proof script, not a theorem about other chain ids.
 * **Proxy.** On L2 the predeploy 0x4200…0024 is a `Proxy` that `DELEGATECALL`s this
   implementation. The theorems quantify over every `I` with `I.code = ethbridgeRuntime`, so they
   include the delegatecall frame (`address(this) = I.codeOwner` is the proxy). The proxy's own code
@@ -246,6 +254,14 @@ needs the frame hypotheses listed below. The last conjunct of `storedMap_post` a
   (`Concrete.success_reachable`: `from`'s balance becomes `amount`), not symbolically.
 * **Fork.** EVMLean implements Cancun. The bytecode is London-compiled and uses no opcode whose
   semantics changed (the `SELFDESTRUCT` in SafeSend runs in the same transaction as its creation).
+* **Known deviation of the pinned `Lambda` (contract creation).** EVMLean's `Lambda` (pinned
+  `Semantics.lean`, the EIP-7610 check) makes a creation fail if the target address has a nonzero
+  nonce, non-empty code, *or non-empty storage*. The Cancun execution specification lets a creation
+  proceed over an address with empty code, zero nonce and non-empty storage. For `refundETH` this
+  only matters if the SafeSend's freshly derived address already has storage. Our statements are
+  phrased through `Lambda`'s own result (`CreateStep`, `createStep_success`), so they are exact for
+  EVMLean. In that corner case they describe EVMLean's outcome (failure, hence a revert), not
+  Cancun's.
 
 ## Non-vacuity and checks (`BridgeEvm/Concrete.lean`, executed with `Ξ`)
 
@@ -256,11 +272,12 @@ The setup is the bridge code at 0x4200…0024 with balance `amount`, a mock mess
 |---|---|
 | `refundHash_matches_cast` | `refundHash` equals foundry's `cast keccak (cast abi-encode … (cast calldata relayETH …))` = `0x9fea071a…4d43`. This checks the statement's preimage against Solidity's `abi.encode`. |
 | `success_reachable` | succeeds; `refunded[H] = 1`; `from` receives `amount` (SafeSend beneficiary). |
-| `success_storage_exact` | after success the bridge's storage is exactly `{refunded[H] ↦ 1}` (frame hypotheses hold). |
+| `success_storage_exact` | after success the bridge's storage is exactly `{refunded[H] ↦ 1}`. This is an observation about this run, not a frame theorem. |
+| `bridge_has_code` | the hypothesis of `storedMap_post`/`refundETH_store` holds in the pre-state. |
 | `dirty_high_bytes_success` | a slot `0x100` reads false (low byte) and becomes `0x101` (`setTrueWord`). |
-| `wrong_preimage_reverts` | nonce 8 → different `H` → mock says not expired → revert. |
-| `not_expired_reverts` | mock returns false for every `H` → revert (`MessageNotExpired`). |
-| `already_refunded_reverts` | `refunded[H] = 1` → revert (`AlreadyRefunded`). |
+| `wrong_preimage_reverts` | nonce 8 → different `H` → mock says not expired → revert with selector `MessageNotExpired()` = `0x27f5f3a2`. |
+| `not_expired_reverts` | mock returns false for every `H` → revert with selector `0x27f5f3a2`. |
+| `already_refunded_reverts` | `refunded[H] = 1` → revert with selector `AlreadyRefunded()` = `0xa85e6f1a`. |
 | `no_liquidity_code_reverts` | ETHLiquidity has no code → revert (solc's `EXTCODESIZE` check). |
 | `create_failure_reverts` | the bridge cannot fund `amount` → `CREATE` pushes 0 → revert. |
 | `static_violation` | `perm = false` → `StaticModeViolation` at the `SSTORE`. |
@@ -317,16 +334,21 @@ each.
   `RD` framework hides the call gas, so a failure clause like "one of the calls failed" would be
   satisfiable in every state. Only soundness and the outcome classification are claimed.
 * **The callees.** The code of ETHLiquidity and of the messenger's `expiredMessages` getter is not
-  verified. Neither is SafeSend's constructor, symbolically (see the frame hypotheses and the
-  beneficiary note).
+  verified. Neither is SafeSend's constructor, symbolically (see the beneficiary note).
+* **The final state.** The bridge's storage (and everything else) after the `mint` call and the
+  SafeSend creation is whatever those executions produce. Only the state right after the `SSTORE`
+  is described (`refundETH_store`).
 * **Revert causes.** The reverting cases are not characterized in the `Ξ`-level statement; the
   segment docstrings list them.
 * The `RefundETH` event's topics and data.
 * `sendETH` and `relayETH` (the latter shares the SafeSend pattern; the same lemmas apply).
 * **The protocol-level link.** That `expiredMessages(H) = true` implies the message was never
   relayed and never can be is the job of the protocol model (`../lean`) and of `../evm-lean`. This
-  development only proves that the bridge consults that flag for the right `H` and spends it at
-  most once.
+  development proves that the bridge consults that flag for the right `H` and sets `refunded[H]`
+  before calling out. "Spent at most once" across later calls additionally needs the bridge's
+  storage and code to be preserved by the callees and later transactions; that is not proved here.
+* **The proxy in the concrete runs.** The concrete runs call the implementation directly and do not
+  exercise the `Proxy`'s `DELEGATECALL`; the theorems cover that frame.
 
 ## Files
 
@@ -351,5 +373,26 @@ each.
   * The return-data condition is "at least 32 bytes and the first word", matching solc's decoder.
   * No per-key no-collision hypothesis is used.
   * `regen.sh` forces the default profile and validates against `semver-lock.json` before writing.
-  * The frame hypotheses are shown to hold in the concrete success run.
-* Independent model-based reviews: *pending*.
+* **Round 1: R1 (fresh-context reviewer), R2 and R3 (independent model-based reviewers).** All
+  three found the core soundness chain faithful and kernel-checked (`refundETH_trace`, `_outcome`,
+  `_success`, `_no_other_error`), and the artifacts reproducible. R1's bytecode mutations each
+  broke the proof: mask `0xff→0xfe`, the mint selector, and SafeSend's `SELFDESTRUCT`. Findings and
+  resolutions:
+  1. *High (all).* `MintFrame`/`CreateFrame` quantified over every account map with unconstrained
+     callee and bridge code, so they were false in practice. R1 proved their negation for the
+     concrete environment, which made `refundETH_bridgeStorage` vacuous. **Resolved:** removed the
+     frame hypotheses and the theorem. The final storage is now explicitly not constrained, and
+     `refundETH_store` states the store and the call chain instead.
+  2. *High (all).* The account-presence hypothesis "present in every storage-equivalent map" was
+     unsatisfiable (e.g. erase the account from an empty-storage map). **Resolved:** the hypothesis
+     is now non-empty code in the pre-state. Presence in the actual post-`STATICCALL` map is derived
+     from it (`present_of_code`, using the proved code preservation of static calls). It is checked
+     concretely (`bridge_has_code`).
+  3. *Medium (all).* The README overstated final-storage and "at most once" guarantees.
+     **Resolved:** the claims are now restricted to the state right after the `SSTORE`; see
+     "Post-state lemmas" and "Not covered".
+  4. *Medium (R3).* The pinned `Lambda` rejects creation over an address with non-empty storage,
+     unlike the Cancun specification. **Resolved:** documented under "Bounds and modelling notes".
+  5. *Low.* Fixes: `regen.sh` now validates the staged artifacts (including the SafeSend offset)
+     before replacing tracked files. The chain-id wording is corrected. The concrete revert tests
+     assert the error selector. The concrete runs' not exercising the proxy is noted.
