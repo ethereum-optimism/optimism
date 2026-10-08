@@ -86,7 +86,7 @@ async fn admin_payload_is_forwarded_to_engine() -> anyhow::Result<()> {
     use std::time::Duration;
 
     let mut network = TestNetworkBuilder::new().build(vec![]).await;
-    let rpc = AdminRpc::new(None, network.admin_rpc_tx.clone());
+    let rpc = AdminRpc::new(None, tokio::sync::mpsc::channel(1).0, network.admin_rpc_tx.clone());
     let envelope =
         SEED_GENERATOR_BUILDER.next_generator().random_valid_payload(PayloadVersion::V1)?;
     rpc.admin_post_unsafe_payload(envelope.clone()).await?;
