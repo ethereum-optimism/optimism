@@ -1318,6 +1318,47 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
     }
 
+    /// @notice Tests that a contract naming a cluster chain's portal is rejected even when it also
+    ///         names a SystemConfig of its own that names it as the messenger: only the portal's
+    ///         SystemConfig counts.
+    function test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts() external {
+        address fake = _mockContract("fake");
+        address fakeConfig = _mockContract("fakeConfig");
+        vm.mockCall(fake, abi.encodeCall(IL1CrossDomainMessenger.portal, ()), abi.encode(otherPortal));
+        vm.mockCall(fake, abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()), abi.encode(fakeConfig));
+        vm.mockCall(fakeConfig, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(fake));
+        vm.mockCall(
+            fake,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(fake);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that a chain outside this chain's cluster is rejected even when its own
+    ///         lockbox authorizes this chain's portal: only this chain's lockbox counts.
+    function test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts() external {
+        address otherLockbox = _mockContract("otherLockbox");
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(otherPortal)))),
+            abi.encode(false)
+        );
+        vm.mockCall(otherPortal, abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(otherLockbox));
+        vm.mockCall(
+            otherLockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(address(optimismPortal2))))),
+            abi.encode(true)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
     /// @notice Tests that the messenger of a chain outside this chain's cluster is rejected.
     function test_relayUndeliveredMessage_otherCluster_reverts() external {
         vm.mockCall(

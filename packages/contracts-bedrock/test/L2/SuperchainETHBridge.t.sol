@@ -245,6 +245,20 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.refundETH(DESTINATION, nonce, _from, _to, _amount);
     }
 
+    /// @notice Tests that an expired send of no ETH is still marked refunded, once, and reported.
+    function test_refundETH_zeroAmount_succeeds() external {
+        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 0);
+        _expire(messageHash);
+
+        vm.expectEmit(address(superchainETHBridge));
+        emit RefundETH(alice, 0, messageHash);
+        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 0);
+
+        assertTrue(superchainETHBridge.refunded(messageHash));
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_AlreadyRefunded.selector);
+        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 0);
+    }
+
     /// @notice Tests that a send whose message has not expired is not refunded.
     function test_refundETH_notExpired_reverts() external {
         (uint256 nonce,) = _send(alice, bob, 1 ether);
