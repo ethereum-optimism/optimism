@@ -647,6 +647,7 @@ mod test {
         );
 
         let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_a_number = superchain.chain(CHAIN_A_ID).header.number;
 
         // Attacker plants an arbitrary log on A and references it from an executing
         // message on B. With the broken gate, kona accepts. With a spec-correct gate,
@@ -656,6 +657,7 @@ mod test {
             ExecutingMessageBuilder::default()
                 .with_message_hash(keccak256(MOCK_MESSAGE))
                 .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_block_number(chain_a_number)
                 .with_origin_timestamp(chain_a_time),
         );
 
