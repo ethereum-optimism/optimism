@@ -42,6 +42,8 @@ use crate::proposer::{
     TaskSuccess,
 };
 
+mod fast_finality;
+
 const HEAD_NUMBER: u64 = 1;
 const HEAD_TIMESTAMP: u64 = 1_000;
 
