@@ -10,17 +10,20 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// WaitForDeposit waits until the deposit made by an L1 transaction has executed on this chain,
-// and returns its L2 receipt without asserting its status.
-func (el *L2ELNode) WaitForDeposit(l1Receipt *types.Receipt) *types.Receipt {
+// WaitForDeposit waits until the deposit an L1 transaction made through this chain's portal has
+// executed on this chain, and returns its L2 receipt without asserting its status.
+func (el *L2ELNode) WaitForDeposit(portal common.Address, l1Receipt *types.Receipt) *types.Receipt {
 	var deposit *optypes.DepositTx
 	for _, l := range l1Receipt.Logs {
+		if l.Address != portal {
+			continue
+		}
 		if tx, err := derive.UnmarshalDepositLogEvent(l); err == nil {
 			deposit = tx
 			break
 		}
 	}
-	el.require.NotNil(deposit, "expected a TransactionDeposited event in L1 tx %s", l1Receipt.TxHash)
+	el.require.NotNil(deposit, "expected a TransactionDeposited event from portal %s in L1 tx %s", portal, l1Receipt.TxHash)
 	el.log.Info("Waiting for deposit to execute on L2",
 		"l1Tx", l1Receipt.TxHash, "l1Block", l1Receipt.BlockNumber, "l2Tx", deposit.Hash())
 	el.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)

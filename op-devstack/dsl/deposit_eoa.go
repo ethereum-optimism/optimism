@@ -89,7 +89,7 @@ func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte, opts ...fun
 	t.Require().NoError(err, "L1 deposit tx failed")
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1Receipt.Status, "L1 deposit tx reverted")
 
-	return d.l2EL.WaitForDeposit(l1Receipt)
+	return d.l2EL.WaitForDeposit(portalAddr, l1Receipt)
 }
 
 // SendInitMessage sends an initiating message via an L1 deposit transaction.

@@ -7,6 +7,7 @@ package expiry
 import (
 	"bytes"
 	"math/big"
+	"slices"
 	"testing"
 	"time"
 
@@ -55,10 +56,11 @@ const (
 )
 
 var (
-	expireMessageSelector = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
-	messageNotExpired     = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
-	refundNotExpired      = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
-	messageRelayed        = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
+	failedRelayedMessageTopic = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
+	expireMessageSelector     = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
+	messageNotExpired         = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
+	refundNotExpired          = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
+	messageRelayed            = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
 )
 
 // TestUnrelayedMessageCannotExpireBeforeExpiryPeriod runs every leg of the expiry path: A sends
@@ -95,8 +97,11 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	withdrawal.WaitForDisputeGameResolved(func(o *dsl.WaitForDisputeGameOpts) { o.Timeout = gameResolutionTimeout })
 	withdrawal.Finalize(l1User)
 
-	deposit := sys.L2ELA.WaitForDeposit(withdrawal.FinalizeReceipt())
+	deposit := sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
 	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
+	require.True(slices.ContainsFunc(deposit.Logs, func(l *types.Log) bool {
+		return l.Address == predeploys.L2CrossDomainMessengerAddr && l.Topics[0] == failedRelayedMessageTopic
+	}), "A's L2CrossDomainMessenger must keep the rejected word as a failed message")
 	expire, found := sys.L2ELA.TraceCalls(deposit.TxHash).Find(func(f dsl.CallFrame) bool {
 		return f.To == predeploys.L2toL2CrossDomainMessengerAddr && bytes.HasPrefix(f.Input, expireMessageSelector)
 	})
@@ -109,6 +114,8 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 
 	messengerA := bindings.NewBindings[bindings.L2ToL2CrossDomainMessenger](bindings.WithClient(sys.L2ELA.EthClient()),
 		bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
+	require.Equal(new(big.Int).SetUint64(send.BlockTime), contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash)),
+		"A must have recorded the message at its send time")
 	require.False(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must not expire early")
 	bridgeA := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sys.L2ELA.EthClient()),
 		bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
