@@ -26,6 +26,18 @@ func ValidateInputs(intent *state.Intent, st *state.State) error {
 		if _, ok := intent.GlobalDeployOverrides["sp1Verifier"]; ok {
 			return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
 		}
+	} else {
+		// This run deploys the implementations, so the intent's bounds are the ones the
+		// DelayedWETH will enforce. Reject a per-chain delay outside them before any tx is sent.
+		for _, chain := range intent.Chains {
+			params, err := ResolveChainProofParams(intent, chain)
+			if err != nil {
+				return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+			}
+			if err := checkWithdrawalDelayBounds(intent, params.WithdrawalDelaySeconds); err != nil {
+				return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+			}
+		}
 	}
 	if !IsSupportedStateVersion(st.Version) {
 		return fmt.Errorf("unsupported state version: %d", st.Version)

@@ -224,10 +224,38 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 			// Per-chain withdrawal delays default to the standard values.
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 		},
 		intent.GlobalDeployOverrides,
 		chain.DeployOverrides,
 	)
+}
+
+// checkWithdrawalDelayBounds rejects a per-chain DelayedWETH withdrawal delay that the
+// implementation's initializer would refuse, so a bad intent fails before any L1 transaction is
+// sent instead of inside the deploy with a generic proxy revert. The bounds are the ones this
+// intent deploys the implementation with (standard values unless overridden globally), so the
+// check only applies when the run deploys the implementations itself; a predeployed OPCM's
+// DelayedWETH carries whatever bounds it was bootstrapped with.
+func checkWithdrawalDelayBounds(intent *state.Intent, delay uint64) error {
+	bounds, err := jsonutil.MergeJSON(
+		state.SuperchainProofParams{
+			MinWithdrawalDelaySeconds: standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds: standard.MaxWithdrawalDelaySeconds,
+		},
+		intent.GlobalDeployOverrides,
+	)
+	if err != nil {
+		return err
+	}
+	if delay == 0 || delay < bounds.MinWithdrawalDelaySeconds || delay > bounds.MaxWithdrawalDelaySeconds {
+		return fmt.Errorf(
+			"faultGameWithdrawalDelay %d is outside the DelayedWETH bounds [%d, %d]; "+
+				"set minWithdrawalDelaySeconds/maxWithdrawalDelaySeconds in globalDeployOverrides to widen them",
+			delay, bounds.MinWithdrawalDelaySeconds, bounds.MaxWithdrawalDelaySeconds,
+		)
+	}
+	return nil
 }
 
 // ResolvePreparedGameType returns the initial game type recorded by prepare after
@@ -565,6 +593,7 @@ func BuildDeployOPChainInput(
 		UseCustomGasToken:               chain.IsCustomGasTokenEnabled(),
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
 	}
 }
 

@@ -188,7 +188,8 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	}
 
 	implementationsDeployment, err := opcmScripts.DeployImplementations.Run(opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:             superCfg.Implementations.FaultProof.WithdrawalDelaySeconds,
+		MinWithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.MinWithdrawalDelaySeconds,
+		MaxWithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.MaxWithdrawalDelaySeconds,
 		MinProposalSizeBytes:               superCfg.Implementations.FaultProof.MinProposalSizeBytes,
 		ChallengePeriodSeconds:             superCfg.Implementations.FaultProof.ChallengePeriodSeconds,
 		MinProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.MinProofMaturityDelaySeconds,
@@ -265,6 +266,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		UseCustomGasToken:               cfg.UseCustomGasToken,
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)

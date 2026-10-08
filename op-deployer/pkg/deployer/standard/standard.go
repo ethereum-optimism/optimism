@@ -29,12 +29,14 @@ const (
 	ChallengePeriodSeconds          uint64 = 86400
 	ProofMaturityDelaySeconds       uint64 = 604800
 	DisputeGameFinalityDelaySeconds uint64 = 302400
-	// Bounds baked into the OptimismPortal and AnchorStateRegistry implementations for the
-	// per-chain withdrawal delays above.
+	// Bounds baked into the OptimismPortal, AnchorStateRegistry and DelayedWETH implementations
+	// for the per-chain withdrawal delays above.
 	MinProofMaturityDelaySeconds       uint64 = 86400
 	MaxProofMaturityDelaySeconds       uint64 = 604800
 	MinDisputeGameFinalityDelaySeconds uint64 = 43200
 	MaxDisputeGameFinalityDelaySeconds uint64 = 302400
+	MinWithdrawalDelaySeconds          uint64 = 43200
+	MaxWithdrawalDelaySeconds          uint64 = 604800
 	MIPSVersion                        uint64 = 8
 	// DisputeGameType is the SUPER_PERMISSIONED game type. DeployOPChain requires the initial game
 	// type to match the OPCM's family, and SUPER_ROOT_GAMES_MIGRATION is enabled by default, so the

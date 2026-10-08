@@ -43,13 +43,14 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 	proofParams, err := jsonutil.MergeJSON(
 		state.SuperchainProofParams{
-			WithdrawalDelaySeconds:             standard.WithdrawalDelaySeconds,
 			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
 			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
 			MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
 			MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
 			MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+			MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
 			DisputeMaxGameDepth:                standard.DisputeMaxGameDepth,
 			DisputeSplitDepth:                  standard.DisputeSplitDepth,
 			DisputeClockExtension:              standard.DisputeClockExtension,
@@ -105,7 +106,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 
 	var dio opcm.DeployImplementationsOutput
 	input := opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:             new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
+		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MinWithdrawalDelaySeconds),
+		MaxWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MaxWithdrawalDelaySeconds),
 		MinProposalSizeBytes:               new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
 		ChallengePeriodSeconds:             new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
 		MinProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MinProofMaturityDelaySeconds),
