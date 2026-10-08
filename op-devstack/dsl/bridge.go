@@ -197,6 +197,23 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 	}
 }
 
+// WithdrawalFromReceipt adopts an already-included L2 transaction that emitted a
+// MessagePassed event as a Withdrawal (its first, if it emitted more), so it can be proven and
+// finalized like one initiated by InitiateWithdrawal. Use it for withdrawals initiated by a
+// contract call (e.g. an L2CrossDomainMessenger.sendMessage) rather than by a plain transfer to
+// the message passer.
+func (b *StandardBridge) WithdrawalFromReceipt(rcpt *types.Receipt) *Withdrawal {
+	b.require.NotNil(rcpt, "withdrawal receipt must not be nil")
+	b.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "withdrawal-initiating transaction failed")
+	_, err := withdrawals.ParseMessagePassed(rcpt)
+	b.require.NoError(err, "receipt does not contain a MessagePassed event")
+	return &Withdrawal{
+		commonImpl:  commonFromT(b.t),
+		bridge:      b,
+		initReceipt: rcpt,
+	}
+}
+
 // ERC20Deposit performs an ERC20 deposit from L1 to L2
 func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr common.Address, amount eth.ETH, from *EOA) *Deposit {
 	// Use the l1StandardBridge to deposit ERC20 tokens
@@ -516,7 +533,39 @@ func (w *Withdrawal) Finalize(user *EOA) {
 	}, 60*time.Second, 100*time.Millisecond, "finalize withdrawal failed")
 }
 
-func (w *Withdrawal) WaitForDisputeGameResolved() {
+// FinalizeReceipt returns the receipt of the transaction that finalized the withdrawal.
+func (w *Withdrawal) FinalizeReceipt() *types.Receipt {
+	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal first")
+	return w.finalizeReceipt
+}
+
+// DisputeGameMaxClockDuration returns the max clock duration of the dispute game the withdrawal
+// was proven against, as deployed.
+func (w *Withdrawal) DisputeGameMaxClockDuration() time.Duration {
+	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
+	game := bindings.NewBindings[bindings.FaultDisputeGame](
+		bindings.WithClient(w.bridge.l1Client.EthClient()),
+		bindings.WithTo(w.proveParams.DisputeGameAddress),
+		bindings.WithTest(w.t))
+	clock, err := contractio.Read(game.MaxClockDuration(), w.ctx)
+	w.require.NoErrorf(err, "failed to read the max clock duration of dispute game %s", w.proveParams.DisputeGameAddress)
+	return time.Duration(clock) * time.Second
+}
+
+// WaitForDisputeGameResolvedOpts configures WaitForDisputeGameResolved.
+type WaitForDisputeGameResolvedOpts struct {
+	// Timeout bounds the wait. Tests that wait a game's chess clock out in wall-clock time, rather
+	// than skipping it with time travel, need more than the game's max clock duration.
+	Timeout time.Duration
+}
+
+// WaitForDisputeGameResolved waits for the dispute game the withdrawal was proven against to
+// resolve in the defender's favour, retrying transient RPC errors.
+func (w *Withdrawal) WaitForDisputeGameResolved(opts ...func(*WaitForDisputeGameResolvedOpts)) {
+	o := WaitForDisputeGameResolvedOpts{Timeout: 60 * time.Second}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
 
 	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
@@ -525,10 +574,14 @@ func (w *Withdrawal) WaitForDisputeGameResolved() {
 		bindings.WithTest(w.t))
 	w.require.Eventually(func() bool {
 		status, err := contractio.Read(gameContract.Status(), w.ctx)
-		w.require.NoError(err, "failed to get game status")
+		if err != nil {
+			w.log.Warn("Failed to get dispute game status, retrying", "err", err)
+			return false
+		}
 		w.log.Info("Waiting for dispute game to resolve", "currentStatus", status)
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
-	}, 60*time.Second, 100*time.Millisecond, "wait for dispute game resolved")
+	}, o.Timeout, 100*time.Millisecond, fmt.Sprintf("expected dispute game %s to resolve with the defender winning",
+		w.proveParams.DisputeGameAddress))
 }
 
 func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
