@@ -318,17 +318,3 @@ Returns the software version of the Kona rollup node.
   "result": "0.1.0"
 }
 ```
-
-## Deprecated Methods
-
-### `optimism_safeHeadAtL1Block`
-
-This RPC endpoint is **not supported** in Kona. It was used to track the safe head for every L1 block, but this is no longer necessary post-interop. Calling this method will return a "Method not found" error.
-
-| Client | Method invocation                                                   |
-| ------ | ------------------------------------------------------------------- |
-| RPC    | `{"method": "optimism_safeHeadAtL1Block", "params": [blockNumber]}` |
-
-### Returns
-
-This method returns an error with code `-32601` (Method not found).
