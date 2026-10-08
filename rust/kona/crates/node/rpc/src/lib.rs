@@ -20,9 +20,6 @@ pub use config::RpcBuilder;
 mod p2p;
 pub use p2p::P2pRpc;
 
-mod output;
-pub use output::OutputResponse;
-
 mod jsonrpsee;
 pub use jsonrpsee::{
     AdminApiServer, HealthzApiServer, MinerApiExtServer, OpAdminApiServer, OpP2PApiServer,
@@ -33,7 +30,7 @@ pub use jsonrpsee::{
 pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
-pub use rollup::{OutputError, OutputProvider, RollupRpc};
+pub use rollup::{OutputError, OutputProvider, OutputResponse, RollupRpc};
 
 mod l1_watcher;
 pub use l1_watcher::{L1State, L1WatcherQueries, L1WatcherQuerySender};
