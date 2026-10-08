@@ -9,7 +9,7 @@ the repo's `foundry.toml` default profile (solc 0.8.25, 999999 optimizer runs, c
 | | sha256 of the runtime hex |
 |---|---|
 | develop `c2fe2a991b` | `eaecd8fff0fa2cfe03f4c14b83379c04ccf28ec07defc6437f55f8f819c6f556` |
-| this branch (unchanged from `5992028e08` through `52ff613e14`) | `61e81194f0b5431bfd6c620cfea38d1b1d8941b22acd13a95b656c4ad9eec541` |
+| this branch at `448d31ad19` (semver 2.0.0) | `aa912696762430ae5013b842fe075ecaa7e95610b7be4737fc85a6d9f305aeb9` |
 
 ## What is checked
 
@@ -92,7 +92,7 @@ reported "potentially invalid" by Halmos, which is why each is also replayed in
 ```
 
 Needs hevm 0.58, z3 4.13.3, halmos 0.3.3, forge, python3, solc 0.8.25 (`SOLC=`), and a systemd
-user manager. `run.sh` takes about 15 minutes. Mutants are generated into `mutants/` while the
+user manager. `run.sh` takes about 15 to 25 minutes. Mutants are generated into `mutants/` while the
 mutant step runs and deleted afterwards.
 
 ## Review log
@@ -126,3 +126,18 @@ mutant step runs and deleted afterwards.
     unchanged.
   - Ready for the error renames of the guideline pass (E6): revert data is compared modulo a
     selector map that `gen-bytecodes.sh` derives from both sources (empty at `52ff613e14`).
+- **Retarget to `448d31ad19`** (tip of `karl/message-expiry-refunds`): regenerated with
+  `gen-bytecodes.sh`. Relative to the committed `52ff613e14` runtime (sha256 `61e81194…c541`), only
+  four `PUSH32` operands changed: the error selectors renamed with the
+  `L2ToL2CrossDomainMessenger_` prefix (pcs 1296 and 3038 `MessageTargetUnsafe`, 2057
+  `NotOtherMessenger`, 2198 `MessageNotExpired`); the version string is `"2.0.0"` again at this
+  commit. None of the renamed errors exists in develop's messenger, so the E6 selector map stays
+  empty (they are reached only on excluded paths: unsafe targets and `expireMessage`). The new
+  runtime is byte-identical to `../evm-lean/bytecode/L2ToL2CrossDomainMessenger.runtime.hex` (same
+  commit; its init code matches `semver-lock.json`). `gen-bytecodes.sh --check` passes; the three
+  hevm files compile under `FOUNDRY_PROFILE=liteci` with forge 1.8.3 in the repo build (no
+  warnings); `run.sh`: all as expected (every check `ok`, none unexpected; 25 min 26 s on a
+  loaded 32-core host, the slowest check `prove_nonvacuity_sendMessage_unsafeTarget` at 932 s).
+  Two fixes to the runner setup: `run.sh` is now executable (it was committed as `100644`), and
+  `foundry.toml` sets `[lint] lint_on_build = false` as the repo's own `foundry.toml` does (with
+  `deny = 'warnings'`, forge 1.8.1's post-build lint failed the harness build on lint findings).

@@ -82,7 +82,7 @@ def l2tol2_block_388_stack {mem : ByteArray} {R : List UInt256} : List UInt256 :
 
 /-- Final memory for bytecode block summary `l2tol2_block_388`. -/
 def l2tol2_block_388_memory {mem : ByteArray} : ByteArray :=
-  ((UInt256.ofNat 22244964681582428507790837657840941851310741457946203558944581996506718928896).toByteArray.write 0 ((UInt256.ofNat 5).toByteArray.write 0 (((UInt256.ofNat 64) + (memLoad (UInt256.ofNat 64) mem)).toByteArray.write 0 mem (UInt256.ofNat 64).toNat 32) (memLoad (UInt256.ofNat 64) mem).toNat 32) ((UInt256.ofNat 32) + (memLoad (UInt256.ofNat 64) mem)).toNat 32)
+  ((UInt256.ofNat 22697249923180307733909012079007679883260767531110473330677492533940734394368).toByteArray.write 0 ((UInt256.ofNat 5).toByteArray.write 0 (((UInt256.ofNat 64) + (memLoad (UInt256.ofNat 64) mem)).toByteArray.write 0 mem (UInt256.ofNat 64).toNat 32) (memLoad (UInt256.ofNat 64) mem).toNat 32) ((UInt256.ofNat 32) + (memLoad (UInt256.ofNat 64) mem)).toNat 32)
 
 /-- Automatically generated RD summary for bytecode block at pc 388. -/
 theorem l2tol2_block_388 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -107,7 +107,7 @@ theorem l2tol2_block_388 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : By
   have r14 := RD.genMstore r13 (by evm_kdecide) (by evm_ov)
   have r15 := r14.push1 (UInt256.ofNat 32) (by evm_kdecide) (by evm_ov)
   have r16 := r15.add (by evm_kdecide) (by evm_ov)
-  have r17 := r16.pushConst (UInt256.ofNat 22244964681582428507790837657840941851310741457946203558944581996506718928896) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r17 := r16.pushConst (UInt256.ofNat 22697249923180307733909012079007679883260767531110473330677492533940734394368) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r18 := r17.dup2 (by evm_kdecide) (by evm_ov)
   have r19 := RD.genMstore r18 (by evm_kdecide) (by evm_ov)
   have r20 := r19.pop (by evm_kdecide) (by evm_ov)

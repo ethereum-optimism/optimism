@@ -24,6 +24,11 @@ deny = 'warnings'
 ast = true
 bytecode_hash = 'none'
 
+# As in the repo's foundry.toml: no forge lint on build (with deny = 'warnings', forge 1.8.x would
+# fail the build on lint findings in the harness; the repo lints separately).
+[lint]
+lint_on_build = false
+
 # Declared so the inline forge-config budgets for the repo's CI profiles parse here too.
 [profile.liteci]
 

@@ -14,7 +14,7 @@ the EVMLean semantics (`Ethereum.EVM.Ξ`, `Ethereum.EVM.Θ`, `AccountMap`, `Exec
   and the summary hypothesis on their results (`ReturnsAddress`),
 * the success conditions (`ExpireConds`) and the post-state relation (`ExpirePost`).
 
-Solidity source (at commit c7c51d79e2, tip of `karl/message-expiry-refunds`):
+Solidity source (at commit 448d31ad19, tip of `karl/message-expiry-refunds`):
 
 ```solidity
 function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
@@ -38,7 +38,7 @@ open Ethereum Ethereum.EVM Reasoning.Theory
 /-! ## Constants of the compiled artifact -/
 
 /-- `EXPIRY_PERIOD` as compiled into the artifact (`PUSH3 0x0a8c00` at pc 2179):
-    691200 s = 8 days at commit c7c51d79e2 (unchanged since 5992028e08). The proofs refer to this
+    691200 s = 8 days at commit 448d31ad19 (unchanged since 5992028e08). The proofs refer to this
     name only; if the constant changes, regenerate the bytecode and change this one definition
     (see HOWTO.md). -/
 def P_contract : ℕ := 691200

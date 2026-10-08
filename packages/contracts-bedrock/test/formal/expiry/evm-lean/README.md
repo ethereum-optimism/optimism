@@ -5,7 +5,7 @@ is no `sorry`/`admit` and no project `axiom`; the axiom footprint is below. Kont
 primary bytecode tool; this is an independent second track in Lean.
 
 This directory proves facts about the **deployed runtime bytecode** of `L2ToL2CrossDomainMessenger`
-at `c7c51d79e2` (tip of `karl/message-expiry-refunds`: exporter design, `EXPIRY_PERIOD = 8 days`),
+at `448d31ad19` (tip of `karl/message-expiry-refunds`: exporter design, `EXPIRY_PERIOD = 8 days`),
 executed by an executable Lean model of the EVM (`Ξ`). The theorems quantify over every account
 map, caller, value, calldata that selects `expireMessage(bytes32 H, uint256 t)`, gas, call depth
 and static flag:
@@ -68,11 +68,11 @@ one-transition Sol⁻ spec instead).
 
 | | |
 |---|---|
-| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `c7c51d79e2` (`EXPIRY_PERIOD = 8 days`; semver 1.4.0) |
+| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `448d31ad19` (`EXPIRY_PERIOD = 8 days`; semver 2.0.0) |
 | Compiler | solc `0.8.25+commit.b61c2a91` via forge 1.8.1, repository **default** profile |
 | Settings | optimizer on, 999999 runs, `evm_version = cancun`, `bytecode_hash = none` (CBOR trailer `a164736f6c6343000819000a`) |
-| Runtime | 5231 bytes, `keccak256 = 0x88b62191b150f3ab3ca680a4f1350a43718374a1758a993407a3b7ac54091346` (`bytecode/…runtime.hex`) |
-| Init code | `keccak256 = 0xf9306d85f68cf91dc7338a758f8294b863beeabaa542610030354a43857f8e6f` = `initCodeHash` in `snapshots/semver-lock.json` at `c7c51d79e2` |
+| Runtime | 5231 bytes, `keccak256 = 0x2598d1f09fc5e29faaba7452988e684dc9c023480bb1fea3937a84511913d5d2` (`bytecode/…runtime.hex`) |
+| Init code | `keccak256 = 0x804d3303278dcc3942f9c693fdfca5a09e3ccea9cb0855331f785a4ada89cf64` = `initCodeHash` in `snapshots/semver-lock.json` at `448d31ad19` |
 | Lean | `ExpiryEvm/Bytecode.lean` (`l2tol2Runtime`), generated from the hex by `scripts/gen_bytecode.py` |
 
 To reproduce, run `scripts/regen.sh`. It:
@@ -101,7 +101,11 @@ From `5992028e08` to `c7c51d79e2` (custom errors renamed with the `L2ToL2CrossDo
 prefix, version string `"2.0.0"` → `"1.4.0"`, natspec) the runtime keeps its size and layout: only
 five `PUSH32` operands changed (the version string at pc 411 and the error selectors at pcs 1296,
 2057, 2198, 3038). `regen.sh` regenerated the bytecode and summaries; no proof file changed (the
-proofs do not mention those operands); full rebuild 280 s.
+proofs do not mention those operands); full rebuild 280 s. From `c7c51d79e2` to `448d31ad19`
+(the version string back to `"2.0.0"`; semver-lock regenerated) only the version `PUSH32` at pc 411
+changed (`0x312e342e30…` → `0x322e302e30…`); `regen.sh` validated the init-code hash against the new
+semver-lock entry, no proof file changed, and the full rebuild took 201 s. The runtime is
+byte-identical to `../hevm/current.runtime.hex` at the same commit.
 
 ## What is proved
 
@@ -402,7 +406,8 @@ All timings are on a shared 32-core Linux host (, load 35–180 during this work
   `lake exe cache get && lake build` in 5 min 16 s wall, dependencies included.
 * **Incremental:** with dependencies built, rebuilding everything in this directory takes about
   1 min (18 summary shards + proofs + concrete runs).
-* **Retarget:** the full rebuild after moving to `5992028e08` took 66 s; to `c7c51d79e2`, 280 s
+* **Retarget:** the full rebuild after moving to `5992028e08` took 66 s; to `c7c51d79e2`, 280 s;
+  to `448d31ad19`, 201 s
   (load ~30; `NonVacuity.lean` alone ≈ 130–150 s, mostly kernel keccak evaluations).
 
 ## Review log
