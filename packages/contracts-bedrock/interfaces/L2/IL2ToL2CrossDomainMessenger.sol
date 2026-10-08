@@ -45,6 +45,9 @@ interface IL2ToL2CrossDomainMessenger {
     ///         past the expiry period.
     error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
+    /// @notice Thrown when the contract is deployed with a zero expiry period.
+    error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -154,5 +157,5 @@ interface IL2ToL2CrossDomainMessenger {
 
     function messageVersion() external view returns (uint16);
 
-    function __constructor__() external;
+    function __constructor__(uint256 _expiryPeriod) external;
 }

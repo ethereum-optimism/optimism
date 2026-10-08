@@ -118,6 +118,18 @@ library UpgradeUtils {
         return createDeploymentTxnWithArgs(_name, _artifactPath, "", _salt, _gasLimit);
     }
 
+    /// @notice Returns the ABI-encoded constructor arguments a predeploy implementation is deployed
+    ///         with on production networks.
+    /// @dev The L2ToL2CrossDomainMessenger takes its expiry period,
+    ///      Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD. The other implementations take none.
+    /// @param _name The name of the implementation.
+    /// @return args_ The ABI-encoded constructor arguments.
+    function implementationConstructorArgs(string memory _name) internal pure returns (bytes memory args_) {
+        if (LibString.eq(_name, "L2ToL2CrossDomainMessenger")) {
+            args_ = abi.encode(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
+        }
+    }
+
     /// @notice Creates a deployment transaction via ConditionalDeployer with constructor arguments.
     /// @dev The transaction calls ConditionalDeployer.deploy(salt, code) which performs
     ///      idempotent CREATE2 deployment via the DeterministicDeploymentProxy.

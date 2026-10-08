@@ -45,6 +45,9 @@ error L2ToL2CrossDomainMessenger_NotOtherMessenger();
 ///         the expiry period.
 error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
+/// @notice Thrown when the contract is deployed with a zero expiry period.
+error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
@@ -73,10 +76,11 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice How long after it is sent a message must go unrelayed before it can be marked
     ///         expired. The protocol rejects an executing message whose block is more than the
     ///         message expiry window after the block of its initiating message, and the interop
-    ///         specification caps that window at 7 days. This period is that window plus a day of
-    ///         margin, so a message is only marked expired well after any relay of it could still
-    ///         be valid.
-    uint256 public constant EXPIRY_PERIOD = 8 days;
+    ///         specification caps that window at 7 days. The period must exceed the window, so a
+    ///         message is only marked expired once no relay of it can be valid. Production
+    ///         deployments use 8 days: the window plus a day of margin. It is set at deployment so
+    ///         that test networks with a shorter window can use a shorter period.
+    uint256 public immutable EXPIRY_PERIOD;
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -129,6 +133,14 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     event RelayedMessage(
         uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash, bytes32 returnDataHash
     );
+
+    /// @notice Constructs the L2ToL2CrossDomainMessenger.
+    /// @param _expiryPeriod How long after it is sent a message must go unrelayed before it can
+    ///                      be marked expired. See `EXPIRY_PERIOD`.
+    constructor(uint256 _expiryPeriod) {
+        if (_expiryPeriod == 0) revert L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+        EXPIRY_PERIOD = _expiryPeriod;
+    }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
     /// @return sender_ Address of the sender of the current cross domain message.

@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
@@ -22,17 +23,21 @@ import {
     InvalidMessage,
     L2ToL2CrossDomainMessenger_MessageTargetUnsafe,
     L2ToL2CrossDomainMessenger_NotOtherMessenger,
-    L2ToL2CrossDomainMessenger_MessageNotExpired
+    L2ToL2CrossDomainMessenger_MessageNotExpired,
+    L2ToL2CrossDomainMessenger_InvalidExpiryPeriod
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 /// @title L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness
 /// @notice L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
 ///         This is used to test the transient storage of L2ToL2CrossDomainMessenger.
-contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is L2ToL2CrossDomainMessenger {
+contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is
+    L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)
+{
     /// @notice Returns the value of the entered slot in transient storage.
     /// @return Value of the entered slot.
     function entered() external view returns (bool) {
@@ -930,12 +935,37 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
 /// @notice General tests that are not testing any function directly of the
 ///         `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_Uncategorized_Test is L2ToL2CrossDomainMessenger_TestInit {
-    /// @notice Tests that the expiry period is the protocol's message expiry window (604800
-    ///         seconds, MessageExpiryTimeSecondsInterop in op-core and MESSAGE_EXPIRY_WINDOW in
-    ///         kona-genesis) plus a day of margin. The interop specification caps a dependency set's
-    ///         window at that value, and op-core and kona reject longer overrides.
-    function test_expiryPeriod_exceedsProtocolWindowByADay_succeeds() external view {
+    /// @notice Tests that the production expiry period is the protocol's message expiry window
+    ///         (604800 seconds, MessageExpiryTimeSecondsInterop in op-core and
+    ///         MESSAGE_EXPIRY_WINDOW in kona-genesis) plus a day of margin. The interop
+    ///         specification caps a dependency set's window at that value, and op-core and kona
+    ///         reject longer overrides.
+    function test_productionExpiryPeriod_exceedsProtocolWindowByADay_succeeds() external pure {
         uint256 protocolWindow = 604800;
-        assertEq(l2ToL2CrossDomainMessenger.EXPIRY_PERIOD(), protocolWindow + 1 days);
+        assertEq(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD, protocolWindow + 1 days);
+    }
+
+    /// @notice Tests that the genesis messenger uses the production expiry period.
+    function test_genesisExpiryPeriod_isProduction_succeeds() external view {
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).EXPIRY_PERIOD(),
+            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+        );
+    }
+}
+
+/// @title L2ToL2CrossDomainMessenger_Constructor_Test
+/// @notice Tests the `constructor` of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_Constructor_Test is Test {
+    /// @notice Tests that the constructor sets the expiry period.
+    function testFuzz_constructor_expiryPeriod_succeeds(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, type(uint64).max);
+        assertEq(new L2ToL2CrossDomainMessenger(_expiryPeriod).EXPIRY_PERIOD(), _expiryPeriod);
+    }
+
+    /// @notice Tests that the constructor rejects a zero expiry period.
+    function test_constructor_zeroExpiryPeriod_reverts() external {
+        vm.expectRevert(L2ToL2CrossDomainMessenger_InvalidExpiryPeriod.selector);
+        new L2ToL2CrossDomainMessenger(0);
     }
 }

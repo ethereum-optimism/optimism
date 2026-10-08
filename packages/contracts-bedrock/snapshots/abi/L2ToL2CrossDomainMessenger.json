@@ -1,5 +1,16 @@
 [
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_expiryPeriod",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
     "inputs": [],
     "name": "EXPIRY_PERIOD",
     "outputs": [
@@ -369,6 +380,11 @@
   {
     "inputs": [],
     "name": "InvalidMessage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L2ToL2CrossDomainMessenger_InvalidExpiryPeriod",
     "type": "error"
   },
   {

@@ -104,8 +104,8 @@
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x99e34c525728e96efd1764f62ad4acabeb44253bf428609bb92fbc5736840b14",
-    "sourceCodeHash": "0x1f02bb9646b945cc226f7b4df3a85acbece0ea922843e3c1b103a32bf6e2c5bc"
+    "initCodeHash": "0x3097b494bb639a3fdc10be7ececfdc37970ff99a202ad4cf399fcb3b6075e136",
+    "sourceCodeHash": "0x70ea7abe6f20a4d504131a68990bf9a122739cd06e971968d67f60d64ffd017b"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
