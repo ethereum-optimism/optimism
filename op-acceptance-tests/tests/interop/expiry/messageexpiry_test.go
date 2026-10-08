@@ -50,10 +50,6 @@ const (
 )
 
 var (
-	// undeliveredMessageExporterAddr is the UndeliveredMessageExporter predeploy, which the
-	// contracts PR that enables these tests adds.
-	undeliveredMessageExporterAddr = common.HexToAddress("0x4200000000000000000000000000000000000030")
-
 	failedRelayedMessageTopic       = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
 	undeliveredMessageExportedTopic = crypto.Keccak256Hash([]byte("UndeliveredMessageExported(bytes32,uint256,address,uint256)"))
 	expireMessageSelector           = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
@@ -61,10 +57,6 @@ var (
 	refundNotExpired                = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
 	messageRelayed                  = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
 )
-
-// expiryTestsSkipReason holds the message expiry tests back until the contracts they exercise
-// land (ethereum-optimism/specs#960).
-const expiryTestsSkipReason = "requires the message expiry contracts, which {L2X} adds and which re-enables this test"
 
 // shortClocks shrinks the L1 dispute windows and game clocks until they can be waited out in
 // wall-clock time.
@@ -95,7 +87,6 @@ func TestShortGameClocksReachDeployedGames(gt *testing.T) {
 // period cannot pass in this system, so A must reject the word, and the send must not be
 // refundable.
 func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
-	gt.Skip(expiryTestsSkipReason)
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks())
 	require := t.Require()
@@ -141,7 +132,6 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
 // speak for a message it relayed.
 func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
-	gt.Skip(expiryTestsSkipReason)
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
@@ -152,7 +142,7 @@ func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
 	send.Relay(sys.FunderB.NewFundedEOA(eth.OneEther), sys.Supernode())
 
 	exporterB := bindings.NewBindings[bindings.UndeliveredMessageExporter](bindings.WithClient(sys.L2ELB.EthClient()),
-		bindings.WithTo(undeliveredMessageExporterAddr), bindings.WithTest(t))
+		bindings.WithTo(predeploys.UndeliveredMessageExporterAddr), bindings.WithTest(t))
 	m := send.Message
 	_, err := contractio.Read(exporterB.ExportUndeliveredMessage(l1MessengerA(t, sys), m.Source, m.Nonce, m.Sender,
 		m.Target, m.Message, exportL1GasLimit), t.Ctx())
@@ -164,10 +154,10 @@ func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
 // at the export.
 func exportAsDeposit(t devtest.T, sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMessage) (*types.Receipt, *big.Int) {
 	exporter := sys.FunderB.NewFundedEOA(eth.ZeroWei).ViaDepositTx(l1User, sys.L2ELB, sys.L2ChainB)
-	rcpt := exporter.DepositTx(undeliveredMessageExporterAddr, exportCalldata(t, sys, m),
+	rcpt := exporter.DepositTx(predeploys.UndeliveredMessageExporterAddr, exportCalldata(t, sys, m),
 		func(o *dsl.DepositTxOpts) { o.GasLimit = exportGasLimit })
 	t.Require().True(slices.ContainsFunc(rcpt.Logs, func(l *types.Log) bool {
-		return l.Address == undeliveredMessageExporterAddr && len(l.Topics) > 1 &&
+		return l.Address == predeploys.UndeliveredMessageExporterAddr && len(l.Topics) > 1 &&
 			l.Topics[0] == undeliveredMessageExportedTopic && l.Topics[1] == m.Hash
 	}), "B's exporter must emit UndeliveredMessageExported for the message")
 	return rcpt, new(big.Int).SetUint64(sys.L2ELB.BlockRefByHash(rcpt.BlockHash).Time)
