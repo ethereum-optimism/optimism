@@ -14,8 +14,8 @@ pub struct ChainDependency {}
 
 /// An override of the message expiry window, in seconds. A dependency set may shorten the window
 /// but not lengthen it beyond [`MESSAGE_EXPIRY_WINDOW`] (see the Expiry Window section of the
-/// interop specification, ethereum-optimism/specs#960). A value above [`MESSAGE_EXPIRY_WINDOW`]
-/// cannot be constructed or deserialized, as in op-core.
+/// interop specification). A value above [`MESSAGE_EXPIRY_WINDOW`] cannot be constructed or
+/// deserialized, as in op-core.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(try_from = "u64", into = "u64"))]

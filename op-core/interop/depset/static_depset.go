@@ -137,7 +137,7 @@ func (ds *StaticConfigDependencySet) UnmarshalTOML(v interface{}) error {
 func (ds *StaticConfigDependencySet) hydrate() error {
 	// A dependency set may shorten the message expiry window but not lengthen it beyond
 	// MessageExpiryTimeSecondsInterop; see the Expiry Window section of the interop
-	// specification (ethereum-optimism/specs#960).
+	// specification.
 	if ds.overrideMessageExpiryWindow > MessageExpiryTimeSecondsInterop {
 		return fmt.Errorf("overrideMessageExpiryWindow %ds exceeds protocol window %ds",
 			ds.overrideMessageExpiryWindow, MessageExpiryTimeSecondsInterop)

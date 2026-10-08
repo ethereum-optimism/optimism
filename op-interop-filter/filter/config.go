@@ -76,7 +76,7 @@ func (c *Config) Check() error {
 		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
 	}
 	// The protocol window is at most 7 days (see the Expiry Window section of the interop
-	// specification, ethereum-optimism/specs#960), so the filter must not admit older messages.
+	// specification), so the filter must not admit older messages.
 	if c.MessageExpiryWindow > depset.MessageExpiryTimeSecondsInterop {
 		result = errors.Join(result, fmt.Errorf("message-expiry-window %ds exceeds protocol window %ds",
 			c.MessageExpiryWindow, depset.MessageExpiryTimeSecondsInterop))
