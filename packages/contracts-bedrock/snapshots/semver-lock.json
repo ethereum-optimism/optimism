@@ -72,8 +72,8 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x9b2b3486541ce385c5be745e043f0a8c8745e83f1fbb2aa0cd120764b5dc224a",
-    "sourceCodeHash": "0x5dcc738ab7671e73bd926ceb29469ca25b8d925ddd8f0212d66fc31abdaf933e"
+    "initCodeHash": "0x132fa7a8cfa12deddac4b98cee840f3f7e39984abba8b5aee46ad04588a9ddac",
+    "sourceCodeHash": "0x30483f5f195c1d58544b6afd1881517349adf8794efdbd54ceafb45c7df24e95"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
