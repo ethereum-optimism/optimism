@@ -80,7 +80,7 @@ struct FixedRefundPolicy {
 }
 
 impl PostExecRefundInspector for FixedRefundPolicy {
-    type Snapshot = ();
+    type Checkpoint = ();
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.kind = Some(ctx.kind);
@@ -135,9 +135,9 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {}
+    fn checkpoint(&self) -> Self::Checkpoint {}
 
-    fn restore(&mut self, _snapshot: Self::Snapshot) {}
+    fn revert_to_checkpoint(&mut self, _checkpoint: Self::Checkpoint) {}
 }
 
 #[test]
@@ -419,7 +419,7 @@ struct FaultyRefundPolicy {
 }
 
 impl PostExecRefundInspector for FaultyRefundPolicy {
-    type Snapshot = (u64, Option<PostExecTxKind>);
+    type Checkpoint = (u64, Option<PostExecTxKind>);
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.block_state += 1;
@@ -477,12 +477,12 @@ impl PostExecRefundInspector for FaultyRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {
+    fn checkpoint(&self) -> Self::Checkpoint {
         (self.block_state, self.kind)
     }
 
-    fn restore(&mut self, snapshot: Self::Snapshot) {
-        (self.block_state, self.kind) = snapshot;
+    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+        (self.block_state, self.kind) = checkpoint;
     }
 }
 
@@ -509,7 +509,7 @@ fn excessive_producer_refund_is_zeroed_and_verifies() {
         "an invalid refund must not produce a post-exec entry"
     );
     assert_eq!(
-        producer.refund_snapshot(),
+        producer.evm().refund_checkpoint(),
         (1, None),
         "a zeroed refund still came from a committed transaction"
     );
@@ -1143,7 +1143,7 @@ fn test_post_exec_tx_does_not_accrue_da_footprint() {
 /// tests here are the end-to-end builder-vs-validator pin.
 ///
 /// The final two tests cover a separate leak in the producer policy's block-scoped state. They use
-/// a stateful policy, assert on its snapshot rather than probe transaction gas, and specifically
+/// a stateful policy, assert on its state rather than probe transaction gas, and specifically
 /// pin this crate's candidate-rollback wrapper; op-revm's unit matrix does not cover that
 /// invariant.
 mod warm_set_leak {
@@ -1156,7 +1156,8 @@ mod warm_set_leak {
     const LEAK_ADDR: Address = Address::new([0xAA; 20]);
     /// Sender of the probe tx `B`.
     const PROBE_SENDER: Address = Address::new([0xBB; 20]);
-    /// Unique policy-state marker used to distinguish snapshot restoration from clearing state.
+    /// Unique policy-state marker used to distinguish reverting to a checkpoint from clearing
+    /// state.
     const POLICY_SENTINEL: Address = Address::new([0xDD; 20]);
     /// Probe contract: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP` — a Berlin account access on `A`'s
     /// sender, charged 100 (warm) or 2600 (cold).
@@ -1387,14 +1388,22 @@ mod warm_set_leak {
     // Leak B: unlike the journal-warmth leak above, this rides the producer *policy's* block-scoped
     // state. `FixedRefundPolicy` is stateless, so it cannot detect it; use a policy whose only
     // mutation is in `note_account_touch` — the `transact_raw` error-path call
-    // (`note_post_exec_account_touch`) a dropped tx triggers.
-    #[derive(Debug, Clone, Default)]
+    // (`note_post_exec_account_touch`) a dropped tx triggers. It starts holding `POLICY_SENTINEL`
+    // as prior block-scoped state, and its checkpoint is a full copy of its state: too slow for a
+    // real policy, but it lets the test read that state back through `refund_checkpoint`.
+    #[derive(Debug, Clone)]
     struct FeeVaultTouchPolicy {
         touched: BTreeSet<Address>,
     }
 
+    impl Default for FeeVaultTouchPolicy {
+        fn default() -> Self {
+            Self { touched: BTreeSet::from([POLICY_SENTINEL]) }
+        }
+    }
+
     impl PostExecRefundInspector for FeeVaultTouchPolicy {
-        type Snapshot = BTreeSet<Address>;
+        type Checkpoint = BTreeSet<Address>;
 
         fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
@@ -1446,12 +1455,12 @@ mod warm_set_leak {
 
         fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-        fn snapshot(&self) -> Self::Snapshot {
+        fn checkpoint(&self) -> Self::Checkpoint {
             self.touched.clone()
         }
 
-        fn restore(&mut self, snapshot: Self::Snapshot) {
-            self.touched = snapshot;
+        fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+            self.touched = checkpoint;
         }
     }
 
@@ -1464,11 +1473,11 @@ mod warm_set_leak {
         }
     }
 
-    /// A dropped state-invalid tx must restore a stateful producer policy to its per-candidate
-    /// snapshot. The sentinel proves the wrapper restores rather than clears prior block-scoped
+    /// A dropped state-invalid tx must revert a stateful producer policy to its per-candidate
+    /// checkpoint. The sentinel proves the wrapper reverts rather than clears prior block-scoped
     /// state; the successful probe afterward proves this fixture exercises fee-vault touch
-    /// tracking. Removing the `Err`-branch restore leaves the failed tx's touches alongside the
-    /// sentinel and fails the exact-snapshot assertion.
+    /// tracking. Removing the `Err`-branch revert leaves the failed tx's touches alongside the
+    /// sentinel and fails the exact-state assertion.
     fn assert_dropped_tx_leaves_no_policy_touch(
         make_db: impl Fn() -> State<InMemoryDB>,
         expected_error: InvalidTransaction,
@@ -1486,30 +1495,29 @@ mod warm_set_leak {
             Inspect::Disabled,
         );
 
-        let sentinel_snapshot = BTreeSet::from([POLICY_SENTINEL]);
-        executor.seed_refund_snapshot(sentinel_snapshot.clone());
-        assert_eq!(executor.refund_snapshot(), sentinel_snapshot);
+        let sentinel_state = BTreeSet::from([POLICY_SENTINEL]);
+        assert_eq!(executor.evm().refund_checkpoint(), sentinel_state);
 
         let err = executor
             .execute_transaction(&legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000))
             .expect_err(a_error_context);
         assert_invalid_transaction(err, expected_error);
         assert_eq!(
-            executor.refund_snapshot(),
-            sentinel_snapshot,
-            "a dropped failing tx did not restore the producer policy's per-candidate snapshot",
+            executor.evm().refund_checkpoint(),
+            sentinel_state,
+            "a dropped failing tx did not revert the producer policy to its per-candidate checkpoint",
         );
 
         executor.execute_transaction(&probe_tx()).expect("probe tx B executes");
-        let expected_committed_snapshot = BTreeSet::from([
+        let expected_committed_state = BTreeSet::from([
             POLICY_SENTINEL,
             L1_FEE_RECIPIENT,
             BASE_FEE_RECIPIENT,
             OPERATOR_FEE_RECIPIENT,
         ]);
         assert_eq!(
-            executor.refund_snapshot(),
-            expected_committed_snapshot,
+            executor.evm().refund_checkpoint(),
+            expected_committed_state,
             "a committed tx must exercise and retain the fee-vault touch pathway",
         );
     }
