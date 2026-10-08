@@ -641,7 +641,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
     }
 
     /// @notice Tests that `relayMessage` reverts when the target is the L2CrossDomainMessenger or the
-    ///         L2ToL1MessagePasser: L1CrossDomainMessengers trust withdrawals from this contract.
+    ///         L2ToL1MessagePasser, so this contract never starts a withdrawal.
     function testFuzz_relayMessage_unsafeTarget_reverts(
         uint256 _source,
         bool _messagePasser,
@@ -876,6 +876,34 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         _expireMessage(l1Messenger, _messageHash, type(uint64).max);
     }
 
+    /// @notice Tests that once a message expired, authenticated word of any date changes nothing
+    ///         and emits nothing, while unauthenticated calls still revert.
+    function testFuzz_expireMessage_afterExpiry_succeeds(uint256 _undeliveredAt, address _xDomainSender) external {
+        vm.assume(_xDomainSender != l1Messenger);
+        _expireMessage(l1Messenger, messageHash, sentAt + l2ToL2CrossDomainMessenger.EXPIRY_PERIOD() + 1);
+
+        vm.recordLogs();
+        _expireMessage(l1Messenger, messageHash, _undeliveredAt);
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertTrue(l2ToL2CrossDomainMessenger.expiredMessages(messageHash));
+
+        vm.expectRevert(L2ToL2CrossDomainMessenger_NotOtherMessenger.selector);
+        _expireMessage(_xDomainSender, messageHash, type(uint64).max);
+    }
+
+    /// @notice Tests that a message sent without a recorded timestamp, as before this contract
+    ///         recorded them, can never expire.
+    function test_expireMessage_noRecordedTimestamp_reverts() external {
+        bytes32 legacyHash = keccak256("legacy message");
+        uint256 legacyNonce = 1 << 200;
+        // sentMessages is the mapping at slot 2.
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, keccak256(abi.encode(legacyNonce, uint256(2))), legacyHash);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(legacyNonce), legacyHash);
+
+        vm.expectRevert(InvalidMessage.selector);
+        _expireMessage(l1Messenger, legacyHash, type(uint64).max);
+    }
+
     /// @notice Tests that only this chain's L1CrossDomainMessenger, through the
     ///         L2CrossDomainMessenger, can expire a message.
     function testFuzz_expireMessage_notOtherMessenger_reverts(address _xDomainSender, address _caller) external {
@@ -902,9 +930,10 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
 /// @notice General tests that are not testing any function directly of the
 ///         `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_Uncategorized_Test is L2ToL2CrossDomainMessenger_TestInit {
-    /// @notice Tests that the expiry period is the protocol's message expiry window,
-    ///         MessageExpiryTimeSecondsInterop in op-core and MESSAGE_EXPIRY_WINDOW in kona-genesis
-    ///         (604800 seconds, which both cap overrides at), plus a day of margin.
+    /// @notice Tests that the expiry period is the protocol's message expiry window (604800
+    ///         seconds, MessageExpiryTimeSecondsInterop in op-core and MESSAGE_EXPIRY_WINDOW in
+    ///         kona-genesis) plus a day of margin. The interop specification caps a dependency set's
+    ///         window at that value, and op-core and kona reject longer overrides.
     function test_expiryPeriod_exceedsProtocolWindowByADay_succeeds() external view {
         uint256 protocolWindow = 604800;
         assertEq(l2ToL2CrossDomainMessenger.EXPIRY_PERIOD(), protocolWindow + 1 days);
