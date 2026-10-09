@@ -134,6 +134,12 @@ contract L2Genesis is Script {
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
         );
+        // The messenger is only deployed with a non-production expiry period when interop is
+        // active at genesis; a later activation installs the production period.
+        require(
+            _input.l2ToL2MessageExpiryPeriod == 0 || _isGenesisInteropEnabled(_input),
+            "L2Genesis: expiry period override needs interop at genesis"
+        );
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
