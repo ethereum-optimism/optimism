@@ -85,8 +85,9 @@ structure Config (Chain Body Hash : Type) where
   interop : Chain → Prop
   /-- W_protocol per destination: a relay on `x` is valid iff exec - init ≤ protocolWindow x. -/
   protocolWindow : Chain → Nat
-  /-- P_contract of chain z's messenger: the expiry period `initialize` stored once
-  (0 < P ≤ 365 days), a deployment parameter that upgrades read back. expireMessage on z requires
+  /-- P_contract of chain z's messenger: the expiry period `initialize` stored (0 < P ≤ 365 days);
+  every upgrade sets the production value, only a test network's genesis another. Fixed here for the
+  whole execution. expireMessage on z requires
   t > sentAt + contractPeriod z (`≥` if `expireGe`). -/
   contractPeriod : Chain → Nat
   /-- The sender `relayUndeliveredMessage` trusts: `exporter` (v2) or `messenger` (earlier design,

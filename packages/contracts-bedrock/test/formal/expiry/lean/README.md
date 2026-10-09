@@ -5,8 +5,8 @@
 
 - `relayUndeliveredMessage` trusts only the `UndeliveredMessageExporter` at
   `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`;
-- P_contract is each messenger's stored expiry period, set once by `initialize`; production
-  deployments set 8 days;
+- P_contract is each messenger's stored expiry period, set by `initialize`; every production
+  deployment and upgrade sets 8 days;
 - W_protocol ≤ 7 days.
 
 The theorem: under the stated hypotheses, ETH is never both delivered on a message's destination
@@ -37,14 +37,14 @@ none changes a modeled guard or effect.
    (`if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert`). This is the receiving chain's
    own SystemConfig, which matches the model's `cfg.interop w.fact.toL1`.
 4. **P_contract, a deployment parameter:** the messenger's stored expiry period, which
-   `initialize` sets once (bounded to `0 < P ≤ 365 days`) and which upgrades read back and keep,
-   with the strict check `if (_undeliveredAt <= sentAt + period) revert` in `expireMessage`. The
-   model's `contractPeriod : Chain → Nat` is that value per chain, fixed for the whole execution as
-   the design keeps it, and `SafeConfig.window` bounds every destination's window by every source's
-   period. The production pin (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days`, which the
-   upgrade path and `L2Genesis` without an override initialize) and the 7-day cap (item 5) discharge
-   it: `production_window`. A test network's genesis override, and the read-back across upgrades
-   and rollbacks, are checked in the bounded `../rollout/` model (AC6). `expireMessage` also returns
+   `initialize` sets (bounded to `0 < P ≤ 365 days`), with the strict check
+   `if (_undeliveredAt <= sentAt + period) revert` in `expireMessage`. Every upgrade initializes
+   the production `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days`; only a test network's genesis
+   can set another value, and its next upgrade resets it. The model's `contractPeriod : Chain → Nat`
+   is that value per chain, fixed for the whole execution (as it is on every production chain), and
+   `SafeConfig.window` bounds every destination's window by every source's period. The production
+   pin and the 7-day cap (item 5) discharge it: `production_window`. A test network's override, and
+   its reset by an upgrade, are checked in the bounded `../rollout/` model (AC6). `expireMessage` also returns
    early when the message is already expired; that is a stuttering step here (`expired` already
    holds), so the model does not change.
 5. **W_protocol ≤ 7-day cap:**
