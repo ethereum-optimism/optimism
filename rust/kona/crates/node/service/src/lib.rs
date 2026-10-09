@@ -15,20 +15,18 @@ pub use service::{
 };
 
 pub use kona_node_actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
-    DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationClientError, DerivationClientResult,
-    DerivationDelegateClientError, DerivationDelegateProvider, DerivationEngineClient,
-    DerivationError, DerivationState, DerivationStateMachine, DerivationStateTransitionError,
-    DerivationStateUpdate, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, L1OriginSelector, L1OriginSelectorError,
-    L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError, L1WatcherDerivationClient,
-    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor,
-    OriginSelector, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    ResetRequest, RpcActor, RpcActorError, SealRequest, SequencerConfig, SequencerEngineClient,
-    sequencer, signer,
+    BuildRequest, Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider,
+    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
+    DerivationClientResult, DerivationDelegateClientError, DerivationDelegateProvider,
+    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
+    DerivationStateTransitionError, DerivationStateUpdate, EngineActor, EngineActorRequest,
+    EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
+    L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, NetworkActor,
+    NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver,
+    NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedNetworkEngineClient,
+    QueuedSequencerEngineClient, ResetRequest, RpcActor, RpcActorError, SealRequest,
+    SequencerConfig, SequencerEngineClient, l1_watcher, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

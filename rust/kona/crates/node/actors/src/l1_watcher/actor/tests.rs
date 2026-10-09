@@ -1,10 +1,10 @@
-use super::*;
-use crate::{DerivationActorRequest, QueuedL1WatcherDerivationClient};
+use super::{super::derivation::MockDerivation, *};
 use alloy_json_rpc::{RequestPacket, Response, ResponsePacket, ResponsePayload};
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportError, TransportErrorKind};
+use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use std::sync::{
     Arc,
@@ -12,6 +12,7 @@ use std::sync::{
 };
 use tokio::{
     sync::{Notify, mpsc},
+    task::JoinSet,
     time::{self, Duration},
 };
 use tokio_stream::wrappers::ReceiverStream;
@@ -71,14 +72,36 @@ fn provider(state: Arc<RpcState>) -> RootProvider {
     RootProvider::new(RpcClient::new(transport, false))
 }
 
+#[derive(Debug)]
+enum Observation {
+    Head(BlockInfo),
+    Finalized(BlockInfo),
+}
+
+#[derive(Debug)]
+struct TestDerivation(mpsc::Sender<Observation>);
+
+#[async_trait]
+impl Derivation for TestDerivation {
+    type Error = mpsc::error::SendError<Observation>;
+
+    async fn send_finalized_l1_block(&self, block: BlockInfo) -> Result<(), Self::Error> {
+        self.0.send(Observation::Finalized(block)).await
+    }
+
+    async fn send_new_l1_head(&self, block: BlockInfo) -> Result<(), Self::Error> {
+        self.0.send(Observation::Head(block)).await
+    }
+}
+
 struct Harness {
     heads: mpsc::Sender<BlockInfo>,
     finalized: mpsc::Sender<BlockInfo>,
     safe: mpsc::Sender<BlockInfo>,
-    state: watch::Receiver<L1State>,
+    state: watch::Receiver<State>,
     signer: watch::Receiver<Address>,
-    derivation: mpsc::Receiver<DerivationActorRequest>,
-    tasks: JoinSet<Result<(), L1WatcherActorError<BlockInfo>>>,
+    derivation: mpsc::Receiver<Observation>,
+    tasks: JoinSet<Result<(), ActorError>>,
     rpc: Arc<RpcState>,
 }
 fn head(number: u64) -> BlockInfo {
@@ -92,24 +115,19 @@ impl Harness {
         let (heads, head_rx) = mpsc::channel(4);
         let (finalized, finalized_rx) = mpsc::channel(4);
         let (safe, safe_rx) = mpsc::channel(4);
-        let mut actor = L1WatcherActor::new(
+        let builder = Builder::new();
+        let state = builder.handle().state_receiver();
+        let lifetime = builder.build(
             provider(rpc.clone()),
             ReceiverStream::new(head_rx),
             ReceiverStream::new(finalized_rx),
             ReceiverStream::new(safe_rx),
             Arc::new(RollupConfig::default()),
-            QueuedL1WatcherDerivationClient { derivation_actor_request_tx: derivation_tx },
+            TestDerivation(derivation_tx),
             signer_tx,
         );
-        let state = actor.state_receiver();
         let mut tasks = JoinSet::new();
-        tasks.spawn(async move {
-            loop {
-                actor.step().await?;
-            }
-            #[allow(unreachable_code)]
-            Ok(())
-        });
+        tasks.spawn(lifetime);
         Self { heads, finalized, safe, state, signer, derivation, tasks, rpc }
     }
 
@@ -123,8 +141,8 @@ impl Harness {
         self.heads.send(block).await.unwrap();
         match time::timeout(Duration::from_secs(1), self.derivation.recv()).await.unwrap().unwrap()
         {
-            DerivationActorRequest::ProcessL1HeadUpdateRequest(received) => {
-                assert_eq!(*received, block)
+            Observation::Head(received) => {
+                assert_eq!(received, block)
             }
             other => panic!("unexpected request {other:?}"),
         }
@@ -156,11 +174,11 @@ async fn full_derivation_queue_does_not_block_observation_or_signer_refresh() {
         let mut received_latest_head = false;
         loop {
             match h.derivation.recv().await.unwrap() {
-                DerivationActorRequest::ProcessL1HeadUpdateRequest(block) if *block == head(5) => {
+                Observation::Head(block) if block == head(5) => {
                     received_latest_head = true;
                 }
-                DerivationActorRequest::ProcessFinalizedL1Block(block) => {
-                    assert_eq!(*block, head(4));
+                Observation::Finalized(block) => {
+                    assert_eq!(block, head(4));
                     assert!(received_latest_head);
                     break;
                 }
@@ -216,11 +234,11 @@ async fn publishes_safe_and_finalized_without_new_heads() {
     assert!(h.derivation.try_recv().is_err());
     h.finalized.send(head(80)).await.unwrap();
     assert!(
-        matches!(h.derivation.recv().await.unwrap(), DerivationActorRequest::ProcessFinalizedL1Block(block) if *block == head(80))
+        matches!(h.derivation.recv().await.unwrap(), Observation::Finalized(block) if block == head(80))
     );
     assert_eq!(
         *h.state.borrow(),
-        L1State { head_l1: Some(head(100)), safe_l1: Some(head(90)), finalized_l1: Some(head(80)) }
+        State { head_l1: Some(head(100)), safe_l1: Some(head(90)), finalized_l1: Some(head(80)) }
     );
 }
 
@@ -241,14 +259,10 @@ async fn closed_derivation_receiver_stops_watcher() {
     let mut h = Harness::new();
     h.derivation.close();
     h.heads.send(head(1)).await.unwrap();
-    assert!(
-        time::timeout(Duration::from_secs(1), h.tasks.join_next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap()
-            .is_err()
-    );
+    assert!(matches!(
+        time::timeout(Duration::from_secs(1), h.tasks.join_next()).await.unwrap().unwrap().unwrap(),
+        Err(ActorError::Derivation(_))
+    ));
     assert!(h.state.has_changed().is_err());
 }
 
@@ -276,4 +290,58 @@ async fn watcher_shutdown_cancels_outstanding_rpc() {
     h.tasks.abort_all();
     assert!(h.tasks.join_next().await.unwrap().unwrap_err().is_cancelled());
     time::timeout(Duration::from_secs(1), h.rpc.cancelled.notified()).await.unwrap();
+    assert!(h.state.has_changed().is_err());
+}
+
+#[test]
+fn builds_without_a_runtime_and_closes_on_drop() {
+    let builder = Builder::new();
+    let state = builder.handle().state_receiver();
+    assert_eq!(*state.borrow(), State::default());
+    let (signer_tx, signer) = watch::channel(Address::ZERO);
+    let lifetime = builder.build(
+        provider(Arc::new(RpcState::default())),
+        futures::stream::pending(),
+        futures::stream::pending(),
+        futures::stream::pending(),
+        Arc::new(RollupConfig::default()),
+        MockDerivation::new(),
+        signer_tx,
+    );
+    assert_eq!(*state.borrow(), State::default());
+    drop(lifetime);
+    assert!(state.has_changed().is_err());
+    assert!(signer.has_changed().is_err());
+}
+
+#[tokio::test(start_paused = true)]
+async fn observation_stream_end_is_fatal() {
+    let mut h = Harness::new();
+    drop(h.heads);
+    assert!(matches!(h.tasks.join_next().await.unwrap().unwrap(), Err(ActorError::StreamEnded)));
+    assert!(h.state.has_changed().is_err());
+    assert!(h.signer.has_changed().is_err());
+}
+
+#[tokio::test]
+async fn dependency_error_is_fatal() {
+    let builder = Builder::new();
+    let state = builder.handle().state_receiver();
+    let (signer_tx, _signer) = watch::channel(Address::ZERO);
+    let mut derivation = MockDerivation::new();
+    derivation
+        .expect_send_new_l1_head()
+        .once()
+        .returning(|_| Err(std::io::Error::other("unavailable")));
+    let lifetime = builder.build(
+        provider(Arc::new(RpcState::default())),
+        futures::stream::iter([head(1)]).chain(futures::stream::pending()).boxed(),
+        futures::stream::pending().boxed(),
+        futures::stream::pending().boxed(),
+        Arc::new(RollupConfig::default()),
+        derivation,
+        signer_tx,
+    );
+    assert!(matches!(lifetime.await, Err(ActorError::Derivation(error)) if error == "unavailable"));
+    assert!(state.has_changed().is_err());
 }

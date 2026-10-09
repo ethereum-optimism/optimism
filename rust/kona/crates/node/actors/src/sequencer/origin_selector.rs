@@ -1,6 +1,6 @@
 //! The [`L1OriginSelector`].
 
-use crate::L1State;
+use crate::l1_watcher;
 use alloy_primitives::B256;
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
@@ -207,7 +207,7 @@ pub struct DelayedL1OriginSelectorProvider {
     /// The inner [`RootProvider`].
     inner: RootProvider,
     /// The L1 watcher’s published observations.
-    l1_state: watch::Receiver<L1State>,
+    l1_state: watch::Receiver<l1_watcher::State>,
     /// The confirmation depth to delay the view of the L1 chain.
     confirmation_depth: u64,
 }
@@ -216,7 +216,7 @@ impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
     pub const fn new(
         inner: RootProvider,
-        l1_state: watch::Receiver<L1State>,
+        l1_state: watch::Receiver<l1_watcher::State>,
         confirmation_depth: u64,
     ) -> Self {
         Self { inner, l1_state, confirmation_depth }

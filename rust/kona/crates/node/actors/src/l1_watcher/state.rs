@@ -2,7 +2,7 @@ use kona_protocol::BlockInfo;
 
 /// The latest L1 observations published by the L1 watcher.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct L1State {
+pub struct State {
     /// The L1 head block ref.
     ///
     /// The head is not guaranteed to build on the other L1 sync status fields,

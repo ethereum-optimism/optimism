@@ -31,11 +31,7 @@ pub use derivation::{
     DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
 };
 
-mod l1_watcher;
-pub use l1_watcher::{
-    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherDerivationClient,
-    QueuedL1WatcherDerivationClient,
-};
+pub mod l1_watcher;
 
 pub mod signer;
 
@@ -81,4 +77,3 @@ mod metrics;
 pub use metrics::Metrics;
 
 pub use derivation::DerivationStatus;
-pub use l1_watcher::L1State;

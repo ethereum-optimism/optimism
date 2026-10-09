@@ -19,7 +19,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
-use crate::{DerivationStatus, L1State, RollupNodeApiServer};
+use crate::{DerivationStatus, RollupNodeApiServer, l1_watcher};
 
 /// An [output response][or] for Optimism Rollup.
 ///
@@ -138,7 +138,7 @@ pub struct RollupRpc<L2> {
     /// The read-only L2 output query provider.
     l2: L2,
     /// The L1 observations published by the L1 watcher.
-    pub l1_state: watch::Receiver<L1State>,
+    pub l1_state: watch::Receiver<l1_watcher::State>,
     /// The progress published by the derivation actor.
     pub derivation_status: watch::Receiver<DerivationStatus>,
 }
@@ -151,7 +151,7 @@ impl<L2> RollupRpc<L2> {
         config: Arc<RollupConfig>,
         engine_state: watch::Receiver<EngineState>,
         l2: L2,
-        l1_state: watch::Receiver<L1State>,
+        l1_state: watch::Receiver<l1_watcher::State>,
         derivation_status: watch::Receiver<DerivationStatus>,
     ) -> Self {
         Self { version, config, engine_state, l2, l1_state, derivation_status }
@@ -285,7 +285,7 @@ mod tests {
         let (_, state_rx) = watch::channel(EngineState::default());
         let head_l1 = BlockInfo { number: 42, ..Default::default() };
         let (_l1_tx, l1_state) =
-            watch::channel(L1State { head_l1: Some(head_l1), ..Default::default() });
+            watch::channel(l1_watcher::State { head_l1: Some(head_l1), ..Default::default() });
         let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
         let rpc = RollupRpc::new(
             "test".to_owned(),
@@ -322,7 +322,7 @@ mod tests {
         let config = Arc::new(RollupConfig { block_time: 11, ..Default::default() });
         let (client, l1, l2) = test_engine_client(config.clone());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
-        let (l1_tx, l1_state) = watch::channel(L1State::default());
+        let (l1_tx, l1_state) = watch::channel(l1_watcher::State::default());
         let (derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
         let mut rpc = RollupRpc::new(
             "1.2.3-test".to_owned(),
@@ -340,7 +340,7 @@ mod tests {
             ..Default::default()
         };
         state_tx.send_replace(TestEngineStateBuilder::new().with_unsafe_head(head).build());
-        let observed = L1State {
+        let observed = l1_watcher::State {
             head_l1: Some(BlockInfo { number: 42, ..Default::default() }),
             safe_l1: Some(BlockInfo { number: 40, ..Default::default() }),
             finalized_l1: Some(BlockInfo { number: 38, ..Default::default() }),
@@ -371,7 +371,7 @@ mod tests {
         let config = Arc::new(RollupConfig::default());
         let (client, l1, l2) = test_engine_client(config.clone());
         let (_, state_rx) = watch::channel(EngineState::default());
-        let (_l1_tx, l1_state) = watch::channel(L1State::default());
+        let (_l1_tx, l1_state) = watch::channel(l1_watcher::State::default());
         let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
 
         for version in ["1.2.3-test", "0.0.0-dev"] {

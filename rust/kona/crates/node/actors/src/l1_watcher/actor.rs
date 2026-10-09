@@ -1,111 +1,104 @@
-//! L1 observation with independent derivation forwarding and signer refresh.
+//! L1 watcher construction and execution.
 
-use super::{L1WatcherActorError, L1WatcherDerivationClient, worker::Worker};
-use crate::{L1State, NodeActor};
+use super::{ActorError, Derivation, Handle, State, worker::Worker};
 use alloy_primitives::Address;
 use alloy_provider::Provider;
-use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
-use std::sync::Arc;
-use tokio::{sync::watch, task::JoinSet};
+use std::{future::Future, sync::Arc};
+use tokio::sync::watch;
 
-/// Observes L1 and publishes the latest head and finality.
-///
-/// Head notifications are already allowed to skip blocks. Keeping only the latest observation
-/// lets derivation catch up without blocking observation or growing a queue indefinitely.
-/// Forwarding and signer refresh are cancelled when the watcher is dropped.
+/// Constructs the handle and task.
 #[derive(Debug)]
-pub struct L1WatcherActor<BlockStream, L1Provider, Client>
-where
-    BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
-    L1Provider: Provider,
-    Client: L1WatcherDerivationClient,
-{
-    state: watch::Sender<L1State>,
-    head_stream: BlockStream,
-    finalized_stream: BlockStream,
-    safe_stream: BlockStream,
-    /// Started on the first step, so construction does not require a runtime.
-    worker: Option<Worker<L1Provider, Client>>,
-    task: JoinSet<Result<(), L1WatcherActorError<BlockInfo>>>,
+pub struct Builder {
+    handle: Handle,
+    published: watch::Sender<State>,
 }
 
-impl<BlockStream, L1Provider, Client> L1WatcherActor<BlockStream, L1Provider, Client>
-where
-    BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
-    L1Provider: Provider,
-    Client: L1WatcherDerivationClient,
-{
-    /// Constructs a watcher. Forwarding and signer refresh start on the first step.
-    pub fn new(
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Builder {
+    /// Creates the builder with its initial state.
+    pub fn new() -> Self {
+        let (published, state) = watch::channel(State::default());
+        Self { handle: Handle::new(state), published }
+    }
+
+    /// Returns a handle that can be wired into other components before the actor starts.
+    pub fn handle(&self) -> Handle {
+        self.handle.clone()
+    }
+
+    /// Supplies dependencies and produces the actor's lifetime future without spawning it.
+    ///
+    /// Runtime work begins when the future is polled.
+    /// Dropping the future stops the actor.
+    #[allow(clippy::too_many_arguments)]
+    pub fn build<
+        BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
+        L1Provider: Provider + 'static,
+        Derivation_: Derivation + 'static,
+    >(
+        self,
         l1_provider: L1Provider,
         head_stream: BlockStream,
         finalized_stream: BlockStream,
         safe_stream: BlockStream,
         rollup_config: Arc<RollupConfig>,
-        derivation_client: Client,
+        derivation: Derivation_,
         block_signer_sender: watch::Sender<Address>,
-    ) -> Self {
-        let (state, _) = watch::channel(L1State::default());
-        Self {
-            state,
-            head_stream,
-            finalized_stream,
-            safe_stream,
-            worker: Some(Worker::new(
-                l1_provider,
-                rollup_config,
-                derivation_client,
-                block_signer_sender,
-            )),
-            task: JoinSet::new(),
-        }
-    }
-
-    /// Subscribes to the watcher's latest L1 observations.
-    pub fn state_receiver(&self) -> watch::Receiver<L1State> {
-        self.state.subscribe()
+    ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
+        let actor = Actor { published: self.published, head_stream, finalized_stream, safe_stream };
+        let worker = Worker::new(l1_provider, rollup_config, derivation, block_signer_sender);
+        actor.run(worker)
     }
 }
 
-#[async_trait]
-impl<BlockStream, L1Provider, Client> NodeActor for L1WatcherActor<BlockStream, L1Provider, Client>
-where
-    BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
-    L1Provider: Provider + 'static,
-    Client: L1WatcherDerivationClient + 'static,
-{
-    type Error = L1WatcherActorError<BlockInfo>;
+/// Observes L1 and publishes the latest head and finality.
+#[derive(Debug)]
+struct Actor<BlockStream> {
+    published: watch::Sender<State>,
+    head_stream: BlockStream,
+    finalized_stream: BlockStream,
+    safe_stream: BlockStream,
+}
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        if let Some(worker) = self.worker.take() {
-            let state = self.state.subscribe();
-            self.task.spawn(worker.run(state));
-        }
-        tokio::select! {
-            head = self.head_stream.next() => {
-                let head = head.ok_or(L1WatcherActorError::StreamEnded)?;
-                self.state.send_modify(|state| state.head_l1 = Some(head));
-            }
-            finalized = self.finalized_stream.next() => {
-                let finalized = finalized.ok_or(L1WatcherActorError::StreamEnded)?;
-                self.state.send_modify(|state| state.finalized_l1 = Some(finalized));
-            }
-            safe = self.safe_stream.next() => {
-                let safe = safe.ok_or(L1WatcherActorError::StreamEnded)?;
-                self.state.send_modify(|state| state.safe_l1 = Some(safe));
-            }
-            Some(result) = self.task.join_next() => {
-                match result {
-                    Ok(result) => error!(target: "l1_watcher", ?result, "L1 watcher worker exited"),
-                    Err(err) => error!(target: "l1_watcher", ?err, "L1 watcher worker failed"),
-                }
-                return Err(L1WatcherActorError::StreamEnded);
-            }
-        }
+impl<BlockStream> Actor<BlockStream>
+where
+    BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
+{
+    async fn run<L1Provider: Provider, Derivation_: Derivation>(
+        self,
+        worker: Worker<L1Provider, Derivation_>,
+    ) -> Result<(), ActorError> {
+        let state = self.published.subscribe();
+        // Coalesce observations while forwarding or signer refresh is stalled.
+        tokio::try_join!(self.observe(), worker.run(state))?;
         Ok(())
+    }
+
+    async fn observe(mut self) -> Result<(), ActorError> {
+        loop {
+            tokio::select! {
+                head = self.head_stream.next() => {
+                    let head = head.ok_or(ActorError::StreamEnded)?;
+                    self.published.send_modify(|state| state.head_l1 = Some(head));
+                }
+                finalized = self.finalized_stream.next() => {
+                    let finalized = finalized.ok_or(ActorError::StreamEnded)?;
+                    self.published.send_modify(|state| state.finalized_l1 = Some(finalized));
+                }
+                safe = self.safe_stream.next() => {
+                    let safe = safe.ok_or(ActorError::StreamEnded)?;
+                    self.published.send_modify(|state| state.safe_l1 = Some(safe));
+                }
+            }
+        }
     }
 }
 

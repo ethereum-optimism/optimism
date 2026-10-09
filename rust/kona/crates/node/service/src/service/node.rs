@@ -1,13 +1,12 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
-    BlockStream, ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor,
-    DerivationActor, DerivationActorRequest, DerivationDelegateClient, DerivationError,
-    EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, NetworkActor,
-    NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
-    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerConfig,
-    service::BufferImportedBlocks, signer,
+    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
+    DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
+    EngineActorRequest, EngineConfig, L1OriginSelector, NetworkActor, NetworkBuilder,
+    NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor,
+    SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -23,8 +22,8 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{DerivationStatus, L1State, sequencer};
-use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_node_actors::{DerivationStatus, l1_watcher, sequencer};
+use kona_protocol::L2BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
     OnlineBlobProvider, OnlinePipeline,
@@ -278,51 +277,42 @@ impl RollupNode {
         }
     }
 
-    /// Builds the L1 watcher actor with independent head, safe, and finalized block streams.
-    ///
-    /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
-    /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
-    /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
-    /// Using `impl Trait` here is intentional; the lifetime adapter only requires `NodeActor`.
+    /// Wires the L1 watcher dependencies and returns its lifetime future.
     fn build_l1_watcher(
         &self,
+        builder: l1_watcher::Builder,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         signer_tx: watch::Sender<Address>,
     ) -> Result<
-        (
-            impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static,
-            watch::Receiver<L1State>,
-        ),
+        impl std::future::Future<Output = Result<(), l1_watcher::ActorError>> + Send + 'static,
         String,
     > {
-        let head_stream = BlockStream::new_as_stream(
+        let head_stream = l1_watcher::BlockStream::new_as_stream(
             self.l1_config.engine_provider.clone(),
             BlockNumberOrTag::Latest,
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
         )?;
-        let finalized_stream = BlockStream::new_as_stream(
+        let finalized_stream = l1_watcher::BlockStream::new_as_stream(
             self.l1_config.engine_provider.clone(),
             BlockNumberOrTag::Finalized,
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         )?;
 
-        let safe_stream = BlockStream::new_as_stream(
+        let safe_stream = l1_watcher::BlockStream::new_as_stream(
             self.l1_config.engine_provider.clone(),
             BlockNumberOrTag::Safe,
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
         )?;
 
-        let actor = L1WatcherActor::new(
+        Ok(builder.build(
             self.l1_config.engine_provider.clone(),
             head_stream,
             finalized_stream,
             safe_stream,
             self.config.clone(),
-            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
+            adapters::Derivation(derivation_actor_request_tx),
             signer_tx,
-        );
-        let state = actor.state_receiver();
-        Ok((actor, state))
+        ))
     }
 
     /// Starts the signing backend when the node is in sequencer mode; otherwise returns `None`.
@@ -351,7 +341,7 @@ impl RollupNode {
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         signer: signer::Handle,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
-        l1_state: watch::Receiver<L1State>,
+        l1_state: watch::Receiver<l1_watcher::State>,
         builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
@@ -383,7 +373,7 @@ impl RollupNode {
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
-        l1_state: watch::Receiver<L1State>,
+        l1_state: watch::Receiver<l1_watcher::State>,
         derivation_status: watch::Receiver<DerivationStatus>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
@@ -475,6 +465,8 @@ impl RollupNode {
     /// OS shutdown signals.
     pub async fn start(&self) -> Result<(), String> {
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
+        let l1_watcher_builder = l1_watcher::Builder::new();
+        let l1_state = l1_watcher_builder.handle().state_receiver();
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
             mpsc::channel::<DerivationActorRequest>(1024);
@@ -548,8 +540,8 @@ impl RollupNode {
 
         let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
 
-        let (l1_watcher, l1_state) =
-            self.build_l1_watcher(derivation_actor_request_tx, signer_tx)?;
+        let l1_watcher =
+            self.build_l1_watcher(l1_watcher_builder, derivation_actor_request_tx, signer_tx)?;
 
         let sequencer_actor = sequencer_builder.map(|builder| {
             self.build_sequencer(
@@ -589,7 +581,7 @@ impl RollupNode {
             supervisor.spawn("signer", signer);
         }
         supervisor.spawn("network", run_node_actor(network));
-        supervisor.spawn("l1", run_node_actor(l1_watcher));
+        supervisor.spawn("l1", l1_watcher);
         supervisor.spawn("derivation", run_node_actor(derivation));
         supervisor.spawn("engine", run_node_actor(engine_actor));
         supervisor.wait().await
