@@ -4,8 +4,9 @@ This directory answers one question about the verification layers next to it: **
 plausible implementation mistake, and does any mistake slip past every layer?**
 
 Each mutant is one small edit to the real contracts of the exporter design. The edits cover the expiry
-boundary, the send timestamp, the relay's bookkeeping, `expireMessage`'s authorization, the exporter's hash and
-payload, the three checks of `L1CrossDomainMessenger.relayUndeliveredMessage`, `refundETH`, and the target rules.
+boundary, the send timestamp, the relay's bookkeeping, `expireMessage`'s authorization and early return, the
+constructor-set period and the scripts that deploy the messenger with it, the exporter's hash and payload, the
+three checks of `L1CrossDomainMessenger.relayUndeliveredMessage`, `refundETH`, and the target rules.
 Every layer that is cheap enough was run on every mutant. The other layers are mapped by reasoning from their
 exact statements.
 
@@ -19,25 +20,27 @@ exact statements.
 
 ## Base
 
-- **Contracts under test:** `src/` at `c7c51d79e2`, the style-guide tip of the exporter design (`EXPIRY_PERIOD =
-  8 days`, the exporter at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`).
-- **Checkout:** the formal branch at `e0ffb33a31`, whose `src/` equals `c7c51d79e2`'s. The Halmos directory was
-  taken at its later state with `halmos.toml` and the phase-2 harness fixes (the `ReachL1CDMHalmos` INTEROP flag
-  fix in particular: before it, every L1CDM mutant would have looked dead to that check for the wrong reason).
-- **Later tip.** PR #23259 later moved to `448d31ad19`. Its only `src/` change is the messenger's version string,
-  which no mutant touches and no layer here depends on; its test change (two relay fuzz tests skip forge's own
-  addresses) fixes a flake that did not occur at the fixed seed used here (the baseline passed). The `sed` edits
-  apply unchanged to it. Some layers were later re-targeted to that tip (the `expireMessage` EVM-Lean proof and the
-  hevm bytecode). Their statements are the same, so the mapping below holds for either pin.
-- **Layers that changed after the campaign.** Kontrol was committed after the campaign ran (`786c48383f`); it is
-  mapped by its statements, like EVM-Lean (see "Layers"). The committed Halmos suite renamed the bridge's phase-2
-  check (`check_reach_bridge_step`); the bridge's phase 2 decided no verdict here (it was
-  stopped for K43 and K50).
-- **Re-run after the gaps were closed.** The gaps this campaign found were closed on the formal branch (unit tests
-  `e1b3903ab8`, test-only; hevm harness `091bcb1500`; Halmos `557e7691e9`). The affected mutants were re-run with
-  this `run.sh` at `557e7691e9`, on a fresh checkout whose baseline passed first: K06, K41, K42, K43 and K45 on the
-  unit tests; K41 and K42 on Halmos phase 1; K04 on Halmos phases 1 and 2 (with a fresh `ReachL2ToL2Halmos`
-  baseline). Those cells are marked **K§**; every other cell is from `e0ffb33a31`.
+- **Contracts under test:** `src/` and `scripts/` of `karl/expiry-l2-exporter` at `8098da1170` (unchanged in
+  `src/` since `89a3d565ad`): `EXPIRY_PERIOD` is an immutable set by `constructor(uint256 _expiryPeriod)`, which
+  rejects 0; the production value is `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days`, passed by
+  `scripts/L2Genesis.s.sol` and `scripts/libraries/UpgradeUtils.sol`; `expireMessage` returns early for an
+  already-expired message, after its authorization check; the L1CrossDomainMessenger's INTEROP gate reverts
+  `L1CrossDomainMessenger_InteropNotEnabled`. The exporter design is otherwise as before (the exporter at
+  `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`).
+- **Checkouts:** local merges of the formal branch with `8098da1170`, so the unit layer has the tests that kill
+  K44 and K50. The messenger, `Constants.sol` and script mutants and the bridge mutants ran at `a9f616e094` (formal
+  `31e71c3b23` + `8098da1170`). The exporter and L1CrossDomainMessenger mutants ran at `7f4831b8b9` (formal
+  `7db1481139` + `8098da1170`); between the two, only formal-layer files that those mutants do not use changed
+  (the L2ToL2 and bridge Halmos contracts, the hevm harness, Kontrol, EVM-Lean and READMEs), and their baselines
+  passed there.
+- **Every cell of the executed columns is from this run**, with the baseline (`K00`) of every layer passing first
+  on the same checkout. Earlier pins (`e0ffb33a31`, then re-runs at `557e7691e9`) are described under "Retarget
+  to the constructor-set period" and in "Review log"; the K§ and K‡ cells of those runs no longer appear in the
+  matrix.
+- **Catalogue changes for the new source.** K02 and K03 now edit `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` (the
+  production period) instead of a literal in the messenger; K28's edit names the new error; K52–K59 are new (the
+  early return, the constructor, and the two deploy scripts). Every other `sed` applies unchanged, once, on the
+  intended line.
 
 ## The question in one table
 
@@ -49,7 +52,8 @@ by reasoning from their statements, not run (see "Layers").
 
 **K(witness)** only the suite's deterministic witness tests fail (a path they assert no longer works), no
 invariant does; **excl.** the change is outside the hevm harness's compared surface on purpose (`expireMessage`,
-`EXPIRY_PERIOD`, unsafe targets), and only its bytecode pin (`gen-bytecodes.sh --check`) notices it. **pin†** the `expireMessage`
+`EXPIRY_PERIOD` and the constructor, unsafe targets, gas), and only its bytecode pin (`gen-bytecodes.sh --check`)
+notices it. **pin†** the `expireMessage`
 EVM-Lean statement uses `P_contract`, which `evm-lean/scripts/regen.sh` rewrites from the bytecode, so the
 regenerated statement holds with the mutated period (read with the literal 691,200 kept, it would be "stmt").
 Every mutant also changes `snapshots/semver-lock.json`'s init-code hash, which the repo's snapshot check flags as
@@ -58,11 +62,11 @@ a change, not as a semantic catch.
 | ID | Mistake | Reuses | Protocol effect | Unit | Inv | Halmos | hevm eq. | Lean / Quint | EVM-Lean | Kontrol |
 |---|---|---|---|---|---|---|---|---|---|---|
 | K01 | expireMessage accepts t == sentAt + P (strict > becomes >=) | halmos M1, invariants M1 | margin | K | K | K | excl. | Lean `safe_variants` (`≥` at P = 8 is safe); `cex_nonStrict`, Quint `expireGeNoMargin` need P = W | stmt | K |
-| K02 | P_contract = W_protocol = 7 days (margin dropped) | new | margin | K | · | K | excl. | `safe_variants` P = W; `safeNoMargin` | pin† | · |
-| K03 | P_contract = 6 days, below the 7-day protocol window | new | double spend | K | K(setUp) | K | excl. | `cex_periodBelowWindow`; `periodBelowWindow` | pin† | K |
+| K02 | P_contract = W_protocol = 7 days (margin dropped): `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` is 7 days | new | margin | K | · | K | excl. | `safe_variants` P = W; `safeNoMargin` | pin† | · |
+| K03 | P_contract = 6 days, below the 7-day protocol window: `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` is 6 days | new | double spend | K | K(setUp) | K | excl. | `cex_periodBelowWindow`; `periodBelowWindow` | pin† | K |
 | K04 | sentAt + P computed unchecked (wraps for sentAt >= 2^256 - P) | new | none reachable | · | · | K | excl. | — | stmt | · |
 | K05 | sendMessage does not record sentMessageTimestamps | new | liveness | K | K | K | K | — | pin | · |
-| K06 | sendMessage records timestamp 1 instead of block.timestamp | halmos M13 | double spend | K§ | K | K | K | mechanism of `cex_resendNoRestart` / `resendNoRestart` | pin | · |
+| K06 | sendMessage records timestamp 1 instead of block.timestamp | halmos M13 | double spend | K | K | K | K | mechanism of `cex_resendNoRestart` / `resendNoRestart` | pin | · |
 | K07 | relayMessage does not set successfulMessages | halmos M24 | double spend | K | K | K | K | named assumption only | pin | · |
 | K08 | relayMessage has no replay check | invariants M3 | double delivery | K | K | K | K | — | pin | · |
 | K09 | expireMessage drops its msg.sender == L2CrossDomainMessenger check | new | none reachable | K | · | K | excl. | — | stmt | K |
@@ -97,29 +101,34 @@ a change, not as a semantic catch.
 | K37 | refundETH hash preimage uses nonce + 1 | halmos M18 | API shift | K | K(witness) | K | n/a | — | stmt | K |
 | K39 | expireMessage drops its sentAt != 0 check | new; review R1 | unbounded mint | K | K | K | excl. | — (`expire` guard fixes sentAt ≠ 0) | stmt | K |
 | K40 | expireMessage compares the source's block.timestamp instead of _undeliveredAt | new; review R1 | double spend | K | K | K | excl. | — (fact time ignored) | stmt | K |
-| K41 | check (a) reads the caller's own systemConfig() instead of its portal's | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noRealMessengerCheck`; `noRealMessengerCheck` | stmt | K |
-| K42 | check (b) reversed: the caller portal's lockbox must authorize this chain's portal | new; review R1 | double spend | K§ | n/a | K§ | n/a | `cex_noLockboxCheck_fakePortal`; `noLockboxCheck` | stmt | K |
-| K43 | refundETH emits RefundETH only for a nonzero amount | new; review R2 | event only | K§ | · | · (phase 2 stopped; raw ERROR) | n/a | — | pin | · |
-| K44 | relayMessage forwards only half the remaining gas to the target | new; review R2 | liveness (gas) | · | · | · | excl. | — (gas) | pin | · |
-| K45 | relayMessage does not call CrossL2Inbox.validateMessage | new; review R2 | forged delivery, unbounded mint | K§ | · | · | K | — (`relay` needs an initiating event) | pin | · |
+| K41 | check (a) reads the caller's own systemConfig() instead of its portal's | new; review R1 | double spend | K | n/a | K | n/a | `cex_noRealMessengerCheck`; `noRealMessengerCheck` | stmt | K |
+| K42 | check (b) reversed: the caller portal's lockbox must authorize this chain's portal | new; review R1 | double spend | K | n/a | K | n/a | `cex_noLockboxCheck_fakePortal`; `noLockboxCheck` | stmt | K |
+| K43 | refundETH emits RefundETH only for a nonzero amount | new; review R2 | event only | K | · | · (phase 2 not run) | n/a | — | pin | · |
+| K44 | relayMessage forwards only half the remaining gas to the target | new; review R2 | liveness (gas) | K | · | · | excl. | — (gas) | pin | · |
+| K45 | relayMessage does not call CrossL2Inbox.validateMessage | new; review R2 | forged delivery, unbounded mint | K | · | · | K | — (`relay` needs an initiating event) | pin | · |
 | K46 | relayMessage marks successfulMessages after the target call instead of before | new; review R2 | local only (the window rule absorbs it) | · | · | K | · | — | pin | · |
 | K47 | exporter hash ignores the nonce | new; review R2 | liveness | K | K | K | n/a | — | stmt | K |
 | K48 | the forwarded expireMessage carries a different hash | new; review R2 | liveness | K | n/a | K | n/a | — | stmt | K |
 | K49 | refundETH hash preimage uses _from as the sender | halmos M19 (review R2 | unbounded mint | K | K(witness) | K | n/a | — (`isBridge`) | stmt | K |
-| K50 | a new state variable declared before refunded shifts its storage slot (upgrade layout) | new; review R3 | double refund after a later upgrade | · | · | · (phase 2 stopped; raw ERROR) | n/a | — (no storage) | stmt | · |
+| K50 | a new state variable declared before refunded shifts its storage slot (upgrade layout) | new; review R3 | double refund after a later upgrade | K | · | · (phase 2 not run) | n/a | — (no storage) | stmt | · |
 | K51 | expireMessage emits MessageExpired twice | new; review R3 | event only | · | K(witness) | · | excl. | — | pin | · |
+| K52 | expireMessage has no early return for an already-expired message | new; retarget | event only (repeated word re-emits; word dated inside the period reverts instead of returning) | K | · | K | excl. | — (re-expiry is a no-op in the models) | stmt | K |
+| K53 | expireMessage returns early for an already-expired message before its authorization check | new; retarget | none (any caller gets a no-op success for an expired hash) | K | · | K | excl. | — | stmt | K |
+| K54 | the constructor accepts a zero expiry period | new; retarget | deployment guard (with P = 0 every message expires at once: double spend) | K | · | · | excl. | as `cex_periodBelowWindow` (P = 0), if deployed with 0 | pin | · |
+| K55 | the constructor ignores its argument and sets 8 days | new; retarget | none in production; a test network's shorter period is ignored | K | · | · | excl. | — (P fixed per instance) | pin | · |
+| K56 | L2Genesis deploys the messenger with 7 days, not the production period, when no override is set | new; retarget | margin (chains with interop at genesis) | K | · | n/a | n/a | `safe_variants` P = W; `safeNoMargin` | n/a | n/a |
+| K57 | L2Genesis ignores an expiry period override and deploys the production period | new; retarget | test networks only (override ignored) | K | · | n/a | n/a | — | n/a | n/a |
+| K58 | L2Genesis accepts an expiry period override without interop at genesis (silently ignored) | new; retarget | test networks only (override ignored) | K | · | n/a | n/a | — | n/a | n/a |
+| K59 | the upgrade deploys the messenger implementation with 7 days, not the production period | new; retarget | margin (chains that activate interop by upgrade) | K | · | n/a | n/a | `safe_variants` P = W; `safeNoMargin` | n/a | n/a |
 
-K01–K38 are the original catalogue; K39–K51 were added after the first review round (see "Review log").
-**K§** caught at `557e7691e9`, after the gap-closing commits, for the right reason (checked per mutant under
-"Re-run at 557e7691e9"); at `e0ffb33a31` the cell was · or K‡. **K‡** caught only because the test stand-in for the other chain's messenger or portal lacks the getter the
-mutant newly calls, so every call reverts, including honest ones; the forged word the mutant would accept is never
-tried (see "Surviving every executed layer"). Kontrol's K41/K42 cells were K‡ until `4fa18b08ae`, which gave its
-stand-ins every getter. Its stand-in for `caller.systemConfig()` still aliased the caller portal's
-SystemConfig, so K41 stayed indistinguishable (found in Kontrol's review); with a separate stand-in,
-its `relayUndeliveredMessage` iff spec, run on scratch copies with the K41 and K42 edits, fails with
-an assertion counterexample, so both cells are K (run, not only by statement). **· (phase 2 stopped; raw ERROR)**: phase 1 survived, and the bridge's phase-2 check was stopped by hand (its baseline does not
-finish in 90 minutes on the shared host, and it observes neither events nor storage layout, which is what K43
-and K50 change).
+K01–K38 are the original catalogue; K39–K51 were added after the first review round (see "Review log"); K52–K59
+for the constructor-set period and the early return (see "Retarget to the constructor-set period"). For K56–K59
+(deploy scripts) the Halmos, hevm, EVM-Lean and Kontrol columns are n/a: none of them runs the scripts; each
+deploys the messenger with `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` itself. **· (phase 2 not run)**: phase 1
+survived, and the bridge mutants ran with `REACH=never`, because the bridge's phase-2 check does not finish in 90
+minutes on the shared host and observes neither events nor storage layout, which is what K43 and K50 change.
+The invariant layer also ran on the L1CrossDomainMessenger mutants (`run.sh` runs every layer); the harness
+abstracts the L1 hop, so those cells stay n/a.
 
 "Protocol effect" is what the mistake would do in the deployed system (argued per row in `mutants.tsv` terms
 below and in "Equivalent and protocol-equivalent mutants"): *double spend* = the same message delivered on its
@@ -129,21 +138,21 @@ safe on its own; *defense in depth* = weakens the messenger's target rule, which
 successful executions and their effects are the same (revert data and gas may differ); *API shift* = the same
 payouts, reached through different arguments.
 
-### Kills per layer (51 mutants)
+### Kills per layer (59 mutants)
 
 | Layer | Caught | Survived | Not applicable or excluded |
 |---|---|---|---|
-| Unit tests | 45 at `557e7691e9` (42 at `e0ffb33a31`, where K41 and K42 were caught only through a fixture artifact) | K04, K25, K44, K46, K50, K51 (at `e0ffb33a31` also K06, K43, K45) | — |
-| Invariants | 30 (of them: K03 by a setUp assertion; K11, K20, K36, K37, K49, K51 by witness tests only) | K02, K04, K09, K43, K44, K45, K46, K50 | 13 L1CrossDomainMessenger mutants (the harness does not execute L1) |
-| Halmos | 45 (K41, K42 for the right reason at `557e7691e9`; only through a fixture artifact at `e0ffb33a31`) | K25, K44, K45, K51 | K43, K50: phase 1 survived, phase 2 stopped (raw verdict ERROR) |
-| hevm harness | 6 (K05–K08, K15, K45) | K46 | 14 messenger mutants outside the compared surface by design; 30 not the messenger |
-| Kontrol (by statement) | 35 (K35 only at the liquidity edge; K41, K42 by the `relayUndeliveredMessage` iff spec once its stand-ins answer every getter, see Kontrol's README) | 16 | — |
-| EVM-Lean (by statement) | 34 stmt | 17 pin (2 of them pin†) | — |
+| Unit tests | 55 (K56–K58 by `test/scripts/L2Genesis.t.sol`, K59 by `test/scripts/GenerateNUTBundle.t.sol`) | K04, K25, K46, K51 | — |
+| Invariants | 30 (of them: K03 by a setUp assertion; K11, K20, K36, K37, K49, K51 by witness tests only) | K02, K04, K09, K43, K44, K45, K46, K50, K52–K59 | 13 L1CrossDomainMessenger mutants (the harness does not execute L1) |
+| Halmos | 47 | K25, K44, K45, K51, K54, K55 (phase 2 also ran and survived) | K43, K50: phase 1 survived, phase 2 not run; K56–K59: no Halmos contract runs the scripts |
+| hevm harness | 6 (K05–K08, K15, K45) | K46 | 16 messenger mutants outside the compared surface by design; 36 not the messenger's source |
+| Kontrol (by statement) | 37 (K35 only at the liquidity edge; K41, K42 by the `relayUndeliveredMessage` iff spec once its stand-ins answer every getter, see Kontrol's README) | 18 | K56–K59 |
+| EVM-Lean (by statement) | 36 stmt | 19 pin (2 of them pin†) | K56–K59 |
 
 ### Which checks caught each mutant
 
-<details><summary>Failing tests and checks per mutant at <code>e0ffb33a31</code> (the K§ re-runs are under "Re-run at 557e7691e9") (unit: test contract and function; invariants: the first seed
-that failed, invariants first, then witnesses)</summary>
+<details><summary>Failing tests and checks per mutant (unit: test contract and function, re-parsed from the raw
+logs; invariants: the first seed that failed, invariants first, then witnesses)</summary>
 
 - **K01**
   - unit: L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_withinWindow_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts
@@ -151,27 +160,25 @@ that failed, invariants first, then witnesses)</summary>
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_boundary, check_expire_iff, check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K02**
-  - unit: L2ToL2_Uncategorized_Test.test_expiryPeriod_exceedsProtocolWindowByADay_succeeds
+  - unit: GenerateNUTBundleTest.test_run_l2ToL2MessengerExpiryPeriod_succeeds, L2ToL2_Uncategorized_Test.test_productionExpiryPeriod_exceedsProtocolWindowByADay_succeeds
   - inv: -
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expiryPeriodIsCapPlusMargin
-  - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K03**
-  - unit: L2ToL2_Uncategorized_Test.test_expiryPeriod_exceedsProtocolWindowByADay_succeeds
-  - inv(seed 1): Safety.setUp | witnesses: setUp, setUp, setUp
+  - unit: GenerateNUTBundleTest.test_run_l2ToL2MessengerExpiryPeriod_succeeds, L2ToL2_Uncategorized_Test.test_productionExpiryPeriod_exceedsProtocolWindowByADay_succeeds
+  - inv(seed 1): NoUnsafeTargetRule.setUp, Safety.setUp | witnesses: setUp, setUp, setUp, setUp, setUp
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_contractWindowCoversProtocolCap, check_expiryPeriodIsCapPlusMargin
-  - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K04**
   - unit: -
   - inv: -
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K05**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireGasLimit_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_destinationIsThisChain_reverts, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_withinWindow_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts, L2ToL2_SendMessage_Test.testFuzz_sendMessage_succeeds
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireGasLimit_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_destinationIsThisChain_reverts, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_afterExpiry_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_withinWindow_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts, L2ToL2_SendMessage_Test.testFuzz_sendMessage_succeeds
   - inv(seed 1): Safety.invariant_sentTimestamps, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayAtWindowBoundary_succeeds, test_witness_relayBlocksExport_succeeds, test_witness_relayedExportCall_succeeds, test_witness_sentTimestampCorruptionDetected_succeeds, test_witness_targetRuleRejects_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_upgradedExporterForgesFact_succeeds, test_witness_wrongChainRelayRejected_succeeds, test_witness_wrongExportRejected_succeeds
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_send_effects_and_frame
   - hevm: S-map: CAUGHT check_sendMessage_len0, check_sendMessage_len100, check_sendMessage_len128, check_sendMessage_len37, check_sendMessage_len4; S-all: SURVIVED
 - **K06**
-  - unit: -
+  - unit: L2ToL2_SendMessage_Test.testFuzz_sendMessage_succeeds
   - inv(seed 1): Safety.invariant_ethConservation, Safety.invariant_expiredImpliesNeverRelayable, Safety.invariant_noDoubleSpend, Safety.invariant_sentTimestamps, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayAtWindowBoundary_succeeds, test_witness_relayBlocksExport_succeeds, test_witness_relayedExportCall_succeeds, test_witness_sentTimestampCorruptionDetected_succeeds, test_witness_targetRuleRejects_succeeds, test_witness_wrongChainRelayRejected_succeeds, test_witness_wrongExportRejected_succeeds
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_send_effects_and_frame
   - hevm: S-map: CAUGHT check_sendMessage_len0, check_sendMessage_len100, check_sendMessage_len128, check_sendMessage_len37, check_sendMessage_len4; S-all: SURVIVED
@@ -191,12 +198,12 @@ that failed, invariants first, then witnesses)</summary>
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff, check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K10**
-  - unit: L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_notOtherMessenger_reverts
+  - unit: L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_afterExpiry_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_notOtherMessenger_reverts
   - inv(seed 1): Safety.invariant_ethConservation, Safety.invariant_expiredImpliesNeverRelayable, Safety.invariant_noDoubleSpend, Safety.invariant_noForgedFact, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_relayBlocksExport_succeeds
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff, check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K11**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireGasLimit_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_destinationIsThisChain_reverts, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItself_reverts, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_notOtherMessenger_reverts, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_unknownMessage_reverts, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_withinWindow_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireGasLimit_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_destinationIsThisChain_reverts, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItselfWordCannotExpire_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_afterExpiry_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_unknownMessage_reverts, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_withinWindow_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_noRecordedTimestamp_reverts
   - inv(seed 1): - | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_upgradedExporterForgesFact_succeeds
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_boundary, check_expire_iff, check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
@@ -221,7 +228,7 @@ that failed, invariants first, then witnesses)</summary>
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_UnsafeTargetRule_relay
   - hevm: S-map: CAUGHT check_relayMessage_badEncoding_len33, check_relayMessage_badEncoding_offset20, check_relayMessage_badEncoding_offset60, check_relayMessage_len0, check_relayMessage_len100, check_relayMessage_len37, check_relayMessage_len4; S-all: CAUGHT check_allSlots_relayMessage_len0, check_allSlots_relayMessage_len100, check_allSlots_relayMessage_len37, check_allSlots_relayMessage_len4
 - **K16**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_relayed_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_relayed_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayBlocksExport_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_wrongExportRejected_succeeds
   - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
 - **K17**
@@ -229,63 +236,67 @@ that failed, invariants first, then witnesses)</summary>
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_ethConservation, Safety.invariant_expiredImpliesNeverRelayable, Safety.invariant_noDoubleSpend, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_relayBlocksExport_succeeds
   - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding
 - **K18**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItself_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItselfWordCannotExpire_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_wrongExportRejected_succeeds
   - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
 - **K19**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItself_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts
-  - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_wrongExportRejected_succeeds
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItselfWordCannotExpire_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds
+  - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_expiredImpliesNeverRelayable, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_wrongExportRejected_succeeds
+  - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
+- **K38**
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_relayed_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds
+  - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayBlocksExport_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_wrongExportRejected_succeeds
   - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
 - **K20**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItself_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItselfWordCannotExpire_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds
   - inv(seed 1): - | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_wrongExportRejected_succeeds
   - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
 - **K21**
-  - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_borrowedPortal_reverts
-  - inv: -
+  - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_borrowedPortal_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit, check_relayUndelivered_rejectsCallerClaimingPortalA
 - **K22**
-  - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_noLockbox_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_otherCluster_reverts
-  - inv: -
+  - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_noLockbox_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_otherCluster_reverts
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K23**
   - unit: L1CDM_RelayUndeliveredMessage_Test.testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts
-  - inv: -
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit, check_relayUndelivered_rejectsL2ToL2AsSender, check_relayUndelivered_rejectsSelfCallOutsideRelay
 - **K24**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_outOfGasReplay_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit, check_relayUndelivered_rejectsL2ToL2AsSender
 - **K25**
   - unit: -
-  - inv: -
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: SURVIVED; ReachL1CDMHalmos: SURVIVED
 - **K26**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_outOfGasReplay_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K27**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_outOfGasReplay_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K28**
   - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_interopDisabled_reverts
-  - inv: -
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K29**
-  - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
+  - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_outOfGasReplay_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K30**
   - unit: L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_ownChain_reverts, L1CDM_Uncategorized_Test.test_relayMessage_toSelf_reverts
-  - inv: -
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_L1_relayMessage_rejectsSelfAndPortalTargets
 - **K31**
-  - unit: Bridge_RefundETH_Test.testFuzz_refundETH_succeeds
+  - unit: Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_atMostOneRefund, Safety.invariant_ethConservation, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_refundAfterExpiry_succeeds
   - halmos: RefundExpiryHalmos: CAUGHT check_refund_iff_effects_singleUse
 - **K32**
-  - unit: Bridge_RefundETH_Test.testFuzz_refundETH_succeeds
+  - unit: Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_atMostOneRefund, Safety.invariant_ethConservation, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_legacyForgedFact_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_upgradedExporterForgesFact_succeeds
   - halmos: RefundExpiryHalmos: CAUGHT check_refund_iff_effects_singleUse
 - **K33**
@@ -301,46 +312,42 @@ that failed, invariants first, then witnesses)</summary>
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_ethConservation, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds
   - halmos: RefundExpiryHalmos: CAUGHT check_refund_iff_effects_singleUse, check_sendETH_then_refund
 - **K36**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds
   - inv(seed 1): - | witnesses: test_witness_legacyForgedFact_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_upgradedExporterForgesFact_succeeds
   - halmos: RefundExpiryHalmos: CAUGHT check_refund_frame, check_refund_iff_effects_singleUse, check_sendETH_then_refund
 - **K37**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds
   - inv(seed 1): - | witnesses: test_witness_legacyForgedFact_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_upgradedExporterForgesFact_succeeds
   - halmos: RefundExpiryHalmos: CAUGHT check_refund_frame, check_refund_iff_effects_singleUse, check_sendETH_then_refund
-- **K38**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_anyCaller_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_relayed_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts
-  - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayBlocksExport_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_wrongExportRejected_succeeds
-  - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
 - **K39**
-  - unit: Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItself_reverts, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChain_reverts, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_unknownMessage_reverts
+  - unit: Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItselfWordCannotExpire_succeeds, Exporter_ExportUndeliveredMessage_Test.test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_unknownMessage_reverts, L2ToL2_ExpireMessage_Test.test_expireMessage_noRecordedTimestamp_reverts
   - inv(seed 1): Safety.invariant_noForgedFact, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_wrongExportRejected_succeeds
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff, check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K40**
-  - unit: Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_destinationIsThisChain_reverts, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts
+  - unit: Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_wrongPreimage_reverts, Bridge_RefundETH_Test.test_refundETH_destinationIsThisChain_reverts, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_afterExpiry_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds, L2ToL2_ExpireMessage_Test.test_expireMessage_atWindowEnd_reverts
   - inv(seed 1): Safety.invariant_ethConservation, Safety.invariant_expiredImpliesNeverRelayable, Safety.invariant_noDoubleSpend, TightWindow.invariant_allSafetyProperties | witnesses: test_witness_earlyFactRejected_succeeds, test_witness_upgradedExporterForgesFact_succeeds
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_boundary, check_expire_iff, check_expire_iff_unbounded
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K41**
-  - unit: L1CDM_RelayUndeliveredMessage_Test.testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_borrowedPortal_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_otherCluster_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
-  - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
+  - unit: L1CDM_RelayUndeliveredMessage_Test.testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_borrowedPortal_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_otherCluster_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
+  - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit, check_relayUndelivered_rejectsCallerClaimingPortalA
 - **K42**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_otherCluster_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_otherCluster_reverts, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_outOfGasReplay_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K43**
-  - unit: -
+  - unit: Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds
   - inv: -
-  - halmos: RefundExpiryHalmos: SURVIVED; ReachBridgeHalmos: stopped by hand
+  - halmos: RefundExpiryHalmos: SURVIVED
 - **K44**
-  - unit: -
+  - unit: L2ToL2_RelayMessage_Test.test_relayMessage_forwardsAllRemainingGas_succeeds
   - inv: -
   - halmos: L2ToL2ExpiryHalmos: SURVIVED; ReachL2ToL2Halmos: SURVIVED
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K45**
-  - unit: -
+  - unit: L2ToL2_RelayMessage_Test.testFuzz_relayMessage_metadataStore_succeeds
   - inv: -
   - halmos: L2ToL2ExpiryHalmos: SURVIVED; ReachL2ToL2Halmos: SURVIVED
   - hevm: S-map: CAUGHT check_relayMessage_badEncoding_hugeLen, check_relayMessage_badEncoding_hugeOffset, check_relayMessage_badEncoding_len33, check_relayMessage_badEncoding_len65, check_relayMessage_badEncoding_offset20, check_relayMessage_badEncoding_offset60, check_relayMessage_len0, check_relayMessage_len100, check_relayMessage_len37, check_relayMessage_len4, check_relayMessage_rawPayload_len0, check_relayMessage_rawPayload_len100, check_relayMessage_rawPayload_len128; S-all: CAUGHT check_allSlots_relayMessage_len0, check_allSlots_relayMessage_len100, check_allSlots_relayMessage_len37, check_allSlots_relayMessage_len4
@@ -350,41 +357,78 @@ that failed, invariants first, then witnesses)</summary>
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_OnlyExportReachesL1_relay_reentrant
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K47**
-  - unit: Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItself_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_relayed_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds
+  - unit: Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_fromItselfWordCannotExpire_succeeds, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_relayed_reverts, Exporter_ExportUndeliveredMessage_Test.testFuzz_exportUndeliveredMessage_succeeds
   - inv(seed 1): NoUnsafeTargetRule.invariant_safetyWithoutTargetRule, Safety.invariant_onlyExportReachesL1, TightWindow.invariant_allSafetyProperties | witnesses: -
   - halmos: ExporterExpiryHalmos: CAUGHT check_export_binding, check_exporter_anyCalldata_onlyExportPayload
 - **K48**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
-  - inv: -
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_outOfGasReplay_succeeds, L1CDM_RelayUndeliveredMessage_Test.test_relayUndeliveredMessage_succeeds
+  - inv: n/a (the invariant harness does not execute the L1CrossDomainMessenger)
   - halmos: L1CDMExpiryHalmos: CAUGHT check_relayUndelivered_iff_and_deposit
 - **K49**
-  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds
+  - unit: Bridge_Integration_Test.test_refundETH_endToEnd_succeeds, Bridge_Integration_Test.test_refundETH_expireReplay_succeeds, Bridge_RefundETH_Test.testFuzz_refundETH_succeeds, Bridge_RefundETH_Test.test_refundETH_messageNotFromBridge_reverts, Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds, Bridge_RefundETH_Test.test_refundETH_senderRejectsETH_succeeds, Bridge_RefundETH_Test.test_refundETH_zeroAmount_succeeds
   - inv(seed 1): - | witnesses: test_witness_legacyForgedFact_succeeds, test_witness_refundAfterExpiry_succeeds, test_witness_relayedExportCall_succeeds, test_witness_unsafeWindowDoubleSpend_succeeds, test_witness_upgradedExporterForgesFact_succeeds
   - halmos: RefundExpiryHalmos: CAUGHT check_refund_frame, check_refund_iff_effects_singleUse, check_sendETH_then_refund
 - **K50**
-  - unit: -
+  - unit: Bridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds
   - inv: -
-  - halmos: RefundExpiryHalmos: SURVIVED; ReachBridgeHalmos: stopped by hand
+  - halmos: RefundExpiryHalmos: SURVIVED
 - **K51**
   - unit: -
   - inv(seed 1): - | witnesses: test_witness_refundAfterExpiry_succeeds
   - halmos: L2ToL2ExpiryHalmos: SURVIVED; ReachL2ToL2Halmos: SURVIVED
   - hevm: S-map: SURVIVED; S-all: SURVIVED
+- **K52**
+  - unit: L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_afterExpiry_succeeds, L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_succeeds
+  - inv: -
+  - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff, check_expire_iff_unbounded
+  - hevm: S-map: SURVIVED; S-all: SURVIVED
+- **K53**
+  - unit: L2ToL2_ExpireMessage_Test.testFuzz_expireMessage_afterExpiry_succeeds
+  - inv: -
+  - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff, check_expire_iff_unbounded
+  - hevm: S-map: SURVIVED; S-all: SURVIVED
+- **K54**
+  - unit: L2ToL2_Constructor_Test.test_constructor_zeroExpiryPeriod_reverts
+  - inv: -
+  - halmos: L2ToL2ExpiryHalmos: SURVIVED; ReachL2ToL2Halmos: SURVIVED
+  - hevm: S-map: SURVIVED; S-all: SURVIVED
+- **K55**
+  - unit: L2ToL2_Constructor_Test.testFuzz_constructor_expiryPeriod_succeeds
+  - inv: -
+  - halmos: L2ToL2ExpiryHalmos: SURVIVED; ReachL2ToL2Halmos: SURVIVED
+  - hevm: S-map: SURVIVED; S-all: SURVIVED
+- **K56**
+  - unit: L2Genesis_Run_Test.test_run_defaultL2ToL2MessageExpiryPeriod_succeeds
+  - inv: -
+  - halmos: n/a (no Halmos contract deploys through scripts/L2Genesis.s.sol)
+- **K57**
+  - unit: L2Genesis_Run_Test.testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds
+  - inv: -
+  - halmos: n/a (no Halmos contract deploys through scripts/L2Genesis.s.sol)
+- **K58**
+  - unit: L2Genesis_Run_Test.testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts
+  - inv: -
+  - halmos: n/a (no Halmos contract deploys through scripts/L2Genesis.s.sol)
+- **K59**
+  - unit: GenerateNUTBundleTest.test_run_l2ToL2MessengerExpiryPeriod_succeeds
+  - inv: -
+  - halmos: n/a (no Halmos contract deploys through scripts/libraries/UpgradeUtils.sol)
 
 </details>
 
 ## Surviving every executed layer
 
-At `557e7691e9`, after the gap-closing commits, **three mutants have no catch in any executed layer: K25, K44 and
-K50.** K25 is equivalent; K44 and K50 are known gaps covered elsewhere or out of scope. At `e0ffb33a31` the list
-was longer: K43 also survived everything, and K41 and K42 were caught only for the wrong reason; see "Re-run at
-557e7691e9".
+**One mutant has no catch in any executed layer: K25**, which is equivalent (argued below). K44 and K50, the
+other two survivors at `557e7691e9`, are now caught by the unit tests:
+
+| ID | Mistake | Catching check | Why that is the right reason |
+|---|---|---|---|
+| K44 | `relayMessage` forwards only half the remaining gas to the target | `L2ToL2CrossDomainMessenger_RelayMessage_Test.test_relayMessage_forwardsAllRemainingGas_succeeds` | The relay gets a fixed 1,000,000 gas and its target records `gasleft()`; the test requires more than three quarters of it, which only forwarding all but 1/64 meets. Under K44: `assertion failed: 484206 <= 750000`. |
+| K50 | a new state variable declared before `SuperchainETHBridge.refunded` (storage layout shift) | `SuperchainETHBridge_RefundETH_Test.test_refundETH_refundedAtSlotZero_succeeds` | After a refund, `vm.load` of `keccak256(abi.encode(H, 0))` must read 1, the slot `snapshots/storageLayout/SuperchainETHBridge.json` gives `refunded`. Under K50 it reads 0. |
 
 | ID | Mistake | Why it survives | Where it is covered instead |
 |---|---|---|---|
-| K25 | checks (a) and (c) of `relayUndeliveredMessage` in the opposite order | **Equivalent** (argued below): every check is a view call and every failure reverts. It also survived `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` (2319 s; 2463 s for the whole Halmos layer). Kontrol's `prove_relayUndeliveredMessage_spec` and the EVM-Lean `relay_success` statement would still hold. | Nothing should catch it. |
-| K44 | `relayMessage` forwards only half the remaining gas to the target | **Out of scope: gas forwarding.** No layer asserts how much gas the relay forwards: the unit tests' targets are cheap, Halmos and the models do not check gas, and the hevm harness excludes gas on purpose. A relay to an expensive target can fail where it would have succeeded; the message then stays unrelayed and can still expire, so nothing is paid twice. The forwarding code predates this PR and is intentionally untested here. | Not covered. A unit test with a target that needs most of the transaction's gas would catch it. |
-| K50 | a new state variable declared before `SuperchainETHBridge.refunded` (storage layout shift) | **Upgrade history.** Every executed layer deploys fresh code and reads `refunded` through its getter. After a later upgrade with this layout, every hash refunded before the upgrade would read as unrefunded and could be refunded again. | The committed storage-layout snapshot (`snapshots/storageLayout/SuperchainETHBridge.json` has `refunded` at slot 0; with K50 it is slot 1, so regenerating the snapshots with `just snapshots-check` followed by `git diff --exit-code snapshots/` fails), and the `refundETH` EVM-Lean statement, which fixes the `refunded` slot (by reasoning, not run). |
+| K25 | checks (a) and (c) of `relayUndeliveredMessage` in the opposite order | **Equivalent** (argued below): every check is a view call and every failure reverts. It also survived `ReachL1CDMHalmos` (2536 s for the whole Halmos layer). Kontrol's `prove_relayUndeliveredMessage_spec` and the EVM-Lean `relay_success` statement would still hold. | Nothing should catch it. |
 
 **Every other non-equivalent mutant is caught by at least one executed layer.** The ones with a single catching layer:
 - **K46** (`relayMessage` marks the message relayed only after the target call). **Only Halmos** catches it
@@ -395,11 +439,13 @@ was longer: K43 also survived everything, and K41 and K42 were caught only for t
   `successfulMessages(h)` back during the call (develop answers true, K46 false).
 - **K51** (duplicate `MessageExpired`) is caught only by the invariant witness `test_witness_refundAfterExpiry_succeeds`,
   which counts that event.
-- **K04** (unchecked `sentAt + P`) is caught only by Halmos, which changes no reachable state on a real chain (argued
-  below). At `557e7691e9` both phase-1 `check_expire_iff_unbounded` and both phase-2 `ReachL2ToL2Halmos` checks
-  catch it, because the harness's block timestamp is a full `uint256`.
-- **K45** (`relayMessage` skips `CrossL2Inbox.validateMessage`) was caught only by the hevm harness at
-  `e0ffb33a31`; the unit tests now catch it too (`vm.expectCall` on the inbox, `e1b3903ab8`).
+- **K04** (unchecked `sentAt + P`) is caught only by Halmos (`check_expire_iff_unbounded`), and changes no reachable
+  state on a real chain (argued below).
+- **Only the unit tests:** K43 (`test_refundETH_zeroAmount_succeeds`), K44 and K50 (above), K54
+  (`test_constructor_zeroExpiryPeriod_reverts`), K55 (`testFuzz_constructor_expiryPeriod_succeeds`), and the
+  deploy-script mutants K56–K59, each by one test of `test/scripts/L2Genesis.t.sol` or
+  `test/scripts/GenerateNUTBundle.t.sol` (see finding 17). K54 and K55 survive Halmos because its harnesses deploy
+  the messenger with the production period, and no other layer deploys it with any other.
 
 ### Re-run at 557e7691e9
 
@@ -407,14 +453,14 @@ Each re-run mutant was checked for **why** it is now caught, not only that it is
 
 | ID | Layer | Catching check | Why that is the right reason |
 |---|---|---|---|
-| K06 | unit | `testFuzz_sendMessage_succeeds` | `assertion failed: 1 != <fuzzed timestamp>`: the test now warps to a fuzzed time, so the recorded timestamp 1 is wrong. |
-| K41 | unit | `test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts` | "next call did not revert as expected": a fake messenger whose own `systemConfig()` names it is **accepted**, which is the attack. (The older fixture tests still fail on missing getters; they are not counted as the reason.) |
-| K41 | Halmos | `check_relayUndelivered_rejectsCallerClaimingPortalA` (and `check_relayUndelivered_iff_and_deposit`) | The rejection check that passed at `e0ffb33a31` now fails: the stand-in answers `systemConfig()` symbolically. A probe on the same build (`assert(!ok || a)` after a relay from the stand-in caller) passes on the unmutated code and fails under K41: the mutant accepts a word with check (a) false. |
-| K42 | unit | `test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts` | "next call did not revert as expected": a caller whose portal's lockbox authorizes this chain is accepted. Also `test_refundETH_endToEnd_succeeds` fails on an assertion. |
-| K42 | Halmos | `check_relayUndelivered_iff_and_deposit` | The same probe with `assert(!ok || b)` passes on the unmutated code and fails under K42: the mutant accepts a word with check (b) false, the forged direction. |
-| K43 | unit | `test_refundETH_zeroAmount_succeeds` | Expects `RefundETH` for amount 0 and sees `LiquidityMinted` next. |
-| K45 | unit | `testFuzz_relayMessage_metadataStore_succeeds` | "expected call to 0x4200…0022 with data `validateMessage(…)`": the inbox is never asked. |
-| K04 | Halmos | `check_expire_iff_unbounded`; `ReachL2ToL2Halmos.check_reach_sequence2`, `check_reach_step_symbolicStorage` | The (E) clause now asserts `pre.ts <= type(uint256).max - period`. The counterexample sends at `block.timestamp = 2^256 - 0x80000` and then expires through the wrapped deadline. The fresh phase-2 baseline passed (1096 s for phases 1 and 2). |
+| K06 | unit | `testFuzz_sendMessage_succeeds` | `assertion failed: 1 != <fuzzed timestamp>`: the test now warps to a fuzzed time, so the recorded timestamp 1 is wrong. | | K | K | K | K
+| K41 | unit | `test_relayUndeliveredMessage_fakeMessengerOwnSystemConfig_reverts` | "next call did not revert as expected": a fake messenger whose own `systemConfig()` names it is **accepted**, which is the attack. (The older fixture tests still fail on missing getters; they are not counted as the reason.) | | K | n/a | K | n/a
+| K41 | Halmos | `check_relayUndelivered_rejectsCallerClaimingPortalA` (and `check_relayUndelivered_iff_and_deposit`) | The rejection check that passed at `e0ffb33a31` now fails: the stand-in answers `systemConfig()` symbolically. A probe on the same build (`assert(!ok || a)` after a relay from the stand-in caller) passes on the unmutated code and fails under K41: the mutant accepts a word with check (a) false. | | K | n/a | K | n/a
+| K42 | unit | `test_relayUndeliveredMessage_callerLockboxAuthorizesThisChain_reverts` | "next call did not revert as expected": a caller whose portal's lockbox authorizes this chain is accepted. Also `test_refundETH_endToEnd_succeeds` fails on an assertion. | | K | n/a | K | n/a
+| K42 | Halmos | `check_relayUndelivered_iff_and_deposit` | The same probe with `assert(!ok || b)` passes on the unmutated code and fails under K42: the mutant accepts a word with check (b) false, the forged direction. | | K | n/a | K | n/a
+| K43 | unit | `test_refundETH_zeroAmount_succeeds` | Expects `RefundETH` for amount 0 and sees `LiquidityMinted` next. | | K | · | · (phase 2 not run) | n/a
+| K45 | unit | `testFuzz_relayMessage_metadataStore_succeeds` | "expected call to 0x4200…0022 with data `validateMessage(…)`": the inbox is never asked. | | K | · | · | K
+| K04 | Halmos | `check_expire_iff_unbounded`; `ReachL2ToL2Halmos.check_reach_sequence2`, `check_reach_step_symbolicStorage` | The (E) clause now asserts `pre.ts <= type(uint256).max - period`. The counterexample sends at `block.timestamp = 2^256 - 0x80000` and then expires through the wrapped deadline. The fresh phase-2 baseline passed (1096 s for phases 1 and 2). | | · | · | K | excl.
 
 Kontrol's stand-ins for K41/K42 were fixed in `4fa18b08ae` (every stand-in answers every getter) and, for K41, in
 Kontrol's review round (a separate stand-in for `caller.systemConfig()`). Its `relayUndeliveredMessage` iff spec was
@@ -436,9 +482,8 @@ implementation changes outside the catalogue.
 
 ## Findings and surprises
 
-Findings 1, 2, 3, 11 (K43), 12 (K45), 14 and 15 are resolved on the formal branch; each says by which commit, and the
-affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of each finding describes the state at
-`e0ffb33a31`.
+Findings 1, 2, 3, 11, 12 (K45), 13, 14, 15 and 16 are resolved; each says by which commit. The text of findings
+1–15 describes the state at `e0ffb33a31`; 16 and 17 are from the retargeted campaign.
 
 1. **Resolved in `e1b3903ab8`** (the test fuzzes the timestamp; K06 is now caught). **Unit tests miss K06 (send
    records timestamp 1).** `testFuzz_sendMessage_succeeds` asserts
@@ -512,8 +557,9 @@ affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of eac
     EVM-Lean and Kontrol statements for `refundETH`, the exporter and `expireMessage`) are what pin those down. The
     unit tests, invariants and Halmos were run and catch them, except K45 (only the hevm harness); the EVM-Lean and
     Kontrol columns are by reasoning.
-11. **K43 resolved in `e1b3903ab8`** (zero-amount refund event test); K50 remains, covered by the storage-layout
-    snapshot. **Upgrade history, and events other than the one witness that counts them, are outside the executed
+11. **K43 resolved in `e1b3903ab8`** (zero-amount refund event test); **K50 resolved in `8098da1170`**
+    (`test_refundETH_refundedAtSlotZero_succeeds` pins the slot of `refunded`).
+    **Upgrade history, and events other than the one witness that counts them, are outside the executed
     layers.**
     K50 (storage-layout shift in the bridge) and K43 (a missing zero-amount `RefundETH` event) survive all of them; see "Surviving every executed layer". K51 (a duplicate
     `MessageExpired`) is caught only because one invariant-suite witness counts that event. The repo's storage-layout
@@ -523,7 +569,8 @@ affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of eac
     `CrossL2Inbox.validateMessage`: forged delivery, and through a forged `relayETH` an unbounded mint) is caught
     only by the hevm harness, and K46 (mark after the call; local only) only by Halmos's re-entrant export check.
     The checks that would add a second layer are proposed under "Surviving every executed layer".
-13. **Accepted as out of scope:** the gas forwarding predates this PR and is intentionally untested here.
+13. **Resolved in `bd472b2eb1`** (`test_relayMessage_forwardsAllRemainingGas_succeeds`; K44 is now caught by the
+    unit tests).
     **Relay gas forwarding is asserted by no layer.** K44 (half the gas forwarded to the relay target) survives all of them, as R2
     predicted; K27's changed minimum gas limit is caught only through the exact deposit envelope.
 14. **Resolved in `557e7691e9`** (the (E) clause asserts the `sentAt + period` bound; K04 is now caught by both
@@ -537,6 +584,25 @@ affected mutants were re-run there (see "Re-run at 557e7691e9"). The text of eac
     three layers at once** (Halmos, Kontrol, unit tests); see "Surviving
     every executed layer". The layers state the right property, but their models of "another chain's messenger and
     portal" lack two getters that a mistaken implementation might call.
+
+16. **Resolved in `31e71c3b23` and `a074ff57ee`.** **At `7db1481139` the Halmos and hevm layers did not match the new
+    source.** `L2ToL2ExpiryHalmos`'s `check_expire_iff`, `check_expire_iff_unbounded` and `check_expire_boundary`
+    failed on the unmutated code: from symbolic storage, `expiredMessages[H]` may already be true, and the early
+    return then succeeds whatever the time. `RefundExpiryHalmos.check_sendETH_then_refund` deployed the messenger
+    without its constructor argument, and the hevm mutant harness used `type(...).runtimeCode`, which a contract
+    with an immutable does not have. The campaign's first baseline stopped on the Halmos failures; the run here is
+    on the fixed checks, which state the early return (`expiredBefore || (sentAt != 0 && t > sentAt + W)`) and so
+    kill K52 and K53.
+17. **The deploy-script mutants need the script tests.** K56–K59 change only what `L2Genesis` or the upgrade bundle
+    passes to the constructor. The messenger's own tests deploy it themselves: in particular
+    `L2ToL2CrossDomainMessenger_Uncategorized_Test.test_genesisExpiryPeriod_isProduction_succeeds` reads the
+    predeploy that its `TestInit` etched from a harness built with `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`, so it
+    compares the constant with itself and passes under K56. The unit layer therefore adds
+    `test/scripts/L2Genesis.t.sol` and `test/scripts/GenerateNUTBundle.t.sol` for `Constants.sol` and script
+    mutants (and the baseline), where `test_run_defaultL2ToL2MessageExpiryPeriod_succeeds`,
+    `testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds`, `testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts`
+    and `test_run_l2ToL2MessengerExpiryPeriod_succeeds` catch them. The genesis test in the messenger's file could
+    use `L2Genesis` (or be dropped in favour of the script test).
 
 ## Equivalent and protocol-equivalent mutants
 
@@ -611,6 +677,11 @@ statements) flag them:
 - **K46** (mark relayed after the target call): a re-entrant export during the relay carries the relay's own time,
   at most `sentAt + W <= sentAt + P`, so `expireMessage` rejects it; only the local OnlyExportReachesL1 property
   breaks.
+- **K53** (the early return before the authorization check): for a hash that already expired, any caller gets a
+  successful call that changes nothing and emits nothing, where the original reverts. No state, event or payout
+  differs; only who gets a revert. The unit tests (`testFuzz_expireMessage_afterExpiry_succeeds`), Halmos
+  (`check_expire_iff`) and the EVM-Lean and Kontrol statements still name the authorization as a condition of
+  success.
 - **K37** (refund preimage uses `nonce + 1`): `refundETH(d, n, ...)` refunds the message with nonce `n + 1` and the
   same `(from, to, amount)`, and pays its own `from` and `amount`. Every expired bridge message can still be
   refunded once, through the shifted nonce, and nothing is paid twice. Only the API is wrong, and a message with
@@ -619,73 +690,72 @@ statements) flag them:
 ## Layers and how each was run
 
 All executed layers ran on a 32-core Linux host, each heavy command under a 16 GB memory cap with swap off, at
-most two campaigns at a time, with forge 1.8.3 (the repo pin) and Halmos 0.3.3 with
+most three campaigns at a time, with forge 1.8.3 (the repo pin) and Halmos 0.3.3 with
 `../halmos/halmos-selfdestruct.patch`. `run.sh` runs a baseline (the unmutated code, id `K00`) through every
 selected layer first and stops unless all of it passes.
 
 | Layer | What `run.sh` runs per mutant | Budget | Typical time per mutant |
 |---|---|---|---|
-| Unit tests (PR #23259) | `FOUNDRY_PROFILE=liteci forge test --fuzz-seed 1` on `test/L1/L1CrossDomainMessenger.t.sol`, `test/L2/L2ToL2CrossDomainMessenger.t.sol`, `test/L2/UndeliveredMessageExporter.t.sol` and `test/L2/SuperchainETHBridge.t.sol`, all four for every mutant (93 tests) | liteci: 128 fuzz runs | 20–45 s, including the build |
+| Unit tests | `FOUNDRY_PROFILE=liteci forge test --fuzz-seed 1` on `test/L1/L1CrossDomainMessenger.t.sol`, `test/L2/L2ToL2CrossDomainMessenger.t.sol`, `test/L2/UndeliveredMessageExporter.t.sol` and `test/L2/SuperchainETHBridge.t.sol` for every mutant; for `Constants.sol` and deploy-script mutants and the baseline, also `test/scripts/L2Genesis.t.sol` and `test/scripts/GenerateNUTBundle.t.sol` | liteci: 128 fuzz runs | 21–45 s, including the build (75–95 s with the script tests) |
 | Invariants (`../invariants`) | `FOUNDRY_PROFILE=liteci forge test --match-path 'test/formal/expiry/invariants/*'`, seed 1; if nothing fails, seeds 2 and 3 | the inline-pinned liteci budget, 32 runs x 256 depth per configuration | 90–110 s per seed; 250–340 s for a survivor |
-| Halmos (`../halmos`) | the expected-PASS checks (from `expected.tsv`) of the touched contract's phase-1 contract (`L2ToL2ExpiryHalmos`, `ExporterExpiryHalmos`, `L1CDMExpiryHalmos`, `RefundExpiryHalmos`); if none fails, also its phase-2 reachability contract | `halmos.toml` (bytes lengths 0,1,32,33,100,132,260; 60 s per assertion query); 2400 s or 5400 s per process | 10–40 s (L1CDM: 140–200 s); phase 2: 76 s (exporter) to about 40 min (L1CDM) |
-| hevm harness (`../hevm`) | the mutated messenger is compiled as the harness's NEW code (as `../hevm/run.sh` does for its own mutants), and every `check_sendMessage_*`, `check_relayMessage_*` (S-map, solidity layout) and `check_allSlots_*` (S-all, generic layout) runs under Halmos. The mutant is compiled with the harness's `foundry.toml` (optimizer off), while develop's side is the optimized repo build, as in `../hevm/run.sh`; the unmutated control (K00) passes under the same setup | no solver timeout, as in `../hevm/run.sh` | 110–200 s |
+| Halmos (`../halmos`) | the expected-PASS checks (from `expected.tsv`) of the touched contract's phase-1 contract (`L2ToL2ExpiryHalmos`, `ExporterExpiryHalmos`, `L1CDMExpiryHalmos`, `RefundExpiryHalmos`; `Constants.sol` mutants use the messenger's, whose harnesses deploy it with that constant; the scripts have none); if none fails, also its phase-2 reachability contract | `halmos.toml` (bytes lengths 0,1,32,33,100,132,260; 60 s per assertion query); 2400 s or 5400 s per process | 10–40 s (L1CDM: 140–200 s); phase 2: 76 s (exporter) to about 40 min (L1CDM) |
+| hevm harness (`../hevm`) | the mutated messenger is compiled and deployed with the production period, and its runtime is the harness's NEW code (as `../hevm/run.sh` does for its own mutants), and every `check_sendMessage_*`, `check_relayMessage_*` (S-map, solidity layout) and `check_allSlots_*` (S-all, generic layout) runs under Halmos. The mutant is compiled with the harness's `foundry.toml` (optimizer off), while develop's side is the optimized repo build, as in `../hevm/run.sh`; the unmutated control (K00) passes under the same setup | no solver timeout, as in `../hevm/run.sh` | 110–200 s |
 | Lean (`../lean`), Quint (`../quint`) | not run: each mutant is mapped to the model parameter, instance or counterexample theorem it corresponds to | — | — |
 | EVM-Lean (`../evm-lean*`) | not rebuilt: the proofs are pinned to the c7c51d79e2 bytecode, so every non-equivalent mutant breaks the pin. The column says whether the **statement** would become false of the mutated code (stmt) or would still hold and only the pin breaks (pin) | — | — |
 | Kontrol (`../kontrol`) | not run: it was committed after the campaign, and each mutant needs a full `kontrol build --rekompile` of the proof project before its proofs (several of which take 5–35 min). The column maps each mutant to the proof statements in `../kontrol/README.md`: K = some proved statement would become false | — | — |
 
 How `run.sh` avoids stale or misattributed results:
 - **In place.** `DeployUtils.getDeployedCode` reads `forge-artifacts/` whatever `FOUNDRY_OUT` says, so the forge
-  layers run in place. Before every mutant, `src/` is restored (`git checkout -- src`), `forge clean` removes
-  `forge-artifacts/` and `cache/`, and `cache/invariant` is removed (forge replays a persisted failing sequence
-  first, which would carry a kill from one mutant to the next). One checkout per concurrent campaign.
-- **Canary.** After the unit-test build, the touched contract's liteci runtime bytecode must differ from the
-  baseline's; otherwise the row says so. No row tripped it.
+  layers run in place. Before every mutant, `src/`, `scripts/` and `snapshots/upgrades/` are restored (`git
+  checkout`; the GenerateNUTBundle tests rewrite the upgrade bundle), `forge clean` removes `forge-artifacts/` and
+  `cache/`, and `cache/invariant` is removed (forge replays a persisted failing sequence first, which would carry a
+  kill from one mutant to the next). One checkout per concurrent campaign.
+- **Canary.** After the unit-test build, the liteci creation and runtime bytecode of the touched contract must
+  differ from the baseline's (both, because constructor edits such as K54 and K55 do not show in the runtime; for
+  `Constants.sol` and `L2Genesis.s.sol` mutants the `L2Genesis` script's, for `UpgradeUtils.sol` the
+  `GenerateNUTBundle` script's); otherwise the row says so. No row tripped it.
 - **Halmos rebuilds** with `forge build --force` (test contracts embed creation code, and an incremental build can
   miss them; `../halmos/README.md` records 16 false survivors from that).
 - **A kill** is a failing test or invariant (forge), or a check that was expected to PASS producing a counterexample
   (Halmos). The baseline of every layer passes on the same checkout, so a failure is attributable to the mutant.
   setUp failures are reported as such.
-- **Phase-2 baselines.** `ReachL2ToL2Halmos` (1118 s) and `ReachL1CDMHalmos` (2342 s) were established on the same
-  checkout and Halmos directory by separate runs, and `ReachExporterHalmos` (98 s, with `ExporterExpiryHalmos`) by
-  a first campaign run, so the final campaigns used `SKIP_BASE_REACH=1`. `ReachBridgeHalmos` did not finish within
-  5400 s on the shared host, so it has no baseline here; for K43 and K50, which survived phase 1, it was stopped by
-  hand (it observes neither events nor storage layout).
-- **Phase 2 ran only where phase 1 did not already kill**: K25, K44, K45 and K51 (all survived it); stopped for K43
-  and K50. K04 and K09 were also run through
-  phase 2 (`REACH=always`): `ReachL2ToL2Halmos` misses K04 (1157 s; see finding 14: its sequence check starts
-  from the deployed state, and its symbolic-storage step drops the overflow panic, so this is a harness gap, not
-  evidence about reachable states) and kills K09 with both `check_reach_sequence2` and `check_reach_step_symbolicStorage`,
-  because its (E) clause names `msg.sender == 0x..07` and its L2CrossDomainMessenger mock answers the getters
-  with fresh symbolic values in every step (957 s).
+- **Phase-2 baselines** ran in each campaign's own baseline (no `SKIP_BASE_REACH`): `L2ToL2ExpiryHalmos` with
+  `ReachL2ToL2Halmos` 1804 s, `ExporterExpiryHalmos` with `ReachExporterHalmos` 156 s, `L1CDMExpiryHalmos` with
+  `ReachL1CDMHalmos` 4137 s, all PASS. `ReachBridgeHalmos` does not finish within 5400 s on the shared host, so
+  the bridge mutants ran with `REACH=never` (baseline `RefundExpiryHalmos` 18 s).
+- **Phase 2 ran only where phase 1 did not already kill**: K25 (`ReachL1CDMHalmos`) and K44, K45, K51, K54, K55
+  (`ReachL2ToL2Halmos`), all of which survived it; not run for K43 and K50. At `e0ffb33a31`, `REACH=always` runs
+  of K04 and K09 found that `ReachL2ToL2Halmos` then missed K04 (finding 14, fixed in `557e7691e9`) and killed K09.
 
-The campaigns themselves were run as follows (two checkouts in parallel, each `ONLY` set split further over time):
+The campaigns ran in three checkouts, concurrently:
 
 ```sh
-ONLY='^K(0[1-9]|1[0-5])$' SKIP_BASE_REACH=1 run.sh                      # messenger mutants
-ONLY='^K(1[6-9]|2[0-9]|3[0-8])$' SKIP_BASE_REACH=1 HALMOS_TIMEOUT=5400 run.sh   # exporter, L1CDM, bridge
-ONLY='^K0[49]$' LAYERS=halmos REACH=always SKIP_BASE_REACH=1 run.sh     # phase 2 for K04 and K09
+ONLY='^K(0[1-9]|1[0-5]|39|40|4[4-6]|5[1-9])$' HALMOS_TIMEOUT=5400 run.sh   # messenger, Constants.sol, scripts
+ONLY='^K(1[6-9]|2[0-9]|30|38|41|42|47|48)$' HALMOS_TIMEOUT=5400 run.sh     # exporter, L1CDM
+ONLY='^K(3[1-7]|43|49|50)$' REACH=never HALMOS_TIMEOUT=5400 run.sh         # bridge
 ```
 
-The phase-2 baselines they skipped were established by separate runs on the same checkout and Halmos directory
-(`ReachL2ToL2Halmos` 1118 s, `ReachL1CDMHalmos` 2342 s, `ReachExporterHalmos` 98 s, all PASS). A first run of the second campaign was stopped
-by hand during its own `ReachL1CDMHalmos` baseline (exit 143 in that log), because 2400 s was too short on the
-shared host.
+A first run of the first campaign at `7f4831b8b9` stopped at its baseline on the Halmos expire checks (finding 16)
+and was restarted at `a9f616e094`.
 
-Reproduce (from `packages/contracts-bedrock`, on a clean checkout, bash >= 4.4). Without `SKIP_BASE_REACH=1`, the
-baseline runs every selected phase-2 contract first; on a loaded host give it `HALMOS_TIMEOUT=5400` or more:
+Reproduce (from `packages/contracts-bedrock`, on a clean checkout, bash >= 4.4). The baseline runs every selected
+phase-2 contract first; on a loaded host give it `HALMOS_TIMEOUT=5400` or more, and select the bridge mutants with
+`REACH=never` or `SKIP_BASE_REACH=1` (its phase-2 baseline does not finish):
 
 ```sh
 FORGE=<forge 1.8.3> HALMOS=<patched halmos> \
   WRAP="systemd-run --user --scope -q -p MemoryMax=16G -p MemorySwapMax=0" \
-  test/formal/expiry/mutation/run.sh                 # all mutants, all layers
+  ONLY='^K(0[1-9]|[12][0-9]|30|38|39|4[0-24-8]|5[1-9])$' test/formal/expiry/mutation/run.sh   # all but the bridge
 ONLY='^K0[1-5]$' LAYERS=unit,inv test/formal/expiry/mutation/run.sh   # a subset
 ```
 
-`run.sh` changed during the campaign: the forge-output parser was rewritten (failing invariants print their name on
-a later line), forge runs that end abnormally are now ERROR, and an unvalidated Halmos counterexample is now
-INCONCLUSIVE rather than a kill. No verdict depends on these changes: every failing-check list in this README was
-re-parsed from the raw logs with the final parser, every killed forge log ends with its test-suite summary, and
-every Halmos kill had a validated counterexample.
+`run.sh` changed during the first campaign: the forge-output parser was rewritten (failing invariants print their
+name on a later line), forge runs that end abnormally are now ERROR, and an unvalidated Halmos counterexample is
+now INCONCLUSIVE rather than a kill. For the retarget it gained the script mutants (restore of `scripts/` and the
+bundle, the script tests, the script canaries, NA rows for layers that do not run the scripts) and builds the hevm
+mutant by deploying it, since a contract with an immutable has no `type(...).runtimeCode`. Every failing-check list
+in this README was re-parsed from the raw logs with the final parser, every killed forge log ends with its
+test-suite summary, and every Halmos kill had a validated counterexample.
 
 Results land in `results/matrix.tsv` (id, layer, verdict, seconds, failing checks) with one log per mutant and
 layer.
@@ -743,3 +813,18 @@ set. Findings:
 | # | Source | Item | Disposition |
 |---|---|---|---|
 | 1 | integrator | The gaps found here were closed on the formal branch: unit tests `e1b3903ab8` (K06, K41, K42, K43, K45), hevm harness `091bcb1500` (S-all wording; drop-a-mapping-write mutants recorded as S-map kills), Halmos `557e7691e9` (symbolic other-chain getters; M7 relabeled and M7b added; `ReachL2ToL2Halmos` (E) bound). | **Re-run** with this `run.sh` at `557e7691e9` on a fresh checkout (baselines passed first): K06, K41, K42, K43, K45 on the unit tests; K41, K42 on Halmos phase 1; K04 on Halmos phases 1 and 2. All are caught, each for the right reason (table under "Re-run at 557e7691e9"); for K41 and K42 a two-assertion probe confirmed the forged direction. Matrix cells marked K§; survivors now K25 (equivalent), K44 (out of scope) and K50 (snapshot and EVM-Lean). Kontrol's stand-ins were fixed in the same way afterwards; under K41 and K42 its `relayUndeliveredMessage` iff spec fails on an assertion after the call, not on a missing getter (run on throwaway copies; see Kontrol's README). |
+
+### Retarget to the constructor-set period
+
+The messenger's period became an immutable set by its constructor, with the production value in `Constants.sol`
+and passed by the deploy scripts; `expireMessage` gained an early return for an already-expired message; the
+L1CrossDomainMessenger's INTEROP gate got its own error. The catalogue and `run.sh` were retargeted and the whole
+campaign re-run (see "Base"):
+
+| # | Item | Disposition |
+|---|---|---|
+| 1 | K02, K03 edited a literal `EXPIRY_PERIOD = 8 days` in the messenger, which no longer exists | **Retargeted** to `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`, the production period; same meaning. Their unit catch now includes `GenerateNUTBundle.t.sol`'s 691,200 s check, and Halmos still catches them (`check_expiryPeriodIsCapPlusMargin`, the harnesses deploy with the constant). |
+| 2 | K28's pattern named `L1CrossDomainMessenger_NotInteropMessenger` | **Retargeted** to `L1CrossDomainMessenger_InteropNotEnabled`; same meaning. |
+| 3 | New code without mutants | **Added K52–K59**: the early return removed or moved before the authorization check, the constructor's zero check removed, the constructor ignoring its argument, `L2Genesis` defaulting to 7 days, ignoring an override, or accepting one without interop at genesis, and the upgrade bundle passing 7 days. All are caught (finding 17 for the script mutants). |
+| 4 | K44 and K50 survived every executed layer | **Closed** by `bd472b2eb1` and `8098da1170` (table under "Surviving every executed layer"). |
+| 5 | The Halmos and hevm layers did not match the new source at `7db1481139` | **Fixed** in `31e71c3b23` and `a074ff57ee` (finding 16); the campaign ran on the fixed checks. |

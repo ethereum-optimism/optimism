@@ -33,10 +33,11 @@
 #
 # Runs IN PLACE in packages/contracts-bedrock: DeployUtils.getDeployedCode reads forge-artifacts/ on disk whatever
 # FOUNDRY_OUT says, so a separate output directory would let a stale artifact through. Run one instance per
-# checkout. src/ and scripts/ must be clean; they are restored (git checkout -- src scripts) after every mutant and
-# on exit, and forge-artifacts/, cache/ (including cache/invariant, where forge replays failing sequences) are
-# cleaned before every mutant. As a canary, the liteci creation and runtime bytecode of the touched contract (for
-# Constants.sol and the scripts: a script that inlines the edited code) must differ from the baseline's.
+# checkout. src/, scripts/ and snapshots/upgrades/ must be clean; they are restored (git checkout) after every
+# mutant and on exit, and forge-artifacts/, cache/ (including cache/invariant, where forge replays failing
+# sequences) are cleaned before every mutant. As a canary, the liteci creation and runtime bytecode of the touched
+# contract (for Constants.sol and the scripts: a script that inlines the edited code) must differ from the
+# baseline's.
 set -uo pipefail
 if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
   echo "needs bash >= 4.4" >&2
@@ -73,7 +74,8 @@ UNIT_PATHS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/Und
 # Constants.sol and deploy-script mutants (and the baseline) also run the tests of the scripts that deploy the
 # messenger with its period. They take about five minutes, so the other mutants skip them.
 UNIT_PATHS_SCRIPTS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/UndeliveredMessageExporter,L2/SuperchainETHBridge,scripts/L2Genesis,scripts/GenerateNUTBundle}.t.sol"
-RESTORE=(src scripts)
+# The GenerateNUTBundle tests rewrite the upgrade bundle snapshot; it is restored with the code.
+RESTORE=(src scripts snapshots/upgrades)
 INV_PATHS="test/formal/expiry/invariants/*"
 RES="$here/results"
 MATRIX="$RES/matrix.tsv"
@@ -81,7 +83,7 @@ mkdir -p "$RES"
 : >"$MATRIX"
 
 if ! git diff --quiet HEAD -- "${RESTORE[@]}" || [ -n "$(git status --porcelain --untracked-files=all -- "${RESTORE[@]}")" ]; then
-  echo "src/ or scripts/ differs from HEAD (staged or unstaged); run on a clean checkout" >&2
+  echo "src/, scripts/ or snapshots/upgrades/ differs from HEAD (staged or unstaged); run on a clean checkout" >&2
   exit 1
 fi
 trap 'git checkout -q HEAD -- "${RESTORE[@]}"' EXIT
@@ -292,7 +294,7 @@ layer_hevm() { # layer_hevm <id>: the mutated messenger replaces NEW in the equi
   sed "s/^contract L2ToL2CrossDomainMessenger is/contract L2ToL2CrossDomainMessenger$m is/" \
     src/L2/L2ToL2CrossDomainMessenger.sol >"$EDIR/mutants/$m.sol"
   # The messenger has an immutable (EXPIRY_PERIOD), so type(...).runtimeCode is unavailable: NEW gets the code of a
-  # deployment with the production period, as L2ToL2Bytecodes.CURRENT is.
+  # deployment with the production period, as L2ToL2Bytecodes.CURRENT is (as ../hevm/run.sh builds its mutants).
   cat >"$EDIR/mutants/$m.t.sol" <<EOF
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
@@ -302,9 +304,10 @@ import { L2ToL2CrossDomainMessenger$m } from "./$m.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 contract ${m}_EquivalenceHalmos is L2ToL2CrossDomainMessenger_EquivalenceHalmos {
-    function setUp() public override {
-        super.setUp();
-        vm.etch(NEW, address(new L2ToL2CrossDomainMessenger$m(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)).code);
+    function _newCode() internal override returns (bytes memory code_) {
+        address deployed = address(new L2ToL2CrossDomainMessenger$m(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        code_ = deployed.code;
+        vm.etch(deployed, hex"");
     }
 }
 EOF
@@ -340,7 +343,7 @@ EOF
 run_mutant() { # run_mutant <id> <file> <sed expression>
   local id=$1 file=$2 expr=$3 canary p1 p2 hevm upaths="$UNIT_PATHS"
   if ! git checkout -q HEAD -- "${RESTORE[@]}"; then
-    echo "git checkout of src/ and scripts/ failed; stopping" >&2
+    echo "git checkout of ${RESTORE[*]} failed; stopping" >&2
     exit 1
   fi
   if ! "${wrap[@]}" "${fenv[@]}" "$FORGE" clean >/dev/null 2>&1; then
