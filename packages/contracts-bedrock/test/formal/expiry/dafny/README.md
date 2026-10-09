@@ -4,8 +4,8 @@
 (`op-supernode/dafny-models/`). `ExpiryBridge.dfy` `include`s that model and proves the following,
 using the model's own definitions:
 
-> Let P be the contract's expiry period (`L2ToL2CrossDomainMessenger.EXPIRY_PERIOD`, 8 days =
-> 691200 s) and W the protocol window (`messageExpiryWindow` / `MESSAGE_EXPIRY_WINDOW`), with
+> Let P be the contract's expiry period (`L2ToL2CrossDomainMessenger.EXPIRY_PERIOD`, an immutable
+> set by the constructor; production deployments pass 8 days = 691200 s) and W the protocol window (`messageExpiryWindow` / `MESSAGE_EXPIRY_WINDOW`), with
 > W ≤ P. Suppose the destination exported the message as undelivered at block timestamp
 > tExport > initTimestamp + P, which is exactly when `expireMessage` accepts the fact. Then no
 > executing timestamp exec ≥ tExport makes the message valid: `!ValidExecutingMessage(exec, …)`,
@@ -304,13 +304,16 @@ effective W is in [1, 604800]:
   - Every constructor and decoder calls `hydrate`: `NewStaticConfigDependencySet` (`:33`),
     `NewStaticConfigDependencySetWithMessageExpiryOverride` (`:43`), the JSON decoder (`:87-88`)
     and the TOML decoder (`:132-133`).
-  - `MessageExpiryWindow()` (`:171-175`) maps an override of 0 to 604800.
+  - `MessageExpiryWindow()` (`:172-176`) maps an override of 0 to 604800.
   - The supernode copies this value into `Interop.messageExpiryWindow` (`interop.go:280-282`). With
     no depset it uses `defaultMessageExpiryWindow = 604800`.
 - **kona:** `rust/kona/crates/protocol/genesis/src/interop/depset.rs`.
-  - `deserialize_override_window` (`:44-45`) rejects values above `MESSAGE_EXPIRY_WINDOW` (604800).
-  - `get_message_expiry_window` (`:54-58`) returns the override only when `0 < w <= 604800`;
-    `None`, `Some(0)` and, since `d36e37862b`, any larger value map to 604800.
+  - `override_message_expiry_window` is an `Option<MessageExpiryOverride>`. The newtype's
+    `TryFrom<u64>` (`:47-56`) rejects values above `MESSAGE_EXPIRY_WINDOW` (604800), and serde
+    deserializes through it (`try_from = "u64"`), so a larger value can be neither constructed nor
+    parsed.
+  - `get_message_expiry_window` (`:87-92`) returns the override when it is above 0; `None` and
+    `Some(0)` map to 604800.
   - Both depset sources in the fault proof go through serde: the embedded registry
     `DEPENDENCY_SETS` uses `serde_json::from_str`, and the preimage-oracle fallback in
     `boot.rs:264-286` uses `serde_json::from_slice`. The result reaches `MessageRules` through

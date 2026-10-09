@@ -56,7 +56,7 @@ pragma solidity 0.8.25;
 //      with one arbitrary entry in each (sentMessageTimestamps[y] = uy, expiredMessages[z] = uz),
 //      to show send/relay do not read them; pinned (unchanged, except E2), not compared with OLD.
 //   E4 selectors outside the shared surface are not called: resendMessage (removed),
-//      expireMessage, sentMessageTimestamps, expiredMessages, EXPIRY_PERIOD (added), version
+//      expireMessage, sentMessageTimestamps, expiredMessages, expiryPeriod (added), version
 //      (changed).
 //   E5 relay targets are the target mock and an address with no code. A relay to the messenger
 //      itself (0x..23) is not modelled; there the two DO differ (the self-call reaches E4, e.g.

@@ -20,10 +20,11 @@ module ExpiryBridge {
   import I = Interop
   import CC = ChainContainer
 
-  // L2ToL2CrossDomainMessenger.EXPIRY_PERIOD = 8 days (the contract's expiry period P).
+  // The contract's expiry period P: L2ToL2CrossDomainMessenger.EXPIRY_PERIOD, an immutable set by the
+  // constructor; production deployments pass Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days.
   const EXPIRY_PERIOD: nat := 691200
-  // The cap that op-core (static_depset.go hydrate) and kona (depset.rs
-  // deserialize_override_window) put on the protocol window: MessageExpiryTimeSecondsInterop /
+  // The cap that op-core (static_depset.go hydrate) and kona (depset.rs, the
+  // MessageExpiryOverride newtype) put on the protocol window: MessageExpiryTimeSecondsInterop /
   // MESSAGE_EXPIRY_WINDOW = 7 days. Types.MESSAGE_EXPIRY_WINDOW itself is abstract in the model.
   const PROTOCOL_WINDOW_CAP: nat := 604800
 
