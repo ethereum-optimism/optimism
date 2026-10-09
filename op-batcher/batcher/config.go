@@ -24,6 +24,11 @@ import (
 // blob config.
 var maxBlobsPerBlock = params.DefaultPragueBlobConfig.Max
 
+// Reserve the Amsterdam transaction base before applying EIP-7976's calldata floor
+// so batch submissions stay within EIP-7825's transaction gas limit cap. This size
+// includes the derivation version byte and frame overhead.
+const maxL1CalldataSize = (params.MaxTxGas - amsterdamTxBaseGas) / amsterdamCalldataFloorGasPerByte
+
 type ThrottleConfig struct {
 	AdditionalEndpoints []string
 
@@ -172,6 +177,10 @@ func (c *CLIConfig) Check() error {
 	}
 	if c.MaxL1TxSize <= 1 {
 		return errors.New("MaxL1TxSize must be greater than 1")
+	}
+	// Blob and auto modes choose their own sizes; Alt-DA only posts a commitment to L1.
+	if c.DataAvailabilityType == flags.CalldataType && !c.AltDA.Enabled && c.MaxL1TxSize > maxL1CalldataSize {
+		return fmt.Errorf("MaxL1TxSize %d exceeds maximum calldata size %d bytes", c.MaxL1TxSize, maxL1CalldataSize)
 	}
 	if c.TargetNumFrames < 1 {
 		return errors.New("TargetNumFrames must be at least 1")
