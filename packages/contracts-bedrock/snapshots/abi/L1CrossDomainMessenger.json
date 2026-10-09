@@ -582,6 +582,11 @@
   },
   {
     "inputs": [],
+    "name": "L1CrossDomainMessenger_Paused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProxyAdminOwnedBase_NotProxyAdmin",
     "type": "error"
   },
