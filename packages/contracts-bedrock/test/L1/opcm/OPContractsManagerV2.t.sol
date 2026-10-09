@@ -3933,6 +3933,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IETHLockbox sharedLockbox = portal1.ethLockbox();
         IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
         uint256 sharedFinalityDelayBefore = sharedAsr.disputeGameFinalityDelaySeconds();
+        uint256 sharedWethDelayBefore = sharedWeth.delay();
 
         // Sanity: the members have distinct ProxyAdmins, but the shared contracts are administered
         // by the first chain's ProxyAdmin — the exact condition that breaks the naive upgrade path.
@@ -4011,6 +4012,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             address(sharedLockbox),
             "shared DelayedWETH re-pointed away from the shared ETHLockbox"
         );
+        assertEq(sharedWeth.delay(), sharedWethDelayBefore, "shared DelayedWETH delay changed");
 
         // Per-chain contracts remain bound to their own chain's SystemConfig.
         IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
