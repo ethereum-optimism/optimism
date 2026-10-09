@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // MUTANT FOR TESTING ONLY. NOT A REAL CONTRACT. NEVER DEPLOY.
-// Copy of src/L2/SuperchainETHBridge.sol at c7c51d79e2 with three faults: refundETH skips the expiry check and the
+// Copy of src/L2/SuperchainETHBridge.sol with three faults: refundETH skips the expiry check and the
 // already-refunded check, and relayETH pays `_from` instead of `_to`. Used only by the deterministic failing
 // witnesses for RefundImpliesExpired, AtMostOneRefund and ETH conservation (ExpiryInvariants_FailingWitness_Test).
 
@@ -17,7 +17,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 
-/// @title SuperchainETHBridgeFaulty (MUTANT, test only)
+/// @custom:proxied true
+/// @custom:predeploy 0x4200000000000000000000000000000000000024
+/// @title SuperchainETHBridge
 /// @notice SuperchainETHBridge enables ETH transfers between chains within an interop cluster.
 contract SuperchainETHBridgeFaulty is ISemver {
     /// @notice Thrown when attempting to relay a message and the cross domain message sender is not
@@ -92,7 +94,6 @@ contract SuperchainETHBridgeFaulty is ISemver {
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);
 
         // This is a forced ETH send to the recipient, the recipient should NOT expect to be called.
-        // MUTANT: pays the sender instead of the recipient.
         new SafeSend{ value: _amount }(payable(_from));
 
         emit RelayETH(_from, _to, _amount, source);
@@ -116,8 +117,6 @@ contract SuperchainETHBridgeFaulty is ISemver {
             _message: abi.encodeCall(this.relayETH, (_from, _to, _amount))
         });
 
-        // MUTANT: expiry check removed.
-        // MUTANT: already-refunded check removed.
 
         refunded[messageHash] = true;
 

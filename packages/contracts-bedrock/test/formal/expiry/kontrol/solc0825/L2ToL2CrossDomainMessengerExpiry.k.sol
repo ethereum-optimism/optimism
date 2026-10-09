@@ -27,6 +27,7 @@ import {
 } from "test/formal/expiry/kontrol/solc0825/ExpiryMocks0825.sol";
 
 // Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
@@ -51,7 +52,7 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     L2ToL2CrossDomainMessenger internal constant l2tol2 = L2ToL2CrossDomainMessenger(L2TOL2);
 
     function setUp() public {
-        _etch(L2TOL2, address(new L2ToL2CrossDomainMessenger()));
+        _etch(L2TOL2, address(new L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)));
         _etch(INBOX, address(new AcceptAllCrossL2Inbox()));
         _etch(PASSER, address(new RecordingMock()));
     }
@@ -381,7 +382,7 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         uint256 sentAt = l2tol2.sentMessageTimestamps(_messageHash);
         vm.assume(sentAt < 2 ** 64);
         bool expiredBefore = l2tol2.expiredMessages(_messageHash);
-        uint256 period = l2tol2.EXPIRY_PERIOD();
+        uint256 period = l2tol2.expiryPeriod();
 
         address caller = kevm.freshAddress();
         vm.prank(caller);
@@ -411,6 +412,6 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     ///         op-core/kona cap at 7 days (assumption P_contract >= W_protocol). At the tip
     ///         EXPIRY_PERIOD is 8 days.
     function prove_expiryPeriod_atLeastProtocolWindow() external view {
-        assert(l2tol2.EXPIRY_PERIOD() >= 7 days);
+        assert(l2tol2.expiryPeriod() >= 7 days);
     }
 }

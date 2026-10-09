@@ -80,7 +80,7 @@ contract ReachL2ToL2Halmos is Test {
     }
 
     function setUp() public {
-        impl = address(new L2ToL2CrossDomainMessenger());
+        impl = address(new L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
         bytes memory code = abi.encodePacked(
             DeployUtils.getCode("test/formal/expiry/halmos/out/Proxy.sol/Proxy.json"), abi.encode(PROXY_ADMIN)
         );
@@ -96,7 +96,7 @@ contract ReachL2ToL2Halmos is Test {
         harness[0] = impl;
         harness[1] = proxy;
         harness[2] = address(this);
-        assert(m.EXPIRY_PERIOD() > 0); // the proxy delegates
+        assert(m.expiryPeriod() > 0); // the proxy delegates
     }
 
     function _obs(bytes32 _k) internal view returns (Obs memory o_) {
@@ -109,7 +109,7 @@ contract ReachL2ToL2Halmos is Test {
     /// @notice The implementation's whole ABI (from its artifact's methodIdentifiers). Proxy selectors (upgradeTo, ...)
     /// are NOT here: for a non-admin caller the proxy forwards them, and they must revert like any unknown selector.
     function _isKnownSelector(bytes4 _s) internal pure returns (bool) {
-        return _s == bytes4(keccak256("EXPIRY_PERIOD()")) || _s == bytes4(keccak256("crossDomainMessageContext()"))
+        return _s == bytes4(keccak256("expiryPeriod()")) || _s == bytes4(keccak256("crossDomainMessageContext()"))
             || _s == bytes4(keccak256("crossDomainMessageSender()"))
             || _s == bytes4(keccak256("crossDomainMessageSource()"))
             || _s == bytes4(keccak256("expireMessage(bytes32,uint256)"))
@@ -159,7 +159,7 @@ contract ReachL2ToL2Halmos is Test {
         MockL2CDMGetters(L2CDM).setGetters(_s.xSender, _other);
 
         Obs memory pre = _obs(_k);
-        uint256 period = m.EXPIRY_PERIOD();
+        uint256 period = m.expiryPeriod();
         bytes memory data = _calldata(_s, _message);
         vm.deal(_s.caller, _s.value);
         vm.prank(_s.caller);

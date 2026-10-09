@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 // Halmos symbolic checks on the REAL L2ToL2CrossDomainMessenger (src/L2/L2ToL2CrossDomainMessenger.sol) at
-// the exporter design (base PR #23259), etched at its predeploy address 0x4200..0023, with the REAL
+// the exporter design, etched at its predeploy address 0x4200..0023, with the REAL
 // UndeliveredMessageExporter at Predeploys.UNDELIVERED_MESSAGE_EXPORTER. Exact statements, assumptions and bounds:
 // README.md in this directory.
 //   (1) UnsafeTargetRule      sendMessage / relayMessage never succeed for target 0x..07 or 0x..16 (and 0x..23 on
@@ -18,6 +18,7 @@ pragma solidity 0.8.25;
 import { Test } from "test/setup/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { L2ToL2CrossDomainMessenger } from "src/L2/L2ToL2CrossDomainMessenger.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -49,7 +50,7 @@ contract L2ToL2ExpiryHalmos is Test {
     address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     function setUp() public {
-        templates[0] = address(new L2ToL2CrossDomainMessenger());
+        templates[0] = address(new L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
         templates[1] = address(new MockCrossL2Inbox());
         templates[2] = address(new Recorder());
         templates[3] = address(new Recorder());
@@ -779,7 +780,7 @@ contract L2ToL2ExpiryHalmos is Test {
         public
     {
         _setupExpire(_xSender, _other);
-        uint256 w = m.EXPIRY_PERIOD();
+        uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt <= type(uint64).max);
         bool expiredBefore = m.expiredMessages(_h);
@@ -809,7 +810,7 @@ contract L2ToL2ExpiryHalmos is Test {
         public
     {
         _setupExpire(_xSender, _other);
-        uint256 w = m.EXPIRY_PERIOD();
+        uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
 
         bool ok = _expire(_caller, _h, _t);
@@ -823,7 +824,7 @@ contract L2ToL2ExpiryHalmos is Test {
     ///         t == sentAt + W + 1 succeeds.
     function check_expire_boundary(address _l1Messenger, bytes32 _h) public {
         _setupExpire(_l1Messenger, _l1Messenger);
-        uint256 w = m.EXPIRY_PERIOD();
+        uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
 
@@ -836,7 +837,7 @@ contract L2ToL2ExpiryHalmos is Test {
     ///         counterexample is t == sentAt + W.
     function check_FALSE_expire_windowIsGte(address _l1Messenger, bytes32 _h, uint256 _t) public {
         _setupExpire(_l1Messenger, _l1Messenger);
-        uint256 w = m.EXPIRY_PERIOD();
+        uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
 
@@ -861,7 +862,7 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice NON-VACUITY (expected FAIL): the auth check ignores xDomainMessageSender.
     function check_FALSE_expire_ignoresXDomainSender(address _xSender, address _other, bytes32 _h, uint256 _t) public {
         _setupExpire(_xSender, _other);
-        uint256 w = m.EXPIRY_PERIOD();
+        uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
 
@@ -874,17 +875,17 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice P_contract >= W_protocol: the contract's expiry period covers the protocol window, which op-core/kona
     ///         config parsing caps at 7 days. Holds for the current constant (7 days) and the planned one (8 days).
     function check_contractWindowCoversProtocolCap() public view {
-        assert(m.EXPIRY_PERIOD() >= 7 days);
+        assert(m.expiryPeriod() >= 7 days);
     }
 
     /// @notice The expiry period is the protocol cap (7 days) plus the 1-day margin.
     function check_expiryPeriodIsCapPlusMargin() public view {
-        assert(m.EXPIRY_PERIOD() == 7 days + 1 days);
+        assert(m.expiryPeriod() == 7 days + 1 days);
     }
 
     /// @notice NON-VACUITY (expected FAIL): the expiry period equals the bare protocol cap (it has the 1-day margin).
     function check_FALSE_expiryPeriodIsProtocolCap() public view {
-        assert(m.EXPIRY_PERIOD() == 7 days);
+        assert(m.expiryPeriod() == 7 days);
     }
 
     /// @notice INFO (expected FAIL, documents an assumption): relayMessage ITSELF does not reject target 0x..23; the

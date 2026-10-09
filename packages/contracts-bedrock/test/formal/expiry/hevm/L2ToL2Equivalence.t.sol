@@ -48,7 +48,7 @@ pragma solidity 0.8.25;
 //     excluded (NEW's extra SSTORE in sendMessage costs more, so with a tight gas limit a send can
 //     succeed in OLD and run out of gas in NEW; relay forwards gas to the target).
 //
-// EXCLUDED (intentional differences, by design of PR #23259):
+// EXCLUDED (intentional differences, by design of the expiry change):
 //   E1 target in {L2CrossDomainMessenger 0x..07, L2ToL1MessagePasser 0x..16}: NEW reverts on send
 //      and relay (MessageTargetUnsafe). Precondition of every equivalence check.
 //   E2 sentMessageTimestamps[H]: written by NEW's sendMessage only. Pinned to block.timestamp.

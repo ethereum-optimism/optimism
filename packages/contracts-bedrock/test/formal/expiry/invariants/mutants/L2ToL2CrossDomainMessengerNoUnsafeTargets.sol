@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 // MUTANT FOR TESTING ONLY. NOT A REAL CONTRACT. NEVER DEPLOY.
-// Copy of src/L2/L2ToL2CrossDomainMessenger.sol at c7c51d79e2 with the unsafe-target rule REMOVED: _isUnsafeTarget
+// Copy of src/L2/L2ToL2CrossDomainMessenger.sol with the unsafe-target rule REMOVED: _isUnsafeTarget
 // always returns false, so sendMessage and relayMessage accept the L2CrossDomainMessenger and the
 // L2ToL1MessagePasser as targets. Used by ExpiryInvariants_NoUnsafeTargetRule_Invariant (expected to pass:
 // safety does not depend on this rule) and by the UnsafeTargetRule failing witness.
@@ -51,7 +51,12 @@ error L2ToL2CrossDomainMessenger_NotOtherMessenger();
 ///         the expiry period.
 error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
-/// @title L2ToL2CrossDomainMessengerNoUnsafeTargets (MUTANT, test only)
+/// @notice Thrown when the contract is deployed with a zero expiry period.
+error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+
+/// @custom:proxied true
+/// @custom:predeploy 0x4200000000000000000000000000000000000023
+/// @title L2ToL2CrossDomainMessenger
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
@@ -75,15 +80,17 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice How long after it is sent a message must go unrelayed before it can be marked
-    ///         expired. The protocol rejects an executing message whose block is more than its
-    ///         message expiry window (7 days at most; op-core and kona cap it) after the block of
-    ///         its initiating message. This period is that window plus a day of margin, so a
-    ///         message is only marked expired well after any relay of it could still be valid.
-    uint256 public constant EXPIRY_PERIOD = 8 days;
+    ///         expired. The protocol rejects an executing message whose block is more than the
+    ///         message expiry window after the block of its initiating message, and the interop
+    ///         specification caps that window at 7 days. The period must exceed the window, so a
+    ///         message is only marked expired once no relay of it can be valid. Production
+    ///         deployments use 8 days: the window plus a day of margin. It is set at deployment so
+    ///         that test networks with a shorter window can use a shorter period.
+    uint256 internal immutable EXPIRY_PERIOD;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -133,6 +140,21 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
         uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash, bytes32 returnDataHash
     );
 
+    /// @notice Constructs the L2ToL2CrossDomainMessenger.
+    /// @param _expiryPeriod How long after it is sent a message must go unrelayed before it can
+    ///                      be marked expired. See `EXPIRY_PERIOD`.
+    constructor(uint256 _expiryPeriod) {
+        if (_expiryPeriod == 0) revert L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+        EXPIRY_PERIOD = _expiryPeriod;
+    }
+
+    /// @notice Returns how long after it is sent a message must go unrelayed before it can be
+    ///         marked expired. See `EXPIRY_PERIOD`.
+    /// @return The expiry period, in seconds.
+    function expiryPeriod() public view returns (uint256) {
+        return EXPIRY_PERIOD;
+    }
+
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
     /// @return sender_ Address of the sender of the current cross domain message.
     function crossDomainMessageSender() external view onlyEntered returns (address sender_) {
@@ -159,10 +181,12 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
         }
     }
 
-    /// @notice Sends a message to some target address on a destination chain. The destination chain must differ from
-    ///         the current chain, and the target cannot be the L2ToL2CrossDomainMessenger predeploy. This function is
-    ///         not payable, so no ETH can be sent with the message. If the relayed call reverts on the destination
-    ///         chain, the relay transaction reverts and the message can be relayed again later, so it is never stuck.
+    /// @notice Sends a message to some target address on a destination chain. The destination
+    ///         chain must differ from the current chain. The target cannot be the
+    ///         L2ToL2CrossDomainMessenger, the L2CrossDomainMessenger or the
+    ///         L2ToL1MessagePasser. This function is not payable, so no ETH can be sent with the
+    ///         message. If the relayed call reverts, the message can be relayed again until it
+    ///         expires.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
@@ -266,7 +290,8 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
     /// @notice Marks a message sent from this chain expired, on word from this chain's
     ///         L1CrossDomainMessenger that its destination had not relayed it by `_undeliveredAt`.
     ///         Only the destination can have produced that word, since it computed the message hash
-    ///         with its own chain ID.
+    ///         with its own chain ID. Word for a message that already expired changes nothing and
+    ///         emits nothing.
     /// @param _messageHash   Hash of the message.
     /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
     function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
@@ -277,6 +302,7 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
         ) {
             revert L2ToL2CrossDomainMessenger_NotOtherMessenger();
         }
+        if (expiredMessages[_messageHash]) return;
 
         uint256 sentAt = sentMessageTimestamps[_messageHash];
         if (sentAt == 0) revert InvalidMessage();
@@ -291,12 +317,11 @@ contract L2ToL2CrossDomainMessengerNoUnsafeTargets is ISemver, TransientReentran
     ///         L2CrossDomainMessenger or the L2ToL1MessagePasser, so this contract never initiates
     ///         a withdrawal, and nothing that trusts it as a withdrawal's sender, today or in a
     ///         future L1 contract, can be fooled by a relayed message. Expiry does not rely on
-    ///         this: L1CrossDomainMessengers trust the UndeliveredMessageExporter as the sender of
+    ///         this: L1CrossDomainMessengers trust a dedicated exporter predeploy as the sender of
     ///         undelivered-message word, not this contract.
     /// @param _target Target of the message.
     /// @return Whether the target is unsafe.
     function _isUnsafeTarget(address _target) internal pure returns (bool) {
-        // MUTANT: unsafe-target rule removed.
         _target;
         return false;
     }

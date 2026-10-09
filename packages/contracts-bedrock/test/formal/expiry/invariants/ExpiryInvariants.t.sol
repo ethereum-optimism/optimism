@@ -7,6 +7,7 @@ import { ExpiryHandler } from "test/formal/expiry/invariants/ExpiryHandler.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
@@ -29,7 +30,7 @@ interface ILegacyExpiryWindow {
 ///         - Exports go through the real UndeliveredMessageExporter predeploy, whose withdrawals are the only facts
 ///           (the sender L1CrossDomainMessenger.relayUndeliveredMessage trusts), except in the legacy-design mutant.
 ///         - Expected-to-fail variants run only with EXPIRY_INV_EXPECT_FAIL=true (skipped otherwise).
-///         Targets PR #23259 at c7c51d79e2 (UndeliveredMessageExporter, EXPIRY_PERIOD = 8 days).
+///         Targets the exporter design (UndeliveredMessageExporter; expiry period set at construction, 8 days in production).
 abstract contract ExpiryInvariants_TestInit is CommonTest {
     /// @notice Messenger replacements (test-only copies under mutants/; the real contracts are not modified).
     uint8 internal constant MUTANT_NONE = 0;
@@ -136,9 +137,9 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
             address impl = address(uint160(uint256(vm.load(address(messenger), IMPL_SLOT))));
             assertTrue(impl != address(0));
             if (_mutant() == MUTANT_NO_UNSAFE_TARGETS) {
-                vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerNoUnsafeTargets"));
+                vm.etch(impl, _withExpiryPeriod("L2ToL2CrossDomainMessengerNoUnsafeTargets"));
             } else if (_mutant() == MUTANT_FAULTY_MESSENGER) {
-                vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerFaulty"));
+                vm.etch(impl, _withExpiryPeriod("L2ToL2CrossDomainMessengerFaulty"));
             } else {
                 vm.etch(impl, DeployUtils.getDeployedCode("L2ToL2CrossDomainMessengerLegacyNoTargetRule"));
                 exporter = address(messenger);
@@ -235,13 +236,13 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         vm.writeLine(path, line);
     }
 
-    /// @notice P_contract. Reads the messenger's expiry constant: EXPIRY_PERIOD at c7c51d79e2 (8 days), or
-    ///         MESSAGE_EXPIRY_WINDOW for the legacy-design mutant (a 37b44c48c7 copy, 7 days).
+    /// @notice P_contract. Reads the messenger's expiry period (set at construction; 8 days in this harness, as
+    ///         in production), or MESSAGE_EXPIRY_WINDOW for the legacy-design mutant (7 days).
     function _contractExpiryPeriod() internal view returns (uint256) {
         if (_mutant() == MUTANT_LEGACY_NO_TARGET_RULE) {
             return ILegacyExpiryWindow(address(messenger)).MESSAGE_EXPIRY_WINDOW();
         }
-        return messenger.EXPIRY_PERIOD();
+        return messenger.expiryPeriod();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -425,6 +426,12 @@ abstract contract ExpiryInvariants_TestInit is CommonTest {
         _checkNoForgedFact();
         _checkUnsafeTargetRule();
         _checkSentTimestamps();
+    }
+
+    /// @notice Runtime code of a messenger mutant deployed with the production expiry period. The artifact's
+    ///         deployed bytecode leaves the immutable zeroed, so the mutant is constructed and its code read back.
+    function _withExpiryPeriod(string memory _name) internal returns (bytes memory) {
+        return DeployUtils.create1(_name, abi.encode(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)).code;
     }
 }
 
