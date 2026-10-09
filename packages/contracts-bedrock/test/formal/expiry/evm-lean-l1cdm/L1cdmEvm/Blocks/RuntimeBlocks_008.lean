@@ -23,9 +23,9 @@ def l1cdm_block_922_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 
 /-- Automatically generated RD summary for bytecode block at pc 922. -/
 theorem l1cdm_block_922 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 5 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9542) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9605) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 922) (x0 :: R) mem aw rdata σ k C)
-    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9542) (l1cdm_block_922_stack (ee := ee) (R := R)) mem aw rdata σ (k + 8) (C + ((25))) := by
+    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9605) (l1cdm_block_922_stack (ee := ee) (R := R)) mem aw rdata σ (k + 8) (C + ((25))) := by
   let r0 := h
   have r1 := r0.jumpdest (by evm_kdecide) (by evm_ov)
   have r2 := r1.pop (by evm_kdecide) (by evm_ov)
@@ -33,39 +33,39 @@ theorem l1cdm_block_922 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : Byt
   have r4 := r3.push2 (UInt256.ofNat 937) (by evm_kdecide) (by evm_ov)
   have r5 := r4.calldatasize (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)
-  have r7 := r6.push2 (UInt256.ofNat 9542) (by evm_kdecide) (by evm_ov)
+  have r7 := r6.push2 (UInt256.ofNat 9605) (by evm_kdecide) (by evm_ov)
   have r8 := r7.jump (by evm_kdecide) hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 9542)) r8 (by evm_kdecide)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 9605)) r8 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
 theorem l1cdm_block_922_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 5 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9542) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9605) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 922) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9542) (l1cdm_block_922_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
+    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9605) (l1cdm_block_922_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
   obtain ⟨k', C', h'⟩ := RD.pack (l1cdm_block_922 hstack hvalid h)
   exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 937. -/
 theorem l1cdm_block_937 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 1 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 4340) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 4403) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 937) R mem aw rdata σ k C)
-    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 4340) R mem aw rdata σ (k + 3) (C + ((12))) := by
+    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 4403) R mem aw rdata σ (k + 3) (C + ((12))) := by
   let r0 := h
   have r1 := r0.jumpdest (by evm_kdecide) (by evm_ov)
-  have r2 := r1.push2 (UInt256.ofNat 4340) (by evm_kdecide) (by evm_ov)
+  have r2 := r1.push2 (UInt256.ofNat 4403) (by evm_kdecide) (by evm_ov)
   have r3 := r2.jump (by evm_kdecide) hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 4340)) r3 (by evm_kdecide)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 4403)) r3 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
 theorem l1cdm_block_937_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 1 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 4340) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 4403) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 937) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 4340) R mem aw' rdata σ k' C' := by
+    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 4403) R mem aw' rdata σ k' C' := by
   obtain ⟨k', C', h'⟩ := RD.pack (l1cdm_block_937 hstack hvalid h)
   exact ⟨_, k', C', h'⟩
 
@@ -244,7 +244,7 @@ def l1cdm_block_976_stack {mem : ByteArray} {R : List UInt256} : List UInt256 :=
 
 /-- Final memory for bytecode block summary `l1cdm_block_976`. -/
 def l1cdm_block_976_memory {mem : ByteArray} : ByteArray :=
-  ((UInt256.ofNat 22697256932575562664426098791541626083188090018190025830812842356730960543744).toByteArray.write 0 ((UInt256.ofNat 6).toByteArray.write 0 (((UInt256.ofNat 64) + (memLoad (UInt256.ofNat 64) mem)).toByteArray.write 0 mem (UInt256.ofNat 64).toNat 32) (memLoad (UInt256.ofNat 64) mem).toNat 32) ((UInt256.ofNat 32) + (memLoad (UInt256.ofNat 64) mem)).toNat 32)
+  ((UInt256.ofNat 23149562771763574122282336239197867023312603408710631783956623721471645057024).toByteArray.write 0 ((UInt256.ofNat 5).toByteArray.write 0 (((UInt256.ofNat 64) + (memLoad (UInt256.ofNat 64) mem)).toByteArray.write 0 mem (UInt256.ofNat 64).toNat 32) (memLoad (UInt256.ofNat 64) mem).toNat 32) ((UInt256.ofNat 32) + (memLoad (UInt256.ofNat 64) mem)).toNat 32)
 
 /-- Automatically generated RD summary for bytecode block at pc 976. -/
 theorem l1cdm_block_976 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -264,12 +264,12 @@ theorem l1cdm_block_976 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : Byt
   have r9 := r8.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r10 := RD.genMstore r9 (by evm_kdecide) (by evm_ov)
   have r11 := r10.dup1 (by evm_kdecide) (by evm_ov)
-  have r12 := r11.push1 (UInt256.ofNat 6) (by evm_kdecide) (by evm_ov)
+  have r12 := r11.push1 (UInt256.ofNat 5) (by evm_kdecide) (by evm_ov)
   have r13 := r12.dup2 (by evm_kdecide) (by evm_ov)
   have r14 := RD.genMstore r13 (by evm_kdecide) (by evm_ov)
   have r15 := r14.push1 (UInt256.ofNat 32) (by evm_kdecide) (by evm_ov)
   have r16 := r15.add (by evm_kdecide) (by evm_ov)
-  have r17 := r16.pushConst (UInt256.ofNat 22697256932575562664426098791541626083188090018190025830812842356730960543744) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r17 := r16.pushConst (UInt256.ofNat 23149562771763574122282336239197867023312603408710631783956623721471645057024) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r18 := r17.dup2 (by evm_kdecide) (by evm_ov)
   have r19 := RD.genMstore r18 (by evm_kdecide) (by evm_ov)
   have r20 := r19.pop (by evm_kdecide) (by evm_ov)
@@ -294,9 +294,9 @@ def l1cdm_block_1037_stack {mem : ByteArray} {x0 : UInt256} {R : List UInt256} :
 /-- Automatically generated RD summary for bytecode block at pc 1037. -/
 theorem l1cdm_block_1037 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 4 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9706) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9769) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 1037) (x0 :: R) mem aw rdata σ k C)
-    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9706) (l1cdm_block_1037_stack (mem := mem) (x0 := x0) (R := R)) mem (M aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)) rdata σ (k + 8) (C + ((27) + (memExpansionCost aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)))) := by
+    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9769) (l1cdm_block_1037_stack (mem := mem) (x0 := x0) (R := R)) mem (M aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)) rdata σ (k + 8) (C + ((27) + (memExpansionCost aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)))) := by
   let r0 := h
   have r1 := r0.jumpdest (by evm_kdecide) (by evm_ov)
   have r2 := r1.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
@@ -304,17 +304,17 @@ theorem l1cdm_block_1037 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : By
   have r4 := r3.push2 (UInt256.ofNat 519) (by evm_kdecide) (by evm_ov)
   have r5 := r4.swap2 (by evm_kdecide) (by evm_ov)
   have r6 := r5.swap1 (by evm_kdecide) (by evm_ov)
-  have r7 := r6.push2 (UInt256.ofNat 9706) (by evm_kdecide) (by evm_ov)
+  have r7 := r6.push2 (UInt256.ofNat 9769) (by evm_kdecide) (by evm_ov)
   have r8 := r7.jump (by evm_kdecide) hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 9706)) r8 (by evm_kdecide)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 9769)) r8 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
 theorem l1cdm_block_1037_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 4 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9706) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 9769) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 1037) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9706) (l1cdm_block_1037_stack (mem := mem) (x0 := x0) (R := R)) mem aw' rdata σ k' C' := by
+    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 9769) (l1cdm_block_1037_stack (mem := mem) (x0 := x0) (R := R)) mem aw' rdata σ k' C' := by
   obtain ⟨k', C', h'⟩ := RD.pack (l1cdm_block_1037 hstack hvalid h)
   exact ⟨_, k', C', h'⟩
 
@@ -494,24 +494,24 @@ def l1cdm_block_1084_stack {R : List UInt256} : List UInt256 :=
 /-- Automatically generated RD summary for bytecode block at pc 1084. -/
 theorem l1cdm_block_1084 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 4942) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 5005) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 1084) (x0 :: R) mem aw rdata σ k C)
-    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 4942) (l1cdm_block_1084_stack (R := R)) mem aw rdata σ (k + 5) (C + ((17))) := by
+    : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 5005) (l1cdm_block_1084_stack (R := R)) mem aw rdata σ (k + 5) (C + ((17))) := by
   let r0 := h
   have r1 := r0.jumpdest (by evm_kdecide) (by evm_ov)
   have r2 := r1.pop (by evm_kdecide) (by evm_ov)
   have r3 := r2.push2 (UInt256.ofNat 1093) (by evm_kdecide) (by evm_ov)
-  have r4 := r3.push2 (UInt256.ofNat 4942) (by evm_kdecide) (by evm_ov)
+  have r4 := r3.push2 (UInt256.ofNat 5005) (by evm_kdecide) (by evm_ov)
   have r5 := r4.jump (by evm_kdecide) hvalid (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 4942)) r5 (by evm_kdecide)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 5005)) r5 (by evm_kdecide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Packed RD summary for bytecode block with abstract final counters and active words. -/
 theorem l1cdm_block_1084_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
-    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 4942) = true)
+    (hvalid : (D_J L1cdmEvm.l1cdmRuntime 0).contains (UInt256.ofNat 5005) = true)
     (h : RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 1084) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 4942) (l1cdm_block_1084_stack (R := R)) mem aw' rdata σ k' C' := by
+    : ∃ (aw' : UInt256) (k' C' : ℕ), RD L1cdmEvm.l1cdmRuntime ee g s0 (UInt256.ofNat 5005) (l1cdm_block_1084_stack (R := R)) mem aw' rdata σ k' C' := by
   obtain ⟨k', C', h'⟩ := RD.pack (l1cdm_block_1084 hstack hvalid h)
   exact ⟨_, k', C', h'⟩
 

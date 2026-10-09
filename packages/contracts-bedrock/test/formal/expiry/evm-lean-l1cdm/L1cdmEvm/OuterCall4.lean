@@ -2,7 +2,7 @@ import L1cdmEvm.Tails
 import Ethereum.Theory.StaticStorage
 
 /-! # Outer trace, segment 5: `callerPortal.systemConfig().l1CrossDomainMessenger()` and check (a)
-(pc 2237 → 2377) -/
+(pc 2300 → 2440) -/
 
 namespace L1cdmEvm
 
@@ -15,30 +15,30 @@ theorem seg_callerMsgr {σ σ1 σ₀ : AccountMap} {A : Substate} {I : Execution
     (hb : CallBound σ σ₀ I (addrOf wS) l1CrossDomainMessengerCd)
     (hst : accountStorageStateEq σ σ1) (hcd : accountCodeStateEq σ σ1)
     (hF : Fmp m Bw) (hB : 96 ≤ Bw.toNat) (hBb : Bw.toNat < 2 ^ 40)
-    (h : RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2237)
+    (h : RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2300)
       [wS, UInt256.land addrMask (UInt256.ofNat I.source.val), wP, UInt256.ofNat I.source.val, t, H, UInt256.ofNat 766,
         relaySelector] m aw rdata σ1 k C) :
     RDrev l1cdmRuntime g (initState σ σ₀ g A I) ∨
     (∃ wM, CallReturned σ σ₀ I (addrOf wS) l1CrossDomainMessengerCd wM ∧ wM = addrWord I.source ∧ ∃ σ2 m2 Bw2 aw2 rd2 k2 C2, accountStorageStateEq σ σ2 ∧
       accountCodeStateEq σ σ2 ∧ Fmp m2 Bw2 ∧ 96 ≤ Bw2.toNat ∧ Bw2.toNat < Bw.toNat + 2 ^ 33 ∧
-      RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2377)
+      RD l1cdmRuntime I g (initState σ σ₀ g A I) (UInt256.ofNat 2440)
         [UInt256.ofNat 0, wP, UInt256.ofNat I.source.val, t, H, UInt256.ofNat 766, relaySelector] m2 aw2 rd2 σ2 k2 C2) := by
-  have r1 := l1cdm_block_2237 (by simp) h
-  simp only [l1cdm_block_2237_stack, l1cdm_block_2237_memory, fmp_load hF (UInt256.ofNat 64) rfl] at r1
+  have r1 := l1cdm_block_2300 (by simp) h
+  simp only [l1cdm_block_2300_stack, l1cdm_block_2300_memory, fmp_load hF (UInt256.ofNat 64) rfl] at r1
   obtain ⟨hF1, hin⟩ := callmem_sel hF hB
     (UInt256.shiftLeft (UInt256.land (UInt256.ofNat 4294967295) (UInt256.ofNat 2802948201)) (UInt256.ofNat 224))
     (0xa7119869 * 2 ^ 224) 0xa7119869 (by decide) (by decide +kernel) _ rfl
   generalize hm1 : (UInt256.toByteArray _).write 0 m Bw.toNat 32 = m1 at r1 hF1 hin
   simp only [fmp_load hF1 (UInt256.ofNat 64) rfl, u_sub_add_comm] at r1
-  have hdec : decode l1cdmRuntime (UInt256.ofNat 2294) = some (.STATICCALL, .none) := by evm_kdecide
+  have hdec : decode l1cdmRuntime (UInt256.ofNat 2357) = some (.STATICCALL, .none) := by evm_kdecide
   by_cases hd : I.depth.val < 1024
   swap
   · have hd' : I.depth = 1024 := by
       apply Fin.ext; have := I.depth.isLt; omega
     obtain ⟨k3, C3, r3⟩ := RD.solcStaticcallDepthLimit r1 hdec hd' (by simp)
     left
-    exact l1cdm_block_2302 (by simp [l1cdm_block_2295_fallthrough_stack])
-      (l1cdm_block_2295_fallthrough (by simp) (by decide) r3)
+    exact l1cdm_block_2365 (by simp [l1cdm_block_2358_fallthrough_stack])
+      (l1cdm_block_2358_fallthrough (by simp) (by decide) r3)
   obtain ⟨σ', z, o, A_in, callGas, k3, C3, ⟨g'', A', hΘ⟩, r3, _hosize⟩ :=
     RD.solcStaticcall r1 hdec hd (by simp)
   rw [show (UInt256.ofNat 4).toNat = 4 from rfl, hin, ofUInt256_mask_land] at hΘ
@@ -52,17 +52,17 @@ theorem seg_callerMsgr {σ σ1 σ₀ : AccountMap} {A : Substate} {I : Execution
   | false =>
     left
     simp only [Bool.false_eq_true, if_false] at r3
-    exact l1cdm_block_2302 (by simp [l1cdm_block_2295_fallthrough_stack])
-      (l1cdm_block_2295_fallthrough (by simp) (by decide) r3)
+    exact l1cdm_block_2365 (by simp [l1cdm_block_2358_fallthrough_stack])
+      (l1cdm_block_2358_fallthrough (by simp) (by decide) r3)
   | true =>
     have hosz := hb σ1 σ' o hst hcd hcall
     have hfirst := firstWord_spec o
     generalize firstWord o = wM at hfirst
     simp only [if_true] at r3
-    have r4 := l1cdm_block_2295_taken (by simp) (by decide) (by kjump_dest) r3
-    simp only [l1cdm_block_2295_taken_stack] at r4
-    have r5 := l1cdm_block_2311 (by simp) (by kjump_dest) r4
-    simp only [l1cdm_block_2311_stack, l1cdm_block_2311_memory,
+    have r4 := l1cdm_block_2358_taken (by simp) (by decide) (by kjump_dest) r3
+    simp only [l1cdm_block_2358_taken_stack] at r4
+    have r5 := l1cdm_block_2374 (by simp) (by kjump_dest) r4
+    simp only [l1cdm_block_2374_stack, l1cdm_block_2374_memory,
       fmp_load (fmp_keep_out hF1 hB o (by omega)) (UInt256.ofNat 64) rfl] at r5
     have hAC := fun h32 => aftercall hF1 hB (by omega) o wM h32 (by omega) (hfirst h32)
     rcases tail_addr (w := wM) (by simp) (by kjump_dest) hosz (fun h32 => (hAC h32).2.2.1) r5 with
@@ -72,8 +72,8 @@ theorem seg_callerMsgr {σ σ1 σ₀ : AccountMap} {A : Substate} {I : Execution
     by_cases heq : UInt256.isZero (UInt256.eq (UInt256.land
         (UInt256.ofNat 1461501637330902918203684832716283019655932542975) wM)
         (UInt256.land addrMask (UInt256.ofNat I.source.val))) = UInt256.ofNat 0
-    · have r7 := l1cdm_block_2347_fallthrough (by simp) heq r6
-      simp only [l1cdm_block_2347_fallthrough_stack, heq] at r7
+    · have r7 := l1cdm_block_2410_fallthrough (by simp) heq r6
+      simp only [l1cdm_block_2410_fallthrough_stack, heq] at r7
       have hwm : wM = addrWord I.source := by
         have := Words.eq_ne0.mp (Words.isZero_eq0.mp heq)
         rw [land_mask_clean hclean, show addrMask = UInt256.ofNat
@@ -82,8 +82,8 @@ theorem seg_callerMsgr {σ σ1 σ₀ : AccountMap} {A : Substate} {I : Execution
         exact this
       exact Or.inr ⟨wM, ⟨σ1, σ', o, hst, hcd, hcall, h32, hfirst h32⟩, hwm, σ', _, _, _, _, _, _, hst', hcd', hF3, by omega, by omega, r7⟩
     · left
-      have r7 := l1cdm_block_2347_taken (by simp) heq (by kjump_dest) r6
-      simp only [l1cdm_block_2347_taken_stack] at r7
+      have r7 := l1cdm_block_2410_taken (by simp) heq (by kjump_dest) r6
+      simp only [l1cdm_block_2410_taken_stack] at r7
       exact rev_2665 (by simp) heq r7
 
 end L1cdmEvm

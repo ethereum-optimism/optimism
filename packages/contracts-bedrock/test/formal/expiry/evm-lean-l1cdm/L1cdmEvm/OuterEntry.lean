@@ -42,12 +42,12 @@ theorem seg_entry {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
   by_cases hcd : UInt256.isZero (UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size)
       (UInt256.ofNat 4)) (UInt256.ofNat 64)) = UInt256.ofNat 0
   · left
-    exact l1cdm_block_9285 (by simp [l1cdm_block_9270_fallthrough_stack])
-      (l1cdm_block_9270_fallthrough (by simp) hcd r7)
-  have r8 := l1cdm_block_9270_taken (by simp) hcd (by kjump_dest) r7
-  simp only [l1cdm_block_9270_taken_stack] at r8
-  have r9 := l1cdm_block_9289 (by simp) (by kjump_dest) r8
-  simp only [l1cdm_block_9289_stack] at r9
+    exact l1cdm_block_9348 (by simp [l1cdm_block_9333_fallthrough_stack])
+      (l1cdm_block_9333_fallthrough (by simp) hcd r7)
+  have r8 := l1cdm_block_9333_taken (by simp) hcd (by kjump_dest) r7
+  simp only [l1cdm_block_9333_taken_stack] at r8
+  have r9 := l1cdm_block_9352 (by simp) (by kjump_dest) r8
+  simp only [l1cdm_block_9352_stack] at r9
   have r10 := l1cdm_block_761 (by simp) (by kjump_dest) r9
   have h36 : (UInt256.ofNat 4 + UInt256.ofNat 32).toNat = 36 := by decide
   have h4 : (UInt256.ofNat 4).toNat = 4 := by decide

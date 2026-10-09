@@ -1,4 +1,5 @@
 import L1cdmEvm.OuterCall1
+import L1cdmEvm.OuterPaused
 import L1cdmEvm.OuterCall2
 import L1cdmEvm.OuterCall3
 import L1cdmEvm.OuterCall4
@@ -20,7 +21,7 @@ open Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach L1cdmEvm.SymMem
 
 /-- The final account map of a successful run: the result of one successful self-call
     `this.sendMessage(...)` with calldata `sendMessageCd H t`, made from an account map `σc` with
-    the storage, transient storage and code of `σ` (the seven view calls are static, so they change
+    the storage, transient storage and code of `σ` (the view calls are static, so they change
     neither). This decomposes the final state frame-locally (an existential `Θ` relation); it is not
     a count of operations in the trace, and balances and nonces of `σc` are not constrained. -/
 def RelayPost (σ σ₀ : AccountMap) (I : ExecutionEnv) (σ' : AccountMap) : Prop :=
@@ -46,7 +47,11 @@ theorem relay_trace {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g
   · exact Or.inl hrev
   rw [hB0] at hB1'
   rw [returned_eq hrF hS.feat] at hfeat
-  rcases seg_portal (bound_of_returns hS.callerPortal) hs1 hc1 hF1 hB1 (by omega) r1 with
+  rcases seg_paused (bound_of_returns hS.paused) hs1 hc1 hF1 hB1 (by omega) r1 with
+    hrev | ⟨wZ, hrZ, hpz, σ1', m1', B1', aw1', rd1', k1', C1', hs1', hc1', hF1', hB1'', hB1''', r1'⟩
+  · exact Or.inl hrev
+  rw [returned_eq hrZ hS.paused] at hpz
+  rcases seg_portal (bound_of_returns hS.callerPortal) hs1' hc1' hF1' hB1'' (by omega) r1' with
     hrev | ⟨wP, hrP, hPc, σ2, m2, B2, aw2, rd2, k2, C2, hs2, hc2, hF2, hB2, hB2', r2⟩
   · exact Or.inl hrev
   obtain rfl := returned_eq hrP hS.callerPortal
@@ -72,7 +77,7 @@ theorem relay_trace {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g
   rw [returned_eq hrX hS.xSender] at hX
   rcases seg_final hs7 hc7 hF7 hB7 (by omega) r7 with hrev | ⟨hecs, σ', o, hcall, hret⟩
   · exact Or.inl hrev
-  exact Or.inr ⟨⟨hv, hlen, hfeat, hPc, hSc, hLc, hMsgr, hAuth, hX⟩, σ',
+  exact Or.inr ⟨⟨hv, hlen, hfeat, hpz, hPc, hSc, hLc, hMsgr, hAuth, hX⟩, σ',
     ⟨σ7, o, hs7, hc7, hecs, hcall⟩, hret⟩
 
 /-- `RDret.xiResult` with a final account map different from the initial one. -/
@@ -110,7 +115,7 @@ theorem relay_outcome {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} 
     · right; right; exact ⟨σ', g', A', hr, hc, hpost⟩
 
 /-- **Soundness.** If the compiled code succeeds on `relayUndeliveredMessage(H, t)`, then the INTEROP
-    feature is enabled, (a) the caller's portal's SystemConfig names the caller as its
+    feature is enabled, this chain is not paused, (a) the caller's portal's SystemConfig names the caller as its
     L1CrossDomainMessenger, (b) this chain's ETHLockbox authorizes the caller's portal, (c) the
     caller's `xDomainMessageSender()` is the UndeliveredMessageExporter, no ETH was attached, the
     calldata is well-formed, and the final account map is the result of one successful self-call

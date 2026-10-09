@@ -10,7 +10,7 @@ call. This file proves them, symbolically, for the mock contracts of `Concrete.l
 mock `PUSH0 CALLDATALOAD PUSH1 0xe0 SHR SLOAD PUSH0 MSTORE PUSH1 0x20 PUSH0 RETURN` returns exactly
 the 32-byte word `SLOAD(selector)` whenever it succeeds (from any account map with the same storage
 and code, with any gas and substate). Hence `concrete_summaries`: in `Concrete.world .ok`, the world
-where `success_reachable` shows the call succeeding, all seven summaries hold with the values the
+where `success_reachable` shows the call succeeding, all the summaries hold with the values the
 mocks are programmed with. So the theorems' hypotheses are not contradictory on that witness.
 -/
 
@@ -154,16 +154,19 @@ theorem mock_returnsWord {σ σ₀ : AccountMap} {I : ExecutionEnv} {target : Ac
       List.take_of_length_le (le_of_eq (by rw [Array.length_toList]; exact toByteArray_size w))⟩
 
 /-- **Non-vacuity of the hypotheses.** In the concrete world where `Concrete.success_reachable`
-    shows `relayUndeliveredMessage` succeeding, all seven summaries hold, with the values the mocks
+    shows `relayUndeliveredMessage` succeeding, all the summaries hold, with the values the mocks
     return. -/
 theorem concrete_summaries :
     Summaries (world .ok) (world .ok) env
-      ⟨UInt256.ofNat 1, word P_B, word SC_B, word CALLER, word LB, UInt256.ofNat 1, exporterWord⟩ := by
+      ⟨UInt256.ofNat 1, UInt256.ofNat 0, word P_B, word SC_B, word CALLER, word LB, UInt256.ofNat 1,
+        exporterWord⟩ := by
   have gm : ∀ (σx σ₀x : AccountMap) (Ax : Substate) (Ix : ExecutionEnv) (gx : Sat256) (cd : ByteArray),
       Ix.code = mockCode → Ix.calldata = cd →
         RDret mockCode gx (initState σx σ₀x gx Ax Ix) σx (UInt256.toByteArray (mockWord σx Ix)) :=
     fun _ _ _ _ _ _ h _ => mock_run h
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact mock_returnsWord (gm · · · · · _) (by decide) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel)
   · exact mock_returnsWord (gm · · · · · _) (by decide) (by decide +kernel) (by decide +kernel)
       (by decide +kernel)
   · exact mock_returnsWord (gm · · · · · _) (by decide) (by decide +kernel) (by decide +kernel)

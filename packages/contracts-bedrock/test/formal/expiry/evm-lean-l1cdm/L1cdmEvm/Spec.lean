@@ -6,11 +6,13 @@ import L1cdmEvm.SymMem
 /-!
 # Statement vocabulary for `L1CrossDomainMessenger.relayUndeliveredMessage`
 
-Solidity source (at 89a3d565ad):
+Solidity source (at 08b54f1446):
 
 ```solidity
 function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
     if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_InteropNotEnabled();
+    if (paused()) revert L1CrossDomainMessenger_Paused();
+
     L1CrossDomainMessenger caller = L1CrossDomainMessenger(msg.sender);
     IOptimismPortal callerPortal = caller.portal();
     if (
@@ -23,6 +25,11 @@ function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) e
         _message: abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt)),
         _minGasLimit: EXPIRE_MESSAGE_GAS_LIMIT
     });
+}
+
+// inherited override in L1CrossDomainMessenger:
+function paused() public view override returns (bool) {
+    return systemConfig.paused();
 }
 ```
 
@@ -38,13 +45,13 @@ open Ethereum Ethereum.EVM Reasoning.Theory L1cdmEvm.SymMem
 
 /-! ## Constants of the compiled artifact -/
 
-/-- `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` as compiled (`PUSH20` at pc 2677). -/
+/-- `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` as compiled (`PUSH20` at pc 2740). -/
 def exporterWord : UInt256 := UInt256.ofNat 0x4200000000000000000000000000000000000030
 
-/-- `Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER` (`PUSH20` at pc 3068). -/
+/-- `Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER` (`PUSH20` at pc 3131). -/
 def l2tol2Word : UInt256 := UInt256.ofNat 0x4200000000000000000000000000000000000023
 
-/-- `EXPIRE_MESSAGE_GAS_LIMIT` (`PUSH3 0x0186a0` at pc 3090). -/
+/-- `EXPIRE_MESSAGE_GAS_LIMIT` (`PUSH3 0x0186a0` at pc 3153). -/
 def expireGasLimit : ℕ := 100000
 
 /-- Storage slots of the L1CrossDomainMessenger (`forge inspect … storageLayout`). -/
@@ -97,6 +104,8 @@ abbrev w32 (w : UInt256) : ByteArray := UInt256.toByteArray w
 
 /-- `isFeatureEnabled(INTEROP)`. -/
 def isFeatureEnabledCd : ByteArray := sel4 0x47af267b ++ w32 interopWord
+/-- `paused()` (on this chain's `systemConfig`). -/
+def pausedCd : ByteArray := sel4 0x5c975abb
 /-- `portal()`. -/
 def portalCd : ByteArray := sel4 0x6425666b
 /-- `systemConfig()`. -/
@@ -224,9 +233,10 @@ def SelfCall (σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteArray) (σc σ' :
       (toExecute σc I.codeOwner) callGas (UInt256.ofNat I.gasPrice) ⟨0⟩ ⟨0⟩ cd
       (I.depth + 1) I.header I.blobVersionedHashes I.blocks I.perm
 
-/-- The values the seven view calls return (the summaries' `w`s). -/
+/-- The values the view calls return (the summaries' `w`s). -/
 structure Views where
   feat : UInt256       -- systemConfig.isFeatureEnabled(INTEROP)
+  paused : UInt256     -- systemConfig.paused() (via this contract's `paused()`)
   callerPortal : UInt256  -- msg.sender.portal()
   callerSC : UInt256   -- callerPortal.systemConfig()
   callerMsgr : UInt256 -- callerPortal.systemConfig().l1CrossDomainMessenger()
@@ -234,10 +244,11 @@ structure Views where
   auth : UInt256       -- portal.ethLockbox().authorizedPortals(callerPortal)
   xSender : UInt256    -- msg.sender.xDomainMessageSender()
 
-/-- The summaries of the seven view calls, with their targets and calldata exactly as the code
+/-- The summaries of the view calls, with their targets and calldata exactly as the code
     makes them: `systemConfig` and `portal` are this contract's storage slots 254 and 252. -/
 structure Summaries (σ σ₀ : AccountMap) (I : ExecutionEnv) (v : Views) : Prop where
   feat : ReturnsWord σ σ₀ I (addrOf (storageWord σ I.codeOwner systemConfigSlot)) isFeatureEnabledCd v.feat
+  paused : ReturnsWord σ σ₀ I (addrOf (storageWord σ I.codeOwner systemConfigSlot)) pausedCd v.paused
   callerPortal : ReturnsWord σ σ₀ I I.source portalCd v.callerPortal
   callerSC : ReturnsWord σ σ₀ I (addrOf v.callerPortal) systemConfigCd v.callerSC
   callerMsgr : ReturnsWord σ σ₀ I (addrOf v.callerSC) l1CrossDomainMessengerCd v.callerMsgr
@@ -251,6 +262,8 @@ structure RelayConds (I : ExecutionEnv) (v : Views) : Prop where
   calldataLen : 68 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   /-- `systemConfig.isFeatureEnabled(Features.INTEROP)` returned `true`. -/
   interop : v.feat = UInt256.ofNat 1
+  /-- `paused()` (`systemConfig.paused()`) returned `false`. -/
+  notPaused : v.paused = UInt256.ofNat 0
   /-- the returned addresses are clean (the decoder reverts otherwise). -/
   callerPortalClean : CleanAddr v.callerPortal
   callerSCClean : CleanAddr v.callerSC

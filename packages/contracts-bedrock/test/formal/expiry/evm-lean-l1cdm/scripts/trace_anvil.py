@@ -6,15 +6,16 @@ Lean) and the exact call inputs. Needs `anvil` (foundry) on PATH.
 
     python3 scripts/trace_anvil.py bytecode/L1CrossDomainMessenger.runtime.hex [scenario]
 
-Scenarios: success (default), nointerop, notmessenger, unauthorized, badsender. The script exits
-non-zero unless the outcome is the expected one: `success` must succeed and make exactly one
+Scenarios: success (default), nointerop, paused, notmessenger, unauthorized, badsender. The script
+exits non-zero unless the outcome is the expected one: `success` must succeed and make exactly one
 `depositTransaction` call whose input is byte-for-byte `depositCd` of `L1cdmEvm/Spec.lean`
-(rebuilt here from the constants below); every other scenario must revert.
+(rebuilt here from the constants below); every other scenario must revert, `paused` with exactly
+the error `L1CrossDomainMessenger_Paused()` (PAUSED_ERROR).
 
 Mock constants (keep in sync with `L1cdmEvm/Concrete.lean` and `L1cdmEvm/Spec.lean` when
 retargeting): EXPORTER (= Predeploys.UNDELIVERED_MESSAGE_EXPORTER), L2CDM, the storage slots
 204/205/207/252/254, msgNonce 7, DEPOSIT_GAS (= Spec.depositGasLimit), EXPIRE_GAS
-(= EXPIRE_MESSAGE_GAS_LIMIT), the view selectors in SEL.
+(= EXPIRE_MESSAGE_GAS_LIMIT), the view selectors in SEL, PAUSED_ERROR.
 
 The mocks are the same bytecodes as `L1cdmEvm/Concrete.lean`:
   * generic mock: returns the word `SLOAD(selector)` (so each view returns what its storage says),
@@ -47,9 +48,10 @@ DEPOSIT_GAS = 412835
 EXPIRE_GAS = 100000
 NONCE = 7
 L2CDM = 0x4200000000000000000000000000000000000007
+PAUSED_ERROR = "fee42a06"   # bytes4(keccak256("L1CrossDomainMessenger_Paused()"))
 
 SEL = {
-    "isFeatureEnabled": 0x47af267b, "portal": 0x6425666b, "systemConfig": 0x33d7e2bd,
+    "isFeatureEnabled": 0x47af267b, "paused": 0x5c975abb, "portal": 0x6425666b, "systemConfig": 0x33d7e2bd,
     "l1CrossDomainMessenger": 0xa7119869, "ethLockbox": 0xb682c444,
     "authorizedPortals": 0x0fd11077, "xDomainMessageSender": 0x6e296e45,
 }
@@ -78,6 +80,7 @@ def setup(s):
     st(SELF, 252, int(P_A, 16)); st(SELF, 254, int(SC_A, 16)); st(SELF, 207, L2CDM)
     st(SELF, 205, NONCE); st(SELF, 204, 0x000000000000000000000000000000000000dEaD)
     st(SC_A, SEL["isFeatureEnabled"], 0 if s == "nointerop" else 1)
+    st(SC_A, SEL["paused"], 1 if s == "paused" else 0)
     st(CALLER, SEL["portal"], int(P_B, 16))
     st(CALLER, SEL["xDomainMessageSender"], 0x99 if s == "badsender" else EXPORTER)
     st(P_B, SEL["systemConfig"], int(SC_B, 16))
@@ -144,6 +147,10 @@ def main():
                   bool(deposits) and deposits[0] == exp)
         else:
             ok = tr["failed"]
+            if SCEN == "paused":
+                rv = tr.get("returnValue", "").removeprefix("0x")
+                print("revert data:", rv)
+                ok = ok and rv == PAUSED_ERROR
         if not ok:
             print(f"UNEXPECTED OUTCOME for scenario {SCEN}", file=sys.stderr)
             sys.exit(1)

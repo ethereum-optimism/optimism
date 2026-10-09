@@ -11,7 +11,7 @@ case of `T`'s conclusion the instance realizes. The instance is `Concrete.world 
 with 3·10^6 gas; for the inner frame, the self-call frame `selfCallEnv env (sendMessageCd H T)`.
 
 **Kernel-checked:** the code (`rfl`), the selector and calldata bound, the inner frame's calldata
-and value, all seven call summaries (`concrete_summaries`, an `RD` proof of each mock's bytecode),
+and value, all the call summaries (`concrete_summaries`, an `RD` proof of each mock's bytecode),
 `hself` and `hnp` (`concrete_self`), and every field of `RelayConds` evaluated directly on the
 concrete views (`witness_conds`).
 
@@ -31,7 +31,8 @@ namespace NV
 
 /-- The views the mocks return in `world .ok`. -/
 def v₁ : Views :=
-  ⟨UInt256.ofNat 1, word P_B, word SC_B, word CALLER, word LB, UInt256.ofNat 1, exporterWord⟩
+  ⟨UInt256.ofNat 1, UInt256.ofNat 0, word P_B, word SC_B, word CALLER, word LB, UInt256.ofNat 1,
+    exporterWord⟩
 
 /-- The self-call frame `relayUndeliveredMessage` creates. -/
 abbrev Iₛ : ExecutionEnv := selfCallEnv env (sendMessageCd H T) l1cdmRuntime
@@ -83,11 +84,13 @@ theorem s_val : Iₛ.weiValue = ⟨0⟩ := rfl
 theorem env_args : argHash env = H ∧ argTime env = T := by decide +kernel
 
 /-- Every field of `RelayConds`, evaluated directly on the concrete environment and views (no `Ξ`
-    run): the three checks (a), (b), (c) and the INTEROP feature hold in the witness. -/
+    run): the three checks (a), (b), (c), the INTEROP feature and "not paused" hold in the
+    witness. -/
 theorem witness_conds : RelayConds env v₁ where
   noValue := rfl
   calldataLen := by decide +kernel
   interop := rfl
+  notPaused := rfl
   callerPortalClean := show _ < _ by decide +kernel
   callerSCClean := show _ < _ by decide +kernel
   lockboxClean := show _ < _ by decide +kernel
@@ -166,7 +169,7 @@ theorem nonvacuous_send_success :
   exact ⟨σ', g', A', o, s_code, s_cd, s_val, hs, send_success s_code s_cd s_val hs⟩
 
 /-- All hypotheses of `relay_deposit` (the unproxied composition) hold jointly — code, selector,
-    calldata bound, the seven summaries, `hself`, `hnp` (all kernel-checked) and a successful run —
+    calldata bound, the call summaries, `hself`, `hnp` (all kernel-checked) and a successful run —
     and the theorem yields the deposit call with the exact envelope, from this contract to its
     portal, followed by `++msgNonce`. -/
 theorem nonvacuous_relay_deposit :

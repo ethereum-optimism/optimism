@@ -9,12 +9,14 @@ as `scripts/trace_anvil.py`):
 * `SELF` = A's L1CrossDomainMessenger (the code under test): `portal` = `P_A`, `systemConfig` =
   `SC_A`, `otherMessenger` = 0x4200..0007, `msgNonce` = 7;
 * a generic mock (`mockCode`: returns the word `SLOAD(selector)`) at `SC_A`, `LB`, `CALLER`
-  (B's L1CrossDomainMessenger), `P_B`, `SC_B`, with storage programming the view results;
+  (B's L1CrossDomainMessenger), `P_B`, `SC_B`, with storage programming the view results (`SC_A`
+  answers `isFeatureEnabled(INTEROP)` and `paused()`);
 * the portal mock at `P_A` (`portalCode`): like the generic mock, but `depositTransaction` stores
   `keccak256(calldata)` at its slot 0.
 
 They show that the success branch is reachable (and that the deposit's calldata is exactly
-`depositCd` of the spec), and that each check failing makes the call revert. They are tests
+`depositCd` of the spec), and that each check failing makes the call revert (a paused chain with
+the error `L1CrossDomainMessenger_Paused()`). They are tests
 (checked by `native_decide`), not part of the proof of the headline theorems.
 -/
 
@@ -50,7 +52,7 @@ def acct (c : ByteArray) (l : List (ℕ × UInt256)) : Account :=
   { (default : Account) with code := c, storage := store l, nonce := ⟨1⟩ }
 
 /-- Which check to break. -/
-inductive Scenario | ok | noInterop | notMessenger | unauthorized | badSender
+inductive Scenario | ok | noInterop | paused | notMessenger | unauthorized | badSender
   deriving DecidableEq
 
 def world (sc : Scenario) : AccountMap :=
@@ -58,7 +60,8 @@ def world (sc : Scenario) : AccountMap :=
     |>.insert SELF (acct l1cdmRuntime [(252, word P_A), (254, word SC_A),
         (207, UInt256.ofNat 0x4200000000000000000000000000000000000007), (205, UInt256.ofNat 7),
         (204, UInt256.ofNat 0xdEaD)])
-    |>.insert SC_A (acct mockCode [(0x47af267b, UInt256.ofNat (if sc = .noInterop then 0 else 1))])
+    |>.insert SC_A (acct mockCode [(0x47af267b, UInt256.ofNat (if sc = .noInterop then 0 else 1)),
+        (0x5c975abb, UInt256.ofNat (if sc = .paused then 1 else 0))])
     |>.insert CALLER (acct mockCode [(0x6425666b, word P_B),
         (0x6e296e45, if sc = .badSender then UInt256.ofNat 0x99 else exporterWord)])
     |>.insert P_B (acct mockCode [(0x33d7e2bd, word SC_B)])
@@ -102,6 +105,12 @@ def reverted (sc : Scenario) : Bool :=
   | .ok (.revert _ _) => true
   | _ => false
 
+/-- The revert data of a reverting run. -/
+def revertData (sc : Scenario) : Option (List UInt8) :=
+  match run sc with
+  | .ok (.revert _ o) => some o.data.toList
+  | _ => none
+
 def keccakWord (b : ByteArray) : UInt256 := UInt256.ofNat (fromByteArrayBigEndian (KEC b))
 
 /-- **Reachability.** With all checks passing, the call succeeds; the portal received exactly
@@ -111,6 +120,10 @@ theorem success_reachable :
   native_decide
 
 theorem noInterop_reverts : reverted .noInterop = true := by native_decide
+
+/-- **Paused.** With `paused()` answering `true` (and every other check passing), the call
+    reverts with the error `L1CrossDomainMessenger_Paused()` (selector `0xfee42a06`). -/
+theorem paused_reverts : revertData .paused = some [0xfe, 0xe4, 0x2a, 0x06] := by native_decide
 theorem notMessenger_reverts : reverted .notMessenger = true := by native_decide
 theorem unauthorized_reverts : reverted .unauthorized = true := by native_decide
 theorem badSender_reverts : reverted .badSender = true := by native_decide

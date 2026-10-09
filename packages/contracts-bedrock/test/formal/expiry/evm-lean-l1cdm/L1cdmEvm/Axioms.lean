@@ -118,3 +118,4 @@ elab "#assert_headline " id:ident : command => do
 
 #print axioms L1cdmEvm.Concrete.success_reachable
 #print axioms L1cdmEvm.Concrete.badSender_reverts
+#print axioms L1cdmEvm.Concrete.paused_reverts

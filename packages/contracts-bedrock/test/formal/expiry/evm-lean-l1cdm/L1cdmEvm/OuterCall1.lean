@@ -71,24 +71,24 @@ theorem seg_feat {σ σ1 σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {
     by_cases h32 : 32 ≤ o.size
     swap
     · left
-      have r6 := l1cdm_block_10184_fallthrough (by simp)
+      have r6 := l1cdm_block_10247_fallthrough (by simp)
         (by
           rw [u_sub_add_self]
           by_contra hc
           exact h32 ((slt_small _ (by omega)).mp hc)) r5
-      exact l1cdm_block_10198 (by simp [l1cdm_block_10184_fallthrough_stack]) r6
+      exact l1cdm_block_10261 (by simp [l1cdm_block_10247_fallthrough_stack]) r6
     obtain ⟨_, hF3, hload, hnb⟩ := aftercall hF1 hB (by omega) o wF h32 (by omega) (hfirst h32)
-    have r6 := l1cdm_block_10184_taken (by simp)
+    have r6 := l1cdm_block_10247_taken (by simp)
       (by rw [u_sub_add_self]; exact (slt_small _ (by omega)).mpr h32) (by kjump_dest) r5
-    simp only [l1cdm_block_10184_taken_stack] at r6
+    simp only [l1cdm_block_10247_taken_stack] at r6
     by_cases hbool : UInt256.eq wF (UInt256.isZero (UInt256.isZero wF)) = UInt256.ofNat 0
     · left
-      have r7 := l1cdm_block_10202_fallthrough (by simp) (by rw [hload]; exact hbool) r6
-      exact l1cdm_block_10214 (by simp [l1cdm_block_10202_fallthrough_stack]) r7
-    have r7 := l1cdm_block_10202_taken (by simp) (by rw [hload]; exact hbool) (by kjump_dest) r6
-    simp only [l1cdm_block_10202_taken_stack, hload] at r7
-    have r8 := l1cdm_block_8541 (by simp) (by kjump_dest) r7
-    simp only [l1cdm_block_8541_stack] at r8
+      have r7 := l1cdm_block_10265_fallthrough (by simp) (by rw [hload]; exact hbool) r6
+      exact l1cdm_block_10277 (by simp [l1cdm_block_10265_fallthrough_stack]) r7
+    have r7 := l1cdm_block_10265_taken (by simp) (by rw [hload]; exact hbool) (by kjump_dest) r6
+    simp only [l1cdm_block_10265_taken_stack, hload] at r7
+    have r8 := l1cdm_block_8604 (by simp) (by kjump_dest) r7
+    simp only [l1cdm_block_8604_stack] at r8
     by_cases hz : wF = UInt256.ofNat 0
     · left
       have r9 := l1cdm_block_1929_fallthrough (by simp) hz r8
