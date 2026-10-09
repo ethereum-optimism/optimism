@@ -7,7 +7,7 @@ use crate::{
     NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -158,9 +158,10 @@ impl RollupNode {
         self.engine_config.mode
     }
 
-    /// Creates a network builder for the node.
-    fn network_builder(&self) -> NetworkBuilder {
-        NetworkBuilder::from(self.p2p_config.clone())
+    /// Creates a network builder for the node whose gossip validation follows
+    /// `unsafe_block_signer`.
+    fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
+        NetworkBuilder::from(self.p2p_config.clone()).with_unsafe_block_signer(unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -310,7 +311,7 @@ impl RollupNode {
     fn build_l1_watcher(
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
-        signer_tx: mpsc::Sender<Address>,
+        signer_tx: watch::Sender<Address>,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
@@ -340,6 +341,37 @@ impl RollupNode {
             finalized_stream,
             vec![chain],
         ))
+    }
+
+    /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
+    ///
+    /// A sequencer must have a block signer: its blocks are gossiped only once signed.
+    async fn build_signer_actor(
+        &self,
+        payloads_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+        signed_payload_tx: mpsc::Sender<SignedPayload>,
+        unsafe_block_signer: watch::Receiver<Address>,
+    ) -> Result<Option<SignerActor>, String> {
+        if !self.mode().is_sequencer() {
+            if self.p2p_config.gossip_signer.is_some() {
+                warn!(target: "rollup_node", "Ignoring the configured block signer: only a sequencer signs blocks");
+            }
+            return Ok(None);
+        }
+        let Some(signer) = self.p2p_config.gossip_signer.clone() else {
+            return Err("Sequencer mode requires a block signer: set --p2p.sequencer.key, \
+                 --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
+                .into());
+        };
+        let signer =
+            signer.start().await.map_err(|e| format!("Failed to start block signer: {e}"))?;
+        Ok(Some(SignerActor::new(
+            signer,
+            self.config.l2_chain_id.id(),
+            unsafe_block_signer,
+            payloads_rx,
+            signed_payload_tx,
+        )))
     }
 
     /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -478,13 +510,18 @@ impl RollupNode {
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
         let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
         // Network actor inbound channels
-        let (signer_tx, signer_rx) = mpsc::channel::<Address>(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
+        // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
+        // network actor. While signing stalls, a full sequencer queue pauses block production.
         let (gossip_payload_tx, gossip_payload_rx) =
-            mpsc::channel::<OpExecutionPayloadEnvelope>(256);
+            mpsc::channel::<OpExecutionPayloadEnvelope>(32);
+        let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<SignedPayload>(16);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
+        // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
+        // from the value read at startup.
+        let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
@@ -499,10 +536,16 @@ impl RollupNode {
             .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
             .await?;
 
+        // Start the block signer before the network, so a misconfigured or unreachable remote
+        // signer fails before the node binds its p2p ports.
+        let signer_actor = self
+            .build_signer_actor(gossip_payload_rx, signed_payload_tx, signer_rx.clone())
+            .await?;
+
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
         // stays sync.
         let handler: NetworkHandler = self
-            .network_builder()
+            .network_builder(signer_rx)
             .build()
             .map_err(|e| format!("Failed to build network: {e:?}"))?
             .start()
@@ -512,10 +555,9 @@ impl RollupNode {
         let network = NetworkActor::new(
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
-            signer_rx,
             p2p_rpc_rx,
             network_admin_rx,
-            gossip_payload_rx,
+            signed_payload_rx,
         );
 
         let l1_watcher = self.build_l1_watcher(
@@ -551,6 +593,7 @@ impl RollupNode {
             actors = [
                 rpc,
                 sequencer_actor,
+                signer_actor,
                 Some(network),
                 Some(l1_watcher),
                 Some(derivation),

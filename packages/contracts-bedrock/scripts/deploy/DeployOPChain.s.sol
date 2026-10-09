@@ -354,6 +354,7 @@ contract DeployOPChain is Script {
         require(_i.proofMaturityDelaySeconds != 0, "DeployOPChainInput: proofMaturityDelaySeconds not set");
         require(_i.disputeGameFinalityDelaySeconds != 0, "DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
         require(_i.withdrawalDelaySeconds != 0, "DeployOPChainInput: withdrawalDelaySeconds not set");
+        _assertDelaysWithinBounds(_i);
 
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
         require(_i.disputeSplitDepth != 0, "DeployOPChainInput: disputeSplitDepth not set");
@@ -408,6 +409,31 @@ contract DeployOPChain is Script {
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
         _assertValidDeploy(_i, _o);
+    }
+
+    /// @notice Checks the per-chain withdrawal delays against the bounds baked into the OPCM's
+    ///         implementations. Without this, an out-of-range value only fails inside initialize()
+    ///         behind the proxy, where the custom error is swallowed.
+    /// @param _i The input to check.
+    function _assertDelaysWithinBounds(Types.DeployOPChainInput memory _i) internal view {
+        IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(_i.opcm).implementations();
+        IOptimismPortal portalImpl = IOptimismPortal(payable(impls.optimismPortalImpl));
+        require(
+            _i.proofMaturityDelaySeconds >= portalImpl.minProofMaturityDelaySeconds()
+                && _i.proofMaturityDelaySeconds <= portalImpl.maxProofMaturityDelaySeconds(),
+            "DeployOPChainInput: proofMaturityDelaySeconds out of bounds"
+        );
+        IAnchorStateRegistry asrImpl = IAnchorStateRegistry(impls.anchorStateRegistryImpl);
+        require(
+            _i.disputeGameFinalityDelaySeconds >= asrImpl.minDisputeGameFinalityDelaySeconds()
+                && _i.disputeGameFinalityDelaySeconds <= asrImpl.maxDisputeGameFinalityDelaySeconds(),
+            "DeployOPChainInput: disputeGameFinalityDelaySeconds out of bounds"
+        );
+        IDelayedWETH wethImpl = IDelayedWETH(payable(impls.delayedWETHImpl));
+        require(
+            _i.withdrawalDelaySeconds >= wethImpl.minDelay() && _i.withdrawalDelaySeconds <= wethImpl.maxDelay(),
+            "DeployOPChainInput: withdrawalDelaySeconds out of bounds"
+        );
     }
 
     /// @notice Asserts that the deploy is valid.

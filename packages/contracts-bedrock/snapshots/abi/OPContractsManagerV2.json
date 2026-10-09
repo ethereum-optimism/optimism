@@ -851,6 +851,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_InvalidDelayConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_InvalidEthLockbox",
     "type": "error"
   },

@@ -722,6 +722,42 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
+    function test_run_zeroProofMaturityDelaySeconds_reverts() public {
+        deployOPChainInput.proofMaturityDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: proofMaturityDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_zeroDisputeGameFinalityDelaySeconds_reverts() public {
+        deployOPChainInput.disputeGameFinalityDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_withdrawalDelaySecondsOutOfBounds_reverts() public {
+        deployOPChainInput.withdrawalDelaySeconds = maxWithdrawalDelaySeconds + 1;
+        vm.expectRevert("DeployOPChainInput: withdrawalDelaySeconds out of bounds");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_zeroWithdrawalDelaySeconds_reverts() public {
+        deployOPChainInput.withdrawalDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: withdrawalDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_proofMaturityDelaySecondsOutOfBounds_reverts() public {
+        deployOPChainInput.proofMaturityDelaySeconds = maxProofMaturityDelaySeconds + 1;
+        vm.expectRevert("DeployOPChainInput: proofMaturityDelaySeconds out of bounds");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_disputeGameFinalityDelaySecondsOutOfBounds_reverts() public {
+        deployOPChainInput.disputeGameFinalityDelaySeconds = maxDisputeGameFinalityDelaySeconds + 1;
+        vm.expectRevert("DeployOPChainInput: disputeGameFinalityDelaySeconds out of bounds");
+        deployOPChain.run(deployOPChainInput);
+    }
+
     function test_run_zeroDisputeMaxGameDepth_reverts() public {
         deployOPChainInput.disputeMaxGameDepth = 0;
         vm.expectRevert("DeployOPChainInput: disputeMaxGameDepth not set");

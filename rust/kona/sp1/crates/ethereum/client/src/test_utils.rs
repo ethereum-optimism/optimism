@@ -53,3 +53,11 @@ pub(crate) fn rollup_config(chain_id: u64, l1_chain_id: u64) -> RollupConfig {
         ..Default::default()
     }
 }
+
+pub(crate) fn chain_configs(chain_ids: &[u64]) -> crate::chain_config::ChainConfigs {
+    crate::chain_config::ChainConfigs {
+        dependency_set: dependency_set(chain_ids, None),
+        rollup_configs: chain_ids.iter().map(|id| (*id, rollup_config(*id, 1))).collect(),
+        l1_config: kona_registry::L1_CONFIGS[&1].clone(),
+    }
+}

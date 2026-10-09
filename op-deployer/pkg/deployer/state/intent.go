@@ -34,10 +34,8 @@ var (
 )
 
 type SuperchainProofParams struct {
-	MinProposalSizeBytes   uint64 `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
-	ChallengePeriodSeconds uint64 `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	// Bounds baked into the OptimismPortal, AnchorStateRegistry and DelayedWETH implementations.
-	// The per-chain delays themselves live in ChainProofParams.
+	MinProposalSizeBytes               uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
+	ChallengePeriodSeconds             uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
 	MinProofMaturityDelaySeconds       uint64      `json:"minProofMaturityDelaySeconds" toml:"minProofMaturityDelaySeconds"`
 	MaxProofMaturityDelaySeconds       uint64      `json:"maxProofMaturityDelaySeconds" toml:"maxProofMaturityDelaySeconds"`
 	MinDisputeGameFinalityDelaySeconds uint64      `json:"minDisputeGameFinalityDelaySeconds" toml:"minDisputeGameFinalityDelaySeconds"`

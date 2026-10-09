@@ -226,19 +226,24 @@ commands:
                     # also sets this; keep it here so direct callers remain correct.
                     echo "export CARGO_INCREMENTAL=0"
                   } >> "$BASH_ENV"
-            # develop overrides to the writer identity. This selects the SA only;
-            # write access is enforced by GCP Workload Identity, which grants write
-            # solely to refs/heads/develop. Tag builds (empty branch) and the merge
-            # queue (gh-readonly-queue/*) intentionally stay read-only — GCP would
-            # deny them write regardless. Keep this condition in lockstep with the
-            # GCP vcs_origin_ref binding on the sccache-writer service account.
+            # develop of the public repo overrides to the writer identity. This
+            # selects the SA only; write access is enforced by GCP Workload
+            # Identity, which grants write solely to refs/heads/develop of
+            # ethereum-optimism/optimism. Other repos sharing this config, tag
+            # builds (empty branch) and the merge queue (gh-readonly-queue/*) stay
+            # read-only. Keep this condition in lockstep with the GCP binding on
+            # the sccache-writer service account.
             - when:
                 condition:
                   equal: ["develop", << pipeline.git.branch >>]
                 steps:
                   - run:
-                      name: "sccache GCS identity: read/write (develop)"
+                      name: "sccache GCS identity: read/write (public develop)"
                       command: |
+                        if [ "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" != "ethereum-optimism/optimism" ]; then
+                          echo "Not ethereum-optimism/optimism; sccache stays read-only"
+                          exit 0
+                        fi
                         {
                           echo "export GCP_SERVICE_ACCOUNT_EMAIL=sccache-writer@oplabs-tools-artifacts.iam.gserviceaccount.com"
                           echo "export SCCACHE_GCS_RW_MODE=READ_WRITE"
@@ -407,7 +412,7 @@ commands:
           name: Determine target branch for this pipeline
           command: |
             # Use the get-target-branch.sh script
-            source scripts/ops/get-target-branch.sh
+            GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-}}" source scripts/ops/get-target-branch.sh
 
             # Make TARGET_BRANCH available to subsequent steps
             echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
@@ -2643,11 +2648,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-      # Gates that the SP1 guest ELFs build reproducibly. The acceptance tests
+      # Gates compilation of the SP1 test guest ELFs. The acceptance tests
       # no longer consume this job's workspace (they run with stub prestate
       # artifacts against the mock verifier), so it is required directly by
       # ci-gate rather than through them.
       - kona-build-sp1-elfs:
+          features: test-config-fallback
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism

@@ -9,7 +9,6 @@ edition.workspace = true
 # ethereum
 op-alloy-consensus.workspace = true
 alloy-consensus.workspace = true
-alloy-rlp.workspace = true
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
@@ -33,7 +32,6 @@ kona-interop = { workspace = true, features = ["serde"] }
 # general
 anyhow.workspace = true
 async-trait.workspace = true
-serde_json.workspace = true
 serde = { workspace = true, features = ["derive", "std"] }
 rkyv = { workspace = true, features = ["hashbrown-0_15", "std"] }
 sha2.workspace = true
@@ -43,6 +41,9 @@ spin.workspace = true
 # kzg
 kzg-rs.workspace = true
 cfg-if.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [features]
 # Exposes the canonical super-aggregation fixture to downstream guest tests. Kept narrowly named

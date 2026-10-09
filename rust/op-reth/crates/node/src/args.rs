@@ -9,15 +9,21 @@ use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
 use std::path::PathBuf;
 use url::Url;
 
-/// Storage schema version for the proofs-history database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+/// Storage format of the proofs-history database. v2 is the only supported format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofsStorageVersion {
-    /// V1 storage schema (original single-table-per-domain layout). Default.
-    #[default]
-    V1,
-    /// V2 storage schema with changeset and history-bitmap tables, enabling
-    /// history-aware reads at any block number within the proof window.
+    /// Storage format with changeset and history-bitmap tables.
     V2,
+}
+
+/// Parses `--proofs-history.storage-version`, rejecting every format but v2.
+fn parse_proofs_storage_version(value: &str) -> Result<ProofsStorageVersion, String> {
+    match value {
+        "v2" => Ok(ProofsStorageVersion::V2),
+        _ => Err("only `v2` is supported; drop this flag or pass `v2`, then delete any v1 proofs \
+                  database and re-create it with `op-reth proofs init`"
+            .to_string()),
+    }
 }
 
 /// Default proofs history window in blocks: 30 days × 24h × 60min × 60s / 2s
@@ -40,13 +46,17 @@ pub struct ProofsHistoryStorageArgs {
     #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
     pub storage_path: Option<PathBuf>,
 
-    /// Storage schema version. Must match the version used when starting the node.
+    /// Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is
+    /// rejected.
+    ///
+    /// Kept so that deployments which still pass `--proofs-history.storage-version=v2` keep
+    /// working.
     #[arg(
         long = "proofs-history.storage-version",
         value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
+        value_parser = parse_proofs_storage_version
     )]
-    pub storage_version: ProofsStorageVersion,
+    pub storage_version: Option<ProofsStorageVersion>,
 }
 
 impl ProofsHistoryStorageArgs {
@@ -112,7 +122,7 @@ pub struct ProofsHistoryBackfillArgs {
 
     /// Use the trie-state snapshot to accelerate per-block reads during
     /// backfill. If no snapshot exists, one is bootstrapped at the current
-    /// `earliest` before the backfill loop begins. Requires v2 storage.
+    /// `earliest` before the backfill loop begins.
     ///
     /// Defaults to `true`. Pass `--proofs-history.use-snapshot false` to
     /// force the non-snapshot path (per-block reads via the reth DB).
@@ -324,10 +334,7 @@ impl Default for RollupArgs {
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
-            history: ProofsHistoryStorageArgs {
-                storage_path: None,
-                storage_version: ProofsStorageVersion::V1,
-            },
+            history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
         }
@@ -351,6 +358,27 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_proofs_storage_version_accepts_only_v2() {
+        for args in [
+            &["reth", "--proofs-history.storage-version=v2"][..],
+            &["reth", "--proofs-history.storage-version", "v2"],
+        ] {
+            let args = CommandParser::<RollupArgs>::parse_from(args).args;
+            assert_eq!(args.history.storage_version, Some(ProofsStorageVersion::V2));
+        }
+
+        for version in ["v1", "V2", "v3"] {
+            let err = CommandParser::<RollupArgs>::try_parse_from([
+                "reth".to_string(),
+                format!("--proofs-history.storage-version={version}"),
+            ])
+            .err()
+            .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
+            assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
+        }
     }
 
     #[test]

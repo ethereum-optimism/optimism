@@ -1,7 +1,5 @@
 //! This crate contains the core logic for the sp1 proof.
 
-pub mod boot;
-
 mod oracle;
 pub use oracle::BlobStore;
 

@@ -662,16 +662,23 @@ func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2,
 }
 
 // OptimisticOutputAtTimestamp returns the OutputV0 for the "optimistic" L2 block at the given timestamp.
-// If the block at this height has been denied (invalidated and replaced), the optimistic output
-// is the original (pre-replacement) block's output from the deny list — because optimistically
-// the block would not have been replaced. Otherwise it returns the current local safe block's output.
+// If the block at this height has been denied (invalidated and replaced) and was produced at exactly
+// this timestamp, the optimistic output is the original (pre-replacement) block's output from the deny
+// list — because optimistically the block would not have been replaced. Otherwise it returns the
+// current local safe block's output.
 func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	blockNum, err := c.TimestampToBlockNumber(ctx, ts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert timestamp to block number: %w", err)
 	}
+	blockTs, err := c.BlockNumberToTimestamp(ctx, blockNum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert block number to timestamp: %w", err)
+	}
 
-	if c.denyList != nil {
+	// Optimistic means the block as originally built, at the timestamp it was produced. Between a
+	// slower chain's blocks (blockTs < ts), the chain has no new block, so use the canonical state.
+	if c.denyList != nil && blockTs == ts {
 		outV0, err := c.denyList.LastDeniedOutputV0(blockNum)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query deny list at height %d: %w", blockNum, err)

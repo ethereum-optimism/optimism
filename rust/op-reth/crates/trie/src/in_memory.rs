@@ -58,7 +58,7 @@ struct InMemoryStorageInner {
     /// Earliest block number and hash
     earliest_block: Option<(u64, B256)>,
 
-    /// Latest block number and hash. Mirrors `MdbxProofsStorage*`'s explicit `LatestBlock`
+    /// Latest block number and hash. Mirrors `MdbxProofsStorage`'s explicit `LatestBlock`
     /// entry — set by `commit_initial_state`, `store_trie_updates`, `unwind_history`,
     /// `replace_updates`. Left untouched by `prune_earliest_state`.
     latest_block: Option<(u64, B256)>,

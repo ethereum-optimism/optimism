@@ -40,6 +40,33 @@ Supporting libraries for the SP1 fault proof system:
 - **`zkvm-canary`**: The `kona-zkvm-canary` service, which continuously executes both
   `super-range` modes against finalized live-network snapshots without producing proofs
 
+### Chain configuration
+
+The super-range guest reads chain configurations only from its compiled registry. Both range
+and consolidation reject chains without an embedded rollup config, L1 config, or matching
+dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+Custom registry inputs currently support only Mainnet, Sepolia, and Holesky as L1s;
+embedding other L1 configurations requires additional registry support.
+
+The shared range and consolidation functions accept an optional `ChainConfigs` bundle.
+`None` selects the compiled registry. The native executor, proposer, and canary resolve deployment
+config files once and pass an explicit bundle to native witness collection, with embedded registry
+values for omitted files. The executor reuses that bundle for native replay. SP1 guest execution
+enforces the guest's compiled registry independently of host config files. Native acceptance tests
+require neither a guest ELF nor a Cargo feature, and do not read configs from Local preimage keys.
+
+The opt-in `test-config-fallback` feature belongs only to the `kona-sp1-super-range` guest.
+It allows that guest's test entrypoint to decode unverified Local-key configs and supply an
+explicit bundle to the shared functions. It is disabled by default;
+`ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it and
+artifacts carrying a `-test` build marker.
+Test-feature ELFs also contain a dedicated unsafe-config marker that production
+prestate checks reject.
+For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
+`build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
+The full-ELF executor seeds the resolved config bundle into its test witness, so one test ELF
+supports the existing synthetic deployments without rebuilding for each deployment.
+
 ### ELF Binaries (`elf/`)
 
 Compiled ELF binaries for the zkVM programs, used by the prover:
@@ -173,7 +200,7 @@ RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
   ./op-acceptance-tests/tests/interop/proofs/serial \
   ./op-acceptance-tests/tests/interop/proofs-singlechain
 
-cd rust/kona/sp1 && just build-elfs-native && just build-super-range-executor && cd ../../..
+cd rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor && cd ../../..
 KONA_SP1_ELF_DIR="$PWD/rust/kona/sp1/elf" \
 KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/rust/target/release/kona-sp1-super-range-executor" \
 RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
@@ -695,12 +722,13 @@ with:
 cd rust/kona/tests && just action-tests-sp1
 ```
 
-That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds the
+That recipe builds test guest ELFs (`just build-elfs test-config-fallback`, Dockerized SP1 toolchain), builds the
 `super-range-executor` binary, and runs the test with `KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH`
 and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
 is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
-tests.
+tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
+tests in its `kona-sp1-action-tests` job.
 
 Because the executor is a separate process that resolves the transition itself, the action-test
 harness serves op-node's superroot API over a loopback HTTP listener
@@ -713,25 +741,35 @@ instead of executing the SP1 ELF. Use the default SP1 execute path for a small s
 the ELF, SP1 stdin, and public-values boundary; use `--native-core` when broad action-test
 coverage would otherwise multiply SP1 emulator cost.
 
+Native-core replay reads the witness exactly as the guest does, so a preimage missing from the
+witness **panics** instead of returning an error. The panic is deliberate: shared kona code turns
+some oracle errors into protocol outcomes (an interop message judged invalid, a span batch
+skipped), so a prover that could make a read fail would choose those outcomes. Anything that runs
+the guest code outside the zkVM with an incomplete witness therefore crashes (exit `101` from
+the executor) rather than reporting the claim invalid.
+
 The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
 driven by **corrupting the claim the guest sees**, not by feeding the executor a wrong claim:
 the executor synthesizes the agreed pre-state and the claim from the supernode and collects
 witnesses against them, so there is nothing to pass a junk value to, and a witness collected
 against a bad claim would fail host-side before the guest ran (a confusing infra error, exit
 2). So an invalid-claim test sets `--corrupt-claimed-root` (via `WithCorruptClaim()` in the Go
-harness), which flips a bit in the claimed optimistic output root *after* witness collection,
-so the guest re-derives the real root, finds the mismatch, and aborts (exit 1) — a soundness
-smoke test that a false transition cannot be executed (and thus could not be proven). If the
-guest instead runs the tampered claim to completion and agrees with the honest outputs, the
-executor exits `2` rather than reporting the claim valid. Do **not** write an SP1 negative test
-by passing a junk `WithL2Claim(...)`.
+harness), which flips a bit in the claimed optimistic output root *after* witness collection.
+The witness has no preimage for the corrupted root, so the guest aborts when it reads it
+(exit 1) — a soundness smoke test that a false transition cannot be executed (and thus could
+not be proven). If the guest instead runs the tampered claim to completion and agrees with the
+honest outputs, the executor exits `2` rather than reporting the claim valid. Do **not** write
+an SP1 negative test by passing a junk `WithL2Claim(...)`. Combining `--corrupt-claimed-root`
+with `--native-core` is unsupported: the native replay panics on the missing preimage (exit
+`101`), which the Go harness reports as a test failure, so the harness rejects that combination.
+Keep invalid-claim tests on the SP1 execute path.
+
 ## Dependencies
 
 This integration depends on:
 - SP1 SDK and zkVM runtime
 - Core Kona libraries (`kona-proof`, `kona-derive`, `kona-executor`, etc.)
 - Alloy and OP-Alloy for Ethereum types
-- RocksDB for witness data storage
 
 ## License and Attribution
 

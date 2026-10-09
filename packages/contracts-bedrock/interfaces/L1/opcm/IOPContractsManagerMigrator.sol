@@ -64,6 +64,10 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
     error OPContractsManagerMigrator_InvalidAbsolutePrestate();
 
+    /// @notice Thrown when a ZK_DISPUTE_GAME config has a zero absolute prestate, a zero or
+    ///         greater-than-uint32-max challenge or prove duration, or a zero challenger bond.
+    error OPContractsManagerMigrator_InvalidZKDisputeGameConfig();
+
     /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
     error OPContractsManagerMigrator_InvalidGameType();
 
@@ -73,7 +77,6 @@ interface IOPContractsManagerMigrator {
 
     error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
 
-    /// @notice Thrown when the chains being migrated disagree on the dispute game finality delay.
     error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
     error OPContractsManagerMigrator_WithdrawalDelayMismatch();
 

@@ -159,11 +159,16 @@ impl TryFrom<&FlashBlockCompleteSequence> for OpExecutionData {
     fn try_from(sequence: &FlashBlockCompleteSequence) -> Result<Self, Self::Error> {
         let mut data = OpExecutionPayloadEnvelope::from_flashblocks_unchecked(sequence);
 
-        // If execution outcome is available, use the computed state_root and block_hash.
-        // FlashBlockService computes these when building sequences on top of the local tip.
+        // If execution outcome is available, take every execution-derived header field from it.
+        // FlashBlockService computes these when building sequences on top of the local tip, and
+        // `block_hash` commits to all of them: overwriting it alone would leave streamed values
+        // (e.g. a receipts root without the post-exec tx's receipt) that the hash does not match.
         if let Some(execution_outcome) = sequence.execution_outcome() {
             let payload = data.as_v1_mut();
             payload.state_root = execution_outcome.state_root;
+            payload.receipts_root = execution_outcome.receipts_root;
+            payload.logs_bloom = execution_outcome.logs_bloom;
+            payload.gas_used = execution_outcome.gas_used;
             payload.block_hash = execution_outcome.block_hash;
         }
 
@@ -188,6 +193,9 @@ impl TryFrom<&FlashBlockCompleteSequence> for reth_optimism_payload_builder::OpE
 mod tests {
     use super::*;
     use crate::{sequence::SequenceExecutionOutcome, test_utils::TestFlashBlockFactory};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{Bloom, Bytes};
+    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 
     mod op_execution_data_conversion {
         use super::*;
@@ -214,6 +222,7 @@ mod tests {
             let execution_outcome = SequenceExecutionOutcome {
                 block_hash: B256::random(),
                 state_root: B256::random(), // Non-zero
+                ..Default::default()
             };
 
             let sequence =
@@ -225,6 +234,44 @@ mod tests {
             let mut data = result.unwrap();
             assert_eq!(data.payload.as_v1_mut().state_root, execution_outcome.state_root);
             assert_eq!(data.payload.as_v1_mut().block_hash, execution_outcome.block_hash);
+        }
+
+        /// An SDM block's streamed receipts root and gas used need not match local execution,
+        /// which includes the 0x7D's receipt and nets out refunds. `block_hash` commits to the
+        /// local values, so all of them must replace the streamed ones or the payload is
+        /// rejected for a block hash mismatch.
+        #[test]
+        fn test_try_from_takes_header_fields_from_execution_outcome() {
+            let factory = TestFlashBlockFactory::new();
+            let post_exec_tx: Bytes =
+                build_post_exec_tx(100, vec![SDMGasEntry { index: 0, gas_refund: 7 }])
+                    .encoded_2718()
+                    .into();
+            let fb0 = factory
+                .flashblock_at(0)
+                .receipts_root(B256::repeat_byte(0x01))
+                .gas_used(21_000)
+                .post_exec_tx(post_exec_tx.clone())
+                .build();
+
+            let execution_outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                receipts_root: B256::repeat_byte(0x02),
+                logs_bloom: Bloom::repeat_byte(0x03),
+                gas_used: 20_993,
+            };
+            let sequence =
+                FlashBlockCompleteSequence::new(vec![fb0], Some(execution_outcome)).unwrap();
+
+            let mut data = OpExecutionData::try_from(&sequence).unwrap();
+            let payload = data.payload.as_v1_mut();
+            assert_eq!(payload.block_hash, execution_outcome.block_hash);
+            assert_eq!(payload.state_root, execution_outcome.state_root);
+            assert_eq!(payload.receipts_root, execution_outcome.receipts_root);
+            assert_eq!(payload.logs_bloom, execution_outcome.logs_bloom);
+            assert_eq!(payload.gas_used, execution_outcome.gas_used);
+            assert_eq!(payload.transactions.last(), Some(&post_exec_tx));
         }
 
         #[test]
@@ -253,6 +300,7 @@ mod tests {
             let execution_outcome = SequenceExecutionOutcome {
                 block_hash: B256::random(),
                 state_root: B256::random(), // Different from provided
+                ..Default::default()
             };
 
             let sequence =
@@ -275,8 +323,11 @@ mod tests {
             let fb1 = factory.flashblock_after(&fb0).state_root(B256::ZERO).build();
             let fb2 = factory.flashblock_after(&fb1).state_root(B256::ZERO).build();
 
-            let execution_outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let execution_outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
 
             let sequence =
                 FlashBlockCompleteSequence::new(vec![fb0, fb1, fb2], Some(execution_outcome))
@@ -333,8 +384,11 @@ mod tests {
             let factory = TestFlashBlockFactory::new();
             let fb0 = factory.flashblock_at(0).state_root(B256::ZERO).build();
 
-            let execution_outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let execution_outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
 
             let sequence =
                 FlashBlockCompleteSequence::new(vec![fb0], Some(execution_outcome)).unwrap();
@@ -370,8 +424,11 @@ mod tests {
             let factory = TestFlashBlockFactory::new();
             let fb0 = factory.flashblock_at(0).state_root(B256::ZERO).build();
 
-            let execution_outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let execution_outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
 
             let sequence =
                 FlashBlockCompleteSequence::new(vec![fb0], Some(execution_outcome)).unwrap();
@@ -406,8 +463,11 @@ mod tests {
             let factory = TestFlashBlockFactory::new();
             let fb0 = factory.flashblock_at(0).state_root(B256::ZERO).build();
 
-            let execution_outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let execution_outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
 
             let sequence =
                 FlashBlockCompleteSequence::new(vec![fb0], Some(execution_outcome)).unwrap();
@@ -440,8 +500,11 @@ mod tests {
 
             // Sequence 1: With state_root
             let fb0_seq1 = factory.flashblock_at(0).state_root(B256::ZERO).build();
-            let outcome1 =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let outcome1 = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
             let seq1 =
                 FlashBlockCompleteSequence::new(vec![fb0_seq1.clone()], Some(outcome1)).unwrap();
 

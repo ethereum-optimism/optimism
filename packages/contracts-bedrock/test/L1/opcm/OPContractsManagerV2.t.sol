@@ -1114,6 +1114,92 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Enables the ZK game in the upgrade input with a valid prestate and the given
+    ///         challenge parameters.
+    /// @param _maxChallengeDuration The maximum challenge duration for the game.
+    /// @param _maxProveDuration The maximum prove duration for the game.
+    /// @param _challengerBond The challenger bond for the game.
+    function _setZKUpgradeConfig(
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        internal
+    {
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
+                absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
+                maxChallengeDuration: Duration.wrap(_maxChallengeDuration),
+                maxProveDuration: Duration.wrap(_maxProveDuration),
+                challengerBond: _challengerBond
+            })
+        );
+    }
+
+    /// @notice Tests that enabling the ZK dispute game reverts when the max challenge duration is
+    ///         zero, which lets an unchallenged root win immediately, or above uint32 max, which can
+    ///         overflow the game's uint64 deadline into the past.
+    function test_upgrade_enableZKGameInvalidMaxChallengeDuration_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
+        for (uint256 i = 0; i < bad.length; i++) {
+            _setZKUpgradeConfig(bad[i], uint64(3 days), 1 ether);
+
+            // nosemgrep: sol-style-use-abi-encodecall
+            runCurrentUpgradeV2(
+                chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+            );
+        }
+    }
+
+    /// @notice Tests that enabling the ZK dispute game reverts when the max prove duration is
+    ///         zero or above uint32 max.
+    function test_upgrade_enableZKGameInvalidMaxProveDuration_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
+        for (uint256 i = 0; i < bad.length; i++) {
+            _setZKUpgradeConfig(uint64(7 days), bad[i], 1 ether);
+
+            // nosemgrep: sol-style-use-abi-encodecall
+            runCurrentUpgradeV2(
+                chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+            );
+        }
+    }
+
+    /// @notice Tests that enabling the ZK dispute game reverts when the challenger bond is zero,
+    ///         which would make challenges free.
+    function test_upgrade_enableZKGameZeroChallengerBond_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        _setZKUpgradeConfig(uint64(7 days), uint64(3 days), 0);
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that enabling the ZK dispute game accepts the inclusive bounds: uint32 max
+    ///         durations and a challenger bond of one wei.
+    function test_upgrade_enableZKGameMaxDurations_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        _setZKUpgradeConfig(type(uint32).max, type(uint32).max, 1);
+
+        runCurrentUpgradeV2(chainPAO);
+
+        LibGameArgs.ZKGameArgs memory args =
+            LibGameArgs.decodeZK(disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
+        assertEq(args.maxChallengeDuration, type(uint32).max, "max challenge duration not set");
+        assertEq(args.maxProveDuration, type(uint32).max, "max prove duration not set");
+        assertEq(args.challengerBond, 1, "challenger bond not set");
+    }
+
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
     function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
         // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of
@@ -1996,11 +2082,14 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(IDelayedWETH(payable(impls.delayedWETHImpl)).delay(), 0);
     }
 
-    /// @notice Tests that a zero withdrawal delay is rejected on deploy. OPCM does not check it;
-    ///         the DelayedWETH initializer rejects it as below the minimum, wrapped by the Proxy.
+    /// @notice Tests that a zero withdrawal delay is rejected by OPCM's config validation before
+    ///         any proxy is touched.
     function test_deploy_zeroWithdrawalDelay_reverts() public {
         deployConfig.withdrawalDelaySeconds = 0;
-        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
     }
 
     /// @notice Tests that the DelayedWETH bounds reject an out-of-range withdrawal delay on deploy.
@@ -2012,19 +2101,24 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
     }
 
-    /// @notice Tests that a zero proof maturity delay is rejected on deploy. OPCM does not check
-    ///         it; the portal's initializer rejects it as below the minimum, wrapped by the Proxy.
+    /// @notice Tests that a zero proof maturity delay is rejected by OPCM's config validation
+    ///         before any proxy is touched.
     function test_deploy_zeroProofMaturityDelay_reverts() public {
         deployConfig.proofMaturityDelaySeconds = 0;
-        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
     }
 
-    /// @notice Tests that a zero dispute game finality delay is rejected on deploy. OPCM does not
-    ///         check it; the registry's initializer rejects it as below the minimum, wrapped by
-    ///         the Proxy.
+    /// @notice Tests that a zero dispute game finality delay is rejected by OPCM's config
+    ///         validation before any proxy is touched.
     function test_deploy_zeroDisputeGameFinalityDelay_reverts() public {
         deployConfig.disputeGameFinalityDelaySeconds = 0;
-        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
     }
 
     /// @notice Tests that the portal's bounds reject an out-of-range proof maturity delay on deploy.
@@ -2475,6 +2569,9 @@ contract OPContractsManagerV2_DevFeatureBitmap_Test is OPContractsManagerV2_Test
 /// @title OPContractsManagerV2_Migrate_Test
 /// @notice Tests the `migrate` function of the `OPContractsManagerV2` contract.
 contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
+    /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for migrations.
+    uint256 public constant MIGRATE_GAS_BUFFER_PERCENTAGE = 50; // 50%
+
     /// @notice Deployed chain contracts for chain 1.
     IOPContractsManagerV2.ChainContracts chainContracts1;
 
@@ -2676,6 +2773,28 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         pure
         returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
     {
+        config_ = _zkDisputeGameConfig(_initBond, _absolutePrestate, uint64(7 days), uint64(3 days), 1 ether);
+    }
+
+    /// @notice Helper function to build a ZK_DISPUTE_GAME dispute game config with explicit
+    ///         challenge parameters.
+    /// @param _initBond The init bond for the game.
+    /// @param _absolutePrestate The absolute prestate for the game.
+    /// @param _maxChallengeDuration The maximum challenge duration for the game.
+    /// @param _maxProveDuration The maximum prove duration for the game.
+    /// @param _challengerBond The challenger bond for the game.
+    /// @return config_ The dispute game config.
+    function _zkDisputeGameConfig(
+        uint256 _initBond,
+        Claim _absolutePrestate,
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        internal
+        pure
+        returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
+    {
         config_ = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: _initBond,
@@ -2683,9 +2802,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: _absolutePrestate,
-                    maxChallengeDuration: Duration.wrap(uint64(7 days)),
-                    maxProveDuration: Duration.wrap(uint64(3 days)),
-                    challengerBond: 1 ether
+                    maxChallengeDuration: Duration.wrap(_maxChallengeDuration),
+                    maxProveDuration: Duration.wrap(_maxProveDuration),
+                    challengerBond: _challengerBond
                 })
             )
         });
@@ -2723,8 +2842,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(success, "migrate failed");
         uint256 gasAfter = gasleft();
 
-        // Make sure the gas usage is less than 20 million so we can definitely fit in a block.
-        assertLt(gasBefore - gasAfter, 20_000_000, "Gas usage too high");
+        // Make sure we can fit in a block
+        uint256 fusakaLimit = 2 ** 24;
+        assertLt(gasBefore - gasAfter, fusakaLimit * MIGRATE_GAS_BUFFER_PERCENTAGE / 100, "Gas usage too high");
     }
 
     /// @notice Helper function to enable a chain's existing per-chain ETHLockbox before migration.
@@ -3353,6 +3473,26 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice A set member cannot clear INTEROP, so it cannot be re-migrated alone into a new set,
+    ///         which would drain the shared ETHLockbox and clear the shared DisputeGameFactory.
+    function test_migrate_interopDisableAfterMigration_reverts() public {
+        _enableEthLockboxes();
+        _doMigration(_getDefaultMigrateInput());
+
+        address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(proxyAdminOwner);
+        chainContracts2.systemConfig.setFeature(Features.INTEROP, false);
+
+        vm.warp(block.timestamp + 12);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        ISystemConfig[] memory onlyChain2 = new ISystemConfig[](1);
+        onlyChain2[0] = chainContracts2.systemConfig;
+        input.chainSystemConfigs = onlyChain2;
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
+    }
+
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are mismatched.
     /// @param _owner1 The owner address for the first chain's ProxyAdmin.
     /// @param _owner2 The owner address for the second chain's ProxyAdmin.
@@ -3613,7 +3753,45 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, Claim.wrap(bytes32(0))));
 
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
+    ///         or greater-than-uint32-max challenge or prove duration.
+    function test_migrate_zkInvalidDurations_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
+        uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
+        for (uint256 i = 0; i < bad.length; i++) {
+            IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+            _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate, bad[i], uint64(3 days), 1 ether));
+            _doMigration(
+                input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector
+            );
+
+            input = _getDefaultMigrateInput();
+            _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate, uint64(7 days), bad[i], 1 ether));
+            _doMigration(
+                input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector
+            );
+        }
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
+    ///         challenger bond.
+    function test_migrate_zkZeroChallengerBond_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(
+            input,
+            _zkDisputeGameConfig(
+                1 ether, Claim.wrap(bytes32(keccak256("zk prestate"))), uint64(7 days), uint64(3 days), 0
+            )
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector);
     }
 
     /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config when the dev
@@ -3754,6 +3932,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IDisputeGameFactory sharedDgf = sharedAsr.disputeGameFactory();
         IETHLockbox sharedLockbox = portal1.ethLockbox();
         IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+        uint256 sharedFinalityDelayBefore = sharedAsr.disputeGameFinalityDelaySeconds();
 
         // Sanity: the members have distinct ProxyAdmins, but the shared contracts are administered
         // by the first chain's ProxyAdmin — the exact condition that breaks the naive upgrade path.
@@ -3815,6 +3994,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             address(sharedAsr.ethLockbox()),
             address(sharedLockbox),
             "shared AnchorStateRegistry re-pointed away from the shared ETHLockbox"
+        );
+        // Each member's upgrade re-initializes the shared registry with the delay it reads back.
+        assertEq(
+            sharedAsr.disputeGameFinalityDelaySeconds(),
+            sharedFinalityDelayBefore,
+            "shared AnchorStateRegistry finality delay changed"
         );
         assertEq(
             address(sharedLockbox.superchainConfig()),

@@ -157,6 +157,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
 
+    /// @notice Thrown when a withdrawal delay in the config is zero.
+    error OPContractsManagerV2_InvalidDelayConfig();
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -684,11 +687,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ),
                 (bool)
             ),
-            // NOTE: These are read before any implementation is swapped, so on the first upgrade
-            // to a release with per-chain delays they return the legacy immutable values, which
+            // NOTE: The delays are read before any implementation is swapped, so on the first upgrade
+            // to a release with per-chain delays they return the legacy immutable values from the same selectors, which
             // are then carried forward into proxy storage. The keys are deliberately not
-            // allow-listed in _isPermittedInstruction: an upgrade always carries the live values
-            // forward and only the L1PAO setters change them.
+            // allow-listed in _isPermittedInstruction. An upgrade always leaves the live values
+            // which can only be changed by the L1PAO setters.
             proofMaturityDelaySeconds: abi.decode(
                 _loadBytes(
                     address(_chainContracts.optimismPortal),
@@ -737,10 +740,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // NOTE: The withdrawal delays (proofMaturityDelaySeconds, disputeGameFinalityDelaySeconds,
-        // withdrawalDelaySeconds) are not validated here and their bounds are enforced by the
-        // immutables on the OptimismPortal, AnchorStateRegistry and DelayedWETH implementations.
-        // The check is ommited due to the contract size limit.
+        // Withdrawal delays must be set. Bounds are enforced by the implementations' initializers
+        // so that the bounds live in exactly one place.
+        if (
+            _cfg.proofMaturityDelaySeconds == 0 || _cfg.disputeGameFinalityDelaySeconds == 0
+                || _cfg.withdrawalDelaySeconds == 0
+        ) {
+            revert OPContractsManagerV2_InvalidDelayConfig();
+        }
 
         bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
@@ -809,12 +816,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 }
             }
 
-            // The ZK game is permissionless too, and its absolute prestate is the verification key
-            // the proof is checked against, so an empty prestate makes the game unplayable.
+            // The ZK game is permissionless too. Its absolute prestate is the verification key, and
+            // its durations and challenger bond bound the challenge game, so reject configs that
+            // make it unplayable or trivially winnable.
             if (_cfg.disputeGameConfigs[i].enabled && isZkDisputeGame) {
-                IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
-                    abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
-                if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                if (!_isValidZKDisputeGameConfig(_cfg.disputeGameConfigs[i].gameArgs)) {
                     revert OPContractsManagerV2_InvalidGameConfigs();
                 }
             }

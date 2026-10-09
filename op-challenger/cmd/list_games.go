@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -93,7 +94,7 @@ func ListGames(ctx *cli.Context) error {
 
 type gameInfo struct {
 	types.GameMetadata
-	claimCount uint64
+	claimCount *uint64
 	l2BlockNum uint64
 	rootClaim  common.Hash
 	status     types.GameStatus
@@ -136,7 +137,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 					infos[idx].err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
 					return
 				}
-				infos[idx].claimCount = claimCount
+				infos[idx].claimCount = &claimCount
 			}
 		}()
 	}
@@ -153,10 +154,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 		})
 	case "claimCount":
 		slices.SortFunc(infos, func(i, j gameInfo) int {
-			if sortOrder == "desc" {
-				return cmp.Compare(j.claimCount, i.claimCount)
-			}
-			return cmp.Compare(i.claimCount, j.claimCount)
+			return compareClaimCounts(i.claimCount, j.claimCount, sortOrder == "desc")
 		})
 	case "l2BlockNum":
 		slices.SortFunc(infos, func(i, j gameInfo) int {
@@ -193,17 +191,34 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	}
 }
 
+// compareClaimCounts orders games by claim count, putting games without a count last in
+// either order.
+func compareClaimCounts(a, b *uint64, desc bool) int {
+	switch {
+	case a == nil && b == nil:
+		return 0
+	case a == nil:
+		return 1
+	case b == nil:
+		return -1
+	case desc:
+		return cmp.Compare(*b, *a)
+	default:
+		return cmp.Compare(*a, *b)
+	}
+}
+
 // gameRecord is the structured, machine-readable view of a single game.
 type gameRecord struct {
-	Index         uint64 `json:"index"`
-	Game          string `json:"game"` // proxy address
-	GameType      uint32 `json:"gameType"`
-	Timestamp     int64  `json:"timestamp"` // unix seconds (creation)
-	Created       string `json:"created"`   // RFC3339
-	L2BlockNumber uint64 `json:"l2BlockNumber"`
-	OutputRoot    string `json:"outputRoot"`
-	ClaimCount    uint64 `json:"claimCount"`
-	Status        string `json:"status"`
+	Index         uint64  `json:"index"`
+	Game          string  `json:"game"` // proxy address
+	GameType      uint32  `json:"gameType"`
+	Timestamp     int64   `json:"timestamp"` // unix seconds (creation)
+	Created       string  `json:"created"`   // RFC3339
+	L2BlockNumber uint64  `json:"l2BlockNumber"`
+	OutputRoot    string  `json:"outputRoot"`
+	ClaimCount    *uint64 `json:"claimCount,omitempty"` // unset for ZK and super-permissioned games
+	Status        string  `json:"status"`
 }
 
 func renderGamesText(out io.Writer, games []gameRecord) error {
@@ -212,9 +227,13 @@ func renderGamesText(out io.Writer, games []gameRecord) error {
 		return err
 	}
 	for _, g := range games {
+		claims := "-"
+		if g.ClaimCount != nil {
+			claims = strconv.FormatUint(*g.ClaimCount, 10)
+		}
 		if _, err := fmt.Fprintf(out, lineFormat,
 			g.Index, g.Game, g.GameType, time.Unix(g.Timestamp, 0).Format(time.DateTime),
-			g.L2BlockNumber, g.OutputRoot, g.ClaimCount, g.Status); err != nil {
+			g.L2BlockNumber, g.OutputRoot, claims, g.Status); err != nil {
 			return err
 		}
 	}
