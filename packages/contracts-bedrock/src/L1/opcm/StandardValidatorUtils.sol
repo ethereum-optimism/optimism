@@ -34,6 +34,8 @@ uint256 constant EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS = 86400;
 uint256 constant EXPECTED_MAX_PROOF_MATURITY_DELAY_SECONDS = 604800;
 uint256 constant EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS = 43200;
 uint256 constant EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS = 302400;
+uint256 constant EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS = 43200;
+uint256 constant EXPECTED_MAX_WITHDRAWAL_DELAY_SECONDS = 604800;
 
 /// @notice Struct containing the unified game args for a dispute game implementation.
 struct DisputeGameImplementation {
@@ -101,7 +103,6 @@ struct DisputeGameImpls {
 /// @notice Config values used when validating a dispute game (resolved by caller).
 struct DisputeGameConfig {
     address l1PAOMultisig;
-    uint256 withdrawalDelaySeconds;
 }
 
 /// @title StandardValidatorUtils
@@ -352,7 +353,6 @@ contract StandardValidatorUtils {
         IProxyAdmin _admin,
         address _l1PAOMultisig,
         address _delayedWETHImpl,
-        uint256 _withdrawalDelaySeconds,
         string memory _errorPrefix
     )
         public
@@ -372,7 +372,14 @@ contract StandardValidatorUtils {
         );
         _errors =
             internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
-        _errors = internalRequire(_weth.delay() == _withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
+        // The withdrawal delay is per chain; "standard" means within the sanctioned range.
+        uint256 withdrawalDelay = _weth.delay();
+        _errors = internalRequire(
+            withdrawalDelay >= EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS
+                && withdrawalDelay <= EXPECTED_MAX_WITHDRAWAL_DELAY_SECONDS,
+            string.concat(_errorPrefix, "-40"),
+            _errors
+        );
         _errors = internalRequire(
             address(_weth.ethLockbox()) == expectedETHLockbox(_sysCfg), string.concat(_errorPrefix, "-50"), _errors
         );
@@ -491,14 +498,7 @@ contract StandardValidatorUtils {
         errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
 
         errors_ = assertValidDelayedWETH(
-            errors_,
-            _args.sysCfg,
-            game.weth,
-            _args.admin,
-            _cfg.l1PAOMultisig,
-            _impls.delayedWETHImpl,
-            _cfg.withdrawalDelaySeconds,
-            errorPrefix
+            errors_, _args.sysCfg, game.weth, _args.admin, _cfg.l1PAOMultisig, _impls.delayedWETHImpl, errorPrefix
         );
         errors_ = assertValidAnchorStateRegistry(
             errors_, _args.sysCfg, dgf, game.asr, _args.admin, _impls.anchorStateRegistryImpl, errorPrefix

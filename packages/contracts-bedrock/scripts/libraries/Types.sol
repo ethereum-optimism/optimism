@@ -57,5 +57,6 @@ library Types {
         // Per-chain withdrawal timing.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
     }
 }

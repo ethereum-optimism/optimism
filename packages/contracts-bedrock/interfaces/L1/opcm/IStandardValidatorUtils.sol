@@ -110,7 +110,6 @@ interface IStandardValidatorUtils {
         IProxyAdmin _admin,
         address _l1PAOMultisig,
         address _delayedWETHImpl,
-        uint256 _withdrawalDelaySeconds,
         string memory _errorPrefix
     )
         external

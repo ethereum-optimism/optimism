@@ -34,13 +34,14 @@ var (
 )
 
 type SuperchainProofParams struct {
-	WithdrawalDelaySeconds             uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
 	MinProposalSizeBytes               uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
 	ChallengePeriodSeconds             uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
 	MinProofMaturityDelaySeconds       uint64      `json:"minProofMaturityDelaySeconds" toml:"minProofMaturityDelaySeconds"`
 	MaxProofMaturityDelaySeconds       uint64      `json:"maxProofMaturityDelaySeconds" toml:"maxProofMaturityDelaySeconds"`
 	MinDisputeGameFinalityDelaySeconds uint64      `json:"minDisputeGameFinalityDelaySeconds" toml:"minDisputeGameFinalityDelaySeconds"`
 	MaxDisputeGameFinalityDelaySeconds uint64      `json:"maxDisputeGameFinalityDelaySeconds" toml:"maxDisputeGameFinalityDelaySeconds"`
+	MinWithdrawalDelaySeconds          uint64      `json:"minWithdrawalDelaySeconds" toml:"minWithdrawalDelaySeconds"`
+	MaxWithdrawalDelaySeconds          uint64      `json:"maxWithdrawalDelaySeconds" toml:"maxWithdrawalDelaySeconds"`
 	DisputeMaxGameDepth                uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
 	DisputeSplitDepth                  uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
 	DisputeClockExtension              uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`

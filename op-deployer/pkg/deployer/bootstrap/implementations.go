@@ -39,7 +39,8 @@ type ImplementationsConfig struct {
 	PrivateKey                         string             `cli:"private-key"`
 	ArtifactsLocator                   *artifacts.Locator `cli:"artifacts-locator"`
 	MIPSVersion                        int                `cli:"mips-version"`
-	WithdrawalDelaySeconds             uint64             `cli:"withdrawal-delay-seconds"`
+	MinWithdrawalDelaySeconds          uint64             `cli:"min-withdrawal-delay-seconds"`
+	MaxWithdrawalDelaySeconds          uint64             `cli:"max-withdrawal-delay-seconds"`
 	MinProposalSizeBytes               uint64             `cli:"min-proposal-size-bytes"`
 	ChallengePeriodSeconds             uint64             `cli:"challenge-period-seconds"`
 	MinProofMaturityDelaySeconds       uint64             `cli:"min-proof-maturity-delay-seconds"`
@@ -88,8 +89,11 @@ func (c *ImplementationsConfig) Check() error {
 	if !mipsVersion.IsSupported(c.MIPSVersion) {
 		return errors.New("MIPS version is not supported")
 	}
-	if c.WithdrawalDelaySeconds == 0 {
-		return errors.New("withdrawal delay in seconds must be specified")
+	if c.MinWithdrawalDelaySeconds == 0 {
+		return errors.New("minimum withdrawal delay in seconds must be specified")
+	}
+	if c.MinWithdrawalDelaySeconds > c.MaxWithdrawalDelaySeconds {
+		return errors.New("minimum withdrawal delay must not exceed the maximum")
 	}
 	if c.MinProposalSizeBytes == 0 {
 		return errors.New("preimage oracle minimum proposal size in bytes must be specified")
@@ -269,7 +273,8 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	input := opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:             new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
+		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.MinWithdrawalDelaySeconds),
+		MaxWithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.MaxWithdrawalDelaySeconds),
 		MinProposalSizeBytes:               new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
 		ChallengePeriodSeconds:             new(big.Int).SetUint64(cfg.ChallengePeriodSeconds),
 		MinProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.MinProofMaturityDelaySeconds),

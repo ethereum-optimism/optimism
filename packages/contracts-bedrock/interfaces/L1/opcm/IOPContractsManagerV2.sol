@@ -65,6 +65,7 @@ interface IOPContractsManagerV2 {
         bool useCustomGasToken;
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
     }
 
     struct UpgradeInput {

@@ -45,7 +45,8 @@ import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUt
 
 contract DeployImplementations is Script {
     struct Input {
-        uint256 withdrawalDelaySeconds;
+        uint256 minWithdrawalDelaySeconds;
+        uint256 maxWithdrawalDelaySeconds;
         uint256 minProposalSizeBytes;
         uint256 challengePeriodSeconds;
         uint256 minProofMaturityDelaySeconds;
@@ -360,12 +361,14 @@ contract DeployImplementations is Script {
     }
 
     function deployDelayedWETHImpl(Input memory _input, Output memory _output) private {
-        uint256 withdrawalDelaySeconds = _input.withdrawalDelaySeconds;
         IDelayedWETH impl = IDelayedWETH(
             DeployUtils.createDeterministic({
                 _name: "DelayedWETH",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IDelayedWETH.__constructor__, (withdrawalDelaySeconds))
+                    abi.encodeCall(
+                        IDelayedWETH.__constructor__,
+                        (_input.minWithdrawalDelaySeconds, _input.maxWithdrawalDelaySeconds)
+                    )
                 ),
                 _salt: _salt
             })
@@ -643,7 +646,6 @@ contract DeployImplementations is Script {
                 _input.superchainConfigProxy,
                 _input.l1ProxyAdminOwner,
                 _input.challenger,
-                _input.withdrawalDelaySeconds,
                 _input.devFeatureBitmap
             )
         );
@@ -712,7 +714,11 @@ contract DeployImplementations is Script {
             "DeployImplementations: maxClockDuration must be >= clockExtension"
         );
         require(_input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0");
-        require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
+        require(_input.minWithdrawalDelaySeconds != 0, "DeployImplementations: minWithdrawalDelaySeconds not set");
+        require(
+            _input.minWithdrawalDelaySeconds <= _input.maxWithdrawalDelaySeconds,
+            "DeployImplementations: withdrawalDelaySeconds bounds inverted"
+        );
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
         require(
@@ -843,7 +849,9 @@ contract DeployImplementations is Script {
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
-        ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
+        ChainAssertions.checkDelayedWETHImpl(
+            _output.delayedWETHImpl, _input.minWithdrawalDelaySeconds, _input.maxWithdrawalDelaySeconds
+        );
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
         )

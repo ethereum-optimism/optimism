@@ -805,6 +805,7 @@ func TestResolveChainProofParams(t *testing.T) {
 			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 		}, got)
 	})
 
@@ -812,15 +813,18 @@ func TestResolveChainProofParams(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
 			"proofMaturityDelaySeconds":       uint64(2 * 86400),
 			"disputeGameFinalityDelaySeconds": uint64(86400),
+			"faultGameWithdrawalDelay":        uint64(86400),
 		}}
 		chain := &state.ChainIntent{DeployOverrides: map[string]any{
 			"proofMaturityDelaySeconds": uint64(3 * 86400),
+			"faultGameWithdrawalDelay":  uint64(2 * 86400),
 		}}
 
 		got, err := ResolveChainProofParams(intent, chain)
 		require.NoError(t, err)
 		require.Equal(t, uint64(3*86400), got.ProofMaturityDelaySeconds)
 		require.Equal(t, uint64(86400), got.DisputeGameFinalityDelaySeconds)
+		require.Equal(t, uint64(2*86400), got.WithdrawalDelaySeconds)
 	})
 
 	t.Run("chain overrides global", func(t *testing.T) {
@@ -1268,6 +1272,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 		UseCustomGasToken:               false,
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
 	}
 	beforeExecution, err := json.Marshal(st)
 	require.NoError(t, err)

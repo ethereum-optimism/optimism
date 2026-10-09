@@ -98,10 +98,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
-        // Withdrawal timing configuration. Stored per chain on the portal and the
-        // AnchorStateRegistry, and bounded by the implementations' min/max immutables.
+        // Withdrawal timing configuration. Stored per chain on the portal, the
+        // AnchorStateRegistry and the DelayedWETH, and bounded by the implementations' min/max
+        // immutables.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -173,9 +175,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.4
+    /// @custom:semver 9.0.5
     function version() public pure returns (string memory) {
-        return "9.0.4";
+        return "9.0.5";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -707,6 +709,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _upgradeInput.extraInstructions
                 ),
                 (uint256)
+            ),
+            withdrawalDelaySeconds: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.delayedWETH),
+                    _chainContracts.delayedWETH.delay.selector,
+                    "overrides.cfg.withdrawalDelaySeconds",
+                    _upgradeInput.extraInstructions
+                ),
+                (uint256)
             )
         });
     }
@@ -731,7 +742,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Withdrawal delays must be set. Bounds are enforced by the implementations' initializers
         // so that the bounds live in exactly one place.
-        if (_cfg.proofMaturityDelaySeconds == 0 || _cfg.disputeGameFinalityDelaySeconds == 0) {
+        if (
+            _cfg.proofMaturityDelaySeconds == 0 || _cfg.disputeGameFinalityDelaySeconds == 0
+                || _cfg.withdrawalDelaySeconds == 0
+        ) {
             revert OPContractsManagerV2_InvalidDelayConfig();
         }
 
@@ -753,21 +767,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // If the game is disabled, we must have a 0 init bond.
-            if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            if (isSuperPermissionedGame && _cfg.disputeGameConfigs[i].initBond != 0) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            // If game is enabled, we must have a non-zero init bond, except
-            // SUPER_PERMISSIONED which does not use bonds.
-            if (
-                !isSuperPermissionedGame && _cfg.disputeGameConfigs[i].enabled
-                    && _cfg.disputeGameConfigs[i].initBond == 0
-            ) {
+            // Init bond validation, folded into one check:
+            //   1. A disabled game must have a 0 init bond.
+            //   2. SUPER_PERMISSIONED must have a 0 init bond, it never uses bonds.
+            //   3. An enabled game other than SUPER_PERMISSIONED must have a non-zero init bond.
+            // The two ways to violate it:
+            //   usesBond == true  && initBond == 0 -> check 3
+            //   usesBond == false && initBond != 0 -> checks 1, 2
+            bool usesBond = _cfg.disputeGameConfigs[i].enabled && !isSuperPermissionedGame;
+            if (usesBond == (_cfg.disputeGameConfigs[i].initBond == 0)) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -983,7 +991,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_cts.ethLockbox))
+            abi.encodeCall(IDelayedWETH.initialize, (_cts.ethLockbox, _cfg.withdrawalDelaySeconds))
         );
 
         // Update the AnchorStateRegistry.

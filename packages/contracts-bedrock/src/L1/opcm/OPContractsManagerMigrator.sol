@@ -105,6 +105,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         The shared AnchorStateRegistry can only hold one value.
     error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
 
+    /// @notice Thrown when the chains being migrated disagree on the DelayedWETH withdrawal delay.
+    ///         The shared DelayedWETH is the first chain's and can only hold one value.
+    error OPContractsManagerMigrator_WithdrawalDelayMismatch();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -177,6 +181,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // Check that every supplied dispute game config is valid and that the starting respected
         // game type is one of them.
         _validateDisputeGameConfigs(_input.disputeGameConfigs, _input.startingRespectedGameType);
+
+        // Check that every chain agrees on the DelayedWETH withdrawal delay. New games for every
+        // migrated chain are created against the first chain's DelayedWETH, so a disagreement
+        // would silently change the lockup for the other chains. Checked before any contract is
+        // touched so the whole migration reverts early.
+        _assertSharedWithdrawalDelay(_input.chainSystemConfigs);
 
         // NOTE: Interop doesn't have a real chain ID, and the chain ID provided here is ONLY used
         // as a salt mixer, so we just use the block.timestamp instead. It really doesn't matter
@@ -422,7 +432,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     }
 
     /// @notice Updates a chain's existing DelayedWETH to point at the shared ETHLockbox. Games
-    ///         created before the migration still read their pause state from it.
+    ///         created before the migration still read their pause state from it, and keep their
+    ///         withdrawal delay: the live value is read before the implementation swap and carried
+    ///         forward unchanged.
     /// @param _systemConfig The system config for the chain being migrated.
     /// @param _ethLockbox The shared ETHLockbox to store in the DelayedWETH.
     /// @param _delayedWETHImpl The DelayedWETH implementation to reinitialize with.
@@ -433,11 +445,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     )
         internal
     {
+        IDelayedWETH delayedWETH = IDelayedWETH(payable(_systemConfig.delayedWETH()));
+        uint256 delay = delayedWETH.delay();
         _upgrade(
             _systemConfig.proxyAdmin(),
-            _systemConfig.delayedWETH(),
+            address(delayedWETH),
             _delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_ethLockbox))
+            abi.encodeCall(IDelayedWETH.initialize, (_ethLockbox, delay))
         );
     }
 
@@ -635,6 +649,19 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 delay_ = chainDelay;
             } else if (chainDelay != delay_) {
                 revert OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+            }
+        }
+    }
+
+    /// @notice Reverts unless every chain being migrated has the same DelayedWETH withdrawal delay.
+    ///         The first chain's DelayedWETH becomes the shared one, so its delay is the value the
+    ///         other chains inherit for new games.
+    /// @param _chainSystemConfigs The chain system configs being migrated.
+    function _assertSharedWithdrawalDelay(ISystemConfig[] calldata _chainSystemConfigs) internal view {
+        uint256 sharedDelay = IDelayedWETH(payable(_chainSystemConfigs[0].delayedWETH())).delay();
+        for (uint256 i = 1; i < _chainSystemConfigs.length; i++) {
+            if (IDelayedWETH(payable(_chainSystemConfigs[i].delayedWETH())).delay() != sharedDelay) {
+                revert OPContractsManagerMigrator_WithdrawalDelayMismatch();
             }
         }
     }

@@ -20,6 +20,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
 import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
@@ -270,7 +271,6 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
         validatorGetterChecks["l1PAOMultisig"] = "ENV:ADDRESS:EXPECTED_L1_PAO_MULTISIG";
         validatorGetterChecks["challenger"] = "ENV:ADDRESS:EXPECTED_CHALLENGER";
-        validatorGetterChecks["withdrawalDelaySeconds"] = "ENV:UINT256:EXPECTED_WITHDRAWAL_DELAY_SECONDS";
 
         // Must be empty on mainnet
         validatorGetterChecks["devFeatureBitmap"] = "ZERO_ON_MAINNET";
@@ -1368,6 +1368,11 @@ contract VerifyOPCM is Script {
             success = _verifyAnchorStateRegistryDelays(IAnchorStateRegistry(_target.addr)) && success;
         }
 
+        // DelayedWETH: Verify the MIN/MAX_DELAY_SECONDS bounds
+        if (LibString.eq(_target.name, "DelayedWETH")) {
+            success = _verifyDelayedWETHDelays(IDelayedWETH(payable(_target.addr))) && success;
+        }
+
         // OPContractsManagerStandardValidator: Verify all constructor arg values
         if (LibString.eq(_target.name, "OPContractsManagerStandardValidator")) {
             success = _verifyStandardValidatorArgs(_opcm, _target.addr, _skipConstructorVerification) && success;
@@ -1481,6 +1486,19 @@ contract VerifyOPCM is Script {
             _asr.minDisputeGameFinalityDelaySeconds(),
             _asr.maxDisputeGameFinalityDelaySeconds()
         );
+    }
+
+    /// @notice Verifies the DelayedWETH withdrawal delay bounds. The delay itself lives in per-chain
+    ///         proxy storage, so only the implementation's bound immutables are release-critical.
+    /// @param _weth The DelayedWETH implementation.
+    /// @return True if the bound values match expected.
+    function _verifyDelayedWETHDelays(IDelayedWETH _weth) internal view returns (bool) {
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        uint256 expectedMin = vm.envOr("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", uint256(43200));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        uint256 expectedMax = vm.envOr("EXPECTED_MAX_WITHDRAWAL_DELAY_SECONDS", uint256(604800));
+        return
+            _verifyDelayBounds("WITHDRAWAL_DELAY_SECONDS", expectedMin, expectedMax, _weth.minDelay(), _weth.maxDelay());
     }
 
     /// @notice Compares a pair of delay bound immutables against their expected values.

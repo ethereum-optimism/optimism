@@ -3,7 +3,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_delay",
+        "name": "_minDelay",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxDelay",
         "type": "uint256"
       }
     ],
@@ -194,11 +199,42 @@
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_delay",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxDelay",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minDelay",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -249,6 +285,19 @@
       }
     ],
     "name": "recover",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_delay",
+        "type": "uint256"
+      }
+    ],
+    "name": "setDelay",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -452,6 +501,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "delay",
+        "type": "uint256"
+      }
+    ],
+    "name": "DelaySet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "dst",
@@ -523,6 +585,16 @@
     ],
     "name": "Withdrawal",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "DelayedWETH_InvalidDelay",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DelayedWETH_InvalidDelayBounds",
+    "type": "error"
   },
   {
     "inputs": [],

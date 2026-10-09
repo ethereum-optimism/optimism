@@ -3,9 +3,11 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Burn } from "src/libraries/Burn.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import "src/dispute/lib/Types.sol";
@@ -15,6 +17,7 @@ import "src/dispute/lib/Errors.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title DelayedWETH_FallbackGasUser_Harness
 /// @notice Contract that burns gas in the fallback function.
@@ -60,9 +63,57 @@ abstract contract DelayedWETH_TestInit is CommonTest {
     event Deposit(address indexed dst, uint256 wad);
     event Withdrawal(address indexed src, uint256 wad);
     event Unwrap(address indexed src, uint256 wad);
+    event DelaySet(uint256 delay);
+
+    /// @notice The configured withdrawal delay. Read once in setUp so tests can pass it back to
+    ///         initialize() without an external call consuming a pending prank.
+    uint256 wethDelay;
 
     function setUp() public virtual override {
         super.setUp();
+        wethDelay = delayedWeth.delay();
+    }
+}
+
+/// @title DelayedWETH_Constructor_Test
+/// @notice Tests the constructor of the `DelayedWETH` contract.
+contract DelayedWETH_Constructor_Test is DelayedWETH_TestInit {
+    /// @notice Tests that the constructor sets the delay bounds and leaves the delay itself unset.
+    function test_constructor_succeeds() public view {
+        IDelayedWETH impl = IDelayedWETH(payable(EIP1967Helper.getImplementation(address(delayedWeth))));
+        assertEq(impl.delay(), 0);
+        assertEq(impl.minDelay(), deploy.cfg().minWithdrawalDelaySeconds());
+        assertEq(impl.maxDelay(), deploy.cfg().maxWithdrawalDelaySeconds());
+    }
+
+    /// @notice Tests that the constructor accepts equal bounds, which pin the delay to one value.
+    function test_constructor_equalBounds_succeeds() public {
+        IDelayedWETH impl = IDelayedWETH(
+            payable(DeployUtils.create1({
+                    _name: "DelayedWETH",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (1, 1)))
+                }))
+        );
+        assertEq(impl.minDelay(), 1);
+        assertEq(impl.maxDelay(), 1);
+    }
+
+    /// @notice Tests that the constructor rejects a zero lower bound.
+    function test_constructor_zeroMinBound_reverts() public {
+        vm.expectRevert(IDelayedWETH.DelayedWETH_InvalidDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "DelayedWETH",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (0, 1)))
+        });
+    }
+
+    /// @notice Tests that the constructor rejects inverted bounds.
+    function test_constructor_invertedBounds_reverts() public {
+        vm.expectRevert(IDelayedWETH.DelayedWETH_InvalidDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "DelayedWETH",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (2, 1)))
+        });
     }
 }
 
@@ -75,6 +126,54 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
         address expectedETHLockbox = address(optimismPortal2.ethLockbox());
         assertEq(address(delayedWeth.ethLockbox()), expectedETHLockbox);
         assertEq(address(delayedWeth.config()), address(superchainConfig));
+        assertEq(delayedWeth.delay(), deploy.cfg().faultGameWithdrawalDelay());
+    }
+
+    /// @notice Tests that the initializer stores the delay and emits the event.
+    function test_initialize_setsDelay_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        uint256 newDelay = delayedWeth.minDelay();
+        IETHLockbox lockbox = delayedWeth.ethLockbox();
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("DelayedWETH", "_initialized");
+        vm.store(address(delayedWeth), bytes32(initSlot.slot), bytes32(0));
+
+        vm.expectEmit(address(delayedWeth));
+        emit DelaySet(newDelay);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.initialize(lockbox, newDelay);
+
+        assertEq(delayedWeth.delay(), newDelay);
+    }
+
+    /// @notice Tests that the initializer rejects a delay above the upper bound.
+    function test_initialize_delayOutOfBounds_reverts() public {
+        uint256 tooHigh = delayedWeth.maxDelay() + 1;
+        IETHLockbox lockbox = delayedWeth.ethLockbox();
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("DelayedWETH", "_initialized");
+        vm.store(address(delayedWeth), bytes32(initSlot.slot), bytes32(0));
+
+        vm.expectRevert(IDelayedWETH.DelayedWETH_InvalidDelay.selector);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.initialize(lockbox, tooHigh);
+    }
+
+    /// @notice Tests that the initializer rejects a zero delay, so an uninitialized value can never
+    ///         be accepted and the contract fails closed.
+    function test_initialize_zeroDelay_reverts() public {
+        IETHLockbox lockbox = delayedWeth.ethLockbox();
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("DelayedWETH", "_initialized");
+        vm.store(address(delayedWeth), bytes32(initSlot.slot), bytes32(0));
+
+        vm.expectRevert(IDelayedWETH.DelayedWETH_InvalidDelay.selector);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.initialize(lockbox, 0);
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal initialization
@@ -110,7 +209,166 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
 
         // Call the `initialize` function with the sender.
         vm.prank(_sender);
-        delayedWeth.initialize(IETHLockbox(payable(address(1234))));
+        delayedWeth.initialize(IETHLockbox(payable(address(1234))), wethDelay);
+    }
+}
+
+/// @title DelayedWETH_Delay_Test
+/// @notice Tests the `delay` function of the `DelayedWETH` contract.
+contract DelayedWETH_Delay_Test is DelayedWETH_TestInit {
+    /// @notice Tests that the delay is set, within the configured bounds and matches the deploy
+    ///         config.
+    function test_delay_succeeds() public view {
+        uint256 delay = delayedWeth.delay();
+        assertTrue(delay > 0);
+        assertGe(delay, delayedWeth.minDelay());
+        assertLe(delay, delayedWeth.maxDelay());
+        assertEq(delay, deploy.cfg().faultGameWithdrawalDelay());
+    }
+}
+
+/// @title DelayedWETH_MinDelay_Test
+/// @notice Tests the `minDelay` function of the `DelayedWETH` contract.
+contract DelayedWETH_MinDelay_Test is DelayedWETH_TestInit {
+    /// @notice Tests that the lower bound matches the deploy config.
+    function test_minDelay_succeeds() public view {
+        assertEq(delayedWeth.minDelay(), deploy.cfg().minWithdrawalDelaySeconds());
+    }
+}
+
+/// @title DelayedWETH_MaxDelay_Test
+/// @notice Tests the `maxDelay` function of the `DelayedWETH` contract.
+contract DelayedWETH_MaxDelay_Test is DelayedWETH_TestInit {
+    /// @notice Tests that the upper bound matches the deploy config.
+    function test_maxDelay_succeeds() public view {
+        assertEq(delayedWeth.maxDelay(), deploy.cfg().maxWithdrawalDelaySeconds());
+    }
+}
+
+/// @title DelayedWETH_SetDelay_Test
+/// @notice Tests the `setDelay` function of the `DelayedWETH` contract.
+contract DelayedWETH_SetDelay_Test is DelayedWETH_TestInit {
+    /// @notice Tests that the ProxyAdmin owner can set any in-range delay and the event is emitted.
+    /// @param _delay The new withdrawal delay.
+    function testFuzz_setDelay_succeeds(uint256 _delay) public {
+        _delay = bound(_delay, delayedWeth.minDelay(), delayedWeth.maxDelay());
+
+        vm.expectEmit(address(delayedWeth));
+        emit DelaySet(_delay);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(_delay);
+
+        assertEq(delayedWeth.delay(), _delay);
+    }
+
+    /// @notice Tests that the bounds themselves are accepted, so the inclusive range is exact.
+    function test_setDelay_atBounds_succeeds() public {
+        uint256 min = delayedWeth.minDelay();
+        uint256 max = delayedWeth.maxDelay();
+
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(min);
+        assertEq(delayedWeth.delay(), min);
+
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(max);
+        assertEq(delayedWeth.delay(), max);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can set the delay. The ProxyAdmin itself, which
+    ///         may call initialize(), is not enough.
+    /// @param _caller The address attempting the call.
+    function testFuzz_setDelay_notProxyAdminOwner_reverts(address _caller) public {
+        vm.assume(_caller != proxyAdminOwner);
+        uint256 delay = delayedWeth.minDelay();
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        delayedWeth.setDelay(delay);
+    }
+
+    /// @notice Tests that a delay below the lower bound is rejected.
+    function test_setDelay_belowMin_reverts() public {
+        uint256 tooLow = delayedWeth.minDelay() - 1;
+
+        vm.expectRevert(IDelayedWETH.DelayedWETH_InvalidDelay.selector);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(tooLow);
+    }
+
+    /// @notice Tests that a delay above the upper bound is rejected.
+    function test_setDelay_aboveMax_reverts() public {
+        uint256 tooHigh = delayedWeth.maxDelay() + 1;
+
+        vm.expectRevert(IDelayedWETH.DelayedWETH_InvalidDelay.selector);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(tooHigh);
+    }
+
+    /// @notice Tests that lowering the delay applies to withdrawals that were already unlocked: a
+    ///         request not yet past the old delay becomes withdrawable as soon as the delay drops
+    ///         below its age.
+    function test_setDelay_lowerReleasesPendingWithdrawal_succeeds() public {
+        uint256 oldDelay = delayedWeth.delay();
+        uint256 newDelay = delayedWeth.minDelay();
+        assertLt(newDelay, oldDelay);
+
+        // Deposit and unlock.
+        vm.prank(alice);
+        delayedWeth.deposit{ value: 1 ether }();
+        vm.prank(alice);
+        delayedWeth.unlock(alice, 1 ether);
+
+        // Past the new delay but not the old one: still locked.
+        vm.warp(block.timestamp + newDelay + 1);
+        vm.expectRevert("DelayedWETH: withdrawal delay not met");
+        vm.prank(alice);
+        delayedWeth.withdraw(1 ether);
+
+        // Lower the delay; the already-unlocked request can be withdrawn immediately.
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(newDelay);
+
+        uint256 balance = alice.balance;
+        vm.prank(alice);
+        delayedWeth.withdraw(1 ether);
+        assertEq(alice.balance, balance + 1 ether);
+    }
+
+    /// @notice Tests that raising the delay applies to withdrawals that were already unlocked: a
+    ///         request that was withdrawable under the old delay is locked again until the new
+    ///         delay passes.
+    function test_setDelay_raiseLocksPendingWithdrawal_succeeds() public {
+        uint256 lowDelay = delayedWeth.minDelay();
+        uint256 highDelay = delayedWeth.maxDelay();
+        assertLt(lowDelay, highDelay);
+
+        // Start from the low delay.
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(lowDelay);
+
+        // Deposit and unlock.
+        vm.prank(alice);
+        delayedWeth.deposit{ value: 1 ether }();
+        vm.prank(alice);
+        delayedWeth.unlock(alice, 1 ether);
+
+        // Past the low delay: withdrawable. Raise the delay before withdrawing.
+        vm.warp(block.timestamp + lowDelay + 1);
+        vm.prank(proxyAdminOwner);
+        delayedWeth.setDelay(highDelay);
+
+        // The same request is locked again.
+        vm.expectRevert("DelayedWETH: withdrawal delay not met");
+        vm.prank(alice);
+        delayedWeth.withdraw(1 ether);
+
+        // It becomes withdrawable once the new delay has passed.
+        vm.warp(block.timestamp + highDelay);
+        uint256 balance = alice.balance;
+        vm.prank(alice);
+        delayedWeth.withdraw(1 ether);
+        assertEq(alice.balance, balance + 1 ether);
     }
 }
 

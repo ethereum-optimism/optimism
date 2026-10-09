@@ -389,9 +389,7 @@ contract OPContractsManagerMigrationValidator {
                     delayedWETHImpl: _impls.delayedWETHImpl,
                     anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
                 }),
-                DisputeGameConfig({
-                    l1PAOMultisig: _cfg.l1PAOMultisig, withdrawalDelaySeconds: _cfg.withdrawalDelaySeconds
-                })
+                DisputeGameConfig({ l1PAOMultisig: _cfg.l1PAOMultisig })
             );
     }
 

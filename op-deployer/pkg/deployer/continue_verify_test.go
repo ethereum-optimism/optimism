@@ -185,6 +185,7 @@ func newContinuationVerificationFixtureWithMode(
 		SuperchainConfig:                common.Address{0xb2},
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
 	}
 	if gameType == embedded.GameTypeSuperPermissioned {
 		expected.Prestate = common.Hash{}
