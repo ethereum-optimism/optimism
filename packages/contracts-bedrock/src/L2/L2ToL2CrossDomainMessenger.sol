@@ -7,6 +7,10 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
+// Contracts
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
+import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
+
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
@@ -45,7 +49,8 @@ error L2ToL2CrossDomainMessenger_NotOtherMessenger();
 ///         the expiry period.
 error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
-/// @notice Thrown when the contract is deployed with a zero expiry period.
+/// @notice Thrown when the contract is initialized with an expiry period of zero or above
+///         `MAX_EXPIRY_PERIOD`.
 error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
 
 /// @custom:proxied true
@@ -54,7 +59,7 @@ error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
+contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyAdminOwnedBase, Initializable {
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -73,14 +78,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Current message version identifier.
     uint16 public constant messageVersion = uint16(0);
 
-    /// @notice How long after it is sent a message must go unrelayed before it can be marked
-    ///         expired. The protocol rejects an executing message whose block is more than the
-    ///         message expiry window after the block of its initiating message, and the interop
-    ///         specification caps that window at 7 days. The period must exceed the window, so a
-    ///         message is only marked expired once no relay of it can be valid. Production
-    ///         deployments use 8 days: the window plus a day of margin. It is set at deployment so
-    ///         that test networks with a shorter window can use a shorter period.
-    uint256 internal immutable EXPIRY_PERIOD;
+    /// @notice The longest expiry period the contract can be initialized with.
+    uint256 internal constant MAX_EXPIRY_PERIOD = 365 days;
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -110,6 +109,15 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     ///         period, after which it never can be. Applications read this to undo a send.
     mapping(bytes32 => bool) public expiredMessages;
 
+    /// @notice How long after it is sent a message must go unrelayed before it can be marked
+    ///         expired. The protocol rejects an executing message whose block is more than the
+    ///         message expiry window after the block of its initiating message, and the interop
+    ///         specification caps that window at 7 days. The period must exceed the window, so a
+    ///         message is only marked expired once no relay of it can be valid. Production
+    ///         networks use 8 days: the window plus a day of margin. Test networks with a shorter
+    ///         window can use a shorter period.
+    uint256 public expiryPeriod;
+
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -135,18 +143,18 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     );
 
     /// @notice Constructs the L2ToL2CrossDomainMessenger.
-    /// @param _expiryPeriod How long after it is sent a message must go unrelayed before it can
-    ///                      be marked expired. See `EXPIRY_PERIOD`.
-    constructor(uint256 _expiryPeriod) {
-        if (_expiryPeriod == 0) revert L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
-        EXPIRY_PERIOD = _expiryPeriod;
+    constructor() {
+        _disableInitializers();
     }
 
-    /// @notice Returns how long after it is sent a message must go unrelayed before it can be
-    ///         marked expired. See `EXPIRY_PERIOD`.
-    /// @return The expiry period, in seconds.
-    function expiryPeriod() public view returns (uint256) {
-        return EXPIRY_PERIOD;
+    /// @notice Initializes the contract.
+    /// @param _expiryPeriod The expiry period. See `expiryPeriod`.
+    function initialize(uint256 _expiryPeriod) external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+        if (_expiryPeriod == 0 || _expiryPeriod > MAX_EXPIRY_PERIOD) {
+            revert L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+        }
+        expiryPeriod = _expiryPeriod;
     }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
@@ -300,7 +308,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
 
         uint256 sentAt = sentMessageTimestamps[_messageHash];
         if (sentAt == 0) revert InvalidMessage();
-        if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
+        if (_undeliveredAt <= sentAt + expiryPeriod) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
 
         expiredMessages[_messageHash] = true;
 

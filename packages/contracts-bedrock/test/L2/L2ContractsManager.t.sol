@@ -13,7 +13,6 @@ import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
-import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 
@@ -26,6 +25,7 @@ import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableE
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
@@ -113,10 +113,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
         for (uint256 i = 0; i < impls.length; i++) {
             _implRecords.push(
-                L2ContractsManagerTypes.ImplRecord({
-                    name: impls[i].name,
-                    impl: deployCode(impls[i].artifactPath, UpgradeUtils.implementationConstructorArgs(impls[i].name))
-                })
+                L2ContractsManagerTypes.ImplRecord({ name: impls[i].name, impl: deployCode(impls[i].artifactPath) })
             );
         }
     }
@@ -498,6 +495,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         config_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
             owner: makeAddr("liquidityControllerOwner"), gasPayingTokenName: "Custom", gasPayingTokenSymbol: "CGT"
         });
+        config_.l2ToL2MessageExpiryPeriod = 1 days;
         config_.isCustomGasToken = _cgt;
         config_.isInterop = _interop;
     }
@@ -645,7 +643,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             || _proxy == Predeploys.SEQUENCER_FEE_WALLET || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _proxy == Predeploys.L2_ERC721_BRIDGE || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY
             || _proxy == Predeploys.BASE_FEE_VAULT || _proxy == Predeploys.L1_FEE_VAULT
-            || _proxy == Predeploys.OPERATOR_FEE_VAULT || _proxy == Predeploys.LIQUIDITY_CONTROLLER;
+            || _proxy == Predeploys.OPERATOR_FEE_VAULT || _proxy == Predeploys.LIQUIDITY_CONTROLLER
+            || _proxy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
     }
 }
 
@@ -912,6 +911,43 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
             "UndeliveredMessageExporter should be installed"
         );
     }
+
+    /// @notice Tests that an upgrade sets the production expiry period of 8 days, whatever period the
+    ///         messenger had, and that running it again keeps it.
+    function testFuzz_upgradeSetsProductionMessengerExpiryPeriod_succeeds(uint256 _expiryPeriod) public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        stdstore.target(address(messenger)).sig(messenger.expiryPeriod.selector).checked_write(_expiryPeriod);
+
+        _executeUpgrade();
+        assertEq(messenger.expiryPeriod(), 8 days);
+
+        _executeUpgrade();
+        assertEq(messenger.expiryPeriod(), 8 days);
+    }
+
+    /// @notice Tests that an upgrade from a messenger without a configurable expiry period, as on
+    ///         chains today, initializes it with the production expiry period of 8 days.
+    function test_upgradeSetsProductionMessengerExpiryPeriod_fromLegacyMessenger_succeeds() public {
+        EIP1967Helper.setImplementation(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ContractsManager_LegacyMessenger_Harness())
+        );
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(uint256(5)), bytes32(0));
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
+
+        _executeUpgrade();
+
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 8 days);
+    }
+}
+
+/// @title L2ContractsManager_LegacyMessenger_Harness
+/// @notice Stands in for an L2ToL2CrossDomainMessenger implementation from before the expiry period
+///         was configurable: it has a version but no expiryPeriod() getter.
+contract L2ContractsManager_LegacyMessenger_Harness {
+    /// @notice Returns the version of the last messenger without a configurable expiry period.
+    function version() external pure returns (string memory) {
+        return "1.3.2";
+    }
 }
 
 /// @title L2ContractsManager_Upgrade_InteropFlagDisabled_Test
@@ -1090,6 +1126,16 @@ contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_T
     ///         UndeliveredMessageExporter gated in.
     function test_deployTouchedSet_interop_succeeds() public {
         _assertDeployTouchesExactly(_deployConfig(false, true));
+    }
+
+    /// @notice Tests that deploy() initializes the messenger with the supplied expiry period.
+    function test_deploy_messengerExpiryPeriod_succeeds() public {
+        L2ContractsManagerTypes.FullConfig memory config = _deployConfig(false, true);
+        _executeDeploy(l2cm, config);
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
+            config.l2ToL2MessageExpiryPeriod
+        );
     }
 
     /// @notice Custom gas token and interop combined: both feature sets are gated in.
