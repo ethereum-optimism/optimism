@@ -170,6 +170,10 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
         *   `--builder.deadline=2` and `--builder.interval=100ms` tune op-reth's block builder for the 2-second L2 block time (the defaults target Ethereum's 12-second slots).
         *   op-reth runs as an archive node by default, so there is no `--gcmode=archive` equivalent to set.
       </Info>
+
+      <Warning>
+        This tutorial enables op-node's admin API (`--rpc.enable-admin`) on `0.0.0.0:8547`. The op-node RPC is unauthenticated (the JWT secret protects only the Engine API), so anyone who can reach that port can call admin methods such as `admin_stopSequencer`. Take care not to expose the admin API to the public internet: bind the RPC to `127.0.0.1` or firewall the port. Docker-published ports bypass host firewalls such as `ufw` by default.
+      </Warning>
       </Step>
 
       <Step title="Start the services">
@@ -450,6 +454,10 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --log.level=info \
       --log.format=json
     ```
+
+    <Warning>
+      This tutorial enables op-node's admin API (`--rpc.enable-admin`) on `0.0.0.0:8547`. The op-node RPC is unauthenticated (the JWT secret protects only the Engine API), so anyone who can reach that port can call admin methods such as `admin_stopSequencer`. Take care not to expose the admin API to the public internet: bind the RPC to `127.0.0.1` or firewall the port.
+    </Warning>
 
     ## Starting the sequencer
 
