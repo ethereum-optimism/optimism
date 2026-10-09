@@ -23,9 +23,8 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     /// @custom:semver 2.4.0
     string public constant version = "2.4.0";
 
-    /// @notice Gas reserved on L2 for finalizing `relayMessage` after the safe call. Covers
-    ///         recording the outcome in a fresh storage slot, including EIP-8037 state gas.
-    uint64 public constant LOCAL_RELAY_RESERVED_GAS = 125_000;
+    /// @notice Gas reserved on L2 for finalizing `relayMessage` after the safe call.
+    uint64 public constant LOCAL_RELAY_RESERVED_GAS = 40_000;
 
     /// @notice Gas reserved on L2 for the execution between the `hasMinGas` check and the
     ///         external call in `relayMessage`.

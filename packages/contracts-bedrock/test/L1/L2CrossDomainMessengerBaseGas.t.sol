@@ -175,7 +175,7 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
 
     /// @notice Tests the relay constant values and that the legacy relay getters return the L1 relay constants.
     function test_baseGas_relayConstants_succeeds() external view {
-        assertEq(l2CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), 125_000);
+        assertEq(l2CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), 40_000);
         assertEq(l2CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), 5_000);
         assertEq(l2CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), 200_000);
         assertEq(l2CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD(), 40_000);

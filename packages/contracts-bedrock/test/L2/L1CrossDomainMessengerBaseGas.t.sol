@@ -173,7 +173,7 @@ contract L1CrossDomainMessenger_BaseGas_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), 5_000);
         assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), 200_000);
         assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD(), 40_000);
-        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS(), 125_000);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS(), 40_000);
         assertEq(l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER(), 5_000);
         assertEq(
             l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
