@@ -33,6 +33,8 @@ pub use derivation::{
 
 pub mod l1_watcher;
 
+pub mod l1;
+
 pub mod signer;
 
 mod network;

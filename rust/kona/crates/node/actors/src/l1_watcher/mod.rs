@@ -8,8 +8,7 @@ pub use handle::Handle;
 
 mod worker;
 
-mod blockstream;
-pub use blockstream::BlockStream;
+pub use crate::l1::BlockStream;
 
 mod derivation;
 pub use derivation::Derivation;

@@ -27,6 +27,14 @@ where
 }
 
 impl<L1P: Provider> BlockStream<L1P> {
+    pub(super) const fn new(
+        l1_provider: L1P,
+        tag: BlockNumberOrTag,
+        poll_interval: Duration,
+    ) -> Self {
+        Self { l1_provider, tag, poll_interval }
+    }
+
     /// Creates a new [`Stream<Item = BlockInfo>`] instance.
     ///
     /// # Returns
@@ -40,7 +48,7 @@ impl<L1P: Provider> BlockStream<L1P> {
         if matches!(tag, BlockNumberOrTag::Number(_)) {
             error!("Invalid BlockNumberOrTag variant - Must be a tag");
         }
-        Ok(Self { l1_provider, tag, poll_interval }.into_stream())
+        Ok(Self::new(l1_provider, tag, poll_interval).into_stream())
     }
 
     /// Creates a [`Stream`] of [`BlockInfo`].
