@@ -36,12 +36,8 @@ type L1OriginSelector struct {
 	// Internal cache of L1 origins for faster access.
 	currentOrigin eth.L1BlockRef
 	nextOrigin    eth.L1BlockRef
-	// lookahead is the successor of nextOrigin, prefetched so that nextOrigin can be
-	// replaced as soon as an L2 block adopts it. The sequencer starts the next build
-	// right after inserting a block, typically before the forkchoice update of that
-	// insertion reaches this selector. Without the lookahead, that build would find
-	// no next origin and keep the one just adopted, so the origin could only advance
-	// every other L2 block.
+	// lookahead is the prefetched successor of nextOrigin, so the origin can advance
+	// again on the build right after nextOrigin is adopted.
 	lookahead eth.L1BlockRef
 
 	mu sync.Mutex
@@ -119,6 +115,12 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 // The returned currentOrigin should _always_ be non-empty, because it is populated from l2Head whose
 // l1Origin is first specified in the rollup.Config.Genesis.L1 and progressed to non-empty values thereafter.
 func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, error) {
+	currentOrigin, nextOrigin, _, err := los.cachedOrigins(ctx, l2Head)
+	return currentOrigin, nextOrigin, err
+}
+
+// cachedOrigins is CurrentAndNextOrigin, also returning the lookahead from the same snapshot.
+func (los *L1OriginSelector) cachedOrigins(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, eth.L1BlockRef, error) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
@@ -142,7 +144,7 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 		// Grab a reference to the current L1 origin block. This call is by hash and thus easily cached.
 		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 		if err != nil {
-			return eth.L1BlockRef{}, eth.L1BlockRef{}, err
+			return eth.L1BlockRef{}, eth.L1BlockRef{}, eth.L1BlockRef{}, err
 		}
 
 		los.currentOrigin = currentOrigin
@@ -150,14 +152,11 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 		los.lookahead = eth.L1BlockRef{}
 	}
 
-	return los.currentOrigin, los.nextOrigin, nil
+	return los.currentOrigin, los.nextOrigin, los.lookahead, nil
 }
 
-// maybeCacheOrigin caches a fetched block as the next origin or the lookahead,
-// if it is the subsequent block by number of the current or next origin.
-// On reorgs, it might not be the immediate child since the hash is not checked:
-// a next origin that is not a child surfaces as ErrNextL1OriginOrphaned, and a
-// lookahead that is not a child is discarded instead of promoted.
+// maybeCacheOrigin caches origin as nextOrigin or lookahead if it follows currentOrigin
+// or nextOrigin by number. Hashes are checked where the cached blocks are used.
 func (los *L1OriginSelector) maybeCacheOrigin(origin eth.L1BlockRef) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
@@ -170,31 +169,24 @@ func (los *L1OriginSelector) maybeCacheOrigin(origin eth.L1BlockRef) {
 	}
 }
 
-func (los *L1OriginSelector) hasLookahead() bool {
-	los.mu.Lock()
-	defer los.mu.Unlock()
-
-	return los.lookahead != (eth.L1BlockRef{})
-}
-
 func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 	// Only allow a relatively small window for fetching the next origins, as this is performed
 	// on a best-effort basis.
 	ctx, cancel := context.WithTimeout(los.ctx, 500*time.Millisecond)
 	defer cancel()
 
-	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, unsafeL2Head)
+	currentOrigin, nextOrigin, lookahead, err := los.cachedOrigins(ctx, unsafeL2Head)
 	if err != nil {
 		los.log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
 		return
 	}
 
-	los.tryFetchNextOrigins(ctx, currentOrigin, nextOrigin)
+	los.tryFetchNextOrigins(ctx, currentOrigin, nextOrigin, lookahead)
 }
 
 // tryFetchNextOrigins fetches the next L1 origin block and its successor, the lookahead,
 // unless they are already cached.
-func (los *L1OriginSelector) tryFetchNextOrigins(ctx context.Context, currentOrigin, nextOrigin eth.L1BlockRef) {
+func (los *L1OriginSelector) tryFetchNextOrigins(ctx context.Context, currentOrigin, nextOrigin, lookahead eth.L1BlockRef) {
 	// If the current origin is not set, we can't schedule the next origin check.
 	if currentOrigin == (eth.L1BlockRef{}) {
 		return
@@ -208,7 +200,7 @@ func (los *L1OriginSelector) tryFetchNextOrigins(ctx context.Context, currentOri
 		}
 	}
 
-	if los.hasLookahead() {
+	if lookahead != (eth.L1BlockRef{}) {
 		return
 	}
 	if _, err := los.fetch(ctx, nextOrigin.Number+1); err != nil {

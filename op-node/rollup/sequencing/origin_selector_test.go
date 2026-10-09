@@ -1046,14 +1046,9 @@ func (s *simulatedL1) L1BlockRefByHash(_ context.Context, h common.Hash) (eth.L1
 	return simulatedL1Block(binary.BigEndian.Uint64(h[24:])), nil
 }
 
-// TestOriginSelectorKeepsUpWithL1 ensures that the L1 origin keeps pace with L1
-// whichever reaches the selector first: the next block build, or the forkchoice
-// update of the block before it. The sequencer runs on its own goroutine, so it
-// routinely starts the next build before the event loop has delivered that
-// forkchoice update. If adoption depended on the order, the origin would advance
-// at most every other L2 block, which cannot keep up with L1 once L2 blocks are
-// slower than half the L1 block time: the origin would fall behind until the max
-// sequencer drift forced it along.
+// TestOriginSelectorKeepsUpWithL1 ensures the L1 origin keeps pace with L1 whether the next
+// build or the previous block's forkchoice update reaches the selector first. A 10s block time
+// falls behind L1 if the origin can only advance every other L2 block.
 func TestOriginSelectorKeepsUpWithL1(t *testing.T) {
 	const confDepth = 15
 	for _, blockTime := range []uint64{2, 10} {
