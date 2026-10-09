@@ -306,9 +306,11 @@ contract L2GenesisForkUpgrade_CGT_GasProfile_Test is L2GenesisForkUpgrade_CGT_Te
 ///         expiry period.
 contract L2GenesisForkUpgrade_Interop_ExpiryPeriod_Test is L2GenesisForkUpgrade_Interop_TestInit {
     /// @notice Tests that after the bundle runs, the messenger runs the implementation the bundle
-    ///         deployed and its expiry period is 8 days.
+    ///         deployed and its expiry period is 8 days, whatever period it had before.
     function test_l2ForkUpgrade_messengerExpiryPeriod_succeeds() public {
         address genesisImpl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(uint256(5)), bytes32(uint256(1 days)));
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 1 days);
         _executeCurrentBundle();
         address impl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         assertTrue(impl != genesisImpl, "the bundle must install its own messenger implementation");
