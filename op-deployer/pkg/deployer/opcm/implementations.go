@@ -13,8 +13,7 @@ import (
 // DeployImplementations.s.sol input struct exactly — script ABI matching is
 // checked at load time.
 type DeployImplementationsInput struct {
-	// Bounds for the per-chain DelayedWETH withdrawal delay. The delay itself is a per-chain
-	// input to DeployOPChain; the implementation only carries the sanctioned range.
+	// For per-chain withdrawal delays, bounds are defined in the implementation and values are set in DeployOPChain.
 	MinWithdrawalDelaySeconds *big.Int
 	MaxWithdrawalDelaySeconds *big.Int
 	MinProposalSizeBytes      *big.Int
