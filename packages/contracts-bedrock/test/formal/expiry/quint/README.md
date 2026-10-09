@@ -1,11 +1,10 @@
 # Quint model: interop message expiry
 
-> **Scope versus the code.** The exporter design landed on the PR #23259 branch at
-> `5992028e08`:
+> **Scope versus the code.** The exporter design, as on the expiry PR stack:
 > - `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (0x...0030 since
 >   `52ff613e14`; 0x..2E before);
 > - `relayUndeliveredMessage` trusts it and has the INTEROP gate;
-> - P = 8 days;
+> - P = 8 days (the production period the messenger is initialized with);
 > - the Go and kona caps reject W > 7 days.
 >
 > The `safe` instances describe that code. The earlier commit `37b44c48c7` implemented the earlier
@@ -142,6 +141,13 @@ shows the same premise failing for the earlier design.
 ## Results
 
 Apalache 0.62.1 via `quint verify`, on a 32-core Linux host, each check memory-capped (8–16 GB).
+
+**Re-run on the expiry PR stack** (formal branch at `2c85209dc9`, model unchanged): `./run.sh all`
+reproduced every result below, with no failures. `Safety` holds at depth 10 in `safe` (7795 s),
+`safeNoTargetRule` (5366 s), `safeNoMargin` (5019 s) and `safeShorterWindow` (6711 s), and at depth 9
+in `safeResendRestarts` (1015 s); every witness and every unsafe instance is violated as expected.
+The contract period is a model constant here; its deployment (initialized once, read back on
+upgrade, a test-network override) is modeled in `../rollout/`.
 
 **Unsafe instances.** Every one violates `NoDoubleSpend`, within the default `DEPTH` of 15. The
 column is the step at which Apalache reports the shortest violation.

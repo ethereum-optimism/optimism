@@ -124,7 +124,13 @@ abstract, so they can only enter as `requires`; each is satisfiable by choosing 
 
 No hypothesis of any lemma was found unsatisfiable. `run.sh` total, including the probe: 18 s.
 
-## Results (branch tip `5992028e08`, Dafny 4.11.0)
+## Results (Dafny 4.11.0)
+
+Re-run on the expiry PR stack (formal branch at `2c85209dc9`): `run.sh --model` gives the same
+counts as below: the existing model `7355 verified, 0 errors`, `ExpiryBridge.dfy` `28 verified,
+0 errors`, `ExpectFail.dfy` rejected at exactly its two EXPECT-FAIL postconditions,
+`NonVacuity.dfy` `16 verified, 0 errors`, and `assert false` unprovable in all 14 witness
+contexts. The table records the first run, at `5992028e08`.
 
 | Check | Result | Wall time |
 |---|---|---|
