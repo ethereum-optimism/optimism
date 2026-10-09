@@ -1,6 +1,6 @@
 // -*- mode: Bluespec; -*-
-// Rollout model of per-message interop expiry (exporter design, commit 5992028e08; the cited code
-// was re-checked at e1b3903ab8, whose changes do not affect this model).
+// Rollout model of per-message interop expiry (exporter design; the cited code was re-checked at
+// 89a3d565ad, where the expiry period became a constructor argument with a genesis override).
 //
 // Copied from ../quint/expiry.qnt and changed so that the single atomic `upgrade(x)` becomes separate,
 // freely ordered activation events per chain and per layer:
@@ -14,6 +14,8 @@
 //   - the two NUT bundles as atomic L2 events: the tip bundle and the locked Lagoon bundle, the latter
 //     subject to the L2ContractsManager's semver downgrade guard;
 //   - lockbox joins at any point;
+//   - the messenger's constructor-set expiry period: the production value on every upgrade path, and
+//     an override at genesis on test networks, with the op-deployer and devstack guards;
 //   - the protocol window W each relay is judged by, chosen adversarially per relay from a configured
 //     set, separately before and after the destination's exporter first goes live (this covers W
 //     changing over time, a W rule that is not yet active, and a host-supplied depset in kona's
@@ -22,8 +24,19 @@
 // Each activation condition is a constant; the instances at the bottom drop them one at a time.
 module rollout {
   // ---- Configuration ----
-  // P_contract (days): expireMessage needs undeliveredAt > sentAt + P. 8 at the tip.
+  // P_contract (days): expireMessage needs undeliveredAt > sentAt + P. It is the messenger's
+  // EXPIRY_PERIOD immutable, set by its constructor. Every implementation the upgrade path deploys
+  // (UpgradeUtils.implementationConstructorArgs, L2Genesis without an override) gets the production
+  // value Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD: 8.
   const CONTRACT_PERIOD: int
+  // The constructor-argument override (L2Genesis input l2ToL2MessageExpiryPeriod, set through
+  // op-deployer's global override or the devstack preset):
+  //   "none":      op-deployer refuses it for standard intents and for chains on public L1s;
+  //   "guarded":   a test network launched with interop at genesis (L2Genesis and the devstack refuse
+  //                it otherwise), with the devstack check that the period exceeds the message expiry
+  //                window;
+  //   "unguarded": the same without the window check.
+  const PERIOD_OVERRIDE: str
   // Windows a relay on chain d may be judged by, before d's exporter has ever had an implementation,
   // and from then on. INF (no W rule) is a member when the rule is not enforced.
   const WIN_BEFORE: str -> Set[int]
@@ -85,6 +98,9 @@ module rollout {
 
   // ---- State ----
   var now: str -> int
+  // The 2.0.0 messenger's EXPIRY_PERIOD per chain (its constructor argument). Kept outside `Chain`
+  // so the record type, which the flattened model repeats everywhere, stays small.
+  var period: str -> int
   var chains: str -> Chain
   var cluster: Set[str]
   var msgs: str -> Msg
@@ -99,6 +115,7 @@ module rollout {
 
   action init = all {
     now' = CHAINS.mapBy(_ => 1),
+    period' = CHAINS.mapBy(_ => CONTRACT_PERIOD),
     // Pre-rollout: every L2 runs the 1.3.1 messenger, the old bridge and no exporter implementation
     // (the genesis proxy reverts); every L1 runs the old messenger. A and B were migrated into the
     // shared lockbox (INTEROP set on L1); C is outside.
@@ -118,6 +135,11 @@ module rollout {
   action keepMsgState = all { msgs' = msgs, withdrawals' = withdrawals, deposits' = deposits, ghost' = ghost }
   action setChain(x: str, c: Chain): bool = all {
     chains' = chains.set(x, c),
+    now' = now, period' = period, cluster' = cluster, early' = early, keepMsgState,
+  }
+  // setChain that also deploys x's messenger with expiry period p.
+  action setChainP(x: str, c: Chain, p: int): bool = all {
+    chains' = chains.set(x, c), period' = period.set(x, p),
     now' = now, cluster' = cluster, early' = early, keepMsgState,
   }
 
@@ -146,8 +168,8 @@ module rollout {
   action nutTip(x: str): bool = {
     val c = chains.get(x)
     all {
-      setChain(x, c.with("msgr", "new").with("bridge", true).with("exporter", "std")
-                   .with("exporterLive", true).with("hist", c.hist.union(Set("tip")))),
+      setChainP(x, c.with("msgr", "new").with("bridge", true).with("exporter", "std")
+                    .with("exporterLive", true).with("hist", c.hist.union(Set("tip"))), CONTRACT_PERIOD),
     }
   }
 
@@ -167,7 +189,26 @@ module rollout {
   // L2: one predeploy at a time (a split bundle, a later fork, or governance's ProxyAdmin.upgrade).
   action setMessengerNew(x: str): bool = {
     val c = chains.get(x)
-    all { c.msgr == "old", setChain(x, c.with("msgr", "new")) }
+    all { c.msgr == "old", setChainP(x, c.with("msgr", "new"), CONTRACT_PERIOD) }
+  }
+  // The finite windows any relay may be judged by once exporters are live: the configured window the
+  // devstack compares an overridden period against.
+  pure val MAX_WINDOW = CHAINS.fold(0, (acc, d) => WIN_AFTER.get(d).filter(w => w != INF)
+                                                    .fold(acc, (a, w) => if (w > a) w else a))
+  // A test network launched with interop at genesis, its messenger constructed with period p
+  // (L2Genesis input l2ToL2MessageExpiryPeriod). Genesis: x has no history and no message touches it.
+  // All of x's interop predeploys are live from the start; a later activation (nutTip,
+  // setMessengerNew) deploys the production period again.
+  action genesisWithPeriod(x: str, p: int): bool = {
+    val c = chains.get(x)
+    all {
+      PERIOD_OVERRIDE != "none",
+      PERIOD_OVERRIDE == "guarded" implies p > MAX_WINDOW,
+      c.msgr == "old", c.hist == Set(), not(c.exporterLive), now.get(x) == 1,
+      MSGS.forall(m => (SRC.get(m) == x or DST.get(m) == x) implies msgs.get(m).events == Set()),
+      setChainP(x, c.with("msgr", "new").with("bridge", true).with("exporter", "std")
+                    .with("exporterLive", true).with("hist", Set("genesisOverride")), p),
+    }
   }
   // Governance rolls the messenger back to 1.3.1 (ProxyAdmin.upgrade has no version check).
   action govMessengerDowngrade(x: str): bool = {
@@ -200,7 +241,7 @@ module rollout {
                                .with("hist", if (v == "none") c.hist.union(Set("exporterRemoved")) else c.hist)),
       early' = if (v == "std") early.union(CHAINS.filter(s => chains.get(s).msgr == "old").map(s => (x, s)))
                else early,
-      now' = now, cluster' = cluster, keepMsgState,
+      now' = now, period' = period, cluster' = cluster, keepMsgState,
     }
   }
 
@@ -212,15 +253,17 @@ module rollout {
       JOIN_REQUIRES_CLEAN_EXPORTER implies not(c.rogueEver),
       cluster' = cluster.union(Set(x)),
       chains' = chains.set(x, c.with("hist", c.hist.union(Set("joined")))),
-      now' = now, early' = early, keepMsgState,
+      now' = now, period' = period, early' = early, keepMsgState,
     }
   }
 
   // ---------------------------------------------------------------------------------------------
   // Protocol actions (as in ../quint/expiry.qnt, guarded by the per-chain deployment state).
   // ---------------------------------------------------------------------------------------------
-  action keepDeploy = all { now' = now, chains' = chains, cluster' = cluster, early' = early }
-  action keepDeployAt(x: str, t: int): bool = all { now' = now.set(x, t), chains' = chains, cluster' = cluster, early' = early }
+  action keepDeploy = all { now' = now, period' = period, chains' = chains, cluster' = cluster, early' = early }
+  action keepDeployAt(x: str, t: int): bool = all {
+    now' = now.set(x, t), period' = period, chains' = chains, cluster' = cluster, early' = early,
+  }
 
   // Clocks: the actions that read a chain's clock (send, resend, relay, exportStd) take the time t
   // they happen at, any t >= that chain's clock, and move the clock to t. This replaces a separate
@@ -337,7 +380,7 @@ module rollout {
       dep.to == SRC.get(f.msg),
       f.dest == CHAIN_ID.get(DST.get(f.msg)),
       ms.sentAt != 0,
-      f.at > ms.sentAt + CONTRACT_PERIOD,
+      f.at > ms.sentAt + period.get(dep.to),
       msgs' = msgs.set(f.msg, ms.with("expired", true)),
       ghost' = ghost.with("forged", ghost.forged or not(f.honest and f.by == DST.get(f.msg))),
       withdrawals' = withdrawals, deposits' = deposits, keepDeploy,
@@ -366,12 +409,14 @@ module rollout {
     nondet v1 = Set("old", "new", "earlier").oneOf()
     nondet ve = Set("none", "std", "rogue").oneOf()
     nondet b = Set(true, false).oneOf()
+    nondet p = TIMES.oneOf()
     any {
       l1Set(x, v1),
       l1EnableInterop(x),
       nutTip(x),
       nutLagoon(x),
       setMessengerNew(x),
+      genesisWithPeriod(x, p),
       govMessengerDowngrade(x),
       setBridge(x, b),
       setExporter(x, ve),
@@ -431,6 +476,8 @@ module rollout {
   val NoRefundAfterExporterRemoved = not(refundedWith(m => chains.get(DST.get(m)).hist.contains("exporterRemoved")))
   // A refund on a source whose messenger was rolled back to 1.3.1 (before any timestamp) and re-upgraded.
   val NoRefundAfterMessengerRollback = not(refundedWith(m => chains.get(SRC.get(m)).hist.contains("msgrDown")))
+  // A refund on a source launched at genesis with an overridden expiry period.
+  val NoRefundUnderPeriodOverride = not(refundedWith(m => chains.get(SRC.get(m)).hist.contains("genesisOverride")))
   // Each remaining activation event and attacker move occurs (reachability only):
   // a lockbox join; INTEROP enabled on L1 for a chain that started without it; non-standard exporter
   // code on some chain (only outsiders in rolloutSafe); a withdrawal from such code; a 0x..23
@@ -469,7 +516,8 @@ module rolloutSafe {
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
     GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
+    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
+    PERIOD_OVERRIDE = "guarded").*
 
   // Reachability witnesses as scripted traces (`quint test --main=rolloutSafe`); each ends with
   // Safety holding and the named witness violated.
@@ -539,6 +587,20 @@ module rolloutSafe {
     .then(relay("m1", 99, 10).fail())
   run blockedRogueJoin = init.then(setExporter("C", "rogue")).then(join("C").fail())
   run blockedEarlierL1 = init.then(l1Set("A", "earlier").fail())
+  // A source launched with an overridden period above the window: a fact at 10 = 1 + 9 does not
+  // expire the message; one at 11 does, and the refund goes through.
+  pure val F1At10 = fact("m1", "B", 10, "A", "B", true)
+  pure val F1At11 = fact("m1", "B", 11, "A", "B", true)
+  run witnessPeriodOverride = init.then(genesisWithPeriod("A", 9)).then(nutTip("B")).then(l1Set("A", "new"))
+    .then(send("m1", 1)).then(exportStd("B", "m1", "A", 11))
+    .then(l1Relay(wd("B", "exporter", F1At11, true))).then(expire(dep("A", F1At11))).then(refund("m1"))
+    .expect(SafetyFull and not(NoRefundUnderPeriodOverride))
+  run blockedExpireWithinOverriddenPeriod = init.then(genesisWithPeriod("A", 9)).then(nutTip("B"))
+    .then(l1Set("A", "new")).then(send("m1", 1)).then(exportStd("B", "m1", "A", 10))
+    .then(l1Relay(wd("B", "exporter", F1At10, true))).then(expire(dep("A", F1At10)).fail())
+  // The devstack guard: a period not above the window (7) is refused; an override needs genesis.
+  run blockedPeriodAtWindow = init.then(genesisWithPeriod("A", 7).fail())
+  run blockedPeriodAfterGenesis = init.then(send("m1", 1)).then(genesisWithPeriod("A", 9).fail())
 }
 
 // The bound is W <= P, not W <= 7: W = P = 8 after the exporter is still safe (strict `>`).
@@ -548,7 +610,8 @@ module rolloutWindowAtP {
     WIN_AFTER = Map("A" -> Set(8), "B" -> Set(8), "C" -> Set(8)),
     GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
+    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
+    PERIOD_OVERRIDE = "guarded").*
 
   run witnessHonestRefund = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new"))
     .then(honestTail1).expect(SafetyFull and not(NoRefundEver))
@@ -567,7 +630,8 @@ module downgradeHardened {
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
     GOV_MSGR_DOWNGRADE = "any", L2CM_DOWNGRADE_GUARD = false, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = false).*
+    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = false,
+    PERIOD_OVERRIDE = "guarded").*
   // The govMessengerDowngrade counterexample's prefix: the resend is now impossible.
   run witnessDowngradeCannotResend = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new"))
     .then(honestTail1).then(govMessengerDowngrade("A"))
@@ -575,135 +639,4 @@ module downgradeHardened {
   // 1.3.1 still resends what it sent itself (sentAt 0, never expires).
   run witnessOldSendResend = init.then(nutTip("A")).then(govMessengerDowngrade("A")).then(send("m1", 1))
     .then(resend("m1", 3)).expect(SafetyFull and msgs.get("m1").events == Set(1, 3))
-}
-
-// ---- Each must produce a NoDoubleSpend counterexample ----
-
-// AC1 dropped: B's exporter is live while B relays without a W rule.
-module noWindowRuleOnB {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(7, 99), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  run cex = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new")).then(honestTail1)
-    .then(relay("m1", 99, 10)).expect(not(NoDoubleSpend))
-}
-
-// AC1 dropped on one chain only: C (which joins mid-rollout) uses W = 9 > P = 8 at times.
-module windowAbovePOnC {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(7, 9)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  pure val F3 = fact("m3", "C", 10, "A", "C", true)
-  run cex = init.then(nutTip("A")).then(nutTip("C")).then(l1Set("A", "new")).then(join("C"))
-    .then(send("m3", 1)).then(exportStd("C", "m3", "A", 10))
-    .then(l1Relay(wd("C", "exporter", F3, true))).then(expire(dep("A", F3))).then(refund("m3"))
-    .then(relay("m3", 9, 10)).expect(not(NoDoubleSpend))
-}
-
-// AC2 dropped: governance rolls a source's messenger back to 1.3.1 (resendMessage returns).
-module govMessengerDowngrade {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "any", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  run cex = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new")).then(honestTail1)
-    .then(govMessengerDowngrade("A")).then(resend("m1", 12)).then(relay("m1", 7, 15))
-    .expect(not(NoDoubleSpend))
-}
-
-// AC2's code half dropped: without the L2ContractsManager's semver guard, the locked Lagoon bundle
-// activating after the tip bundle downgrades the messenger.
-module lagoonWithoutGuard {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = false, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  run cex = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new")).then(honestTail1)
-    .then(nutLagoon("A")).then(resend("m1", 12)).then(relay("m1", 7, 15))
-    .expect(not(NoDoubleSpend))
-}
-
-// AC3 dropped (members): a lockbox member's governance installs non-standard exporter code.
-module rogueExporterMember {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = true,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  pure val FR = fact("m1", "B", 10, "A", "B", false)
-  run cex = init.then(nutTip("A")).then(l1Set("A", "new")).then(setExporter("B", "rogue"))
-    .then(send("m1", 1)).then(exportRogue("B", "m1", "B", 10, "A"))
-    .then(l1Relay(wd("B", "exporter", FR, true))).then(expire(dep("A", FR))).then(refund("m1"))
-    .then(relay("m1", 7, 1)).expect(not(NoDoubleSpend))
-}
-
-// AC3 dropped (joiners): C ran non-standard exporter code while outside, then joins.
-module rogueThenJoin {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = false, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  pure val FR = fact("m1", "B", 10, "A", "C", false)
-  run cex = init.then(setExporter("C", "rogue")).then(exportRogue("C", "m1", "B", 10, "A"))
-    .then(setExporter("C", "std")).then(join("C")).then(nutTip("A")).then(l1Set("A", "new"))
-    .then(send("m1", 1)).then(l1Relay(wd("C", "exporter", FR, false))).then(expire(dep("A", FR)))
-    .then(refund("m1")).then(relay("m1", 7, 1)).expect(not(NoDoubleSpend))
-}
-
-// AC4 dropped: C has B's L2 chain ID and joins.
-module duplicateChainId {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
-    UNIQUE_IDS = false, NEW_WRITES_SENT_MESSAGES = true).*
-
-  pure val FD = fact("m1", "B", 10, "A", "C", true)
-  // Apalache's shortest counterexample (9 steps) needs no join: B (a member) exports for m3, whose
-  // destination C shares B's chain ID, and C, which is not a member, relays it.
-  pure val FN = fact("m3", "B", 10, "A", "B", true)
-  run cexNonMember = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new"))
-    .then(send("m3", 1)).then(exportStd("B", "m3", "A", 10))
-    .then(l1Relay(wd("B", "exporter", FN, true))).then(expire(dep("A", FN))).then(refund("m3"))
-    .then(relay("m3", 7, 1)).expect(not(NoDoubleSpend) and not(cluster.contains("C")))
-  run cex = init.then(nutTip("A")).then(nutTip("C")).then(l1Set("A", "new")).then(join("C"))
-    .then(send("m1", 1)).then(exportStd("C", "m1", "A", 10))
-    .then(l1Relay(wd("C", "exporter", FD, true))).then(expire(dep("A", FD))).then(refund("m1"))
-    .then(relay("m1", 7, 1)).expect(not(NoDoubleSpend))
-}
-
-// AC5 dropped: an L1CrossDomainMessenger of the earlier design (trusting 0x..23) is installed on L1
-// at some point; 1.3.1 messengers have no target rule, so 0x..23 can be made to speak.
-module l1EarlierDesign {
-  import rollout(CONTRACT_PERIOD = 8,
-    WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
-    WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
-    ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = true,
-    UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true).*
-
-  pure val FM = fact("m1", "B", 10, "A", "B", false)
-  run cex = init.then(messengerForge("B", "m1", "B", 10, "A")).then(nutTip("A")).then(l1Set("A", "earlier"))
-    .then(send("m1", 1)).then(l1Relay(wd("B", "messenger", FM, false))).then(expire(dep("A", FM)))
-    .then(refund("m1")).then(relay("m1", 7, 1)).expect(not(NoDoubleSpend))
 }

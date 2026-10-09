@@ -61,7 +61,7 @@ def base : Config Nat Nat H where
   standard := fun c => c ≤ 2
   interop := fun _ => True
   protocolWindow := fun _ => 7
-  contractPeriod := 8
+  contractPeriod := fun _ => 8
   trusted := .exporter
   targetRule := true
   realMessengerCheck := true
@@ -98,7 +98,7 @@ theorem s0_gov (cfg : Config Nat Nat H) (hstd : cfg.standard = fun c => c ≤ 2)
   intro z y h; rw [hstd]; simp only [s0] at h; show y ≤ 2; omega
 
 theorem base_safe : SafeConfig base :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩
 
 theorem inj_id : HashInjective (fun (d z b : Nat) => ((d, z, b) : H)) := by
   intro d z b d' z' b' h
@@ -174,15 +174,15 @@ per-destination windows, a resend that restarts the timestamp, and the single-fi
 with the 1-day margin (W = 7 < P = 8). -/
 theorem safe_variants :
     SafeConfig { base with targetRule := false } ∧
-    SafeConfig { base with contractPeriod := 7 } ∧
+    SafeConfig { base with contractPeriod := fun _ => 7 } ∧
     SafeConfig { base with protocolWindow := fun d => if d = 1 then 3 else 7 } ∧
     SafeConfig { base with resend := true, resendRestarts := true } ∧
     SafeConfig { base with expireGe := true } := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 7 by decide, Or.inl rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun d => ?_, Or.inl rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inr rfl⟩,
-    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 1 ≤ 8 by decide, Or.inl rfl⟩⟩
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 7 by decide, Or.inl rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ d => ?_, Or.inl rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inr rfl⟩,
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 1 ≤ 8 by decide, Or.inl rfl⟩⟩
   show (if d = 1 then 3 else 7) + 0 ≤ 8
   split <;> decide
 
@@ -250,28 +250,29 @@ def edgeTrace : List (Action Nat Nat H) :=
   [.upgrade 0, .upgrade 1, .send 0 1 5, .tick 1 8, .exportUndelivered 1 0 5 0,
    .l1Relay ⟨1, .exporter, fEdge⟩, .expire fEdge, .refund 0 1 5, .relay 1 0 5]
 
-/-- P_contract < W_protocol, within the 7-day cap (W = 7, P = 6): B exports at its time 8 > 1 + 6,
-and B relays at time 8 ≤ 1 + 7. -/
-def cfgPBelowW : Config Nat Nat H := { base with contractPeriod := 6 }
+/-- P_contract < W_protocol on one chain, within the 7-day cap: A's messenger deployed with P = 6
+(the other chains with 8), W = 7. B exports at its time 8 > 1 + 6, and B relays at time 8 ≤ 1 + 7.
+One mis-deployed source chain suffices. -/
+def cfgPBelowW : Config Nat Nat H := { base with contractPeriod := fun z => if z = 0 then 6 else 8 }
 
 theorem cex_periodBelowWindow : Cex cfgPBelowW edgeTrace := by
   have hv : Valid cfgPBelowW edgeTrace s0 := by
     simp [Valid, edgeTrace, cfgPBelowW, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fEdge, mAB]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, fun h => absurd (h.window 0) (by decide), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, fun h => absurd (h.window 0 0) (by decide), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by simp [run, edgeTrace, cfgPBelowW, next, base, s0, upd1, upd2])
 
 /-- Non-strict check `t ≥ sentAt + P` with P = W = 7 (two fields changed: with P = 8 the `≥`
 mutation alone is still safe, see `safe_variants`): the same edge execution. -/
-def cfgNonStrict : Config Nat Nat H := { base with contractPeriod := 7, expireGe := true }
+def cfgNonStrict : Config Nat Nat H := { base with contractPeriod := fun _ => 7, expireGe := true }
 
 theorem cex_nonStrict : Cex cfgNonStrict edgeTrace := by
   have hv : Valid cfgNonStrict edgeTrace s0 := by
     simp [Valid, edgeTrace, cfgNonStrict, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fEdge, mAB]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => absurd (h.window 0) (by decide)), hv, reach_run _ _ _ hv, ?_⟩
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => absurd (h.window 0 0) (by decide)), hv, reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by simp [run, edgeTrace, cfgNonStrict, next, base, s0, upd1, upd2])
 
@@ -399,7 +400,7 @@ def cfgCollide : Config Nat Nat Unit where
   standard := fun c => c ≤ 2
   interop := fun _ => True
   protocolWindow := fun _ => 7
-  contractPeriod := 8
+  contractPeriod := fun _ => 8
   trusted := .exporter
   targetRule := true
   realMessengerCheck := true
@@ -437,7 +438,7 @@ theorem cex_hashCollision :
     GovInit cfgCollide u0 ∧
     Reach cfgCollide u0 (run cfgCollide collideTrace u0) ∧
     ¬ NoDoubleSpend cfgCollide (run cfgCollide collideTrace u0) := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩, ?_, fun _ _ _ h => h,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩, ?_, fun _ _ _ h => h,
     ⟨fun _ => rfl, fun _ _ => rfl, fun _ _ _ h => h, fun _ _ h => h, fun _ h => h, fun _ h => h,
      fun _ _ h => h, fun _ _ h => h, fun _ _ => rfl⟩, ?_, reach_run _ _ _ ?_, ?_⟩
   · intro hinj
@@ -466,7 +467,7 @@ theorem cex_duplicateChainId :
   have hv : Valid cfgDupId dupTrace s0 := by
     simp [Valid, dupTrace, cfgDupId, guard, next, base, s0, upd1, upd2, withinWindow, expiredBy,
       fDup]
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
     inj_id, ?_, s0_init, s0_gov _ rfl, hv, reach_run _ _ _ hv, ?_⟩
   · intro hid
     exact absurd (hid 2 1 (show (2 : Nat) ≤ 2 by decide) rfl) (by decide)
@@ -505,7 +506,7 @@ theorem messengerSpeaks_without_targetRule :
     ∃ s s', Reach cfgNoTargetRule s0 s ∧ Step cfgNoTargetRule (.relay 1 0 9) s s' ∧
       s'.withdrawals wM ∧ ¬ s.withdrawals wM ∧ wM.sender = .messenger ∧
       cfgNoTargetRule.standard wM.origin ∧ s.upgraded wM.origin = true := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
     run cfgNoTargetRule [.upgrade 0, .upgrade 1, .send 0 1 9] s0,
     next cfgNoTargetRule (.relay 1 0 9) (run cfgNoTargetRule [.upgrade 0, .upgrade 1, .send 0 1 9] s0),
     reach_run _ _ _ ?_, ⟨?_, rfl⟩, ?_, ?_, rfl, show (1 : Nat) ≤ 2 by decide, ?_⟩

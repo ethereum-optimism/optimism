@@ -38,12 +38,12 @@ theorem upd1_eq {α γ : Type} [DecidableEq α] (f : α → γ) (a : α) (v : γ
 
 /-! ### expiredBy lemmas -/
 
-theorem expiredBy_mono {cfg : Config Chain Body Hash} {a b t : Nat} (hab : a ≤ b)
-    (h : expiredBy cfg b t) : expiredBy cfg a t := by
+theorem expiredBy_mono {cfg : Config Chain Body Hash} {z : Chain} {a b t : Nat} (hab : a ≤ b)
+    (h : expiredBy cfg z b t) : expiredBy cfg z a t := by
   cases hge : cfg.expireGe <;> simp [expiredBy, hge] at h ⊢ <;> omega
 
-theorem expiredBy_window {cfg : Config Chain Body Hash} {w a t : Nat}
-    (hw : w + (if cfg.expireGe then 1 else 0) ≤ cfg.contractPeriod) (h : expiredBy cfg a t) :
+theorem expiredBy_window {cfg : Config Chain Body Hash} {z : Chain} {w a t : Nat}
+    (hw : w + (if cfg.expireGe then 1 else 0) ≤ cfg.contractPeriod z) (h : expiredBy cfg z a t) :
     a + w < t := by
   cases hge : cfg.expireGe <;> simp [expiredBy, hge] at h hw ⊢ <;> omega
 
@@ -71,7 +71,7 @@ def Honest (cfg : Config Chain Body Hash) (s : State Chain Hash) (y : Chain) (f 
     Prop :=
   ∃ z b, f.hash = cfg.msgHash y z b ∧ f.time ≤ s.clock y ∧
     (cfg.standard z → s.sentAt z f.hash ≠ 0 →
-      expiredBy cfg (s.sentAt z f.hash) f.time → ¬ s.relayed y f.hash)
+      expiredBy cfg z (s.sentAt z f.hash) f.time → ¬ s.relayed y f.hash)
 
 structure Inv (cfg : Config Chain Body Hash) (s : State Chain Hash) : Prop where
   sent_le : ∀ z h, s.sentAt z h ≤ s.clock z
@@ -85,7 +85,7 @@ structure Inv (cfg : Config Chain Body Hash) (s : State Chain Hash) : Prop where
     Honest cfg s w.origin w.fact
   dep : ∀ f, s.deposits f → ∃ y, cfg.standard y ∧ Honest cfg s y f
   exp : ∀ z h, s.expired z h → ∃ f, s.deposits f ∧ f.toL1 = z ∧ f.hash = h ∧
-    s.sentAt z h ≠ 0 ∧ expiredBy cfg (s.sentAt z h) f.time
+    s.sentAt z h ≠ 0 ∧ expiredBy cfg z (s.sentAt z h) f.time
   ref : ∀ z h, cfg.standard z → s.refunded z h → s.expired z h
   refunds_le : ∀ z h, cfg.standard z → s.refunds z h ≤ 1
   refunds_zero : ∀ z h, cfg.standard z → ¬ s.refunded z h → s.refunds z h = 0
@@ -380,8 +380,8 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : Ch
         rcases hI.ev_le _ _ e he hzs with h0 | h0
         · exact hz h0
         · change f.time ≤ s.clock y at ht
-          change expiredBy cfg (s.sentAt z₀ f.hash) f.time at hlt
-          have := expiredBy_window (hc.window y) hlt
+          change expiredBy cfg z₀ (s.sentAt z₀ f.hash) f.time at hlt
+          have := expiredBy_window (hc.window z₀ y) hlt
           omega
     refine ⟨hI.sent_le, hI.sent_up, hI.ev_le, hI.sent_ev, ?_, hI.gov, ?_,
       fun f hf => let ⟨y, hy, hh⟩ := hI.dep f hf; ⟨y, hy, honest _ _ hy hh⟩, hI.exp, hI.ref,

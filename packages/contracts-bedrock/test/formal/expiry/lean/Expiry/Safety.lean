@@ -68,7 +68,7 @@ theorem expired_core (hinj : HashInjective cfg.hash) (hid : ChainIdUnique cfg) {
     {d z : Chain} {b : Body} (hz : cfg.standard z) (he : s.expired z (cfg.msgHash d z b)) :
     ∃ f, s.deposits f ∧ f.toL1 = z ∧ f.hash = cfg.msgHash d z b ∧ cfg.standard d ∧
       s.sentAt z (cfg.msgHash d z b) ≠ 0 ∧
-      expiredBy cfg (s.sentAt z (cfg.msgHash d z b)) f.time ∧
+      expiredBy cfg z (s.sentAt z (cfg.msgHash d z b)) f.time ∧
       f.time ≤ s.clock d ∧ ¬ s.relayed d (cfg.msgHash d z b) := by
   obtain ⟨f, hf, hto, hfh, hsz, hlt⟩ := hI.exp _ _ he
   obtain ⟨y, hy, z₀, b₀, hh, ht, hok⟩ := hI.dep f hf
@@ -112,7 +112,7 @@ theorem expired_not_relayable (hc : SafeConfig cfg) (hinj : HashInjective cfg.ha
   obtain ⟨f, _, _, _, _, hsz, hlt, ht, hnr⟩ := expired_core hinj hid hI hz he
   refine ⟨hnr, ?_⟩
   intro t hle ⟨e, hev, hwin⟩
-  have := expiredBy_window (hc.window d) hlt
+  have := expiredBy_window (hc.window z d) hlt
   rcases hI.ev_le _ _ e hev hz with h0 | h0
   · exact hsz h0
   · omega
@@ -153,7 +153,7 @@ theorem onlyDestinationCanExport (hc : SafeConfig cfg) (hinj : HashInjective cfg
     {s₀ s : State Chain Hash} (h0 : Init s₀) (hg : GovInit cfg s₀) (hr : Reach cfg s₀ s)
     (d z : Chain) (b : Body) (hz : cfg.standard z) (he : s.expired z (cfg.msgHash d z b)) :
     ∃ f, s.deposits f ∧ f.toL1 = z ∧ f.hash = cfg.msgHash d z b ∧
-      expiredBy cfg (s.sentAt z (cfg.msgHash d z b)) f.time ∧
+      expiredBy cfg z (s.sentAt z (cfg.msgHash d z b)) f.time ∧
       ∃ s₁ s₂, Reach cfg s₀ s₁ ∧ Step cfg (.exportUndelivered d z b z) s₁ s₂ ∧ Reach cfg s₂ s ∧
         s₁.upgraded d = true ∧ s₁.clock d = f.time ∧ ¬ s₁.relayed d (cfg.msgHash d z b) := by
   obtain ⟨hI, _, hD⟩ := inv_reach hc hinj hid h0 hg hr

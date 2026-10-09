@@ -85,8 +85,10 @@ structure Config (Chain Body Hash : Type) where
   interop : Chain → Prop
   /-- W_protocol per destination: a relay on `x` is valid iff exec - init ≤ protocolWindow x. -/
   protocolWindow : Chain → Nat
-  /-- P_contract: expireMessage requires t > sentAt + P_contract (`≥` if `expireGe`). -/
-  contractPeriod : Nat
+  /-- P_contract of chain z's messenger: the `EXPIRY_PERIOD` immutable its constructor set, a
+  deployment parameter (the constructor rejects 0). expireMessage on z requires
+  t > sentAt + contractPeriod z (`≥` if `expireGe`). -/
+  contractPeriod : Chain → Nat
   /-- The sender `relayUndeliveredMessage` trusts: `exporter` (v2) or `messenger` (earlier design,
   in which the export function lived in the messenger). -/
   trusted : Sender
@@ -198,9 +200,9 @@ def upd2 {α β γ : Type} [DecidableEq α] [DecidableEq β] (f : α → β → 
 def upd1 {α γ : Type} [DecidableEq α] (f : α → γ) (a : α) (v : γ) : α → γ :=
   fun a' => if a' = a then v else f a'
 
-/-- expireMessage's period check. -/
-def expiredBy (cfg : Config Chain Body Hash) (sent t : Nat) : Prop :=
-  if cfg.expireGe then sent + cfg.contractPeriod ≤ t else sent + cfg.contractPeriod < t
+/-- expireMessage's period check on chain z. -/
+def expiredBy (cfg : Config Chain Body Hash) (z : Chain) (sent t : Nat) : Prop :=
+  if cfg.expireGe then sent + cfg.contractPeriod z ≤ t else sent + cfg.contractPeriod z < t
 
 /-- The withdrawals a relay's target call creates on chain x. -/
 def callOut (x : Chain) : Call Chain Hash → Withdrawal Chain Hash → Prop
@@ -245,7 +247,7 @@ def guard (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chai
   | .l1cdmSelfRelay _, _ => cfg.unsafeTargetCheck = false
   | .arbitraryRefund z _, _ => ¬ cfg.standard z
   | .expire f, s =>
-      s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg (s.sentAt f.toL1 f.hash) f.time
+      s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg f.toL1 (s.sentAt f.toL1 f.hash) f.time
   | .refund z d b, s =>
       cfg.isBridge b ∧ s.expired z (cfg.msgHash d z b) ∧ ¬ s.refunded z (cfg.msgHash d z b)
 
@@ -346,9 +348,22 @@ structure SafeConfig (cfg : Config Chain Body Hash) : Prop where
   unsafeTargetCheck : cfg.unsafeTargetCheck = true
   sysConfigConsistent : cfg.sysConfigConsistent = true
   exporterGovernance : cfg.exporterGovernance = true
-  /-- W_d < P with `≥`, W_d ≤ P with the strict check. -/
-  window : ∀ d, cfg.protocolWindow d + (if cfg.expireGe then 1 else 0) ≤ cfg.contractPeriod
+  /-- W_d < P_z with `≥`, W_d ≤ P_z with the strict check, for every source z's deployed period. -/
+  window : ∀ z d, cfg.protocolWindow d + (if cfg.expireGe then 1 else 0) ≤ cfg.contractPeriod z
   resend : cfg.resend = false ∨ cfg.resendRestarts = true
+
+omit [DecidableEq Chain] [DecidableEq Hash] in
+/-- **Deployment pinning.** The deployment tooling constructs every messenger with
+`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` (8 days = 691200 s), and op-core and kona reject a
+dependency-set expiry window above 7 days (604800 s). Under these two pins `SafeConfig.window`
+holds with a day of margin, for the strict check and for the `≥` mutation alike. -/
+theorem production_window (cfg : Config Chain Body Hash) (hP : ∀ z, cfg.contractPeriod z = 691200)
+    (hW : ∀ d, cfg.protocolWindow d ≤ 604800) :
+    ∀ z d, cfg.protocolWindow d + (if cfg.expireGe then 1 else 0) ≤ cfg.contractPeriod z := by
+  intro z d
+  rw [hP z]
+  have := hW d
+  split <;> omega
 
 /-! ## Properties (names match the Quint model) -/
 

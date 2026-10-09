@@ -79,7 +79,7 @@ theorem sM_reach : Reach base s0 sM :=
 
 /-- The safe configuration without the messenger's target rule (`safety_without_targetRule`). -/
 theorem cfgNoTargetRule_safe : SafeConfig cfgNoTargetRule :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩
 
 def sRn : State Nat H := run cfgNoTargetRule refundTrace s0
 
@@ -205,7 +205,7 @@ theorem nonvacuous_onlyDestinationCanExport :
     SafeConfig base ∧ HashInjective base.hash ∧ ChainIdUnique base ∧ Init s0 ∧ GovInit base s0 ∧
     Reach base s0 sR ∧ base.standard 0 ∧ sR.expired 0 (base.msgHash 1 0 5) ∧
     ∃ f, sR.deposits f ∧ f.toL1 = 0 ∧ f.hash = base.msgHash 1 0 5 ∧
-      expiredBy base (sR.sentAt 0 (base.msgHash 1 0 5)) f.time ∧
+      expiredBy base 0 (sR.sentAt 0 (base.msgHash 1 0 5)) f.time ∧
       ∃ s₁ s₂, Reach base s0 s₁ ∧ Step base (.exportUndelivered 1 0 5 0) s₁ s₂ ∧ Reach base s₂ sR ∧
         s₁.upgraded 1 = true ∧ s₁.clock 1 = f.time ∧ ¬ s₁.relayed 1 (base.msgHash 1 0 5) := by
   have hz : base.standard 0 := show (0 : Nat) ≤ 2 by decide
@@ -256,5 +256,11 @@ theorem nonvacuous_messengerSilentAfterUpgrade :
   have hstd : base.standard wM.origin := show (1 : Nat) ≤ 2 by decide
   exact ⟨rfl, by decide, sM_reach, hs, hnew, hold, rfl, hstd,
     messengerSilentAfterUpgrade rfl (by decide) hs wM hnew hold rfl hstd⟩
+
+/-- `production_window` applies: `base` with the production pins (every messenger deployed with
+691200 s, every window 604800 s) is a safe configuration. -/
+theorem nonvacuous_production_window :
+    SafeConfig { base with contractPeriod := fun _ => 691200, protocolWindow := fun _ => 604800 } :=
+  { base_safe with window := production_window _ (fun _ => rfl) (fun _ => Nat.le_refl _) }
 
 end Expiry

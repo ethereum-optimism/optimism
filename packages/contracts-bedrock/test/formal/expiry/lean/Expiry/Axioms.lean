@@ -58,6 +58,7 @@ elab "#assert_headline " id:ident : command => do
 #assert_headline refundImpliesExpired
 #assert_headline atMostOneRefund
 #assert_headline noForgedFact
+#assert_headline production_window
 #assert_headline expiredImpliesNeverRelayable
 #assert_headline expired_no_relay_step
 #assert_headline onlyDestinationCanExport
