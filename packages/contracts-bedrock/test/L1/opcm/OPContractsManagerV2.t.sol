@@ -3981,6 +3981,8 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         baseConfig.basefeeScalar = 1368;
         baseConfig.blobBasefeeScalar = 801949;
         baseConfig.gasLimit = 60_000_000;
+        baseConfig.proofMaturityDelaySeconds = 2 days;
+        baseConfig.disputeGameFinalityDelaySeconds = 1 days;
         baseConfig.resourceConfig = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,

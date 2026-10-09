@@ -296,7 +296,9 @@ contract Deploy is Deployer {
             _contracts: impls,
             _superchainConfig: superchainConfigProxy,
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds()
         });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
@@ -324,7 +326,9 @@ contract Deploy is Deployer {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            cfg.minDisputeGameFinalityDelaySeconds(),
+            cfg.maxDisputeGameFinalityDelaySeconds()
         );
     }
 

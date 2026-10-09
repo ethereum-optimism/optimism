@@ -482,14 +482,23 @@ contract DeployOPChain is Script {
             "DeployOPChain: permissionedDisputeGame output mismatch"
         );
         ChainAssertions.checkAnchorStateRegistryProxy(
-            _o.anchorStateRegistryProxy, true, respectedGameType, _i.startingAnchorRoot
+            _o.anchorStateRegistryProxy,
+            true,
+            respectedGameType,
+            _i.startingAnchorRoot,
+            IAnchorStateRegistry(implementations.anchorStateRegistryImpl).minDisputeGameFinalityDelaySeconds(),
+            IAnchorStateRegistry(implementations.anchorStateRegistryImpl).maxDisputeGameFinalityDelaySeconds()
         );
         ChainAssertions.checkL1CrossDomainMessenger(_o.l1CrossDomainMessengerProxy, vm, true);
         ChainAssertions.checkOptimismPortal2({
             _contracts: proxies,
             _superchainConfig: _i.superchainConfig,
             _opChainProxyAdminOwner: _i.opChainProxyAdminOwner,
-            _isProxy: true
+            _isProxy: true,
+            _minProofMaturityDelaySeconds: IOptimismPortal(payable(implementations.optimismPortalImpl))
+                .minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: IOptimismPortal(payable(implementations.optimismPortalImpl))
+                .maxProofMaturityDelaySeconds()
         });
         ChainAssertions.checkSystemConfigProxies(proxies, _i);
 
