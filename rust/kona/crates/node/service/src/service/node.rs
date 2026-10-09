@@ -3,11 +3,11 @@ use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
     BlockStream, ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor,
     DerivationActor, DerivationActorRequest, DerivationDelegateClient, DerivationError,
-    EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor,
-    L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
-    NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
+    EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, NetworkActor,
+    NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerConfig,
+    service::BufferImportedBlocks, signer,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -312,18 +312,14 @@ impl RollupNode {
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
         )?;
 
-        let chain = L1WatcherChain::new(
-            self.config.clone(),
-            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
-            signer_tx,
-        );
-
         let actor = L1WatcherActor::new(
             self.l1_config.engine_provider.clone(),
             head_stream,
             finalized_stream,
             safe_stream,
-            vec![chain],
+            self.config.clone(),
+            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
+            signer_tx,
         );
         let state = actor.state_receiver();
         Ok((actor, state))

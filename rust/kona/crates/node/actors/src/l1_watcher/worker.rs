@@ -1,4 +1,4 @@
-//! Per-chain state served by the [`L1WatcherActor`](super::L1WatcherActor).
+//! Derivation forwarding and signer refresh.
 
 use super::{L1WatcherActorError, L1WatcherDerivationClient};
 use crate::L1State;
@@ -9,50 +9,38 @@ use kona_protocol::BlockInfo;
 use std::sync::Arc;
 use tokio::sync::watch;
 
-/// A single L2 chain served by the [`L1WatcherActor`](super::L1WatcherActor).
-///
-/// The watcher holds one of these per chain and fans the shared L1 updates out to all of them. A
-/// standalone kona-node builds exactly one.
 #[derive(Debug)]
-pub struct L1WatcherChain<L1WatcherDerivationClient_> {
+pub(super) struct Worker<L1Provider, Client> {
+    l1_provider: L1Provider,
     /// The configuration and `SystemConfig` address of this chain.
-    pub(super) rollup_config: Arc<RollupConfig>,
+    rollup_config: Arc<RollupConfig>,
     /// Client used to interact with this chain's [`crate::DerivationActor`].
-    pub(super) derivation_client: L1WatcherDerivationClient_,
+    derivation_client: Client,
     /// The source of truth for this chain's unsafe block signer, read from `SystemConfig`. Gossip
     /// validation and block signing subscribe to it.
-    pub(super) block_signer_sender: watch::Sender<Address>,
+    block_signer_sender: watch::Sender<Address>,
 }
 
-impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
-    /// Instantiate a new [`L1WatcherChain`].
-    pub const fn new(
+impl<L1Provider, Client> Worker<L1Provider, Client>
+where
+    L1Provider: Provider,
+    Client: L1WatcherDerivationClient,
+{
+    pub(super) const fn new(
+        l1_provider: L1Provider,
         rollup_config: Arc<RollupConfig>,
-        derivation_client: L1WatcherDerivationClient_,
+        derivation_client: Client,
         block_signer_sender: watch::Sender<Address>,
     ) -> Self {
-        Self { rollup_config, derivation_client, block_signer_sender }
+        Self { l1_provider, rollup_config, derivation_client, block_signer_sender }
     }
 
-    /// The id of the L2 chain this instance serves.
-    pub(super) fn chain_id(&self) -> u64 {
-        self.rollup_config.l2_chain_id.id()
-    }
-}
-
-impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_>
-where
-    L1WatcherDerivationClient_: L1WatcherDerivationClient,
-{
-    /// Runs independent forwarding and signer-refresh loops for this chain. A closed
-    /// channel tears down only this worker; slow RPCs cannot hold up shared L1 observation.
+    /// Runs forwarding and signer refresh independently of L1 observation.
     pub(super) async fn run(
         self,
-        provider: impl Provider,
         state: watch::Receiver<L1State>,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
-        let chain_id = self.chain_id();
-        let Self { rollup_config, derivation_client, block_signer_sender } = self;
+        let Self { l1_provider, rollup_config, derivation_client, block_signer_sender } = self;
         let mut updates = state.clone();
         let forward = async {
             let mut previous = L1State::default();
@@ -61,16 +49,12 @@ where
                 if current.head_l1 != previous.head_l1 &&
                     let Some(block) = current.head_l1
                 {
-                    derivation_client.send_new_l1_head(block).await.map_err(|source| {
-                        L1WatcherActorError::DerivationClientError { chain_id, source }
-                    })?;
+                    derivation_client.send_new_l1_head(block).await?;
                 }
                 if current.finalized_l1 != previous.finalized_l1 &&
                     let Some(block) = current.finalized_l1
                 {
-                    derivation_client.send_finalized_l1_block(block).await.map_err(|source| {
-                        L1WatcherActorError::DerivationClientError { chain_id, source }
-                    })?;
+                    derivation_client.send_finalized_l1_block(block).await?;
                 }
                 previous = current;
                 updates.changed().await.map_err(|_| L1WatcherActorError::StreamEnded)?;
@@ -78,7 +62,8 @@ where
             #[allow(unreachable_code)]
             Ok::<(), L1WatcherActorError<BlockInfo>>(())
         };
-        let signer = Self::refresh_signer(&provider, &rollup_config, &block_signer_sender, state);
+        let signer =
+            Self::refresh_signer(&l1_provider, &rollup_config, &block_signer_sender, state);
         tokio::try_join!(forward, signer)?;
         Ok(())
     }

@@ -33,7 +33,7 @@ pub use derivation::{
 
 mod l1_watcher;
 pub use l1_watcher::{
-    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient,
+    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherDerivationClient,
     QueuedL1WatcherDerivationClient,
 };
 

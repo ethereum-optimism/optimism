@@ -1,68 +1,66 @@
-//! Shared L1 observation with independent per-chain consumers.
+//! L1 observation with independent derivation forwarding and signer refresh.
 
-use super::{L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient};
+use super::{L1WatcherActorError, L1WatcherDerivationClient, worker::Worker};
 use crate::{L1State, NodeActor};
+use alloy_primitives::Address;
 use alloy_provider::Provider;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
+use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
+use std::sync::Arc;
 use tokio::{sync::watch, task::JoinSet};
 
-#[derive(Debug)]
-struct ChainExit {
-    chain_id: u64,
-    result: Result<(), L1WatcherActorError<BlockInfo>>,
-}
-
-/// Observes L1 once and distributes the latest head and finality to independent chain workers.
+/// Observes L1 and publishes the latest head and finality.
 ///
 /// Head notifications are already allowed to skip blocks. Keeping only the latest observation
-/// lets a slow chain catch up without either blocking its peers or growing a queue indefinitely.
-/// Workers and their in-flight RPCs are cancelled when the watcher is dropped.
+/// lets derivation catch up without blocking observation or growing a queue indefinitely.
+/// Forwarding and signer refresh are cancelled when the watcher is dropped.
 #[derive(Debug)]
 pub struct L1WatcherActor<BlockStream, L1Provider, Client>
 where
     BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
-    L1Provider: Provider + Clone,
+    L1Provider: Provider,
     Client: L1WatcherDerivationClient,
 {
-    l1_provider: L1Provider,
     state: watch::Sender<L1State>,
     head_stream: BlockStream,
     finalized_stream: BlockStream,
     safe_stream: BlockStream,
-    /// Moved into workers on the first step, so construction does not require a runtime.
-    chains: Vec<L1WatcherChain<Client>>,
-    workers: JoinSet<ChainExit>,
+    /// Started on the first step, so construction does not require a runtime.
+    worker: Option<Worker<L1Provider, Client>>,
+    task: JoinSet<Result<(), L1WatcherActorError<BlockInfo>>>,
 }
 
 impl<BlockStream, L1Provider, Client> L1WatcherActor<BlockStream, L1Provider, Client>
 where
     BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
-    L1Provider: Provider + Clone,
+    L1Provider: Provider,
     Client: L1WatcherDerivationClient,
 {
-    /// Constructs a watcher. Workers are started by the first call to `step`.
-    ///
-    /// # Panics
-    /// Panics when there are no chains to serve.
+    /// Constructs a watcher. Forwarding and signer refresh start on the first step.
     pub fn new(
         l1_provider: L1Provider,
         head_stream: BlockStream,
         finalized_stream: BlockStream,
         safe_stream: BlockStream,
-        chains: Vec<L1WatcherChain<Client>>,
+        rollup_config: Arc<RollupConfig>,
+        derivation_client: Client,
+        block_signer_sender: watch::Sender<Address>,
     ) -> Self {
-        assert!(!chains.is_empty(), "the L1 watcher must serve at least one chain");
         let (state, _) = watch::channel(L1State::default());
         Self {
-            l1_provider,
             state,
             head_stream,
             finalized_stream,
             safe_stream,
-            chains,
-            workers: JoinSet::new(),
+            worker: Some(Worker::new(
+                l1_provider,
+                rollup_config,
+                derivation_client,
+                block_signer_sender,
+            )),
+            task: JoinSet::new(),
         }
     }
 
@@ -76,22 +74,15 @@ where
 impl<BlockStream, L1Provider, Client> NodeActor for L1WatcherActor<BlockStream, L1Provider, Client>
 where
     BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
-    L1Provider: Provider + Clone + 'static,
+    L1Provider: Provider + 'static,
     Client: L1WatcherDerivationClient + 'static,
 {
     type Error = L1WatcherActorError<BlockInfo>;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        for chain in self.chains.drain(..) {
-            let provider = self.l1_provider.clone();
+        if let Some(worker) = self.worker.take() {
             let state = self.state.subscribe();
-            self.workers.spawn(async move {
-                let chain_id = chain.chain_id();
-                ChainExit { chain_id, result: chain.run(provider, state).await }
-            });
-        }
-        if self.workers.is_empty() {
-            return Err(L1WatcherActorError::StreamEnded);
+            self.task.spawn(worker.run(state));
         }
         tokio::select! {
             head = self.head_stream.next() => {
@@ -106,16 +97,12 @@ where
                 let safe = safe.ok_or(L1WatcherActorError::StreamEnded)?;
                 self.state.send_modify(|state| state.safe_l1 = Some(safe));
             }
-            Some(exit) = self.workers.join_next() => {
-                match exit {
-                    Ok(exit) => error!(target: "l1_watcher", chain_id = exit.chain_id, result = ?exit.result, "Chain detached from L1 watcher"),
-                    Err(err) => error!(target: "l1_watcher", ?err, "L1 chain worker failed"),
+            Some(result) = self.task.join_next() => {
+                match result {
+                    Ok(result) => error!(target: "l1_watcher", ?result, "L1 watcher worker exited"),
+                    Err(err) => error!(target: "l1_watcher", ?err, "L1 watcher worker failed"),
                 }
-                // A dead chain cannot be revived by retrying its closed channels. Detach it;
-                // the owning chain supervisor is responsible for rebuilding that chain.
-                if self.workers.is_empty() {
-                    return Err(L1WatcherActorError::StreamEnded);
-                }
+                return Err(L1WatcherActorError::StreamEnded);
             }
         }
         Ok(())
