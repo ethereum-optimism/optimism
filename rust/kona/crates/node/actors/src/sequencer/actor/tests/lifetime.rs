@@ -1,7 +1,7 @@
 use crate::{
     Conductor, ConductorError, EngineClientError, MockConductor, MockOriginSelector,
-    MockSequencerEngineClient, MockUnsafePayloadGossipClient, QueuedSequencerEngineClient,
-    sequencer::{ActorError, Builder, Capacity, HandleError},
+    MockSequencerEngineClient, QueuedSequencerEngineClient,
+    sequencer::{ActorError, Builder, Capacity, HandleError, MockSigner},
 };
 use async_trait::async_trait;
 use kona_derive::test_utils::TestAttributesBuilder;
@@ -55,7 +55,7 @@ fn construction_and_build_do_not_require_a_runtime() {
         MockOriginSelector::new(),
         config(),
         Some(MockConductor::new()),
-        MockUnsafePayloadGossipClient::new(),
+        MockSigner::new(),
     );
     assert_eq!(handle.is_active().unwrap(), initial);
     drop(task);
@@ -74,7 +74,7 @@ async fn aborting_lifetime_interrupts_a_pending_initial_reset() {
         MockOriginSelector::new(),
         config(),
         None::<MockConductor>,
-        MockUnsafePayloadGossipClient::new(),
+        MockSigner::new(),
     ));
     let EngineActorRequest::Reset(request) = requests.recv().await.unwrap() else {
         panic!("expected initial reset");
@@ -93,8 +93,8 @@ async fn sequencing_continues_without_command_handles() {
     let observed_ticks = ticks.clone();
     let reached_ticks = Arc::new(Notify::new());
     let notify_after_ticks = reached_ticks.clone();
-    let mut gossip = MockUnsafePayloadGossipClient::new();
-    gossip.expect_has_capacity().times(3).returning(move || {
+    let mut signer = MockSigner::new();
+    signer.expect_has_capacity().times(3).returning(move || {
         if observed_ticks.fetch_add(1, Ordering::Relaxed) == 2 {
             notify_after_ticks.notify_one();
         }
@@ -108,7 +108,7 @@ async fn sequencing_continues_without_command_handles() {
         MockOriginSelector::new(),
         config(),
         None::<MockConductor>,
-        gossip,
+        signer,
     ));
     handle.start().await.unwrap();
     drop(handle);
@@ -128,7 +128,7 @@ async fn stopped_actor_without_command_handles_stays_pending() {
         MockOriginSelector::new(),
         config(),
         None::<MockConductor>,
-        MockUnsafePayloadGossipClient::new(),
+        MockSigner::new(),
     );
     let mut task = Box::pin(task);
     tokio::select! {
@@ -161,7 +161,7 @@ async fn failed_startup_rejects_a_previously_queued_command() {
         MockOriginSelector::new(),
         config(),
         None::<MockConductor>,
-        MockUnsafePayloadGossipClient::new(),
+        MockSigner::new(),
     );
     assert!(matches!(task.await, Err(ActorError::EngineError(_))));
     assert!(matches!(command.await, Err(HandleError::RequestError(_))));
@@ -174,8 +174,8 @@ async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
     let (_, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
     let mut origin = MockOriginSelector::new();
     origin.expect_next_l1_origin().times(1).return_once(|_| Ok(Default::default()));
-    let mut gossip = MockUnsafePayloadGossipClient::new();
-    gossip.expect_has_capacity().times(1).return_const(true);
+    let mut signer = MockSigner::new();
+    signer.expect_has_capacity().times(1).return_const(true);
     let builder = Builder::new(Capacity::try_from(1).unwrap());
     let handle = builder.handle();
     let task = tokio::spawn(builder.build(
@@ -184,7 +184,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
         origin,
         config(),
         None::<MockConductor>,
-        gossip,
+        signer,
     ));
     let EngineActorRequest::Reset(reset) = requests.recv().await.unwrap() else {
         panic!("expected initial reset");
@@ -212,7 +212,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_message() {
         MockOriginSelector::new(),
         config(),
         Some(PendingConductor(started.clone())),
-        MockUnsafePayloadGossipClient::new(),
+        MockSigner::new(),
     ));
     let command = tokio::spawn(async move { handle.override_leader().await });
     started.notified().await;

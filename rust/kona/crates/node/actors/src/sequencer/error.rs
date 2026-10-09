@@ -1,4 +1,4 @@
-use crate::{L1OriginSelectorError, UnsafePayloadGossipClientError, engine::EngineClientError};
+use crate::{L1OriginSelectorError, engine::EngineClientError};
 use kona_derive::PipelineErrorKind;
 use kona_engine::BuildTaskError;
 
@@ -20,7 +20,7 @@ pub enum ActorError {
     /// An error occurred while attempting to build a payload.
     #[error(transparent)]
     BuildError(#[from] BuildTaskError),
-    /// An error occurred while attempting to schedule unsafe payload gossip.
-    #[error("An error occurred while attempting to schedule unsafe payload gossip: {0}")]
-    PayloadGossip(#[from] UnsafePayloadGossipClientError),
+    /// An error occurred sending a payload to the signer.
+    #[error("{0}")]
+    Signer(String),
 }

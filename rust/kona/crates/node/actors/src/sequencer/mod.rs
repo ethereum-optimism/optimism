@@ -36,3 +36,9 @@ pub use origin_selector::MockOriginSelector;
 mod handle;
 pub use crate::capacity::{Capacity, InvalidCapacity};
 pub use handle::{Handle, HandleError};
+
+mod signer;
+pub use signer::Signer;
+
+#[cfg(test)]
+pub use signer::MockSigner;

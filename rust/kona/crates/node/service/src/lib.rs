@@ -27,9 +27,8 @@ pub use kona_node_actors::{
     NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
     NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
-    RpcActorError, SealRequest, SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError, sequencer, signer,
+    QueuedSequencerEngineClient, ResetRequest, RpcActor, RpcActorError, SealRequest,
+    SequencerConfig, SequencerEngineClient, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

@@ -18,13 +18,5 @@ pub use engine_client::{NetworkEngineClient, QueuedNetworkEngineClient};
 mod error;
 pub use error::NetworkBuilderError;
 
-mod gossip;
-pub use gossip::{
-    QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
-};
-
 mod handler;
 pub use handler::NetworkHandler;
-
-#[cfg(test)]
-pub use gossip::MockUnsafePayloadGossipClient;

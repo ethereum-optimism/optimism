@@ -107,7 +107,6 @@ mod tests {
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
         L1OriginSelectorError, OriginSelector, QueuedSequencerEngineClient,
-        UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -118,15 +117,14 @@ mod tests {
     use tokio::sync::watch;
 
     #[derive(Debug)]
-    struct PausedGossip;
+    struct PausedSigner;
 
     #[async_trait]
-    impl UnsafePayloadGossipClient for PausedGossip {
-        async fn schedule_execution_payload_gossip(
-            &self,
-            _payload: OpExecutionPayloadEnvelope,
-        ) -> Result<(), UnsafePayloadGossipClientError> {
-            panic!("a full gossip queue must pause building")
+    impl sequencer::Signer for PausedSigner {
+        type Error = std::convert::Infallible;
+
+        async fn send(&self, _payload: OpExecutionPayloadEnvelope) -> Result<(), Self::Error> {
+            panic!("a full signer queue must pause building")
         }
 
         fn has_capacity(&self) -> bool {
@@ -143,7 +141,7 @@ mod tests {
             &mut self,
             _unsafe_head: L2BlockInfo,
         ) -> Result<BlockInfo, L1OriginSelectorError> {
-            panic!("a full gossip queue must pause building")
+            panic!("a full signer queue must pause building")
         }
     }
 
@@ -168,7 +166,7 @@ mod tests {
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
             conductor_enabled
                 .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),
-            PausedGossip,
+            PausedSigner,
         );
         (handle, task, requests)
     }

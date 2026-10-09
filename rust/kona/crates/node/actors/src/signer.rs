@@ -1,9 +1,7 @@
 //! Signer Actor
 
-use crate::{UnsafePayloadGossipClient, UnsafePayloadGossipClientError};
 use alloy_primitives::Address;
 use alloy_signer::Signature;
-use async_trait::async_trait;
 use kona_sources::{BlockSignerError, BlockSignerHandler};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::future::Future;
@@ -28,31 +26,13 @@ impl Handle {
     pub async fn send(
         &self,
         payload: OpExecutionPayloadEnvelope,
-    ) -> Result<(), UnsafePayloadGossipClientError> {
-        self.payloads
-            .send(payload.clone())
-            .await
-            .map_err(|_| UnsafePayloadGossipClientError::RequestError("request channel closed".to_string()))
-            .inspect_err(|err| error!(target: "gossip_client", ?payload, ?err, "failed to request to gossip payload."))
+    ) -> Result<(), mpsc::error::SendError<OpExecutionPayloadEnvelope>> {
+        self.payloads.send(payload).await
     }
 
     /// Whether the input queue currently has room for another payload.
     pub fn has_capacity(&self) -> bool {
         self.payloads.capacity() > 0
-    }
-}
-
-#[async_trait]
-impl UnsafePayloadGossipClient for Handle {
-    async fn schedule_execution_payload_gossip(
-        &self,
-        payload: OpExecutionPayloadEnvelope,
-    ) -> Result<(), UnsafePayloadGossipClientError> {
-        self.send(payload).await
-    }
-
-    fn has_capacity(&self) -> bool {
-        self.has_capacity()
     }
 }
 

@@ -2,10 +2,10 @@
 
 use super::Capacity;
 use crate::{
-    SequencerEngineClient, UnsafePayloadGossipClient,
+    SequencerEngineClient,
     engine::EngineClientError,
     sequencer::{
-        Handle, HandleError,
+        Handle, HandleError, Signer,
         conductor::Conductor,
         error::ActorError,
         handle::Message,
@@ -64,7 +64,7 @@ impl Builder {
         Conductor_: Conductor + 'static,
         OriginSelector_: OriginSelector + 'static,
         SequencerEngineClient_: SequencerEngineClient + 'static,
-        UnsafePayloadGossipClient_: UnsafePayloadGossipClient + Sync + 'static,
+        Signer_: Signer + 'static,
     >(
         self,
         attributes_builder: AttributesBuilder_,
@@ -72,7 +72,7 @@ impl Builder {
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
         conductor: Option<Conductor_>,
-        unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+        signer: Signer_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, is_active_tx } = self;
         async move {
@@ -84,7 +84,7 @@ impl Builder {
                 engine_client,
                 origin_selector,
                 rollup_config,
-                unsafe_payload_gossip_client,
+                signer,
             )
             .run()
             .await
@@ -112,21 +112,16 @@ struct SealLastStartNextResult {
 }
 
 /// The [`Actor`] is responsible for building L2 blocks on top of the current unsafe head
-/// and handing them to the signer through [`signer::Handle`](crate::signer::Handle) to be signed
+/// and handing them to the [`Signer`] to be signed
 /// and gossipped, extending the L2 chain with new blocks.
 #[derive(Debug)]
-struct Actor<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
-> where
+struct Actor<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
+where
     AttributesBuilder_: AttributesBuilder,
     Conductor_: Conductor,
     OriginSelector_: OriginSelector,
     SequencerEngineClient_: SequencerEngineClient,
-    UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
+    Signer_: Signer,
 {
     /// Receives messages from handles.
     messages_rx: mpsc::Receiver<Message>,
@@ -144,9 +139,8 @@ struct Actor<
     origin_selector: OriginSelector_,
     /// The rollup configuration.
     rollup_config: Arc<RollupConfig>,
-    /// A client that hands built payloads to the signer actor, which signs them for the network
-    /// actor to gossip.
-    unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+    /// Queues built payloads for signing.
+    signer: Signer_,
 
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
@@ -156,26 +150,14 @@ struct Actor<
     last_seal_duration: Duration,
 }
 
-impl<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
->
-    Actor<
-        AttributesBuilder_,
-        Conductor_,
-        OriginSelector_,
-        SequencerEngineClient_,
-        UnsafePayloadGossipClient_,
-    >
+impl<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
+    Actor<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
 where
     AttributesBuilder_: AttributesBuilder,
     Conductor_: Conductor,
     OriginSelector_: OriginSelector,
     SequencerEngineClient_: SequencerEngineClient,
-    UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
+    Signer_: Signer,
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -186,7 +168,7 @@ where
         engine_client: SequencerEngineClient_,
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
-        unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+        signer: Signer_,
     ) -> Self {
         let is_active = *is_active_tx.borrow();
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
@@ -199,7 +181,7 @@ where
             engine_client,
             origin_selector,
             rollup_config,
-            unsafe_payload_gossip_client,
+            signer,
             build_ticker,
             next_payload_to_seal: None,
             last_seal_duration: Duration::ZERO,
@@ -269,10 +251,7 @@ where
             update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
         }
 
-        self.unsafe_payload_gossip_client
-            .schedule_execution_payload_gossip(payload)
-            .await
-            .map_err(Into::into)
+        self.signer.send(payload).await.map_err(|error| ActorError::Signer(error.to_string()))
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -478,26 +457,14 @@ where
     }
 }
 
-impl<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
->
-    Actor<
-        AttributesBuilder_,
-        Conductor_,
-        OriginSelector_,
-        SequencerEngineClient_,
-        UnsafePayloadGossipClient_,
-    >
+impl<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
+    Actor<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
 where
     AttributesBuilder_: AttributesBuilder + Sync + 'static,
     Conductor_: Conductor + Sync + 'static,
     OriginSelector_: OriginSelector + Sync + 'static,
     SequencerEngineClient_: SequencerEngineClient + Sync + 'static,
-    UnsafePayloadGossipClient_: UnsafePayloadGossipClient + Sync + 'static,
+    Signer_: Signer + 'static,
 {
     async fn run(mut self) -> Result<(), ActorError> {
         // Publish the initial state and metrics before beginning block building.
@@ -553,8 +520,8 @@ where
     }
 
     async fn build(&mut self) -> Result<(), ActorError> {
-        if !self.unsafe_payload_gossip_client.has_capacity() {
-            warn!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
+        if !self.signer.has_capacity() {
+            warn!(target: "sequencer", "Sequencing tick, signer queue full, not building a block");
             return Ok(());
         }
         info!(target: "sequencer", "Sequencing tick, building block");

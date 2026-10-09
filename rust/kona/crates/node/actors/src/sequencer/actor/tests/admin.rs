@@ -43,7 +43,7 @@ async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
         })
     });
     // Block building must not run while the stop is queued.
-    actor.unsafe_payload_gossip_client.expect_has_capacity().times(0);
+    actor.signer.expect_has_capacity().times(0);
     assert_eq!(handle.is_active().unwrap(), !already_stopped);
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     let (tx, rx) = oneshot::channel();
@@ -132,7 +132,7 @@ async fn handle_reads_published_state_after_commands() {
     });
     assert!(!handle.is_active().unwrap());
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(false);
+    actor.signer.expect_has_capacity().return_const(false);
     let task = tokio::spawn(actor.run());
     handle.start().await.unwrap();
     assert!(handle.is_active().unwrap());

@@ -1,10 +1,11 @@
-use super::{test_actor, test_actor_with_config};
+use super::{super::UnsealedPayloadHandle, test_actor, test_actor_with_config};
 use crate::{
-    MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-    sequencer::{ActorError, handle::Message},
+    MockOriginSelector, MockSequencerEngineClient,
+    sequencer::{ActorError, MockSigner, handle::Message},
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
-use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rstest::rstest;
 use std::sync::{
     Arc,
@@ -44,7 +45,7 @@ async fn build_handles_payload_attributes_errors(
     actor.engine_client = client;
     actor.attributes_builder = attributes_builder;
 
-    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.signer.expect_has_capacity().return_const(true);
     let result = actor.build().await;
     if expect_err {
         assert!(result.is_err());
@@ -57,10 +58,42 @@ async fn build_handles_payload_attributes_errors(
     }
 }
 
-/// A full gossip queue, for example during a signer outage, pauses block building without
+#[tokio::test]
+async fn sealing_propagates_signer_errors() {
+    let mut actor = test_actor();
+    let block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+    let payload = OpExecutionPayloadEnvelope::V1(
+        alloy_rpc_types_engine::ExecutionPayloadV1::from_block_slow(&block),
+    );
+    actor
+        .engine_client
+        .expect_seal_and_canonicalize_block()
+        .times(1)
+        .return_once(|_, _| Ok(payload));
+    actor
+        .signer
+        .expect_send()
+        .times(1)
+        .return_once(|_| Err(std::io::Error::other("signer channel closed")));
+    let handle = UnsealedPayloadHandle {
+        payload_id: Default::default(),
+        attributes_with_parent: OpAttributesWithParent::new(
+            Default::default(),
+            Default::default(),
+            None,
+            false,
+        ),
+    };
+
+    let error = actor.seal_and_commit_payload_if_applicable(&handle).await.unwrap_err();
+    assert!(matches!(&error, ActorError::Signer(_)));
+    assert_eq!(error.to_string(), "signer channel closed");
+}
+
+/// A full signer queue, for example during a signer outage, pauses block building without
 /// blocking the actor, so admin queries such as op-conductor's `StopSequencer` are still answered.
 #[tokio::test(start_paused = true)]
-async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
+async fn full_signer_queue_pauses_building_but_admin_queries_are_answered() {
     let (mut actor, _, handle) = test_actor_with_config(true, None);
     let mut engine = MockSequencerEngineClient::new();
     // No block is built or sealed while the queue is full.
@@ -68,12 +101,12 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     engine.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
     actor.engine_client = engine;
 
-    let mut gossip = MockUnsafePayloadGossipClient::new();
-    gossip.expect_has_capacity().return_const(false);
-    gossip.expect_schedule_execution_payload_gossip().times(0);
-    actor.unsafe_payload_gossip_client = gossip;
+    let mut signer = MockSigner::new();
+    signer.expect_has_capacity().return_const(false);
+    signer.expect_send().times(0);
+    actor.signer = signer;
 
-    // Building returns instead of waiting for space in the gossip queue.
+    // Building returns instead of waiting for space in the signer queue.
     time::timeout(Duration::from_secs(10), actor.build()).await.unwrap().unwrap();
 
     let (tx, rx) = oneshot::channel();
@@ -84,9 +117,9 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     assert!(!handle.is_active().unwrap());
 }
 
-/// Block building resumes after the gossip queue has room again.
+/// Block building resumes after the signer queue has room again.
 #[tokio::test(start_paused = true)]
-async fn building_resumes_once_the_gossip_queue_drains() {
+async fn building_resumes_once_the_signer_queue_drains() {
     let mut actor = test_actor();
 
     let mut engine = MockSequencerEngineClient::new();
@@ -105,9 +138,9 @@ async fn building_resumes_once_the_gossip_queue_drains() {
 
     // Full on the first attempt, with room on the second.
     let ticks = Arc::new(AtomicUsize::new(0));
-    let mut gossip = MockUnsafePayloadGossipClient::new();
-    gossip.expect_has_capacity().returning(move || ticks.fetch_add(1, Ordering::SeqCst) > 0);
-    actor.unsafe_payload_gossip_client = gossip;
+    let mut signer = MockSigner::new();
+    signer.expect_has_capacity().returning(move || ticks.fetch_add(1, Ordering::SeqCst) > 0);
+    actor.signer = signer;
 
     time::timeout(Duration::from_secs(10), actor.build()).await.unwrap().unwrap();
     time::timeout(Duration::from_secs(10), actor.build()).await.unwrap().unwrap();

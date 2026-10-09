@@ -3,6 +3,8 @@
 //!
 //! [`NodeActor`]: crate::NodeActor
 
+mod adapters;
+
 mod block_sink;
 pub(crate) use block_sink::BufferImportedBlocks;
 

@@ -1,7 +1,7 @@
 use super::Actor;
 use crate::{
-    MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-    sequencer::{Handle, handle::Message},
+    MockConductor, MockOriginSelector, MockSequencerEngineClient,
+    sequencer::{Handle, MockSigner, handle::Message},
 };
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
@@ -16,7 +16,7 @@ type TestActor = Actor<
     MockConductor,
     MockOriginSelector,
     MockSequencerEngineClient,
-    MockUnsafePayloadGossipClient,
+    MockSigner,
 >;
 
 fn test_actor() -> TestActor {
@@ -39,7 +39,7 @@ fn test_actor_with_config(
         MockSequencerEngineClient::new(),
         MockOriginSelector::new(),
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
-        MockUnsafePayloadGossipClient::new(),
+        MockSigner::new(),
     );
     (actor, commands_tx, handle)
 }

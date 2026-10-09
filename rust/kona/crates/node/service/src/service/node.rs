@@ -1,5 +1,5 @@
 //! Contains the [`RollupNode`] implementation.
-use super::{Supervisor, middleware::RpcMetricsLayer};
+use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
     BlockStream, ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor,
     DerivationActor, DerivationActorRequest, DerivationDelegateClient, DerivationError,
@@ -375,7 +375,7 @@ impl RollupNode {
             delayed_origin_selector,
             self.config.clone(),
             self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
-            signer,
+            adapters::Signer(signer),
         )
     }
 

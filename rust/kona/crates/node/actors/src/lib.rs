@@ -43,8 +43,7 @@ mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
     NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    QueuedNetworkEngineClient,
 };
 
 pub mod sequencer;
@@ -55,8 +54,6 @@ pub use sequencer::{
     SequencerConfig, SequencerEngineClient,
 };
 
-#[cfg(test)]
-pub use network::MockUnsafePayloadGossipClient;
 #[cfg(test)]
 pub use sequencer::{MockConductor, MockOriginSelector, MockSequencerEngineClient};
 
