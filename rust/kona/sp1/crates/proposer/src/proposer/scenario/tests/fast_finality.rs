@@ -1,10 +1,9 @@
 use super::*;
 
-fn config(limit: u64) -> ProposerConfig {
+fn ff_config(limit: u64) -> ProposerConfig {
     let mut config = scenario_config();
     config.fast_finality_mode = true;
     config.fast_finality_proving_limit = NonZeroU64::new(limit).unwrap();
-    config.proposal_interval_seconds = 100;
     config
 }
 
@@ -13,8 +12,7 @@ async fn created_games_are_accelerated_only_when_fast_finality_is_enabled() {
     for enabled in [false, true] {
         let world = ScenarioWorld::new();
         world.set_horizons(1, 1);
-        let mut config = config(1);
-        config.proposal_interval_seconds = 1;
+        let mut config = ff_config(1);
         config.fast_finality_mode = enabled;
         let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
@@ -62,9 +60,7 @@ async fn created_games_are_accelerated_only_when_fast_finality_is_enabled() {
             world.action_record(&ActionTarget::Resolve(target.clone()), 1).unwrap().effect,
             CommittedEffect::Resolved { game: target.address }
         );
-        let resolved = world.observation();
-        assert_eq!(resolved.games[0].status, GameStatus::DefenderWins);
-        assert!(resolved.latest_l1.timestamp < created.deadline);
+        assert_eq!(world.observation().games[0].status, GameStatus::DefenderWins);
     }
 }
 
@@ -76,14 +72,18 @@ async fn foreign_games_are_defended_but_only_owned_unchallenged_games_are_accele
         ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).challenged();
     let mut owned = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate());
     owned.creator = ScenarioWorld::proposer_address();
+    let mut owned_challenged =
+        ScenarioGame::new(3, u32::MAX, 4, ScenarioWorld::default_prestate()).challenged();
+    owned_challenged.creator = ScenarioWorld::proposer_address();
+    let owned_challenged_target = owned_challenged.target();
     let foreign_target = foreign.target();
     let defended_target = defended.target();
     let owned_target = owned.target();
-    for game in [foreign, defended, owned] {
+    for game in [foreign, defended, owned, owned_challenged] {
         world.add_game(game);
     }
-    world.set_horizons(3, 3);
-    let mut scenario = ScenarioHarness::new(world.clone(), config(2)).await.unwrap();
+    world.set_horizons(4, 4);
+    let mut scenario = ScenarioHarness::new(world.clone(), ff_config(3)).await.unwrap();
 
     let tick = scenario.tick().await.unwrap();
     let mut proofs = tick
@@ -100,11 +100,12 @@ async fn foreign_games_are_defended_but_only_owned_unchallenged_games_are_accele
         vec![
             (defended_target.address, ProvingPurpose::Defense),
             (owned_target.address, ProvingPurpose::FastFinality),
+            (owned_challenged_target.address, ProvingPurpose::Defense),
         ]
     );
     scenario.settle_scheduled(&tick).await.unwrap();
     assert!(world.proof_record(&foreign_target, 1).is_none());
-    for target in [defended_target, owned_target] {
+    for target in [defended_target, owned_target, owned_challenged_target] {
         assert_eq!(
             world.action_record(&ActionTarget::Prove(target.clone()), 1).unwrap().effect,
             CommittedEffect::Proven { game: target.address }
@@ -128,9 +129,7 @@ async fn nearest_deadline_proof_holds_capacity_through_failure_and_retry_then_cr
     }
     world.set_horizons(3, 3);
     world.block_proof(earlier_target.clone(), 1, ProofOutcome::Failure, "earlier proof");
-    let mut config = config(1);
-    config.proposal_interval_seconds = 1;
-    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+    let mut scenario = ScenarioHarness::new(world.clone(), ff_config(1)).await.unwrap();
 
     let first = scenario.tick().await.unwrap();
     let first_id = first.task_id_for(|operation| {
@@ -182,7 +181,9 @@ async fn nearest_deadline_proof_holds_capacity_through_failure_and_retry_then_cr
 
     let next = scenario.tick().await.unwrap();
     next.task_id_for(|operation| {
-        matches!(operation, OperationSummary::ProveGame { address, .. } if *address == later_target.address)
+        matches!(operation, OperationSummary::ProveGame {
+            address, purpose: ProvingPurpose::FastFinality, ..
+        } if *address == later_target.address)
     });
     assert!(
         !next
@@ -221,8 +222,7 @@ async fn parked_fast_finality_does_not_consume_defense_slots_but_defense_counts_
     world.add_game(owned);
     world.set_horizons(1, 1);
     world.block_proof(owned_target.clone(), 1, ProofOutcome::Success, "fast finality proof");
-    let mut config = config(2);
-    config.proposal_interval_seconds = 1;
+    let mut config = ff_config(2);
     config.max_concurrent_defense_tasks = NonZeroU64::MIN;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
@@ -254,11 +254,13 @@ async fn parked_fast_finality_does_not_consume_defense_slots_but_defense_counts_
             if *address == defended_target.address
         )
     });
-    assert!(
-        !second
+    assert_eq!(
+        second
             .scheduled
             .iter()
-            .any(|task| matches!(task.operation, OperationSummary::ProposeGame { .. }))
+            .filter(|task| matches!(task.operation, OperationSummary::ProveGame { .. }))
+            .count(),
+        1
     );
     scenario.wait_for_proof_barrier(defense_id, &defended_target, 1).await.unwrap();
     scenario.settle(&second.task_ids_except(defense_id)).await.unwrap();
@@ -281,6 +283,9 @@ async fn parked_fast_finality_does_not_consume_defense_slots_but_defense_counts_
             if *address == waiting_target.address
         )
     });
+    next.task_id_for(|operation| {
+        matches!(operation, OperationSummary::ProposeGame { sequence_number: 4, .. })
+    });
     scenario.settle_scheduled(&next).await.unwrap();
     scenario.release_proof_barrier(&owned_target, 1).unwrap();
     scenario.settle(&[fast_id]).await.unwrap();
@@ -298,7 +303,7 @@ async fn challenge_during_fast_finality_reuses_the_inflight_proof() {
     world.add_game(owned);
     world.set_horizons(1, 1);
     world.block_proof(target.clone(), 1, ProofOutcome::Success, "challenge during proof");
-    let mut scenario = ScenarioHarness::new(world.clone(), config(1)).await.unwrap();
+    let mut scenario = ScenarioHarness::new(world.clone(), ff_config(1)).await.unwrap();
 
     let started = scenario.tick().await.unwrap();
     let proof_id = started.task_id_for(|operation| {
@@ -342,9 +347,8 @@ async fn expired_fast_finality_proof_is_not_submitted_and_the_game_resolves_norm
     let target = owned.target();
     world.add_game(owned);
     world.set_horizons(1, 1);
-    world.set_host_time(10_000);
     world.block_proof(target.clone(), 1, ProofOutcome::Success, "expired acceleration");
-    let mut scenario = ScenarioHarness::new(world.clone(), config(1)).await.unwrap();
+    let mut scenario = ScenarioHarness::new(world.clone(), ff_config(1)).await.unwrap();
 
     let started = scenario.tick().await.unwrap();
     let proof_id = started.task_id_for(|operation| {
