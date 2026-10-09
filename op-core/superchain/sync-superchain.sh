@@ -25,10 +25,10 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 # Repo root via git, falling back to the known layout (<root>/op-core/superchain)
 # for environments without a .git dir, e.g. inside a Docker build.
-REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd "$SCRIPT_DIR/../.." && pwd))
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2> /dev/null || (cd "$SCRIPT_DIR/../.." && pwd))
 SR_DIR="${SUPERCHAIN_REGISTRY_DIR:-$REPO_ROOT/superchain-registry}"
 ZIP="${SUPERCHAIN_CONFIGS_OUT:-$SCRIPT_DIR/superchain-configs.zip}"
 SHA_FILE="$SCRIPT_DIR/superchain-configs.zip.sha256"
@@ -38,7 +38,7 @@ external=""
 refresh=""
 [[ -n "${OP_CORE_SYNC_SUPERCHAIN:-}" ]] && refresh=1
 
-expected_sha=$(awk '{print $1}' "$SHA_FILE" 2>/dev/null || true)
+expected_sha=$(awk '{print $1}' "$SHA_FILE" 2> /dev/null || true)
 
 # Fast path (default mode): the on-disk zip already matches the committed .sha256,
 # so there's nothing to do. To force a rebuild from the current superchain-registry
@@ -66,63 +66,64 @@ echo "Using $workdir as workdir..."
 # Create a simple mapping of chain id -> config name to make looking up chains by their ID easier.
 echo "Generating index of configs..."
 
-echo "{}" >chains.json
+echo "{}" > chains.json
 
 # Function to process each network directory
 process_network_dir() {
-    local network_dir="$1"
-    local network_name
-    network_name=$(basename "$network_dir")
+  local network_dir="$1"
+  local network_name
+  network_name=$(basename "$network_dir")
 
-    echo "Processing chains in $network_name superchain..."
+  echo "Processing chains in $network_name superchain..."
 
-    # Find all TOML files in the network directory
-    find "$network_dir" -type f -name "*.toml" | LC_ALL=C sort | while read -r toml_file; do
-        if [[ "$toml_file" == "configs/$network_name/superchain.toml" ]]; then
-            continue
-        fi
+  # Find all TOML files in the network directory
+  find "$network_dir" -type f -name "*.toml" | LC_ALL=C sort | while read -r toml_file; do
+    if [[ "$toml_file" == "configs/$network_name/superchain.toml" ]]; then
+      continue
+    fi
 
-        echo "Processing $toml_file..."
-        # Extract chain_id from TOML file using yq
-        chain_id=$(yq -r '.chain_id' "$toml_file")
-        chain_name="$(basename "${toml_file%.*}")"
+    echo "Processing $toml_file..."
+    # Extract chain_id from TOML file using yq
+    chain_id=$(yq -r '.chain_id' "$toml_file")
+    chain_name="$(basename "${toml_file%.*}")"
 
-        if [[ -z "$chain_id"
-              # Boba Sepolia
-              || "$chain_id" -eq 28882
-              # Boba Mainnet
-              || "$chain_id" -eq 288
-              # Celo Mainnet: non-standard genesis format (forked from Ethereum, then converted to L2)
-              || "$chain_id" -eq 42220 ]];
-        then
-            echo "Skipping $network_name/$chain_name ($chain_id)"
-            rm "$toml_file"
-            rm -f "genesis/$network_name/$chain_name.json.zst"
-            continue
-        fi
+    if [[ -z "$chain_id" ||
 
-        # Create JSON object for this config
-        config_json=$(jq -n \
-            --arg name "$chain_name" \
-            --arg network "$network_name" \
-            '{
+      "$chain_id" -eq 28882 ||
+
+      "$chain_id" -eq 288 ||
+
+      "$chain_id" -eq 42220 ]]; then # Boba Sepolia
+      # Boba Mainnet
+      # Celo Mainnet: non-standard genesis format (forked from Ethereum, then converted to L2)
+      echo "Skipping $network_name/$chain_name ($chain_id)"
+      rm "$toml_file"
+      rm -f "genesis/$network_name/$chain_name.json.zst"
+      continue
+    fi
+
+    # Create JSON object for this config
+    config_json=$(jq -n \
+      --arg name "$chain_name" \
+      --arg network "$network_name" \
+      '{
                 "name": $name,
                 "network": $network
             }')
 
-        # Add this config to the result JSON using the chain_id as the key
-        jq --argjson config "$config_json" \
-            --arg chain_id "$chain_id" \
-            '. + {($chain_id): $config}' chains.json >temp.json
-        mv temp.json chains.json
-    done
+    # Add this config to the result JSON using the chain_id as the key
+    jq --argjson config "$config_json" \
+      --arg chain_id "$chain_id" \
+      '. + {($chain_id): $config}' chains.json > temp.json
+    mv temp.json chains.json
+  done
 }
 
 # Process each network directory in configs
 for network_dir in configs/*; do
-    if [ -d "$network_dir" ]; then
-        process_network_dir "$network_dir"
-    fi
+  if [ -d "$network_dir" ]; then
+    process_network_dir "$network_dir"
+  fi
 done
 
 # Archive the configs as a ZIP file. ZIP is used since it can be efficiently used as a filesystem.
@@ -143,7 +144,7 @@ elif [[ -n "$refresh" ]]; then
   # Persist the bundle's SHA256 alongside it. The hash is committed to git
   # (the zip itself isn't); any drift between what a developer/CI builds and what
   # was approved in review surfaces as a .sha256 diff.
-  echo "$got_sha  superchain-configs.zip" >"$SHA_FILE"
+  echo "$got_sha  superchain-configs.zip" > "$SHA_FILE"
   echo "[sync-superchain] refreshed bundle and .sha256 ($got_sha)"
 else
   if [[ "$got_sha" != "$expected_sha" ]]; then

@@ -11,7 +11,7 @@ run_case() {
   root=$(mktemp -d)
   mkdir -p "$root/ops/prestate-reproducibility" "$root/bin"
   cp "$SOURCE_DIR/build-prestates.sh" "$root/ops/prestate-reproducibility/"
-  cat > "$root/bin/git" <<'STUB'
+  cat > "$root/bin/git" << 'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1" == "-C" ]]; then shift 2; fi
@@ -38,7 +38,7 @@ case "$1 $2" in
   *) echo "unexpected git call: $*" >&2; exit 1 ;;
 esac
 STUB
-  cat > "$root/bin/rm" <<'STUB'
+  cat > "$root/bin/rm" << 'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$TEST_SCENARIO" == "sudo-fails" && "${2:-}" == */elf-compilation/docker ]]; then
@@ -49,13 +49,13 @@ if [[ "$TEST_SCENARIO" == "symlink-parent" && "${2:-}" == */elf-compilation/dock
 fi
 exec /bin/rm "$@"
 STUB
-  cat > "$root/bin/sudo" <<'STUB'
+  cat > "$root/bin/sudo" << 'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$TEST_ROOT/sudo.calls"
 exit 1
 STUB
-  cat > "$root/bin/mise" <<'STUB'
+  cat > "$root/bin/mise" << 'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 case "$1" in
@@ -116,35 +116,74 @@ STUB
     PATH="$root/bin:$PATH" BASH_ENV=/dev/null KONA_CUSTOM_CONFIGS_DIR="$([[ "$scenario" == "custom-config" ]] && printf '/tmp/custom' || true)" \
     env -u 'BASH_FUNC_mise%%' bash "$root/ops/prestate-reproducibility/build-prestates.sh" < /dev/null > "$root/output" 2>&1 || status=$?
   if [[ "$expected" == "zero" ]]; then
-    [[ "$status" -eq 0 ]] || { cat "$root/output"; exit 1; }
+    [[ "$status" -eq 0 ]] || {
+      cat "$root/output"
+      exit 1
+    }
     grep -q 'Kona SP1 registry selection: 0 entries' "$root/output"
     jq -e 'length == 0' "$root/ops/prestate-reproducibility/temp/states/versions.json" > /dev/null
   elif [[ "$expected" == "success" ]]; then
-    [[ "$status" -eq 0 ]] || { cat "$root/output"; exit 1; }
+    [[ "$status" -eq 0 ]] || {
+      cat "$root/output"
+      exit 1
+    }
     grep -q "Kona SP1 version 0.0.5: rebuilt super-aggregation vkey $HASH" "$root/output"
     jq -e --arg hash "$HASH" 'length == 1 and .[0] == {version:"0.0.5",hash:$hash,type:"kona-sp1"}' \
       "$root/ops/prestate-reproducibility/temp/states/versions.json" > /dev/null
     grep -Fq 'rev-parse --verify refs/tags/kona-sp1-program/v0.0.5^{commit}' "$root/git.calls"
   elif [[ "$expected" == "two" ]]; then
-    [[ "$status" -eq 0 ]] || { cat "$root/output"; exit 1; }
+    [[ "$status" -eq 0 ]] || {
+      cat "$root/output"
+      exit 1
+    }
     jq -e 'length == 2 and .[0].version == "0.0.4" and .[1].version == "0.0.5"' \
       "$root/ops/prestate-reproducibility/temp/states/versions.json" > /dev/null
-    [[ "$(cat "$root/count")" -eq 2 ]] || { echo 'expected two SP1 builds' >&2; exit 1; }
+    [[ "$(cat "$root/count")" -eq 2 ]] || {
+      echo 'expected two SP1 builds' >&2
+      exit 1
+    }
   else
-    [[ "$status" -ne 0 ]] || { echo "$scenario unexpectedly passed" >&2; exit 1; }
-    grep -q "Kona SP1 version 0.0.5:" "$root/output" || { cat "$root/output"; exit 1; }
+    [[ "$status" -ne 0 ]] || {
+      echo "$scenario unexpectedly passed" >&2
+      exit 1
+    }
+    grep -q "Kona SP1 version 0.0.5:" "$root/output" || {
+      cat "$root/output"
+      exit 1
+    }
   fi
   if [[ "$scenario" == "sudo-fails" ]]; then
-    grep -Fq 'worktree remove' "$root/git.calls" || { echo 'worktree cleanup was skipped' >&2; exit 1; }
-    grep -Fq -- '-n rm -rf' "$root/sudo.calls" || { echo 'sudo fallback was skipped' >&2; exit 1; }
+    grep -Fq 'worktree remove' "$root/git.calls" || {
+      echo 'worktree cleanup was skipped' >&2
+      exit 1
+    }
+    grep -Fq -- '-n rm -rf' "$root/sudo.calls" || {
+      echo 'sudo fallback was skipped' >&2
+      exit 1
+    }
   elif [[ "$scenario" == "test-config-fallback" ]]; then
-    grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
-    [[ ! -f "$root/count" ]] || { echo 'unsafe guest build was started' >&2; exit 1; }
+    grep -q 'test-config-fallback must be disabled' "$root/output" || {
+      cat "$root/output"
+      exit 1
+    }
+    [[ ! -f "$root/count" ]] || {
+      echo 'unsafe guest build was started' >&2
+      exit 1
+    }
   elif [[ "$scenario" == "test-build-marker" || "$scenario" == "test-elf-marker" ]]; then
-    grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
-    [[ "$(cat "$root/count")" -eq 1 ]] || { echo 'expected one SP1 build before marker rejection' >&2; exit 1; }
+    grep -q 'test-config-fallback must be disabled' "$root/output" || {
+      cat "$root/output"
+      exit 1
+    }
+    [[ "$(cat "$root/count")" -eq 1 ]] || {
+      echo 'expected one SP1 build before marker rejection' >&2
+      exit 1
+    }
   elif [[ "$scenario" == "symlink-parent" ]]; then
-    [[ -f "$root/outside/docker/marker" ]] || { echo 'cleanup followed a symlink outside the worktree' >&2; exit 1; }
+    [[ -f "$root/outside/docker/marker" ]] || {
+      echo 'cleanup followed a symlink outside the worktree' >&2
+      exit 1
+    }
   fi
   rm -rf "$root"
 }

@@ -1603,6 +1603,16 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
+  shfmt-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    steps:
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
+      - run:
+          name: Check shell script formatting
+          command: just shfmt-check
+
   l2-chains-sync-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2625,6 +2635,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+      - shfmt-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -2724,6 +2737,7 @@ workflows:
           requires:
             - check-kontrol-build: terminal
             - shell-check: terminal
+            - shfmt-check: terminal
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - semgrep-test: terminal

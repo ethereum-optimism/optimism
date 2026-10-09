@@ -20,7 +20,8 @@
 
 set -uo pipefail
 
-NODE_RPC="${1:-}"; REF_RPC="${2:-}"
+NODE_RPC="${1:-}"
+REF_RPC="${2:-}"
 if [[ -z "$NODE_RPC" || -z "$REF_RPC" ]]; then
   echo "usage: $0 <node-rpc> <reference-rpc> [block ...]" >&2
   exit 2
@@ -30,7 +31,10 @@ shift 2
 RETRIES="${RETRIES:-5}"
 
 if [[ $# -gt 0 ]]; then BLOCKS=("$@"); else mapfile -t BLOCKS; fi
-if [[ ${#BLOCKS[@]} -eq 0 ]]; then echo "no blocks given (args or stdin)" >&2; exit 2; fi
+if [[ ${#BLOCKS[@]} -eq 0 ]]; then
+  echo "no blocks given (args or stdin)" >&2
+  exit 2
+fi
 
 # fetch_hash <rpc> <decimal-block> -> block hash, only if the node returns the
 # exact block requested (guards against a lagging/pruned/load-balanced backend).
@@ -48,11 +52,15 @@ r = d.get("result")
 if not r or r.get("hash") is None or r.get("number") is None: print("RETRY"); sys.exit()
 if int(r["number"], 16) != int(sys.argv[1]): print("RETRY"); sys.exit()  # backend returned a different block
 print(r["hash"].lower())
-' "$dec" 2>/dev/null)
-    if [[ "$out" != "RETRY" && -n "$out" ]]; then printf '%s' "$out"; return 0; fi
+' "$dec" 2> /dev/null)
+    if [[ "$out" != "RETRY" && -n "$out" ]]; then
+      printf '%s' "$out"
+      return 0
+    fi
     sleep 1
   done
-  printf ''; return 1
+  printf ''
+  return 1
 }
 
 printf '%-10s  %-66s  %-66s  %s\n' "Block" "Node" "Reference" "Result"
@@ -61,16 +69,19 @@ for bn in "${BLOCKS[@]}"; do
   node=$(fetch_hash "$NODE_RPC" "$bn")
   ref=$(fetch_hash "$REF_RPC" "$bn")
   if [[ -z "$node" || -z "$ref" ]]; then
-    result="⚠️  RPC-FAIL (node=${node:-none} ref=${ref:-none})"; fail=1
+    result="⚠️  RPC-FAIL (node=${node:-none} ref=${ref:-none})"
+    fail=1
   elif [[ "$node" == "$ref" ]]; then
     result="✅ match"
   else
-    result="❌ MISMATCH"; fail=1
+    result="❌ MISMATCH"
+    fail=1
   fi
   printf '%-10s  %-66s  %-66s  %s\n' "$bn" "${node:-<none>}" "${ref:-<none>}" "$result"
 done
 
 echo
-if [[ "$fail" -eq 0 ]]; then echo "All ${#BLOCKS[@]} blocks match between the node and ${REF_RPC}."
+if [[ "$fail" -eq 0 ]]; then
+  echo "All ${#BLOCKS[@]} blocks match between the node and ${REF_RPC}."
 else echo "One or more blocks did NOT match (or an RPC failed)."; fi
 exit "$fail"
