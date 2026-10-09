@@ -48,8 +48,8 @@ contract SuperchainETHBridge is ISemver {
     event RefundETH(address indexed from, uint256 amount, bytes32 indexed messageHash);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Mapping of message hashes to whether the ETH of that send was refunded.
     mapping(bytes32 => bool) public refunded;

@@ -2,10 +2,16 @@
 pragma solidity ^0.8.0;
 
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title IL2ToL2CrossDomainMessenger
 /// @notice Interface for the L2ToL2CrossDomainMessenger contract.
-interface IL2ToL2CrossDomainMessenger {
+interface IL2ToL2CrossDomainMessenger is IProxyAdminOwnedBase {
+    error InvalidInitialization();
+    error NotInitializing();
+
+    event Initialized(uint64 version);
+
     /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
     error NotEntered();
 
@@ -45,7 +51,8 @@ interface IL2ToL2CrossDomainMessenger {
     ///         past the expiry period.
     error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
-    /// @notice Thrown when the contract is deployed with a zero expiry period.
+    /// @notice Thrown when the contract is initialized with an expiry period of zero or above
+    ///         365 days.
     error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
 
     /// @notice Emitted whenever a message is sent to a destination
@@ -157,5 +164,7 @@ interface IL2ToL2CrossDomainMessenger {
 
     function messageVersion() external view returns (uint16);
 
-    function __constructor__(uint256 _expiryPeriod) external;
+    function initialize(uint256 _expiryPeriod) external;
+
+    function __constructor__() external;
 }

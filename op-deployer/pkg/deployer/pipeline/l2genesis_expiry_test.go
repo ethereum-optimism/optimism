@@ -8,7 +8,8 @@ import (
 )
 
 func TestCheckL2ToL2MessageExpiryPeriodOverride(t *testing.T) {
-	for l1ChainID := range publicL1ChainIDs {
+	// Mainnet, Sepolia, Holesky and Hoodi.
+	for _, l1ChainID := range []uint64{1, 11155111, 17000, 560048} {
 		require.NoError(t, checkL2ToL2MessageExpiryPeriodOverride(state.IntentTypeCustom, l1ChainID, 0),
 			"the production period is always allowed")
 		require.ErrorContains(t, checkL2ToL2MessageExpiryPeriodOverride(state.IntentTypeCustom, l1ChainID, 30),

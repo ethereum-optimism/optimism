@@ -47,13 +47,14 @@ abstract contract Predeploys_TestInit is CommonTest {
     ///         These contracts store _initialized in a namespaced slot, not in the regular storage layout.
     function _isInitializableV5(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.SEQUENCER_FEE_WALLET || _addr == Predeploys.BASE_FEE_VAULT
-            || _addr == Predeploys.L1_FEE_VAULT || _addr == Predeploys.OPERATOR_FEE_VAULT;
+            || _addr == Predeploys.L1_FEE_VAULT || _addr == Predeploys.OPERATOR_FEE_VAULT
+            || _addr == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
     }
 
     /// @notice Returns true if the predeploy uses immutables.
     function _usesImmutables(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.EAS
-            || _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+            || _addr == Predeploys.GOVERNANCE_TOKEN;
     }
 
     /// @notice Returns true if the record's feature gates are satisfied for the given fork/flags.

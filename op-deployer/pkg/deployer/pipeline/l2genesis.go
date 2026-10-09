@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -35,12 +36,8 @@ type l2GenesisOverrides struct {
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
 	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
-	// seconds, in the L2 genesis. Zero keeps the production period of 8 days. For test networks
-	// only: it is refused for standard intents and on public L1s. The caller must pair it with a
-	// shorter dependency-set message expiry window on every node and in the proof program, which
-	// op-deployer cannot check: if the period does not exceed that window, an expired message could
-	// still be relayed. It only applies when interop is active at genesis; a later interop
-	// activation installs the production period.
+	// seconds. Zero keeps the production period. Test networks only; any later upgrade resets the
+	// period to 8 days.
 	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
 }
 
@@ -266,17 +263,8 @@ func defaultOverrides() l2GenesisOverrides {
 	}
 }
 
-// publicL1ChainIDs are the L1 chains a production or public test network settles on.
-var publicL1ChainIDs = map[uint64]string{
-	1:        "mainnet",
-	11155111: "sepolia",
-	17000:    "holesky",
-	560048:   "hoodi",
-}
-
-// checkL2ToL2MessageExpiryPeriodOverride refuses an L2ToL2CrossDomainMessenger expiry period
-// override for standard intents and on public L1s: networks there must use the production period,
-// which exceeds the protocol's message expiry window.
+// checkL2ToL2MessageExpiryPeriodOverride refuses an expiry period override for standard intents
+// and on public L1s.
 func checkL2ToL2MessageExpiryPeriodOverride(configType state.IntentType, l1ChainID uint64, period uint64) error {
 	if period == 0 {
 		return nil
@@ -284,8 +272,8 @@ func checkL2ToL2MessageExpiryPeriodOverride(configType state.IntentType, l1Chain
 	if configType == state.IntentTypeStandard || configType == state.IntentTypeStandardOverrides {
 		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for %s intents", period, configType)
 	}
-	if name, ok := publicL1ChainIDs[l1ChainID]; ok {
-		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for chains on %s", period, name)
+	if eth.L1ChainConfigByChainID(eth.ChainIDFromUInt64(l1ChainID)) != nil {
+		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for chains on public L1 %d", period, l1ChainID)
 	}
 	return nil
 }

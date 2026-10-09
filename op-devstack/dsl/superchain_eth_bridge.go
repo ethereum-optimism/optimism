@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -20,7 +21,11 @@ type ETHSend struct {
 	// BlockTime is the timestamp of the block the send is in.
 	BlockTime uint64
 
-	tx *txintent.IntentTx[*rawCall, *txintent.InteropOutput]
+	from      common.Address
+	recipient common.Address
+	amount    eth.ETH
+	bridge    bindings.SuperchainETHBridge
+	tx        *txintent.IntentTx[*bindings.TypedCall[eth.Bytes32], *txintent.InteropOutput]
 }
 
 // SendETH sends `amount` of the sender's ETH to `recipient` on `destination` through the
@@ -28,13 +33,11 @@ type ETHSend struct {
 func SendETH(sender *EOA, recipient common.Address, destination eth.ChainID, amount eth.ETH) *ETHSend {
 	bridge := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithTo(predeploys.SuperchainETHBridgeAddr))
 	call := bridge.SendETH(recipient, destination)
-	data, err := call.EncodeInput()
-	sender.require.NoError(err, "failed to encode sendETH")
 
 	sender.log.Info("Sending ETH through the SuperchainETHBridge",
 		"from", sender.Address(), "to", recipient, "destination", destination, "amount", amount)
-	tx := txintent.NewIntent[*rawCall, *txintent.InteropOutput](sender.Plan(), txplan.WithValue(amount))
-	tx.Content.Set(&rawCall{to: predeploys.SuperchainETHBridgeAddr, data: data})
+	tx := txintent.NewIntent[*bindings.TypedCall[eth.Bytes32], *txintent.InteropOutput](sender.Plan(), txplan.WithValue(amount))
+	tx.Content.Set(&call)
 	rcpt, err := tx.PlannedTx.Included.Eval(sender.ctx)
 	sender.require.NoError(err, "sendETH was not included")
 	sender.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "sendETH failed")
@@ -43,7 +46,31 @@ func SendETH(sender *EOA, recipient common.Address, destination eth.ChainID, amo
 	msg, err := SentMessageFromReceipt(rcpt, sender.ChainID())
 	sender.require.NoError(err, "sendETH emitted no SentMessage")
 
-	return &ETHSend{commonImpl: sender.commonImpl, Message: msg, Receipt: rcpt, BlockTime: block.Time, tx: tx}
+	return &ETHSend{
+		commonImpl: sender.commonImpl,
+		Message:    msg,
+		Receipt:    rcpt,
+		BlockTime:  block.Time,
+		from:       sender.Address(),
+		recipient:  recipient,
+		amount:     amount,
+		bridge: bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sender.el.stackEL().EthClient()),
+			bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(sender.t)),
+		tx: tx,
+	}
+}
+
+// RefundCall is the source chain's SuperchainETHBridge.refundETH call that returns this send's ETH
+// to its sender once its message has expired.
+func (s *ETHSend) RefundCall() bindings.TypedCall[any] {
+	return s.bridge.RefundETH(s.Message.Destination, s.Message.Nonce, s.from, s.recipient, s.amount.ToBig())
+}
+
+// Refunded reports whether the source chain's SuperchainETHBridge has refunded this send.
+func (s *ETHSend) Refunded() bool {
+	refunded, err := contractio.Read(s.bridge.Refunded(s.Message.Hash), s.ctx)
+	s.require.NoError(err, "failed to read whether message %s was refunded", s.Message.Hash)
+	return refunded
 }
 
 // Relay waits for `validator` to validate the send's block, relays its message on the
@@ -62,13 +89,3 @@ func (s *ETHSend) Relay(relayer *EOA, validator SuperRootSource) *types.Receipt 
 	s.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "relay of message %s failed", s.Message.Hash)
 	return rcpt
 }
-
-// rawCall is a txintent call over pre-encoded calldata.
-type rawCall struct {
-	to   common.Address
-	data []byte
-}
-
-func (c *rawCall) To() (*common.Address, error)          { return &c.to, nil }
-func (c *rawCall) EncodeInput() ([]byte, error)          { return c.data, nil }
-func (c *rawCall) AccessList() (types.AccessList, error) { return nil, nil }

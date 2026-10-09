@@ -3,7 +3,6 @@
 package upgrade
 
 import (
-	"math/big"
 	"math/rand"
 	"strings"
 	"testing"
@@ -16,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -24,7 +24,6 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func TestPostInbox(gt *testing.T) {
@@ -66,12 +65,11 @@ func TestPostMessageExpiryContracts(gt *testing.T) {
 		require.NoError(err)
 		require.NotEmpty(code)
 
-		messenger := bindings.NewBindings[bindings.L2ToL2CrossDomainMessenger](bindings.WithClient(client),
-			bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
+		messenger := net.PrimaryEL().L2ToL2CrossDomainMessenger()
 		version := contract.Read(messenger.Version())
 		require.Truef(strings.HasPrefix(version, "2."), "the messenger must be 2.x, without resendMessage, got %s", version)
-		require.Equal(big.NewInt(8*24*60*60), contract.Read(messenger.ExpiryPeriod()),
-			"the messenger must use the production expiry period")
+		require.Equal(uint64(8*24*60*60), bigs.Uint64Strict(contract.Read(messenger.ExpiryPeriod())),
+			"the Lagoon upgrade must initialize the messenger with the production expiry period")
 
 		// No message with this nonce expired, so a bridge that can refund rejects it as not
 		// expired. A bridge without refundETH would revert without data.
@@ -79,7 +77,8 @@ func TestPostMessageExpiryContracts(gt *testing.T) {
 			bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
 		_, err = contractio.Read(bridge.RefundETH(eth.ChainIDFromUInt64(1), common.Big0, common.Address{1},
 			common.Address{1}, common.Big0), t.Ctx())
-		require.ErrorContains(errutil.TryAddRevertReason(err), refundNotExpired, "the bridge must have refundETH")
+		require.ErrorContains(errutil.TryAddRevertReason(err),
+			hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "the bridge must have refundETH")
 	})
 }
 
@@ -194,5 +193,3 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 
 	logger.Info("Interop message inclusion test completed successfully")
 }
-
-var refundNotExpired = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])

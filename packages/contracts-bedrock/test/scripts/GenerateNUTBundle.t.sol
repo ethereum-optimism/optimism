@@ -106,35 +106,6 @@ contract GenerateNUTBundleTest is Test {
         );
     }
 
-    /// @notice Tests that the bundle deploys the L2ToL2CrossDomainMessenger implementation with the
-    ///         production expiry period of 8 days as its constructor argument.
-    function test_run_l2ToL2MessengerExpiryPeriod_succeeds() public {
-        GenerateNUTBundle.Output memory output = script.run();
-
-        bool found;
-        for (uint256 i = 0; i < output.txns.length; i++) {
-            if (
-                keccak256(bytes(output.txns[i].intent)) != keccak256("Deploy L2ToL2CrossDomainMessenger Implementation")
-            ) {
-                continue;
-            }
-            found = true;
-            bytes memory data = output.txns[i].data;
-            bytes memory params = new bytes(data.length - 4);
-            for (uint256 j = 0; j < params.length; j++) {
-                params[j] = data[j + 4];
-            }
-            (, bytes memory initCode) = abi.decode(params, (bytes32, bytes));
-            uint256 expiryPeriod;
-            assembly {
-                expiryPeriod := mload(add(initCode, mload(initCode)))
-            }
-            assertEq(expiryPeriod, 691200, "the messenger must be deployed with an 8-day expiry period");
-            assertEq(expiryPeriod, Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
-        }
-        assertTrue(found, "the bundle must deploy the L2ToL2CrossDomainMessenger implementation");
-    }
-
     /// @notice Tests that multiple runs produce deterministic results.
     function test_run_deterministicOutput_succeeds() public {
         GenerateNUTBundle.Output memory output1 = script.run();
