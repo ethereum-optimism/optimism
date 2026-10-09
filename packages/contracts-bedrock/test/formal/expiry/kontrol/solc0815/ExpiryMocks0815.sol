@@ -182,10 +182,11 @@ contract MockExpiredMessages {
 contract MockSystemConfigA {
     mapping(bytes32 => bool) internal features;
     address internal l1CrossDomainMessengerRet;
-    bool internal pausedRet;
+    /// @dev A full word, so that it has slot 2 of its own (a bool would pack into slot 1).
+    uint256 internal pausedRet;
 
     function paused() external view returns (bool) {
-        return pausedRet;
+        return pausedRet != 0;
     }
 
     function l1CrossDomainMessenger() external view returns (address) {
