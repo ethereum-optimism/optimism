@@ -53,7 +53,6 @@ contract GenerateNUTBundle is Script {
         uint64 deploymentGasLimit;
         string name;
         string artifactPath;
-        bytes constructorArgs;
     }
 
     /// @notice Gas limits for the upgrade.
@@ -245,9 +244,7 @@ contract GenerateNUTBundle is Script {
             _assertValidImplementationConfig(config);
 
             _txns.push(
-                UpgradeUtils.createDeploymentTxnWithArgs(
-                    config.name, config.artifactPath, config.constructorArgs, SALT, config.deploymentGasLimit
-                )
+                UpgradeUtils.createDeploymentTxn(config.name, config.artifactPath, SALT, config.deploymentGasLimit)
             );
         }
     }
@@ -354,15 +351,11 @@ contract GenerateNUTBundle is Script {
         view
         returns (ImplementationConfig memory config_)
     {
-        bytes memory args = UpgradeUtils.implementationConstructorArgs(_name);
         config_ = ImplementationConfig({
             name: _name,
             artifactPath: _artifactPath,
             deploymentGasLimit: _gasLimit,
-            implementation: UpgradeUtils.computeCreate2Address(
-                abi.encodePacked(DeployUtils.getCode(_artifactPath), args), SALT
-            ),
-            constructorArgs: args
+            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode(_artifactPath), SALT)
         });
     }
 

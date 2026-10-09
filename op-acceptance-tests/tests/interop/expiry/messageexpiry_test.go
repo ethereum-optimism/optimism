@@ -5,8 +5,6 @@
 package expiry
 
 import (
-	"bytes"
-	"math/big"
 	"slices"
 	"testing"
 	"time"
@@ -22,8 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -58,17 +54,11 @@ const (
 )
 
 // productionExpiryPeriod is the messenger's expiry period on production networks.
-var productionExpiryPeriod = big.NewInt(8 * 24 * 60 * 60)
+const productionExpiryPeriod = 8 * 24 * 60 * 60
 
 var (
-	failedRelayedMessageTopic       = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
-	messageExpiredTopic             = crypto.Keccak256Hash([]byte("MessageExpired(bytes32,uint256)"))
-	undeliveredMessageExportedTopic = crypto.Keccak256Hash([]byte("UndeliveredMessageExported(bytes32,uint256,address,uint256)"))
-	expireMessageSelector           = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
-	messageNotExpired               = crypto.Keccak256([]byte("L2ToL2CrossDomainMessenger_MessageNotExpired()"))[:4]
-	refundNotExpired                = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_MessageNotExpired()"))[:4])
-	alreadyRefunded                 = hexutil.Encode(crypto.Keccak256([]byte("SuperchainETHBridge_AlreadyRefunded()"))[:4])
-	messageRelayed                  = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
+	failedRelayedMessageTopic = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
+	messageExpiredTopic       = crypto.Keccak256Hash([]byte("MessageExpired(bytes32,uint256)"))
 )
 
 // shortClocks shrinks the L1 dispute windows and game clocks until they can be waited out in
@@ -89,7 +79,7 @@ func TestShortGameClocksReachDeployedGames(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks())
 	bridge := sys.StandardBridge(sys.L2ChainB)
-	t.Require().Equal(faultGameMaxClockDuration*time.Second, bridge.RespectedGameMaxClockDuration())
+	t.Require().Equal(faultGameMaxClockDuration*time.Second, bridge.GameResolutionDelay())
 	t.Require().Equal(proofMaturityDelaySeconds*time.Second, bridge.WithdrawalDelay())
 	t.Require().Equal(disputeGameFinalityDelaySeconds*time.Second, bridge.DisputeGameFinalityDelay())
 }
@@ -109,26 +99,31 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	recipient := sys.FunderB.NewFundedEOA(eth.ZeroWei)
 	send := dsl.SendETH(sender, recipient.Address(), sys.L2ChainB.ChainID(), eth.HalfEther)
 
-	messengerA := messengerOnA(t, sys)
-	require.Equal(productionExpiryPeriod, contract.Read(messengerA.ExpiryPeriod()),
+	messengerA := sys.L2ELA.L2ToL2CrossDomainMessenger()
+	require.Equal(uint64(productionExpiryPeriod), bigs.Uint64Strict(contract.Read(messengerA.ExpiryPeriod())),
 		"A's messenger must use the production expiry period")
 
 	// The export is forced in through B's portal, as it would be if B's sequencer censored it.
-	exportRcpt, exportedAt := exportAsDeposit(t, sys, l1User, send.Message)
+	exportRcpt, exportedAt := exportAsDeposit(sys, l1User, send.Message)
 
-	deposit := finalizeExport(t, sys, l1User, exportRcpt)
-	word := expireMessageWord(t, sys, deposit)
-	require.Equal(messageNotExpired, word.output, "expireMessage must reject the word as not yet expired")
-	require.Equal(send.Message.Hash, word.messageHash, "the word must carry the message's hash")
-	require.Equal(exportedAt, word.undeliveredAt, "the word must carry the time B exported at")
+	deposit := finalizeExport(sys, l1User, exportRcpt)
+	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
+	require.True(slices.ContainsFunc(deposit.Logs, func(l *types.Log) bool {
+		return l.Address == predeploys.L2CrossDomainMessengerAddr && len(l.Topics) > 0 &&
+			l.Topics[0] == failedRelayedMessageTopic
+	}), "A's L2CrossDomainMessenger must keep the rejected word as a failed message")
+	expire := sys.L2ELA.ExpireMessageCall(deposit.TxHash)
+	require.Equal(dsl.ErrorSelector("L2ToL2CrossDomainMessenger_MessageNotExpired()"), expire.Output,
+		"expireMessage must reject the word as not yet expired")
+	require.Equal(send.Message.Hash, expire.MessageHash, "the word must carry the message's hash")
+	require.Equal(exportedAt, expire.UndeliveredAt, "the word must carry the time B exported at")
 
-	require.Equal(new(big.Int).SetUint64(send.BlockTime), contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash)),
+	require.Equal(send.BlockTime, bigs.Uint64Strict(contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash))),
 		"A must have recorded the message at its send time")
 	require.False(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must not expire early")
-	bridgeA := bridgeOnA(t, sys)
-	_, err := contractio.Read(bridgeA.RefundETH(sys.L2ChainB.ChainID(), send.Message.Nonce, sender.Address(),
-		recipient.Address(), eth.HalfEther.ToBig()), t.Ctx())
-	require.ErrorContains(errutil.TryAddRevertReason(err), refundNotExpired, "an unexpired send must not be refundable")
+	_, err := contractio.Read(send.RefundCall(), t.Ctx())
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "an unexpired send must not be refundable")
 }
 
 // TestUnrelayedMessageExpiresAndIsRefunded runs the expiry path to a refund: A sends ETH that B
@@ -142,8 +137,8 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 		presets.WithL2ToL2MessageExpiryPeriod(testExpiryPeriod))
 	require := t.Require()
 	l1User := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	messengerA := messengerOnA(t, sys)
-	require.Equal(big.NewInt(testExpiryPeriod), contract.Read(messengerA.ExpiryPeriod()),
+	messengerA := sys.L2ELA.L2ToL2CrossDomainMessenger()
+	require.Equal(uint64(testExpiryPeriod), bigs.Uint64Strict(contract.Read(messengerA.ExpiryPeriod())),
 		"A's messenger must use the test expiry period")
 
 	sender := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -154,10 +149,10 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	// B exports only once its clock is past the send time plus the expiry period.
 	expiresAfter := send.BlockTime + testExpiryPeriod
 	sys.L2ELB.WaitForTime(expiresAfter + 1)
-	exportRcpt, exportedAt := exportAsDeposit(t, sys, l1User, send.Message)
-	require.Greater(bigs.Uint64Strict(exportedAt), expiresAfter, "B must export after the expiry period")
+	exportRcpt, exportedAt := exportAsDeposit(sys, l1User, send.Message)
+	require.Greater(exportedAt, expiresAfter, "B must export after the expiry period")
 
-	deposit := finalizeExport(t, sys, l1User, exportRcpt)
+	deposit := finalizeExport(sys, l1User, exportRcpt)
 	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
 	require.True(slices.ContainsFunc(deposit.Logs, func(l *types.Log) bool {
 		return l.Address == predeploys.L2toL2CrossDomainMessengerAddr && len(l.Topics) > 1 &&
@@ -166,14 +161,12 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	require.True(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must be expired on A")
 
 	// Anyone can refund the send; the ETH goes to the sender, once.
-	bridgeA := bridgeOnA(t, sys)
-	refund := bridgeA.RefundETH(sys.L2ChainB.ChainID(), send.Message.Nonce, sender.Address(), recipient.Address(),
-		eth.HalfEther.ToBig())
-	contract.Write(sys.FunderA.NewFundedEOA(eth.OneEther), refund)
+	contract.Write(sys.FunderA.NewFundedEOA(eth.OneEther), send.RefundCall())
 	sender.VerifyBalanceExact(balanceAfterSend.Add(eth.HalfEther))
-	require.True(contract.Read(bridgeA.Refunded(send.Message.Hash)), "the send must be marked refunded")
-	_, err := contractio.Read(refund, t.Ctx())
-	require.ErrorContains(errutil.TryAddRevertReason(err), alreadyRefunded, "a send must be refunded only once")
+	require.True(send.Refunded(), "the send must be marked refunded")
+	_, err := contractio.Read(send.RefundCall(), t.Ctx())
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_AlreadyRefunded()")), "a send must be refunded only once")
 }
 
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
@@ -191,101 +184,25 @@ func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
 	exporterB := bindings.NewBindings[bindings.UndeliveredMessageExporter](bindings.WithClient(sys.L2ELB.EthClient()),
 		bindings.WithTo(predeploys.UndeliveredMessageExporterAddr), bindings.WithTest(t))
 	m := send.Message
-	_, err := contractio.Read(exporterB.ExportUndeliveredMessage(l1MessengerA(t, sys), m.Source, m.Nonce, m.Sender,
-		m.Target, m.Message, exportL1GasLimit), t.Ctx())
-	require.ErrorContains(errutil.TryAddRevertReason(err), messageRelayed, "a relayed message must not be exportable")
+	_, err := contractio.Read(exporterB.ExportUndeliveredMessage(sys.L2ChainA.L1CrossDomainMessengerAddr(), m.Source,
+		m.Nonce, m.Sender, m.Target, m.Message, exportL1GasLimit), t.Ctx())
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("UndeliveredMessageExporter_MessageRelayed()")),
+		"a relayed message must not be exportable")
 }
 
-// exportAsDeposit forces B's export of the message in through B's portal, checks that the
-// exporter emitted UndeliveredMessageExported for it, and returns the receipt and B's timestamp
-// at the export.
-func exportAsDeposit(t devtest.T, sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMessage) (*types.Receipt, *big.Int) {
-	exporter := sys.FunderB.NewFundedEOA(eth.ZeroWei).ViaDepositTx(l1User, sys.L2ELB, sys.L2ChainB)
-	rcpt := exporter.DepositTx(predeploys.UndeliveredMessageExporterAddr, exportCalldata(t, sys, m),
-		func(o *dsl.DepositTxOpts) { o.GasLimit = exportGasLimit })
-	t.Require().True(slices.ContainsFunc(rcpt.Logs, func(l *types.Log) bool {
-		return l.Address == predeploys.UndeliveredMessageExporterAddr && len(l.Topics) > 1 &&
-			l.Topics[0] == undeliveredMessageExportedTopic && l.Topics[1] == m.Hash
-	}), "B's exporter must emit UndeliveredMessageExported for the message")
-	return rcpt, new(big.Int).SetUint64(sys.L2ELB.BlockRefByHash(rcpt.BlockHash).Time)
+// exportAsDeposit forces B's export of the message, to A's L1CrossDomainMessenger, in through B's
+// portal, and returns the receipt and B's timestamp at the export.
+func exportAsDeposit(sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMessage) (*types.Receipt, uint64) {
+	return sys.FunderB.NewFundedEOA(eth.ZeroWei).ViaDepositTx(l1User, sys.L2ELB, sys.L2ChainB).
+		ExportUndeliveredMessage(predeploys.UndeliveredMessageExporterAddr, sys.L2ChainA.L1CrossDomainMessengerAddr(), m,
+			exportL1GasLimit, func(o *dsl.DepositTxOpts) { o.GasLimit = exportGasLimit })
 }
 
-// finalizeExport proves and finalizes the withdrawal B's export made, and returns the deposit the
-// source L1CrossDomainMessenger made into A in response.
-func finalizeExport(t devtest.T, sys *presets.SimpleInterop, l1User *dsl.EOA, exportRcpt *types.Receipt) *types.Receipt {
+// finalizeExport proves and finalizes the withdrawal B's export made, against a game with the
+// shortened clock, and returns the deposit A's L1CrossDomainMessenger made into A in response.
+func finalizeExport(sys *presets.SimpleInterop, l1User *dsl.EOA, exportRcpt *types.Receipt) *types.Receipt {
 	withdrawal := sys.StandardBridge(sys.L2ChainB).WithdrawalFromReceipt(exportRcpt)
-	withdrawal.Prove(l1User)
-	// An unchallenged game resolves once the defender's chess clock runs out. Allow twice the
-	// clock of the game the withdrawal was proven against, plus a minute for blocks and the
-	// proposer.
-	gameClock := withdrawal.DisputeGameMaxClockDuration()
-	t.Require().Equal(faultGameMaxClockDuration*time.Second, gameClock, "the game must use the shortened clock")
-	withdrawal.WaitForDisputeGameResolved(func(o *dsl.WaitForDisputeGameResolvedOpts) {
-		o.Timeout = 2*gameClock + time.Minute
-	})
-	withdrawal.Finalize(l1User)
+	withdrawal.ProveAndFinalize(l1User, faultGameMaxClockDuration*time.Second)
 	return sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
-}
-
-func bridgeOnA(t devtest.T, sys *presets.SimpleInterop) bindings.SuperchainETHBridge {
-	return bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sys.L2ELA.EthClient()),
-		bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
-}
-
-func messengerOnA(t devtest.T, sys *presets.SimpleInterop) bindings.L2ToL2CrossDomainMessenger {
-	return bindings.NewBindings[bindings.L2ToL2CrossDomainMessenger](bindings.WithClient(sys.L2ELA.EthClient()),
-		bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
-}
-
-// expiredWord is the expireMessage call that A's deposit made, and its result.
-type expiredWord struct {
-	messageHash   common.Hash
-	undeliveredAt *big.Int
-	output        []byte
-}
-
-// expireMessageWord checks that the deposit into A executed and that A's L2CrossDomainMessenger
-// kept the relayed word as a failed message, and returns the expireMessage call it made.
-func expireMessageWord(t devtest.T, sys *presets.SimpleInterop, deposit *types.Receipt) expiredWord {
-	require := t.Require()
-	require.Equal(types.ReceiptStatusSuccessful, deposit.Status, "the deposit into A must execute")
-	require.True(slices.ContainsFunc(deposit.Logs, func(l *types.Log) bool {
-		return l.Address == predeploys.L2CrossDomainMessengerAddr && len(l.Topics) > 0 &&
-			l.Topics[0] == failedRelayedMessageTopic
-	}), "A's L2CrossDomainMessenger must keep the rejected word as a failed message")
-	expire, found := sys.L2ELA.TraceCalls(deposit.TxHash).Find(func(f dsl.CallFrame) bool {
-		return f.To == predeploys.L2toL2CrossDomainMessengerAddr && bytes.HasPrefix(f.Input, expireMessageSelector)
-	})
-	require.True(found, "the deposit into A must call expireMessage on its L2ToL2CrossDomainMessenger")
-	args, err := abi.Arguments{{Type: abiType(t, "bytes32")}, {Type: abiType(t, "uint256")}}.Unpack(expire.Input[4:])
-	require.NoError(err, "failed to decode the expireMessage call")
-	return expiredWord{
-		messageHash:   common.Hash(args[0].([32]byte)),
-		undeliveredAt: args[1].(*big.Int),
-		output:        expire.Output,
-	}
-}
-
-// l1MessengerA returns chain A's L1CrossDomainMessenger, where B's exports are sent.
-func l1MessengerA(t devtest.T, sys *presets.SimpleInterop) common.Address {
-	systemConfigA := bindings.NewSystemConfig(bindings.WithClient(sys.L1EL.EthClient()),
-		bindings.WithTo(sys.L2ChainA.Escape().Deployment().SystemConfigProxyAddr()), bindings.WithTest(t))
-	return contract.Read(systemConfigA.L1CrossDomainMessenger())
-}
-
-// exportCalldata encodes the exporter call that tells A, through its L1CrossDomainMessenger, that
-// the message was not relayed on B.
-func exportCalldata(t devtest.T, sys *presets.SimpleInterop, m dsl.SentMessage) []byte {
-	exporter := bindings.NewBindings[bindings.UndeliveredMessageExporter](bindings.WithTest(t))
-	call := exporter.ExportUndeliveredMessage(l1MessengerA(t, sys), m.Source, m.Nonce, m.Sender, m.Target, m.Message,
-		exportL1GasLimit)
-	data, err := call.EncodeInput()
-	t.Require().NoError(err)
-	return data
-}
-
-func abiType(t devtest.T, name string) abi.Type {
-	typ, err := abi.NewType(name, "", nil)
-	t.Require().NoError(err)
-	return typ
 }

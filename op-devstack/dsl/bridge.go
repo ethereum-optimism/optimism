@@ -104,10 +104,17 @@ func (b *StandardBridge) GameResolutionDelay() time.Duration {
 	}
 	gameImplAddr, err := contractio.Read(b.disputeGameFactory.GameImpls(gameType), b.ctx)
 	b.require.NoErrorf(err, "failed to get implementation for game type %v", gameType)
-	game := bindings.NewBindings[bindings.FaultDisputeGame](bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(gameImplAddr), bindings.WithTest(b.t))
-	clockDuration, err := contractio.Read(game.MaxClockDuration(), b.ctx)
-	b.require.NoErrorf(err, "failed to get max clock duration for game type %v", gameType)
-	return time.Duration(clockDuration) * time.Second
+	return b.maxClockDuration(gameImplAddr)
+}
+
+// maxClockDuration returns the max clock duration of a dispute game, as deployed.
+func (b *StandardBridge) maxClockDuration(game common.Address) time.Duration {
+	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
+		bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(game), bindings.WithTest(b.t))
+	clock, err := contractio.Read(gameContract.MaxClockDuration(), b.ctx)
+	b.require.NoErrorf(err, "failed to read the max clock duration of dispute game %s", game)
+	b.log.Info("Dispute game max clock duration", "game", game, "seconds", clock)
+	return time.Duration(clock) * time.Second
 }
 
 func (b *StandardBridge) WithdrawalDelay() time.Duration {
@@ -544,26 +551,7 @@ func (w *Withdrawal) FinalizeReceipt() *types.Receipt {
 // was proven against, as deployed.
 func (w *Withdrawal) DisputeGameMaxClockDuration() time.Duration {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
-	game := bindings.NewBindings[bindings.FaultDisputeGame](
-		bindings.WithClient(w.bridge.l1Client.EthClient()),
-		bindings.WithTo(w.proveParams.DisputeGameAddress),
-		bindings.WithTest(w.t))
-	clock, err := contractio.Read(game.MaxClockDuration(), w.ctx)
-	w.require.NoErrorf(err, "failed to read the max clock duration of dispute game %s", w.proveParams.DisputeGameAddress)
-	w.log.Info("Dispute game max clock duration", "game", w.proveParams.DisputeGameAddress, "seconds", clock)
-	return time.Duration(clock) * time.Second
-}
-
-// RespectedGameMaxClockDuration returns the max clock duration of the implementation of the
-// portal's respected game type, as deployed.
-func (b *StandardBridge) RespectedGameMaxClockDuration() time.Duration {
-	gameType := b.RespectedGameType()
-	gameImplAddr, err := contractio.Read(b.disputeGameFactory.GameImpls(gameType), b.ctx)
-	b.require.NoErrorf(err, "failed to get implementation for game type %v", gameType)
-	game := bindings.NewBindings[bindings.FaultDisputeGame](bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(gameImplAddr), bindings.WithTest(b.t))
-	clock, err := contractio.Read(game.MaxClockDuration(), b.ctx)
-	b.require.NoErrorf(err, "failed to get max clock duration for game type %v", gameType)
-	return time.Duration(clock) * time.Second
+	return w.bridge.maxClockDuration(w.proveParams.DisputeGameAddress)
 }
 
 // WaitForDisputeGameResolvedOpts configures WaitForDisputeGameResolved.
@@ -596,6 +584,23 @@ func (w *Withdrawal) WaitForDisputeGameResolved(opts ...func(*WaitForDisputeGame
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
 	}, o.Timeout, 100*time.Millisecond, fmt.Sprintf("expected dispute game %s to resolve with the defender winning",
 		w.proveParams.DisputeGameAddress))
+}
+
+// ProveAndFinalize proves the withdrawal as `user`, waits for the dispute game it was proven
+// against to resolve, and finalizes it. An unchallenged game resolves once the defender's chess
+// clock runs out, so this waits that clock out in wall-clock time: it requires the game to have a
+// max clock duration of at most `maxGameClock` and allows twice the clock plus a minute. Finalize
+// retries only briefly, so the proof maturity and game finality delays must be short too.
+func (w *Withdrawal) ProveAndFinalize(user *EOA, maxGameClock time.Duration) {
+	w.Prove(user)
+	clock := w.DisputeGameMaxClockDuration()
+	w.require.LessOrEqualf(clock, maxGameClock,
+		"dispute game %s has a %s clock, longer than the %s this test can wait out; shorten the game clocks",
+		w.proveParams.DisputeGameAddress, clock, maxGameClock)
+	w.WaitForDisputeGameResolved(func(o *WaitForDisputeGameResolvedOpts) {
+		o.Timeout = 2*clock + time.Minute
+	})
+	w.Finalize(user)
 }
 
 func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {

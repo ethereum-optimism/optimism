@@ -322,24 +322,34 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
     }
 
-    /// @notice Tests that genesis deploys the messenger with the production expiry period when
-    ///         the input sets none.
+    /// @notice Tests that genesis initializes the messenger with the production expiry period of
+    ///         8 days when the input sets none.
     function test_run_defaultL2ToL2MessageExpiryPeriod_succeeds() external {
         _setInputInteropEnabled();
         genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 691200);
         assertEq(
             IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
             Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
         );
     }
 
-    /// @notice Tests that genesis deploys the messenger with the expiry period the input sets.
+    /// @notice Tests that genesis initializes the messenger with the expiry period the input sets.
     function testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds(uint256 _expiryPeriod) external {
-        _expiryPeriod = bound(_expiryPeriod, 1, type(uint64).max);
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
         _setInputInteropEnabled();
         input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
         genesis.run(input);
         assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that genesis refuses an expiry period above 365 days.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodTooLong_reverts(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 365 days + 1, type(uint256).max);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
+        genesis.run(input);
     }
 
     /// @notice Tests that the run function succeeds when interop is enabled.

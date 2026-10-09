@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // DepositEOA wraps an L2 EOA so that transactions are sent via L1 deposit
@@ -54,8 +53,7 @@ func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, e
 	t.Require().Equal(ethtypes.ReceiptStatusFailed, l2Receipt.Status, "deposit tx unexpectedly succeeded on L2")
 
 	trace := d.l2EL.TraceCalls(l2Receipt.TxHash)
-	expected := crypto.Keccak256([]byte(errorSignature))[:4]
-	t.Require().Equal(expected, []byte(trace.Output), "deposit tx reverted for an unexpected reason")
+	t.Require().Equal(ErrorSelector(errorSignature), []byte(trace.Output), "deposit tx reverted for an unexpected reason")
 	return l2Receipt
 }
 
