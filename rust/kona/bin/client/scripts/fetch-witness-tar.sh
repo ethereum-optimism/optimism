@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Download a preimage witness tar from chain-test-data releases with etag caching.
-# Mirrors op-program/scripts/run-compat.sh — skips redownload when the release asset
-# is unchanged so local re-runs are fast.
+# Skips the download when the release asset is unchanged, so local re-runs are fast.
 #
 # Usage: fetch-witness-tar.sh <tar_name> <base_url>
 #

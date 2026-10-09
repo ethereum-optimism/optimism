@@ -298,8 +298,8 @@ func (c Config) Check() error {
 }
 
 func (c Config) validateBaseCannonOptions() error {
-	// Permissioned games never reach step() so do not run op-program or load the absolute
-	// prestate; both are only required when an enabled game type can reach step().
+	// Permissioned games never reach step() so do not run the fault proof program or load the
+	// absolute prestate; both are only required when an enabled game type can reach step().
 	canReachStep := slices.ContainsFunc(gameTypes.CannonFamilyGameTypes, func(t gameTypes.GameType) bool {
 		return c.GameTypeEnabled(t) && !t.IsPermissioned()
 	})

@@ -191,8 +191,6 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
-    # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
-    # so no name-based exclusion is needed here.
     go test -list '{{test_name}}' . \
         | {{SOURCE}}/../../../ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
 

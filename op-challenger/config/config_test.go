@@ -200,7 +200,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.Cannon.Server = ""
 			if gameType == gameTypes.PermissionedGameType {
-				// The permissioned game never reaches step() so does not run op-program.
+				// The permissioned game never reaches step() so does not run the cannon server.
 				require.NoError(t, config.Check())
 			} else {
 				require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
@@ -316,7 +316,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			cfg := validConfig(t, gameType)
 			cfg.Cannon.Server = nonExistingFile
 			if gameType == gameTypes.PermissionedGameType {
-				// The permissioned game never reaches step() so does not run op-program.
+				// The permissioned game never reaches step() so does not run the cannon server.
 				require.NoError(t, cfg.Check())
 			} else {
 				require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
@@ -325,8 +325,8 @@ func TestCannonRequiredArgs(t *testing.T) {
 	}
 }
 
-// The op-program server is still required when both the cannon and permissioned game types
-// are enabled, because the cannon game runs op-program even though the permissioned game does not.
+// The cannon server is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game runs it even though the permissioned game does not.
 func TestCannonServerRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
 	t.Run("ServerEmpty", func(t *testing.T) {
 		config := validConfig(t, gameTypes.CannonGameType)
