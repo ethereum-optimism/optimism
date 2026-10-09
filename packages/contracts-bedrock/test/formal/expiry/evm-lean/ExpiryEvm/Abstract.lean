@@ -8,10 +8,10 @@ import Reasoning.WordArithmetic
 does not import it — it is also on a different Lean toolchain) defines
 
 ```lean
-| .expire f, s => s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg (s.sentAt f.toL1 f.hash) f.time
+| .expire f, s => s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg f.toL1 (s.sentAt f.toL1 f.hash) f.time
 -- next:
 | .expire f, s => { s with expired := fun c h => s.expired c h ∨ (c = f.toL1 ∧ h = f.hash) }
--- with expiredBy cfg sent t = sent + cfg.contractPeriod < t   (cfg.expireGe = false)
+-- with expiredBy cfg z sent t = sent + cfg.contractPeriod z < t   (cfg.expireGe = false, z = f.toL1)
 ```
 
 This file restates exactly that action for one chain `z = f.toL1` (`AbsView`, `absGuard`,
@@ -26,7 +26,7 @@ of the messenger's storage:
   only sets `xDomainMessageSender` to the L1 sender of a deposit it is relaying is a property of
   the L2CrossDomainMessenger (not verified here; it is the meaning of the `ReturnsAddress`
   summaries' values `vS`, `vO`).
-* `cfg.contractPeriod` ↦ `P_contract` (the immutable the code is verified with), `f.hash` ↦ `argHash I`,
+* `cfg.contractPeriod f.toL1` ↦ `P_contract` (this messenger's immutable, as verified), `f.hash` ↦ `argHash I`,
   `f.time` ↦ `(argTime I).toNat`.
 
 The model works with ideal hashes; the code with `keccak256` storage slots. Instead of a global

@@ -25,6 +25,8 @@ for ref in slots:
     start, length = ref["start"], ref["length"]
     if length != 32:
         sys.exit(f"immutable reference at {start} is {length} bytes, expected 32")
+    if start < 0 or start + 32 > len(code):
+        sys.exit(f"immutable reference at {start} lies outside the {len(code)}-byte runtime")
     if any(code[start:start + 32]):
         sys.exit(f"immutable reference at {start} is not a zero placeholder")
     code[start:start + 32] = word

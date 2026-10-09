@@ -3,7 +3,7 @@
 # artifact (compiler version, settings, init-code hash vs snapshots/semver-lock.json) BEFORE
 # replacing anything, then record it and regenerate the Lean bytecode (ExpiryEvm/Bytecode.lean),
 # the EquiVM block summaries (ExpiryEvm/Blocks/) and their import point (ExpiryEvm/AllBlocks.lean).
-# Needs forge, jq, cast, python3, and `lake build` (or `lake update`) done once so that
+# Needs forge, anvil, jq, cast, python3, and `lake build` (or `lake update`) done once so that
 # .lake/packages/EquiVM exists. It also writes P_contract (the production expiry period the immutable is filled with) into
 # ExpiryEvm/Spec.lean; then run `lake build`.
 set -euo pipefail
@@ -47,6 +47,21 @@ jq -c .deployedBytecode.immutableReferences "$A" > "$OUT/immutables.json"
 python3 "$HERE/scripts/fill_immutables.py" "$OUT/runtime.unfilled.hex" "$OUT/immutables.json" "$PERIOD" \
   > "$HERE/bytecode/$NAME.runtime.hex"
 jq -r .bytecode.object "$A" > "$HERE/bytecode/$NAME.creation.hex"
+# Cross-check against the constructor: run the init code with the production argument on a
+# throwaway anvil and require the deployed runtime to equal the filled one, so the proofs are about
+# what the constructor really stores.
+PORT=18548
+anvil --port $PORT --silent & APID=$!
+trap 'kill $APID 2>/dev/null || true' EXIT
+sleep 1.5
+PK=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+CTOR=$(cast abi-encode "constructor(uint256)" "$PERIOD")
+ADDR=$(cast send --rpc-url http://127.0.0.1:$PORT --private-key $PK \
+  --create "$(cat "$HERE/bytecode/$NAME.creation.hex")${CTOR#0x}" --json | jq -r .contractAddress)
+DEPLOYED=$(cast code --rpc-url http://127.0.0.1:$PORT "$ADDR")
+[ "$DEPLOYED" = "$(cat "$HERE/bytecode/$NAME.runtime.hex")" ] \
+  || { echo "the constructor's runtime differs from the filled runtime"; exit 1; }
+echo "constructor check: deployed runtime == filled runtime"
 echo "keccak(runtime):  $(cast keccak "$(cat "$HERE/bytecode/$NAME.runtime.hex")")"
 cd "$HERE"
 python3 scripts/gen_bytecode.py "bytecode/$NAME.runtime.hex" ExpiryEvm/Bytecode.lean

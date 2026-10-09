@@ -302,7 +302,8 @@ messenger storage, while `FreshConds` fails (kernel). So the early-return case i
 **Trust, precisely.** The headline theorems' axiom cones contain no `native_*` lemma (checked).
 The witnesses additionally trust Lean's compiler and EVMLean's executable code for exactly these
 closed facts, each a `native_decide` on "`Ξ` on this concrete input ends in success / out of gas /
-static violation": `Concrete.native_xi_success`, `NV.native_xi_oog`, `NV.native_xi_static`. The
+static violation": `Concrete.native_xi_success`, `NV.native_xi_oog`, `NV.native_xi_static`, and,
+for the early-return witness, `Concrete.native_xi_alreadyExpired`. The
 kernel cannot evaluate `Ξ` (its well-founded recursion does not reduce). Everything else in the
 witnesses, including keccak256 of the concrete slots, is evaluated by the kernel.
 
@@ -367,8 +368,9 @@ weak (see above), not a hypothesis of a headline theorem.
   depth, `perm` and the return-data lengths of both calls are symbolic. There are no loops.
 * Gas: out of gas is always a possible outcome. No liveness is claimed (see above).
 * Not asserted after success:
-  * Events: `LOG2` runs (its gas and memory are in the trace; static frames are handled), but its
-    topics and data are not checked.
+  * Events: on a first expiry `LOG2` runs (its gas and memory are in the trace; static frames are
+    handled), but its topics and data are not checked; the early-return path reaches `STOP` with no
+    `LOG2` in the trace. No theorem states either (logs are not in `ExpirePost`).
   * The substate: logs, accessed addresses and storage keys, refund counter.
   * Balances and nonces.
 * Order of external calls: legacy solc evaluates the right operand of `!=` first, so the code calls
@@ -387,8 +389,8 @@ weak (see above), not a hypothesis of a headline theorem.
 
 | Model | here |
 |---|---|
-| `guard (.expire f) s = s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg (s.sentAt …) f.time` | `absGuard P deposit v h t` |
-| `expiredBy cfg sent t = sent + cfg.contractPeriod < t` (`expireGe = false`) | `expiredBy P sent t` |
+| `guard (.expire f) s = s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg f.toL1 (s.sentAt …) f.time` | `absGuard P deposit v h t`, the code owner being chain `f.toL1` |
+| `expiredBy cfg z sent t = sent + cfg.contractPeriod z < t` (`expireGe = false`) | `expiredBy P sent t`, with `P = cfg.contractPeriod f.toL1` (this messenger's immutable) |
 | `next (.expire f) s = { s with expired := … ∨ (c = f.toL1 ∧ h = f.hash) }` | `absNext v h` |
 | `State.sentAt z h` | `(viewOf σ a).sentAt h = sentMessageTimestamps[h].toNat` |
 | `State.expired z h` | `(viewOf σ a).expired h = (expiredMessages slot & 0xff ≠ 0)` |
