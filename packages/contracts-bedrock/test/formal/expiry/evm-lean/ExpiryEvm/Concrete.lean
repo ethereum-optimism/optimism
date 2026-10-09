@@ -130,6 +130,28 @@ theorem callFailed_in_success_state : CallFailed σ σ (env l2cdm tS) := by
   show _ = zeroGasCall
   rw [← hz]
 
+/-! ## Already expired: the early return -/
+
+/-- `σ` with `expiredMessages[H]` already set. -/
+def σE : AccountMap :=
+  σ.insert messengerAddr
+    { (default : Account) with
+        code := l2tol2Runtime
+        storage := ((∅ : Storage).insert (sentAtSlot H) (UInt256.ofNat 5)).insert (expiredSlot H)
+          (UInt256.ofNat 1) }
+
+/-- `expireMessage(H, 0)`, entered by `STATICCALL`: `t = 0` is not past the period. -/
+def envE : ExecutionEnv := { env l2cdm 0 with perm := false }
+
+/-- A message that has already expired: the call succeeds even with `t = 0` and under
+    `STATICCALL`, because it returns before reading `sentMessageTimestamps` and writes nothing. -/
+theorem alreadyExpired_succeeds : outcome σE envE 1000000 = "success" := by
+  native_decide
+
+/-- The same call on `σ` (not yet expired) reverts. -/
+theorem notExpired_reverts : outcome σ envE 1000000 = "revert" := by
+  native_decide
+
 /-! ## Non-vacuity of the headline hypotheses
 
 The two call summaries (`ReturnsAddress`) are proved — not just executed — for the concrete state
@@ -189,11 +211,13 @@ theorem l2cdm_not_precompile : ¬ (l2cdm ∈ π) := by decide +kernel
 
 theorem sigma_l2cdm_code : (σ.getD l2cdm default).code = mockL2cdmCode := by decide +kernel
 
-/-- From any account map with `σ`'s code, the L2CrossDomainMessenger address runs the mock. -/
-theorem toExecute_mock {σc : AccountMap} (hcd : accountCodeStateEq σ σc) :
+/-- From any account map with the code of an account map `σb` that has the mock at the
+    L2CrossDomainMessenger address, that address runs the mock. -/
+theorem toExecute_mock {σb σc : AccountMap} (hb : (σb.getD l2cdm default).code = mockL2cdmCode)
+    (hcd : accountCodeStateEq σb σc) :
     toExecute σc l2cdm = .Code mockL2cdmCode := by
   have h := hcd l2cdm
-  rw [sigma_l2cdm_code] at h
+  rw [hb] at h
   unfold toExecute
   rw [if_neg l2cdm_not_precompile]
   cases hg : σc.get? l2cdm with
@@ -210,14 +234,16 @@ theorem toExecute_mock {σc : AccountMap} (hcd : accountCodeStateEq σ σc) :
     rw [this] at h
     rw [h]
 
-/-- **The call summary holds for the concrete state**, for any calldata, environment and `σ₀`:
-    a successful static call to 0x..07 returns exactly the word `mockWord`. -/
-theorem mock_returnsAddress (σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteArray) :
-    ReturnsAddress σ σ₀ I cd vMock := by
+/-- **The call summary holds for any state with the mock at 0x..07**, for any calldata,
+    environment and `σ₀`: a successful static call to 0x..07 returns exactly the word
+    `mockWord`. -/
+theorem mock_returnsAddress_of {σb : AccountMap} (hb : (σb.getD l2cdm default).code = mockL2cdmCode)
+    (σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteArray) :
+    ReturnsAddress σb σ₀ I cd vMock := by
   intro σc σ' z o _hst hcd hcall hz
   subst hz
   obtain ⟨A_in, cg, g', A', hΘ⟩ := hcall
-  rw [toExecute_mock hcd] at hΘ
+  rw [toExecute_mock hb hcd] at hΘ
   obtain ⟨σ₁, I', σ'', g'', A'', hIc, hxi⟩ := theta_code_success hΘ
   rcases mock_xi (σ₁ := σ₁) (σ₀ := σ₀) (A := A_in) (g := cg) hIc with hoog | ⟨g3, A3, hs⟩
   · rw [hxi] at hoog; cases hoog
@@ -227,6 +253,11 @@ theorem mock_returnsAddress (σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteAr
     subst ho
     exact ⟨by rw [toByteArray_size], by
       rw [toByteArray_extract_all]; rfl⟩
+
+/-- **The call summary holds for the concrete state `σ`.** -/
+theorem mock_returnsAddress (σ₀ : AccountMap) (I : ExecutionEnv) (cd : ByteArray) :
+    ReturnsAddress σ σ₀ I cd vMock :=
+  mock_returnsAddress_of sigma_l2cdm_code σ₀ I cd
 
 def isSuccess : Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate)) → Bool
   | .ok (.success _ _) => true
@@ -267,6 +298,13 @@ theorem success_instance :
         (I := env l2cdm tS) (g := UInt256.ofNat 1000000) rfl env_sel env_cds
         (mock_returnsAddress σ _ _) (mock_returnsAddress σ _ _) h
       exact ⟨σ', g', A', o, rfl, hc, hpost⟩
+
+theorem sigmaE_l2cdm_code : (σE.getD l2cdm default).code = mockL2cdmCode := by decide +kernel
+
+/-- **NATIVE (compiled evaluation).** The early-return run succeeds. -/
+theorem native_xi_alreadyExpired :
+    isSuccess (Ξ σE σE (UInt256.ofNat 1000000) default envE) = true := by
+  native_decide
 
 end NonVacuity
 

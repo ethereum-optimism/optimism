@@ -26,7 +26,7 @@ of the messenger's storage:
   only sets `xDomainMessageSender` to the L1 sender of a deposit it is relaying is a property of
   the L2CrossDomainMessenger (not verified here; it is the meaning of the `ReturnsAddress`
   summaries' values `vS`, `vO`).
-* `cfg.contractPeriod` ↦ `P_contract` (the compiled constant), `f.hash` ↦ `argHash I`,
+* `cfg.contractPeriod` ↦ `P_contract` (the immutable the code is verified with), `f.hash` ↦ `argHash I`,
   `f.time` ↦ `(argTime I).toNat`.
 
 The model works with ideal hashes; the code with `keccak256` storage slots. Instead of a global
@@ -114,37 +114,42 @@ theorem storageWord_insert_self {st : Storage} {s v : UInt256} :
     (st.insert s v).getD s ⟨0⟩ = v := by
   rw [Std.ExtTreeMap.getD_insert, if_pos (Std.ReflCmp.compare_self)]
 
-/-- The effect of a successful run on the abstraction, per key: `expired` becomes true at `H`,
-    and every key whose slot differs from `expiredSlot H` keeps its `sentAt` / follows `absNext`. -/
+/-- Every messenger storage slot other than `expiredSlot H` is unchanged by a successful run. -/
+theorem slot_frame {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
+    ∀ s, s ≠ expiredSlot (argHash I) → storageWord σ' I.codeOwner s = storageWord σ I.codeOwner s := by
+  intro s hs
+  unfold storageWord
+  rcases hpost.self_storage with ⟨_, h⟩ | ⟨_, h⟩
+  · rw [h]
+  · rw [h, storageWord_insert_ne hs]
+
+/-- After a successful run, `expiredMessages[H]` reads true: it was already true (the early
+    return), or the run set it. -/
+theorem post_expired {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
+    (viewOf σ' I.codeOwner).expired (argHash I) := by
+  show UInt256.land (storageWord σ' I.codeOwner (expiredSlot (argHash I))) (UInt256.ofNat 0xff) ≠ ⟨0⟩
+  rcases hpost.self_storage with ⟨hae, h⟩ | ⟨_, h⟩
+  · unfold storageWord; rw [h]; exact hae
+  · unfold storageWord; rw [h, storageWord_insert_self]
+    exact land_setTrueWord_ff _
+
+/-- The effect of a successful run on the abstraction, per key: `expired` holds at `H`, and every
+    key whose slot differs from `expiredSlot H` keeps its `sentAt` / follows `absNext`. -/
 theorem post_view {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
     (viewOf σ' I.codeOwner).expired (argHash I) ∧
     (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
       (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
     (∀ H, expiredSlot H ≠ expiredSlot (argHash I) →
       ((viewOf σ' I.codeOwner).expired H ↔ (absNext (viewOf σ I.codeOwner) (argHash I)).expired H)) := by
-  have hs : ∀ s, storageWord σ' I.codeOwner s =
-      ((σ.getD I.codeOwner default).storage.insert (expiredSlot (argHash I))
-        (setTrueWord (storageWord σ I.codeOwner (expiredSlot (argHash I))))).getD s ⟨0⟩ := by
-    intro s; unfold storageWord; rw [hpost.self_storage]; rfl
-  refine ⟨?_, fun H hH => ?_, fun H hH => ?_⟩
-  · show UInt256.land (storageWord σ' I.codeOwner (expiredSlot (argHash I))) (UInt256.ofNat 0xff) ≠ ⟨0⟩
-    rw [hs, storageWord_insert_self]
-    exact land_setTrueWord_ff _
+  refine ⟨post_expired hpost, fun H hH => ?_, fun H hH => ?_⟩
   · show (storageWord σ' I.codeOwner (sentAtSlot H)).toNat = (storageWord σ I.codeOwner (sentAtSlot H)).toNat
-    rw [hs, storageWord_insert_ne hH]; rfl
+    rw [slot_frame hpost _ hH]
   · have hne : H ≠ argHash I := fun h => hH (by rw [h])
     show UInt256.land (storageWord σ' I.codeOwner (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩ ↔
       (UInt256.land (storageWord σ I.codeOwner (expiredSlot H)) (UInt256.ofNat 0xff) ≠ ⟨0⟩ ∨
         H = argHash I)
-    rw [hs, storageWord_insert_ne hH]
+    rw [slot_frame hpost _ hH]
     exact ⟨fun h => Or.inl h, fun h => h.resolve_right hne⟩
-
-/-- Every messenger storage slot other than `expiredSlot H` is unchanged by a successful run. -/
-theorem slot_frame {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : ExpirePost σ σ' I) :
-    ∀ s, s ≠ expiredSlot (argHash I) → storageWord σ' I.codeOwner s = storageWord σ I.codeOwner s := by
-  intro s hs
-  unfold storageWord
-  rw [hpost.self_storage, storageWord_insert_ne hs]
 
 /-- Storage slot of `successfulMessages[H]` (slot 0). -/
 def successfulSlot (H : UInt256) : UInt256 := solcMappingSlot (UInt256.ofNat 0) H
@@ -165,7 +170,8 @@ theorem frame_other_maps {σ σ' : AccountMap} {I : ExecutionEnv} (hpost : Expir
 
 /-- **Conditional per-key correspondence with the `expire` step (soundness); deposit history
     supplied externally.** After a successful run of the compiled `expireMessage(H, t)`:
-    the abstract guard held before, with the model's history fact `deposits f` *replaced* by the
+    either `expired` already held at `H` (the early return: a stuttering step, since `absNext`
+    leaves `expired` unchanged when it already holds at `H`), or the abstract guard held before, with the model's history fact `deposits f` *replaced* by the
     call-time authorization `RelayFromOtherMessenger` (independent of `H` and `t`; that it implies
     `deposits f` is not proved here); `expired` holds at `H`; every key whose slot differs from
     `expiredSlot H` keeps `sentAt` (this applies to `H` itself too: `sentAtSlot H ≠ expiredSlot H`
@@ -181,7 +187,9 @@ theorem refines_expire {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : Execut
     (hO : ReturnsAddress σ σ₀ I otherMessengerCalldata vO)
     (hX : ReturnsAddress σ σ₀ I xDomainMessageSenderCalldata vS)
     (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
+    (absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I)
+        (argTime I).toNat ∨
+      (RelayFromOtherMessenger I vO vS ∧ (viewOf σ I.codeOwner).expired (argHash I))) ∧
     (viewOf σ' I.codeOwner).expired (argHash I) ∧
     (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
       (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
@@ -191,10 +199,10 @@ theorem refines_expire {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : Execut
       storageWord σ' I.codeOwner s = storageWord σ I.codeOwner s) ∧
     (∀ a, a ≠ I.codeOwner → (σ'.getD a default).storage = (σ.getD a default).storage) := by
   obtain ⟨_, hc, hpost, _⟩ := expireMessage_success hcode hsel hcds hO hX hres
-  refine ⟨⟨⟨hc.callerIsL2cdm, hc.senderIsOther⟩, ?_, hc.expired⟩, (post_view hpost).1,
-    (post_view hpost).2.1, (post_view hpost).2.2, slot_frame hpost, hpost.other_storage⟩
-  intro h0
-  apply hc.wasSent
-  exact Words.ext_iff.mpr h0
+  refine ⟨?_, (post_view hpost).1, (post_view hpost).2.1, (post_view hpost).2.2, slot_frame hpost,
+    hpost.other_storage⟩
+  rcases hc.stored with hae | hf
+  · exact Or.inr ⟨⟨hc.callerIsL2cdm, hc.senderIsOther⟩, hae⟩
+  · refine Or.inl ⟨⟨hc.callerIsL2cdm, hc.senderIsOther⟩, fun h0 => hf.1 (Words.ext_iff.mpr h0), hf.2.2⟩
 
 end ExpiryEvm.Abstract

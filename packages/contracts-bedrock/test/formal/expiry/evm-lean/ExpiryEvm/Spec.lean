@@ -14,7 +14,7 @@ the EVMLean semantics (`Ethereum.EVM.Ξ`, `Ethereum.EVM.Θ`, `AccountMap`, `Exec
   and the summary hypothesis on their results (`ReturnsAddress`),
 * the success conditions (`ExpireConds`) and the post-state relation (`ExpirePost`).
 
-Solidity source (at commit 448d31ad19, tip of the PR #23259 branch):
+Solidity source:
 
 ```solidity
 function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
@@ -22,6 +22,7 @@ function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
         || ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()
             != address(ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
     ) revert L2ToL2CrossDomainMessenger_NotOtherMessenger();
+    if (expiredMessages[_messageHash]) return;
     uint256 sentAt = sentMessageTimestamps[_messageHash];
     if (sentAt == 0) revert InvalidMessage();
     if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
@@ -37,10 +38,12 @@ open Ethereum Ethereum.EVM Reasoning.Theory
 
 /-! ## Constants of the compiled artifact -/
 
-/-- `EXPIRY_PERIOD` as compiled into the artifact (`PUSH3 0x0a8c00` at pc 2179):
-    691200 s = 8 days at commit 448d31ad19 (unchanged since 5992028e08). The proofs refer to this
-    name only; if the constant changes, regenerate the bytecode and change this one definition
-    (see HOWTO.md). -/
+/-- The expiry period the runtime code is verified with: 691200 s = 8 days, the production value
+    (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`). `EXPIRY_PERIOD` is an immutable set by the
+    constructor; `scripts/regen.sh` fills its references in the artifact's runtime code with this
+    value (`PUSH32 0x…0a8c00` at pc 2233), so `l2tol2Runtime` is the code a production deployment
+    runs. Tests in the contracts package pin the constructor argument of every production deployment
+    path to this value. The proofs refer to this name only (see HOWTO.md). -/
 def P_contract : ℕ := 691200
 
 /-- `Predeploys.L2_CROSS_DOMAIN_MESSENGER` = 0x4200000000000000000000000000000000000007, as a word. -/
@@ -89,13 +92,23 @@ def storageWord (σ : AccountMap) (a : AccountAddress) (slot : UInt256) : UInt25
 def sentAt (σ : AccountMap) (I : ExecutionEnv) : UInt256 :=
   storageWord σ I.codeOwner (sentAtSlot (argHash I))
 
+/-- `expiredMessages[H]` of the executing contract in `σ`, as a raw storage word. -/
+def expiredWord (σ : AccountMap) (I : ExecutionEnv) : UInt256 :=
+  storageWord σ I.codeOwner (expiredSlot (argHash I))
+
+/-- `expiredMessages[H]` reads as `true`: Solidity's bool read takes the low byte of the slot. The
+    compiled code returns early (successfully, without writing storage or emitting an event) in
+    this case. -/
+def AlreadyExpired (σ : AccountMap) (I : ExecutionEnv) : Prop :=
+  UInt256.land (expiredWord σ I) (UInt256.ofNat 0xff) ≠ ⟨0⟩
+
 /-- Solidity's packed-bool write of `true` into a slot whose old word is `old`:
     `(old & ~0xff) | 1`. The compiled code does exactly this (`SLOAD; AND ~0xff; OR 1; SSTORE`),
     so the other 31 bytes of the slot are kept; for a slot only ever written by Solidity as a
     `bool`, `old ∈ {0, 1}` and the new word is `1`. -/
 def setTrueWord (old : UInt256) : UInt256 :=
   UInt256.lor (UInt256.ofNat 1)
-    -- 2^256 - 256 = 0xffff…ff00 = ~0xff, the PUSH32 mask at pc 2711
+    -- 2^256 - 256 = 0xffff…ff00 = ~0xff, the PUSH32 mask of the SSTORE block
     (UInt256.land (UInt256.ofNat
       115792089237316195423570985008687907853269984665640564039457584007913129639680) old)
 
@@ -154,10 +167,18 @@ def CallFailed (σ σ₀ : AccountMap) (I : ExecutionEnv) : Prop :=
 
 /-! ## Success conditions and post-state -/
 
+/-- The storage conditions of a first expiry: `sentMessageTimestamps[H] != 0`, `sentAt + P` does
+    not overflow 256 bits, and `_undeliveredAt > sentAt + P`. Arithmetic is on `ℕ` (`toNat` of the
+    256-bit words): the contract's checked `sentAt + P` reverts with `Panic(0x11)` if it
+    overflows, so the no-overflow clause is part of the condition. -/
+def FreshConds (σ : AccountMap) (I : ExecutionEnv) : Prop :=
+  sentAt σ I ≠ ⟨0⟩ ∧ (sentAt σ I).toNat + P_contract < 2 ^ 256 ∧
+    (sentAt σ I).toNat + P_contract < (argTime I).toNat
+
 /-- The conditions under which `expireMessage(H, t)` succeeds, given that the two calls return
-    `vOther = otherMessenger()` and `vSender = xDomainMessageSender()`. Arithmetic is on `ℕ`
-    (`toNat` of the 256-bit words): the contract's checked `sentAt + P` reverts with
-    `Panic(0x11)` if it overflows, so the no-overflow clause is part of the condition. -/
+    `vOther = otherMessenger()` and `vSender = xDomainMessageSender()`: the call checks, and then
+    either the message is already expired (early return) or the storage conditions of a first
+    expiry hold. -/
 structure ExpireConds (σ : AccountMap) (I : ExecutionEnv) (vOther vSender : AccountAddress) :
     Prop where
   /-- Non-payable: no ETH attached. -/
@@ -169,22 +190,22 @@ structure ExpireConds (σ : AccountMap) (I : ExecutionEnv) (vOther vSender : Acc
   callerIsL2cdm : I.source = l2cdm
   /-- `xDomainMessageSender() == otherMessenger()`. -/
   senderIsOther : vSender = vOther
-  /-- `sentMessageTimestamps[H] != 0`. -/
-  wasSent : sentAt σ I ≠ ⟨0⟩
-  /-- `sentAt + EXPIRY_PERIOD` does not overflow 256 bits. -/
-  noOverflow : (sentAt σ I).toNat + P_contract < 2 ^ 256
-  /-- `_undeliveredAt > sentAt + EXPIRY_PERIOD`. -/
-  expired : (sentAt σ I).toNat + P_contract < (argTime I).toNat
+  /-- `expiredMessages[H]` already reads true, or a first expiry's storage conditions hold. -/
+  stored : AlreadyExpired σ I ∨ FreshConds σ I
 
 /-- The post-state of a successful run, relative to the pre-state `σ`: the persistent storage of
     every account other than the executing contract, the transient storage of every account and
-    the code of every account are unchanged, and the contract's persistent storage changed at
-    exactly one slot, `expiredMessages[H]`, to `setTrueWord old`. -/
+    the code of every account are unchanged; the contract's persistent storage is unchanged if
+    `expiredMessages[H]` already read true, and otherwise changed at exactly one slot,
+    `expiredMessages[H]`, to `setTrueWord old`. -/
 structure ExpirePost (σ σ' : AccountMap) (I : ExecutionEnv) : Prop where
   self_storage :
-    (σ'.getD I.codeOwner default).storage =
-      (σ.getD I.codeOwner default).storage.insert (expiredSlot (argHash I))
-        (setTrueWord (storageWord σ I.codeOwner (expiredSlot (argHash I))))
+    (AlreadyExpired σ I ∧
+      (σ'.getD I.codeOwner default).storage = (σ.getD I.codeOwner default).storage) ∨
+    (¬ AlreadyExpired σ I ∧
+      (σ'.getD I.codeOwner default).storage =
+        (σ.getD I.codeOwner default).storage.insert (expiredSlot (argHash I))
+          (setTrueWord (storageWord σ I.codeOwner (expiredSlot (argHash I)))))
   other_storage : ∀ a, a ≠ I.codeOwner →
     (σ'.getD a default).storage = (σ.getD a default).storage
   tstorage : ∀ a, (σ'.getD a default).tstorage = (σ.getD a default).tstorage

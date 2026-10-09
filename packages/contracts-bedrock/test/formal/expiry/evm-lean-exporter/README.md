@@ -78,7 +78,7 @@ The exact transitive pins are in `lake-manifest.json` (a copy of the bridge's, p
 
 | | |
 |---|---|
-| Source | `src/L2/UndeliveredMessageExporter.sol` at `c7c51d79e2` (errors prefixed `UndeliveredMessageExporter_`, the `UndeliveredMessageExported` event, predeploy `0x4200…0030`). The file is unchanged at the formal branch's merge `a449f55d9b`. |
+| Source | `src/L2/UndeliveredMessageExporter.sol` at `89a3d565ad` (errors prefixed `UndeliveredMessageExporter_`, the `UndeliveredMessageExported` event, predeploy `0x4200…0030`). `regen.sh` at `89a3d565ad` reproduces the runtime and init code byte for byte (the source changes since `c7c51d79e2` are comments). |
 | Compiler | solc `0.8.15+commit.e14f2714` via forge 1.8.1, repository **default** profile |
 | Settings | `{"evmVersion":"london","libraries":{},"metadata":{"bytecodeHash":"none"},"optimizer":{"enabled":true,"runs":999999}}` (solc 0.8.15 caps the profile's `cancun` at `london`) |
 | Runtime | 1468 bytes, `keccak256 = 0x7f211b443a2038a83879ba5692e509cdbf9382046f101cdd07a95058ae4115e7` (`bytecode/UndeliveredMessageExporter.runtime.hex`); no immutables, so this is the deployed code |

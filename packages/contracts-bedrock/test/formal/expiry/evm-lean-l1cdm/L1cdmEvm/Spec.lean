@@ -6,11 +6,11 @@ import L1cdmEvm.SymMem
 /-!
 # Statement vocabulary for `L1CrossDomainMessenger.relayUndeliveredMessage`
 
-Solidity source (PR #23259 branch, tip c7c51d79e2):
+Solidity source (at 89a3d565ad):
 
 ```solidity
 function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
-    if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();
+    if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_InteropNotEnabled();
     L1CrossDomainMessenger caller = L1CrossDomainMessenger(msg.sender);
     IOptimismPortal callerPortal = caller.portal();
     if (

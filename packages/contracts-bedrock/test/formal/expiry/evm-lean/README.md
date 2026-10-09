@@ -5,28 +5,32 @@ is no `sorry`/`admit` and no project `axiom`; the axiom footprint is below. Kont
 primary bytecode tool; this is an independent second track in Lean.
 
 This directory proves facts about the **deployed runtime bytecode** of `L2ToL2CrossDomainMessenger`
-at `448d31ad19` (tip of the PR #23259 branch: exporter design, `EXPIRY_PERIOD = 8 days`),
-executed by an executable Lean model of the EVM (`Ξ`). The theorems quantify over every account
+at `89a3d565ad` (exporter design; `EXPIRY_PERIOD` an immutable set by the constructor, filled with
+the production 8 days; early return on an already-expired message), executed by an executable
+Lean model of the EVM (`Ξ`). The theorems quantify over every account
 map, caller, value, calldata that selects `expireMessage(bytes32 H, uint256 t)`, gas, call depth
 and static flag:
 
 * **Soundness** (`expireMessage_success`): the run succeeds only if every one of these holds:
-  * the call is not static (entered by `CALL`, not `STATICCALL`);
   * no ETH is attached;
   * the calldata length passes solc's ABI check: `68 ≤ calldatasize < 2^255 + 4`;
   * `msg.sender` is the L2CrossDomainMessenger;
   * `xDomainMessageSender() == otherMessenger()`, taking each value as the first word the code
     decodes from that call's return data;
-  * `sentMessageTimestamps[H] ≠ 0`;
-  * `sentAt + EXPIRY_PERIOD` does not overflow 256 bits;
-  * `t > sentAt + EXPIRY_PERIOD`.
+  * and either `expiredMessages[H]` is already true (the early return), or all of:
+    * the call is not static (entered by `CALL`, not `STATICCALL`);
+    * `sentMessageTimestamps[H] ≠ 0`;
+    * `sentAt + EXPIRY_PERIOD` does not overflow 256 bits;
+    * `t > sentAt + EXPIRY_PERIOD`.
 
-  On success the only state change is `expiredMessages[H] := true` (with Solidity's packed-bool
-  write). That covers the storage of every account, all transient storage and all code; the
-  substate (logs, access sets, refunds), balances and nonces are not asserted.
+  On a first expiry the only state change is `expiredMessages[H] := true` (with Solidity's
+  packed-bool write); on the early return nothing changes. That covers the storage of every
+  account, all transient storage and all code; the substate (logs, access sets, refunds),
+  balances and nonces are not asserted.
 * **Outcome classification** (`expireMessage_outcome`, `expireMessage_no_other_error`): every run
   ends in one of four ways: out of gas; a revert; a static-mode violation (only on a static call
-  that satisfies all the conditions); or a success as above. No other exceptional halt occurs.
+  that satisfies all the conditions of a first expiry); or a success as above. No other
+  exceptional halt occurs. An early return succeeds under `STATICCALL` too.
 * **Non-vacuity** (`NonVacuity.lean`, checked at build time): for **every** headline theorem `T`
   there is a `nonvacuous_T` that satisfies all of `T`'s hypotheses jointly on one concrete run and
   applies `T` there. Everything except "`Ξ` ends in success / out of gas / static violation on this
@@ -68,11 +72,11 @@ one-transition Sol⁻ spec instead).
 
 | | |
 |---|---|
-| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `448d31ad19` (`EXPIRY_PERIOD = 8 days`; semver 2.0.0) |
+| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `89a3d565ad` (`EXPIRY_PERIOD` immutable; semver 2.0.0) |
 | Compiler | solc `0.8.25+commit.b61c2a91` via forge 1.8.1, repository **default** profile |
 | Settings | optimizer on, 999999 runs, `evm_version = cancun`, `bytecode_hash = none` (CBOR trailer `a164736f6c6343000819000a`) |
-| Runtime | 5231 bytes, `keccak256 = 0x2598d1f09fc5e29faaba7452988e684dc9c023480bb1fea3937a84511913d5d2` (`bytecode/…runtime.hex`) |
-| Init code | `keccak256 = 0x804d3303278dcc3942f9c693fdfca5a09e3ccea9cb0855331f785a4ada89cf64` = `initCodeHash` in `snapshots/semver-lock.json` at `448d31ad19` |
+| Runtime | 5314 bytes, `keccak256 = 0x910b1fa3463b6125ef7c1d433a4eaeaccf36366ffa50fd50a577a81a21c2ae67` (`bytecode/…runtime.hex`): the artifact's `deployedBytecode` with its one immutable filled with 691200 |
+| Init code | `keccak256 = 0xafaacb5e66adbb8222bace7d40a5ef2e7a0bf47e100fb773e87043575c940608` = `initCodeHash` in `snapshots/semver-lock.json` at `89a3d565ad` (without constructor arguments) |
 | Lean | `ExpiryEvm/Bytecode.lean` (`l2tol2Runtime`), generated from the hex by `scripts/gen_bytecode.py` |
 
 To reproduce, run `scripts/regen.sh`. It:
@@ -81,16 +85,25 @@ To reproduce, run `scripts/regen.sh`. It:
 * refuses to continue unless all three match: solc is `0.8.25+commit.b61c2a91`; the *complete*
   compiler settings minus remappings equal the expected JSON (so any viaIR, optimizer detail or
   library setting fails the check); and the init-code hash equals the `semver-lock.json` entry;
+* fills the immutable: it reads the period from `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`, and
+  `scripts/fill_immutables.py` writes it into the artifact's immutable references, failing unless
+  there is exactly one immutable, every reference is 32 bytes and every placeholder is zero;
 * only then writes `bytecode/*.hex` (creating the directory) and regenerates
   `ExpiryEvm/Bytecode.lean`, the block summaries `ExpiryEvm/Blocks/` and their import point
   `ExpiryEvm/AllBlocks.lean`;
-* sets `P_contract` in `Spec.lean` from the compiled `PUSH3` operands, failing if they disagree.
+* sets `P_contract` in `Spec.lean` to the filled period.
 
 The pinned hex files live in `bytecode/`, which is not gitignored (check: `git check-ignore bytecode/*`). The earlier `artifacts/` directory was ignored by
 `packages/contracts-bedrock/.gitignore`, so those files were never committed.
 
-**Constant.** `P_contract` in `ExpiryEvm/Spec.lean` is the compiled `EXPIRY_PERIOD`:
-`PUSH3 0x0a8c00` at pc 2179, i.e. 691200 s = 8 days. The proofs use only the name.
+**Immutable.** `EXPIRY_PERIOD` is set by the constructor, which rejects 0. Production deploys the
+messenger with `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` (8 days), so its runtime holds
+`PUSH32 0x…0a8c00` at pc 330 (the `expiryPeriod()` getter) and pc 2233 (`expireMessage`). The
+theorems are about that runtime; `P_contract` in `ExpiryEvm/Spec.lean` is 691200, and the proofs
+use only the name. A deployment with another period runs other bytes: `regen.sh` with that value
+in `Constants.sol` rebuilds the proofs for it. That the deployment tooling passes the constant is
+checked outside this directory (the protocol model and the rollout model take it as a
+deployment parameter).
 
 **Retargeting history.** The first version proved the same theorems against `37b44c48c7`
 (7 days; runtime keccak `0x84897ff9…0eaa`). Between that and the current tip the messenger
@@ -104,8 +117,16 @@ five `PUSH32` operands changed (the version string at pc 411 and the error selec
 proofs do not mention those operands); full rebuild 280 s. From `c7c51d79e2` to `448d31ad19`
 (the version string back to `"2.0.0"`; semver-lock regenerated) only the version `PUSH32` at pc 411
 changed (`0x312e342e30…` → `0x322e302e30…`); `regen.sh` validated the init-code hash against the new
-semver-lock entry, no proof file changed, and the full rebuild took 201 s. The runtime is
-byte-identical to `../hevm/current.runtime.hex` at the same commit.
+semver-lock entry, no proof file changed, and the full rebuild took 201 s.
+
+From `448d31ad19` to `89a3d565ad` the period became a constructor-set immutable and
+`expireMessage` gained an early return when `expiredMessages[H]` is already set. `regen.sh` now
+fills the immutable (the artifact leaves it zeroed). The block pcs moved (one mechanical map).
+`TraceStore.lean` gained the new branch at pc 2131 (`SLOAD expiredMessages[H]`; set → pc 2154 →
+`STOP` at pc 595). `ExpireConds` replaced `wasSent`/`noOverflow`/`expired` by
+`stored : AlreadyExpired ∨ FreshConds`, `ExpirePost.self_storage` became a two-case disjunction,
+and `refines_expire` gained the stuttering case. `Concrete.lean` and `NonVacuity.lean` added a
+second world `σE` that reaches the early return.
 
 ## What is proved
 
@@ -128,12 +149,14 @@ code owner, block header and the rest. `H = argHash I = CALLDATALOAD(4)` and
 theorem expireMessage_outcome … :
     Ξ σ σ₀ g A I = .error .OutOfGass ∨
     (∃ g' o, Ξ σ σ₀ g A I = .ok (.revert g' o)) ∨
-    (Ξ σ σ₀ g A I = .error .StaticModeViolation ∧ I.perm = false ∧ ExpireConds σ I vO vS) ∨
+    (Ξ σ σ₀ g A I = .error .StaticModeViolation ∧ I.perm = false ∧ ExpireConds σ I vO vS ∧
+      ¬ AlreadyExpired σ I) ∨
     (∃ σ' g' A', Ξ σ σ₀ g A I = .ok (.success (σ', g', A') ByteArray.empty) ∧
-      I.perm = true ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I)
+      (I.perm = true ∨ AlreadyExpired σ I) ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I)
 
 theorem expireMessage_success … (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    I.perm = true ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I ∧ o = ByteArray.empty
+    (I.perm = true ∨ AlreadyExpired σ I) ∧ ExpireConds σ I vO vS ∧ ExpirePost σ σ' I ∧
+      o = ByteArray.empty
 
 theorem expireMessage_no_other_error … (he : Ξ σ σ₀ g A I = .error e) :
     e = .OutOfGass ∨ (e = .StaticModeViolation ∧ I.perm = false)
@@ -153,12 +176,15 @@ theorem expireMessage_revert_cause … (hc : ExpireConds σ I vO vS) (hperm : I.
 | `calldataLen` | `68 ≤ calldatasize < 2^255 + 4` (solc's signed ABI length check) |
 | `callerIsL2cdm` | `I.source = 0x4200…0007` (`msg.sender`) |
 | `senderIsOther` | `vS = vO`, i.e. `xDomainMessageSender() == otherMessenger()` |
-| `wasSent` | `sentAt ≠ 0` |
-| `noOverflow` | `sentAt.toNat + P_contract < 2^256` (checked add; overflow → `Panic(0x11)` revert) |
-| `expired` | `sentAt.toNat + P_contract < t.toNat` (strict) |
+| `stored` | `AlreadyExpired σ I ∨ FreshConds σ I` |
+
+`AlreadyExpired σ I` is `expiredMessages[H] & 0xff ≠ 0` (Solidity's bool read). `FreshConds σ I`
+is `sentAt ≠ 0`, `sentAt.toNat + P_contract < 2^256` (checked add; overflow → `Panic(0x11)`
+revert) and `sentAt.toNat + P_contract < t.toNat` (strict).
 
 `ExpirePost σ σ' I` says three things:
-* The code owner's storage is `old.insert (expiredSlot H) (setTrueWord old[expiredSlot H])`, where
+* The code owner's storage is unchanged if `AlreadyExpired σ I`, and otherwise is
+  `old.insert (expiredSlot H) (setTrueWord old[expiredSlot H])`, where
   `setTrueWord w = 1 | (w & ~0xff)`. That is exactly what the code does: Solidity's packed-bool
   write keeps the other 31 bytes, and for a slot only ever written as a bool the result is `1`.
 * Every other account's storage is unchanged.
@@ -198,7 +224,9 @@ What is shown:
 
 ```lean
 theorem refines_expire … (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I) (argTime I).toNat ∧
+    (absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I)
+        (argTime I).toNat ∨
+      (RelayFromOtherMessenger I vO vS ∧ (viewOf σ I.codeOwner).expired (argHash I))) ∧
     (viewOf σ' I.codeOwner).expired (argHash I) ∧
     (∀ H, sentAtSlot H ≠ expiredSlot (argHash I) →
       (viewOf σ' I.codeOwner).sentAt H = (viewOf σ I.codeOwner).sentAt H) ∧
@@ -209,6 +237,9 @@ theorem refines_expire … (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A
 ```
 
 Notes on reading it:
+* The second case of the first conjunct is the early return. It is a stuttering step of the
+  model: `absNext` leaves `expired` unchanged when it already holds at `H`, and the code changes
+  no storage.
 * Even `sentMessageTimestamps[H]` for the expired key `H` itself is preserved only under the side
   condition `sentAtSlot H ≠ expiredSlot H`.
 * The slot frame (`∀ s ≠ expiredSlot H`) covers the messenger's other state, with per-key side
@@ -229,6 +260,8 @@ These run the real bytecode under `Ξ` (compiled evaluation, `native_decide`) in
 | `oog_reachable` | 20000 gas | out of gas |
 | `static_reachable` | `perm = false` | `StaticModeViolation` |
 | `callee_failure_reverts` | 0x..07 code `PUSH0 PUSH0 REVERT` | revert |
+| `alreadyExpired_succeeds` | `σE` (`expiredMessages[H]` set), `t = 0`, `perm = false` | success (early return) |
+| `notExpired_reverts` | the same call on `σ` | revert |
 | `callFailed_in_success_state` | `CallFailed` holds in the success state (0-gas call) | shows `CallFailed` is weak |
 
 These two are proved theorems, not executions:
@@ -259,7 +292,12 @@ lists them). The witness world is `Concrete.lean`'s (`σ`, `env l2cdm (5 + P + 1
 | `expireMessage_success` | `nonvacuous_expireMessage_success` | as above + `hres` (success) | `perm`, `ExpireConds`, `ExpirePost`, empty output; and from `ExpirePost` (kernel) `expiredMessages[H] = 1` | `native_xi_success` (`hres`) |
 | `expireMessage_revert_cause` | `nonvacuous_expireMessage_revert_cause` | as for outcome + `ExpireConds` (`NV.witness_conds`, every field evaluated by the kernel, keccak slot included) + `perm = true`: **all kernel** | the theorem's disjunction; the realized disjunct is success with `ExpirePost` | `native_xi_success` (only to identify the disjunct) |
 | `expireMessage_no_other_error` | `nonvacuous_expireMessage_no_other_error` | as for outcome + `he` for two runs: 20000 gas (out of gas) and `perm = false` (static violation) | both disjuncts: `OutOfGass`, and `StaticModeViolation ∧ perm = false` | `NV.native_xi_oog`, `NV.native_xi_static` (`he`) |
-| `Abstract.refines_expire` | `Abstract.nonvacuous_refines_expire` | as for success | `absGuard` with the deposit condition, `expired H`; the per-key side conditions `sentAtSlot H ≠ expiredSlot H` and `expiredSlot H' ≠ expiredSlot H` (kernel keccak) hold, so `sentAt H = 5` is kept and `expired H'` stays false | `native_xi_success` (`hres`) |
+| `Abstract.refines_expire` | `Abstract.nonvacuous_refines_expire` | as for success | the guard case (the stuttering case is ruled out by the kernel-checked `¬ AlreadyExpired`): `absGuard` with the deposit condition, `expired H`; the per-key side conditions `sentAtSlot H ≠ expiredSlot H` and `expiredSlot H' ≠ expiredSlot H` (kernel keccak) hold, so `sentAt H = 5` is kept and `expired H'` stays false | `native_xi_success` (`hres`) |
+
+`nonvacuous_alreadyExpired` (not a headline witness) instantiates `expireMessage_success` on the
+second world `σE`, `expireMessage(H, 0)` under `STATICCALL`: all hypotheses hold (kernel, apart
+from `native_xi_alreadyExpired` for `hres`), and the theorem yields `AlreadyExpired`, unchanged
+messenger storage, while `FreshConds` fails (kernel). So the early-return case is reachable.
 
 **Trust, precisely.** The headline theorems' axiom cones contain no `native_*` lemma (checked).
 The witnesses additionally trust Lean's compiler and EVMLean's executable code for exactly these
@@ -355,7 +393,7 @@ weak (see above), not a hypothesis of a headline theorem.
 | `State.sentAt z h` | `(viewOf σ a).sentAt h = sentMessageTimestamps[h].toNat` |
 | `State.expired z h` | `(viewOf σ a).expired h = (expiredMessages slot & 0xff ≠ 0)` |
 | `State.deposits ⟨z, h, t⟩` | `RelayFromOtherMessenger I vO vS` (see below) |
-| `cfg.contractPeriod` | `P_contract` (compiled constant) |
+| `cfg.contractPeriod` | `P_contract` (the filled immutable) |
 | `f.hash`, `f.time` | `argHash I`, `(argTime I).toNat` |
 
 Limits of the bridge:
@@ -380,10 +418,10 @@ Limits of the bridge:
 | `ExpiryEvm/Blocks/RuntimeBlocks_0NN.lean`, `RuntimeBlocks.index`, `ExpiryEvm/AllBlocks.lean` | generated by EquiVM's `generate_rd_blocks.py`: proved `RD` summary of every basic block (all functions) |
 | `ExpiryEvm/Spec.lean` | statement vocabulary |
 | `ExpiryEvm/Words.lean`, `ExpiryEvm/Mem.lean` | word facts for branch conditions; word-aligned memory (`wordsMem`, `memList`) |
-| `ExpiryEvm/TraceEntry.lean` | pc 0 → 1713: dispatcher, non-payable, ABI length |
-| `ExpiryEvm/TraceCall1.lean` | pc 1713 → 1872: caller check, `otherMessenger()` call, decode (symbolic return length) |
-| `ExpiryEvm/TraceCall2.lean` | pc 1872 → 2103: `xDomainMessageSender()` call, decode, equality |
-| `ExpiryEvm/TraceStore.lean` | pc 2103 → end: `sentAt` read, checked add, expiry check, `SSTORE` (static split), `LOG2`, `STOP` |
+| `ExpiryEvm/TraceEntry.lean` | pc 0 → 1741: dispatcher, non-payable, ABI length |
+| `ExpiryEvm/TraceCall1.lean` | pc 1741 → 1900: caller check, `otherMessenger()` call, decode (symbolic return length) |
+| `ExpiryEvm/TraceCall2.lean` | pc 1900 → 2131: `xDomainMessageSender()` call, decode, equality |
+| `ExpiryEvm/TraceStore.lean` | pc 2131 → end: `expiredMessages` early return, `sentAt` read, checked add, expiry check, `SSTORE` (static split), `LOG2`, `STOP` |
 | `ExpiryEvm/Post.lean` | final account map satisfies `ExpirePost` |
 | `ExpiryEvm/ExpireMessage.lean` | headline theorems |
 | `ExpiryEvm/Abstract.lean` | projection bridge to the protocol model's `expire` |
@@ -407,7 +445,7 @@ All timings are on a shared 32-core Linux host (, load 35–180 during this work
 * **Incremental:** with dependencies built, rebuilding everything in this directory takes about
   1 min (18 summary shards + proofs + concrete runs).
 * **Retarget:** the full rebuild after moving to `5992028e08` took 66 s; to `c7c51d79e2`, 280 s;
-  to `448d31ad19`, 201 s
+  to `448d31ad19`, 201 s; to `89a3d565ad` (new branch, cached dependencies), 135 s
   (load ~30; `NonVacuity.lean` alone ≈ 130–150 s, mostly kernel keccak evaluations).
 
 ## Review log
@@ -471,7 +509,7 @@ one, `mock_returnsAddress` moved from `native_decide` to the kernel, and the ret
 `c7c51d79e2`.
 
 Round 1 reviewers also confirmed, with no change needed: soundness is bytecode-faithful and
-mutation-sensitive (mutating the `PUSH3` window or `GT`→`LT` breaks the build), and the
+mutation-sensitive (mutating the filled period or `GT`→`LT` breaks the build), and the
 artifacts and hashes check out.
 
 ## What's left

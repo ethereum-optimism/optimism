@@ -112,6 +112,10 @@ elab "#assert_headline " id:ident : command => do
 #assert_std_axioms ExpiryEvm.NV.witness_conds
 #assert_std_axioms ExpiryEvm.Concrete.env_sel
 #assert_std_axioms ExpiryEvm.Concrete.env_cds
+#assert_std_axioms ExpiryEvm.NV.alreadyExpired_E
+#assert_std_axioms ExpiryEvm.NV.not_fresh_E
+
+#print axioms ExpiryEvm.nonvacuous_alreadyExpired
 
 #print axioms ExpiryEvm.Concrete.native_xi_success
 #print axioms ExpiryEvm.Concrete.success_reachable

@@ -283,7 +283,7 @@ theorem l1cdm_block_1934 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : By
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by evm_kdecide) (by evm_ov)
   have r2 := RD.genMload r1 (by evm_kdecide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 30641078544242321858223491220602908050931178822595467603914307642423844536320) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 64826149405429277244152984143781607979061672029005839594488732125579534401536) (width := 32) (op := .PUSH32) (by decide) (by evm_kdecide) (by evm_ov)
   have r4 := r3.dup2 (by evm_kdecide) (by evm_ov)
   have r5 := RD.genMstore r4 (by evm_kdecide) (by evm_ov)
   have r6 := r5.push1 (UInt256.ofNat 4) (by evm_kdecide) (by evm_ov)

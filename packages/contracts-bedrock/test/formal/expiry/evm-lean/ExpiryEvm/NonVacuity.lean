@@ -10,11 +10,13 @@ case of `T`'s conclusion the instance realizes. The instance is `Concrete.lean`'
 `L2ToL2CrossDomainMessenger` runtime at 0x4200..0023, a mock L2CrossDomainMessenger at 0x4200..0007
 that returns the same address for both view calls, `sentMessageTimestamps[H] = 5`, and the call
 `expireMessage(H, 5 + P_contract + 1)` from 0x4200..0007 with 10^6 gas.
+`nonvacuous_alreadyExpired` adds a second world, `σE`, where `expiredMessages[H]` is already
+set, and shows the early return is reachable.
 
 **What the kernel checks.** Every hypothesis of every headline theorem on this instance: the code
 (`rfl`), the selector and calldata bound (`decide +kernel`), both call summaries
 (`Concrete.mock_returnsAddress`, an `RD` proof of the mock bytecode, kernel decodes), and, for
-`expireMessage_revert_cause`, all seven fields of `ExpireConds` (`witness_conds`; `decide +kernel`
+`expireMessage_revert_cause`, all fields of `ExpireConds` (`witness_conds`; `decide +kernel`
 evaluates keccak256 for the storage slot). The keccak slot side conditions of `refines_expire`
 (`sentAtSlot H ≠ expiredSlot H`, `expiredSlot H' ≠ expiredSlot H`) are kernel-checked too.
 
@@ -94,9 +96,7 @@ theorem witness_conds : ExpireConds σ I₁ vMock vMock where
   calldataLen := by decide +kernel
   callerIsL2cdm := rfl
   senderIsOther := rfl
-  wasSent := by decide +kernel
-  noOverflow := by decide +kernel
-  expired := by decide +kernel
+  stored := Or.inr ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
 
 theorem sel_static : selectorWord Iₛ = expireSelector := by decide +kernel
 theorem cds_static : Iₛ.calldata.size < 2 ^ 256 := by decide +kernel
@@ -105,6 +105,26 @@ theorem cds_static : Iₛ.calldata.size < 2 ^ 256 := by decide +kernel
 theorem expired_before : storageWord σ messengerAddr (expiredSlot H) = ⟨0⟩ := by decide +kernel
 
 theorem setTrue_zero : setTrueWord ⟨0⟩ = UInt256.ofNat 1 := by decide +kernel
+
+theorem not_alreadyExpired : ¬ AlreadyExpired σ I₁ := by unfold AlreadyExpired; decide +kernel
+
+theorem envE_sel : selectorWord envE = expireSelector := by decide +kernel
+theorem envE_cds : envE.calldata.size < 2 ^ 256 := by decide +kernel
+theorem alreadyExpired_E : AlreadyExpired σE envE := by unfold AlreadyExpired; decide +kernel
+theorem not_fresh_E : ¬ FreshConds σE envE := by unfold FreshConds; decide +kernel
+
+theorem xi_alreadyExpired :
+    ∃ σ' g' A' o, Ξ σE σE (UInt256.ofNat 1000000) default envE = .ok (.success (σ', g', A') o) := by
+  have hs := native_xi_alreadyExpired
+  revert hs
+  generalize Ξ σE σE (UInt256.ofNat 1000000) default envE = r
+  intro hs
+  cases r with
+  | error e => cases hs
+  | ok r =>
+    cases r with
+    | revert g' o => cases hs
+    | success t o => obtain ⟨σ', g', A'⟩ := t; exact ⟨σ', g', A', o, rfl⟩
 
 end NV
 
@@ -118,7 +138,8 @@ theorem nonvacuous_expireMessage_outcome :
     ReturnsAddress σ σ I₁ xDomainMessageSenderCalldata vMock ∧
     ∃ σ' g' A', Ξ σ σ (UInt256.ofNat 1000000) default I₁ =
         .ok (.success (σ', g', A') ByteArray.empty) ∧
-      I₁.perm = true ∧ ExpireConds σ I₁ vMock vMock ∧ ExpirePost σ σ' I₁ := by
+      (I₁.perm = true ∨ AlreadyExpired σ I₁) ∧ ExpireConds σ I₁ vMock vMock ∧
+      ExpirePost σ σ' I₁ := by
   have hO := mock_returnsAddress σ I₁ otherMessengerCalldata
   have hX := mock_returnsAddress σ I₁ xDomainMessageSenderCalldata
   refine ⟨rfl, env_sel, env_cds, hO, hX, ?_⟩
@@ -139,14 +160,20 @@ theorem nonvacuous_expireMessage_success :
       ReturnsAddress σ σ I₁ otherMessengerCalldata vMock ∧
       ReturnsAddress σ σ I₁ xDomainMessageSenderCalldata vMock ∧
       Ξ σ σ (UInt256.ofNat 1000000) default I₁ = .ok (.success (σ', g', A') o) ∧
-      I₁.perm = true ∧ ExpireConds σ I₁ vMock vMock ∧ ExpirePost σ σ' I₁ ∧ o = ByteArray.empty ∧
+      (I₁.perm = true ∨ AlreadyExpired σ I₁) ∧ ExpireConds σ I₁ vMock vMock ∧
+      ExpirePost σ σ' I₁ ∧ o = ByteArray.empty ∧
       storageWord σ' messengerAddr (expiredSlot H) = UInt256.ofNat 1 := by
   have hO := mock_returnsAddress σ I₁ otherMessengerCalldata
   have hX := mock_returnsAddress σ I₁ xDomainMessageSenderCalldata
   obtain ⟨σ', g', A', o, hs⟩ := xi_success
   obtain ⟨hp, hc, hpost, ho⟩ := expireMessage_success rfl env_sel env_cds hO hX hs
   refine ⟨σ', g', A', o, rfl, env_sel, env_cds, hO, hX, hs, hp, hc, hpost, ho, ?_⟩
-  have hself := hpost.self_storage
+  have hself : (σ'.getD I₁.codeOwner default).storage =
+      (σ.getD I₁.codeOwner default).storage.insert (expiredSlot (argHash I₁))
+        (setTrueWord (storageWord σ I₁.codeOwner (expiredSlot (argHash I₁)))) := by
+    rcases hpost.self_storage with ⟨hae, _⟩ | ⟨_, h⟩
+    · exact absurd hae not_alreadyExpired
+    · exact h
   unfold storageWord
   rw [show messengerAddr = I₁.codeOwner from rfl, hself,
     show argHash I₁ = H by decide +kernel, Abstract.storageWord_insert_self]
@@ -204,6 +231,28 @@ theorem nonvacuous_expireMessage_no_other_error :
   · cases h
   · exact h
 
+/-- **The early-return branch is reachable.** On `σE` (`expiredMessages[H]` already set),
+    `expireMessage(H, 0)` entered by `STATICCALL` meets every hypothesis of
+    `expireMessage_success` and succeeds; the theorem then yields the early-return case:
+    `AlreadyExpired`, although `FreshConds` fails, and the messenger's storage is unchanged. -/
+theorem nonvacuous_alreadyExpired :
+    ∃ σ' g' A' o,
+      envE.code = l2tol2Runtime ∧ selectorWord envE = expireSelector ∧
+      envE.calldata.size < 2 ^ 256 ∧
+      ReturnsAddress σE σE envE otherMessengerCalldata vMock ∧
+      ReturnsAddress σE σE envE xDomainMessageSenderCalldata vMock ∧
+      Ξ σE σE (UInt256.ofNat 1000000) default envE = .ok (.success (σ', g', A') o) ∧
+      envE.perm = false ∧ AlreadyExpired σE envE ∧ ¬ FreshConds σE envE ∧
+      (σ'.getD messengerAddr default).storage = (σE.getD messengerAddr default).storage := by
+  have hO := mock_returnsAddress_of sigmaE_l2cdm_code σE envE otherMessengerCalldata
+  have hX := mock_returnsAddress_of sigmaE_l2cdm_code σE envE xDomainMessageSenderCalldata
+  obtain ⟨σ', g', A', o, hs⟩ := xi_alreadyExpired
+  obtain ⟨_, _, hpost, _⟩ := expireMessage_success rfl envE_sel envE_cds hO hX hs
+  refine ⟨σ', g', A', o, rfl, envE_sel, envE_cds, hO, hX, hs, rfl, alreadyExpired_E, not_fresh_E, ?_⟩
+  rcases hpost.self_storage with ⟨_, h⟩ | ⟨hn, _⟩
+  · exact h
+  · exact absurd alreadyExpired_E hn
+
 namespace Abstract
 
 /-- Another key, whose `expiredMessages` slot differs from `H`'s (kernel: keccak256). -/
@@ -248,7 +297,12 @@ theorem nonvacuous_refines_expire :
   have hne := other_ne
   obtain ⟨σ', g', A', o, hs⟩ := xi_success
   obtain ⟨hg, he, hsa, hex, _, _⟩ := refines_expire rfl env_sel env_cds hO hX hs
-  refine ⟨hH, rfl, hs1, hs2, σ', g', A', o, rfl, env_sel, env_cds, hO, hX, hs, hg, he,
+  have hg' : absGuard P_contract (RelayFromOtherMessenger I₁ vMock vMock) (viewOf σ I₁.codeOwner)
+      (argHash I₁) (argTime I₁).toNat := by
+    rcases hg with hg | ⟨_, hae⟩
+    · exact hg
+    · exact absurd hae not_alreadyExpired
+  refine ⟨hH, rfl, hs1, hs2, σ', g', A', o, rfl, env_sel, env_cds, hO, hX, hs, hg', he,
     (hsa H hs1).trans hsent, fun h => ?_⟩
   rcases (hex H' hs2).mp h with h1 | h1
   · dsimp only [viewOf] at h1
