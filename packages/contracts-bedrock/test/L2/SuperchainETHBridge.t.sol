@@ -259,6 +259,20 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 0);
     }
 
+    /// @notice Tests that the refund record lives in the `refunded` mapping at storage slot 0, where
+    ///         the storage layout snapshot puts it, so that a declaration added before it cannot
+    ///         move the records an upgrade must keep.
+    function test_refundETH_refundedAtSlotZero_succeeds() external {
+        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
+        _expire(messageHash);
+        bytes32 slot = keccak256(abi.encode(messageHash, uint256(0)));
+        assertEq(vm.load(address(superchainETHBridge), slot), bytes32(0));
+
+        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
+
+        assertEq(vm.load(address(superchainETHBridge), slot), bytes32(uint256(1)));
+    }
+
     /// @notice Tests that a send whose message has not expired is not refunded.
     function test_refundETH_notExpired_reverts() external {
         (uint256 nonce,) = _send(alice, bob, 1 ether);
