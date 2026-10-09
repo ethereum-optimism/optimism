@@ -26,7 +26,7 @@ die() {
 }
 
 usage() {
-  cat <<'EOF'
+  cat << 'EOF'
 Usage:
   just post-fork-ops --upgrade u19 --chains op,ink
 
@@ -44,15 +44,45 @@ parse_args() {
   local chains=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --upgrade) [[ $# -ge 2 ]] || die "--upgrade requires a value"; UPGRADE="$2"; shift 2 ;;
-      --upgrade=*) UPGRADE="${1#*=}"; shift ;;
-      --chains) [[ $# -ge 2 ]] || die "--chains requires a value"; chains="$2"; shift 2 ;;
-      --chains=*) chains="${1#*=}"; shift ;;
-      --network) [[ $# -ge 2 ]] || die "--network requires a value"; NETWORK="$2"; shift 2 ;;
-      --network=*) NETWORK="${1#*=}"; shift ;;
-      --dry-run) DRY_RUN=true; shift ;;
-      --no-watch) WATCH=false; shift ;;
-      -h|--help) usage; exit 0 ;;
+      --upgrade)
+        [[ $# -ge 2 ]] || die "--upgrade requires a value"
+        UPGRADE="$2"
+        shift 2
+        ;;
+      --upgrade=*)
+        UPGRADE="${1#*=}"
+        shift
+        ;;
+      --chains)
+        [[ $# -ge 2 ]] || die "--chains requires a value"
+        chains="$2"
+        shift 2
+        ;;
+      --chains=*)
+        chains="${1#*=}"
+        shift
+        ;;
+      --network)
+        [[ $# -ge 2 ]] || die "--network requires a value"
+        NETWORK="$2"
+        shift 2
+        ;;
+      --network=*)
+        NETWORK="${1#*=}"
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN=true
+        shift
+        ;;
+      --no-watch)
+        WATCH=false
+        shift
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
       *) die "unknown argument: $1" ;;
     esac
   done
@@ -78,7 +108,7 @@ resolve_upgrade() {
 }
 
 need() {
-  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+  command -v "$1" > /dev/null 2>&1 || die "missing required command: $1"
 }
 
 fetch_chain() {
@@ -184,8 +214,8 @@ blockscout_verified() {
   local address="$1" response attempt
   [[ "$CHAIN_SLUG" != "unichain" ]] || return 1
   for attempt in 1 2 3; do
-    response="$(curl -fsSL "${CHAIN_EXPLORER%/}/api/v2/smart-contracts/$address" 2>/dev/null || true)"
-    jq -e '.is_verified == true' <<< "$response" >/dev/null 2>&1 && return 0
+    response="$(curl -fsSL "${CHAIN_EXPLORER%/}/api/v2/smart-contracts/$address" 2> /dev/null || true)"
+    jq -e '.is_verified == true' <<< "$response" > /dev/null 2>&1 && return 0
     [[ $attempt -eq 3 ]] || sleep 2
   done
   return 1
@@ -211,7 +241,9 @@ run_verify() {
   local args=(verify-contract "$address" "$artifact" --chain "$CHAIN_ID" --rpc-url "$CHAIN_RPC")
 
   version="$(compiler_version "$artifact")" || {
-    LAST_STATUS="failed"; LAST_OUTPUT="cannot resolve compiler version for $artifact"; return 1;
+    LAST_STATUS="failed"
+    LAST_OUTPUT="cannot resolve compiler version for $artifact"
+    return 1
   }
   args+=(--compiler-version "$version" --compilation-profile default --retries 10 --delay 10)
   # Unichain uses Etherscan; the other supported explorers use Blockscout.
@@ -240,21 +272,28 @@ run_verify() {
   LAST_OUTPUT="$output"
 
   if grep -qi 'already verified' <<< "$output"; then
-    LAST_STATUS="already-verified"; result=0
+    LAST_STATUS="already-verified"
+    result=0
   elif grep -qi 'Contract successfully verified' <<< "$output"; then
-    LAST_STATUS="verified"; result=0
+    LAST_STATUS="verified"
+    result=0
   elif grep -Eqi 'Details: .?Fail|Fail -|Unable to verify|Response: .?NOTOK|Failed verify submission|Error: Failed to verify' <<< "$output"; then
     if blockscout_verified "$address"; then
-      LAST_STATUS="already-verified"; result=0
+      LAST_STATUS="already-verified"
+      result=0
     else
-      LAST_STATUS="failed"; result=1
+      LAST_STATUS="failed"
+      result=1
     fi
   elif grep -qi 'Submitted contract for verification' <<< "$output"; then
-    LAST_STATUS="submitted"; result=0
+    LAST_STATUS="submitted"
+    result=0
   elif [[ $status -eq 0 ]]; then
-    LAST_STATUS="verified"; result=0
+    LAST_STATUS="verified"
+    result=0
   else
-    LAST_STATUS="failed"; result=$status
+    LAST_STATUS="failed"
+    result=$status
   fi
   echo "[$CHAIN_SLUG] $LAST_STATUS $label $address"
   return "$result"
@@ -304,23 +343,28 @@ verify_chain() {
   while IFS=$'\t' read -r proxy name; do
     if ! code="$(rpc_code "$proxy")"; then
       record failed "$name Proxy" "$proxy" "$PROXY_ARTIFACT" "cast code failed"
-      FAILURES=$((FAILURES + 1)); continue
+      FAILURES=$((FAILURES + 1))
+      continue
     fi
     if [[ "$code" == "0x" ]]; then
-      record skipped "$name" "$proxy" "$PROXY_ARTIFACT" "no proxy code"; continue
+      record skipped "$name" "$proxy" "$PROXY_ARTIFACT" "no proxy code"
+      continue
     fi
     verify_target "$name Proxy" "$proxy" "$PROXY_ARTIFACT" "$PROXY_ARGS"
 
     if ! impl="$(implementation "$proxy")"; then
       record failed "$name Implementation" "$proxy" "$name" "implementation() failed"
-      FAILURES=$((FAILURES + 1)); continue
+      FAILURES=$((FAILURES + 1))
+      continue
     fi
     if [[ "$(tr '[:upper:]' '[:lower:]' <<< "$impl")" == "$ZERO_ADDRESS" ]]; then
-      record skipped "$name Implementation" "$ZERO_ADDRESS" "$name" "disabled (zero implementation)"; continue
+      record skipped "$name Implementation" "$ZERO_ADDRESS" "$name" "disabled (zero implementation)"
+      continue
     fi
     if ! code="$(rpc_code "$impl")" || [[ "$code" == "0x" ]]; then
       record failed "$name Implementation" "$impl" "$name" "implementation has no code"
-      FAILURES=$((FAILURES + 1)); continue
+      FAILURES=$((FAILURES + 1))
+      continue
     fi
     verify_implementation "$name" "$impl"
   done < "$PREDEPLOY_FILE"
@@ -402,12 +446,12 @@ cleanup() {
   # Release builds and reports stay in a temporary worktree, leaving the caller's checkout alone.
   local pid
   for pid in "${WORKER_PIDS[@]}"; do
-    [[ -z "$pid" ]] || kill "$pid" >/dev/null 2>&1 || true
+    [[ -z "$pid" ]] || kill "$pid" > /dev/null 2>&1 || true
   done
   for pid in "${WORKER_PIDS[@]}"; do
-    [[ -z "$pid" ]] || wait "$pid" >/dev/null 2>&1 || true
+    [[ -z "$pid" ]] || wait "$pid" > /dev/null 2>&1 || true
   done
-  [[ -z "${WORKTREE:-}" || ! -d "$WORKTREE" ]] || git -C "$REPO_ROOT" worktree remove --force "$WORKTREE" >/dev/null 2>&1
+  [[ -z "${WORKTREE:-}" || ! -d "$WORKTREE" ]] || git -C "$REPO_ROOT" worktree remove --force "$WORKTREE" > /dev/null 2>&1
 }
 
 main() {

@@ -11,10 +11,10 @@ function cleanup() {
   local docker_target="${WORKTREE_DIR}/rust/kona/sp1/programs/target/elf-compilation/docker"
   if [[ -d "$docker_target" ]]; then
     local worktree_real docker_parent
-    if worktree_real=$(cd -P "$WORKTREE_DIR" && pwd) &&
-      docker_parent=$(cd -P "$(dirname "$docker_target")" && pwd) &&
-      [[ "$docker_parent" == "$worktree_real"/* ]]; then
-      if ! rm -rf "$docker_target" 2>/dev/null && ! sudo -n rm -rf "$docker_target"; then
+    if worktree_real=$(cd -P "$WORKTREE_DIR" && pwd) \
+      && docker_parent=$(cd -P "$(dirname "$docker_target")" && pwd) \
+      && [[ "$docker_parent" == "$worktree_real"/* ]]; then
+      if ! rm -rf "$docker_target" 2> /dev/null && ! sudo -n rm -rf "$docker_target"; then
         echo "warning: could not remove ${docker_target}" >&2
       fi
     else
@@ -93,7 +93,7 @@ function build_kona_sp1() {
   local log_file=$2
   local ref="refs/tags/kona-sp1-program/v${version}"
   local commit
-  commit=$(git rev-parse --verify "${ref}^{commit}" 2>/dev/null) || {
+  commit=$(git rev-parse --verify "${ref}^{commit}" 2> /dev/null) || {
     fail_kona_sp1 "$version" "missing tag ${ref}"
     return 1
   }
