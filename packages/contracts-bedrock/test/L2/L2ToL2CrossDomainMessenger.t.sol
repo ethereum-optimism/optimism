@@ -31,13 +31,13 @@ import {
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness
 /// @notice L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
 ///         This is used to test the transient storage of L2ToL2CrossDomainMessenger.
-contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is
-    L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)
-{
+contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is L2ToL2CrossDomainMessenger {
     /// @notice Returns the value of the entered slot in transient storage.
     /// @return Value of the entered slot.
     function entered() external view returns (bool) {
@@ -87,6 +87,9 @@ abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
         l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
         );
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(1)));
+        vm.prank(address(1));
+        l2ToL2CrossDomainMessenger.initialize(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
     }
 }
 
@@ -970,37 +973,77 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
 /// @notice General tests that are not testing any function directly of the
 ///         `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_Uncategorized_Test is L2ToL2CrossDomainMessenger_TestInit {
-    /// @notice Tests that the production expiry period is the protocol's message expiry window
-    ///         (604800 seconds, MessageExpiryTimeSecondsInterop in op-core and
-    ///         MESSAGE_EXPIRY_WINDOW in kona-genesis) plus a day of margin. The interop
-    ///         specification caps a dependency set's window at that value, and op-core and kona
-    ///         reject longer overrides.
+    /// @notice Tests that the production expiry period is the protocol's 7-day message expiry
+    ///         window plus a day.
     function test_productionExpiryPeriod_exceedsProtocolWindowByADay_succeeds() external pure {
         uint256 protocolWindow = 604800;
         assertEq(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD, protocolWindow + 1 days);
     }
-
-    /// @notice Tests that the genesis messenger uses the production expiry period.
-    function test_genesisExpiryPeriod_isProduction_succeeds() external view {
-        assertEq(
-            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
-            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
-        );
-    }
 }
 
-/// @title L2ToL2CrossDomainMessenger_Constructor_Test
-/// @notice Tests the `constructor` of the `L2ToL2CrossDomainMessenger` contract.
-contract L2ToL2CrossDomainMessenger_Constructor_Test is Test {
-    /// @notice Tests that the constructor sets the expiry period.
-    function testFuzz_constructor_expiryPeriod_succeeds(uint256 _expiryPeriod) external {
-        _expiryPeriod = bound(_expiryPeriod, 1, type(uint64).max);
-        assertEq(new L2ToL2CrossDomainMessenger(_expiryPeriod).expiryPeriod(), _expiryPeriod);
+/// @title L2ToL2CrossDomainMessenger_Initialize_Test
+/// @notice Tests the `initialize` function of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_Initialize_Test is Test {
+    address internal proxyAdmin = makeAddr("proxyAdmin");
+    address internal proxyAdminOwner = makeAddr("proxyAdminOwner");
+
+    /// @notice Returns an uninitialized messenger owned by `proxyAdmin`.
+    function _uninitializedMessenger() internal returns (L2ToL2CrossDomainMessenger messenger_) {
+        messenger_ = L2ToL2CrossDomainMessenger(makeAddr("messenger"));
+        vm.etch(address(messenger_), vm.getDeployedCode("L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger"));
+        vm.store(address(messenger_), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(proxyAdmin))));
+        vm.mockCall(proxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
     }
 
-    /// @notice Tests that the constructor rejects a zero expiry period.
-    function test_constructor_zeroExpiryPeriod_reverts() external {
+    /// @notice Tests that the proxy admin and its owner can initialize the expiry period.
+    function testFuzz_initialize_succeeds(uint256 _expiryPeriod, bool _asOwner) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
+        L2ToL2CrossDomainMessenger messenger = _uninitializedMessenger();
+        vm.prank(_asOwner ? proxyAdminOwner : proxyAdmin);
+        messenger.initialize(_expiryPeriod);
+        assertEq(messenger.expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that initialize reverts for any other caller.
+    function testFuzz_initialize_notProxyAdminOrOwner_reverts(address _caller) external {
+        vm.assume(_caller != proxyAdmin && _caller != proxyAdminOwner);
+        L2ToL2CrossDomainMessenger messenger = _uninitializedMessenger();
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        vm.prank(_caller);
+        messenger.initialize(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
+    }
+
+    /// @notice Tests that initialize rejects a zero expiry period.
+    function test_initialize_zeroExpiryPeriod_reverts() external {
+        L2ToL2CrossDomainMessenger messenger = _uninitializedMessenger();
         vm.expectRevert(L2ToL2CrossDomainMessenger_InvalidExpiryPeriod.selector);
-        new L2ToL2CrossDomainMessenger(0);
+        vm.prank(proxyAdmin);
+        messenger.initialize(0);
+    }
+
+    /// @notice Tests that initialize rejects an expiry period above 365 days.
+    function testFuzz_initialize_expiryPeriodTooLong_reverts(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 365 days + 1, type(uint256).max);
+        L2ToL2CrossDomainMessenger messenger = _uninitializedMessenger();
+        vm.expectRevert(L2ToL2CrossDomainMessenger_InvalidExpiryPeriod.selector);
+        vm.prank(proxyAdmin);
+        messenger.initialize(_expiryPeriod);
+    }
+
+    /// @notice Tests that initialize can only run once.
+    function test_initialize_twice_reverts() external {
+        L2ToL2CrossDomainMessenger messenger = _uninitializedMessenger();
+        vm.prank(proxyAdmin);
+        messenger.initialize(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
+        vm.expectRevert(IL2ToL2CrossDomainMessenger.InvalidInitialization.selector);
+        vm.prank(proxyAdmin);
+        messenger.initialize(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
+    }
+
+    /// @notice Tests that the constructor disables the implementation's initializer.
+    function test_constructor_disablesInitializer_succeeds() external {
+        L2ToL2CrossDomainMessenger messenger = new L2ToL2CrossDomainMessenger();
+        vm.expectRevert(IL2ToL2CrossDomainMessenger.InvalidInitialization.selector);
+        messenger.initialize(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
     }
 }

@@ -134,8 +134,8 @@ contract L2Genesis is Script {
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
         );
-        // The messenger is only deployed with a non-production expiry period when interop is
-        // active at genesis; a later activation installs the production period.
+        // The messenger only takes a non-production expiry period when interop is active at
+        // genesis; a later activation initializes it with the production period.
         require(
             _input.l2ToL2MessageExpiryPeriod == 0 || _isGenesisInteropEnabled(_input),
             "L2Genesis: expiry period override needs interop at genesis"
@@ -286,7 +286,7 @@ contract L2Genesis is Script {
         if (_isGenesisInteropEnabled(_input)) {
             // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
-            setL2ToL2CrossDomainMessenger(_input); // 23
+            setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
             setUndeliveredMessageExporter(); // 30
@@ -296,8 +296,7 @@ contract L2Genesis is Script {
             setNativeAssetLiquidity(_input); // 2A
         }
         vm.stopPrank();
-        // The pranked `create` calls in setEAS(), setGovernanceToken() and
-        // setL2ToL2CrossDomainMessenger() bump the proxy admin
+        // The pranked `create` calls in setEAS() and setGovernanceToken() bump the proxy admin
         // owner's nonce. Reset it so the account does not appear in the genesis state dump.
         vm.resetNonce(_input.opChainProxyAdminOwner);
         // These calls don't need the opChainProxyAdminOwner prank: setConditionalDeployer uses
@@ -376,6 +375,9 @@ contract L2Genesis is Script {
             gasPayingTokenName: _input.gasPayingTokenName,
             gasPayingTokenSymbol: _input.gasPayingTokenSymbol
         });
+        config_.l2ToL2MessageExpiryPeriod = _input.l2ToL2MessageExpiryPeriod == 0
+            ? Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+            : _input.l2ToL2MessageExpiryPeriod;
         config_.isCustomGasToken = _input.useCustomGasToken;
         config_.isInterop = _isGenesisInteropEnabled(_input);
     }
@@ -617,30 +619,13 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
-    /// @notice This predeploy is following the safety invariant #2: its expiry period is an
-    ///         immutable, so the implementation is deployed with its constructor and its code
-    ///         etched. The period is the production one unless the input sets another.
-    ///         This contract has no initializer.
-    function setL2ToL2CrossDomainMessenger(Input memory _input) internal {
+    /// @notice This predeploy is following the safety invariant #1.
+    function setL2ToL2CrossDomainMessenger() internal {
         Predeploys.assertGates(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
         );
-        uint256 expiryPeriod = _input.l2ToL2MessageExpiryPeriod == 0
-            ? Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
-            : _input.l2ToL2MessageExpiryPeriod;
-        address messenger = DeployUtils.create1({
-            _name: "L2ToL2CrossDomainMessenger",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(IL2ToL2CrossDomainMessenger.__constructor__, (expiryPeriod))
-            )
-        });
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        vm.etch(impl, messenger.code);
-        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
-
-        /// Reset so its not included state dump
-        vm.etch(messenger, "");
-        vm.resetNonce(messenger);
+        address impl = _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        IL2ToL2CrossDomainMessenger(impl).initialize({ _expiryPeriod: Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD });
     }
 
     /// @notice This predeploy is following the safety invariant #1.

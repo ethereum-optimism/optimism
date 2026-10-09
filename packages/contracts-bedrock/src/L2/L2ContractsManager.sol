@@ -13,11 +13,13 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -245,6 +247,10 @@ contract L2ContractsManager is ISemver {
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });
         }
+
+        // L2ToL2CrossDomainMessenger
+        // Upgrades always set the production expiry period. Test networks set a shorter one at genesis.
+        fullConfig_.l2ToL2MessageExpiryPeriod = Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD;
     }
 
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate
@@ -404,6 +410,19 @@ contract L2ContractsManager is ISemver {
             _isDeploy
         );
 
+        // L2ToL2CrossDomainMessenger (only on interop networks)
+        if (_config.isInterop) {
+            L2ContractsManagerUtils.upgradeToAndCall(
+                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+                L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL,
+                STORAGE_SETTER_IMPL,
+                abi.encodeCall(IL2ToL2CrossDomainMessenger.initialize, (_config.l2ToL2MessageExpiryPeriod)),
+                INITIALIZABLE_SLOT_OZ_V5,
+                0,
+                _isDeploy
+            );
+        }
+
         // Non-initializable predeploys.
         L2ContractsManagerUtils.upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL, _isDeploy);
         // L1BlockAttributes and L2ToL1MessagePasser have different implementations for custom gas token networks.
@@ -424,9 +443,6 @@ contract L2ContractsManager is ISemver {
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
         if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL, _isDeploy);
-            L2ContractsManagerUtils.upgradeTo(
-                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL, _isDeploy
-            );
             L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL, _isDeploy);
             L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL, _isDeploy);
             L2ContractsManagerUtils.upgradeTo(
