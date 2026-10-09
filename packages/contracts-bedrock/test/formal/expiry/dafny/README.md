@@ -30,7 +30,8 @@ Both are labelled **RESTATEMENT** in the source. The file adds no axioms, no `{:
 `assume` and no bodiless lemmas.
 
 The on-chain half is proved in `../lean`, `../kontrol` and `../halmos`. It says `expireMessage`
-accepts only `t > sentAt + P`, where `t` is the destination's `block.timestamp` at export, taken
+marks a message expired only if `t > sentAt + P` (a call for an already-expired message returns
+early and changes nothing), where `t` is the destination's `block.timestamp` at export, taken
 while the message was unrelayed there. This directory supplies the next step: after that moment
 the destination can never validly relay the message. It proves this against the supernode model,
 not against our own `t ≤ e + W` abstraction.

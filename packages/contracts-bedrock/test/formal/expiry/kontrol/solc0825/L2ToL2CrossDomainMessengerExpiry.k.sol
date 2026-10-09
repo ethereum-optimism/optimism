@@ -344,7 +344,9 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     // encoding also produces, so fixing the encoding loses no decoded behaviour. The byte lengths
     // are fixed, as Kontrol requires: the nested sendMessage's message is copied, never parsed, so
     // its length does not change which calls are made; nested relayMessage and expireMessage revert
-    // before reading their arguments' contents; the other functions read at most one word.
+    // before reading their arguments' contents; the other functions read at most one word. The
+    // lengths are still a bound of these proofs: nested sendMessage is checked with an empty and a
+    // 200-byte message (and sendMessage on its own with 600 bytes).
 
     /// @notice Nested sendMessage(destination, target, 200-byte message), every argument symbolic.
     /// @custom:kontrol-bytes-length-equals _inner: 200,
@@ -362,6 +364,27 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         _useRecordingL2CDM();
         kevm.symbolicStorage(L2TOL2);
         bytes memory message = abi.encodeCall(L2ToL2CrossDomainMessenger.sendMessage, (_destination, _target, _inner));
+        _relaySelf(_source, _nonce, _sender, message);
+        assert(_callsFrom(L2CDM, L2TOL2) == 0);
+        assert(_callsFrom(PASSER, L2TOL2) == 0);
+    }
+
+    /// @notice Nested sendMessage(destination, target, empty message): the other end of the
+    ///         message lengths, next to the 200-byte case above.
+    function prove_relayMessage_selfTarget_sendMessageEmpty_neverCallsL2CDMOrPasser(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        uint256 _destination,
+        address _target
+    )
+        external
+    {
+        _symbolicChain();
+        _useRecordingL2CDM();
+        kevm.symbolicStorage(L2TOL2);
+        bytes memory message =
+            abi.encodeCall(L2ToL2CrossDomainMessenger.sendMessage, (_destination, _target, bytes("")));
         _relaySelf(_source, _nonce, _sender, message);
         assert(_callsFrom(L2CDM, L2TOL2) == 0);
         assert(_callsFrom(PASSER, L2TOL2) == 0);

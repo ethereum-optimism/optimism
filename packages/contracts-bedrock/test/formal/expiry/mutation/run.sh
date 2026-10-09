@@ -6,11 +6,14 @@
 # the unmutated code (id K00) and must all pass, otherwise the script stops.
 #
 # Layers (LAYERS, comma-separated, default "unit,inv,halmos,hevm"):
-#   unit    the PR's unit tests of the four contracts, FOUNDRY_PROFILE=liteci, fixed fuzz seed;
+#   unit    the PR's unit tests of the four contracts, FOUNDRY_PROFILE=liteci, fixed fuzz seed; for mutants of
+#           Constants.sol and the deploy scripts (and the baseline), also the L2Genesis and GenerateNUTBundle tests;
 #   inv     ../invariants (FOUNDRY_PROFILE=liteci, its pinned runs x depth), seed SEED; if nothing fails, two more
 #           seeds (SEED+1, SEED+2);
 #   halmos  the PASS checks (from ../halmos/expected.tsv) of the touched contract's phase-1 Halmos contract; if none
-#           fails, also its phase-2 reachability contract (REACH=always runs both every time);
+#           fails, also its phase-2 reachability contract (REACH=always runs both every time). Constants.sol mutants
+#           use the messenger's contracts (they deploy it with Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD); the deploy
+#           scripts have none (NA);
 #   hevm    the develop-vs-branch equivalence harness (../hevm, Halmos engine) with the mutated messenger as the new
 #           code; only for L2ToL2CrossDomainMessenger mutants.
 # Verdicts: CAUGHT (with the failing checks), SURVIVED, NA (layer does not apply), ERROR (the mutant does not compile
@@ -30,9 +33,10 @@
 #
 # Runs IN PLACE in packages/contracts-bedrock: DeployUtils.getDeployedCode reads forge-artifacts/ on disk whatever
 # FOUNDRY_OUT says, so a separate output directory would let a stale artifact through. Run one instance per
-# checkout. src/ must be clean; it is restored (git checkout -- src) after every mutant and on exit, and
-# forge-artifacts/, cache/ (including cache/invariant, where forge replays failing sequences) are cleaned before
-# every mutant. As a canary, the touched contract's liteci runtime bytecode must differ from the baseline's.
+# checkout. src/ and scripts/ must be clean; they are restored (git checkout -- src scripts) after every mutant and
+# on exit, and forge-artifacts/, cache/ (including cache/invariant, where forge replays failing sequences) are
+# cleaned before every mutant. As a canary, the liteci creation and runtime bytecode of the touched contract (for
+# Constants.sol and the scripts: a script that inlines the edited code) must differ from the baseline's.
 set -uo pipefail
 if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
   echo "needs bash >= 4.4" >&2
@@ -66,17 +70,21 @@ henv=(env -u FOUNDRY_PROFILE FOUNDRY_SRC="$HDIR" FOUNDRY_TEST="$HDIR" FOUNDRY_SC
   FOUNDRY_CACHE_PATH="$HDIR/cache")
 EDIR=test/formal/expiry/hevm
 UNIT_PATHS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/UndeliveredMessageExporter,L2/SuperchainETHBridge}.t.sol"
+# Constants.sol and deploy-script mutants (and the baseline) also run the tests of the scripts that deploy the
+# messenger with its period. They take about five minutes, so the other mutants skip them.
+UNIT_PATHS_SCRIPTS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/UndeliveredMessageExporter,L2/SuperchainETHBridge,scripts/L2Genesis,scripts/GenerateNUTBundle}.t.sol"
+RESTORE=(src scripts)
 INV_PATHS="test/formal/expiry/invariants/*"
 RES="$here/results"
 MATRIX="$RES/matrix.tsv"
 mkdir -p "$RES"
 : >"$MATRIX"
 
-if ! git diff --quiet HEAD -- src || [ -n "$(git status --porcelain --untracked-files=all -- src)" ]; then
-  echo "src/ differs from HEAD (staged or unstaged); run on a clean checkout" >&2
+if ! git diff --quiet HEAD -- "${RESTORE[@]}" || [ -n "$(git status --porcelain --untracked-files=all -- "${RESTORE[@]}")" ]; then
+  echo "src/ or scripts/ differs from HEAD (staged or unstaged); run on a clean checkout" >&2
   exit 1
 fi
-trap 'git checkout -q HEAD -- src' EXIT
+trap 'git checkout -q HEAD -- "${RESTORE[@]}"' EXIT
 
 record() { # record <id> <layer> <verdict> <seconds> <detail>
   printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" | tee -a "$MATRIX"
@@ -101,16 +109,40 @@ summarize() {
   awk 'NR <= 8 { s = s (NR > 1 ? ", " : "") $0 } END { if (NR > 8) s = s ", ... (" NR " in all)"; print s }'
 }
 
-# Runtime bytecode hash of a contract's artifact in forge-artifacts/.
+# Hash of the creation and runtime bytecode of an artifact in forge-artifacts/: artifact_hash <File.sol:Contract>.
+# Both, because a constructor-only edit does not show in the runtime bytecode.
 artifact_hash() {
-  python3 -I - "forge-artifacts/$1.sol/$1.json" <<'PY'
+  python3 -I - "forge-artifacts/${1%%:*}/${1##*:}.json" <<'PY'
 import hashlib, json, sys
 try:
-    print(hashlib.sha256(json.load(open(sys.argv[1]))["deployedBytecode"]["object"].encode()).hexdigest()[:16])
+    a = json.load(open(sys.argv[1]))
+    print(hashlib.sha256((a["bytecode"]["object"] + a["deployedBytecode"]["object"]).encode()).hexdigest()[:16])
 except Exception:
     print("missing")
 PY
 }
+
+# What a mutated file maps to: the canary artifact, the phase-1 and phase-2 Halmos contracts, and whether the hevm
+# harness applies. Sets canary, p1, p2 and hevm.
+targets_of() { # targets_of <file>
+  canary="" p1="" p2="" hevm=""
+  case "$1" in
+    */L2ToL2CrossDomainMessenger.sol)
+      canary=L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger p1=L2ToL2ExpiryHalmos p2=ReachL2ToL2Halmos hevm=1 ;;
+    */UndeliveredMessageExporter.sol)
+      canary=UndeliveredMessageExporter.sol:UndeliveredMessageExporter p1=ExporterExpiryHalmos p2=ReachExporterHalmos ;;
+    */L1CrossDomainMessenger.sol)
+      canary=L1CrossDomainMessenger.sol:L1CrossDomainMessenger p1=L1CDMExpiryHalmos p2=ReachL1CDMHalmos ;;
+    */SuperchainETHBridge.sol)
+      canary=SuperchainETHBridge.sol:SuperchainETHBridge p1=RefundExpiryHalmos p2=ReachBridgeHalmos ;;
+    */libraries/Constants.sol) canary=L2Genesis.s.sol:L2Genesis p1=L2ToL2ExpiryHalmos p2=ReachL2ToL2Halmos ;;
+    */L2Genesis.s.sol) canary=L2Genesis.s.sol:L2Genesis ;;
+    */UpgradeUtils.sol) canary=GenerateNUTBundle.s.sol:GenerateNUTBundle ;;
+  esac
+}
+CANARIES=(L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger
+  UndeliveredMessageExporter.sol:UndeliveredMessageExporter L1CrossDomainMessenger.sol:L1CrossDomainMessenger
+  SuperchainETHBridge.sol:SuperchainETHBridge L2Genesis.s.sol:L2Genesis GenerateNUTBundle.s.sol:GenerateNUTBundle)
 
 # One forge test layer: run_forge <id> <layer> <paths> <seed>; prints the failures to stdout, or COMPILE-ERROR, or
 # RUN-ERROR when forge did not finish normally (an exit status other than 0 or 1, e.g. killed by the memory cap, or
@@ -130,14 +162,14 @@ run_forge() {
   forge_failures "$log"
 }
 
-layer_unit() { # layer_unit <id> <contract name>
+layer_unit() { # layer_unit <id> <canary File.sol:Contract> <test paths>
   local t0 fails
   t0=$(date +%s)
-  fails="$(run_forge "$1" unit "$UNIT_PATHS" "$SEED")"
+  fails="$(run_forge "$1" unit "$3" "$SEED")"
   local secs=$(($(date +%s) - t0)) canary="" h
   if [ -n "$2" ] && [ "$1" != K00 ]; then
     h="$(artifact_hash "$2")"
-    if [ "$h" = "$(cat "$RES/base-$2.sha" 2>/dev/null)" ] || [ "$h" = missing ]; then
+    if [ "$h" = "$(cat "$RES/base-${2##*:}.sha" 2>/dev/null)" ] || [ "$h" = missing ]; then
       canary=" [canary: $2 liteci bytecode $h unchanged vs baseline]"
     fi
   fi
@@ -259,16 +291,20 @@ layer_hevm() { # layer_hevm <id>: the mutated messenger replaces NEW in the equi
   mkdir -p "$EDIR/mutants"
   sed "s/^contract L2ToL2CrossDomainMessenger is/contract L2ToL2CrossDomainMessenger$m is/" \
     src/L2/L2ToL2CrossDomainMessenger.sol >"$EDIR/mutants/$m.sol"
+  # The messenger has an immutable (EXPIRY_PERIOD), so type(...).runtimeCode is unavailable: NEW gets the code of a
+  # deployment with the production period, as L2ToL2Bytecodes.CURRENT is.
   cat >"$EDIR/mutants/$m.t.sol" <<EOF
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
 import { L2ToL2CrossDomainMessenger_EquivalenceHalmos } from "../L2ToL2Equivalence.t.sol";
 import { L2ToL2CrossDomainMessenger$m } from "./$m.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract ${m}_EquivalenceHalmos is L2ToL2CrossDomainMessenger_EquivalenceHalmos {
-    function _newCode() internal pure override returns (bytes memory code_) {
-        code_ = type(L2ToL2CrossDomainMessenger$m).runtimeCode;
+    function setUp() public override {
+        super.setUp();
+        vm.etch(NEW, address(new L2ToL2CrossDomainMessenger$m(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)).code);
     }
 }
 EOF
@@ -302,9 +338,9 @@ EOF
 }
 
 run_mutant() { # run_mutant <id> <file> <sed expression>
-  local id=$1 file=$2 expr=$3 name="" p1="" p2=""
-  if ! git checkout -q HEAD -- src; then
-    echo "git checkout of src/ failed; stopping" >&2
+  local id=$1 file=$2 expr=$3 canary p1 p2 hevm upaths="$UNIT_PATHS"
+  if ! git checkout -q HEAD -- "${RESTORE[@]}"; then
+    echo "git checkout of src/ and scripts/ failed; stopping" >&2
     exit 1
   fi
   if ! "${wrap[@]}" "${fenv[@]}" "$FORGE" clean >/dev/null 2>&1; then
@@ -323,29 +359,31 @@ run_mutant() { # run_mutant <id> <file> <sed expression>
       return
     fi
   fi
-  case "$file" in
-    */L2ToL2CrossDomainMessenger.sol) name=L2ToL2CrossDomainMessenger p1=L2ToL2ExpiryHalmos p2=ReachL2ToL2Halmos ;;
-    */UndeliveredMessageExporter.sol) name=UndeliveredMessageExporter p1=ExporterExpiryHalmos p2=ReachExporterHalmos ;;
-    */L1CrossDomainMessenger.sol) name=L1CrossDomainMessenger p1=L1CDMExpiryHalmos p2=ReachL1CDMHalmos ;;
-    */SuperchainETHBridge.sol) name=SuperchainETHBridge p1=RefundExpiryHalmos p2=ReachBridgeHalmos ;;
-  esac
+  targets_of "$file"
+  case "$file" in none | */libraries/Constants.sol | scripts/*) upaths="$UNIT_PATHS_SCRIPTS" ;; esac
   if [[ $LAYERS == *,unit,* ]]; then
-    layer_unit "$id" "$name"
+    layer_unit "$id" "$canary" "$upaths"
     if [ "$(tail -n 1 "$MATRIX" | cut -f3,5 | grep -c 'stale or unchanged artifact')" -ne 0 ]; then
-      git checkout -q HEAD -- src
+      git checkout -q HEAD -- "${RESTORE[@]}"
       return # the other layers would read the same suspect artifacts
     fi
   fi
   [[ $LAYERS == *,inv,* ]] && layer_inv "$id"
-  [[ $LAYERS == *,halmos,* ]] && [ -n "$p1" ] && layer_halmos "$id" "$p1" "$p2"
-  if [[ $LAYERS == *,hevm,* ]]; then
-    if [ "$name" = L2ToL2CrossDomainMessenger ] || [ "$id" = K00 ]; then
-      layer_hevm "$id"
+  if [[ $LAYERS == *,halmos,* ]] && [ "$id" != K00 ]; then
+    if [ -n "$p1" ]; then
+      layer_halmos "$id" "$p1" "$p2"
     else
-      record "$id" hevm NA 0 "the equivalence harness covers only L2ToL2CrossDomainMessenger"
+      record "$id" halmos NA 0 "no Halmos contract deploys through $file"
     fi
   fi
-  git checkout -q HEAD -- src
+  if [[ $LAYERS == *,hevm,* ]]; then
+    if [ -n "$hevm" ] || [ "$id" = K00 ]; then
+      layer_hevm "$id"
+    else
+      record "$id" hevm NA 0 "the equivalence harness covers only the L2ToL2CrossDomainMessenger source"
+    fi
+  fi
+  git checkout -q HEAD -- "${RESTORE[@]}"
 }
 
 # Baseline: every layer must pass on the unmutated code. The Halmos groups and the hevm layer run for the contracts
@@ -358,16 +396,19 @@ base_layers="$LAYERS"
 [[ $selected_files == *L2ToL2CrossDomainMessenger.sol* ]] || LAYERS="${LAYERS//,hevm,/,}"
 run_mutant K00 none ""
 LAYERS="$base_layers"
-for c in L2ToL2CrossDomainMessenger UndeliveredMessageExporter L1CrossDomainMessenger SuperchainETHBridge; do
-  artifact_hash "$c" >"$RES/base-$c.sha"
+for c in "${CANARIES[@]}"; do
+  artifact_hash "$c" >"$RES/base-${c##*:}.sha"
 done
 if [[ $LAYERS == *,halmos,* ]]; then
-  for triple in L2ToL2CrossDomainMessenger:L2ToL2ExpiryHalmos:ReachL2ToL2Halmos \
-    UndeliveredMessageExporter:ExporterExpiryHalmos:ReachExporterHalmos \
-    L1CrossDomainMessenger:L1CDMExpiryHalmos:ReachL1CDMHalmos SuperchainETHBridge:RefundExpiryHalmos:ReachBridgeHalmos; do
-    IFS=: read -r c p1 p2 <<<"$triple"
-    [[ $selected_files == *"/$c.sol"* ]] && layer_halmos K00 "$p1" "$p2"
-  done
+  # One baseline per Halmos pair that the selected mutants use.
+  pairs="$(while read -r f; do
+    [ -n "$f" ] || continue
+    targets_of "$f"
+    [ -n "$p1" ] && echo "$p1 $p2"
+  done <<<"$selected_files" | sort -u)"
+  while read -r p1 p2; do
+    [ -n "$p1" ] && layer_halmos K00 "$p1" "$p2"
+  done <<<"$pairs"
 fi
 MATRIX="$MATRIX_SAVED"
 if awk -F'\t' '$3 != "SURVIVED" && $3 != "NA" { bad = 1 } END { exit !bad }' "$MATRIX.base"; then
