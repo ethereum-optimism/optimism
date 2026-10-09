@@ -39,25 +39,12 @@ use crate::{
 };
 use reth_db::{
     Database, DatabaseEnv, DatabaseError,
-    mdbx::{self, DatabaseArguments, init_db_for},
+    mdbx::{DatabaseArguments, init_db_for},
 };
 use std::{path::Path, sync::Arc};
-use tracing::info;
 
 /// Maximum number of block indices per shard in history bitmap tables.
 pub(super) const NUM_OF_INDICES_IN_SHARD: usize = 2_000;
-
-/// Tables of the removed v1 proofs storage.
-///
-/// Older releases created these in every proofs database, so they may still exist on disk.
-const LEGACY_V1_TABLES: &[&str] = &[
-    "AccountTrieHistory",
-    "StorageTrieHistory",
-    "HashedAccountHistory",
-    "HashedStorageHistory",
-    "ProofWindow",
-    "BlockChangeSet",
-];
 
 /// MDBX implementation of [`OpProofsStore`].
 ///
@@ -74,36 +61,7 @@ impl MdbxProofsStorage {
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
         let env = init_db_for::<_, Tables>(path, DatabaseArguments::default())
             .map_err(|e| DatabaseError::Other(format!("Failed to open database: {e}")))?;
-        Self::drop_legacy_v1_tables(&env, path)?;
         Ok(Self { env })
-    }
-
-    /// Drops the empty [`LEGACY_V1_TABLES`] left behind by older releases.
-    ///
-    /// Fails with [`OpProofsStorageError::LegacyV1Database`] if any of them holds data, since v1
-    /// data cannot be migrated and would otherwise sit in the database file forever.
-    fn drop_legacy_v1_tables(env: &DatabaseEnv, path: &Path) -> Result<(), OpProofsStorageError> {
-        let tx = env.begin_ro_txn().map_err(|e| DatabaseError::InitTx(e.into()))?;
-        let mut empty_tables = Vec::new();
-        for &name in LEGACY_V1_TABLES {
-            let table = match tx.open_db(Some(name)) {
-                Ok(table) => table,
-                Err(mdbx::Error::NotFound) => continue,
-                Err(e) => return Err(DatabaseError::Open(e.into()).into()),
-            };
-            if tx.db_stat(table.dbi()).map_err(|e| DatabaseError::Stats(e.into()))?.entries() > 0 {
-                return Err(OpProofsStorageError::LegacyV1Database { path: path.to_path_buf() });
-            }
-            empty_tables.push(name);
-        }
-        drop(tx);
-
-        for name in empty_tables {
-            if env.drop_orphan_table(name)? {
-                info!(target: "trie::db", table = name, "Dropped empty legacy v1 proofs table");
-            }
-        }
-        Ok(())
     }
 }
 
