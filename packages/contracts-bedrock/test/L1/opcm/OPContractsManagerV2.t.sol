@@ -2069,19 +2069,24 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(IAnchorStateRegistry(impls.anchorStateRegistryImpl).disputeGameFinalityDelaySeconds(), 0);
     }
 
-    /// @notice Tests that a zero proof maturity delay is rejected on deploy. OPCM does not check
-    ///         it; the portal's initializer rejects it as below the minimum, wrapped by the Proxy.
+    /// @notice Tests that a zero proof maturity delay is rejected by OPCM's config validation
+    ///         before any proxy is touched.
     function test_deploy_zeroProofMaturityDelay_reverts() public {
         deployConfig.proofMaturityDelaySeconds = 0;
-        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
     }
 
-    /// @notice Tests that a zero dispute game finality delay is rejected on deploy. OPCM does not
-    ///         check it; the registry's initializer rejects it as below the minimum, wrapped by
-    ///         the Proxy.
+    /// @notice Tests that a zero dispute game finality delay is rejected by OPCM's config
+    ///         validation before any proxy is touched.
     function test_deploy_zeroDisputeGameFinalityDelay_reverts() public {
         deployConfig.disputeGameFinalityDelaySeconds = 0;
-        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
     }
 
     /// @notice Tests that the portal's bounds reject an out-of-range proof maturity delay on deploy.

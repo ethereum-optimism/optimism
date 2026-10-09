@@ -155,6 +155,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
 
+    /// @notice Thrown when a withdrawal delay in the config is zero.
+    error OPContractsManagerV2_InvalidDelayConfig();
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -726,10 +729,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // NOTE: The withdrawal delays (proofMaturityDelaySeconds, disputeGameFinalityDelaySeconds)
-        // are not validated here and their bounds are enforced by the immutables on
-        // the OptimismPortal and AnchorStateRegistry implementations.
-        // The check is omitted due to the contract size limit.
+        // Withdrawal delays must be set. Bounds are enforced by the implementations' initializers
+        // so that the bounds live in exactly one place.
+        if (_cfg.proofMaturityDelaySeconds == 0 || _cfg.disputeGameFinalityDelaySeconds == 0) {
+            revert OPContractsManagerV2_InvalidDelayConfig();
+        }
 
         bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
