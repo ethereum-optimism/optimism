@@ -177,11 +177,16 @@ contract MockExpiredMessages {
 }
 
 /// @notice Stands for chain A's SystemConfig (relayUndeliveredMessage's interop gate):
-///         isFeatureEnabled(f) = mapping at slot 0; l1CrossDomainMessenger() returns slot 1 (both
-///         symbolic in the proofs).
+///         isFeatureEnabled(f) = mapping at slot 0; l1CrossDomainMessenger() returns slot 1;
+///         paused() returns slot 2 (all symbolic in the proofs).
 contract MockSystemConfigA {
     mapping(bytes32 => bool) internal features;
     address internal l1CrossDomainMessengerRet;
+    bool internal pausedRet;
+
+    function paused() external view returns (bool) {
+        return pausedRet;
+    }
 
     function l1CrossDomainMessenger() external view returns (address) {
         return l1CrossDomainMessengerRet;

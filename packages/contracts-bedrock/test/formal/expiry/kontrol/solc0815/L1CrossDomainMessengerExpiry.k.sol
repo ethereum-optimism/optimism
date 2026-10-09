@@ -90,10 +90,16 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         return Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
     }
 
-    /// @notice A's interop gate, ANY value: SystemConfig feature flags are fully symbolic.
+    /// @notice A's interop gate, ANY value: SystemConfig feature flags (and its paused flag) are fully
+    ///         symbolic.
     function _symbolicInteropGate() internal returns (bool enabled_) {
         kevm.symbolicStorage(address(aSystemConfig));
         enabled_ = aSystemConfig.isFeatureEnabled(Features.INTEROP);
+    }
+
+    /// @notice A's paused flag, as A's L1CrossDomainMessenger reads it (SystemConfig.paused()).
+    function _paused() internal view returns (bool) {
+        return aSystemConfig.paused();
     }
 
     function _symbolicNonce() internal returns (uint256 nonce_) {
@@ -102,7 +108,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     }
 
     /// @notice relayUndeliveredMessage(H, t) called by ANY contract `caller` succeeds IFF
-    ///         (g) A's SystemConfig.isFeatureEnabled(INTEROP),
+    ///         (g) A's SystemConfig.isFeatureEnabled(INTEROP), A not paused (SystemConfig.paused()),
     ///         (a) caller.portal().systemConfig().l1CrossDomainMessenger() == caller,
     ///         (b) A's lockbox authorizedPortals(caller.portal()), and
     ///         (c) caller.xDomainMessageSender() == Predeploys.UNDELIVERED_MESSAGE_EXPORTER.
@@ -120,6 +126,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     function prove_relayUndeliveredMessage_spec(bytes32 _messageHash, uint256 _undeliveredAt) external {
         uint256 nonce = _symbolicNonce();
         bool interop = _symbolicInteropGate();
+        bool paused = _paused();
         address xSenderAnswer = kevm.freshAddress();
         vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerPortal)))));
         vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(xSenderAnswer))));
@@ -130,7 +137,13 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
 
         (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
 
-        assert(ok == (interop && l1cdmAnswer == address(caller) && authorized && xSenderAnswer == _trustedL2Sender()));
+        assert(
+            ok
+                == (
+                    interop && !paused && l1cdmAnswer == address(caller) && authorized
+                        && xSenderAnswer == _trustedL2Sender()
+                )
+        );
 
         _checkDeposit(ok, nonce, _messageHash, _undeliveredAt);
     }
@@ -297,6 +310,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     ///         portal `_p` it used (the getters are views, so they answer as they did in the call).
     function _assertChecksOn(bool _interop, address _p, address _xSenderAnswer) internal view {
         assert(_interop);
+        assert(!_paused());
         assert(aLockbox.authorizedPortals(_p));
         assert(MockSystemConfig(MockCallerPortal(_p).systemConfig()).l1CrossDomainMessenger() == address(caller));
         assert(_xSenderAnswer == _trustedL2Sender());
@@ -322,6 +336,26 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         vm.store(address(aLockbox), keccak256(abi.encode(address(callerPortal), uint256(0))), bytes32(uint256(1)));
         assert(aSystemConfig.isFeatureEnabled(Features.INTEROP));
         assert(aLockbox.authorizedPortals(address(callerPortal)));
+
+        (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
+
+        assert(!ok);
+        _checkDeposit(ok, 0, _messageHash, _undeliveredAt);
+    }
+
+    /// @notice While A is paused, relayUndeliveredMessage reverts (and makes no deposit) even with the
+    ///         gate on and every check satisfied. The relaying messenger then keeps the message in its
+    ///         failedMessages, so it can be replayed after the unpause.
+    function prove_relayUndeliveredMessage_rejectsWhilePaused(bytes32 _messageHash, uint256 _undeliveredAt) external {
+        _symbolicNonce();
+        vm.store(address(aSystemConfig), keccak256(abi.encode(Features.INTEROP, uint256(0))), bytes32(uint256(1)));
+        vm.store(address(aSystemConfig), bytes32(uint256(2)), bytes32(uint256(1)));
+        vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerPortal)))));
+        vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(_trustedL2Sender()))));
+        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerSystemConfig)))));
+        vm.store(address(callerSystemConfig), bytes32(uint256(0)), bytes32(uint256(uint160(address(caller)))));
+        vm.store(address(aLockbox), keccak256(abi.encode(address(callerPortal), uint256(0))), bytes32(uint256(1)));
+        assert(_paused());
 
         (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
 

@@ -49,10 +49,19 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     /// @notice L2ToL2CrossDomainMessenger storage slot of msgNonce (uint240).
     uint256 internal constant MSG_NONCE_SLOT = 1;
 
+    /// @notice L2ToL2CrossDomainMessenger storage slot of expiryPeriod.
+    uint256 internal constant EXPIRY_PERIOD_SLOT = 5;
+
+    /// @notice The bound initialize puts on the expiry period.
+    uint256 internal constant MAX_EXPIRY_PERIOD = 365 days;
+
     L2ToL2CrossDomainMessenger internal constant l2tol2 = L2ToL2CrossDomainMessenger(L2TOL2);
 
     function setUp() public {
-        _etch(L2TOL2, address(new L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)));
+        _etch(L2TOL2, address(new L2ToL2CrossDomainMessenger()));
+        // expiryPeriod (slot 5), as initialize sets it on every production network. Proofs that make
+        // the messenger's storage symbolic make it symbolic too.
+        vm.store(L2TOL2, bytes32(EXPIRY_PERIOD_SLOT), bytes32(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
         _etch(INBOX, address(new AcceptAllCrossL2Inbox()));
         _etch(PASSER, address(new RecordingMock()));
     }
@@ -514,7 +523,8 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
 
     /// @notice For ALL messageHash, undeliveredAt, caller, L2CDM.xDomainMessageSender(),
     ///         L2CDM.otherMessenger() and storage, with sentAt = sentMessageTimestamps[H] < 2^64
-    ///         (realistic block timestamps): expireMessage succeeds IFF msg.sender == 0x..07 &&
+    ///         (realistic block timestamps) and ANY stored expiryPeriod in initialize's range
+    ///         (0, 365 days]: expireMessage succeeds IFF msg.sender == 0x..07 &&
     ///         xDomainMessageSender == otherMessenger && (expiredMessages[H] was already set ||
     ///         (sentAt != 0 && undeliveredAt > sentAt + EXPIRY_PERIOD, read from the contract, not
     ///         hardcoded)); afterwards expiredMessages[H] == old || success, and
@@ -530,7 +540,9 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         uint256 sentAt = l2tol2.sentMessageTimestamps(_messageHash);
         vm.assume(sentAt < 2 ** 64);
         bool expiredBefore = l2tol2.expiredMessages(_messageHash);
+        // Any stored period initialize accepts.
         uint256 period = l2tol2.expiryPeriod();
+        vm.assume(period > 0 && period <= MAX_EXPIRY_PERIOD);
 
         address caller = kevm.freshAddress();
         vm.prank(caller);
@@ -579,8 +591,8 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         assert(!ok);
     }
 
-    /// @notice The messenger the harness constructs, with the production period
-    ///         Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD (8 days), has an expiry period of at least
+    /// @notice The messenger set up as initialize sets it on production networks
+    ///         (Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD, 8 days) has an expiry period of at least
     ///         the protocol's relay window, which op-core and kona cap at 7 days
     ///         (assumption P_contract >= W_protocol).
     function prove_expiryPeriod_atLeastProtocolWindow() external view {
