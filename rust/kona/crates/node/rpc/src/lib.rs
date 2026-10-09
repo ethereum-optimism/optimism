@@ -28,7 +28,7 @@ pub use jsonrpsee::{
 pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
-pub use kona_node_actors::{DerivationStatus, l1_watcher};
+pub use kona_node_actors::DerivationStatus;
 pub use rollup::{OutputError, OutputProvider, OutputResponse, RollupRpc};
 
 mod health;

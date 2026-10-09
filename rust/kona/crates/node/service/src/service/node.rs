@@ -325,12 +325,12 @@ impl RollupNode {
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         signer: signer::Handle,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
-        l1_state: watch::Receiver<l1_watcher::State>,
+        l1_head: watch::Receiver<BlockInfo>,
         builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.l1_config.engine_provider.clone(),
-            l1_state,
+            l1_head,
             self.sequencer_config.l1_conf_delay,
         );
         let delayed_origin_selector =
@@ -351,13 +351,16 @@ impl RollupNode {
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    #[allow(clippy::too_many_arguments)]
     async fn build_rpc_actor(
         &self,
         l2_query_client: EngineClient,
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
-        l1_state: watch::Receiver<l1_watcher::State>,
+        head_l1: watch::Receiver<BlockInfo>,
+        safe_l1: watch::Receiver<BlockInfo>,
+        finalized_l1: watch::Receiver<BlockInfo>,
         derivation_status: watch::Receiver<DerivationStatus>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
@@ -384,7 +387,9 @@ impl RollupNode {
                     self.config.clone(),
                     engine_state_rx,
                     l2_query_client,
-                    l1_state,
+                    head_l1,
+                    safe_l1,
+                    finalized_l1,
                     derivation_status,
                 )
                 .into_rpc(),
@@ -456,7 +461,6 @@ impl RollupNode {
         let safe = safe_builder.handle();
         let finalized = finalized_builder.handle();
         let l1_watcher_builder = l1_watcher::Builder::new();
-        let l1_state = l1_watcher_builder.handle().state_receiver();
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
             mpsc::channel::<DerivationActorRequest>(1024);
@@ -534,9 +538,9 @@ impl RollupNode {
             l1_watcher_builder,
             derivation_actor_request_tx,
             signer_tx,
-            head,
-            finalized,
-            safe,
+            head.clone(),
+            finalized.clone(),
+            safe.clone(),
         );
         let l1_head = head_builder.build(
             self.l1_config.engine_provider.clone(),
@@ -559,7 +563,7 @@ impl RollupNode {
                 engine_actor_request_tx.clone(),
                 signer_handle,
                 unsafe_head_rx,
-                l1_state.clone(),
+                head.clone(),
                 builder,
             )
         });
@@ -576,7 +580,9 @@ impl RollupNode {
                 engine_state_rx,
                 admin_rpc,
                 p2p_rpc,
-                l1_state,
+                head,
+                safe,
+                finalized,
                 derivation_status,
             )
             .await?;

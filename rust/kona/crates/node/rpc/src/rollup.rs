@@ -13,13 +13,13 @@ use jsonrpsee::{
 };
 use kona_engine::EngineState;
 use kona_genesis::RollupConfig;
-use kona_protocol::{FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
+use kona_protocol::{BlockInfo, FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
 use op_alloy_network::Optimism;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
-use crate::{DerivationStatus, RollupNodeApiServer, l1_watcher};
+use crate::{DerivationStatus, RollupNodeApiServer};
 
 /// An [output response][or] for Optimism Rollup.
 ///
@@ -137,8 +137,12 @@ pub struct RollupRpc<L2> {
     pub engine_state: watch::Receiver<EngineState>,
     /// The read-only L2 output query provider.
     l2: L2,
-    /// The L1 observations published by the L1 watcher.
-    pub l1_state: watch::Receiver<l1_watcher::State>,
+    /// The latest published L1 head.
+    pub head_l1: watch::Receiver<BlockInfo>,
+    /// The latest published safe L1 head.
+    pub safe_l1: watch::Receiver<BlockInfo>,
+    /// The latest published finalized L1 head.
+    pub finalized_l1: watch::Receiver<BlockInfo>,
     /// The progress published by the derivation actor.
     pub derivation_status: watch::Receiver<DerivationStatus>,
 }
@@ -146,34 +150,50 @@ pub struct RollupRpc<L2> {
 impl<L2> RollupRpc<L2> {
     /// Constructs a new [`RollupRpc`] from the application version, configuration, state, and
     /// clients.
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         version: String,
         config: Arc<RollupConfig>,
         engine_state: watch::Receiver<EngineState>,
         l2: L2,
-        l1_state: watch::Receiver<l1_watcher::State>,
+        head_l1: watch::Receiver<BlockInfo>,
+        safe_l1: watch::Receiver<BlockInfo>,
+        finalized_l1: watch::Receiver<BlockInfo>,
         derivation_status: watch::Receiver<DerivationStatus>,
     ) -> Self {
-        Self { version, config, engine_state, l2, l1_state, derivation_status }
+        Self {
+            version,
+            config,
+            engine_state,
+            l2,
+            head_l1,
+            safe_l1,
+            finalized_l1,
+            derivation_status,
+        }
     }
 
     fn sync_status(&self) -> RpcResult<SyncStatus> {
-        // Do not serve a stale snapshot after either publisher exits.
-        self.l1_state.has_changed().map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        // Do not serve a stale snapshot after a publisher exits.
+        for receiver in [&self.head_l1, &self.safe_l1, &self.finalized_l1] {
+            receiver.has_changed().map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        }
         self.derivation_status
             .has_changed()
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
         let l2_sync_status = *self.engine_state.borrow();
-        let l1_sync_status = *self.l1_state.borrow();
+        let head_l1 = *self.head_l1.borrow();
+        let safe_l1 = *self.safe_l1.borrow();
+        let finalized_l1 = *self.finalized_l1.borrow();
         let derivation_status = *self.derivation_status.borrow();
 
         // Zero-out the fields that can't be derived yet to follow op-node's behaviour.
         Ok(SyncStatus {
             current_l1: derivation_status.current_l1.unwrap_or_default(),
-            current_l1_finalized: l1_sync_status.finalized_l1.unwrap_or_default(),
-            head_l1: l1_sync_status.head_l1.unwrap_or_default(),
-            safe_l1: l1_sync_status.safe_l1.unwrap_or_default(),
-            finalized_l1: l1_sync_status.finalized_l1.unwrap_or_default(),
+            current_l1_finalized: finalized_l1,
+            head_l1,
+            safe_l1,
+            finalized_l1,
             unsafe_l2: l2_sync_status.sync_state.unsafe_head(),
             local_safe_l2: l2_sync_status.sync_state.local_safe_head(),
             safe_l2: l2_sync_status.sync_state.safe_head(),
@@ -284,15 +304,18 @@ mod tests {
         let config = Arc::new(RollupConfig::default());
         let (_, state_rx) = watch::channel(EngineState::default());
         let head_l1 = BlockInfo { number: 42, ..Default::default() };
-        let (_l1_tx, l1_state) =
-            watch::channel(l1_watcher::State { head_l1: Some(head_l1), ..Default::default() });
+        let (_head_tx, head_rx) = watch::channel(head_l1);
+        let (_safe_tx, safe_rx) = watch::channel(BlockInfo::default());
+        let (_finalized_tx, finalized_rx) = watch::channel(BlockInfo::default());
         let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
         let rpc = RollupRpc::new(
             "test".to_owned(),
             config.clone(),
             state_rx.clone(),
             TestOutputProvider { block, output: Ok((block_info, root)) },
-            l1_state.clone(),
+            head_rx.clone(),
+            safe_rx.clone(),
+            finalized_rx.clone(),
             derivation_status.clone(),
         );
         let response = rpc.op_output_at_block(block).await;
@@ -308,7 +331,9 @@ mod tests {
             config,
             state_rx,
             TestOutputProvider { block, output: Err("output unavailable") },
-            l1_state,
+            head_rx,
+            safe_rx,
+            finalized_rx,
             derivation_status,
         );
         assert_eq!(
@@ -322,14 +347,18 @@ mod tests {
         let config = Arc::new(RollupConfig { block_time: 11, ..Default::default() });
         let (client, l1, l2) = test_engine_client(config.clone());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
-        let (l1_tx, l1_state) = watch::channel(l1_watcher::State::default());
+        let (head_tx, head_rx) = watch::channel(BlockInfo::default());
+        let (safe_tx, safe_rx) = watch::channel(BlockInfo::default());
+        let (finalized_tx, finalized_rx) = watch::channel(BlockInfo::default());
         let (derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
-        let mut rpc = RollupRpc::new(
+        let rpc = RollupRpc::new(
             "1.2.3-test".to_owned(),
             config.clone(),
             state_rx,
             client,
-            l1_state,
+            head_rx,
+            safe_rx,
+            finalized_rx,
             derivation_status,
         );
         assert_eq!(rpc.op_rollup_config().await.unwrap(), *config);
@@ -340,26 +369,29 @@ mod tests {
             ..Default::default()
         };
         state_tx.send_replace(TestEngineStateBuilder::new().with_unsafe_head(head).build());
-        let observed = l1_watcher::State {
-            head_l1: Some(BlockInfo { number: 42, ..Default::default() }),
-            safe_l1: Some(BlockInfo { number: 40, ..Default::default() }),
-            finalized_l1: Some(BlockInfo { number: 38, ..Default::default() }),
-        };
-        l1_tx.send_replace(observed);
+        let head_l1 = BlockInfo { number: 42, ..Default::default() };
+        let safe_l1 = BlockInfo { number: 40, ..Default::default() };
+        let finalized_l1 = BlockInfo { number: 38, ..Default::default() };
+        head_tx.send_replace(head_l1);
+        safe_tx.send_replace(safe_l1);
+        finalized_tx.send_replace(finalized_l1);
         let current_l1 = BlockInfo { number: 35, ..Default::default() };
         derivation_tx.send_replace(DerivationStatus { current_l1: Some(current_l1) });
         let status = rpc.op_sync_status().await.unwrap();
         assert_eq!(status.unsafe_l2, head);
         assert_eq!(status.current_l1, current_l1);
-        assert_eq!(status.head_l1, observed.head_l1.unwrap());
-        assert_eq!(status.safe_l1, observed.safe_l1.unwrap());
-        assert_eq!(status.finalized_l1, observed.finalized_l1.unwrap());
+        assert_eq!(status.head_l1, head_l1);
+        assert_eq!(status.safe_l1, safe_l1);
+        assert_eq!(status.finalized_l1, finalized_l1);
         assert_eq!(status.current_l1_finalized, status.finalized_l1);
 
-        drop(l1_tx);
-        assert_eq!(rpc.op_sync_status().await.unwrap_err().code(), ErrorCode::InternalError.code());
-        let (_l1_tx, l1_state) = watch::channel(observed);
-        rpc.l1_state = l1_state;
+        let reorg = BlockInfo { number: 41, hash: B256::repeat_byte(1), ..Default::default() };
+        head_tx.send_replace(reorg);
+        let status = rpc.op_sync_status().await.unwrap();
+        assert_eq!(status.head_l1, reorg);
+        assert_eq!(status.safe_l1, safe_l1);
+        assert_eq!(status.finalized_l1, finalized_l1);
+
         drop(derivation_tx);
         assert_eq!(rpc.op_sync_status().await.unwrap_err().code(), ErrorCode::InternalError.code());
         l1.assert_finished();
@@ -367,11 +399,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_closed_block_publishers() {
+        for closed in 0..3 {
+            let (_, engine_state) = watch::channel(EngineState::default());
+            let (head_tx, head_rx) = watch::channel(BlockInfo::default());
+            let (safe_tx, safe_rx) = watch::channel(BlockInfo::default());
+            let (finalized_tx, finalized_rx) = watch::channel(BlockInfo::default());
+            let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
+            let rpc = RollupRpc::new(
+                "test".to_owned(),
+                Arc::new(RollupConfig::default()),
+                engine_state,
+                TestOutputProvider { block: BlockNumberOrTag::Number(0), output: Err("unused") },
+                head_rx,
+                safe_rx,
+                finalized_rx,
+                derivation_status,
+            );
+            let mut publishers = vec![head_tx, safe_tx, finalized_tx];
+            assert!(rpc.op_sync_status().await.is_ok());
+            drop(publishers.remove(closed));
+            assert_eq!(
+                rpc.op_sync_status().await.unwrap_err().code(),
+                ErrorCode::InternalError.code()
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn returns_configured_version() {
         let config = Arc::new(RollupConfig::default());
         let (client, l1, l2) = test_engine_client(config.clone());
         let (_, state_rx) = watch::channel(EngineState::default());
-        let (_l1_tx, l1_state) = watch::channel(l1_watcher::State::default());
+        let (_head_tx, head_rx) = watch::channel(BlockInfo::default());
+        let (_safe_tx, safe_rx) = watch::channel(BlockInfo::default());
+        let (_finalized_tx, finalized_rx) = watch::channel(BlockInfo::default());
         let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
 
         for version in ["1.2.3-test", "0.0.0-dev"] {
@@ -380,7 +442,9 @@ mod tests {
                 config.clone(),
                 state_rx.clone(),
                 client.clone(),
-                l1_state.clone(),
+                head_rx.clone(),
+                safe_rx.clone(),
+                finalized_rx.clone(),
                 derivation_status.clone(),
             );
             assert_eq!(rpc.op_version().await.unwrap(), version);
