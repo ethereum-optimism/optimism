@@ -87,7 +87,9 @@ structure Config (Chain Body Hash : Type) where
   protocolWindow : Chain → Nat
   /-- P_contract of chain z's messenger: the expiry period `initialize` stored (0 < P ≤ 365 days);
   every upgrade sets the production value, only a test network's genesis another. Fixed here for the
-  whole execution. expireMessage on z requires
+  whole execution: every live messenger has its initialized period. A proxy upgraded to the expiry
+  messenger by `ProxyAdmin.upgrade` alone keeps the period it had, 0 if it was never initialized;
+  that is outside this model (see `../rollout/`, AC7). expireMessage on z requires
   t > sentAt + contractPeriod z (`≥` if `expireGe`). -/
   contractPeriod : Chain → Nat
   /-- The sender `relayUndeliveredMessage` trusts: `exporter` (v2) or `messenger` (earlier design,
@@ -140,6 +142,9 @@ structure State (Chain Hash : Type) where
   refunded : Chain → Hash → Prop
   /-- Ghost: refundETH payouts per (chain, hash). -/
   refunds : Chain → Hash → Nat
+  /-- The chain is paused (its ETHLockbox reports `paused()`, a local or global SuperchainConfig
+  pause): its L1CrossDomainMessenger's `relayUndeliveredMessage` reverts. -/
+  paused : Chain → Bool
 
 /-- Actions; names follow the Quint model (`export` is a keyword in both languages). -/
 inductive Action (Chain Body Hash : Type) where
@@ -185,6 +190,10 @@ inductive Action (Chain Body Hash : Type) where
   | expire (f : Fact Chain Hash)
   /-- Chain z: SuperchainETHBridge.refundETH; it rebuilds the hash of (d, z, b). -/
   | refund (z d : Chain) (b : Body)
+  /-- The guardian pauses chain y (any time, also when it is already paused). -/
+  | pause (y : Chain)
+  /-- The guardian unpauses chain y (any time). -/
+  | unpause (y : Chain)
 
 variable {Chain Body Hash : Type} [DecidableEq Chain] [DecidableEq Hash]
 
@@ -242,7 +251,10 @@ def guard (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chai
       (cfg.unsafeTargetCheck = true → w.origin ≠ w.fact.toL1) ∧
       (cfg.lockboxCheck = true → s.lockbox w.fact.toL1 w.origin) ∧
       (cfg.senderCheck = true → w.sender = cfg.trusted) ∧
-      cfg.interop w.fact.toL1
+      cfg.interop w.fact.toL1 ∧
+      -- relayUndeliveredMessage reverts while the receiving chain is paused. The withdrawal stays:
+      -- the reverted call lands in the caller's failedMessages and can be replayed after unpause.
+      s.paused w.fact.toL1 = false
   | .fakeCaller _, _ =>
       cfg.realMessengerCheck = false ∨ cfg.lockboxCheck = false ∨ cfg.sysConfigConsistent = false
   | .l1cdmSelfRelay _, _ => cfg.unsafeTargetCheck = false
@@ -251,6 +263,8 @@ def guard (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chai
       s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg f.toL1 (s.sentAt f.toL1 f.hash) f.time
   | .refund z d b, s =>
       cfg.isBridge b ∧ s.expired z (cfg.msgHash d z b) ∧ ¬ s.refunded z (cfg.msgHash d z b)
+  | .pause _, _ => True
+  | .unpause _, _ => True
 
 /-- Effect of each action. -/
 def next (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chain Hash →
@@ -296,6 +310,8 @@ def next (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chain
       { s with
         refunded := fun c h => s.refunded c h ∨ (c = z ∧ h = cfg.msgHash d z b)
         refunds := upd2 s.refunds z (cfg.msgHash d z b) (s.refunds z (cfg.msgHash d z b) + 1) }
+  | .pause y, s => { s with paused := upd1 s.paused y true }
+  | .unpause y, s => { s with paused := upd1 s.paused y false }
 
 /-- One labelled transition. -/
 def Step (cfg : Config Chain Body Hash) (a : Action Chain Body Hash) (s s' : State Chain Hash) :
@@ -310,9 +326,9 @@ inductive Reach (cfg : Config Chain Body Hash) : State Chain Hash → State Chai
 
 /-- Genesis of all chains: nothing sent, relayed or withdrawn yet, and no chain upgraded: the
 exporter address holds the genesis Proxy with no implementation, so every call to it reverts.
-Clocks and initial lockbox memberships are arbitrary. For a standard chain, `upgrade` is the only
-action that gives the exporter an implementation; that no ProxyAdmin action did so earlier is the
-deployment assumption "historical inertness" (README). -/
+Clocks, initial lockbox memberships and pause flags are arbitrary. For a standard chain, `upgrade`
+is the only action that gives the exporter an implementation; that no ProxyAdmin action did so
+earlier is the deployment assumption "historical inertness" (README). -/
 structure Init (s : State Chain Hash) : Prop where
   not_upgraded : ∀ y, s.upgraded y = false
   sentAt_zero : ∀ z h, s.sentAt z h = 0

@@ -8,7 +8,7 @@ module rogueExporterMember {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = true,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = true,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "guarded").* from "./rollout"
@@ -25,7 +25,7 @@ module rogueThenJoin {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = false, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "guarded").* from "./rollout"
@@ -42,7 +42,7 @@ module duplicateChainId {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = false, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "guarded").* from "./rollout"
@@ -67,7 +67,7 @@ module l1EarlierDesign {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = true,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "guarded").* from "./rollout"
@@ -84,7 +84,7 @@ module periodOverrideUnguarded {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "unguarded").* from "./rollout"

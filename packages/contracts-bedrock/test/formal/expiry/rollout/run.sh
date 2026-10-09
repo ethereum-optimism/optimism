@@ -38,9 +38,9 @@ WITNESSES=(NoRefundEver NoRefundOfM2 NoRefundOfM3 NoEdgeRelay NoLateRelayBeforeE
   NoRefundExporterFirst NoRefundAfterLagoon NoRefundAfterLagoonReverted NoRefundAfterL1Rollback
   NoRefundAfterBridgeRollback NoRefundAfterExporterRemoved NoRefundAfterMessengerRollback
   NoJoin NoLateInteropEnable NoRogueExporterEver NoRogueWithdrawal NoMessengerWithdrawal NoResend
-  NoRefundUnderPeriodOverride)
+  NoRefundUnderPeriodOverride NoRefundAfterDirectUpgrade NoRefundAfterPause)
 UNSAFE=(noWindowRuleOnB windowAbovePOnC govMessengerDowngrade lagoonWithoutGuard rogueExporterMember
-  rogueThenJoin duplicateChainId l1EarlierDesign periodOverrideUnguarded)
+  rogueThenJoin duplicateChainId l1EarlierDesign periodOverrideUnguarded govDirectUpgradeUninitialized)
 
 # The unsafe instances are in rollout-unsafe-*.qnt (they import the model from rollout.qnt).
 file_of() { grep -l "^module $1 {" rollout.qnt rollout-unsafe-*.qnt | head -1; }

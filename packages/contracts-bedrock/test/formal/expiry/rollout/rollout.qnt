@@ -15,6 +15,9 @@
 //   - the two NUT bundles as atomic L2 events: the tip bundle and the locked Lagoon bundle, the latter
 //     subject to the L2ContractsManager's semver downgrade guard;
 //   - lockbox joins at any point;
+//   - pauses: the guardian pauses and unpauses chains at any time; relayUndeliveredMessage reverts
+//     while the receiving chain is paused, and the reverted call stays replayable;
+//   - governance's direct ProxyAdmin.upgrade of the messenger, which leaves the stored period as it was;
 //   - the messenger's expiry period: the production value on every upgrade, and an override at
 //     genesis on test networks (with the op-deployer and devstack guards), which the next upgrade
 //     resets to production;
@@ -46,6 +49,11 @@ module rollout {
   // L2 governance (the L2 ProxyAdmin owner, via ProxyAdmin.upgrade) may set the messenger back to
   // 1.3.1: "never", "beforeTimestamps" (only while no message from that chain has a timestamp), "any".
   const GOV_MSGR_DOWNGRADE: str
+  // L2 governance may upgrade the messenger from 1.3.1 to 2.0.0 with ProxyAdmin.upgrade alone
+  // (no initialize call), which leaves the stored period as it was (0 if the proxy was never
+  // initialized for expiry): "never", "initializedOnly" (only while the stored period is set; this is
+  // what rolloutSafe allows), "any".
+  const GOV_DIRECT_UPGRADE: str
   // The L2ContractsManager refuses to lower a predeploy's semver (L2ContractsManagerUtils.upgradeTo).
   const L2CM_DOWNGRADE_GUARD: bool
   // L2 governance of a chain may set a non-standard implementation at the exporter address, while
@@ -96,13 +104,17 @@ module rollout {
   // route's L1 accepted facts when the withdrawal was made (ghost).
   type Withdrawal = { from: str, sender: str, fact: Fact, l1Ready: bool }
   type Deposit = { to: str, fact: Fact }
-  type Ghost = { forged: bool, edge: bool, lateBeforeExporter: bool, deferredL1: bool }
+  // pauseDelayed: an L1 relay was accepted by a route that had been paused before.
+  type Ghost = { forged: bool, edge: bool, lateBeforeExporter: bool, deferredL1: bool, pauseDelayed: bool }
 
   // ---- State ----
   var now: str -> int
   // The stored expiry period per chain (0 = never initialized). Kept outside `Chain` so the record
   // type, which the flattened model repeats everywhere, stays small.
   var period: str -> int
+  // The chain is paused (its ETHLockbox reports paused(): a local or global SuperchainConfig pause).
+  // A separate variable, like `period`.
+  var paused: str -> bool
   var chains: str -> Chain
   var cluster: Set[str]
   var msgs: str -> Msg
@@ -118,6 +130,7 @@ module rollout {
   action init = all {
     now' = CHAINS.mapBy(_ => 1),
     period' = CHAINS.mapBy(_ => 0),
+    paused' = CHAINS.mapBy(_ => false),
     // Pre-rollout: every L2 runs the 1.3.1 messenger, the old bridge and no exporter implementation
     // (the genesis proxy reverts); every L1 runs the old messenger. A and B were migrated into the
     // shared lockbox (INTEROP set on L1); C is outside.
@@ -129,7 +142,7 @@ module rollout {
     msgs' = MSGS.mapBy(_ => { sentAt: 0, events: Set(), inSentMessages: false, relayed: false, expired: false, refunded: false, refunds: 0 }),
     withdrawals' = Set(),
     deposits' = Set(),
-    ghost' = { forged: false, edge: false, lateBeforeExporter: false, deferredL1: false },
+    ghost' = { forged: false, edge: false, lateBeforeExporter: false, deferredL1: false, pauseDelayed: false },
     early' = Set(),
   }
 
@@ -137,12 +150,12 @@ module rollout {
   action keepMsgState = all { msgs' = msgs, withdrawals' = withdrawals, deposits' = deposits, ghost' = ghost }
   action setChain(x: str, c: Chain): bool = all {
     chains' = chains.set(x, c),
-    now' = now, period' = period, cluster' = cluster, early' = early, keepMsgState,
+    now' = now, period' = period, paused' = paused, cluster' = cluster, early' = early, keepMsgState,
   }
   // setChain that also installs x's expiry messenger and initializes its period to p.
   action setChainP(x: str, c: Chain, p: int): bool = all {
     chains' = chains.set(x, c), period' = period.set(x, p),
-    now' = now, cluster' = cluster, early' = early, keepMsgState,
+    now' = now, paused' = paused, cluster' = cluster, early' = early, keepMsgState,
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -188,7 +201,8 @@ module rollout {
                    .with("hist", c.hist.union(if (newer) Set("lagoonDowngraded") else Set("lagoon"))))
   }
 
-  // L2: one predeploy at a time (a split bundle, a later fork, or governance's ProxyAdmin.upgrade).
+  // L2: one predeploy at a time (a split bundle, a later fork, or governance's ProxyAdmin.upgrade;
+  // for the messenger, ProxyAdmin.upgradeAndCall with initialize, as the L2ContractsManager does).
   action setMessengerNew(x: str): bool = {
     val c = chains.get(x)
     all { c.msgr == "old", setChainP(x, c.with("msgr", "new"), CONTRACT_PERIOD) }
@@ -223,6 +237,33 @@ module rollout {
       setChain(x, c.with("msgr", "old").with("hist", c.hist.union(Set("msgrDown")))),
     }
   }
+  // Governance upgrades the messenger with ProxyAdmin.upgrade alone (ProxyAdmin.sol `upgrade` calls
+  // Proxy.upgradeTo, which only stores the implementation address): no initialize, so the stored
+  // period stays what it was, 0 on a proxy that never ran an expiry messenger's initialize.
+  action govMessengerUpgradeDirect(x: str): bool = {
+    val c = chains.get(x)
+    all {
+      c.msgr == "old",
+      GOV_DIRECT_UPGRADE == "any" or (GOV_DIRECT_UPGRADE == "initializedOnly" and period.get(x) != 0),
+      setChain(x, c.with("msgr", "new").with("hist", c.hist.union(Set("msgrDirect")))),
+    }
+  }
+  // The guardian pauses or unpauses chain x, at any time and in any order. A pause is recorded in
+  // x's history (for the witnesses).
+  action pause(x: str): bool = {
+    val c = chains.get(x)
+    all {
+      not(paused.get(x)),
+      paused' = paused.set(x, true),
+      chains' = chains.set(x, c.with("hist", c.hist.union(Set("paused")))),
+      now' = now, period' = period, cluster' = cluster, early' = early, keepMsgState,
+    }
+  }
+  action unpause(x: str): bool = all {
+    paused.get(x),
+    paused' = paused.set(x, false),
+    now' = now, period' = period, chains' = chains, cluster' = cluster, early' = early, keepMsgState,
+  }
   // The bridge in either direction (a rollback only removes refundETH; `refunded` stays in storage).
   action setBridge(x: str, b: bool): bool = {
     val c = chains.get(x)
@@ -244,7 +285,7 @@ module rollout {
                                .with("hist", if (v == "none") c.hist.union(Set("exporterRemoved")) else c.hist)),
       early' = if (v == "std") early.union(CHAINS.filter(s => chains.get(s).msgr == "old").map(s => (x, s)))
                else early,
-      now' = now, period' = period, cluster' = cluster, keepMsgState,
+      now' = now, period' = period, paused' = paused, cluster' = cluster, keepMsgState,
     }
   }
 
@@ -256,16 +297,16 @@ module rollout {
       JOIN_REQUIRES_CLEAN_EXPORTER implies not(c.rogueEver),
       cluster' = cluster.union(Set(x)),
       chains' = chains.set(x, c.with("hist", c.hist.union(Set("joined")))),
-      now' = now, period' = period, early' = early, keepMsgState,
+      now' = now, period' = period, paused' = paused, early' = early, keepMsgState,
     }
   }
 
   // ---------------------------------------------------------------------------------------------
   // Protocol actions (as in ../quint/expiry.qnt, guarded by the per-chain deployment state).
   // ---------------------------------------------------------------------------------------------
-  action keepDeploy = all { now' = now, period' = period, chains' = chains, cluster' = cluster, early' = early }
+  action keepDeploy = all { now' = now, period' = period, paused' = paused, chains' = chains, cluster' = cluster, early' = early }
   action keepDeployAt(x: str, t: int): bool = all {
-    now' = now.set(x, t), period' = period, chains' = chains, cluster' = cluster, early' = early,
+    now' = now.set(x, t), period' = period, paused' = paused, chains' = chains, cluster' = cluster, early' = early,
   }
 
   // Clocks: the actions that read a chain's clock (send, resend, relay, exportStd) take the time t
@@ -357,7 +398,9 @@ module rollout {
   // L1: the withdrawal is relayed into route's relayUndeliveredMessage. A failed L1 relay stays
   // replayable in the caller's failedMessages, so withdrawals are never consumed. The three checks
   // of the new implementation are as in ../quint/expiry.qnt (all on): a real messenger, in route's
-  // lockbox now, recorded sender = the exporter; plus the INTEROP gate on route's SystemConfig.
+  // lockbox now, recorded sender = the exporter; plus the INTEROP gate on route's SystemConfig and
+  // the pause check (it reverts while route is paused). The earlier design is modeled without a
+  // pause check, which can only add executions.
   action l1Relay(w: Withdrawal): bool = {
     val r = w.fact.route
     val c = chains.get(r)
@@ -365,9 +408,11 @@ module rollout {
       withdrawals.contains(w),
       w.from != r,
       cluster.contains(w.from),
-      (c.l1 == "new" and c.l1Interop and w.sender == "exporter") or (c.l1 == "earlier" and w.sender == "messenger"),
+      (c.l1 == "new" and c.l1Interop and not(paused.get(r)) and w.sender == "exporter") or
+        (c.l1 == "earlier" and w.sender == "messenger"),
       deposits' = deposits.union(Set({ to: r, fact: w.fact })),
-      ghost' = ghost.with("deferredL1", ghost.deferredL1 or not(w.l1Ready)),
+      ghost' = ghost.with("deferredL1", ghost.deferredL1 or not(w.l1Ready))
+                    .with("pauseDelayed", ghost.pauseDelayed or c.hist.contains("paused")),
       msgs' = msgs, withdrawals' = withdrawals, keepDeploy,
     }
   }
@@ -421,6 +466,7 @@ module rollout {
       setMessengerNew(x),
       genesisWithPeriod(x, p),
       govMessengerDowngrade(x),
+      govMessengerUpgradeDirect(x),
       setBridge(x, b),
       setExporter(x, ve),
       join(x),
@@ -434,6 +480,8 @@ module rollout {
       all { withdrawals != Set(), nondet wd = withdrawals.oneOf() l1Relay(wd) },
       all { deposits != Set(), nondet dep = deposits.oneOf() expire(dep) },
       refund(m),
+      pause(x),
+      unpause(x),
     }
   }
 
@@ -479,6 +527,11 @@ module rollout {
   val NoRefundAfterExporterRemoved = not(refundedWith(m => chains.get(DST.get(m)).hist.contains("exporterRemoved")))
   // A refund on a source whose messenger was rolled back to 1.3.1 (before any timestamp) and re-upgraded.
   val NoRefundAfterMessengerRollback = not(refundedWith(m => chains.get(SRC.get(m)).hist.contains("msgrDown")))
+  // A refund on a source whose messenger governance upgraded directly (period kept).
+  val NoRefundAfterDirectUpgrade = not(refundedWith(m => chains.get(SRC.get(m)).hist.contains("msgrDirect")))
+  // An L1 relay into a route that had been paused (so it was unpaused since), and a refund on a source
+  // that had been paused.
+  val NoRefundAfterPause = not(ghost.pauseDelayed and refundedWith(m => chains.get(SRC.get(m)).hist.contains("paused")))
   // A refund on a source launched at genesis with an overridden expiry period.
   val NoRefundUnderPeriodOverride = not(refundedWith(m => chains.get(SRC.get(m)).hist.contains("genesisOverride")))
   // Each remaining activation event and attacker move occurs (reachability only):
@@ -517,7 +570,7 @@ module rolloutSafe {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "guarded").*
@@ -610,6 +663,24 @@ module rolloutSafe {
   // Every upgrade path initializes the production period, also after a rollback to 1.3.1.
   run witnessUpgradeSetsProduction = init.then(nutTip("A")).expect(period.get("A") == 8)
     .then(govMessengerDowngrade("A")).then(setMessengerNew("A")).expect(period.get("A") == 8)
+  // AC7: a direct ProxyAdmin.upgrade keeps the stored period. After a rollback before any timestamp
+  // it is still 8, so it is allowed, and a refund follows; on a proxy never initialized for expiry
+  // (period 0) it is refused.
+  run witnessDirectUpgradeKeepsPeriod = init.then(nutTip("A")).then(govMessengerDowngrade("A"))
+    .then(govMessengerUpgradeDirect("A")).expect(period.get("A") == 8 and chains.get("A").msgr == "new")
+    .then(nutTip("B")).then(l1Set("A", "new")).then(honestTail1)
+    .expect(SafetyFull and not(NoRefundAfterDirectUpgrade))
+  run blockedDirectUpgradeUninitialized = init.then(govMessengerUpgradeDirect("A").fail())
+  // A pause only delays a fact. While A is paused, A's L1 messenger rejects B's withdrawal
+  // (`blockedRelayWhilePaused`); from the same state, after unpause, it accepts the same withdrawal
+  // and m1 is expired and refunded (`witnessPauseDelaysFact`). A step after `.fail()` sees no state,
+  // so the two traces share the prefix instead of being one.
+  run pausedWithFact = init.then(nutTip("A")).then(nutTip("B")).then(l1Set("A", "new"))
+    .then(send("m1", 1)).then(exportStd("B", "m1", "A", 10)).then(pause("A"))
+  run blockedRelayWhilePaused = pausedWithFact.then(l1Relay(wd("B", "exporter", F1, true)).fail())
+  run witnessPauseDelaysFact = pausedWithFact.then(unpause("A"))
+    .then(l1Relay(wd("B", "exporter", F1, true))).then(expire(dep("A", F1))).then(refund("m1"))
+    .expect(SafetyFull and not(NoRefundAfterPause))
 }
 
 // The bound is W <= P, not W <= 7: W = P = 8 after the exporter is still safe (strict `>`).
@@ -617,7 +688,7 @@ module rolloutWindowAtP {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(8), "B" -> Set(8), "C" -> Set(8)),
-    GOV_MSGR_DOWNGRADE = "beforeTimestamps", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "beforeTimestamps", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = true, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = true,
     PERIOD_OVERRIDE = "guarded").*
@@ -637,7 +708,7 @@ module downgradeHardened {
   import rollout(CONTRACT_PERIOD = 8,
     WIN_BEFORE = Map("A" -> Set(7, 99), "B" -> Set(7, 99), "C" -> Set(7, 99)),
     WIN_AFTER = Map("A" -> Set(5, 7), "B" -> Set(5, 7), "C" -> Set(5, 7)),
-    GOV_MSGR_DOWNGRADE = "any", L2CM_DOWNGRADE_GUARD = false, ROGUE_EXPORTER_MEMBER = false,
+    GOV_MSGR_DOWNGRADE = "any", GOV_DIRECT_UPGRADE = "initializedOnly", L2CM_DOWNGRADE_GUARD = false, ROGUE_EXPORTER_MEMBER = false,
     ROGUE_EXPORTER_OUTSIDER = true, JOIN_REQUIRES_CLEAN_EXPORTER = true, L1_EARLIER_DESIGN = false,
     UNIQUE_IDS = true, NEW_WRITES_SENT_MESSAGES = false,
     PERIOD_OVERRIDE = "guarded").*

@@ -65,6 +65,7 @@ elab "#assert_headline " id:ident : command => do
 #assert_headline safety
 #assert_headline safety_without_targetRule
 #assert_headline messengerSilentAfterUpgrade
+#assert_headline pauseOnlyDelays
 
 -- Witnesses and counterexamples (Counterexamples.lean).
 #print axioms refund_reachable

@@ -6,9 +6,10 @@
 #   - unsafe instances: `NoDoubleSpend` itself is violated (an actual double spend).
 # `verify` (Apalache bounded model checking) is authoritative. `simulate` (random traces) is a quick
 # sanity pass: safe instances must show no violation and must reach a refund; unsafe-instance results
-# are informational, since random search can miss narrow interleavings.
+# are informational, since random search can miss narrow interleavings. `test` runs the scripted
+# traces (`run witness*`, `run blocked*` in `safe`) with `quint test`; it needs no Java.
 #
-# Usage: ./run.sh [simulate|verify|all]   (default: all)
+# Usage: ./run.sh [test|simulate|verify|all]   (default: all)
 # Knobs: SAMPLES, STEPS (simulation); DEPTH (Apalache bound in steps for every check except
 # `Safety` in the safe instances, default 15); SAFE_DEPTH (bound for `Safety` in the safe instances,
 # default 10, the depth recorded in README.md; deeper runs take hours per step); RESEND_SAFE_DEPTH
@@ -25,7 +26,7 @@ if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) ))
 fi
 
 MODE="${1:-all}"
-case "$MODE" in simulate|verify|all) ;; *) echo "unknown mode: $MODE" >&2; exit 2 ;; esac
+case "$MODE" in test|simulate|verify|all) ;; *) echo "unknown mode: $MODE" >&2; exit 2 ;; esac
 SAMPLES="${SAMPLES:-20000}"
 STEPS="${STEPS:-30}"
 DEPTH="${DEPTH:-15}"
@@ -75,6 +76,14 @@ CHECKS+=("holds safe MessengerSilentAfterUpgrade" "violated safeNoTargetRule Mes
 for m in "${UNSAFE[@]}"; do CHECKS+=("violated $m NoDoubleSpend"); done
 
 FAILURES=0
+
+if [[ "$MODE" == test || "$MODE" == all ]]; then
+  out="$LOGDIR/test-safe.log"
+  quint test expiry.qnt --main=safe --match='^(witness|blocked)' > "$out" 2>&1
+  code=$?
+  n="$(grep -c 'passed 1 test' "$out")"
+  if [[ $code == 0 && $n -gt 0 ]]; then echo "ok    test safe: $n scripted traces pass"; else echo "FAIL  test safe (see $out)"; FAILURES=$((FAILURES+1)); fi
+fi
 
 if [[ "$MODE" == simulate || "$MODE" == all ]]; then
   for m in "${SAFE[@]}"; do

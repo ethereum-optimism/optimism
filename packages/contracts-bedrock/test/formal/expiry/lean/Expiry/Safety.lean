@@ -187,6 +187,18 @@ theorem safety_without_targetRule (hc : SafeConfig cfg) (_htr : cfg.targetRule =
       ∀ t, s.clock d ≤ t → ¬ withinWindow cfg s d z (cfg.msgHash d z b) t) :=
   safety hc hinj hid h0 hg hr
 
+/-- PauseOnlyDelays: pausing a chain only delays the facts routed to it. An L1 relay of a
+withdrawal that is enabled in some state is enabled again in every later state of the execution
+in which the receiving chain is not paused (in any configuration): the withdrawal stays (a relay
+reverted by the pause lands in the caller's `failedMessages` and can be replayed), lockbox
+authorizations only grow, and the fact's content, its time included, is fixed at export. -/
+theorem pauseOnlyDelays {s s' : State Chain Hash} (hr : Reach cfg s s') (w : Withdrawal Chain Hash)
+    (hg : guard cfg (.l1Relay w) s) (hu : s'.paused w.fact.toL1 = false) :
+    guard cfg (.l1Relay w) s' := by
+  simp only [guard] at hg ⊢
+  obtain ⟨hw, ht, hl, hsnd, hi, _⟩ := hg
+  exact ⟨withdrawals_reach hr hw, ht, fun h => lockbox_reach hr (hl h), hsnd, hi, hu⟩
+
 /-- MessengerSilentAfterUpgrade (defense in depth, the unsafe-target rule's own property): with
 the rule, no step creates a withdrawal whose recorded sender is the L2ToL2CrossDomainMessenger
 from an upgraded standard chain. (In the earlier design the export function lived in the

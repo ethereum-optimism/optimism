@@ -31,6 +31,7 @@ It is checked two ways:
   witnesses, and `SAFE_DEPTH` (default 10; `RESEND_SAFE_DEPTH`, default 9, for
   `safeResendRestarts`) for `Safety` in the safe instances, the depths recorded under **Results**.
 - **`quint run`**: random simulation, a sanity pass.
+- **`quint test`**: scripted traces (`run witness*`, `run blocked*` in `safe`), for the pause.
 
 `./run.sh` asserts every expected outcome and exits nonzero on any surprise, including tool errors.
 
@@ -71,13 +72,23 @@ route bindings:
 | `relayToL2CrossDomainMessenger(x, …)` | The attacker relays a message on standard chain `x` whose target is the L2CrossDomainMessenger, with any calldata. The recorded sender is the messenger. Possible before `x`'s upgrade (switched off only by `PRE_UPGRADE_FORGERY`, to isolate one counterexample), or after it if `TARGET_RULE` is off. |
 | `userWithdrawal(x, …)` | Anyone calls `L2CrossDomainMessenger.sendMessage` with any payload. The recorded sender is the caller. |
 | `arbitraryCode(x, sender, …)` | A non-standard chain produces withdrawals with any recorded sender. Only while it is outside the lockbox, so a counterexample through it shows withdrawals made before a join. |
-| `l1Relay(w)` | The withdrawal is proven and finalized, then relayed into `route`'s `relayUndeliveredMessage`, which deposits `expireMessage` to `route`. It needs: `from != route` (an L1 messenger never relays to itself); `from` in the lockbox **now** (`LOCKBOX_CHECK`); the recorded sender equal to the trusted sender (`SENDER_CHECK`). |
+| `l1Relay(w)` | The withdrawal is proven and finalized, then relayed into `route`'s `relayUndeliveredMessage`, which deposits `expireMessage` to `route`. It needs: `route` not paused; `from != route` (an L1 messenger never relays to itself); `from` in the lockbox **now** (`LOCKBOX_CHECK`); the recorded sender equal to the trusted sender (`SENDER_CHECK`). |
+| `pause(x)`, `unpause(x)` | The guardian pauses or unpauses chain `x`, at any time and in any order. While `route` is paused, `relayUndeliveredMessage` reverts (`L1CrossDomainMessenger_Paused`, right after the INTEROP gate). |
 | `fakeCaller(route, …)` | Any L1 contract F calls `relayUndeliveredMessage` directly and answers every getter itself. If F names a real, authorized portal, check (a) fails, because that portal's SystemConfig names the real messenger. If F names a fake portal whose fake SystemConfig names F, check (a) passes, but check (b) fails because the fake portal isn't in the lockbox. Check (c) always passes. So F succeeds iff (a) or (b) is off. |
 | `expire(dep)` | The deposit runs `expireMessage` on `dep.to`. Only the message's source has a timestamp for its hash, and the hash also binds the destination. Requires `sentAt != 0` and `at > sentAt + P` (`>=` with `EXPIRE_GE`). |
 | `refund(m)` | `refundETH`: expired and not yet refunded. |
 
 Withdrawals and deposits are never removed. A withdrawal can be finalized at any later time, and
 failed L1 and L2 relays can be replayed, so keeping them can only add executions.
+
+**Pause only delays a fact.** The withdrawal carrying a fact is relayed by the caller's
+L1CrossDomainMessenger `relayMessage`. When the paused route reverts, that call lands in the caller's
+`failedMessages`, and anyone can replay it after unpause with the same sender and payload, so the
+fact's time does not change. The model's per-chain flags, paused and unpaused freely, over-approximate
+the real pause, which a whole ETHLockbox shares (and which the SuperchainConfig can set globally).
+`fakeCaller` is not gated by the pause, which can only add executions. A pause of the withdrawal's
+origin chain (its portal does not finalize, its messenger does not relay, while paused) is not
+modeled; it also only delays.
 
 ## Properties
 
@@ -108,6 +119,14 @@ Non-vacuity witnesses, each of which must be violated in `safe`:
   the source's upgrade, which can never expire).
 - `NoRefundOfM2`: a refund is routed to a source other than A.
 - `NoRefundOfM3`: a refund happens for a destination that joined the lockbox after genesis.
+
+Scripted traces in `safe` (`./run.sh test`, `quint test`):
+- `blockedRelayWhilePaused`: B exports "m1 not relayed at 10" to A; A is paused; the L1 relay of
+  that withdrawal fails.
+- `witnessPauseDelaysFact`: the same prefix up to the pause; A is unpaused, the same withdrawal is
+  accepted, m1 expires and is refunded, and `Safety` holds. (A step after `.fail()` sees no state,
+  so the rejection and the acceptance are two traces with a shared prefix.)
+- `witnessPauseOtherChain`: pausing B, the exporting chain, does not block a fact routed to A.
 
 ## Instances and expected results
 
@@ -141,6 +160,13 @@ shows the same premise failing for the earlier design.
 ## Results
 
 Apalache 0.62.1 via `quint verify`, on a 32-core Linux host, each check memory-capped (8–16 GB).
+
+**Pause added** (this round; Quint 0.33.0 and Apalache 0.62.1 on a 32-core Linux host shared
+with other model checking). The model gained the `paused` variable, `pause`/`unpause` and the
+`l1Relay` guard. `./run.sh test`: the scripted traces pass. `./run.sh simulate` (20,000 samples, 30
+steps): every expected outcome, no failures. `Safety` in `safe` holds at depth 10
+(8940 s, no violation).
+The other deep results below ran on the model before pauses; they were not re-run.
 
 **Re-run on the expiry PR stack** (formal branch at `2c85209dc9`, model unchanged): `./run.sh all`
 reproduced every result below, with no failures. `Safety` holds at depth 10 in `safe` (7795 s),
@@ -239,8 +265,11 @@ of these configurations is the Lean proof (`safety`, `safety_without_targetRule`
   - The default `DEPTH` is 15. `Safety` in the safe instances was checked to 10 steps, 9 for
     `safeResendRestarts` (see Results); `SAFE_DEPTH` and `RESEND_SAFE_DEPTH` default to those.
   - The Lean proof covers unbounded chains, messages and time.
-- **Not modeled:** gas, ETH amounts, pauses, proof-maturity delays and message nonces. ETH amounts
-  are covered by the Foundry invariant harness.
+- **Not modeled:** gas, ETH amounts, origin-chain pauses, proof-maturity delays and message nonces.
+  ETH amounts are covered by the Foundry invariant harness. Pauses of the route chain are modeled.
+- **The messenger's period is the constant `CONTRACT_PERIOD`**: every live messenger has its
+  initialized period. A proxy upgraded by `ProxyAdmin.upgrade` alone from 1.3.1 has period 0;
+  that is the rollout model's AC7 (`../rollout`, `govDirectUpgradeUninitialized`).
 - **The L2ToL1MessagePasser target rule** (landed in `3b8d14c4ef`) matters only for external L1
   contracts that might trust raw withdrawals from 0x..23. No protocol contract does, so it is out
   of scope here; Halmos and Kontrol check it on bytecode.
@@ -349,3 +378,9 @@ Lean's `ChainIdUnique`. Each finding and what became of it:
   is deeper than `safeResendRestarts` was checked.
 - **R1: simulate results not recorded.** `./run.sh simulate` (20,000 samples, 30 steps) was re-run with
   this runner: every expected outcome, no failures.
+
+**v2.2** (new contract behaviour, not yet reviewed):
+- `relayUndeliveredMessage` reverts while the receiving chain is paused. Added the `paused`
+  variable, `pause`/`unpause`, the `l1Relay` guard, scripted traces and a `test` mode in `run.sh`.
+- The messenger's stored period can be 0 after a direct `ProxyAdmin.upgrade`; stated as an
+  assumption here and checked in `../rollout` (AC7).

@@ -94,6 +94,9 @@ module expiry {
   var edgeRelay: bool
   // Defense-in-depth ghost: an upgraded messenger (0x..23) initiated a withdrawal.
   var messengerSpokeAfterUpgrade: bool
+  // The chain is paused (its ETHLockbox reports paused(): a local or global SuperchainConfig pause),
+  // so its L1CrossDomainMessenger.relayUndeliveredMessage reverts.
+  var paused: str -> bool
 
   pure def withinWindow(evts: Set[int], t: int): bool = evts.exists(e => t <= e + PROTOCOL_WINDOW)
   pure def expiredBy(sent: int, at: int): bool =
@@ -114,6 +117,7 @@ module expiry {
     forgedAccepted' = false,
     edgeRelay' = false,
     messengerSpokeAfterUpgrade' = false,
+    paused' = CHAINS.mapBy(_ => false),
   }
 
   // A chain's clock moves forward (by any amount).
@@ -122,7 +126,7 @@ module expiry {
     now' = now.set(x, t),
     upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events, relayed' = relayed,
     withdrawals' = withdrawals, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // The network upgrade on a standard chain: the exporter's proxy (present since genesis, reverting
@@ -135,7 +139,7 @@ module expiry {
     upgraded' = upgraded.set(x, true),
     now' = now, cluster' = cluster, sentAt' = sentAt, events' = events, relayed' = relayed,
     withdrawals' = withdrawals, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // A chain's portal is authorized in the lockbox.
@@ -145,7 +149,7 @@ module expiry {
     cluster' = cluster.union(Set(x)),
     now' = now, upgraded' = upgraded, sentAt' = sentAt, events' = events, relayed' = relayed,
     withdrawals' = withdrawals, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // Source: sendMessage (SuperchainETHBridge.sendETH). Nonces are unique, so once per message.
@@ -158,7 +162,7 @@ module expiry {
       events' = events.set(m, Set(now.get(s))),
       now' = now, upgraded' = upgraded, cluster' = cluster, relayed' = relayed,
       withdrawals' = withdrawals, deposits' = deposits, expired' = expired, refunded' = refunded,
-      refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+      refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
     }
   }
 
@@ -175,7 +179,7 @@ module expiry {
       sentAt' = if (RESEND_RESTARTS and upgraded.get(s)) sentAt.set(m, now.get(s)) else sentAt,
       now' = now, upgraded' = upgraded, cluster' = cluster, relayed' = relayed,
       withdrawals' = withdrawals, deposits' = deposits, expired' = expired, refunded' = refunded,
-      refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+      refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
     }
   }
 
@@ -188,7 +192,7 @@ module expiry {
       withinWindow(events.get(m), now.get(d)),
       relayed' = relayed.set(m, true),
       edgeRelay' = (edgeRelay or events.get(m).exists(e => now.get(d) == e + PROTOCOL_WINDOW)),
-      messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+      paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
       now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
       withdrawals' = withdrawals, deposits' = deposits, expired' = expired, refunded' = refunded,
       refunds' = refunds, forgedAccepted' = forgedAccepted,
@@ -209,7 +213,7 @@ module expiry {
     })),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // Attacker on a standard chain x: relay a message of its own whose target is the
@@ -228,7 +232,7 @@ module expiry {
     })),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = (messengerSpokeAfterUpgrade or upgraded.get(x)),
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = (messengerSpokeAfterUpgrade or upgraded.get(x)),
   }
 
   // Anyone on any chain: L2CrossDomainMessenger.sendMessage with any payload; the recorded sender
@@ -241,7 +245,7 @@ module expiry {
     })),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // A chain running arbitrary code can produce withdrawals with any recorded sender. Only while it is
@@ -256,13 +260,16 @@ module expiry {
     })),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, deposits' = deposits, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // L1: the withdrawal is proven, finalized and relayed by `from`'s L1CrossDomainMessenger into
   // `route`'s L1CrossDomainMessenger.relayUndeliveredMessage, which deposits expireMessage to route.
+  // relayUndeliveredMessage reverts while route is paused; the reverted call lands in the caller's
+  // failedMessages and can be replayed after unpause, so the withdrawal stays.
   action l1Relay(w: Withdrawal): bool = all {
     withdrawals.contains(w),
+    not(paused.get(w.fact.route)),
     // L1CDM._isUnsafeTarget: a messenger never relays to itself.
     w.from != w.fact.route,
     LOCKBOX_CHECK implies cluster.contains(w.from),
@@ -270,7 +277,7 @@ module expiry {
     deposits' = deposits.union(Set({ to: w.fact.route, fact: w.fact })),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, withdrawals' = withdrawals, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // L1: any contract F calls route's relayUndeliveredMessage directly, pretending to be a messenger.
@@ -286,7 +293,7 @@ module expiry {
     })),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, withdrawals' = withdrawals, expired' = expired, refunded' = refunded,
-    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   // Chain `to`: the deposit runs expireMessage. Only the message's source has a timestamp for its
@@ -303,7 +310,7 @@ module expiry {
       forgedAccepted' = (forgedAccepted or not(f.honest and f.by == DST.get(f.msg))),
       now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
       relayed' = relayed, withdrawals' = withdrawals, deposits' = deposits, refunded' = refunded,
-      refunds' = refunds, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+      refunds' = refunds, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
     }
   }
 
@@ -315,7 +322,25 @@ module expiry {
     refunds' = refunds.set(m, refunds.get(m) + 1),
     now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
     relayed' = relayed, withdrawals' = withdrawals, deposits' = deposits, expired' = expired,
-    forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+    forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay, paused' = paused, messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+  }
+
+  // The guardian pauses or unpauses a chain, at any time and in any order.
+  action pause(x: str): bool = all {
+    not(paused.get(x)),
+    paused' = paused.set(x, true),
+    now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
+    relayed' = relayed, withdrawals' = withdrawals, deposits' = deposits, expired' = expired,
+    refunded' = refunded, refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay,
+    messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
+  }
+  action unpause(x: str): bool = all {
+    paused.get(x),
+    paused' = paused.set(x, false),
+    now' = now, upgraded' = upgraded, cluster' = cluster, sentAt' = sentAt, events' = events,
+    relayed' = relayed, withdrawals' = withdrawals, deposits' = deposits, expired' = expired,
+    refunded' = refunded, refunds' = refunds, forgedAccepted' = forgedAccepted, edgeRelay' = edgeRelay,
+    messengerSpokeAfterUpgrade' = messengerSpokeAfterUpgrade,
   }
 
   action step = {
@@ -340,6 +365,8 @@ module expiry {
       fakeCaller(route, m, d, t),
       all { deposits != Set(), nondet dep = deposits.oneOf() expire(dep) },
       refund(m),
+      pause(x),
+      unpause(x),
     }
   }
 
@@ -369,6 +396,14 @@ module expiry {
   val NoRefundOfM2 = not(refunded.get("m2"))
   // m3 is refunded: its destination C joined the lockbox after genesis.
   val NoRefundOfM3 = not(refunded.get("m3"))
+
+  // ---- Scripted traces (`quint test --main=safe`) ----
+  // m1 (A -> B): B exports "not relayed at 10" to A's L1 messenger. While A is paused the L1 relay
+  // reverts; after unpause the same withdrawal is accepted, and A expires and refunds m1.
+  pure val F1 = { msg: "m1", dest: "B", at: 10, route: "A", by: "B", honest: true }
+  pure val W1 = { from: "B", sender: "exporter", fact: F1 }
+  run exportedM1 = init.then(upgrade("A")).then(upgrade("B")).then(send("m1")).then(tick("B", 10))
+    .then(exportUndelivered("B", "m1", "A"))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -379,6 +414,18 @@ module safe {
   import expiry(TRUSTED_SENDER = "exporter", TARGET_RULE = true, REAL_MESSENGER_CHECK = true,
     LOCKBOX_CHECK = true, SENDER_CHECK = true, JOIN_REQUIRES_STANDARD = true, PROTOCOL_WINDOW = 7,
     CONTRACT_PERIOD = 8, EXPIRE_GE = false, RESEND = false, RESEND_RESTARTS = false, UNIQUE_IDS = true, PRE_UPGRADE_FORGERY = true).*
+
+  // A pause only delays a fact. While A is paused, the L1 relay of B's withdrawal is rejected
+  // (`blockedRelayWhilePaused`); from the same state, after unpause, the same withdrawal is accepted
+  // and m1 is expired and refunded (`witnessPauseDelaysFact`). (A step after `.fail()` would see
+  // no state, so the two share the prefix instead of being one trace.)
+  run blockedRelayWhilePaused = exportedM1.then(pause("A")).then(l1Relay(W1).fail())
+  run witnessPauseDelaysFact = exportedM1.then(pause("A")).expect(paused.get("A"))
+    .then(unpause("A")).then(l1Relay(W1)).then(expire({ to: "A", fact: F1 })).then(refund("m1"))
+    .expect(Safety and refunded.get("m1"))
+  // Pausing another chain (the exporting one) does not block a fact routed to A.
+  run witnessPauseOtherChain = exportedM1.then(pause("B")).then(l1Relay(W1))
+    .expect(Safety and deposits.contains({ to: "A", fact: F1 }))
 }
 
 // The target rule is defense in depth in this design: without it, the trusted sender still cannot

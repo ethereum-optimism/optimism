@@ -36,6 +36,10 @@ none changes a modeled guard or effect.
 3. **INTEROP gate:** `cb/src/L1/L1CrossDomainMessenger.sol:119`
    (`if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert`). This is the receiving chain's
    own SystemConfig, which matches the model's `cfg.interop w.fact.toL1`.
+   **Pause check** (added after `89a3d565ad`; `L1CrossDomainMessenger.sol:122` at `0a88e080e6`): right after the gate,
+   `relayUndeliveredMessage` reverts `L1CrossDomainMessenger_Paused` while the receiving chain is
+   paused (`paused()` reads its ETHLockbox, `ETHLockbox.sol:112-113`: a local or global
+   SuperchainConfig pause). The model's `s.paused w.fact.toL1 = false` in the `l1Relay` guard.
 4. **P_contract, a deployment parameter:** the messenger's stored expiry period, which
    `initialize` sets (bounded to `0 < P ≤ 365 days`), with the strict check
    `if (_undeliveredAt <= sentAt + period) revert` in `expireMessage`. Every upgrade initializes
@@ -44,7 +48,15 @@ none changes a modeled guard or effect.
    is that value per chain, fixed for the whole execution (as it is on every production chain), and
    `SafeConfig.window` bounds every destination's window by every source's period. The production
    pin and the 7-day cap (item 5) discharge it: `production_window`. A test network's override, and
-   its reset by an upgrade, are checked in the bounded `../rollout/` model (AC6). `expireMessage` also returns
+   its reset by an upgrade, are checked in the bounded `../rollout/` model (AC6). **The model assumes
+   that every live messenger has its initialized period** (rollout AC7). `initialize` rejects 0, but
+   `ProxyAdmin.upgrade` (`src/universal/ProxyAdmin.sol:152`) only stores the implementation address
+   (`Proxy.upgradeTo`, `src/universal/Proxy.sol:60`, `:104`) and leaves `expiryPeriod` (storage
+   slot 5) as it was. A messenger proxy upgraded that way from 1.3.1, which never ran this
+   `initialize`, has period 0, and `expireMessage` then accepts any fact dated after the send: a
+   double spend (`../rollout/`, `govDirectUpgradeUninitialized`). The L2ContractsManager always
+   upgrades it with `upgradeToAndCall` → `initialize` (`L2ContractsManager.sol:415-423`); a direct
+   upgrade by the L2 ProxyAdmin owner is the process half of AC7. `expireMessage` also returns
    early when the message is already expired; that is a stuttering step here (`expired` already
    holds), so the model does not change.
 5. **W_protocol ≤ 7-day cap:**
@@ -74,7 +86,7 @@ The model mirrors `../quint/expiry.qnt`, with the same action and property names
 ## Build
 
 ```
-lake build        # 2–6 s from clean on a 32-core Linux build host; prints the #print axioms report
+lake build        # under 15 s from clean on a 32-core Linux build host; prints the #print axioms report
 ```
 
 | File | Contents |
@@ -139,6 +151,7 @@ Their relays are unconstrained.
 | `deposits` | `expireMessage(hash, time)` deposits to chain `f.toL1`; never removed |
 | `expired z h`, `refunded z h` | The contract storage |
 | `refunds z h` | Ghost payout counter |
+| `paused y` | Chain y is paused: its L1CDM's `relayUndeliveredMessage` reverts. Arbitrary at genesis |
 
 **Actions.** `guard` gives the enabling condition and `next` the effect.
 
@@ -156,12 +169,13 @@ Their relays are unconstrained.
 | `userWithdrawal y a f` | none | `(y, user a, f)` |
 | `arbitraryCode y s f` | y not standard | `(y, s, f)` |
 | `arbitraryEvent z h t` | z not standard | event `(z, h, t)` |
-| `l1Relay w` | w exists; `unsafeTargetCheck → origin ≠ toL1`; `lockboxCheck → lockbox toL1 origin`, read at relay time; `senderCheck → sender = trusted`; interop gate on `toL1` | deposit `w.fact` to `toL1` |
+| `l1Relay w` | w exists; `unsafeTargetCheck → origin ≠ toL1`; `lockboxCheck → lockbox toL1 origin`, read at relay time; `senderCheck → sender = trusted`; interop gate on `toL1`; `toL1` not paused | deposit `w.fact` to `toL1` |
 | `fakeCaller f` | `¬realMessengerCheck ∨ ¬lockboxCheck ∨ ¬sysConfigConsistent` | deposit `f` |
 | `l1cdmSelfRelay f` | `¬unsafeTargetCheck` | deposit `f` |
 | `expire f` | deposit; `sentAt toL1 hash ≠ 0`; `expiredBy` (`sentAt + P < time`, or `≤` if `expireGe`) | `expired toL1 hash` |
 | `refund z d b` | `isBridge b`; `expired z (hash d z b)`; `¬refunded` | `refunded`, `refunds += 1` |
 | `arbitraryRefund z h` | z not standard | `refunded z h`, `refunds += 1` |
+| `pause y`, `unpause y` | none (any time, any order) | `paused y := true` / `false` |
 
 `fakeCaller` has a three-way guard because the checks only work together. A contract that is not
 an L1CDM can return a fake portal whose fake SystemConfig names it. That passes the
@@ -171,6 +185,16 @@ real-messenger check.
 
 `refund` rebuilds the hash with source = z (`block.chainid`), so only the true source's refund
 matches, and a fact routed to the wrong chain is harmless.
+
+**Pause.** A relay rejected by the pause reverts inside the calling L1CDM's `relayMessage`, which
+records the message in `failedMessages` (`CrossDomainMessenger.sol:308`); anyone can replay it
+after unpause (`:260`), with the original sender and payload, so the fact keeps its time. In the
+model withdrawals are never removed, so a paused chain only disables `l1Relay` until it is unpaused.
+Per-chain flags with free `pause`/`unpause` over-approximate the real pause, which is shared by every
+chain on one ETHLockbox (and global through the SuperchainConfig). `fakeCaller` and
+`l1cdmSelfRelay` (which exist only when a check is dropped) are left ungated, which can only add
+executions. A pause of the withdrawal's origin chain (the portal's finalization and the caller's
+`relayMessage` also revert while it is paused) is not modeled; it too only delays.
 
 ## Hypotheses
 
@@ -304,6 +328,10 @@ theorem messengerSilentAfterUpgrade (htr : cfg.targetRule = true)
     (hold : ¬ s.withdrawals w) (hsnd : w.sender = .messenger) (hstd : cfg.standard w.origin) :
     s.upgraded w.origin = false
 
+-- A pause only delays a fact (any configuration; needs only `Reach`).
+theorem pauseOnlyDelays (hr : Reach cfg s s') (w) (hg : guard cfg (.l1Relay w) s)
+    (hu : s'.paused w.fact.toL1 = false) : guard cfg (.l1Relay w) s'
+
 theorem safety ... : NoDoubleSpend cfg s ∧ RefundImpliesExpired cfg s ∧ AtMostOneRefund cfg s ∧
     NoForgedFact cfg s₀ s ∧
     (∀ d z b, cfg.standard z → s.expired z (cfg.hash d z b) →
@@ -325,7 +353,8 @@ a different sender:
 - `userWithdrawal` → user;
 - `arbitraryCode` → only on non-standard chains.
 
-**`Inv`** (safe config):
+**`Inv`** (safe config). No part of it reads `paused`, so `pause` and `unpause` preserve it
+trivially, and the invariant is the same as before pauses were modeled:
 
 - `sentAt z h ≤ clock z`, and `sentAt ≠ 0` implies the chain is upgraded and has an event.
 - On standard sources, events are at or before `sentAt`, or `sentAt = 0`. Legacy resends only happen while `sentAt = 0`, and that stays 0 forever.
@@ -418,6 +447,7 @@ the v2.2–v2.3 round each confirmed it for every witness). All witnesses are ke
 | `safety` | `NV.sR` | the first four conjuncts at the protected message (the fifth is `expiredImpliesNeverRelayable`'s conclusion, instantiated by its own witness) |
 | `safety_without_targetRule` | refund execution of `cfgNoTargetRule` (so `targetRule = false` holds too) | no relay in that refund state |
 | `messengerSilentAfterUpgrade` | B (not upgraded) relays C's body-9 message: a new withdrawal with sender 0x..23 | B was not upgraded |
+| `pauseOnlyDelays` | B exports the fact for A's message; A is paused (the L1 relay of B's withdrawal is then disabled) and unpaused | the relay is enabled again; continuing, the same fact expires and refunds A's message, and `noDoubleSpend` holds there |
 
 Hypotheses that quantify over all states or values (`SafeConfig.window`, `HashInjective`,
 `ChainIdUnique`, `Init`, `GovInit`) are all satisfied by the instance; none is unsatisfiable.
@@ -440,6 +470,7 @@ Hypotheses that quantify over all states or values (`SafeConfig.window`, `HashIn
 'Expiry.safety' depends on axioms: [propext, Quot.sound]
 'Expiry.safety_without_targetRule' depends on axioms: [propext, Quot.sound]
 'Expiry.messengerSilentAfterUpgrade' does not depend on any axioms
+'Expiry.pauseOnlyDelays' does not depend on any axioms
 'Expiry.Examples.safe_variants' does not depend on any axioms
 every other witness and cex_* theorem: [propext, Quot.sound]
 ```
@@ -478,6 +509,11 @@ obligations.
 
 ## Named assumptions not modeled as transitions
 
+- **Every live messenger has its initialized period (rollout AC7).** `contractPeriod z` is the
+  period `initialize` stored, fixed for the whole execution. A messenger proxy upgraded to the expiry
+  messenger by `ProxyAdmin.upgrade` alone, from a version that never ran `initialize` (1.3.1), has
+  period 0 and double-spends; see item 4 at the top and `../rollout/` (`govDirectUpgradeUninitialized`).
+  The L2ContractsManager enforces it on its own path; a direct upgrade by governance is process.
 - **W activation and time-varying W.** The protocol rule `exec − init ≤ W_d` is enforced on a destination before that destination's exporter goes live. W_d never later rises above P. The model has fixed W_d from genesis; activation of the W rule and changes to W are not modeled.
 - **Preimage hardness of predeploy addresses.** No EOA, and no aliased L1 address (`AddressAliasHelper`), equals `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` or 0x..23. This is why `userWithdrawal` can only record `user a` and never a predeploy as sender.
 - **Pre-Bedrock legacy withdrawals.** Legacy (pre-Bedrock) L2→L1 messages are irrelevant: none carries `relayUndeliveredMessage` from the exporter. The model's genesis is the Bedrock-era history.
@@ -489,7 +525,7 @@ obligations.
   - Overflow: Solidity 0.8 `sentAt + P` is checked arithmetic and reverts on overflow, which only prevents expiry (the safe direction).
   - The rule `initTimestamp ≤ execTimestamp` (`links.go:70`) is omitted, which only makes the model more permissive.
 - **Finality.** `withdrawals` and the initiating events are those of the canonical histories. L1 reorgs beyond finality are out of scope.
-- **Lockbox and configuration changes.** Joins are modeled. Leaving a lockbox, arbitrary later upgrades, and changes to the windows or gate are not modeled.
+- **Lockbox and configuration changes.** Joins and pauses are modeled. Leaving a lockbox, arbitrary later upgrades (in particular a messenger live without its initialized period, rollout AC7), and changes to the windows or gate are not modeled.
 - **Interop gate.** It only restricts `l1Relay`. Safety does not depend on it.
 - **EVM and economics.** Gas, value, reentrancy, call failures, balances and `ETHLiquidity` are left to the other tools.
 
@@ -536,3 +572,5 @@ obligations.
 | v2.3 review | R3 L | "External calls only in `relayMessage`" ignores static reads | "Non-static external calls"; "before the relayed target call" |
 | v2.3 review | R3 L | `SafeConfig.window` bounds W on non-standard destinations too | Accepted: an unnecessary restriction on configurations, not a gap; not changed |
 | v2.3 review | R1 L | Kontrol passer names; contract tip not mentioned; supporting lemmas not on the headline list | Names fixed; tip sentence added; `expired_core`/`expired_not_relayable` are helpers, not headline results |
+| v2.4 | coordinator (new contract behaviour) | `relayUndeliveredMessage` reverts while the receiving chain is paused | `paused` field, `pause`/`unpause` actions, `l1Relay` guard; every theorem re-proved with `Inv` unchanged; new headline `pauseOnlyDelays` with witness `nonvacuous_pauseOnlyDelays` (a fact relayed after a pause/unpause cycle still expires and refunds) |
+| v2.4 | coordinator | `ProxyAdmin.upgrade` of the messenger leaves the stored period, 0 on a proxy never initialized for expiry | Stated as the model's assumption that every live messenger has its initialized period (rollout AC7, with its counterexample); `contractPeriod` stays fixed |

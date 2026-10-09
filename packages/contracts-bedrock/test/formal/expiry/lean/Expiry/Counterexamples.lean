@@ -88,6 +88,7 @@ def s0 : State Nat H where
   expired := fun _ _ => False
   refunded := fun _ _ => False
   refunds := fun _ _ => 0
+  paused := fun _ => false
 
 theorem s0_init : Init s0 :=
   ⟨fun _ => rfl, fun _ _ => rfl, fun _ _ _ h => h, fun _ _ h => h, fun _ h => h, fun _ h => h,
@@ -426,6 +427,7 @@ def u0 : State Nat Unit where
   expired := fun _ _ => False
   refunded := fun _ _ => False
   refunds := fun _ _ => 0
+  paused := fun _ => false
 
 def fU : Fact Nat Unit := ⟨0, (), 10⟩
 

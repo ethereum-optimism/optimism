@@ -90,6 +90,29 @@ theorem sRn_reach : Reach cfgNoTargetRule s0 sRn :=
 theorem sRn_refunded : sRn.refunded 0 mAB := by
   simp [sRn, run, refundTrace, cfgNoTargetRule, next, base, s0, upd1, upd2, fB, mAB]
 
+/-- `pauseOnlyDelays`: B exports the undelivered fact for A's message; A is paused (the L1 relay
+is then disabled) and unpaused; the same withdrawal is relayed, and A expires and refunds. -/
+def pausePre : List (Action Nat Nat H) :=
+  [.upgrade 0, .upgrade 1, .send 0 1 5, .tick 1 10, .exportUndelivered 1 0 5 0]
+
+def wP : Withdrawal Nat H := ⟨1, .exporter, fB⟩
+
+def sE : State Nat H := run base pausePre s0
+def sP : State Nat H := next base (.pause 0) sE
+def sU : State Nat H := next base (.unpause 0) sP
+def sF : State Nat H := run base [.l1Relay wP, .expire fB, .refund 0 1 5] sU
+
+theorem sE_reach : Reach base s0 sE :=
+  reach_run _ _ _ (by simp [Valid, pausePre, guard, next, base, s0, upd1, upd2])
+
+theorem sU_reach : Reach base sE sU :=
+  Reach.tail (.unpause 0) (Reach.single (a := .pause 0) ⟨trivial, rfl⟩) ⟨trivial, rfl⟩
+
+theorem sF_reach : Reach base s0 sF :=
+  Reach.trans (Reach.trans sE_reach sU_reach) (reach_run _ _ _ (by
+    simp [Valid, sU, sP, sE, pausePre, run, guard, next, base, s0, upd1, upd2, expiredBy, wP, fB,
+      mAB]))
+
 end NV
 
 open NV
@@ -256,6 +279,25 @@ theorem nonvacuous_messengerSilentAfterUpgrade :
   have hstd : base.standard wM.origin := show (1 : Nat) ≤ 2 by decide
   exact ⟨rfl, by decide, sM_reach, hs, hnew, hold, rfl, hstd,
     messengerSilentAfterUpgrade rfl (by decide) hs wM hnew hold rfl hstd⟩
+
+/-! ### Pause -/
+
+/-- All hypotheses of `pauseOnlyDelays` hold jointly: B's exporter withdrawal can be relayed into
+A's L1 messenger, A is then paused (the relay is disabled) and unpaused; the theorem says the relay
+is enabled again. The fact so relayed still expires and refunds A's message, and `noDoubleSpend`
+applies to that execution. -/
+theorem nonvacuous_pauseOnlyDelays :
+    Init s0 ∧ Reach base s0 sE ∧ guard base (.l1Relay wP) sE ∧ ¬ guard base (.l1Relay wP) sP ∧
+    Reach base sE sU ∧ sU.paused wP.fact.toL1 = false ∧ guard base (.l1Relay wP) sU ∧
+    Reach base s0 sF ∧ sF.expired 0 mAB ∧ sF.refunded 0 mAB ∧ NoDoubleSpend base sF := by
+  have hg : guard base (.l1Relay wP) sE := by
+    simp [sE, pausePre, run, guard, next, base, s0, upd1, upd2, wP, fB, mAB]
+  have hu : sU.paused wP.fact.toL1 = false := by simp [sU, sP, next, upd1, wP, fB]
+  refine ⟨s0_init, sE_reach, hg, ?_, sU_reach, hu, pauseOnlyDelays sU_reach wP hg hu, sF_reach,
+    ?_, ?_, noDoubleSpend base_safe inj_id base_idu s0_init (s0_gov _ rfl) sF_reach⟩
+  · simp [sP, sE, pausePre, run, guard, next, base, s0, upd1, upd2, wP, fB]
+  · simp [sF, sU, sP, sE, pausePre, run, next, base, s0, upd1, upd2, wP, fB, mAB]
+  · simp [sF, sU, sP, sE, pausePre, run, next, base, s0, upd1, upd2, wP, fB, mAB]
 
 /-- `production_window` applies: `base` with the production pins (every messenger deployed with
 691200 s, every window 604800 s) is a safe configuration. -/

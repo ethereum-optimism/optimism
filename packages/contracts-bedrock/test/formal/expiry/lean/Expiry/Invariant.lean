@@ -118,6 +118,32 @@ theorem expired_reach {cfg : Config Chain Body Hash} {s s' : State Chain Hash} {
   | refl => exact he
   | tail _ _ hs ih => exact expired_step hs ih
 
+/-- Withdrawals are never removed. -/
+theorem withdrawals_step {cfg : Config Chain Body Hash} {a : Action Chain Body Hash}
+    {s s' : State Chain Hash} {w : Withdrawal Chain Hash} (hs : Step cfg a s s')
+    (hw : s.withdrawals w) : s'.withdrawals w := by
+  obtain ⟨_, rfl⟩ := hs
+  cases a <;> simp only [next] <;> first | exact hw | exact Or.inl hw
+
+theorem withdrawals_reach {cfg : Config Chain Body Hash} {s s' : State Chain Hash}
+    {w : Withdrawal Chain Hash} (hr : Reach cfg s s') (hw : s.withdrawals w) : s'.withdrawals w := by
+  induction hr with
+  | refl => exact hw
+  | tail _ _ hs ih => exact withdrawals_step hs ih
+
+/-- Lockbox authorizations are never removed (leaving a lockbox is not modeled). -/
+theorem lockbox_step {cfg : Config Chain Body Hash} {a : Action Chain Body Hash}
+    {s s' : State Chain Hash} {z y : Chain} (hs : Step cfg a s s') (hl : s.lockbox z y) :
+    s'.lockbox z y := by
+  obtain ⟨_, rfl⟩ := hs
+  cases a <;> simp only [next] <;> first | exact hl | exact Or.inl hl
+
+theorem lockbox_reach {cfg : Config Chain Body Hash} {s s' : State Chain Hash} {z y : Chain}
+    (hr : Reach cfg s s') (hl : s.lockbox z y) : s'.lockbox z y := by
+  induction hr with
+  | refl => exact hl
+  | tail _ _ hs ih => exact lockbox_step hs ih
+
 theorem exportedBy_step {cfg : Config Chain Body Hash} {s₀ s s' : State Chain Hash}
     {a : Action Chain Body Hash} {y : Chain} {f : Fact Chain Hash}
     (hx : ExportedBy cfg s₀ s y f) (hs : Step cfg a s s') : ExportedBy cfg s₀ s' y f := by
@@ -499,6 +525,13 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : Ch
       have hc' : ¬ (c = z ∧ h = cfg.msgHash d z b) := fun e => hnr' (Or.inr e)
       rw [upd2_ne _ _ hc']
       exact hI.refunds_zero c h hstd (fun r => hnr' (Or.inl r))
+  -- Pausing touches only the pause flag, which no part of the invariant reads.
+  | pause y =>
+    exact ⟨hI.sent_le, hI.sent_up, hI.ev_le, hI.sent_ev, hI.rel_ev, hI.gov, hI.wd, hI.dep, hI.exp,
+      hI.ref, hI.refunds_le, hI.refunds_zero⟩
+  | unpause y =>
+    exact ⟨hI.sent_le, hI.sent_up, hI.ev_le, hI.sent_ev, hI.rel_ev, hI.gov, hI.wd, hI.dep, hI.exp,
+      hI.ref, hI.refunds_le, hI.refunds_zero⟩
 
 /-- Main induction: `Inv`, `HistW` and the deposit history hold on every reachable state. -/
 theorem inv_reach (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : ChainIdUnique cfg) {s₀ s : State Chain Hash}
