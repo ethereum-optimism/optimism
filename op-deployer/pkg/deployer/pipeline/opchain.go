@@ -230,23 +230,6 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 	)
 }
 
-// checkWithdrawalDelayBounds rejects a per-chain DelayedWETH withdrawal delay that the
-// implementation's initializer would refuse, so a bad intent fails before any L1 transaction is
-// sent instead of inside the deploy with a generic proxy revert. The bounds are the ones this
-// intent deploys the implementation with (see ResolveSuperchainProofParams), so the check only
-// applies when the run deploys the implementations itself; a predeployed OPCM's DelayedWETH
-// carries whatever bounds it was bootstrapped with.
-func checkWithdrawalDelayBounds(bounds state.SuperchainProofParams, delay uint64) error {
-	if delay == 0 || delay < bounds.MinWithdrawalDelaySeconds || delay > bounds.MaxWithdrawalDelaySeconds {
-		return fmt.Errorf(
-			"faultGameWithdrawalDelay %d is outside the DelayedWETH bounds [%d, %d]; "+
-				"set minWithdrawalDelaySeconds/maxWithdrawalDelaySeconds in globalDeployOverrides to widen them",
-			delay, bounds.MinWithdrawalDelaySeconds, bounds.MaxWithdrawalDelaySeconds,
-		)
-	}
-	return nil
-}
-
 // ResolvePreparedGameType returns the initial game type recorded by prepare after
 // verifying that it matches the currently resolved game type.
 func ResolvePreparedGameType(chain *state.ChainIntent, chainState *state.ChainState, current uint32) (uint32, error) {

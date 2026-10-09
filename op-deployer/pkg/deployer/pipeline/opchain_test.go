@@ -856,68 +856,6 @@ func TestResolveChainProofParams(t *testing.T) {
 	})
 }
 
-func TestCheckWithdrawalDelayBounds(t *testing.T) {
-	tests := []struct {
-		name    string
-		global  map[string]any
-		chain   map[string]any
-		wantErr bool
-	}{
-		{name: "standard default accepted"},
-		{
-			name:    "below the standard minimum rejected",
-			chain:   map[string]any{"faultGameWithdrawalDelay": standard.MinWithdrawalDelaySeconds - 1},
-			wantErr: true,
-		},
-		{
-			name:    "above the standard maximum rejected",
-			chain:   map[string]any{"faultGameWithdrawalDelay": standard.MaxWithdrawalDelaySeconds + 1},
-			wantErr: true,
-		},
-		{
-			name:    "zero rejected",
-			chain:   map[string]any{"faultGameWithdrawalDelay": uint64(0)},
-			wantErr: true,
-		},
-		{
-			name:   "global minimum override admits a short delay",
-			global: map[string]any{"minWithdrawalDelaySeconds": uint64(1)},
-			chain:  map[string]any{"faultGameWithdrawalDelay": uint64(1)},
-		},
-		{
-			name:   "global maximum override admits a long delay",
-			global: map[string]any{"maxWithdrawalDelaySeconds": standard.MaxWithdrawalDelaySeconds + 1},
-			chain:  map[string]any{"faultGameWithdrawalDelay": standard.MaxWithdrawalDelaySeconds + 1},
-		},
-		{
-			// The bounds are implementation inputs and only read from the global overrides, the
-			// same way DeployImplementations resolves them.
-			name: "chain-level bounds override is ignored",
-			chain: map[string]any{
-				"minWithdrawalDelaySeconds": uint64(1),
-				"faultGameWithdrawalDelay":  uint64(1),
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			intent := &state.Intent{GlobalDeployOverrides: tt.global}
-			chain := &state.ChainIntent{DeployOverrides: tt.chain}
-			bounds, err := ResolveSuperchainProofParams(intent)
-			require.NoError(t, err)
-			params, err := ResolveChainProofParams(intent, chain)
-			require.NoError(t, err)
-			err = checkWithdrawalDelayBounds(bounds, params.WithdrawalDelaySeconds)
-			if tt.wantErr {
-				require.ErrorContains(t, err, "outside the DelayedWETH bounds")
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestResolveInitialDeployRequirements(t *testing.T) {
 	tests := []struct {
 		name     string
