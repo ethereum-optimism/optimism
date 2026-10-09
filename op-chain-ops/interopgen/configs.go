@@ -101,6 +101,9 @@ func (c *L2Config) Check(log log.Logger) error {
 	if c.DisputeGameFinalityDelaySeconds == 0 {
 		return errors.New("missing L2 dispute game finality delay")
 	}
+	if c.WithdrawalDelaySeconds == 0 {
+		return errors.New("missing L2 withdrawal delay")
+	}
 	if err := c.L2InitializationConfig.Check(log); err != nil {
 		return err
 	}
