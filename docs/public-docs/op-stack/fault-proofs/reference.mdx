@@ -92,13 +92,13 @@ Individual chains can deviate; always confirm against the chain's deployed confi
 
 ### Timing and finality
 
-| Parameter                         | Standard value                                       | Contract              | Description                                                             |
-| --------------------------------- | ---------------------------------------------------- | --------------------- | ------------------------------------------------------------------------ |
-| `proofMaturityDelaySeconds`       | 86,400 to 604,800 seconds (1 to 7 days), per chain   | `OptimismPortal2`     | Delay between proving a withdrawal and being able to finalize it          |
-| `disputeGameFinalityDelaySeconds` | 43,200 to 302,400 seconds (12 hours to 3.5 days), per chain | `AnchorStateRegistry` | Delay after a game resolves before its result is considered finalized     |
-| `withdrawalDelaySeconds`          | 43,200 to 604,800 seconds (12 hours to 7 days), per chain | `DelayedWETH`         | Delay between unlocking a bond withdrawal and being able to execute it    |
-| `challengePeriodSeconds`          | 86,400 seconds (24 hours)                            | `PreimageOracle`      | Challenge window for large-preimage proposals                             |
-| `minProposalSizeBytes`            | 126,000 bytes                                        | `PreimageOracle`      | Minimum size of a preimage that can be submitted through the large-preimage proposal path |
+| Parameter                         | Standard value             | Contract              | Description                                                             |
+| --------------------------------- | -------------------------- | --------------------- | ------------------------------------------------------------------------ |
+| `proofMaturityDelaySeconds`       | 604,800 seconds (7 days)   | `OptimismPortal2`     | Delay between proving a withdrawal and being able to finalize it          |
+| `disputeGameFinalityDelaySeconds` | 302,400 seconds (3.5 days) | `AnchorStateRegistry` | Delay after a game resolves before its result is considered finalized     |
+| `withdrawalDelaySeconds`          | 302,400 seconds (3.5 days) | `DelayedWETH`         | Delay between unlocking a bond withdrawal and being able to execute it    |
+| `challengePeriodSeconds`          | 86,400 seconds (24 hours)  | `PreimageOracle`      | Challenge window for large-preimage proposals                             |
+| `minProposalSizeBytes`            | 126,000 bytes              | `PreimageOracle`      | Minimum size of a preimage that can be submitted through the large-preimage proposal path |
 
 ## Clocks
 
