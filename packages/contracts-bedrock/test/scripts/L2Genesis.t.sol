@@ -469,6 +469,15 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         genesis.run(input);
     }
 
+    /// @notice Tests that run refuses a messenger expiry period override when interop is not active
+    ///         at genesis, where it would have no effect.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts(uint256 _period) external {
+        _period = bound(_period, 1, type(uint256).max);
+        input.l2ToL2MessageExpiryPeriod = _period;
+        vm.expectRevert("L2Genesis: expiry period override needs interop at genesis");
+        genesis.run(input);
+    }
+
     /// @notice Tests that run reverts when the OPTIMISM_PORTAL_INTEROP dev bit is set but useInterop is false.
     function test_run_devBitWithoutUseInterop_reverts() external {
         input.useInterop = false;
