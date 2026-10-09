@@ -47,7 +47,7 @@ const (
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Name:    "interop.activation-timestamp",
-	Usage:   "Override the interop activation timestamp derived from rollup configs",
+	Usage:   "Override the Lagoon (interop) activation timestamp of every chain, in each rollup config and the interop activity. The execution clients must use the same activation time",
 	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_ACTIVATION_TIMESTAMP"),
 	Value:   0,
 }

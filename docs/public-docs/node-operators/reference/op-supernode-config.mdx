@@ -231,9 +231,11 @@ For background on how the activity decides between *wait*, *advance*, *invalidat
 
 ### interop.activation-timestamp
 
-Overrides the interop activation timestamp derived from the loaded rollup configs.
-The default value is `0` (use the value from the rollup config).
-Set this only when activating interop on a custom devnet whose rollup config does not yet carry the activation timestamp.
+Overrides the Lagoon (interop) activation timestamp of every chain the supernode runs, like op-node's `--override.lagoon`.
+The override applies to each chain's rollup config as well as to the interop activity, so both activate at the same time.
+The execution clients must be configured with the same Lagoon activation time, or they diverge from the supernode at activation.
+When unset, the activation timestamp comes from the rollup configs, which come from the superchain registry on production networks.
+Set this only on custom devnets.
 
 <Tabs>
   <Tab title="Syntax">`--interop.activation-timestamp=<value>`</Tab>

@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -69,6 +70,22 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 		return nil, fmt.Errorf("failed to initialize L1 Beacon client: %w", err)
 	}
 
+	// Apply the interop activation override before the chain containers are built, so the
+	// virtual nodes activate Lagoon at the same time as the interop activity below.
+	applyInteropActivationOverride(cfg.InteropActivationTimestamp, vnCfgs)
+	if cfg.InteropActivationTimestamp != nil {
+		// Fail fast: the virtual nodes check their rollup config (including fork order) only
+		// when they start, inside the chain container's restart loop.
+		for chainID, vnCfg := range vnCfgs {
+			if vnCfg == nil {
+				continue
+			}
+			if err := vnCfg.Rollup.Check(); err != nil {
+				return nil, fmt.Errorf("invalid rollup config for chain %s with interop activation override %d: %w", chainID, *cfg.InteropActivationTimestamp, err)
+			}
+		}
+	}
+
 	// Initialize chain containers for each configured chain ID
 	// Pass shared resources via InitializationOverrides to all containers
 	// Build RPC router first; chain containers attach handlers and readiness checks at runtime.
@@ -109,7 +126,7 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 	// Resolve interop activation before constructing Superroot so the
 	// verified-result reader is available. When interop is not configured,
 	// the no-op reader routes every call into the pre-interop fallback.
-	interopActivationTimestamp, err := resolveInteropActivationTimestamp(cfg.InteropActivationTimestamp, vnCfgs)
+	interopActivationTimestamp, err := resolveInteropActivationTimestamp(vnCfgs)
 	if err != nil {
 		return nil, fmt.Errorf("resolve interop activation timestamp: %w", err)
 	}
@@ -162,11 +179,23 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 	return s, nil
 }
 
-func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
-	if override != nil {
-		return override, nil
+// applyInteropActivationOverride sets every virtual node's Lagoon activation time to the
+// override, like op-node's --override.lagoon. The execution clients must be configured with
+// the same activation time.
+func applyInteropActivationOverride(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) {
+	if override == nil {
+		return
 	}
+	for _, vnCfg := range vnCfgs {
+		if vnCfg == nil {
+			continue
+		}
+		ts := *override
+		vnCfg.Rollup.SetActivationTime(forks.Lagoon, &ts)
+	}
+}
 
+func resolveInteropActivationTimestamp(vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
 	var resolved *uint64
 	var resolvedChain eth.ChainID
 	var missingChain *eth.ChainID

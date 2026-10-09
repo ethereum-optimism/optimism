@@ -29,6 +29,15 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 			want: uint64Ptr(42),
 		},
 		{
+			name:     "override activates chains whose rollup config has no Lagoon time",
+			override: uint64Ptr(42),
+			vnCfgs: map[eth.ChainID]*opnodecfg.Config{
+				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{}},
+				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{}},
+			},
+			want: uint64Ptr(42),
+		},
+		{
 			name: "derive from consistent rollup configs",
 			vnCfgs: map[eth.ChainID]*opnodecfg.Config{
 				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{LagoonTime: uint64Ptr(1234)}},
@@ -65,7 +74,8 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := resolveInteropActivationTimestamp(tt.override, tt.vnCfgs)
+			applyInteropActivationOverride(tt.override, tt.vnCfgs)
+			got, err := resolveInteropActivationTimestamp(tt.vnCfgs)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -73,6 +83,13 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
+			if tt.override != nil {
+				// The virtual nodes must activate Lagoon at the same time as the interop
+				// activity, or the verifier and the chains disagree on interop being live.
+				for chainID, vnCfg := range tt.vnCfgs {
+					require.Equal(t, tt.override, vnCfg.Rollup.LagoonTime, "chain %s", chainID)
+				}
+			}
 		})
 	}
 }
