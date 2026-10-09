@@ -133,6 +133,7 @@ contract L2Genesis is Script {
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
         );
+        require(_input.l2ToL2MessageExpiryPeriod == 0, "L2Genesis: expiry period override unsupported");
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
@@ -279,7 +280,7 @@ contract L2Genesis is Script {
         if (_isGenesisInteropEnabled(_input)) {
             // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
-            setL2ToL2CrossDomainMessenger(_input); // 23
+            setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
         }
@@ -610,11 +611,10 @@ contract L2Genesis is Script {
 
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
-    function setL2ToL2CrossDomainMessenger(Input memory _input) internal {
+    function setL2ToL2CrossDomainMessenger() internal {
         Predeploys.assertGates(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
         );
-        require(_input.l2ToL2MessageExpiryPeriod == 0, "L2Genesis: expiry period override unsupported");
         _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 

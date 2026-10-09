@@ -448,10 +448,11 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     }
 
     /// @notice Tests that run refuses a messenger expiry period override, which this genesis cannot
-    ///         apply.
-    function test_run_l2ToL2MessageExpiryPeriodOverride_reverts() external {
-        _setInputInteropEnabled();
-        input.l2ToL2MessageExpiryPeriod = 1;
+    ///         apply, whether or not interop is active at genesis.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodOverride_reverts(uint256 _period, bool _interop) external {
+        _period = bound(_period, 1, type(uint256).max);
+        if (_interop) _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _period;
         vm.expectRevert("L2Genesis: expiry period override unsupported");
         genesis.run(input);
     }
