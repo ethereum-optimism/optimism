@@ -5,8 +5,8 @@
 
 - `relayUndeliveredMessage` trusts only the `UndeliveredMessageExporter` at
   `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`;
-- P_contract is each messenger's `EXPIRY_PERIOD`, a constructor argument; production deploys pass
-  8 days;
+- P_contract is each messenger's stored expiry period, set once by `initialize`; production
+  deployments set 8 days;
 - W_protocol ≤ 7 days.
 
 The theorem: under the stated hypotheses, ETH is never both delivered on a message's destination
@@ -36,19 +36,17 @@ none changes a modeled guard or effect.
 3. **INTEROP gate:** `cb/src/L1/L1CrossDomainMessenger.sol:119`
    (`if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert`). This is the receiving chain's
    own SystemConfig, which matches the model's `cfg.interop w.fact.toL1`.
-4. **P_contract, a deployment parameter:** `cb/src/L2/L2ToL2CrossDomainMessenger.sol:83`
-   (`uint256 internal immutable EXPIRY_PERIOD`), set by the constructor (`:140-143`, which rejects 0),
-   with the strict check at `:303` (`if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert`). The model's
-   `contractPeriod : Chain → Nat` is that argument per chain, and `SafeConfig.window` bounds every
-   destination's window by every source's period. The production pins discharge it:
-   `cb/src/libraries/Constants.sol:59` (`L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days`), passed by
-   `cb/scripts/libraries/UpgradeUtils.sol:128-130` and `cb/scripts/L2Genesis.s.sol:628-630`; with the
-   7-day cap (item 5) `production_window` proves the window condition. A test-network override
-   of the argument is guarded outside this model (`../rollout/`, AC6). `expireMessage` also returns
+4. **P_contract, a deployment parameter:** the messenger's stored expiry period, which
+   `initialize` sets once (bounded to `0 < P ≤ 365 days`) and which upgrades read back and keep,
+   with the strict check `if (_undeliveredAt <= sentAt + period) revert` in `expireMessage`. The
+   model's `contractPeriod : Chain → Nat` is that value per chain, fixed for the whole execution as
+   the design keeps it, and `SafeConfig.window` bounds every destination's window by every source's
+   period. The production pin (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days`, which the
+   upgrade path and `L2Genesis` without an override initialize) and the 7-day cap (item 5) discharge
+   it: `production_window`. A test network's genesis override, and the read-back across upgrades
+   and rollbacks, are checked in the bounded `../rollout/` model (AC6). `expireMessage` also returns
    early when the message is already expired; that is a stuttering step here (`expired` already
-   holds), so the model does not change. The model fixes each chain's period for the whole
-   execution; a period that changes with an upgrade (a test network's genesis override, then the
-   production period from a later bundle) is checked only by the bounded `../rollout/` model.
+   holds), so the model does not change.
 5. **W_protocol ≤ 7-day cap:**
    - Go: `op-core/interop/depset/static_depset.go:141-142`, in `hydrate`, rejects an override above `MessageExpiryTimeSecondsInterop = 604800` (`:15`). The validity rule is at `op-core/interop/depset/links.go:73`.
    - kona: `rust/kona/crates/protocol/genesis/src/interop/depset.rs:47-56`: the override is a `MessageExpiryOverride`, whose `TryFrom<u64>` (also used by serde) rejects a value above `MESSAGE_EXPIRY_WINDOW` (`constants.rs:5`, 7 days), so a larger override cannot be built or parsed.
@@ -188,7 +186,7 @@ Every hypothesis is an explicit argument or structure field.
 | L1CDM self-target rule | `SafeConfig.unsafeTargetCheck` | `L1CrossDomainMessenger._isUnsafeTarget` blocks relays to itself and its portal. So an L1CDM is the L1 sender of an L1→L2 message to the L2 messenger only through `relayUndeliveredMessage`. This is encoded by deposits arising only from `l1Relay` (and from `fakeCaller` / `l1cdmSelfRelay` when a check is dropped). |
 | SystemConfig consistency (governance) | `SafeConfig.sysConfigConsistent` | For every portal authorized in a lockbox, `systemConfig.l1CrossDomainMessenger()` is that chain's real L1CDM. |
 | Governance join rule | `SafeConfig.govCheck`, plus `hg : GovInit cfg s₀` | Only **standard** chains are ever authorized in a lockbox. A standard chain ran the standard predeploys for its whole history, and its relays obey the protocol window. |
-| Windows | `SafeConfig.window : ∀ z d, W_d + (if expireGe then 1 else 0) ≤ P_z` | W_d ≤ 7 days (config cap) ≤ P_z = 8 days (the production constructor argument) with the strict check; `production_window` derives it from those two pins. With `≥` it requires W_d < P_z. |
+| Windows | `SafeConfig.window : ∀ z d, W_d + (if expireGe then 1 else 0) ≤ P_z` | W_d ≤ 7 days (config cap) ≤ P_z = 8 days (the production period) with the strict check; `production_window` derives it from those two pins. With `≥` it requires W_d < P_z. |
 | No non-restarting resend | `SafeConfig.resend` | `resendMessage` is removed after the upgrade. A restarting resend would also be safe. Pre-upgrade resends are always modeled (`resendLegacy`). |
 | Idealized hash | `hinj : HashInjective cfg.hash` | See "The hash" below. |
 | Unique chain IDs (governance) | `hid : ChainIdUnique cfg := ∀ c c', standard c → chainId c = chainId c' → c = c'` | Every standard chain has a chain ID that no other modeled chain uses. Standard chains are those that are or can become lockbox members, and the protected sources; the modeled chains are every chain whose withdrawals or relays the protocol can see. This is stronger than any on-chain check: OPCM's migrator rejects duplicates only among the chains it migrates, so uniqueness against non-members (and in members' dependency sets) is a configuration obligation (rollout AC4). Without this, a member sharing B's ID exports "not relayed" for a hash delivered on B (`cex_duplicateChainId`), with no hash collision. |

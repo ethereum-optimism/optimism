@@ -1,6 +1,7 @@
 // -*- mode: Bluespec; -*-
-// Rollout model of per-message interop expiry (exporter design; the cited code was re-checked at
-// 89a3d565ad, where the expiry period became a constructor argument with a genesis override).
+// Rollout model of per-message interop expiry (exporter design). The messenger's expiry period is a
+// storage value that initialize sets once (0 < period <= 365 days) and that upgrades read back, with a
+// genesis override on test networks.
 //
 // Copied from ../quint/expiry.qnt and changed so that the single atomic `upgrade(x)` becomes separate,
 // freely ordered activation events per chain and per layer:
@@ -14,8 +15,9 @@
 //   - the two NUT bundles as atomic L2 events: the tip bundle and the locked Lagoon bundle, the latter
 //     subject to the L2ContractsManager's semver downgrade guard;
 //   - lockbox joins at any point;
-//   - the messenger's constructor-set expiry period: the production value on every upgrade path, and
-//     an override at genesis on test networks, with the op-deployer and devstack guards;
+//   - the messenger's expiry period, set once: the production value when an upgrade first installs
+//     the expiry messenger, an override at genesis on test networks (with the op-deployer and
+//     devstack guards), and read back unchanged by every later upgrade;
 //   - the protocol window W each relay is judged by, chosen adversarially per relay from a configured
 //     set, separately before and after the destination's exporter first goes live (this covers W
 //     changing over time, a W rule that is not yet active, and a host-supplied depset in kona's
@@ -24,12 +26,12 @@
 // Each activation condition is a constant; the instances at the bottom drop them one at a time.
 module rollout {
   // ---- Configuration ----
-  // P_contract (days): expireMessage needs undeliveredAt > sentAt + P. It is the messenger's
-  // EXPIRY_PERIOD immutable, set by its constructor. Every implementation the upgrade path deploys
-  // (UpgradeUtils.implementationConstructorArgs, L2Genesis without an override) gets the production
-  // value Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD: 8.
+  // P_contract (days): expireMessage needs undeliveredAt > sentAt + P. It is the messenger's stored
+  // expiry period, which initialize sets once: the production value
+  // Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD (8) when an upgrade first installs the expiry messenger
+  // or a genesis has no override. Later upgrades read the stored value back and keep it.
   const CONTRACT_PERIOD: int
-  // The constructor-argument override (L2Genesis input l2ToL2MessageExpiryPeriod, set through
+  // The genesis override of the period (L2Genesis input l2ToL2MessageExpiryPeriod, set through
   // op-deployer's global override or the devstack preset):
   //   "none":      op-deployer refuses it for standard intents and for chains on public L1s;
   //   "guarded":   a test network launched with interop at genesis (L2Genesis and the devstack refuse
@@ -98,8 +100,9 @@ module rollout {
 
   // ---- State ----
   var now: str -> int
-  // The 2.0.0 messenger's EXPIRY_PERIOD per chain (its constructor argument). Kept outside `Chain`
-  // so the record type, which the flattened model repeats everywhere, stays small.
+  // The stored expiry period per chain (0 = never initialized). Kept outside `Chain` so the record
+  // type, which the flattened model repeats everywhere, stays small. 1.3.1 does not touch it, so it
+  // survives a rollback and is read back by the next upgrade.
   var period: str -> int
   var chains: str -> Chain
   var cluster: Set[str]
@@ -115,7 +118,7 @@ module rollout {
 
   action init = all {
     now' = CHAINS.mapBy(_ => 1),
-    period' = CHAINS.mapBy(_ => CONTRACT_PERIOD),
+    period' = CHAINS.mapBy(_ => 0),
     // Pre-rollout: every L2 runs the 1.3.1 messenger, the old bridge and no exporter implementation
     // (the genesis proxy reverts); every L1 runs the old messenger. A and B were migrated into the
     // shared lockbox (INTEROP set on L1); C is outside.
@@ -137,9 +140,10 @@ module rollout {
     chains' = chains.set(x, c),
     now' = now, period' = period, cluster' = cluster, early' = early, keepMsgState,
   }
-  // setChain that also deploys x's messenger with expiry period p.
+  // setChain that also installs x's expiry messenger: initialize sets the period p if it was never
+  // set; otherwise the upgrade reads the stored period back and keeps it.
   action setChainP(x: str, c: Chain, p: int): bool = all {
-    chains' = chains.set(x, c), period' = period.set(x, p),
+    chains' = chains.set(x, c), period' = period.set(x, if (period.get(x) == 0) p else period.get(x)),
     now' = now, cluster' = cluster, early' = early, keepMsgState,
   }
 
@@ -195,14 +199,15 @@ module rollout {
   // devstack compares an overridden period against.
   pure val MAX_WINDOW = CHAINS.fold(0, (acc, d) => WIN_AFTER.get(d).filter(w => w != INF)
                                                     .fold(acc, (a, w) => if (w > a) w else a))
-  // A test network launched with interop at genesis, its messenger constructed with period p
-  // (L2Genesis input l2ToL2MessageExpiryPeriod). Genesis: x has no history and no message touches it.
-  // All of x's interop predeploys are live from the start; a later activation (nutTip,
-  // setMessengerNew) deploys the production period again.
+  // A test network launched with interop at genesis, its messenger initialized with period p
+  // (L2Genesis input l2ToL2MessageExpiryPeriod; 0 < p, and p <= 365 days, which exceeds MAX_TIME).
+  // Genesis: x has no history and no message touches it. All of x's interop predeploys are live from
+  // the start; later upgrades (nutTip, setMessengerNew) keep p.
   action genesisWithPeriod(x: str, p: int): bool = {
     val c = chains.get(x)
     all {
       PERIOD_OVERRIDE != "none",
+      p > 0,
       PERIOD_OVERRIDE == "guarded" implies p > MAX_WINDOW,
       c.msgr == "old", c.hist == Set(), not(c.exporterLive), now.get(x) == 1,
       MSGS.forall(m => (SRC.get(m) == x or DST.get(m) == x) implies msgs.get(m).events == Set()),
@@ -601,6 +606,13 @@ module rolloutSafe {
   // The devstack guard: a period not above the window (7) is refused; an override needs genesis.
   run blockedPeriodAtWindow = init.then(genesisWithPeriod("A", 7).fail())
   run blockedPeriodAfterGenesis = init.then(send("m1", 1)).then(genesisWithPeriod("A", 9).fail())
+  // The period survives later upgrades: the tip bundle reads it back.
+  run witnessPeriodReadBack = init.then(genesisWithPeriod("A", 9)).then(nutTip("A"))
+    .expect(period.get("A") == 9)
+  // The first install of the expiry messenger initializes the production period, and a rollback to
+  // 1.3.1 and a new upgrade keep it.
+  run witnessPeriodInitializedOnce = init.then(nutTip("A")).expect(period.get("A") == 8)
+    .then(govMessengerDowngrade("A")).then(setMessengerNew("A")).expect(period.get("A") == 8)
 }
 
 // The bound is W <= P, not W <= 7: W = P = 8 after the exporter is still safe (strict `>`).
