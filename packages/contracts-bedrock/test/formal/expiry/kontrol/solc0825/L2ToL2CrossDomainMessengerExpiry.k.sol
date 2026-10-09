@@ -341,7 +341,10 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     // messenger's ABI decoder with symbolic offsets. Each nested message is the canonical ABI
     // encoding of its function's arguments: a message that does not decode reverts in the decoder,
     // before any call, and every message that decodes yields an argument tuple that the canonical
-    // encoding also produces, so fixing the encoding loses no decoded behaviour.
+    // encoding also produces, so fixing the encoding loses no decoded behaviour. The byte lengths
+    // are fixed, as Kontrol requires: the nested sendMessage's message is copied, never parsed, so
+    // its length does not change which calls are made; nested relayMessage and expireMessage revert
+    // before reading their arguments' contents; the other functions read at most one word.
 
     /// @notice Nested sendMessage(destination, target, 200-byte message), every argument symbolic.
     /// @custom:kontrol-bytes-length-equals _inner: 200,
@@ -384,8 +387,9 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         assert(!ok);
     }
 
-    /// @notice Nested relayMessage(id, 200-byte payload), every argument symbolic.
-    /// @custom:kontrol-bytes-length-equals _innerPayload: 200,
+    /// @notice Nested relayMessage(id, 288-byte payload), every argument symbolic. The relay
+    ///         always fails: relayMessage is nonReentrant, and the outer relay is in progress.
+    /// @custom:kontrol-bytes-length-equals _innerPayload: 288,
     function prove_relayMessage_selfTarget_relayMessage_neverCallsL2CDMOrPasser(
         uint256 _source,
         uint256 _nonce,
@@ -406,12 +410,14 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
             L2ToL2CrossDomainMessenger.relayMessage,
             (Identifier(_idOrigin, _idBlockNumber, _idLogIndex, _idTimestamp, _idChainId), _innerPayload)
         );
-        _relaySelf(_source, _nonce, _sender, message);
+        bool ok = _relaySelf(_source, _nonce, _sender, message);
+        assert(!ok);
         assert(_callsFrom(L2CDM, L2TOL2) == 0);
         assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
 
-    /// @notice Nested expireMessage(messageHash, undeliveredAt), both symbolic.
+    /// @notice Nested expireMessage(messageHash, undeliveredAt), both symbolic. The relay always
+    ///         fails: the nested call's msg.sender is 0x..23, not 0x..07.
     function prove_relayMessage_selfTarget_expireMessage_neverCallsL2CDMOrPasser(
         uint256 _source,
         uint256 _nonce,
@@ -426,7 +432,8 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         kevm.symbolicStorage(L2TOL2);
         bytes memory message =
             abi.encodeCall(L2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt));
-        _relaySelf(_source, _nonce, _sender, message);
+        bool ok = _relaySelf(_source, _nonce, _sender, message);
+        assert(!ok);
         assert(_callsFrom(L2CDM, L2TOL2) == 0);
         assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
@@ -456,6 +463,28 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
 
+    /// @notice WITNESS (expected to FAIL): under the assumptions of the proof above, a relayed
+    ///         self-call of some other selector (a view) succeeds.
+    /// @custom:kontrol-bytes-length-equals _args: 64,
+    function prove_relayMessage_selfTargetOtherSelectorCanSucceed_WITNESS(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        bytes4 _selector,
+        bytes calldata _args
+    )
+        external
+    {
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.sendMessage.selector);
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.relayMessage.selector);
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.expireMessage.selector);
+        _symbolicChain();
+        _useRecordingL2CDM();
+        kevm.symbolicStorage(L2TOL2);
+        bool ok = _relaySelf(_source, _nonce, _sender, abi.encodePacked(_selector, _args));
+        assert(!ok);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // 4. expireMessage: auth and window boundary
     // ---------------------------------------------------------------------------------------------
@@ -463,9 +492,10 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     /// @notice For ALL messageHash, undeliveredAt, caller, L2CDM.xDomainMessageSender(),
     ///         L2CDM.otherMessenger() and storage, with sentAt = sentMessageTimestamps[H] < 2^64
     ///         (realistic block timestamps): expireMessage succeeds IFF msg.sender == 0x..07 &&
-    ///         xDomainMessageSender == otherMessenger && sentAt != 0 && undeliveredAt > sentAt +
-    ///         EXPIRY_PERIOD (read from the contract, not hardcoded); afterwards expiredMessages[H]
-    ///         == old || success, and sentMessageTimestamps[H] is unchanged.
+    ///         xDomainMessageSender == otherMessenger && (expiredMessages[H] was already set ||
+    ///         (sentAt != 0 && undeliveredAt > sentAt + EXPIRY_PERIOD, read from the contract, not
+    ///         hardcoded)); afterwards expiredMessages[H] == old || success, and
+    ///         sentMessageTimestamps[H] is unchanged. Events and other slots are not asserted.
     function prove_expireMessage_spec(bytes32 _messageHash, uint256 _undeliveredAt) external {
         _etch(L2CDM, address(new AuthL2CrossDomainMessenger()));
         kevm.symbolicStorage(L2TOL2);
@@ -484,7 +514,7 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         (bool ok,) =
             L2TOL2.call(abi.encodeCall(L2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt)));
 
-        // An already-expired message returns early, before the timestamp check, without a write.
+        // An already-expired message is accepted before the timestamp check.
         assert(
             ok
                 == (
