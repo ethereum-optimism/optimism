@@ -353,7 +353,8 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
     // encoding also produces, so fixing the encoding loses no decoded behaviour. The byte lengths
     // are fixed, as Kontrol requires: the nested sendMessage's message is copied, never parsed, so
     // its length does not change which calls are made; nested relayMessage and expireMessage revert
-    // before reading their arguments' contents; the other functions read at most one word. The
+    // before reading their arguments' contents; the other functions read at most one word (and make no
+    // calls but initialize's static authorization calls). The
     // lengths are still a bound of these proofs: nested sendMessage is checked with an empty and a
     // 200-byte message (and sendMessage on its own with 600 bytes).
 
@@ -470,9 +471,10 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
 
-    /// @notice Any other selector, followed by 64 symbolic bytes. The other functions are views
-    ///         that take at most one 32-byte argument, so their decoders ignore bytes past it; a
-    ///         message shorter than 4 bytes, or an unknown selector, reverts (no fallback).
+    /// @notice Any other selector, followed by 64 symbolic bytes. The other functions take at most
+    ///         one 32-byte argument, so their decoders ignore bytes past it; a message shorter than
+    ///         4 bytes, or an unknown selector, reverts (no fallback). They are views, except
+    ///         initialize, which only writes storage (its authorization check makes static calls).
     /// @custom:kontrol-bytes-length-equals _args: 64,
     function prove_relayMessage_selfTarget_otherSelectors_neverCallsL2CDMOrPasser(
         uint256 _source,
