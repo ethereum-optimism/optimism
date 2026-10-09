@@ -34,6 +34,10 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         return Test.makeAddr(_name);
     }
 
+    function assumeNotPrecompile(address _addr, uint256 _chainId) internal pure override(Test, StdCheatsSafe) {
+        Test.assumeNotPrecompile(_addr, _chainId);
+    }
+
     /// @dev Helper function to make assertions on basic Safe config properties.
     function _checkSafeConfig(SafeConfig memory _safeConfig, Safe _safe) internal view {
         assertEq(_safe.getThreshold(), _safeConfig.threshold);

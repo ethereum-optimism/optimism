@@ -110,7 +110,8 @@ abstract contract CrossDomainMessenger is
     uint64 public constant RELAY_CALL_OVERHEAD = 40_000;
 
     /// @notice Gas reserved for finalizing the execution of `relayMessage` after the safe call.
-    uint64 public constant RELAY_RESERVED_GAS = 40_000;
+    ///         Covers recording the outcome in a fresh storage slot, including EIP-8037 state gas.
+    uint64 public constant RELAY_RESERVED_GAS = 125_000;
 
     /// @notice Gas reserved for the execution between the `hasMinGas` check and the external
     ///         call in `relayMessage`.
@@ -225,7 +226,7 @@ abstract contract CrossDomainMessenger is
         address _target,
         uint256 _value,
         uint256 _minGasLimit,
-        bytes calldata _message
+        bytes memory _message
     )
         external
         payable

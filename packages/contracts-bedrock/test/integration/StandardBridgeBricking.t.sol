@@ -11,14 +11,11 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ERC20 } from "@rari-capital/solmate/src/tokens/ERC20.sol";
 
-// Interfaces
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-
 /// @notice Models an ERC20 withdrawal through the Standard Bridge whose token transfer consumes
 ///         almost all of the gas it receives. Under Amsterdam, recording a fresh messenger status
-///         slot costs more than the messenger reserves after the call. With too little gas, the
-///         messenger reverts without recording the message. The Portal must then not finalize the
-///         withdrawal, or the tokens are locked in the bridge forever.
+///         slot costs EIP-8037 state gas, which the messenger must reserve after the call. With
+///         too little gas for the messenger to finish, the Portal must not finalize the withdrawal,
+///         or the tokens are locked in the bridge forever.
 /// forge-config: default.evm_version = "amsterdam"
 contract StandardBridgeBricking_Integration_Test is MessengerBrickingTestInit {
     uint32 internal constant MIN_GAS_LIMIT = 100_000;
@@ -46,32 +43,40 @@ contract StandardBridgeBricking_Integration_Test is MessengerBrickingTestInit {
         _assertNothingRecorded(withdrawal, withdrawalHash);
     }
 
-    /// @notice Tests that finalization with enough gas for the Portal but too little for the
-    ///         messenger to record the message reverts instead of bricking the withdrawal.
-    function test_finalizeWithdrawalTransaction_belowMinMessengerGas_reverts() external {
+    /// @notice Tests that finalization with enough gas for the Portal but too little for the token
+    ///         transfer finalizes the withdrawal with the message recorded as failed, keeping the
+    ///         tokens in the bridge.
+    function test_finalizeWithdrawalTransaction_belowMinMessengerGas_succeeds() external {
         (Types.WithdrawalTransaction memory withdrawal, bytes32 withdrawalHash) = _prepareERC20Relay();
         (uint256 minPortalGas,) = _gasThresholds(withdrawal);
 
-        vm.expectRevert(IOptimismPortal2.OptimismPortal_L1CDMCallFailed.selector);
         optimismPortal2.finalizeWithdrawalTransaction{ gas: minPortalGas }(withdrawal);
 
-        _assertNothingRecorded(withdrawal, withdrawalHash);
+        _assertRecordedFailure(withdrawal, withdrawalHash);
     }
 
-    /// @notice Tests that a withdrawal whose first finalization attempt had too little gas for the
-    ///         messenger can be finalized again with enough gas.
-    function test_finalizeWithdrawalTransaction_retryAfterMessengerFailure_succeeds() external {
+    /// @notice Tests that a message recorded as failed can be replayed through the messenger to
+    ///         deliver the tokens.
+    function test_finalizeWithdrawalTransaction_replayAfterMessengerFailure_succeeds() external {
         (Types.WithdrawalTransaction memory withdrawal, bytes32 withdrawalHash) = _prepareERC20Relay();
         (uint256 minPortalGas, uint256 minMessengerGas) = _gasThresholds(withdrawal);
 
-        (bool success,) = address(optimismPortal2).call{ gas: minPortalGas }(
-            abi.encodeCall(optimismPortal2.finalizeWithdrawalTransaction, (withdrawal))
+        optimismPortal2.finalizeWithdrawalTransaction{ gas: minPortalGas }(withdrawal);
+        _assertRecordedFailure(withdrawal, withdrawalHash);
+
+        l1CrossDomainMessenger.relayMessage{ gas: minMessengerGas + 50_000 }(
+            Encoding.encodeVersionedNonce(0, 1),
+            Predeploys.L2_STANDARD_BRIDGE,
+            address(l1StandardBridge),
+            0,
+            ERC20_MIN_GAS_LIMIT,
+            _finalizeMessage()
         );
-        assertFalse(success);
 
-        optimismPortal2.finalizeWithdrawalTransaction{ gas: minMessengerGas + 50_000 }(withdrawal);
-
-        _assertDelivered(withdrawal, withdrawalHash);
+        assertTrue(l1CrossDomainMessenger.successfulMessages(keccak256(withdrawal.data)));
+        assertEq(token.balanceOf(recipient), AMOUNT);
+        assertEq(token.balanceOf(address(l1StandardBridge)), 0);
+        assertEq(l1StandardBridge.deposits(address(token), address(L2Token)), 0);
     }
 
     /// @notice Tests that finalization with enough gas for the messenger delivers the tokens.
@@ -116,20 +121,27 @@ contract StandardBridgeBricking_Integration_Test is MessengerBrickingTestInit {
         internal
         view
     {
-        bytes32 messageHash = keccak256(_withdrawal.data);
-        assertFalse(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
-        assertFalse(l1CrossDomainMessenger.successfulMessages(messageHash));
-        assertFalse(l1CrossDomainMessenger.failedMessages(messageHash));
+        _assertStatus(_withdrawal, _withdrawalHash, false, false, false);
+        assertEq(token.balanceOf(recipient), 0);
+        assertEq(token.balanceOf(address(l1StandardBridge)), AMOUNT);
+        assertEq(l1StandardBridge.deposits(address(token), address(L2Token)), AMOUNT);
+    }
+
+    function _assertRecordedFailure(
+        Types.WithdrawalTransaction memory _withdrawal,
+        bytes32 _withdrawalHash
+    )
+        internal
+        view
+    {
+        _assertStatus(_withdrawal, _withdrawalHash, true, false, true);
         assertEq(token.balanceOf(recipient), 0);
         assertEq(token.balanceOf(address(l1StandardBridge)), AMOUNT);
         assertEq(l1StandardBridge.deposits(address(token), address(L2Token)), AMOUNT);
     }
 
     function _assertDelivered(Types.WithdrawalTransaction memory _withdrawal, bytes32 _withdrawalHash) internal view {
-        bytes32 messageHash = keccak256(_withdrawal.data);
-        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
-        assertTrue(l1CrossDomainMessenger.successfulMessages(messageHash));
-        assertFalse(l1CrossDomainMessenger.failedMessages(messageHash));
+        _assertStatus(_withdrawal, _withdrawalHash, true, true, false);
         assertEq(token.balanceOf(recipient), AMOUNT);
         assertEq(token.balanceOf(address(l1StandardBridge)), 0);
         assertEq(l1StandardBridge.deposits(address(token), address(L2Token)), 0);
@@ -146,9 +158,7 @@ contract StandardBridgeBricking_Integration_Test is MessengerBrickingTestInit {
         vm.stopPrank();
         assertEq(l1StandardBridge.deposits(address(token), address(L2Token)), AMOUNT);
 
-        bytes memory message = abi.encodeCall(
-            l1StandardBridge.finalizeBridgeERC20, (address(token), address(L2Token), alice, recipient, AMOUNT, hex"")
-        );
+        bytes memory message = _finalizeMessage();
         withdrawal_ = _defaultTx;
         withdrawal_.sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         withdrawal_.target = address(l1CrossDomainMessenger);
@@ -163,5 +173,11 @@ contract StandardBridgeBricking_Integration_Test is MessengerBrickingTestInit {
             message
         );
         withdrawalHash_ = _prepareWithdrawalForFinalization(withdrawal_);
+    }
+
+    function _finalizeMessage() internal view returns (bytes memory) {
+        return abi.encodeCall(
+            l1StandardBridge.finalizeBridgeERC20, (address(token), address(L2Token), alice, recipient, AMOUNT, hex"")
+        );
     }
 }

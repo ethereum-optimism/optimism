@@ -36,6 +36,8 @@ abstract contract SafeCall_TestInit is Test {
         vm.deal(_addr, 0);
         vm.assume(_addr != address(this));
         assumeAddressIsNot(_addr, StdCheatsSafe.AddressType.ForgeAddress, StdCheatsSafe.AddressType.Precompile);
+        // Accounts with code may revert, such as the EIP-2935 history contract on Prague and later.
+        vm.assume(_addr.code.length == 0);
     }
 
     /// @notice Internal helper function for `send` tests
@@ -77,6 +79,9 @@ contract SafeCall_Send_Test is SafeCall_TestInit {
     }
 
     /// @notice Tests that the `send` function with value succeeds.
+    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
+    ///         intrinsic gas. SafeCall makes internal calls, whose gas limit never has to.
+    /// forge-config: default.isolate = false
     function testFuzz_send_withGas_succeeds(address _from, address _to, uint64 _gas, uint256 _value) external {
         _gas = uint64(bound(_gas, 1, type(uint64).max));
         sendTest({ _from: _from, _to: _to, _gas: _gas, _value: _value });
@@ -87,6 +92,9 @@ contract SafeCall_Send_Test is SafeCall_TestInit {
 /// @notice Tests the `call` function of the `SafeCall` contract.
 contract SafeCall_Call_Test is SafeCall_TestInit {
     /// @notice Tests that `call` succeeds.
+    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
+    ///         intrinsic gas. SafeCall makes internal calls, whose gas limit never has to.
+    /// forge-config: default.isolate = false
     function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
         assumeNot(from);
         assumeNot(to);

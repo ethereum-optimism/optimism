@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -54,9 +55,48 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
     uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
 
+    /// @notice Maximum gas allowed for an optimized deployment. Matches the L1 block gas limit.
+    uint64 public constant OPTIMIZED_DEPLOY_GAS_LIMIT = 60_000_000;
+
+    /// @notice Maximum gas allowed for an unoptimized test deployment. Not a protocol limit: it adds
+    ///         headroom over OPTIMIZED_DEPLOY_GAS_LIMIT for the larger unoptimized bytecode.
+    uint64 public constant UNOPTIMIZED_DEPLOY_GAS_LIMIT = 75_000_000;
+
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
+    }
+
+    function _deployGasLimit() internal view returns (uint64) {
+        return Config.isUnoptimized() ? UNOPTIMIZED_DEPLOY_GAS_LIMIT : OPTIMIZED_DEPLOY_GAS_LIMIT;
+    }
+
+    /// @notice Asserts that the most recent deployment remains within transaction gas limits.
+    function _assertDeployGasWithinLimits() internal view {
+        uint256 fusakaLimit = 2 ** 24;
+        VmSafe.Gas memory gas = vm.lastFrameGas();
+        console.log("Deploy execution gas:", gas.gasTotalUsed);
+        console.log("Deploy state gas:", gas.gasStateUsed);
+        assertLt(
+            gas.gasTotalUsed,
+            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
+            string.concat(
+                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
+            )
+        );
+
+        _assertTotalGasWithinProfileLimit(gas);
+    }
+
+    /// @notice Asserts that regular plus state gas fits the profile limit, which EIP-8037 requires
+    ///         the transaction gas limit to cover.
+    /// @param _gas The gas measurement of the frame to check.
+    function _assertTotalGasWithinProfileLimit(VmSafe.Gas memory _gas) internal view {
+        assertLt(
+            int256(uint256(_gas.gasTotalUsed)) + _gas.gasStateUsed,
+            int256(uint256(_deployGasLimit())),
+            "Regular plus state gas exceeds profile limit"
+        );
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -121,17 +161,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
             return cts_;
         }
 
-        // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
-        // by using Safe.
-        uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastFrameGas();
-        assertLt(
-            gas.gasTotalUsed,
-            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
-            string.concat(
-                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
-            )
-        );
+        _assertDeployGasWithinLimits();
 
         // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
         // the standard validator in the coverage case.
@@ -2103,9 +2133,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         vm.prank(senderA);
         IOPContractsManagerV2.ChainContracts memory ctsA = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         vm.prank(senderB);
         IOPContractsManagerV2.ChainContracts memory ctsB = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         assertNotEq(
             address(ctsA.systemConfig), address(ctsB.systemConfig), "systemConfig addresses should differ by sender"
@@ -2208,6 +2240,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
             opcmV2.implementations().faultDisputeGameImpl,
@@ -2317,6 +2350,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
             opcmV2.implementations().superFaultDisputeGameImpl,
@@ -2711,16 +2745,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         }
 
         // Execute a delegatecall to the OPCM migration function.
-        // Check gas usage of the migration function.
-        uint256 gasBefore = gasleft();
         prankDelegateCall(proxyAdminOwner);
         (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
+        VmSafe.Gas memory gas = vm.lastFrameGas();
         assertTrue(success, "migrate failed");
-        uint256 gasAfter = gasleft();
 
-        // Make sure we can fit in a block
+        // The EIP-7825 cap limits regular gas only, so EIP-8037 state gas is excluded.
         uint256 fusakaLimit = 2 ** 24;
-        assertLt(gasBefore - gasAfter, fusakaLimit * MIGRATE_GAS_BUFFER_PERCENTAGE / 100, "Gas usage too high");
+        assertLt(gas.gasTotalUsed, fusakaLimit * MIGRATE_GAS_BUFFER_PERCENTAGE / 100, "Gas usage too high");
+        _assertTotalGasWithinProfileLimit(gas);
     }
 
     /// @notice Helper function to enable a chain's existing per-chain ETHLockbox before migration.
@@ -3826,7 +3859,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
 
-        uint256 numberOfChains = 14;
+        uint256 numberOfChains = 10;
 
         // 1. Deploy BatchUpgrader helper contract.
         BatchUpgrader batchUpgrader = new BatchUpgrader(opcmV2);

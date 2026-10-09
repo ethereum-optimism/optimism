@@ -76,20 +76,30 @@ fs_permissions = [
 # 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
 # 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
 ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424]
-# solady and safe-contracts trigger newer solc deprecation warnings (6335, 9207).
+# Scoped to these libraries so our own sources still fail on the warnings they trigger:
+# 6335 = future `at` keyword collision (solc 0.8.35, triggered by solady)
+# 9207 = send deprecation (solc 0.8.31, triggered by safe-contracts)
 ignored_warnings_from = ["lib/solady", "lib/safe-contracts"]
 deny = "warnings"
 ffi = true
 
-# Transaction isolation is enabled per test where required.
-isolate = false
+# Run each top-level call as a separate transaction to include intrinsic gas.
+isolate = true
 
+# This limit applies to in-memory blocks and to individual call and create frames.
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
 # gas limit is 1B and some of our tests require more gas than that, such as
 # test_callWithMinGas_noLeakageLow_succeeds. We use this gas limit since it was the default gas
 # limit prior to https://github.com/foundry-rs/foundry/pull/8274. Due to toml-rs limitations, if
 # you increase the gas limit above this value it must be a string.
 gas_limit = 9223372036854775807
+
+# In a forked environment, the block gas limit will be inherited from
+# the forked chain. This will always be too low to deploy the `CommonTest`
+# contract.
+# Disabling that cap does not remove the CALL and CREATE limits set by gas_limit
+# above, so we need both of these settings.
+disable_block_gas_limit = true
 
 [fuzz]
 runs = 64

@@ -97,4 +97,21 @@ abstract contract MessengerBrickingTestInit is OptimismPortal2_TestInit {
     {
         return _success && l1CrossDomainMessenger.successfulMessages(keccak256(_withdrawal.data));
     }
+
+    /// @notice Asserts whether the Portal finalized `_withdrawal` and how the messenger recorded it.
+    function _assertStatus(
+        Types.WithdrawalTransaction memory _withdrawal,
+        bytes32 _withdrawalHash,
+        bool _finalized,
+        bool _succeeded,
+        bool _failed
+    )
+        internal
+        view
+    {
+        bytes32 messageHash = keccak256(_withdrawal.data);
+        assertEq(optimismPortal2.finalizedWithdrawals(_withdrawalHash), _finalized);
+        assertEq(l1CrossDomainMessenger.successfulMessages(messageHash), _succeeded);
+        assertEq(l1CrossDomainMessenger.failedMessages(messageHash), _failed);
+    }
 }

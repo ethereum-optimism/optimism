@@ -16,4 +16,23 @@ abstract contract Test is ForgeTest {
         vm.label(addr, _name);
         return addr;
     }
+
+    /// @notice Also excludes the P256VERIFY precompile (EIP-7951) at 0x100, which forge-std's
+    ///         0x01-0xff range misses.
+    /// @param _addr The address to check.
+    /// @param _chainId The chain whose precompiles to exclude.
+    function assumeNotPrecompile(address _addr, uint256 _chainId) internal pure virtual override {
+        super.assumeNotPrecompile(_addr, _chainId);
+        vm.assume(_addr != address(0x100));
+    }
+
+    /// @notice Counts calldata tokens as EIP-7623 defines them: one per zero byte, four per
+    ///         non-zero byte.
+    /// @param _data The calldata to count.
+    /// @return tokens_ The token count.
+    function calldataTokens(bytes memory _data) internal pure returns (uint256 tokens_) {
+        for (uint256 i = 0; i < _data.length; i++) {
+            tokens_ += _data[i] == bytes1(0) ? 1 : 4;
+        }
+    }
 }

@@ -10,14 +10,11 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 
-// Interfaces
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-
 /// @notice Models an ETH withdrawal through the messengers whose target consumes almost all of the
-///         gas it receives. Under Amsterdam, recording a fresh messenger status slot costs more
-///         than the messenger reserves after the call. With too little gas, the messenger reverts
-///         without recording the message. The Portal must then not finalize the withdrawal, or the
-///         withdrawal is lost.
+///         gas it receives. Under Amsterdam, recording a fresh messenger status slot costs EIP-8037
+///         state gas, which the messenger must reserve after the call. With too little gas for the
+///         messenger to finish, the Portal must not finalize the withdrawal, or the withdrawal is
+///         lost.
 /// forge-config: default.evm_version = "amsterdam"
 contract MessengerETHBricking_Integration_Test is MessengerBrickingTestInit {
     uint32 internal constant MIN_GAS_LIMIT = 100_000;
@@ -35,32 +32,33 @@ contract MessengerETHBricking_Integration_Test is MessengerBrickingTestInit {
         _assertNothingRecorded(withdrawal, withdrawalHash, target);
     }
 
-    /// @notice Tests that finalization with enough gas for the Portal but too little for the
-    ///         messenger to record the message reverts instead of bricking the withdrawal.
-    function test_finalizeWithdrawalTransaction_belowMinMessengerGas_reverts() external {
+    /// @notice Tests that finalization with enough gas for the Portal but too little for the target
+    ///         finalizes the withdrawal with the message recorded as failed, keeping the ETH in the
+    ///         messenger.
+    function test_finalizeWithdrawalTransaction_belowMinMessengerGas_succeeds() external {
         (Types.WithdrawalTransaction memory withdrawal, bytes32 withdrawalHash, address target) = _prepareRelay();
         (uint256 minPortalGas,) = _gasThresholds(withdrawal);
 
-        vm.expectRevert(IOptimismPortal2.OptimismPortal_L1CDMCallFailed.selector);
         optimismPortal2.finalizeWithdrawalTransaction{ gas: minPortalGas }(withdrawal);
 
-        _assertNothingRecorded(withdrawal, withdrawalHash, target);
+        _assertRecordedFailure(withdrawal, withdrawalHash, target);
     }
 
-    /// @notice Tests that a withdrawal whose first finalization attempt had too little gas for the
-    ///         messenger can be finalized again with enough gas.
-    function test_finalizeWithdrawalTransaction_retryAfterMessengerFailure_succeeds() external {
+    /// @notice Tests that a message recorded as failed can be replayed through the messenger to
+    ///         deliver the ETH.
+    function test_finalizeWithdrawalTransaction_replayAfterMessengerFailure_succeeds() external {
         (Types.WithdrawalTransaction memory withdrawal, bytes32 withdrawalHash, address target) = _prepareRelay();
         (uint256 minPortalGas, uint256 minMessengerGas) = _gasThresholds(withdrawal);
 
-        (bool success,) = address(optimismPortal2).call{ gas: minPortalGas }(
-            abi.encodeCall(optimismPortal2.finalizeWithdrawalTransaction, (withdrawal))
+        optimismPortal2.finalizeWithdrawalTransaction{ gas: minPortalGas }(withdrawal);
+        _assertRecordedFailure(withdrawal, withdrawalHash, target);
+
+        l1CrossDomainMessenger.relayMessage{ gas: minMessengerGas + 50_000 }(
+            Encoding.encodeVersionedNonce(0, 1), alice, target, withdrawal.value, MIN_GAS_LIMIT, MESSAGE
         );
-        assertFalse(success);
 
-        optimismPortal2.finalizeWithdrawalTransaction{ gas: minMessengerGas + 50_000 }(withdrawal);
-
-        _assertDelivered(withdrawal, withdrawalHash, target);
+        assertTrue(l1CrossDomainMessenger.successfulMessages(keccak256(withdrawal.data)));
+        assertEq(target.balance, withdrawal.value);
     }
 
     /// @notice Tests that finalization with enough gas for the messenger delivers the ETH.
@@ -142,11 +140,21 @@ contract MessengerETHBricking_Integration_Test is MessengerBrickingTestInit {
         internal
         view
     {
-        bytes32 messageHash = keccak256(_withdrawal.data);
-        assertFalse(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
-        assertFalse(l1CrossDomainMessenger.successfulMessages(messageHash));
-        assertFalse(l1CrossDomainMessenger.failedMessages(messageHash));
+        _assertStatus(_withdrawal, _withdrawalHash, false, false, false);
         assertEq(_target.balance, 0);
+    }
+
+    function _assertRecordedFailure(
+        Types.WithdrawalTransaction memory _withdrawal,
+        bytes32 _withdrawalHash,
+        address _target
+    )
+        internal
+        view
+    {
+        _assertStatus(_withdrawal, _withdrawalHash, true, false, true);
+        assertEq(_target.balance, 0);
+        assertGe(address(l1CrossDomainMessenger).balance, _withdrawal.value);
     }
 
     function _assertDelivered(
@@ -157,10 +165,7 @@ contract MessengerETHBricking_Integration_Test is MessengerBrickingTestInit {
         internal
         view
     {
-        bytes32 messageHash = keccak256(_withdrawal.data);
-        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
-        assertTrue(l1CrossDomainMessenger.successfulMessages(messageHash));
-        assertFalse(l1CrossDomainMessenger.failedMessages(messageHash));
+        _assertStatus(_withdrawal, _withdrawalHash, true, true, false);
         assertEq(_target.balance, _withdrawal.value);
     }
 
