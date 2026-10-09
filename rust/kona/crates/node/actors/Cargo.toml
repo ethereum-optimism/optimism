@@ -49,6 +49,7 @@ strum = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "client-core"] }
 tokio = { workspace = true, features = ["macros"] }
+tokio-stream = { workspace = true, features = ["sync"] }
 
 metrics.workspace = true
 

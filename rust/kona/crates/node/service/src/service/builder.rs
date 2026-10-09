@@ -10,10 +10,11 @@ use alloy_rpc_client::RpcClient;
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
+    reqwest,
 };
 use http_body_util::Full;
 use op_alloy_network::Optimism;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use url::Url;
 
@@ -148,17 +149,24 @@ impl RollupNodeBuilder {
     /// - The L2 engine URL is not set.
     /// - The jwt secret is not set.
     /// - The P2P config is not set.
+    /// - The L1 HTTP client cannot be initialized.
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
         if let Some(l1_slot_duration) = self.l1_config_builder.slot_duration_override {
             l1_beacon = l1_beacon.with_l1_slot_duration_override(l1_slot_duration);
         }
 
+        let l1_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .expect("l1 http client initialization");
+        let l1_rpc_client =
+            RpcClient::new_http_with_client(l1_client, self.l1_config_builder.rpc_url.clone());
         let l1_config = L1Config {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
             trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
-            engine_provider: RootProvider::new_http(self.l1_config_builder.rpc_url.clone()),
+            engine_provider: RootProvider::new(l1_rpc_client),
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;

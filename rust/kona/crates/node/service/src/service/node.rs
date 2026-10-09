@@ -35,7 +35,7 @@ use kona_rpc::{
 use kona_sources::BlockSignerHandler;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{sync::Arc, time::Duration};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -521,7 +521,7 @@ impl RollupNode {
 
         let signer_updater = signer_updater_builder.build(
             self.l1_config.engine_provider.clone(),
-            self.config.clone(),
+            self.config.l1_system_config_address,
             head.clone(),
         );
         let l1_head = head_builder.build(
@@ -583,7 +583,10 @@ impl RollupNode {
         supervisor.spawn("l1_head", l1_head);
         supervisor.spawn("l1_safe", l1_safe);
         supervisor.spawn("l1_finalized", l1_finalized);
-        supervisor.spawn("l1_signer_updater", signer_updater);
+        supervisor.spawn("l1_signer_updater", async move {
+            signer_updater.await;
+            Ok::<(), Infallible>(())
+        });
         supervisor.spawn("derivation", run_node_actor(derivation));
         supervisor.spawn("engine", run_node_actor(engine_actor));
         supervisor.wait().await
