@@ -97,7 +97,7 @@ def expiredWord (σ : AccountMap) (I : ExecutionEnv) : UInt256 :=
   storageWord σ I.codeOwner (expiredSlot (argHash I))
 
 /-- `expiredMessages[H]` reads as `true`: Solidity's bool read takes the low byte of the slot. The
-    compiled code returns early (successfully, without writing storage or emitting an event) in
+    compiled code returns early (successfully, without writing storage; logs are not asserted) in
     this case. -/
 def AlreadyExpired (σ : AccountMap) (I : ExecutionEnv) : Prop :=
   UInt256.land (expiredWord σ I) (UInt256.ofNat 0xff) ≠ ⟨0⟩

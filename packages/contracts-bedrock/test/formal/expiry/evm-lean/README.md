@@ -439,11 +439,11 @@ lake build                # everything; must report "Build completed successfull
 lake env lean ExpiryEvm/Axioms.lean
 ```
 
-All timings are on a shared 32-core Linux host (, load 35–180 during this work).
+All timings are on a shared 32-core Linux host (load 35–180 during this work).
 * **Fresh build:** at `37b44c48c7`, a copy of this directory with no `.lake` built completely with
   `lake exe cache get && lake build` in 5 min 16 s wall, dependencies included.
 * **Incremental:** with dependencies built, rebuilding everything in this directory takes about
-  1 min (18 summary shards + proofs + concrete runs).
+  1 min (the summary shards + proofs + concrete runs).
 * **Retarget:** the full rebuild after moving to `5992028e08` took 66 s; to `c7c51d79e2`, 280 s;
   to `448d31ad19`, 201 s; to `89a3d565ad` (new branch, cached dependencies), 135 s
   (load ~30; `NonVacuity.lean` alone ≈ 130–150 s, mostly kernel keccak evaluations).
@@ -509,7 +509,7 @@ one, `mock_returnsAddress` moved from `native_decide` to the kernel, and the ret
 `c7c51d79e2`.
 
 Round 1 reviewers also confirmed, with no change needed: soundness is bytecode-faithful and
-mutation-sensitive (mutating the filled period or `GT`→`LT` breaks the build), and the
+mutation-sensitive (mutating the `PUSH3` period operand of that version or `GT`→`LT` breaks the build), and the
 artifacts and hashes check out.
 
 ## What's left

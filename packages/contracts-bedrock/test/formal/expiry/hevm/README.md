@@ -4,12 +4,15 @@ This directory checks that the new `L2ToL2CrossDomainMessenger` behaves exactly 
 (`c2fe2a991b`) on the surface the two share, except for the differences the expiry design
 introduces on purpose. The code under test is the runtime bytecode of each version, built with
 the repo's `foundry.toml` default profile (solc 0.8.25, 999999 optimizer runs, cancun,
-`bytecode_hash = "none"`, no immutables).
+`bytecode_hash = "none"`). develop's messenger has no immutables; the current one's `EXPIRY_PERIOD`
+is filled with the production `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`, as a production deployment
+has it (`gen-bytecodes.sh`). The develop baseline's messenger source is unchanged at `c9b441bac5`,
+the stack's merge base with develop.
 
 | | sha256 of the runtime hex |
 |---|---|
 | develop `c2fe2a991b` | `eaecd8fff0fa2cfe03f4c14b83379c04ccf28ec07defc6437f55f8f819c6f556` |
-| this branch at `448d31ad19` (semver 2.0.0) | `aa912696762430ae5013b842fe075ecaa7e95610b7be4737fc85a6d9f305aeb9` |
+| this branch at `89a3d565ad` (semver 2.0.0, immutable filled) | `cdb90628b3a27bbbc9e541e29b7d6441ea70da8ed301df488ee82317b21985a5` |
 
 ## What is checked
 

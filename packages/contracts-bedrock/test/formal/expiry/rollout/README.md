@@ -1,15 +1,16 @@
 # Rollout model: activation orderings and misconfigurations for interop expiry
 
 `rollout.qnt` asks which **deployment orderings and misconfigurations** of the exporter design are
-safe, and which activation conditions are needed. The design is on the PR #23259 branch at
-`5992028e08`. The cited code was re-checked at tip `e1b3903ab8`. The changes there are error
-renames, an `UndeliveredMessageExported` event, the exporter's move to `0x4200…0030`, and a kona
-getter guard; none of them changes this model. The model is a copy of `../quint/expiry.qnt` with
+safe, and which activation conditions are needed. The cited code was re-checked at `89a3d565ad`,
+where the messenger's expiry period became a constructor argument; the model gained the genesis
+override of that argument and its guards (AC6). Earlier changes (error renames, an
+`UndeliveredMessageExported` event, the exporter's move to `0x4200…0030`, a kona getter guard) did
+not change it. The model is a copy of `../quint/expiry.qnt` with
 the atomic `upgrade(x)` split into separate events per chain and per layer, which can happen in any
 order.
 
 Results in short:
-- **No ordering violates safety within the bound** when five activation conditions, AC1–AC5,
+- **No ordering violates safety within the bound** when the activation conditions AC1–AC6
   hold; the tip's code already meets AC5. The bound: Apalache found no violation in any execution
   of up to 11 events of this finite model (3 chains, 3 messages, times up to 16 days). That depth is
   not a completeness threshold; see **Results**. The orderings explored include: the L1 before or after the L2; chain
@@ -17,7 +18,7 @@ Results in short:
   goes live before its messenger records timestamps, or after; L1, bridge and exporter rollbacks;
   a messenger rollback before any timestamp; and a mid-rollout lockbox join.
 - **Each condition is individually indispensable**: dropping any one of them, with the others
-  kept, gives a concrete double spend. This does not make AC1–AC5 the weakest possible conditions
+  kept, gives a concrete double spend. This does not make AC1–AC6 the weakest possible conditions
   (see **Activation conditions**).
 - **One condition is a deployment assumption, not code.** AC2 is discharged by the deployment
   decision that no resend-capable messenger implementation (1.3.x, with `resendMessage`) is ever
@@ -65,6 +66,7 @@ interleaving up to the depth bound.
 | `nutLagoon(x)` | The **locked Lagoon bundle** (`op-core/nuts/bundles/lagoon_nut_bundle.json`, `fork_lock.toml` commit `fa9974a2`): messenger **1.3.1**, bridge **1.0.1**, and no exporter entry, so the exporter is untouched. With `L2CM_DOWNGRADE_GUARD`, the whole `upgradePredeploys` call reverts if the messenger or bridge is already newer. The guard that runs at Lagoon is the one in the locked bundle's own L2ContractsManager (`fa9974a2:L2ContractsManagerUtils.sol:49-62`, and `:132` for `upgradeToAndCall`). In the real bundle the messenger and bridge upgrades also require L1Block INTEROP (`fa9974a2:L2ContractsManager.sol:397`), which op-node sets only for a multi-chain dependency set (`op-node/rollup/derive/attributes.go:171-182`). `nutLagoon` ignores that gate, which can only add executions. |
 | `setMessengerNew(x)`, `setBridge(x, b)`, `setExporter(x, v)` | One predeploy at a time: a split bundle, a later fork, or governance through `ProxyAdmin.upgrade`. The bridge can go in either direction. The exporter can be set to `none`, `std`, or `rogue` (non-standard code); `rogue` is allowed only per `ROGUE_EXPORTER_MEMBER` / `ROGUE_EXPORTER_OUTSIDER`. |
 | `govMessengerDowngrade(x)` | The L2 ProxyAdmin owner sets the messenger back to 1.3.1. `ProxyAdmin.upgrade` (`src/universal/ProxyAdmin.sol:152`) has no version check. `GOV_MSGR_DOWNGRADE` is `never`, `beforeTimestamps` (only while no message from x has a timestamp; this is what `rolloutSafe` allows) or `any`. |
+| `genesisWithPeriod(x, p)` | A test network launched with interop at genesis whose messenger is constructed with period `p` (the L2Genesis input `l2ToL2MessageExpiryPeriod`, set through op-deployer's global override or the devstack preset). Only on a fresh chain: no history, no message from or to it yet. All of x's interop predeploys are live from the start. `PERIOD_OVERRIDE` is `none` (op-deployer refuses the override for standard intents and on public L1s), `guarded` (the period exceeds every window that judges relays, `p > W`) or `unguarded`. The devstack's check compares the period with the devstack's own configured window, which every devstack component uses; `guarded` is that check under the assumption that no judge (a node, filter or proof program) uses another window. Every other path that deploys the messenger (`nutTip`, `setMessengerNew`) constructs it with the production period `CONTRACT_PERIOD`; `expire` uses the source's current period. |
 | `join(x)` | `ETHLockbox.authorizePortal` or OPCM migrate. With `JOIN_REQUIRES_CLEAN_EXPORTER`, a chain can join only if its exporter address never ran non-standard code. |
 
 **Protocol actions.** These are as in `../quint/expiry.qnt`, but guarded by the per-chain
@@ -195,7 +197,7 @@ counterexample and the scripted `cex` trace reproduces it.
 
 ## Activation conditions (checked to 11 events)
 
-`rolloutSafe` assumes AC1–AC5 and leaves every other modeled event free. Each unsafe instance
+`rolloutSafe` assumes AC1–AC6 and leaves every other modeled event free. Each unsafe instance
 relaxes exactly one of them, keeps the others, and double-spends. So the set is **individually
 indispensable under the modeled relaxations**. It is not shown to be the weakest characterization.
 For example, briefly installing the earlier L1 implementation without any forged withdrawal ever
@@ -231,6 +233,13 @@ messages had been relayed. Both are outside AC5 and AC2 as stated.
     2. A refunds m3.
     3. C relays m3 and mints the ETH again on C.
   - *Necessary*: `duplicateChainId`.
+- **AC6 (deployed period).** Every messenger is constructed with a period above every window that
+  judges its messages' relays. Production deploys always pass
+  `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`; a test network may override it at genesis.
+  - *Scoped*: an override above the window is safe (`witnessPeriodOverride`; a fact at
+    `sentAt + p` is still rejected, `blockedExpireWithinOverriddenPeriod`), and the override is only
+    possible at genesis (`blockedPeriodAfterGenesis`).
+  - *Necessary*: `periodOverrideUnguarded` (period 5 below W = 7).
 - **AC5 (L1 implementation).** No L1CrossDomainMessenger that trusts 0x..23 for
   `relayUndeliveredMessage` is ever installed, even briefly: 1.3.1 L2 messengers let anyone make
   0x..23 speak, and such withdrawals never expire. *Necessary*: `l1EarlierDesign`. The tip's code
@@ -247,7 +256,7 @@ messages had been relayed. Both are outside AC5 and AC2 as stated.
 **The L1 INTEROP flag is argued, not checked.** Both message sources, A and B, start with INTEROP
 set, and only C can enable it later. C is never a source, so the late-enable path never reaches an
 expiry, and `NoLateInteropEnable` shows reachability only. The argument: the gate only adds a revert
-to `relayUndeliveredMessage` (`L1CrossDomainMessenger.sol:113`). A reverted L1 relay stays
+to `relayUndeliveredMessage` (`L1CrossDomainMessenger.sol:119`). A reverted L1 relay stays
 replayable in the caller's `failedMessages`, so enabling it later can only delay a fact. Exercising
 this needs a model change (a source starting without INTEROP) and a rerun.
 
@@ -263,6 +272,7 @@ forever because the destination's clock and AC1 are monotone.
 | AC2 | NUT path: `L2ContractsManagerUtils.upgradeTo` reverts on a semver decrease (`:61-67`), so the Lagoon bundle after the tip reverts | deployment assumption: no resend-capable implementation (1.3.x) is ever live on a chain with expiry; `ProxyAdmin.upgrade` (`ProxyAdmin.sol:152`) has no version check (BC2), and the Lagoon re-snapshot (BC1) is required |
 | AC3 | genesis proxy without implementation; L2CM only sets the standard implementation | the L2 ProxyAdmin owner can set anything (the named governance assumption); `ETHLockbox.authorizePortal` (`ETHLockbox.sol:124`, `_authorizePortal:220`) checks only the shared ProxyAdmin owner and SuperchainConfig, not the joiner's history (BC4) |
 | AC4 | `OPContractsManagerMigrator._validateChainSystemConfigs` (`:295-330`) rejects duplicate L2 chain IDs among the chains it migrates | `ETHLockbox.authorizePortal` does not check chain IDs (BC4); nothing on chain checks the IDs of non-member chains in a member's dependency set (dependency-set configuration) |
+| AC6 | `UpgradeUtils.implementationConstructorArgs` and `L2Genesis` (without an override) pass `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`; the constructor rejects 0; L2Genesis accepts an override only with interop at genesis; op-deployer's `checkL2ToL2MessageExpiryPeriodOverride` (`op-deployer/pkg/deployer/pipeline/l2genesis.go`) refuses it for standard intents and on public L1s; the devstack's `checkL2ToL2MessageExpiryPeriod` (`op-devstack/sysgo/l2tol2_expiry_period.go`) requires it to exceed the devstack's configured window | op-deployer itself does not compare an override with the window, and refuses it only for standard intents and four public L1 chain IDs: a custom intent on any other L1 (a private L1, or an L3 on a public L2) can deploy a period at or below the window (the `unguarded` case). The devstack check does not see a window that another judge (a proof program, a filter) uses. The constructor rejects only 0: an override so large that `sentAt + EXPIRY_PERIOD` overflows makes every `expireMessage` revert, so messages never expire (no double spend, but no refunds) |
 | AC5 | tip L1CrossDomainMessenger check (c) | never deploy an L1CrossDomainMessenger built from a PR-branch commit before `1086b6de3e` (e.g. `37b44c48c7`, `cf3d730591`), whose check (c) is `L2_TO_L2_CROSS_DOMAIN_MESSENGER` |
 
 ## Bug candidates (ranked by "could this be a real bug")
@@ -442,6 +452,9 @@ Scripted traces (`./run.sh test`, Quint 0.33.0, Rust backend): all pass. That is
 
 ```sh
 ./run.sh test                               # scripted traces only (no Java), seconds
+# rollout.qnt holds the model and the safe instances; rollout-unsafe-1.qnt and rollout-unsafe-2.qnt hold
+# the unsafe instances (split so that each file's flattened model stays under the Apalache server's
+# 20 MB input limit). run.sh picks the file per instance.
 ./run.sh verify                             # Apalache: DEPTH=15 (violations), SAFE_DEPTH=11, FULL_DEPTH=10, JOBS=8
 ONLY='^govMessengerDowngrade ' ./run.sh verify   # one instance
 # Shared host: launch.sh waits for >= 40 GB available, then runs `run.sh verify` with JOBS=2
