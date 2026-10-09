@@ -48,50 +48,31 @@ func ListCredits(ctx *cli.Context) error {
 	}
 	contract, err := contracts.NewDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, caller, gameType, gameAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create dispute game bindings for game type %v: %w", gameType, err)
 	}
-	// Dispatch on the concrete contract type so each branch is checked at compile
-	// time, mirroring createMoveTx in move.go. Every type NewDisputeGameContract can
-	// return satisfies creditGame, so there is no assertion that can fail.
-	switch contract := contract.(type) {
-	case contracts.ZKDisputeGameContract:
-		return listCredits(ctx.Context, contract)
-	case contracts.FaultDisputeGameContract:
-		return listCredits(ctx.Context, contract)
-	default:
-		return fmt.Errorf("%w: cannot list credits for game type %s", contracts.ErrUnsupportedGameType, gameType)
-	}
+	return listCredits(ctx.Context, contract)
 }
 
 // listCredits prints the DelayedWETH credits of any supported dispute game type.
 // ZK games have no claim tree, so their recipient set is the game creator, the
 // challenger and the prover rather than the claim participants.
-func listCredits(ctx context.Context, game creditGame) error {
-	recipients, err := creditRecipients(ctx, game)
-	if err != nil {
-		return err
-	}
-	return printCredits(ctx, game, recipients)
-}
-
-// creditRecipients returns the set of addresses that can hold DelayedWETH credit for
-// the game. ZK games have no claim tree, so their recipients are the game creator,
-// the challenger and the prover rather than the claim participants.
-func creditRecipients(ctx context.Context, game creditGame) ([]common.Address, error) {
-	var recipients []common.Address
-	var err error
+func listCredits(ctx context.Context, game contracts.DisputeGameContract) error {
 	switch game := game.(type) {
 	case contracts.ZKDisputeGameContract:
-		recipients, err = zkCreditRecipients(ctx, game)
+		recipients, err := zkCreditRecipients(ctx, game)
+		if err != nil {
+			return err
+		}
+		return printCredits(ctx, game, recipients)
 	case contracts.FaultDisputeGameContract:
-		recipients, err = faultCreditRecipients(ctx, game)
+		recipients, err := faultCreditRecipients(ctx, game)
+		if err != nil {
+			return err
+		}
+		return printCredits(ctx, game, recipients)
 	default:
-		return nil, fmt.Errorf("%w: cannot list credits for game type %T", contracts.ErrUnsupportedGameType, game)
+		return fmt.Errorf("%w: cannot list credits for game %v", contracts.ErrUnsupportedGameType, game.Addr())
 	}
-	if err != nil {
-		return nil, err
-	}
-	return recipients, nil
 }
 
 // faultCreditRecipients returns every address a fault dispute game can credit: the
@@ -147,16 +128,13 @@ func zkCreditRecipients(ctx context.Context, game contracts.ZKDisputeGameContrac
 	return slices.Collect(maps.Keys(recipients)), nil
 }
 
-// creditGame is the part of a dispute game contract that list-credits needs once the
-// recipient set is known. Both FaultDisputeGameContract and ZKDisputeGameContract
-// satisfy it, so the ZK path reuses the existing output formatting unchanged.
-type creditGame interface {
-	contracts.DisputeGameContract
+// creditReader is the part of a dispute game contract that printCredits needs.
+type creditReader interface {
 	GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
 	GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error)
 }
 
-func printCredits(ctx context.Context, game creditGame, recipients []common.Address) error {
+func printCredits(ctx context.Context, game creditReader, recipients []common.Address) error {
 	balance, withdrawalDelay, wethAddress, err := game.GetBalanceAndDelay(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to get DelayedWETH info: %w", err)

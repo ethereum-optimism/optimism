@@ -35,9 +35,6 @@ func TestCreateResolveTxFaultGame(t *testing.T) {
 	stubRPC := batchingTest.NewAbiBasedRpc(t, gameAddr, snapshots.LoadFaultDisputeGameABI())
 	stubRPC.SetResponse(gameAddr, "gameType", rpcblock.Latest, nil, []interface{}{uint32(gameTypes.PermissionedGameType)})
 	stubRPC.SetResponse(gameAddr, "version", rpcblock.Latest, nil, []interface{}{"1.4.0"})
-	stubRPC.SetResponse(gameAddr, "claimData", rpcblock.Latest, []interface{}{big.NewInt(3)}, []interface{}{
-		uint32(0), common.Address{}, common.Address{}, big.NewInt(0), common.Hash{}, big.NewInt(1), big.NewInt(0),
-	})
 	stubRPC.SetResponse(gameAddr, "resolve", rpcblock.Latest, nil, nil)
 	caller := batching.NewMultiCaller(stubRPC, batching.DefaultBatchSize)
 
