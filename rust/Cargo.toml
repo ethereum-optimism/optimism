@@ -512,7 +512,6 @@ sp1-verifier = { version = "6.8.1", default-features = false, features = ["full"
 # ==================== ASYNC ====================
 async-channel = "2.5"
 async-compression = { version = "0.4", default-features = false }
-async-stream = "0.3.6"
 async-trait = "0.1.89"
 futures = "0.3.31"
 futures-core = "0.3"
