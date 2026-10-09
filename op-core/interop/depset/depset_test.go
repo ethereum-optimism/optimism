@@ -42,10 +42,11 @@ func TestDependencySet(t *testing.T) {
 		const wantErr = "overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"
 		_, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop+1)
 		require.ErrorContains(t, err, wantErr)
-		var ds StaticConfigDependencySet
-		err = json.Unmarshal([]byte(`{"dependencies":{"900":{}},"overrideMessageExpiryWindow":604801}`), &ds)
+		var jsonDS StaticConfigDependencySet
+		err = json.Unmarshal([]byte(`{"dependencies":{"900":{}},"overrideMessageExpiryWindow":604801}`), &jsonDS)
 		require.ErrorContains(t, err, wantErr)
-		_, err = toml.Decode("override_message_expiry_window = 604801\n[dependencies.900]\n", &ds)
+		var tomlDS StaticConfigDependencySet
+		_, err = toml.Decode("override_message_expiry_window = 604801\n[dependencies.900]\n", &tomlDS)
 		require.ErrorContains(t, err, wantErr)
 
 		ok, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop)

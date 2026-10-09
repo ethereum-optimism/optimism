@@ -200,7 +200,8 @@ impl InteropHost {
     /// Refuses to start with a configured dependency set that cannot be read or parsed, rather
     /// than serving the client no dependency set later.
     fn require_readable_dependency_set(&self) -> Result<(), InteropHostError> {
-        self.read_dependency_set().transpose().map(|_| ())
+        self.read_dependency_set().transpose()?;
+        Ok(())
     }
 
     /// Starts the preimage server, communicating with the client over the provided channels.
@@ -317,14 +318,18 @@ impl InteropHost {
     pub fn read_dependency_set(&self) -> Option<Result<DependencySet, InteropHostError>> {
         let path = self.dependency_set_path.as_ref()?;
 
-        Some((|| {
-            let ser_config = std::fs::read_to_string(path).map_err(|source| {
-                InteropHostError::UnreadableDependencySet { path: path.clone(), source }
-            })?;
-            serde_json::from_str(&ser_config).map_err(|source| {
-                InteropHostError::InvalidDependencySet { path: path.clone(), source }
-            })
-        })())
+        Some(
+            std::fs::read_to_string(path)
+                .map_err(|source| InteropHostError::UnreadableDependencySet {
+                    path: path.clone(),
+                    source,
+                })
+                .and_then(|s| {
+                    serde_json::from_str(&s).map_err(|source| {
+                        InteropHostError::InvalidDependencySet { path: path.clone(), source }
+                    })
+                }),
+        )
     }
 
     /// Creates the key-value store for the host backend.
@@ -414,6 +419,7 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use kona_genesis::HardForkConfig;
+    use kona_interop::MESSAGE_EXPIRY_WINDOW;
 
     fn rollup_config_with_lagoon_time(lagoon_time: Option<u64>) -> RollupConfig {
         RollupConfig {
@@ -502,6 +508,16 @@ mod tests {
         let err = host(Some(too_long)).require_readable_dependency_set().unwrap_err();
         assert!(matches!(err, InteropHostError::InvalidDependencySet { .. }));
         assert!(err.to_string().contains("overrideMessageExpiryWindow 604801s exceeds"));
+
+        let at_limit = dir.path().join("depset-at-limit.json");
+        std::fs::write(
+            &at_limit,
+            format!(
+                r#"{{"dependencies":{{}},"overrideMessageExpiryWindow":{MESSAGE_EXPIRY_WINDOW}}}"#
+            ),
+        )
+        .unwrap();
+        assert!(host(Some(at_limit)).require_readable_dependency_set().is_ok());
     }
 
     #[test]

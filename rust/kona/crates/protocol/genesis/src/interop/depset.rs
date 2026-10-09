@@ -3,7 +3,6 @@
 use super::MESSAGE_EXPIRY_WINDOW;
 use alloc::collections::BTreeMap;
 use alloy_primitives::ChainId;
-use core::fmt;
 
 /// Configuration for a dependency of a chain
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +14,7 @@ pub struct ChainDependency {}
 /// An override of the message expiry window, in seconds. A dependency set may shorten the window
 /// but not lengthen it beyond [`MESSAGE_EXPIRY_WINDOW`] (see the Expiry Window section of the
 /// interop specification). A value above [`MESSAGE_EXPIRY_WINDOW`] cannot be constructed or
-/// deserialized, as in op-core.
+/// deserialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(try_from = "u64", into = "u64"))]
@@ -29,20 +28,9 @@ impl MessageExpiryOverride {
 }
 
 /// Error returned for a message expiry window override above [`MESSAGE_EXPIRY_WINDOW`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("overrideMessageExpiryWindow {0}s exceeds protocol window {window}s", window = MESSAGE_EXPIRY_WINDOW)]
 pub struct MessageExpiryOverrideTooLong(pub u64);
-
-impl fmt::Display for MessageExpiryOverrideTooLong {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "overrideMessageExpiryWindow {}s exceeds protocol window {}s",
-            self.0, MESSAGE_EXPIRY_WINDOW
-        )
-    }
-}
-
-impl core::error::Error for MessageExpiryOverrideTooLong {}
 
 impl TryFrom<u64> for MessageExpiryOverride {
     type Error = MessageExpiryOverrideTooLong;

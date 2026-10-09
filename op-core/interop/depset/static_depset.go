@@ -133,7 +133,7 @@ func (ds *StaticConfigDependencySet) UnmarshalTOML(v interface{}) error {
 	return ds.hydrate()
 }
 
-// hydrate sets all the cached values, based on the dependencies attribute
+// hydrate validates the expiry override and sets the cached values from the dependencies.
 func (ds *StaticConfigDependencySet) hydrate() error {
 	// A dependency set may shorten the message expiry window but not lengthen it beyond
 	// MessageExpiryTimeSecondsInterop; see the Expiry Window section of the interop
