@@ -9,7 +9,7 @@ use crate::{
 };
 use alloc::{string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_primitives::{B256, Log, keccak256, map::HashSet};
+use alloy_primitives::{B256, Log, keccak256};
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_registry::HashMap;
 use tracing::{info, warn};
@@ -134,30 +134,37 @@ where
         // that cannot be detected by per-message validation.
         MessageRules::check_no_cycles(&self.messages)?;
 
-        // Group source lookups so only one initiating block's logs need to be retained.
-        self.messages.sort_by_key(|message| {
+        // Sort and deduplicate to avoid quadratic hash-table probing on adversarial inputs.
+        // Keep source blocks grouped so only one block's logs need to be retained.
+        self.messages.sort_unstable_by_key(|message| {
+            let id = &message.inner.identifier;
             (
-                message.inner.identifier.chainId.saturating_to::<u64>(),
-                message.inner.identifier.blockNumber.saturating_to::<u64>(),
+                id.chainId.saturating_to::<u64>(),
+                id.blockNumber.saturating_to::<u64>(),
+                id.chainId,
+                id.blockNumber,
+                id.logIndex,
+                id.timestamp,
+                id.origin,
+                message.inner.payloadHash,
+                message.executing_chain_id,
+                message.executing_timestamp,
             )
+        });
+        self.messages.dedup_by(|a, b| {
+            a.executing_chain_id == b.executing_chain_id &&
+                a.executing_timestamp == b.executing_timestamp &&
+                a.inner == b.inner
         });
 
         // Create a new vector to store invalid edges
         let mut invalid_messages = HashMap::default();
         let mut initiating_block = None;
-        let mut checked_messages: HashSet<_> = HashSet::default();
 
         // Prune all valid messages, collecting errors for any chain whose block contains an invalid
         // message. Errors are de-duplicated by chain ID in a map, since a single invalid
         // message is cause for invalidating a block.
         for message in &self.messages {
-            if !checked_messages.insert((
-                message.executing_chain_id,
-                message.executing_timestamp,
-                &message.inner,
-            )) {
-                continue;
-            }
             if let Err(e) = self.check_single_dependency(message, &mut initiating_block).await {
                 warn!(
                     target: "message_graph",
@@ -235,9 +242,9 @@ where
                 .receipts_by_number(initiating_chain_id, initiating_block_number)
                 .await?;
             let logs = receipts
-                .iter()
-                .flat_map(|receipt| receipt.logs())
-                .map(|log| (log.clone(), None))
+                .into_iter()
+                .flat_map(|receipt| receipt.into_logs())
+                .map(|log| (log, None))
                 .collect();
             *initiating_block = Some(InitiatingBlock {
                 chain_id: initiating_chain_id,
@@ -1677,6 +1684,7 @@ mod test {
         assert_eq!(result, vec![CHAIN_A_ID, CHAIN_C_ID]);
         assert!(!result.contains(&CHAIN_B_ID), "Bystander chain B must not be flagged");
     }
+
     #[derive(Debug)]
     struct CountingProvider {
         inner: crate::test_util::MockInteropProvider,
@@ -1957,6 +1965,7 @@ mod test {
             "raw identifiers remain distinct despite saturated lookup heights"
         );
     }
+
     #[tokio::test]
     async fn test_resolve_groups_interleaved_source_blocks() {
         use alloy_consensus::Header;

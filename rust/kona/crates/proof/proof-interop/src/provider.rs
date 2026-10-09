@@ -138,7 +138,7 @@ where
             return Ok(receipts.clone());
         }
 
-        // Verify the receipts against the header's trie root before caching them.
+        // Verify the receipts against the header's receipts root.
         HintType::L2Receipts
             .with_data(&[block_hash.as_ref(), chain_id.to_be_bytes().as_slice()])
             .send(self.oracle.as_ref())
@@ -172,7 +172,7 @@ where
 
     /// Fetch a [Header] by its number.
     async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Header, Self::Error> {
-        let Some(sealed) = self.local_safe_heads.get(&chain_id).cloned() else {
+        let Some(sealed) = self.local_safe_heads.get(&chain_id) else {
             return Err(PreimageOracleError::Other("Missing local safe header".to_string()).into());
         };
         if number > sealed.number {
@@ -187,14 +187,19 @@ where
             .range((chain_id, number)..=(chain_id, u64::MAX))
             .next()
             .map(|(_, entry)| entry.clone());
-        let (mut current_hash, mut header) =
-            cached.unwrap_or_else(|| (sealed.hash(), sealed.into_inner()));
+        let (mut current_hash, mut header) = cached.unwrap_or_else(|| {
+            let hash = sealed.hash();
+            let header = sealed.inner().clone();
+            if number < header.number {
+                self.headers_by_number
+                    .lock()
+                    .insert((chain_id, header.number), (hash, header.clone()));
+            }
+            (hash, header)
+        });
         if header.number == number {
             return Ok(header);
         }
-        self.headers_by_number
-            .lock()
-            .insert((chain_id, header.number), (current_hash, header.clone()));
 
         let hinter = self.scoped_hinter(chain_id);
         let mut linear_fallback = false;
@@ -343,7 +348,7 @@ mod tests {
     use alloy_rlp::Decodable;
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
-    use kona_interop::{DependencySet, SuperRoot};
+    use kona_interop::{DependencySet, MESSAGE_EXPIRY_WINDOW, SuperRoot};
     use kona_preimage::{
         HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
         errors::PreimageOracleResult,
@@ -599,6 +604,7 @@ mod tests {
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
     }
+
     fn insert_test_header(client: &mut MockCommsClient, header: Header) -> Sealed<Header> {
         let header = header.seal_slow();
         let key = PreimageKey::new(*header.hash(), PreimageKeyType::Keccak256);
@@ -642,6 +648,34 @@ mod tests {
         assert_eq!(reads.lock().len(), 4, "cached ancestors must not be walked again");
         assert_eq!(provider.header_by_number(fixture.chain_id, 2).await.unwrap().number, 2);
         assert_eq!(reads.lock().len(), 6, "lookback must start at the closest cached header");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_header_cache_handles_zero_and_maximum_keys() {
+        for (chain_id, number) in
+            [(0, 0), (0, u64::MAX - 1), (u64::MAX, 0), (u64::MAX, u64::MAX - 1)]
+        {
+            let (mut client, fixture) = load_fixture();
+            let parent = insert_test_header(&mut client, Header { number, ..Default::default() });
+            let head =
+                Header { number: number + 1, parent_hash: parent.hash(), ..Default::default() }
+                    .seal_slow();
+            let reads = client.reads.clone();
+            let mut provider = build_provider(client, &fixture);
+            let config = provider.boot.rollup_configs[&fixture.chain_id].clone();
+            provider.boot.rollup_configs.insert(chain_id, config);
+            provider.replace_local_safe_head(chain_id, head.clone());
+
+            assert_eq!(provider.header_by_number(chain_id, number).await.unwrap(), *parent.inner());
+            assert_eq!(reads.lock().len(), 1);
+            for expected in [parent.inner(), head.inner()] {
+                assert_eq!(
+                    provider.header_by_number(chain_id, expected.number).await.unwrap(),
+                    *expected
+                );
+            }
+            assert_eq!(reads.lock().len(), 1, "boundary cache hits must not reread the oracle");
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -760,7 +794,7 @@ mod tests {
                 &provider,
                 &configs,
                 &dependency_set,
-                604800,
+                MESSAGE_EXPIRY_WINDOW,
             )
             .await
             .unwrap();
@@ -775,10 +809,15 @@ mod tests {
         provider.replace_local_safe_head(1, replacement);
         let mut heads_to_check = provider.local_safe_heads().clone();
         heads_to_check.remove(&1);
-        let graph =
-            MessageGraph::derive(&heads_to_check, &provider, &configs, &dependency_set, 604800)
-                .await
-                .unwrap();
+        let graph = MessageGraph::derive(
+            &heads_to_check,
+            &provider,
+            &configs,
+            &dependency_set,
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("cached source validity must not survive replacement");
         };
@@ -806,6 +845,7 @@ mod tests {
             "old hash lookup must not restore the replaced canonical header"
         );
     }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_receipt_cache_does_not_retain_historical_blocks() {
         use alloy_consensus::{Receipt, ReceiptWithBloom};

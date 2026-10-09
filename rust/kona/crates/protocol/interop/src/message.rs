@@ -12,7 +12,7 @@ use op_alloy_consensus::OpReceiptEnvelope;
 
 sol! {
     /// @notice The struct for a pointer to a message payload in a remote (or local) chain.
-    #[derive(Default, Debug, PartialEq, Eq, Hash)]
+    #[derive(Default, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     struct MessageIdentifier {
         address origin;
@@ -28,7 +28,7 @@ sol! {
     /// @param identifier Encoded Identifier of the message.
     ///
     /// Parameter names match the interop RPC JSON field names.
-    #[derive(Default, Debug, PartialEq, Eq, Hash)]
+    #[derive(Default, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     event ExecutingMessage(bytes32 indexed payloadHash, MessageIdentifier identifier);
 
