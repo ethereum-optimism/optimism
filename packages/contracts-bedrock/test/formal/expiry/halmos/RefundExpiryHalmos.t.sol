@@ -21,6 +21,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { SuperchainETHBridge } from "src/L2/SuperchainETHBridge.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 interface SVM {
@@ -198,8 +199,11 @@ contract RefundExpiryHalmos is Test {
     ///         expiredMessages[H] is set (written directly: expireMessage itself is checked in L2ToL2ExpiryHalmos)
     ///         the refund succeeds and pays `from` exactly `amount`.
     function check_sendETH_then_refund(uint256 _chainId, uint256 _ts, uint256 _liq0, Args memory _a) public {
-        bytes memory code = DeployUtils.getCode(
-            "test/formal/expiry/halmos/out/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json"
+        bytes memory code = bytes.concat(
+            DeployUtils.getCode(
+                "test/formal/expiry/halmos/out/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json"
+            ),
+            abi.encode(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)
         );
         address real;
         assembly {

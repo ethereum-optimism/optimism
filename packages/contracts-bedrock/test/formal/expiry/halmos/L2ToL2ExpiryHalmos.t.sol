@@ -761,9 +761,10 @@ contract L2ToL2ExpiryHalmos is Test {
 
     /// @notice expireMessage succeeds iff
     ///           msg.sender == 0x..07 && L2CDM.xDomainMessageSender() == L2CDM.otherMessenger()
-    ///           && sentAt != 0 && t > sentAt + W
+    ///           && (expiredMessages[H] || (sentAt != 0 && t > sentAt + W))
     ///         where sentAt = sentMessageTimestamps[H] and W = EXPIRY_PERIOD read from the contract (not
-    ///         hardcoded, so this holds unchanged when the constant becomes 8 days).
+    ///         hardcoded). For an already-expired H (the early return) the raw storage word of
+    ///         expiredMessages[H] is unchanged.
     ///         ASSUMPTION: sentAt <= 2^64 - 1 (a block timestamp). Without it see check_expire_iff_unbounded.
     ///         Frame: on success expiredMessages[H] becomes true; on revert it is unchanged; everything else
     ///         (sentMessageTimestamps[H], successfulMessages[H], nonce, sentMessages[j], and all five observations at
@@ -787,12 +788,14 @@ contract L2ToL2ExpiryHalmos is Test {
         vm.assume(_h2 != _h);
         Snap memory before = _snap(FrameKeys(_h2, _j));
         bool succBefore = m.successfulMessages(_h);
+        bytes32 rawBefore = vm.load(L2_TO_L2, keccak256(abi.encode(_h, uint256(4))));
 
         bool ok = _expire(_caller, _h, _t);
 
-        bool expected = _caller == L2CDM && _xSender == _other && sentAt != 0 && _t > sentAt + w;
+        bool expected = _caller == L2CDM && _xSender == _other && (expiredBefore || (sentAt != 0 && _t > sentAt + w));
         assert(ok == expected);
         assert(m.expiredMessages(_h) == (ok ? true : expiredBefore));
+        if (expiredBefore) assert(vm.load(L2_TO_L2, keccak256(abi.encode(_h, uint256(4)))) == rawBefore);
         assert(m.sentMessageTimestamps(_h) == sentAt);
         assert(m.successfulMessages(_h) == succBefore);
         _sameExceptNothing(before, _snap(FrameKeys(_h2, _j)));
@@ -812,21 +815,23 @@ contract L2ToL2ExpiryHalmos is Test {
         _setupExpire(_xSender, _other);
         uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
+        bool expiredBefore = m.expiredMessages(_h);
 
         bool ok = _expire(_caller, _h, _t);
 
-        bool expected =
-            _caller == L2CDM && _xSender == _other && sentAt != 0 && sentAt <= type(uint256).max - w && _t > sentAt + w;
+        bool expected = _caller == L2CDM && _xSender == _other
+            && (expiredBefore || (sentAt != 0 && sentAt <= type(uint256).max - w && _t > sentAt + w));
         assert(ok == expected);
     }
 
-    /// @notice Exact boundary, authorized call, symbolic sentAt in (0, 2^64): t == sentAt + W reverts,
-    ///         t == sentAt + W + 1 succeeds.
+    /// @notice Exact boundary of a first expiry, authorized call, symbolic sentAt in (0, 2^64):
+    ///         t == sentAt + W reverts, t == sentAt + W + 1 succeeds.
     function check_expire_boundary(address _l1Messenger, bytes32 _h) public {
         _setupExpire(_l1Messenger, _l1Messenger);
         uint256 w = m.expiryPeriod();
         uint256 sentAt = m.sentMessageTimestamps(_h);
         vm.assume(sentAt != 0 && sentAt <= type(uint64).max);
+        vm.assume(!m.expiredMessages(_h));
 
         assert(!_expire(L2CDM, _h, sentAt + w));
         assert(_expire(L2CDM, _h, sentAt + w + 1));
@@ -843,6 +848,14 @@ contract L2ToL2ExpiryHalmos is Test {
 
         bool ok = _expire(L2CDM, _h, _t);
         assert(ok == (_t >= sentAt + w));
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): the early return is reachable: an authorized call for an
+    ///         already-expired H with no send timestamp and t = 0 succeeds.
+    function check_FALSE_expire_alreadyExpiredRejected(address _l1Messenger, bytes32 _h) public {
+        _setupExpire(_l1Messenger, _l1Messenger);
+        vm.assume(m.expiredMessages(_h) && m.sentMessageTimestamps(_h) == 0);
+        assert(!_expire(L2CDM, _h, 0));
     }
 
     /// @notice NON-VACUITY (expected FAIL): expireMessage never succeeds (same symbolic world as check_expire_iff).
