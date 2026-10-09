@@ -35,7 +35,8 @@ def σ : AccountMap :=
     |>.insert messengerAddr
       { (default : Account) with
           code := l2tol2Runtime
-          storage := (∅ : Storage).insert (sentAtSlot H) (UInt256.ofNat 5) }
+          storage := ((∅ : Storage).insert (sentAtSlot H) (UInt256.ofNat 5)).insert periodSlot
+            (UInt256.ofNat P_production) }
     |>.insert l2cdm { (default : Account) with code := mockL2cdmCode }
 
 def env (caller : AccountAddress) (t : ℕ) : ExecutionEnv :=
@@ -63,22 +64,22 @@ def reverted (caller : AccountAddress) (t : ℕ) : Bool :=
   | .ok (.revert _ _) => true
   | _ => false
 
-#eval expiredAfter l2cdm (5 + P_contract + 1)
-#eval reverted l2cdm (5 + P_contract)
-#eval reverted (AccountAddress.ofUInt256 (UInt256.ofNat 0x99)) (5 + P_contract + 1)
+#eval expiredAfter l2cdm (5 + P_production + 1)
+#eval reverted l2cdm (5 + P_production)
+#eval reverted (AccountAddress.ofUInt256 (UInt256.ofNat 0x99)) (5 + P_production + 1)
 
 /-- Reachability witness: at `t = sentAt + P + 1` the call from the L2CrossDomainMessenger
     succeeds and sets `expiredMessages[H]` to 1. -/
-theorem success_reachable : expiredAfter l2cdm (5 + P_contract + 1) = some (UInt256.ofNat 1) := by
+theorem success_reachable : expiredAfter l2cdm (5 + P_production + 1) = some (UInt256.ofNat 1) := by
   native_decide
 
 /-- Boundary: at `t = sentAt + P` (the `≥`-mutation would accept this) the code reverts. -/
-theorem boundary_reverts : reverted l2cdm (5 + P_contract) = true := by
+theorem boundary_reverts : reverted l2cdm (5 + P_production) = true := by
   native_decide
 
 /-- Any other caller reverts. -/
 theorem other_caller_reverts :
-    reverted (AccountAddress.ofUInt256 (UInt256.ofNat 0x99)) (5 + P_contract + 1) = true := by
+    reverted (AccountAddress.ofUInt256 (UInt256.ofNat 0x99)) (5 + P_production + 1) = true := by
   native_decide
 
 /-! ## Other branch kinds (witnesses that each disjunct of `expireMessage_outcome` is inhabited) -/
@@ -92,12 +93,12 @@ def outcome (σ : AccountMap) (I : ExecutionEnv) (gas : ℕ) : String :=
   | .error _ => "other error"
 
 /-- Out of gas: the same successful call with 20000 gas runs out of gas. -/
-theorem oog_reachable : outcome σ (env l2cdm (5 + P_contract + 1)) 20000 = "oog" := by
+theorem oog_reachable : outcome σ (env l2cdm (5 + P_production + 1)) 20000 = "oog" := by
   native_decide
 
 /-- Static mode: entered with `perm = false` (via `STATICCALL`), the run halts at the `SSTORE`. -/
 theorem static_reachable :
-    outcome σ { env l2cdm (5 + P_contract + 1) with perm := false } 1000000 = "static" := by
+    outcome σ { env l2cdm (5 + P_production + 1) with perm := false } 1000000 = "static" := by
   native_decide
 
 /-- A mock L2CrossDomainMessenger whose code is `PUSH0 PUSH0 REVERT`. -/
@@ -106,11 +107,11 @@ def σRevertingL2cdm : AccountMap :=
 
 /-- Callee failure: if the L2CrossDomainMessenger's view call reverts, `expireMessage` reverts. -/
 theorem callee_failure_reverts :
-    outcome σRevertingL2cdm (env l2cdm (5 + P_contract + 1)) 1000000 = "revert" := by
+    outcome σRevertingL2cdm (env l2cdm (5 + P_production + 1)) 1000000 = "revert" := by
   native_decide
 
 /-- `t` of the success witness. -/
-def tS : ℕ := 5 + P_contract + 1
+def tS : ℕ := 5 + P_production + 1
 
 /-- The static call `otherMessenger()` from `σ` with 0 forwarded gas. -/
 def zeroGasCall :=
@@ -137,8 +138,8 @@ def σE : AccountMap :=
   σ.insert messengerAddr
     { (default : Account) with
         code := l2tol2Runtime
-        storage := ((∅ : Storage).insert (sentAtSlot H) (UInt256.ofNat 5)).insert (expiredSlot H)
-          (UInt256.ofNat 1) }
+        storage := (((∅ : Storage).insert (sentAtSlot H) (UInt256.ofNat 5)).insert periodSlot
+          (UInt256.ofNat P_production)).insert (expiredSlot H) (UInt256.ofNat 1) }
 
 /-- `expireMessage(H, 0)`, entered by `STATICCALL`: `t = 0` is not past the period. -/
 def envE : ExecutionEnv := { env l2cdm 0 with perm := false }

@@ -26,7 +26,7 @@ of the messenger's storage:
   only sets `xDomainMessageSender` to the L1 sender of a deposit it is relaying is a property of
   the L2CrossDomainMessenger (not verified here; it is the meaning of the `ReturnsAddress`
   summaries' values `vS`, `vO`).
-* `cfg.contractPeriod f.toL1` ↦ `P_contract` (this messenger's immutable, as verified), `f.hash` ↦ `argHash I`,
+* `cfg.contractPeriod f.toL1` ↦ `periodWord σ I` (this messenger's stored `expiryPeriod`, as a number), `f.hash` ↦ `argHash I`,
   `f.time` ↦ `(argTime I).toNat`.
 
 The model works with ideal hashes; the code with `keccak256` storage slots. Instead of a global
@@ -187,7 +187,7 @@ theorem refines_expire {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : Execut
     (hO : ReturnsAddress σ σ₀ I otherMessengerCalldata vO)
     (hX : ReturnsAddress σ σ₀ I xDomainMessageSenderCalldata vS)
     (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    (absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I)
+    (absGuard (periodWord σ I).toNat (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I)
         (argTime I).toNat ∨
       (RelayFromOtherMessenger I vO vS ∧ (viewOf σ I.codeOwner).expired (argHash I))) ∧
     (viewOf σ' I.codeOwner).expired (argHash I) ∧

@@ -3,7 +3,7 @@ import ExpiryEvm.AllBlocks
 import ExpiryEvm.Words
 import ExpiryEvm.Mem
 
-/-! # Trace segment 1: dispatcher, non-payable guard, ABI decode (pc 0 → pc 1741) -/
+/-! # Trace segment 1: dispatcher, non-payable guard, ABI decode (pc 0 → pc 2349) -/
 
 namespace ExpiryEvm
 
@@ -20,8 +20,8 @@ theorem seg_entry {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
       I.weiValue = ⟨0⟩ ∧
       UInt256.isZero (UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
         (UInt256.ofNat 64)) ≠ UInt256.ofNat 0 ∧
-      ∃ aw k C, RD l2tol2Runtime I g (initState σ σ₀ g A I) (UInt256.ofNat 1741)
-        [argTime I, argHash I, UInt256.ofNat 595, expireSelector]
+      ∃ aw k C, RD l2tol2Runtime I g (initState σ σ₀ g A I) (UInt256.ofNat 2349)
+        [argTime I, argHash I, UInt256.ofNat 634, expireSelector]
         (Mem.wordsMem [⟨0⟩, ⟨0⟩, ⟨128⟩]) aw ByteArray.empty σ k C) := by
   have r0 := RD.initState (σ := σ) (σ₀ := σ₀) (A := A) (g := g) hcode
   have hsel' : UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32))
@@ -32,25 +32,25 @@ theorem seg_entry {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
     simp only [l2tol2_block_13_fallthrough_stack] at r2
     rw [hsel'] at r2
     have r3 := l2tol2_block_29_taken (by simp) (by decide) (by kjump_dest) r2
-    have r4 := l2tol2_block_87_taken (by simp) (by decide) (by kjump_dest) r3
+    have r4 := l2tol2_block_113_taken (by simp) (by decide) (by kjump_dest) r3
     by_cases hv : UInt256.isZero I.weiValue = UInt256.ofNat 0
     · left
-      refine ⟨l2tol2_block_572 (by simp [l2tol2_block_564_fallthrough_stack])
-        (l2tol2_block_564_fallthrough (by simp) hv r4), fun hc => Words.isZero_eq0.mp hv hc.2.1⟩
-    · have r5 := l2tol2_block_564_taken (by simp) hv (by kjump_dest) r4
-      simp only [l2tol2_block_564_taken_stack] at r5
-      have r6 := l2tol2_block_575 (by simp) (by kjump_dest) r5
-      simp only [l2tol2_block_575_stack] at r6
+      refine ⟨l2tol2_block_611 (by simp [l2tol2_block_603_fallthrough_stack])
+        (l2tol2_block_603_fallthrough (by simp) hv r4), fun hc => Words.isZero_eq0.mp hv hc.2.1⟩
+    · have r5 := l2tol2_block_603_taken (by simp) hv (by kjump_dest) r4
+      simp only [l2tol2_block_603_taken_stack] at r5
+      have r6 := l2tol2_block_614 (by simp) (by kjump_dest) r5
+      simp only [l2tol2_block_614_stack] at r6
       by_cases hcd : UInt256.isZero (UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size)
           (UInt256.ofNat 4)) (UInt256.ofNat 64)) = UInt256.ofNat 0
       · left
-        refine ⟨l2tol2_block_4345 (by simp [l2tol2_block_4331_fallthrough_stack])
-          (l2tol2_block_4331_fallthrough (by simp) hcd r6), fun hc => hc.2.2 hcd⟩
-      · have r7 := l2tol2_block_4331_taken (by simp) hcd (by kjump_dest) r6
-        simp only [l2tol2_block_4331_taken_stack] at r7
-        have r8 := l2tol2_block_4348 (by simp) (by kjump_dest) r7
-        simp only [l2tol2_block_4348_stack] at r8
-        have r9 := l2tol2_block_590 (by simp) (by kjump_dest) r8
+        refine ⟨l2tol2_block_5634 (by simp [l2tol2_block_5620_fallthrough_stack])
+          (l2tol2_block_5620_fallthrough (by simp) hcd r6), fun hc => hc.2.2 hcd⟩
+      · have r7 := l2tol2_block_5620_taken (by simp) hcd (by kjump_dest) r6
+        simp only [l2tol2_block_5620_taken_stack] at r7
+        have r8 := l2tol2_block_5637 (by simp) (by kjump_dest) r7
+        simp only [l2tol2_block_5637_stack] at r8
+        have r9 := l2tol2_block_629 (by simp) (by kjump_dest) r8
         right
         have hm : l2tol2_block_0_fallthrough_memory (mem := ByteArray.empty) = solcFreePtrMem := rfl
         have h36 : (UInt256.ofNat 4 + UInt256.ofNat 32).toNat = 36 := by decide
@@ -58,7 +58,7 @@ theorem seg_entry {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g :
         rw [hm, h36, h4, Mem.solcFreePtrMem_eq_wordsMem] at r9
         exact ⟨hlt, Words.isZero_ne0.mp hv, hcd, _, _, _, r9⟩
   · left
-    exact ⟨l2tol2_block_217 (by simp) (l2tol2_block_0_taken (by simp) hlt (by kjump_dest) r0),
+    exact ⟨l2tol2_block_265 (by simp) (l2tol2_block_0_taken (by simp) hlt (by kjump_dest) r0),
       fun hc => hlt hc.1⟩
 
 end ExpiryEvm

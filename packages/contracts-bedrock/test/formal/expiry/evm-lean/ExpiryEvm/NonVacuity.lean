@@ -9,7 +9,7 @@ instance on which **all** of `T`'s hypotheses hold **jointly**, applies `T` to i
 case of `T`'s conclusion the instance realizes. The instance is `Concrete.lean`'s world: the pinned
 `L2ToL2CrossDomainMessenger` runtime at 0x4200..0023, a mock L2CrossDomainMessenger at 0x4200..0007
 that returns the same address for both view calls, `sentMessageTimestamps[H] = 5`, and the call
-`expireMessage(H, 5 + P_contract + 1)` from 0x4200..0007 with 10^6 gas.
+`expireMessage(H, 5 + P_production + 1)` from 0x4200..0007 with 10^6 gas.
 `nonvacuous_alreadyExpired` adds a second world, `σE`, where `expiredMessages[H]` is already
 set, and shows the early return is reachable.
 
@@ -282,7 +282,7 @@ theorem nonvacuous_refines_expire :
       ReturnsAddress σ σ I₁ otherMessengerCalldata vMock ∧
       ReturnsAddress σ σ I₁ xDomainMessageSenderCalldata vMock ∧
       Ξ σ σ (UInt256.ofNat 1000000) default I₁ = .ok (.success (σ', g', A') o) ∧
-      absGuard P_contract (RelayFromOtherMessenger I₁ vMock vMock) (viewOf σ I₁.codeOwner)
+      absGuard (periodWord σ I₁).toNat (RelayFromOtherMessenger I₁ vMock vMock) (viewOf σ I₁.codeOwner)
         (argHash I₁) (argTime I₁).toNat ∧
       (viewOf σ' I₁.codeOwner).expired (argHash I₁) ∧
       (viewOf σ' I₁.codeOwner).sentAt H = 5 ∧
@@ -297,7 +297,7 @@ theorem nonvacuous_refines_expire :
   have hne := other_ne
   obtain ⟨σ', g', A', o, hs⟩ := xi_success
   obtain ⟨hg, he, hsa, hex, _, _⟩ := refines_expire rfl env_sel env_cds hO hX hs
-  have hg' : absGuard P_contract (RelayFromOtherMessenger I₁ vMock vMock) (viewOf σ I₁.codeOwner)
+  have hg' : absGuard (periodWord σ I₁).toNat (RelayFromOtherMessenger I₁ vMock vMock) (viewOf σ I₁.codeOwner)
       (argHash I₁) (argTime I₁).toNat := by
     rcases hg with hg | ⟨_, hae⟩
     · exact hg

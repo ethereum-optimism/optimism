@@ -2,7 +2,7 @@ import ExpiryEvm.KernelRun
 import ExpiryEvm.TraceCall2
 
 /-! # Trace segment 4: `expiredMessages` early return, `sentMessageTimestamps` read, expiry check,
-`expiredMessages` write, event, `STOP` (pc 2131 → end) -/
+`expiredMessages` write, event, `STOP` (pc 2739 → end) -/
 
 namespace ExpiryEvm
 
@@ -39,6 +39,16 @@ def finalMap (σ₂ : AccountMap) (I : ExecutionEnv) : AccountMap :=
   sstoreAccountMap I.codeOwner σ₂ (expiredSlot (argHash I))
     (setTrueWord (storageWord σ₂ I.codeOwner (expiredSlot (argHash I))))
 
+theorem noOverflow_iff' (s p : UInt256) :
+    UInt256.isZero (UInt256.gt s (p + s)) ≠ UInt256.ofNat 0 ↔ s.toNat + p.toNat < 2 ^ 256 := by
+  have h := Words.noOverflow_iff s p.toNat (by have := Words.toNat_lt p; rwa [Words.size_eq] at this)
+  rwa [ofNat_toNat] at h
+
+theorem expired_iff' (t s p : UInt256) (h : s.toNat + p.toNat < 2 ^ 256) :
+    UInt256.gt t (p + s) ≠ UInt256.ofNat 0 ↔ s.toNat + p.toNat < t.toNat := by
+  have h' := Words.expired_iff t s p.toNat (by have := Words.toNat_lt p; rwa [Words.size_eq] at this) h
+  rwa [ofNat_toNat] at h'
+
 theorem alreadyExpired_iff (σ : AccountMap) (I : ExecutionEnv) :
     UInt256.land (UInt256.ofNat 255) (expiredWord σ I) ≠ ⟨0⟩ ↔ AlreadyExpired σ I := by
   unfold AlreadyExpired; rw [u256_land_comm]
@@ -46,8 +56,8 @@ theorem alreadyExpired_iff (σ : AccountMap) (I : ExecutionEnv) :
 theorem seg_store {σ σ₂ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     {aw : UInt256} {k C : ℕ} {rest : List UInt256} {o₂ : ByteArray}
     (hst2 : accountStorageStateEq σ σ₂)
-    (h : RD l2tol2Runtime I g (initState σ σ₀ g A I) (UInt256.ofNat 2131)
-        [argTime I, argHash I, UInt256.ofNat 595, expireSelector]
+    (h : RD l2tol2Runtime I g (initState σ σ₀ g A I) (UInt256.ofNat 2739)
+        [argTime I, argHash I, UInt256.ofNat 634, expireSelector]
         (wordsMem (⟨0⟩ :: ⟨0⟩ :: rest)) aw o₂ σ₂ k C) :
     (RDrev l2tol2Runtime g (initState σ σ₀ g A I) ∧ ¬ AlreadyExpired σ I ∧ ¬ StoreConds σ I) ∨
     (AlreadyExpired σ I ∧ RDret l2tol2Runtime g (initState σ σ₀ g A I) σ₂ ByteArray.empty) ∨
@@ -71,19 +81,19 @@ theorem seg_store {σ σ₂ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
   · -- `expiredMessages[H]` already true: early return, no storage write, no event
     right; left
     refine ⟨hae, ?_⟩
-    obtain ⟨k0, C0, r0⟩ := l2tol2_block_2131_fallthrough (by simp)
+    obtain ⟨k0, C0, r0⟩ := l2tol2_block_2739_fallthrough (by simp)
       (by
         rw [hM1, hM4, hKE, optWord_eq, hE]
         exact Words.isZero_eq0.mpr ((alreadyExpired_iff σ I).mpr hae)) h
-    have r1 := l2tol2_block_2154 (by simp) (by kjump_dest) r0
-    exact l2tol2_block_595 (by simp [l2tol2_block_2154_stack]) r1
-  obtain ⟨k0, C0, r0⟩ := l2tol2_block_2131_taken (by simp)
+    have r1 := l2tol2_block_2762 (by simp) (by kjump_dest) r0
+    exact l2tol2_block_634 (by simp [l2tol2_block_2762_stack]) r1
+  obtain ⟨k0, C0, r0⟩ := l2tol2_block_2739_taken (by simp)
     (by
       rw [hM1, hM4, hKE, optWord_eq, hE]
       refine Words.isZero_ne0.mpr ?_
       by_contra hne
       exact hae ((alreadyExpired_iff σ I).mp hne)) (by kjump_dest) h
-  simp only [l2tol2_block_2131_taken_memory, hM1, hM4] at r0
+  simp only [l2tol2_block_2739_taken_memory, hM1, hM4] at r0
   have hM1' : (UInt256.toByteArray H).write 0 (wordsMem (H :: UInt256.ofNat 4 :: rest))
       (⟨0⟩ : UInt256).toNat 32 = wordsMem (H :: UInt256.ofNat 4 :: rest) :=
     wordsMem_write (H :: UInt256.ofNat 4 :: rest) 0 (by simp) H _ rfl
@@ -99,46 +109,48 @@ theorem seg_store {σ σ₂ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
   · -- InvalidMessage
     left
     refine ⟨?_, hae, fun hc => hc.1 hs0⟩
-    obtain ⟨k1, C1, r1⟩ := l2tol2_block_2157_fallthrough (by simp)
+    obtain ⟨k1, C1, r1⟩ := l2tol2_block_2765_fallthrough (by simp)
       (by rw [hM1', hM2, hK, optWord_eq, hS, hs0]; rfl) r0
-    exact l2tol2_block_2180 (by simp [l2tol2_block_2157_fallthrough_stack]) r1
-  obtain ⟨k1, C1, r1⟩ := l2tol2_block_2157_taken (by simp)
+    exact l2tol2_block_2788 (by simp [l2tol2_block_2765_fallthrough_stack]) r1
+  obtain ⟨k1, C1, r1⟩ := l2tol2_block_2765_taken (by simp)
     (by rw [hM1', hM2, hK, optWord_eq, hS]; exact (Words.sub_zero_ne0 _).mpr hs0) (by kjump_dest) r0
-  simp only [l2tol2_block_2157_taken_stack, l2tol2_block_2157_taken_memory, hM1', hM2, hK,
+  simp only [l2tol2_block_2765_taken_stack, l2tol2_block_2765_taken_memory, hM1', hM2, hK,
     optWord_eq, hS] at r1
-  have r2 := l2tol2_block_2229 (by simp) (by kjump_dest) r1
-  simp only [l2tol2_block_2229_stack] at r2
-  by_cases hov : (sentAt σ I).toNat + P_contract < 2 ^ 256
+  obtain ⟨k2, C2, r2⟩ := l2tol2_block_2837 (by simp) (by kjump_dest) r1
+  have hP : storageWord σ₂ I.codeOwner (UInt256.ofNat 5) = periodWord σ I :=
+    storageWord_eq_of_storageEq hst2 _ _
+  simp only [l2tol2_block_2837_stack, optWord_eq, hP] at r2
+  by_cases hov : (sentAt σ I).toNat + (periodWord σ I).toNat < 2 ^ 256
   swap
   · -- checked-add overflow: Panic(0x11)
     left
     refine ⟨?_, hae, fun hc => hov hc.2.1⟩
-    have r3 := l2tol2_block_4686_fallthrough (by simp)
+    have r3 := l2tol2_block_5998_fallthrough (by simp)
       (by
         by_contra hne
-        exact hov ((Words.noOverflow_iff _ P_contract (by decide)).mp hne)) r2
-    simp only [l2tol2_block_4686_fallthrough_stack] at r3
-    have r4 := l2tol2_block_4698 (by simp) (by kjump_dest) r3
-    exact l2tol2_block_4449 (by simp [l2tol2_block_4698_stack]) r4
-  have r3 := l2tol2_block_4686_taken (by simp)
-    ((Words.noOverflow_iff _ P_contract (by decide)).mpr hov) (by kjump_dest) r2
-  simp only [l2tol2_block_4686_taken_stack] at r3
-  have r4 := l2tol2_block_3671 (by simp) (by kjump_dest) r3
-  simp only [l2tol2_block_3671_stack] at r4
-  by_cases hexp : (sentAt σ I).toNat + P_contract < t.toNat
+        exact hov ((noOverflow_iff' _ (periodWord σ I)).mp hne)) r2
+    simp only [l2tol2_block_5998_fallthrough_stack] at r3
+    have r4 := l2tol2_block_6010 (by simp) (by kjump_dest) r3
+    exact l2tol2_block_5738 (by simp [l2tol2_block_6010_stack]) r4
+  have r3 := l2tol2_block_5998_taken (by simp)
+    ((noOverflow_iff' _ (periodWord σ I)).mpr hov) (by kjump_dest) r2
+  simp only [l2tol2_block_5998_taken_stack] at r3
+  have r4 := l2tol2_block_4829 (by simp) (by kjump_dest) r3
+  simp only [l2tol2_block_4829_stack] at r4
+  by_cases hexp : (sentAt σ I).toNat + (periodWord σ I).toNat < t.toNat
   swap
   · -- MessageNotExpired
     left
     refine ⟨?_, hae, fun hc => hexp hc.2.2⟩
-    have r5 := l2tol2_block_2271_fallthrough (by simp)
+    have r5 := l2tol2_block_2850_fallthrough (by simp)
       (by
         by_contra hne
-        exact hexp ((Words.expired_iff _ _ P_contract (by decide) hov).mp hne)) r4
-    exact l2tol2_block_2278 (by simp [l2tol2_block_2271_fallthrough_stack]) r5
+        exact hexp ((expired_iff' _ _ (periodWord σ I) hov).mp hne)) r4
+    exact l2tol2_block_2857 (by simp [l2tol2_block_2850_fallthrough_stack]) r5
   have hc : StoreConds σ I := ⟨hs0, hov, hexp⟩
-  have r5 := l2tol2_block_2271_taken (by simp)
-    ((Words.expired_iff _ _ P_contract (by decide) hov).mpr hexp) (by kjump_dest) r4
-  simp only [l2tol2_block_2271_taken_stack] at r5
+  have r5 := l2tol2_block_2850_taken (by simp)
+    ((expired_iff' _ _ (periodWord σ I) hov).mpr hexp) (by kjump_dest) r4
+  simp only [l2tol2_block_2850_taken_stack] at r5
   cases hp : I.perm with
   | false =>
     right; right; left
@@ -159,7 +171,7 @@ theorem seg_store {σ σ₂ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
   | true =>
     right; right; right
     refine ⟨hae, hc, rfl, ?_⟩
-    obtain ⟨k6, C6, r6⟩ := l2tol2_block_2327 (by simp) hp (by kjump_dest) r5
+    obtain ⟨k6, C6, r6⟩ := l2tol2_block_2906 (by simp) hp (by kjump_dest) r5
     have hN1 : (UInt256.toByteArray H).write 0 (wordsMem (H :: UInt256.ofNat 3 :: rest))
         (⟨0⟩ : UInt256).toNat 32 = wordsMem (H :: UInt256.ofNat 3 :: rest) :=
       wordsMem_write (H :: UInt256.ofNat 3 :: rest) 0 (by simp) H _ rfl
@@ -170,11 +182,11 @@ theorem seg_store {σ σ₂ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv
     have hK2 : keccakWord ⟨0⟩ (UInt256.ofNat 64)
         (wordsMem (H :: UInt256.ofNat 4 :: rest)) = expiredSlot H :=
       keccakWord_wordsMem _ _ _
-    simp only [l2tol2_block_2327_stack, l2tol2_block_2327_memory, hN1, hN2, hK2,
+    simp only [l2tol2_block_2906_stack, l2tol2_block_2906_memory, hN1, hN2, hK2,
       optWord_eq] at r6
-    have r7 := l2tol2_block_2433 (by simp) hp (by kjump_dest) r6
-    simp only [l2tol2_block_2433_stack] at r7
-    have r8 := l2tol2_block_595 (by simp) r7
+    have r7 := l2tol2_block_3012 (by simp) hp (by kjump_dest) r6
+    simp only [l2tol2_block_3012_stack] at r7
+    have r8 := l2tol2_block_634 (by simp) r7
     exact r8
 
 end ExpiryEvm

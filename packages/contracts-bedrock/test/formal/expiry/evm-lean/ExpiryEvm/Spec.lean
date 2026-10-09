@@ -38,13 +38,10 @@ open Ethereum Ethereum.EVM Reasoning.Theory
 
 /-! ## Constants of the compiled artifact -/
 
-/-- The expiry period the runtime code is verified with: 691200 s = 8 days, the production value
-    (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`). `EXPIRY_PERIOD` is an immutable set by the
-    constructor; `scripts/regen.sh` fills its references in the artifact's runtime code with this
-    value (`PUSH32 0x…0a8c00` at pc 2233), so `l2tol2Runtime` is the code a production deployment
-    runs. Tests in the contracts package pin the constructor argument of every production deployment
-    path to this value. The proofs refer to this name only (see HOWTO.md). -/
-def P_contract : ℕ := 691200
+/-- The production expiry period, 691200 s = 8 days (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`).
+    The code reads the period from storage (`periodWord`); this value is used only by the concrete
+    witnesses, whose messenger storage holds it. -/
+def P_production : ℕ := 691200
 
 /-- `Predeploys.L2_CROSS_DOMAIN_MESSENGER` = 0x4200000000000000000000000000000000000007, as a word. -/
 def l2cdmWord : UInt256 := UInt256.ofNat 0x4200000000000000000000000000000000000007
@@ -87,6 +84,13 @@ def expiredSlot (H : UInt256) : UInt256 := solcMappingSlot (UInt256.ofNat 4) H
 /-- Word at `slot` of account `a`'s persistent storage in `σ` (0 if unset or no account). -/
 def storageWord (σ : AccountMap) (a : AccountAddress) (slot : UInt256) : UInt256 :=
   (σ.getD a default).storage.getD slot ⟨0⟩
+
+/-- Storage slot 5 of the messenger: `expiryPeriod`, set by `initialize`. -/
+def periodSlot : UInt256 := UInt256.ofNat 5
+
+/-- The expiry period the executing contract reads: `expiryPeriod` (slot 5) in `σ`. -/
+def periodWord (σ : AccountMap) (I : ExecutionEnv) : UInt256 :=
+  storageWord σ I.codeOwner periodSlot
 
 /-- `sentMessageTimestamps[H]` of the executing contract (`I.codeOwner`) in `σ`. -/
 def sentAt (σ : AccountMap) (I : ExecutionEnv) : UInt256 :=
@@ -172,8 +176,8 @@ def CallFailed (σ σ₀ : AccountMap) (I : ExecutionEnv) : Prop :=
     256-bit words): the contract's checked `sentAt + P` reverts with `Panic(0x11)` if it
     overflows, so the no-overflow clause is part of the condition. -/
 def FreshConds (σ : AccountMap) (I : ExecutionEnv) : Prop :=
-  sentAt σ I ≠ ⟨0⟩ ∧ (sentAt σ I).toNat + P_contract < 2 ^ 256 ∧
-    (sentAt σ I).toNat + P_contract < (argTime I).toNat
+  sentAt σ I ≠ ⟨0⟩ ∧ (sentAt σ I).toNat + (periodWord σ I).toNat < 2 ^ 256 ∧
+    (sentAt σ I).toNat + (periodWord σ I).toNat < (argTime I).toNat
 
 /-- The conditions under which `expireMessage(H, t)` succeeds, given that the two calls return
     `vOther = otherMessenger()` and `vSender = xDomainMessageSender()`: the call checks, and then

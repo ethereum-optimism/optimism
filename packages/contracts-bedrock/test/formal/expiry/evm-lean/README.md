@@ -5,9 +5,8 @@ is no `sorry`/`admit` and no project `axiom`; the axiom footprint is below. Kont
 primary bytecode tool; this is an independent second track in Lean.
 
 This directory proves facts about the **deployed runtime bytecode** of `L2ToL2CrossDomainMessenger`
-at `89a3d565ad` (exporter design; `EXPIRY_PERIOD` an immutable set by the constructor, filled with
-the production 8 days; early return on an already-expired message), executed by an executable
-Lean model of the EVM (`Ξ`). The theorems quantify over every account
+at `eb85948f17` (exporter design; the expiry period stored in slot 5 and set by `initialize`;
+early return on an already-expired message), executed by an executable Lean model of the EVM (`Ξ`). The theorems quantify over every account
 map, caller, value, calldata that selects `expireMessage(bytes32 H, uint256 t)`, gas, call depth
 and static flag:
 
@@ -20,8 +19,9 @@ and static flag:
   * and either `expiredMessages[H]` is already true (the early return), or all of:
     * the call is not static (entered by `CALL`, not `STATICCALL`);
     * `sentMessageTimestamps[H] ≠ 0`;
-    * `sentAt + EXPIRY_PERIOD` does not overflow 256 bits;
-    * `t > sentAt + EXPIRY_PERIOD`.
+    * `sentAt + expiryPeriod` does not overflow 256 bits, `expiryPeriod` being the value in
+      storage slot 5 of the pre-state (any value: the theorems do not assume `initialize`'s bound);
+    * `t > sentAt + expiryPeriod`.
 
   On a first expiry the only state change is `expiredMessages[H] := true` (with Solidity's
   packed-bool write); on the early return nothing changes. That covers the storage of every
@@ -72,11 +72,11 @@ one-transition Sol⁻ spec instead).
 
 | | |
 |---|---|
-| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `89a3d565ad` (`EXPIRY_PERIOD` immutable; semver 2.0.0) |
+| Source | `src/L2/L2ToL2CrossDomainMessenger.sol` at `eb85948f17` (`expiryPeriod` in storage; semver 2.0.0) |
 | Compiler | solc `0.8.25+commit.b61c2a91` via forge 1.8.1, repository **default** profile |
 | Settings | optimizer on, 999999 runs, `evm_version = cancun`, `bytecode_hash = none` (CBOR trailer `a164736f6c6343000819000a`) |
-| Runtime | 5314 bytes, `keccak256 = 0x910b1fa3463b6125ef7c1d433a4eaeaccf36366ffa50fd50a577a81a21c2ae67` (`bytecode/…runtime.hex`): the artifact's `deployedBytecode` with its one immutable filled with 691200 |
-| Init code | `keccak256 = 0xafaacb5e66adbb8222bace7d40a5ef2e7a0bf47e100fb773e87043575c940608` = `initCodeHash` in `snapshots/semver-lock.json` at `89a3d565ad` (without constructor arguments) |
+| Runtime | 6626 bytes, `keccak256 = 0x4cd1896302035db0239e21c67370e2bf3dcb892b055444660ae317c37cb8952e` (`bytecode/…runtime.hex`); no immutables, so this is the code every deployment runs |
+| Init code | `keccak256 = 0x051c8843d3339e10aaf1f7ecb44abad15b45047b6e0b99e85126243f346e2d75` = `initCodeHash` in `snapshots/semver-lock.json` at `eb85948f17` |
 | Lean | `ExpiryEvm/Bytecode.lean` (`l2tol2Runtime`), generated from the hex by `scripts/gen_bytecode.py` |
 
 To reproduce, run `scripts/regen.sh`. It:
@@ -85,25 +85,21 @@ To reproduce, run `scripts/regen.sh`. It:
 * refuses to continue unless all three match: solc is `0.8.25+commit.b61c2a91`; the *complete*
   compiler settings minus remappings equal the expected JSON (so any viaIR, optimizer detail or
   library setting fails the check); and the init-code hash equals the `semver-lock.json` entry;
-* fills the immutable: it reads the period from `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`, and
-  `scripts/fill_immutables.py` writes it into the artifact's immutable references, failing unless
-  there is exactly one immutable, every reference is 32 bytes and every placeholder is zero;
+* requires the artifact to have no immutables;
 * only then writes `bytecode/*.hex` (creating the directory) and regenerates
   `ExpiryEvm/Bytecode.lean`, the block summaries `ExpiryEvm/Blocks/` and their import point
   `ExpiryEvm/AllBlocks.lean`;
-* sets `P_contract` in `Spec.lean` to the filled period.
 
 The pinned hex files live in `bytecode/`, which is not gitignored (check: `git check-ignore bytecode/*`). The earlier `artifacts/` directory was ignored by
 `packages/contracts-bedrock/.gitignore`, so those files were never committed.
 
-**Immutable.** `EXPIRY_PERIOD` is set by the constructor, which rejects 0. Production deploys the
-messenger with `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` (8 days), so its runtime holds
-`PUSH32 0x…0a8c00` at pc 330 (the `expiryPeriod()` getter) and pc 2233 (`expireMessage`). The
-theorems are about that runtime; `P_contract` in `ExpiryEvm/Spec.lean` is 691200, and the proofs
-use only the name. A deployment with another period runs other bytes: `regen.sh` with that value
-in `Constants.sol` rebuilds the proofs for it. That the deployment tooling passes the constant is
-checked outside this directory (the protocol model and the rollout model take it as a
-deployment parameter).
+**Period.** `expiryPeriod` is storage slot 5 of the messenger, which `initialize` sets (to the
+production `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` on every upgrade, or a test network's value at
+genesis; `0 < P ≤ 365 days`). `expireMessage` reads it with `SLOAD 5` (block 2837). The theorems
+take whatever the pre-state holds there (`periodWord σ I`) and do not assume `initialize` ran or its
+bound: with a stored 0 the soundness statement says exactly what the code then accepts
+(`t > sentAt`). That every live messenger holds its initialized period is a deployment condition
+(`../rollout/`). The concrete witnesses store the production 691200 (`P_production`).
 
 **Retargeting history.** The first version proved the same theorems against `37b44c48c7`
 (7 days; runtime keccak `0x84897ff9…0eaa`). Between that and the current tip the messenger
@@ -118,6 +114,13 @@ proofs do not mention those operands); full rebuild 280 s. From `c7c51d79e2` to 
 (the version string back to `"2.0.0"`; semver-lock regenerated) only the version `PUSH32` at pc 411
 changed (`0x312e342e30…` → `0x322e302e30…`); `regen.sh` validated the init-code hash against the new
 semver-lock entry, no proof file changed, and the full rebuild took 201 s.
+
+From `89a3d565ad` to `eb85948f17` the period moved from an immutable to storage slot 5 (set by
+`initialize`). The runtime lost its immutable and grew; the block pcs moved (one mechanical map from
+`trace_paths.py`, which now stores the period in slot 5). The period block (2837) now `SLOAD`s
+slot 5, so `FreshConds` and `refines_expire` take the stored period instead of a constant,
+`regen.sh` checks that there are no immutables, and the witnesses store the production period.
+No other proof step changed; full rebuild 9 min (cold shard cache).
 
 From `448d31ad19` to `89a3d565ad` the period became a constructor-set immutable and
 `expireMessage` gained an early return when `expiredMessages[H]` is already set. `regen.sh` now
@@ -179,8 +182,8 @@ theorem expireMessage_revert_cause … (hc : ExpireConds σ I vO vS) (hperm : I.
 | `stored` | `AlreadyExpired σ I ∨ FreshConds σ I` |
 
 `AlreadyExpired σ I` is `expiredMessages[H] & 0xff ≠ 0` (Solidity's bool read). `FreshConds σ I`
-is `sentAt ≠ 0`, `sentAt.toNat + P_contract < 2^256` (checked add; overflow → `Panic(0x11)`
-revert) and `sentAt.toNat + P_contract < t.toNat` (strict).
+is `sentAt ≠ 0`, `sentAt.toNat + P < 2^256` (checked add; overflow → `Panic(0x11)` revert) and
+`sentAt.toNat + P < t.toNat` (strict), with `P = (periodWord σ I).toNat`, the stored period.
 
 `ExpirePost σ σ' I` says three things:
 * The code owner's storage is unchanged if `AlreadyExpired σ I`, and otherwise is
@@ -224,7 +227,7 @@ What is shown:
 
 ```lean
 theorem refines_expire … (hres : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    (absGuard P_contract (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I)
+    (absGuard (periodWord σ I).toNat (RelayFromOtherMessenger I vO vS) (viewOf σ I.codeOwner) (argHash I)
         (argTime I).toNat ∨
       (RelayFromOtherMessenger I vO vS ∧ (viewOf σ I.codeOwner).expired (argHash I))) ∧
     (viewOf σ' I.codeOwner).expired (argHash I) ∧
@@ -395,7 +398,7 @@ weak (see above), not a hypothesis of a headline theorem.
 | `State.sentAt z h` | `(viewOf σ a).sentAt h = sentMessageTimestamps[h].toNat` |
 | `State.expired z h` | `(viewOf σ a).expired h = (expiredMessages slot & 0xff ≠ 0)` |
 | `State.deposits ⟨z, h, t⟩` | `RelayFromOtherMessenger I vO vS` (see below) |
-| `cfg.contractPeriod` | `P_contract` (the filled immutable) |
+| `cfg.contractPeriod` | `(periodWord σ I).toNat` (the stored period) |
 | `f.hash`, `f.time` | `argHash I`, `(argTime I).toNat` |
 
 Limits of the bridge:
@@ -414,16 +417,16 @@ Limits of the bridge:
 |---|---|
 | `lakefile.toml`, `lean-toolchain`, `lake-manifest.json` | project, pinned |
 | `bytecode/*.hex` | compiled runtime and init code (tracked) |
-| `scripts/regen.sh`, `scripts/gen_bytecode.py` | validated recompilation; regenerate Lean bytecode, summaries, `AllBlocks.lean`, `P_contract` |
+| `scripts/regen.sh`, `scripts/gen_bytecode.py` | validated recompilation; regenerate Lean bytecode, summaries, `AllBlocks.lean` |
 | `scripts/trace_paths.py` | concrete mini-EVM tracer listing the block path of each branch |
 | `ExpiryEvm/Bytecode.lean` | generated: runtime bytes + JUMPDEST table |
 | `ExpiryEvm/Blocks/RuntimeBlocks_0NN.lean`, `RuntimeBlocks.index`, `ExpiryEvm/AllBlocks.lean` | generated by EquiVM's `generate_rd_blocks.py`: proved `RD` summary of every basic block (all functions) |
 | `ExpiryEvm/Spec.lean` | statement vocabulary |
 | `ExpiryEvm/Words.lean`, `ExpiryEvm/Mem.lean` | word facts for branch conditions; word-aligned memory (`wordsMem`, `memList`) |
-| `ExpiryEvm/TraceEntry.lean` | pc 0 → 1741: dispatcher, non-payable, ABI length |
-| `ExpiryEvm/TraceCall1.lean` | pc 1741 → 1900: caller check, `otherMessenger()` call, decode (symbolic return length) |
-| `ExpiryEvm/TraceCall2.lean` | pc 1900 → 2131: `xDomainMessageSender()` call, decode, equality |
-| `ExpiryEvm/TraceStore.lean` | pc 2131 → end: `expiredMessages` early return, `sentAt` read, checked add, expiry check, `SSTORE` (static split), `LOG2`, `STOP` |
+| `ExpiryEvm/TraceEntry.lean` | pc 0 → 2349: dispatcher, non-payable, ABI length |
+| `ExpiryEvm/TraceCall1.lean` | pc 2349 → 2508: caller check, `otherMessenger()` call, decode (symbolic return length) |
+| `ExpiryEvm/TraceCall2.lean` | pc 2508 → 2739: `xDomainMessageSender()` call, decode, equality |
+| `ExpiryEvm/TraceStore.lean` | pc 2739 → end: `expiredMessages` early return, `sentAt` read, period read (slot 5), checked add, expiry check, `SSTORE` (static split), `LOG2`, `STOP` |
 | `ExpiryEvm/Post.lean` | final account map satisfies `ExpirePost` |
 | `ExpiryEvm/ExpireMessage.lean` | headline theorems |
 | `ExpiryEvm/Abstract.lean` | projection bridge to the protocol model's `expire` |
@@ -447,7 +450,7 @@ All timings are on a shared 32-core Linux host (load 35–180 during this work).
 * **Incremental:** with dependencies built, rebuilding everything in this directory takes about
   1 min (the summary shards + proofs + concrete runs).
 * **Retarget:** the full rebuild after moving to `5992028e08` took 66 s; to `c7c51d79e2`, 280 s;
-  to `448d31ad19`, 201 s; to `89a3d565ad` (new branch, cached dependencies), 135 s
+  to `448d31ad19`, 201 s; to `89a3d565ad` (new branch, cached dependencies), 135 s; to `eb85948f17`, 9 min (shards rebuilt)
   (load ~30; `NonVacuity.lean` alone ≈ 130–150 s, mostly kernel keccak evaluations).
 
 ## Review log
