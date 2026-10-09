@@ -145,7 +145,7 @@ var (
 		return &cli.StringFlag{
 			Name: name,
 			Usage: "Base URL to absolute prestates to use when generating trace data. " +
-				"Prestates in this directory should be name as <commitment>.bin.gz <commitment>.json.gz or <commitment>.json " +
+				"Prestates in this directory should be named <commitment>.bin.gz " +
 				gameTypeInfo,
 			EnvVars: envVars,
 		}

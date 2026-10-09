@@ -91,7 +91,7 @@ func TestExistingPrestate(t *testing.T) {
 	dir := t.TempDir()
 	hash := common.Hash{0xaa}
 	provider := NewMultiPrestateProvider(parseURL(t, "http://127.0.0.1:1"), dir, &stubStateConverter{hash: hash})
-	expectedFile := filepath.Join(dir, hash.Hex()+".json.gz")
+	expectedFile := filepath.Join(dir, hash.Hex()+".bin.gz")
 	err := ioutil.WriteCompressedBytes(expectedFile, []byte("expected content"), os.O_WRONLY|os.O_CREATE, 0o644)
 	require.NoError(t, err)
 
@@ -122,15 +122,12 @@ func TestMissingPrestate(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 	expectedRequests := []string{
 		"/" + hash.Hex() + ".bin.gz",
-		"/" + hash.Hex() + ".json.gz",
-		"/" + hash.Hex() + ".json",
 	}
 	require.Equal(t, expectedRequests, requests)
 }
 
 func TestStorePrestateWithCorrectExtension(t *testing.T) {
-	extensions := []string{".bin.gz", ".json.gz", ".json"}
-	for _, ext := range extensions {
+	for _, ext := range supportedFileTypes {
 		ext := ext
 		t.Run(ext, func(t *testing.T) {
 			dir := t.TempDir()
