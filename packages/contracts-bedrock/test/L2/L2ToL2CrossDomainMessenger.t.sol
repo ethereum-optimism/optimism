@@ -322,6 +322,9 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
 /// @title L2ToL2CrossDomainMessenger_RelayMessage_Test
 /// @notice Tests the `relayMessage` function of the `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Gas left in `mockTargetGasLeft` when it was last called.
+    uint256 internal targetGasLeft;
+
     /// @notice Mock target function that checks the source and sender of the message in transient
     ///         storage.
     /// @param _source Source chain ID of the message.
@@ -360,6 +363,11 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
 
         // Ensure the function still reverts if `expectRevert` succeeds
         revert();
+    }
+
+    /// @notice Mock target function that records the gas it was called with.
+    function mockTargetGasLeft() external payable {
+        targetGasLeft = gasleft();
     }
 
     function testFuzz_relayMessage_eventPayloadNotSentMessage_reverts(
@@ -791,6 +799,33 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         vm.expectRevert(_revertData);
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
+    }
+
+    /// @notice Tests that the `relayMessage` function calls the target with all the gas it has
+    ///         left, less the 1/64 that EIP-150 keeps back, so a relayer controls the target's gas
+    ///         through the gas it gives the relay.
+    function test_relayMessage_forwardsAllRemainingGas_succeeds() external {
+        uint256 relayGas = 1_000_000;
+        address target = address(this);
+        bytes memory message = abi.encodeCall(this.mockTargetGasLeft, ());
+
+        Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, 1);
+        bytes memory sentMessage = abi.encodePacked(
+            abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, target, uint256(0)), // topics
+            abi.encode(address(0xbeef), message) // data
+        );
+
+        // Ensure the CrossL2Inbox validates this message
+        vm.mockCall({
+            callee: Predeploys.CROSS_L2_INBOX,
+            data: abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))),
+            returnData: ""
+        });
+
+        l2ToL2CrossDomainMessenger.relayMessage{ gas: relayGas }(id, sentMessage);
+
+        // The relay's own work before the call costs well under a quarter of its gas.
+        assertGt(targetGasLeft, relayGas * 3 / 4);
     }
 }
 
