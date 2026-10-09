@@ -11,6 +11,7 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger, IProxyAdminOwnedBase
     error ReinitializableBase_ZeroInitVersion();
     error L1CrossDomainMessenger_InteropNotEnabled();
     error L1CrossDomainMessenger_NotInteropMessenger();
+    error L1CrossDomainMessenger_Paused();
 
     function PORTAL() external view returns (IOptimismPortal);
     function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external;

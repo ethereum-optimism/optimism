@@ -1493,6 +1493,50 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce + 1);
     }
 
+    /// @notice Tests that a paused chain accepts no word.
+    function test_relayUndeliveredMessage_paused_reverts() external {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()), abi.encode(true));
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_Paused.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word relayed while this chain is paused lands in the destination
+    ///         messenger's failed messages, and that a replay after the unpause deposits the
+    ///         expiry.
+    function test_relayUndeliveredMessage_pausedReplay_succeeds() external {
+        IL1CrossDomainMessenger destination = _destinationMessenger();
+        bytes memory word =
+            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        uint256 nonce = Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 });
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        uint256 depositNonce = l1CrossDomainMessenger.messageNonce();
+
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()), abi.encode(true));
+        vm.prank(address(destination.portal()));
+        destination.relayMessage(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        assertTrue(destination.failedMessages(versionedHash));
+        assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce);
+
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()), abi.encode(false));
+        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (MESSAGE_HASH, UNDELIVERED_AT));
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(l1CrossDomainMessenger), expire, depositNonce, 100_000
+        );
+        vm.prank(bob);
+        destination.relayMessage(
+            nonce, Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(l1CrossDomainMessenger), 0, 0, word
+        );
+        assertTrue(destination.successfulMessages(versionedHash));
+        assertEq(l1CrossDomainMessenger.messageNonce(), depositNonce + 1);
+    }
+
     /// @notice Deploys a real L1CrossDomainMessenger for another chain in this chain's cluster.
     ///         Its portal and SystemConfig are stand-ins that bind to it, and this chain's lockbox
     ///         authorizes the portal.

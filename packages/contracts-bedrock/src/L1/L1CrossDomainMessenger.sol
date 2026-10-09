@@ -37,6 +37,9 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         account with no code, gets that revert instead.
     error L1CrossDomainMessenger_NotInteropMessenger();
 
+    /// @notice Thrown when `relayUndeliveredMessage` is called while this chain is paused.
+    error L1CrossDomainMessenger_Paused();
+
     /// @custom:legacy
     /// @custom:spacer superchainConfig
     /// @notice Spacer taking up the legacy `superchainConfig` slot.
@@ -52,8 +55,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.12.0
-    string public constant version = "2.12.0";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
@@ -107,8 +110,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         - relaying a withdrawal from that chain's UndeliveredMessageExporter, which sends
     ///           this call only for a message to that chain that it has not relayed. See
     ///           UndeliveredMessageExporter for why withdrawals from it can be trusted.
-    ///         It does not check whether this chain is paused: marking a message expired moves no
-    ///         ETH out of the L1 lockbox.
+    ///         It reverts while this chain is paused.
     ///         The word is sent on as this contract, which no relayed message can be (see
     ///         `_isUnsafeTarget`), so L2 can trust it. If this runs out of gas, the call lands in
     ///         the caller's failed messages and can be replayed.
@@ -117,6 +119,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///                       relayed.
     function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
         if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_InteropNotEnabled();
+        if (paused()) revert L1CrossDomainMessenger_Paused();
 
         L1CrossDomainMessenger caller = L1CrossDomainMessenger(msg.sender);
         IOptimismPortal callerPortal = caller.portal();
