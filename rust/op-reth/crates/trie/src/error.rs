@@ -112,7 +112,7 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the provider.
     #[error(transparent)]
     ProviderError(Arc<ProviderError>),
-    /// The proofs database still holds data written by the removed v1 proofs storage.
+    /// The proofs database holds v1 data without a v2 proof window.
     #[error(
         "v1 proofs database detected at {}; delete it and run 'op-reth proofs init'",
         path.display()

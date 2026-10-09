@@ -2356,3 +2356,55 @@ fn test_new_rejects_populated_legacy_v1_tables() {
         );
     }
 }
+
+#[test_case::test_case(false; "initialization in progress")]
+#[test_case::test_case(true; "initialization completed")]
+fn test_new_preserves_populated_legacy_v1_tables_with_v2_data(completed: bool) {
+    for &populated in LEGACY_V1_TABLES {
+        let dir = TempDir::new().unwrap();
+        create_legacy_tables(dir.path(), Some(populated));
+        let anchor = BlockNumHash::new(42, B256::repeat_byte(0x42));
+        let address = B256::repeat_byte(0xAA);
+        let account = sample_account();
+        {
+            // Seed v2 directly: startup currently rejects the populated v1 table.
+            let env =
+                init_db_for::<_, models::Tables>(dir.path(), DatabaseArguments::default()).unwrap();
+            let provider = MdbxProofsProvider::new(env.tx_mut().unwrap());
+            provider.set_initial_state_anchor(anchor).unwrap();
+            provider.store_hashed_accounts(vec![(address, Some(account))]).unwrap();
+            if completed {
+                provider.commit_initial_state().unwrap();
+            }
+            OpProofsInitProvider::commit(provider).unwrap();
+        }
+
+        // Repeated opens must keep both the v2 state and the unused v1 data.
+        for _ in 0..2 {
+            let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+            let tx = storage.env.begin_ro_txn().unwrap();
+            let table = tx.open_db(Some(populated)).unwrap();
+            assert_eq!(tx.db_stat(table.dbi()).unwrap().entries(), 1);
+            drop(tx);
+            for &table in LEGACY_V1_TABLES {
+                assert_eq!(table_exists(&storage, table), table == populated);
+            }
+
+            let provider = storage.provider_ro().unwrap();
+            assert_eq!(
+                provider.get_block_number_hash_inner(ProofWindowKey::InitialStateAnchor).unwrap(),
+                anchor
+            );
+            assert_eq!(provider.tx.get::<V2HashedAccounts>(address).unwrap(), Some(account));
+            if completed {
+                assert_eq!(provider.get_earliest_block().unwrap(), anchor);
+                assert_eq!(provider.get_latest_block().unwrap(), anchor);
+            } else {
+                assert!(matches!(
+                    provider.get_earliest_block(),
+                    Err(OpProofsStorageError::NoBlocksFound)
+                ));
+            }
+        }
+    }
+}

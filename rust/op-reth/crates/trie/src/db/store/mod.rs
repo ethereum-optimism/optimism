@@ -32,7 +32,7 @@ mod snapshot_tests;
 #[cfg(test)]
 mod tests;
 
-use super::Tables;
+use super::{Tables, V2ProofWindow};
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsBackfillStore, OpProofsStore},
@@ -40,6 +40,7 @@ use crate::{
 use reth_db::{
     Database, DatabaseEnv, DatabaseError,
     mdbx::{self, DatabaseArguments, init_db_for},
+    transaction::DbTx,
 };
 use std::{path::Path, sync::Arc};
 use tracing::info;
@@ -80,9 +81,12 @@ impl MdbxProofsStorage {
 
     /// Drops the empty [`LEGACY_V1_TABLES`] left behind by older releases.
     ///
-    /// Fails with [`OpProofsStorageError::LegacyV1Database`] if any of them holds data, since v1
-    /// data cannot be migrated and would otherwise sit in the database file forever.
+    /// Populated v1 tables are left untouched when the v2 proof window has data (including an
+    /// in-progress initialization anchor). Older releases created both schemas, so the presence
+    /// of empty v2 tables alone does not identify a v2 database. Without a v2 proof window,
+    /// populated v1 tables indicate an unsupported v1 database.
     fn drop_legacy_v1_tables(env: &DatabaseEnv, path: &Path) -> Result<(), OpProofsStorageError> {
+        let has_v2_data = env.tx()?.entries::<V2ProofWindow>()? > 0;
         let tx = env.begin_ro_txn().map_err(|e| DatabaseError::InitTx(e.into()))?;
         let mut empty_tables = Vec::new();
         for &name in LEGACY_V1_TABLES {
@@ -92,7 +96,12 @@ impl MdbxProofsStorage {
                 Err(e) => return Err(DatabaseError::Open(e.into()).into()),
             };
             if tx.db_stat(table.dbi()).map_err(|e| DatabaseError::Stats(e.into()))?.entries() > 0 {
-                return Err(OpProofsStorageError::LegacyV1Database { path: path.to_path_buf() });
+                if !has_v2_data {
+                    return Err(OpProofsStorageError::LegacyV1Database {
+                        path: path.to_path_buf(),
+                    });
+                }
+                continue;
             }
             empty_tables.push(name);
         }

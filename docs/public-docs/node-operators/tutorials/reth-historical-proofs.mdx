@@ -14,7 +14,7 @@ This tutorial layers the **proofs-history** historical proof store on top of a w
 </Info>
 
 <Warning>
-  On op-reth v2.6.x and earlier, the proofs store defaults to the deprecated v1 format. Pass `--proofs-history.storage-version=v2` to `op-reth node` and to every `op-reth proofs` subcommand in this tutorial. Later releases only support the v2 format: they accept `--proofs-history.storage-version=v2` as a no-op and reject any other value.
+  On op-reth v2.6.x and earlier, the proofs store defaults to the deprecated v1 format. Pass `--proofs-history.storage-version=v2` to `op-reth node` and to every `op-reth proofs` subcommand in this tutorial. Later releases only support the v2 format: they accept `--proofs-history.storage-version=v2` as a no-op and reject any other value. Existing v2 databases can retain populated v1 tables; those tables are ignored and continue to occupy disk space. A database with v1 data and no v2 proof window must still be recreated.
 </Warning>
 
 ## How it works
