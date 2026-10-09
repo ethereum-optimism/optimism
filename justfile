@@ -474,14 +474,20 @@ todo-checker:
 semgrep-test:
   semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
 
-# Runs shellcheck.
-shellcheck:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -exec shfmt --diff {} \;
+# Lists the shell scripts that the lint recipes check.
+SHELL_SCRIPTS := "find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*'"
+
+# Runs shellcheck and checks shell script formatting.
+shellcheck: shfmt-check
+  {{SHELL_SCRIPTS}} -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
+
+# Fails if any shell script is not formatted with shfmt.
+shfmt-check:
+  {{SHELL_SCRIPTS}} -print0 | xargs -0 shfmt --diff
 
 # Format shell scripts with shfmt.
 shfmt-fix:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -exec shfmt --write {} \;
+  {{SHELL_SCRIPTS}} -exec shfmt --write {} \;
 
 # Generates a table of contents for the README.md file.
 toc:
