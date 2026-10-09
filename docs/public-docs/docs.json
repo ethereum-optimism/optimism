@@ -3602,8 +3602,6 @@
               "governance/protocol-upgrades",
               "governance/capital-allocation",
               "governance/evolution-and-experimentation",
-              "governance/eas-attestations",
-              "governance/attestation-schemas",
               "governance/resources",
               "governance/gov-faq"
             ]
