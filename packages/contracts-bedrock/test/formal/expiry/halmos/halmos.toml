@@ -1,0 +1,5 @@
+# Defaults for run.sh. They sit below per-contract and per-function `@custom:halmos` annotations in halmos's
+# precedence (command-line flags are above both), so the phase-2 reachability checks can use smaller byte-length sets.
+[global]
+default-bytes-lengths = "0,1,32,33,100,132,260"
+solver-timeout-assertion = "60s"

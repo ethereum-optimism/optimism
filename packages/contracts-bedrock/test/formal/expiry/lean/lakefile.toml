@@ -1,0 +1,6 @@
+name = "expiry"
+version = "0.1.0"
+defaultTargets = ["Expiry"]
+
+[[lean_lib]]
+name = "Expiry"

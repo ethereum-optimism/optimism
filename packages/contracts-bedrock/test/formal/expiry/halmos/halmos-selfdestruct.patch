@@ -1,0 +1,40 @@
+diff -ru a/halmos/constants.py b/halmos/constants.py
+--- a/halmos/constants.py	2026-10-07 23:54:20.833153411 +0200
++++ b/halmos/constants.py	2026-10-07 23:54:20.855549395 +0200
+@@ -9,4 +9,4 @@
+ 
+ # to be compatible with startHoax(address),
+ # see https://github.com/a16z/halmos/issues/338
+-MAX_ETH = 1 << 128
++MAX_ETH = 1 << 200  # expiry-formal patch: stock 1 << 128 (ETHLiquidity genesis is 2^128 - 1)
+diff -ru a/halmos/sevm.py b/halmos/sevm.py
+--- a/halmos/sevm.py	2026-10-07 23:54:20.833022416 +0200
++++ b/halmos/sevm.py	2026-10-07 23:54:20.855418530 +0200
+@@ -3595,6 +3595,27 @@
+                     w2 = state.popi()
+                     state.push(w2.signextend(w1))
+ 
++                elif opcode == 0xFF:  # SELFDESTRUCT (expiry-formal patch, see test/formal/expiry/halmos/README.md)
++                    # Supported ONLY in a constructor frame (CREATE/CREATE2), where the account was created in the
++                    # current transaction, so EIP-6780 applies in full: the whole balance moves to the beneficiary,
++                    # or is burned if the beneficiary is the account itself; the frame halts successfully with empty
++                    # output (no runtime code), and the account (empty code, no storage written) is deleted at the end
++                    # of the transaction. Any other SELFDESTRUCT still halts the path with an error, as in stock halmos.
++                    if ex.message().is_static:
++                        raise WriteInStaticContext(ex.context_str())
++                    if ex.message().call_scheme not in (OP_CREATE, OP_CREATE2):
++                        raise HalmosException("Unsupported opcode SELFDESTRUCT outside a constructor")
++                    beneficiary = uint160(state.pop())
++                    this_addr = ex.this()
++                    bal = BV(ex.balance_of(this_addr))
++                    ex.balance_update(this_addr, ZERO)
++                    is_self = beneficiary.as_z3() == uint160(this_addr).as_z3()
++                    credit = BV(If(is_self, Z3_ZERO, bal.as_z3()))
++                    ex.balance_update(beneficiary, BV(ex.balance_of(beneficiary)).add(credit))
++                    ex.halt(data=ByteVec())
++                    yield from finalize(ex)
++                    continue
++
+                 else:
+                     # TODO: switch to InvalidOpcode when we have full opcode coverage
+                     # this halts the path, but we should only halt the current context
