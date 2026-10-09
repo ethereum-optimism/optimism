@@ -116,7 +116,7 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
     ///         flags), so a contract reading the wrong getter is not saved by a missing function.
     ///         The pointer getters (caller.portal(), caller.systemConfig(), portal.systemConfig(),
     ///         portal.ethLockbox()) return fixed stand-ins; fully symbolic pointers are the
-    ///         symbolicPortalChain proof.
+    ///         symbolicPortal and symbolicSystemConfig proofs.
     function prove_relayUndeliveredMessage_spec(bytes32 _messageHash, uint256 _undeliveredAt) external {
         uint256 nonce = _symbolicNonce();
         bool interop = _symbolicInteropGate();
@@ -195,39 +195,111 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
         assert(!ok);
     }
 
-    /// @notice Same statement with the caller portal and its SystemConfig as fully SYMBOLIC
-    ///         addresses (caller.portal() = P, P.systemConfig() = S are fresh addresses; only the
-    ///         mocks and the other accounts of this test have code). Success implies the three
-    ///         checks, evaluated on P and S.
-    function prove_relayUndeliveredMessage_symbolicPortalChain(bytes32 _messageHash, uint256 _undeliveredAt) external {
+    // The same statement with the caller's portal P = caller.portal() and its SystemConfig
+    // S = P.systemConfig() as SYMBOLIC addresses: success implies the checks evaluated on the P and
+    // S the call read, whichever accounts they are. Only the mocks and the other accounts of this
+    // test have code. S is read only through P, and every account other than the caller-portal
+    // mock answers P.systemConfig() from its own code, so the two proofs below together cover a
+    // symbolic P with a symbolic S: the first lets P be any address (the caller-portal mock then
+    // answers callerSystemConfig), the second fixes P to the caller-portal mock and lets S be any
+    // address. Splitting them keeps one symbolic call target per proof.
+
+    /// @notice Symbolic P (any address), with the caller-portal mock answering callerSystemConfig.
+    function prove_relayUndeliveredMessage_symbolicPortal(bytes32 _messageHash, uint256 _undeliveredAt) external {
         _symbolicNonce();
         bool interop = _symbolicInteropGate();
         address p = kevm.freshAddress();
-        address s = kevm.freshAddress();
-        address l1cdmAnswer = kevm.freshAddress();
         address xSenderAnswer = kevm.freshAddress();
-        // Harness exclusion: calls to the cheat-code address are interpreted as cheat codes by
-        // Kontrol.
-        vm.assume(p != address(vm) && s != address(vm));
-        // Precompile range: KEVM's precompile hooks crash on symbolic input; precompiles do not
-        // implement systemConfig()/l1CrossDomainMessenger() (their output is not an ABI-encoded
-        // address reachable here).
-        vm.assume(uint160(p) > 0x1ff && uint160(s) > 0x1ff);
+        _assumeCallable(p);
         vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(p))));
         vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(xSenderAnswer))));
-        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(s))));
-        vm.store(address(callerSystemConfig), bytes32(uint256(0)), bytes32(uint256(uint160(l1cdmAnswer))));
+        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerSystemConfig)))));
+        kevm.symbolicStorage(address(callerSystemConfig));
         kevm.symbolicStorage(address(aLockbox));
-        bool authorized = aLockbox.authorizedPortals(p);
 
         (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
 
-        if (ok) {
-            assert(interop);
-            assert(p == address(callerPortal) && s == address(callerSystemConfig));
-            assert(l1cdmAnswer == address(caller) && authorized);
-            assert(xSenderAnswer == _trustedL2Sender());
-        }
+        if (ok) _assertChecksOn(interop, p, xSenderAnswer);
+    }
+
+    /// @notice WITNESS (expected to FAIL): with a symbolic P, relayUndeliveredMessage can succeed.
+    function prove_relayUndeliveredMessage_symbolicPortalCanSucceed_WITNESS(
+        bytes32 _messageHash,
+        uint256 _undeliveredAt
+    )
+        external
+    {
+        _symbolicNonce();
+        _symbolicInteropGate();
+        address p = kevm.freshAddress();
+        _assumeCallable(p);
+        vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(p))));
+        vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(kevm.freshAddress()))));
+        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerSystemConfig)))));
+        kevm.symbolicStorage(address(callerSystemConfig));
+        kevm.symbolicStorage(address(aLockbox));
+        (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
+        assert(!ok);
+    }
+
+    /// @notice P is the caller-portal mock and S = P.systemConfig() is symbolic (any address).
+    function prove_relayUndeliveredMessage_symbolicSystemConfig(
+        bytes32 _messageHash,
+        uint256 _undeliveredAt
+    )
+        external
+    {
+        _symbolicNonce();
+        bool interop = _symbolicInteropGate();
+        address s = kevm.freshAddress();
+        address xSenderAnswer = kevm.freshAddress();
+        _assumeCallable(s);
+        vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerPortal)))));
+        vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(xSenderAnswer))));
+        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(s))));
+        kevm.symbolicStorage(address(callerSystemConfig));
+        kevm.symbolicStorage(address(aLockbox));
+
+        (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
+
+        if (ok) _assertChecksOn(interop, address(callerPortal), xSenderAnswer);
+    }
+
+    /// @notice WITNESS (expected to FAIL): with a symbolic S, relayUndeliveredMessage can succeed.
+    function prove_relayUndeliveredMessage_symbolicSystemConfigCanSucceed_WITNESS(
+        bytes32 _messageHash,
+        uint256 _undeliveredAt
+    )
+        external
+    {
+        _symbolicNonce();
+        _symbolicInteropGate();
+        address s = kevm.freshAddress();
+        _assumeCallable(s);
+        vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(address(callerPortal)))));
+        vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(kevm.freshAddress()))));
+        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(s))));
+        kevm.symbolicStorage(address(callerSystemConfig));
+        kevm.symbolicStorage(address(aLockbox));
+        (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
+        assert(!ok);
+    }
+
+    /// @notice Harness exclusions for a symbolic call target: the cheat-code address (Kontrol
+    ///         interprets calls to it as cheat codes) and the precompile range (KEVM's precompile
+    ///         hooks crash on symbolic input; precompiles do not implement these getters).
+    function _assumeCallable(address _a) internal pure {
+        vm.assume(_a != address(vm));
+        vm.assume(uint160(_a) > 0x1ff);
+    }
+
+    /// @notice The checks of a successful relayUndeliveredMessage, re-read after the call from the
+    ///         portal `_p` it used (the getters are views, so they answer as they did in the call).
+    function _assertChecksOn(bool _interop, address _p, address _xSenderAnswer) internal view {
+        assert(_interop);
+        assert(aLockbox.authorizedPortals(_p));
+        assert(MockSystemConfig(MockCallerPortal(_p).systemConfig()).l1CrossDomainMessenger() == address(caller));
+        assert(_xSenderAnswer == _trustedL2Sender());
     }
 
     /// @notice The L2ToL2CrossDomainMessenger (0x..23) is NOT a trusted sender any more: with the
@@ -255,38 +327,6 @@ contract L1CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL1 {
 
         assert(!ok);
         _checkDeposit(ok, 0, _messageHash, _undeliveredAt);
-    }
-
-    /// @notice WITNESS (expected to FAIL): under the assumptions of the proof above, the relay can
-    ///         succeed.
-    function prove_relayUndeliveredMessage_symbolicPortalChainCanSucceed_WITNESS(
-        bytes32 _messageHash,
-        uint256 _undeliveredAt
-    )
-        external
-    {
-        _symbolicNonce();
-        _symbolicInteropGate();
-        address p = kevm.freshAddress();
-        address s = kevm.freshAddress();
-        address l1cdmAnswer = kevm.freshAddress();
-        address xSenderAnswer = kevm.freshAddress();
-        // Harness exclusion: calls to the cheat-code address are interpreted as cheat codes by
-        // Kontrol.
-        vm.assume(p != address(vm) && s != address(vm));
-        // Precompile range: KEVM's precompile hooks crash on symbolic input; precompiles do not
-        // implement systemConfig()/l1CrossDomainMessenger() (their output is not an ABI-encoded
-        // address reachable here).
-        vm.assume(uint160(p) > 0x1ff && uint160(s) > 0x1ff);
-        vm.store(address(caller), bytes32(uint256(0)), bytes32(uint256(uint160(p))));
-        vm.store(address(caller), bytes32(uint256(1)), bytes32(uint256(uint160(xSenderAnswer))));
-        vm.store(address(callerPortal), bytes32(uint256(0)), bytes32(uint256(uint160(s))));
-        vm.store(address(callerSystemConfig), bytes32(uint256(0)), bytes32(uint256(uint160(l1cdmAnswer))));
-        kevm.symbolicStorage(address(aLockbox));
-
-        (bool ok,) = caller.callRelay(address(aCdm), _messageHash, _undeliveredAt);
-
-        assert(!ok);
     }
 
     /// @notice WITNESS (expected to FAIL): the same setup with the exporter as the L2 sender is

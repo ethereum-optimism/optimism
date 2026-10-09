@@ -35,12 +35,18 @@ Soundness: each step from position `I` only writes bits at indices `>= I` and ne
 depend on the symbolic bytes) are left unevaluated, not assumed. `preserves-definedness` is justified because
 `RESULT[D]` is defined for `0 <= D < I <= lengthBytes(RESULT)` and `lengthBytes` is total.
 
+Both rules require that invariant (`LEN == lengthBytes(PGM) == lengthBytes(RESULT)`, `0 <= I`) as a side
+condition, so they match only the helper's own calls and cannot turn an undefined term outside it into a defined
+one.
+
 ```k
-    rule #computeValidJumpDests(_PGM, I, RESULT, _LEN) [ D ] => RESULT [ D ]
+    rule #computeValidJumpDests(PGM, I, RESULT, LEN) [ D ] => RESULT [ D ]
       requires 0 <=Int D andBool D <Int I andBool I <=Int lengthBytes(RESULT)
+       andBool LEN ==Int lengthBytes(PGM) andBool lengthBytes(RESULT) ==Int LEN
       [simplification, preserves-definedness]
 
-    rule lengthBytes(#computeValidJumpDests(_PGM, _I, RESULT, _LEN)) => lengthBytes(RESULT)
+    rule lengthBytes(#computeValidJumpDests(PGM, I, RESULT, LEN)) => lengthBytes(RESULT)
+      requires 0 <=Int I andBool LEN ==Int lengthBytes(PGM) andBool lengthBytes(RESULT) ==Int LEN
       [simplification, preserves-definedness]
 ```
 

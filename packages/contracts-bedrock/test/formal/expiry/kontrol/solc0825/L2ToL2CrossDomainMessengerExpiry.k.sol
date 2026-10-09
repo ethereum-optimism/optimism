@@ -107,6 +107,20 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         (ok_, ret_) = L2TOL2.call(abi.encodeCall(L2ToL2CrossDomainMessenger.relayMessage, (id, _sentMessage)));
     }
 
+    /// @notice Relays a message from `_sender` on `_source` whose target is the messenger itself,
+    ///         addressed to the current chain.
+    function _relaySelf(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        bytes memory _message
+    )
+        internal
+        returns (bool ok_)
+    {
+        (ok_,) = _relay(1, 0, 1, _source, _payload(block.chainid, L2TOL2, _nonce, _sender, _message));
+    }
+
     function _symbolicChain() internal returns (uint256 chainId_) {
         chainId_ = kevm.freshUInt(32);
         vm.chainId(chainId_);
@@ -321,44 +335,125 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         assert(!ok);
     }
 
-    /// @notice Same with target == 0x..23 itself (a payload no real source messenger emits, since
-    ///         sendMessage rejects it): the relayed self-call with ANY 600-byte message never makes
-    ///         0x..23 call 0x..07 or 0x..16.
-    /// @custom:kontrol-bytes-length-equals _message: 600,
-    function prove_relayMessage_selfTarget_neverCallsL2CDMOrPasser(
+    // Target == 0x..23 itself (a payload no real source messenger emits, since sendMessage rejects
+    // it): the relayed self-call never makes 0x..23 call 0x..07 or 0x..16. One proof per selector
+    // of the nested message, because a fully symbolic nested message sends Kontrol through the
+    // messenger's ABI decoder with symbolic offsets. Each nested message is the canonical ABI
+    // encoding of its function's arguments: a message that does not decode reverts in the decoder,
+    // before any call, and every message that decodes yields an argument tuple that the canonical
+    // encoding also produces, so fixing the encoding loses no decoded behaviour.
+
+    /// @notice Nested sendMessage(destination, target, 200-byte message), every argument symbolic.
+    /// @custom:kontrol-bytes-length-equals _inner: 200,
+    function prove_relayMessage_selfTarget_sendMessage_neverCallsL2CDMOrPasser(
         uint256 _source,
         uint256 _nonce,
         address _sender,
-        bytes calldata _message
+        uint256 _destination,
+        address _target,
+        bytes calldata _inner
     )
         external
     {
-        uint256 chainId = _symbolicChain();
+        _symbolicChain();
         _useRecordingL2CDM();
         kevm.symbolicStorage(L2TOL2);
-
-        bytes memory payload = _payload(chainId, L2TOL2, _nonce, _sender, _message);
-        _relay(1, 0, 1, _source, payload);
-
+        bytes memory message = abi.encodeCall(L2ToL2CrossDomainMessenger.sendMessage, (_destination, _target, _inner));
+        _relaySelf(_source, _nonce, _sender, message);
         assert(_callsFrom(L2CDM, L2TOL2) == 0);
         assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
 
-    /// @notice WITNESS (expected to FAIL): a relayed self-call (target == 0x..23) can succeed.
-    /// @custom:kontrol-bytes-length-equals _message: 600,
-    function prove_relayMessage_selfTargetCanSucceed_WITNESS(
+    /// @notice WITNESS (expected to FAIL): a relayed self-call of sendMessage can succeed.
+    /// @custom:kontrol-bytes-length-equals _inner: 200,
+    function prove_relayMessage_selfTargetSendMessageCanSucceed_WITNESS(
         uint256 _source,
         uint256 _nonce,
         address _sender,
-        bytes calldata _message
+        uint256 _destination,
+        address _target,
+        bytes calldata _inner
     )
         external
     {
-        uint256 chainId = _symbolicChain();
+        _symbolicChain();
         _useRecordingL2CDM();
         kevm.symbolicStorage(L2TOL2);
-        (bool ok,) = _relay(1, 0, 1, _source, _payload(chainId, L2TOL2, _nonce, _sender, _message));
+        bytes memory message = abi.encodeCall(L2ToL2CrossDomainMessenger.sendMessage, (_destination, _target, _inner));
+        bool ok = _relaySelf(_source, _nonce, _sender, message);
         assert(!ok);
+    }
+
+    /// @notice Nested relayMessage(id, 200-byte payload), every argument symbolic.
+    /// @custom:kontrol-bytes-length-equals _innerPayload: 200,
+    function prove_relayMessage_selfTarget_relayMessage_neverCallsL2CDMOrPasser(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        address _idOrigin,
+        uint256 _idBlockNumber,
+        uint256 _idLogIndex,
+        uint256 _idTimestamp,
+        uint256 _idChainId,
+        bytes calldata _innerPayload
+    )
+        external
+    {
+        _symbolicChain();
+        _useRecordingL2CDM();
+        kevm.symbolicStorage(L2TOL2);
+        bytes memory message = abi.encodeCall(
+            L2ToL2CrossDomainMessenger.relayMessage,
+            (Identifier(_idOrigin, _idBlockNumber, _idLogIndex, _idTimestamp, _idChainId), _innerPayload)
+        );
+        _relaySelf(_source, _nonce, _sender, message);
+        assert(_callsFrom(L2CDM, L2TOL2) == 0);
+        assert(_callsFrom(PASSER, L2TOL2) == 0);
+    }
+
+    /// @notice Nested expireMessage(messageHash, undeliveredAt), both symbolic.
+    function prove_relayMessage_selfTarget_expireMessage_neverCallsL2CDMOrPasser(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        bytes32 _messageHash,
+        uint256 _undeliveredAt
+    )
+        external
+    {
+        _symbolicChain();
+        _useRecordingL2CDM();
+        kevm.symbolicStorage(L2TOL2);
+        bytes memory message =
+            abi.encodeCall(L2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt));
+        _relaySelf(_source, _nonce, _sender, message);
+        assert(_callsFrom(L2CDM, L2TOL2) == 0);
+        assert(_callsFrom(PASSER, L2TOL2) == 0);
+    }
+
+    /// @notice Any other selector, followed by 64 symbolic bytes. The other functions are views
+    ///         that take at most one 32-byte argument, so their decoders ignore bytes past it; a
+    ///         message shorter than 4 bytes, or an unknown selector, reverts (no fallback).
+    /// @custom:kontrol-bytes-length-equals _args: 64,
+    function prove_relayMessage_selfTarget_otherSelectors_neverCallsL2CDMOrPasser(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        bytes4 _selector,
+        bytes calldata _args
+    )
+        external
+    {
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.sendMessage.selector);
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.relayMessage.selector);
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.expireMessage.selector);
+        _symbolicChain();
+        _useRecordingL2CDM();
+        kevm.symbolicStorage(L2TOL2);
+        bytes memory message = abi.encodePacked(_selector, _args);
+        _relaySelf(_source, _nonce, _sender, message);
+        assert(_callsFrom(L2CDM, L2TOL2) == 0);
+        assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -389,7 +484,14 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         (bool ok,) =
             L2TOL2.call(abi.encodeCall(L2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt)));
 
-        assert(ok == (caller == L2CDM && xSender == other && sentAt != 0 && _undeliveredAt > sentAt + period));
+        // An already-expired message returns early, before the timestamp check, without a write.
+        assert(
+            ok
+                == (
+                    caller == L2CDM && xSender == other
+                        && (expiredBefore || (sentAt != 0 && _undeliveredAt > sentAt + period))
+                )
+        );
         assert(l2tol2.expiredMessages(_messageHash) == (expiredBefore || ok));
         assert(l2tol2.sentMessageTimestamps(_messageHash) == sentAt);
     }
@@ -408,9 +510,26 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         assert(!ok);
     }
 
-    /// @notice The contract's expiry period is at least the protocol's relay window, which
-    ///         op-core/kona cap at 7 days (assumption P_contract >= W_protocol). At the tip
-    ///         EXPIRY_PERIOD is 8 days.
+    /// @notice WITNESS (expected to FAIL): the early return is reachable. A message already marked
+    ///         expired, with no send timestamp and an undeliveredAt of 0, is accepted again, so the
+    ///         `expiredBefore` disjunct of prove_expireMessage_spec is not vacuous.
+    function prove_expireMessage_alreadyExpiredCanSucceed_WITNESS(bytes32 _messageHash) external {
+        _etch(L2CDM, address(new AuthL2CrossDomainMessenger()));
+        kevm.symbolicStorage(L2TOL2);
+        address sender = kevm.freshAddress();
+        vm.store(L2CDM, bytes32(uint256(0)), bytes32(uint256(uint160(sender))));
+        vm.store(L2CDM, bytes32(uint256(1)), bytes32(uint256(uint160(sender))));
+        vm.assume(l2tol2.expiredMessages(_messageHash));
+        vm.assume(l2tol2.sentMessageTimestamps(_messageHash) == 0);
+        vm.prank(L2CDM);
+        (bool ok,) = L2TOL2.call(abi.encodeCall(L2ToL2CrossDomainMessenger.expireMessage, (_messageHash, 0)));
+        assert(!ok);
+    }
+
+    /// @notice The messenger the harness constructs, with the production period
+    ///         Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD (8 days), has an expiry period of at least
+    ///         the protocol's relay window, which op-core and kona cap at 7 days
+    ///         (assumption P_contract >= W_protocol).
     function prove_expiryPeriod_atLeastProtocolWindow() external view {
         assert(l2tol2.expiryPeriod() >= 7 days);
     }
