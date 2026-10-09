@@ -2,9 +2,12 @@
 
 use crate::OpConsensusError;
 use alloy_consensus::BlockHeader;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::B256;
 use alloy_trie::EMPTY_ROOT_HASH;
+use reth_consensus::ConsensusError;
 use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
+use reth_primitives_traits::GotExpected;
 use reth_storage_api::{StorageRootProvider, errors::ProviderResult};
 use reth_trie_common::HashedStorage;
 use revm::database::BundleState;
@@ -16,6 +19,19 @@ pub fn ensure_withdrawals_storage_root_is_some<H: BlockHeader>(
     header: H,
 ) -> Result<(), OpConsensusError> {
     header.withdrawals_root().ok_or(OpConsensusError::L2WithdrawalsRootMissing)?;
+
+    Ok(())
+}
+
+/// Verifies that the header commits to the empty EIP-7685 requests list. Isthmus activates Prague,
+/// but the OP Stack processes no execution-layer requests.
+pub fn ensure_empty_requests_hash<H: BlockHeader>(header: &H) -> Result<(), ConsensusError> {
+    let requests_hash = header.requests_hash().ok_or(ConsensusError::RequestsHashMissing)?;
+    if requests_hash != EMPTY_REQUESTS_HASH {
+        return Err(ConsensusError::BodyRequestsHashDiff(
+            GotExpected { got: requests_hash, expected: EMPTY_REQUESTS_HASH }.into(),
+        ));
+    }
 
     Ok(())
 }

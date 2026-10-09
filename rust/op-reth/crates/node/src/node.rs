@@ -91,6 +91,12 @@ use url::Url;
 
 use reth_optimism_payload_builder::OpPayloadAttrs;
 
+/// Dummy L1 attributes deposit that opens locally built blocks in dev mode and tests.
+/// OP Mainnet transaction at index 0 in block 124665056.
+pub(crate) const TX_SET_L1_BLOCK: [u8; 251] = alloy_primitives::hex!(
+    "7ef8f8a0683079df94aa5b9cf86687d739a60a9b4f0835e520ec4d664e2e415dca17a6df94deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e200000146b000f79c500000000000000040000000066d052e700000000013ad8a3000000000000000000000000000000000000000000000000000000003ef1278700000000000000000000000000000000000000000000000000000000000000012fdf87b89884a61e74b322bbcf60386f543bfae7827725efaaf0ab1de2294a590000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985"
+);
+
 /// Builds [`OpPayloadAttrs`] for local/dev-mode payload generation.
 struct OpLocalPayloadAttributesBuilder {
     chain_spec: Arc<OpChainSpec>,
@@ -124,12 +130,6 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
             slot_number: None,
             target_gas_limit: None,
         };
-
-        /// Dummy system transaction for dev mode.
-        /// OP Mainnet transaction at index 0 in block 124665056.
-        const TX_SET_L1_BLOCK: [u8; 251] = alloy_primitives::hex!(
-            "7ef8f8a0683079df94aa5b9cf86687d739a60a9b4f0835e520ec4d664e2e415dca17a6df94deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e200000146b000f79c500000000000000040000000066d052e700000000013ad8a3000000000000000000000000000000000000000000000000000000003ef1278700000000000000000000000000000000000000000000000000000000000000012fdf87b89884a61e74b322bbcf60386f543bfae7827725efaaf0ab1de2294a590000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985"
-        );
 
         let default_params = BaseFeeParams::optimism();
         let denominator = std::env::var("OP_DEV_EIP1559_DENOMINATOR")

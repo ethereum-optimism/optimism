@@ -10,6 +10,9 @@ pub enum OpConsensusError {
     /// Block body has non-empty withdrawals list (l1 withdrawals).
     #[error("non-empty block body withdrawals list")]
     WithdrawalsNonEmpty,
+    /// The first transaction in the block body is not the L1 attributes deposit.
+    #[error("first transaction is not the L1 attributes deposit")]
+    L1InfoDepositNotFirst,
     /// Failed to compute L2 withdrawals storage root.
     #[error("compute L2 withdrawals root failed: {_0}")]
     L2WithdrawalsRootCalculationFail(#[from] ProviderError),

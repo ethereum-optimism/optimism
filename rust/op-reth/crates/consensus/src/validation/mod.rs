@@ -1,5 +1,6 @@
 //! Verification of blocks w.r.t. Optimism hardforks.
 
+pub mod bedrock;
 pub mod canyon;
 pub mod isthmus;
 

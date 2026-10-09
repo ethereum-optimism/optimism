@@ -35,7 +35,6 @@ use reth_provider::providers::BlockchainProvider;
 use reth_tasks::Runtime;
 use reth_transaction_pool::PoolTransaction;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[derive(Clone, Debug)]
 struct CustomTxPriority {
@@ -118,7 +117,7 @@ async fn test_custom_block_priority_config() {
     // This wallet is going to send:
     // 1. L1 block info tx
     // 2. End-of-block custom tx
-    let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
+    let wallet = Wallet::default().with_chain_id(chain_spec.chain().into());
 
     // Configure and launch the node.
     let mut config =
@@ -153,31 +152,23 @@ async fn test_custom_block_priority_config() {
         .expect("Failed to launch node");
 
     // Advance the chain with a single block.
-    let block_payloads = NodeTestContext::new(node_handle.node, optimism_payload_attributes)
-        .await
-        .unwrap()
-        .advance(1, |_| {
-            let wallet = wallet.clone();
-            Box::pin(async move {
-                let mut wallet = wallet.lock().await;
-                let tx_fut = TransactionTestContext::optimism_l1_block_info_tx(
-                    wallet.chain_id,
-                    wallet.inner.clone(),
-                    // This doesn't matter in the current test (because it's only one block),
-                    // but make sure you're not reusing the nonce from end-of-block tx
-                    // if they have the same signer.
-                    wallet.inner_nonce * 2,
-                );
-                wallet.inner_nonce += 1;
-                tx_fut.await
-            })
-        })
-        .await
-        .unwrap();
-    assert_eq!(block_payloads.len(), 1);
-    let block_payload = block_payloads.first().unwrap();
+    let mut node =
+        NodeTestContext::new(node_handle.node, optimism_payload_attributes).await.unwrap();
+    let raw_tx = TransactionTestContext::optimism_l1_block_info_tx(
+        wallet.chain_id,
+        wallet.inner.clone(),
+        // This doesn't matter in the current test (because it's only one block),
+        // but make sure you're not reusing the nonce from end-of-block tx
+        // if they have the same signer.
+        wallet.inner_nonce * 2,
+    )
+    .await;
+    let tx_hash = node.rpc.inject_tx(raw_tx).await.unwrap();
+    let block_payload = node.advance_block().await.unwrap();
     let block = block_payload.block();
-    assert_eq!(block.body().transactions.len(), 2); // L1 block info tx + end-of-block custom tx
+    // L1 attributes deposit + injected tx + end-of-block custom tx
+    assert_eq!(block.body().transactions.len(), 3);
+    assert_eq!(block.body().transactions[1].tx_hash(), tx_hash);
 
     // Check that last transaction in the block looks like a transfer to a random address.
     let end_of_block_tx = block.body().transactions.last().unwrap();

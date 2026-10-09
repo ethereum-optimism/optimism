@@ -1,4 +1,5 @@
 use crate::{OpBuiltPayload, OpNode as OtherOpNode};
+use alloy_consensus::BlockHeader;
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -33,14 +34,17 @@ pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
 }
 
 /// Advance the chain with sequential payloads returning them in the end.
+///
+/// Unlike `NodeTestContext::advance`, which expects the injected transaction to open the block,
+/// this expects it right after the L1 attributes deposit.
 pub async fn advance_chain(
     length: usize,
     node: &mut OpNode,
     wallet: Arc<Mutex<Wallet>>,
 ) -> eyre::Result<Vec<OpBuiltPayload>> {
-    node.advance(length as u64, |_| {
-        let wallet = wallet.clone();
-        Box::pin(async move {
+    let mut chain = Vec::with_capacity(length);
+    for _ in 0..length {
+        let raw_tx = {
             let mut wallet = wallet.lock().await;
             let tx_fut = TransactionTestContext::optimism_l1_block_info_tx(
                 wallet.chain_id,
@@ -49,13 +53,20 @@ pub async fn advance_chain(
             );
             wallet.inner_nonce += 1;
             tx_fut.await
-        })
-    })
-    .await
+        };
+        let tx_hash = node.rpc.inject_tx(raw_tx).await?;
+        let payload = node.advance_block().await?;
+        let block = payload.block();
+        assert_eq!(block.body().transactions.get(1).map(|tx| tx.tx_hash()), Some(tx_hash));
+        node.wait_block(block.number(), block.hash(), false).await?;
+        chain.push(payload);
+    }
+    Ok(chain)
 }
 
-/// Helper function to create a new eth payload attributes
-pub const fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
+/// Helper function to create a new eth payload attributes. Like a rollup node, it opens the block
+/// with an L1 attributes deposit, which block validation requires.
+pub fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
     OpPayloadAttrs(OpPayloadAttributes {
         payload_attributes: alloy_rpc_types_engine::PayloadAttributes {
             timestamp,
@@ -66,7 +77,7 @@ pub const fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
             slot_number: None,
             target_gas_limit: None,
         },
-        transactions: None,
+        transactions: Some(vec![crate::node::TX_SET_L1_BLOCK.into()]),
         no_tx_pool: None,
         gas_limit: Some(30_000_000),
         eip_1559_params: None,

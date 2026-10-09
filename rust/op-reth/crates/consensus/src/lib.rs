@@ -40,7 +40,7 @@ pub use proof::calculate_receipt_root_no_memo_optimism;
 mod sdm_metrics;
 
 pub mod validation;
-pub use validation::{canyon, isthmus, validate_block_post_execution};
+pub use validation::{bedrock, canyon, isthmus, validate_block_post_execution};
 
 pub mod error;
 pub use error::OpConsensusError;
@@ -127,7 +127,7 @@ where
 
 impl<B, ChainSpec> Consensus<B> for OpBeaconConsensus<ChainSpec>
 where
-    B: Block,
+    B: Block<Body: BlockBody<Transaction: OpTransaction>>,
     ChainSpec: EthChainSpec<Header = B::Header> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_body_against_header(
@@ -154,6 +154,18 @@ where
         // Check transaction root
         if let Err(error) = block.ensure_transaction_root_valid() {
             return Err(ConsensusError::BodyTransactionRootDiff(error.into()));
+        }
+
+        // Every block after the Bedrock transition block opens with the L1 attributes deposit
+        if self.chain_spec.is_bedrock_active_at_block(block.number()) &&
+            !self
+                .chain_spec
+                .op_fork_activation(OpHardfork::Bedrock)
+                .transitions_at_block(block.number())
+        {
+            bedrock::ensure_l1_info_deposit_first(block.body()).map_err(|err| {
+                ConsensusError::msg(format!("failed to verify block {}: {err}", block.number()))
+            })?
         }
 
         // Check empty shanghai-withdrawals
@@ -223,7 +235,15 @@ where
         validate_header_extra_data(header, self.max_extra_data_size)?;
         validate_op_header_extra_data(header, &self.chain_spec)?;
         validate_header_gas(header)?;
-        validate_header_base_fee(header, &self.chain_spec)
+        validate_header_base_fee(header, &self.chain_spec)?;
+
+        if self.chain_spec.is_isthmus_active_at_timestamp(header.timestamp()) {
+            isthmus::ensure_empty_requests_hash(header)
+        } else if header.requests_hash().is_some() {
+            Err(ConsensusError::RequestsHashUnexpected)
+        } else {
+            Ok(())
+        }
     }
 
     fn validate_header_against_parent(
@@ -280,20 +300,25 @@ mod tests {
     use std::sync::Arc;
 
     use alloy_consensus::{BlockBody, Eip658Value, Header, Receipt, TxEip7702, TxReceipt};
-    use alloy_eips::{eip4895::Withdrawals, eip7685::Requests};
-    use alloy_primitives::{Address, B64, Bytes, Log, Signature, U256};
+    use alloy_eips::{
+        eip4895::Withdrawals,
+        eip7685::{EMPTY_REQUESTS_HASH, Requests},
+    };
+    use alloy_primitives::{Address, B64, B256, Bytes, Log, Sealed, Signature, TxKind, U256};
     use op_alloy_consensus::{
-        OpTypedTransaction, encode_holocene_extra_data, encode_jovian_extra_data,
+        OpTypedTransaction, TxDeposit, encode_holocene_extra_data, encode_jovian_extra_data,
+        predeploys::L1_BLOCK_ADDRESS,
     };
     use reth_chainspec::{BaseFeeParams, EthChainSpec, ForkCondition};
     use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
     use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
     use reth_optimism_forks::OpHardfork;
-    use reth_optimism_primitives::{OpPrimitives, OpReceipt, OpTransactionSigned};
+    use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader, proofs};
     use reth_provider::BlockExecutionResult;
+    use rstest::rstest;
 
-    use crate::OpBeaconConsensus;
+    use crate::{OpBeaconConsensus, OpConsensusError, bedrock::L1_INFO_DEPOSITOR_ADDRESS};
 
     fn mock_tx(nonce: u64) -> OpTransactionSigned {
         let tx = TxEip7702 {
@@ -477,6 +502,126 @@ mod tests {
                     .is_err()
             );
         }
+    }
+
+    /// Isthmus activates Prague, but the OP Stack processes no EIP-7685 requests, so from Isthmus
+    /// the header must commit to the empty requests list, and before it must not commit at all.
+    #[test]
+    fn header_requests_hash_at_isthmus() {
+        const ISTHMUS: u64 = 10;
+        let chain_spec = test_chain_spec(
+            OpChainSpecBuilder::default()
+                .holocene_activated()
+                .with_fork(OpHardfork::Isthmus, ForkCondition::Timestamp(ISTHMUS)),
+            Bytes::new(),
+        );
+        let consensus = OpBeaconConsensus::new(chain_spec.clone());
+        let header = |timestamp, requests_hash| {
+            let mut header = header_at(
+                &chain_spec,
+                timestamp,
+                encode_holocene_extra_data(B64::ZERO, BaseFeeParams::optimism()).unwrap(),
+            )
+            .unseal();
+            header.requests_hash = requests_hash;
+            SealedHeader::seal_slow(header)
+        };
+
+        assert!(consensus.validate_header(&header(ISTHMUS - 1, None)).is_ok());
+        assert!(matches!(
+            consensus.validate_header(&header(ISTHMUS - 1, Some(EMPTY_REQUESTS_HASH))),
+            Err(ConsensusError::RequestsHashUnexpected)
+        ));
+
+        let result = consensus.validate_header(&header(ISTHMUS, Some(EMPTY_REQUESTS_HASH)));
+        assert!(result.is_ok(), "{result:?}");
+        assert!(matches!(
+            consensus.validate_header(&header(ISTHMUS, None)),
+            Err(ConsensusError::RequestsHashMissing)
+        ));
+        assert!(matches!(
+            consensus.validate_header(&header(ISTHMUS, Some(B256::repeat_byte(1)))),
+            Err(ConsensusError::BodyRequestsHashDiff(_))
+        ));
+    }
+
+    fn deposit_tx(from: Address, to: Address) -> OpTransactionSigned {
+        OpTransactionSigned::Deposit(Sealed::new(TxDeposit {
+            from,
+            to: TxKind::Call(to),
+            ..Default::default()
+        }))
+    }
+
+    fn l1_info_deposit() -> OpTransactionSigned {
+        deposit_tx(L1_INFO_DEPOSITOR_ADDRESS, L1_BLOCK_ADDRESS)
+    }
+
+    fn block_with_transactions(
+        number: u64,
+        transactions: Vec<OpTransactionSigned>,
+    ) -> SealedBlock<OpBlock> {
+        let header = Header {
+            number,
+            transactions_root: proofs::calculate_transaction_root(&transactions),
+            ..Default::default()
+        };
+        let body = BlockBody { transactions, ommers: vec![], withdrawals: None };
+        SealedBlock::seal_slow(alloy_consensus::Block { header, body })
+    }
+
+    fn assert_missing_l1_info_deposit(result: Result<(), ConsensusError>) {
+        let err = result.expect_err("block without a leading L1 attributes deposit").to_string();
+        assert!(err.contains(&OpConsensusError::L1InfoDepositNotFirst.to_string()), "{err}");
+    }
+
+    /// Every block after the Bedrock transition block must open with the L1 attributes deposit:
+    /// the deposit from the L1-info depositor to the `L1Block` predeploy.
+    #[rstest]
+    #[case::l1_info_deposit_first(vec![l1_info_deposit(), mock_tx(0)], true)]
+    #[case::deposits_only(vec![l1_info_deposit()], true)]
+    #[case::empty(vec![], false)]
+    #[case::ordinary_tx_first(vec![mock_tx(0), l1_info_deposit()], false)]
+    #[case::other_sender(vec![deposit_tx(Address::repeat_byte(1), L1_BLOCK_ADDRESS)], false)]
+    #[case::other_target(
+        vec![deposit_tx(L1_INFO_DEPOSITOR_ADDRESS, Address::repeat_byte(1))],
+        false
+    )]
+    fn block_must_open_with_the_l1_info_deposit(
+        #[case] transactions: Vec<OpTransactionSigned>,
+        #[case] valid: bool,
+    ) {
+        let consensus = OpBeaconConsensus::new(test_chain_spec(
+            OpChainSpecBuilder::default().regolith_activated(),
+            Bytes::new(),
+        ));
+
+        let result =
+            consensus.validate_block_pre_execution(&block_with_transactions(1, transactions));
+        if valid {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            assert_missing_l1_info_deposit(result);
+        }
+    }
+
+    /// On OP Mainnet the rule starts after the Bedrock transition block, the rollup genesis, which
+    /// carries no L1 attributes deposit. Legacy blocks before it are not Bedrock blocks.
+    #[test]
+    fn op_mainnet_l1_info_deposit_starts_after_the_bedrock_block() {
+        let consensus = OpBeaconConsensus::new(OP_MAINNET.clone());
+
+        let legacy = block_with_transactions(105_235_062, vec![mock_tx(0)]);
+        let result = consensus.validate_block_pre_execution(&legacy);
+        assert!(result.is_ok(), "{result:?}");
+
+        let result =
+            consensus.validate_block_pre_execution(&block_with_transactions(105_235_063, vec![]));
+        assert!(result.is_ok(), "{result:?}");
+
+        assert_missing_l1_info_deposit(
+            consensus.validate_block_pre_execution(&block_with_transactions(105_235_064, vec![])),
+        );
     }
 
     #[test]

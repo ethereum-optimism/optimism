@@ -237,14 +237,14 @@ async fn run_handoff_scenario() -> eyre::Result<()> {
 
     for number in 1..=4 {
         let mut attrs = optimism_payload_attributes(number);
-        attrs.0.transactions = Some(vec![
+        attrs.0.transactions.get_or_insert_default().push(
             TransactionTestContext::optimism_l1_block_info_tx(
                 wallet.chain_id,
                 wallet.inner.clone(),
                 number - 1,
             )
             .await,
-        ]);
+        );
         let fcu = guard(
             "FCU blocked behind a payload worker's persisted handoff",
             engine.fork_choice_updated(ForkchoiceState::same_hash(head), Some(attrs)),
@@ -331,10 +331,10 @@ async fn run_handoff_scenario() -> eyre::Result<()> {
 
     // A new build after the drain must use the caught-up provider and persist normally too.
     let mut attrs = optimism_payload_attributes(6);
-    attrs.0.transactions = Some(vec![
+    attrs.0.transactions.get_or_insert_default().push(
         TransactionTestContext::optimism_l1_block_info_tx(wallet.chain_id, wallet.inner.clone(), 4)
             .await,
-    ]);
+    );
     let id = guard(
         "FCU did not recover after leases drained",
         engine.fork_choice_updated(ForkchoiceState::same_hash(head), Some(attrs)),

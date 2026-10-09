@@ -5,13 +5,14 @@ use alloy_genesis::Genesis;
 use alloy_primitives::B256;
 use reth_chainspec::EthChainSpec;
 use reth_db::test_utils::create_test_rw_db_with_path;
-use reth_e2e_test_utils::{
-    node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
-};
+use reth_e2e_test_utils::{node::NodeTestContext, wallet::Wallet};
 use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder, NodeConfig};
 use reth_node_core::args::DatadirArgs;
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
+use reth_optimism_node::{
+    OpNode,
+    utils::{advance_chain, optimism_payload_attributes},
+};
 use reth_provider::{HeaderProvider, StageCheckpointReader, providers::BlockchainProvider};
 use reth_stages_types::StageId;
 use std::sync::Arc;
@@ -96,28 +97,8 @@ async fn test_op_node_custom_genesis_number() {
     node.update_forkchoice(genesis_hash, genesis_hash).await.unwrap();
 
     // Advance the chain with a single block.
-    let block_payloads = node
-        .advance(1, |_| {
-            Box::pin({
-                let value = wallet.clone();
-                async move {
-                    let mut wallet = value.lock().await;
-                    let tx_fut = TransactionTestContext::optimism_l1_block_info_tx(
-                        wallet.chain_id,
-                        wallet.inner.clone(),
-                        wallet.inner_nonce,
-                    );
-                    wallet.inner_nonce += 1;
-
-                    tx_fut.await
-                }
-            })
-        })
-        .await
-        .unwrap();
-
-    assert_eq!(block_payloads.len(), 1);
-    let block = block_payloads.first().unwrap().block();
+    let block_payload = advance_chain(1, &mut node, wallet).await.unwrap().remove(0);
+    let block = block_payload.block();
 
     // Verify the new block is at 1001 (genesis 1000 + 1)
     assert_eq!(
