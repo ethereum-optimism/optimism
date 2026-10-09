@@ -5,7 +5,7 @@ use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
 use reth_provider::ProviderError;
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Error type for storage operations
@@ -112,15 +112,6 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the provider.
     #[error(transparent)]
     ProviderError(Arc<ProviderError>),
-    /// The proofs database holds v1 data without a v2 proof window.
-    #[error(
-        "v1 proofs database detected at {}; delete it and run 'op-reth proofs init'",
-        path.display()
-    )]
-    LegacyV1Database {
-        /// Path of the proofs database.
-        path: PathBuf,
-    },
     /// Initialization detected inconsistent state between proofs storage and source DB.
     #[error(
         "Initialization Proofs storage detected inconsistent state. Storage does not match source DB. \

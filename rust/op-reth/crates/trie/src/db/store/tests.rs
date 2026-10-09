@@ -6,7 +6,7 @@ use alloy_eips::NumHash;
 use reth_db::{
     BlockNumberList, Database, DatabaseEnv,
     cursor::{DbCursorRW, DbDupCursorRO},
-    mdbx::{DatabaseArguments, init_db_for},
+    mdbx::{self, DatabaseArguments, init_db_for},
     models::sharded_key::ShardedKey,
     transaction::{DbTx, DbTxMut},
 };
@@ -2300,6 +2300,16 @@ fn prepend_block_overflows_history_shard_after_filling_sentinel() {
 
 // ========================== Legacy v1 table tests ==========================
 
+// Table names from the removed v1 schema, retained only as on-disk compatibility fixtures.
+const LEGACY_V1_TABLES: &[&str] = &[
+    "AccountTrieHistory",
+    "StorageTrieHistory",
+    "HashedAccountHistory",
+    "HashedStorageHistory",
+    "ProofWindow",
+    "BlockChangeSet",
+];
+
 /// Creates every [`LEGACY_V1_TABLES`] entry in the proofs database at `path` with the flags
 /// older releases used, inserting one entry into `populated` if given.
 fn create_legacy_tables(path: &Path, populated: Option<&str>) {
@@ -2331,29 +2341,41 @@ fn table_exists(storage: &MdbxProofsStorage, table: &str) -> bool {
 }
 
 #[test]
-fn test_new_drops_empty_legacy_v1_tables() {
+fn test_new_preserves_empty_legacy_v1_tables() {
     let dir = TempDir::new().unwrap();
     create_legacy_tables(dir.path(), None);
 
     let storage = MdbxProofsStorage::new(dir.path()).unwrap();
 
     for table in LEGACY_V1_TABLES {
-        assert!(!table_exists(&storage, table), "{table} was not dropped");
+        assert!(table_exists(&storage, table), "{table} was dropped");
     }
 }
 
 #[test]
-fn test_new_rejects_populated_legacy_v1_tables() {
+fn test_new_preserves_populated_legacy_v1_tables_without_v2_data() {
     for &populated in LEGACY_V1_TABLES {
         let dir = TempDir::new().unwrap();
         create_legacy_tables(dir.path(), Some(populated));
 
-        let err = MdbxProofsStorage::new(dir.path()).unwrap_err();
-
-        assert!(
-            matches!(&err, OpProofsStorageError::LegacyV1Database { path } if path == dir.path()),
-            "unexpected error for populated {populated}: {err:?}"
-        );
+        for _ in 0..2 {
+            let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+            let tx = storage.env.begin_ro_txn().unwrap();
+            for &name in LEGACY_V1_TABLES {
+                let table = tx.open_db(Some(name)).unwrap();
+                assert_eq!(
+                    tx.db_stat(table.dbi()).unwrap().entries(),
+                    usize::from(name == populated)
+                );
+            }
+            drop(tx);
+            let provider = storage.provider_ro().unwrap();
+            assert_eq!(provider.tx.entries::<V2ProofWindow>().unwrap(), 0);
+            assert!(matches!(
+                provider.get_earliest_block(),
+                Err(OpProofsStorageError::NoBlocksFound)
+            ));
+        }
     }
 }
 
@@ -2367,10 +2389,9 @@ fn test_new_preserves_populated_legacy_v1_tables_with_v2_data(completed: bool) {
         let address = B256::repeat_byte(0xAA);
         let account = sample_account();
         {
-            // Seed v2 directly: startup currently rejects the populated v1 table.
-            let env =
-                init_db_for::<_, models::Tables>(dir.path(), DatabaseArguments::default()).unwrap();
-            let provider = MdbxProofsProvider::new(env.tx_mut().unwrap());
+            // Initialize v2 alongside stale v1 data.
+            let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+            let provider = storage.initialization_provider().unwrap();
             provider.set_initial_state_anchor(anchor).unwrap();
             provider.store_hashed_accounts(vec![(address, Some(account))]).unwrap();
             if completed {
@@ -2387,7 +2408,7 @@ fn test_new_preserves_populated_legacy_v1_tables_with_v2_data(completed: bool) {
             assert_eq!(tx.db_stat(table.dbi()).unwrap().entries(), 1);
             drop(tx);
             for &table in LEGACY_V1_TABLES {
-                assert_eq!(table_exists(&storage, table), table == populated);
+                assert!(table_exists(&storage, table), "{table} was dropped");
             }
 
             let provider = storage.provider_ro().unwrap();

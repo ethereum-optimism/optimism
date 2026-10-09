@@ -149,8 +149,10 @@ Once `latest` tracks chain tip, `eth_getProof` calls for blocks within `[earlies
 
 Releases after op-reth v2.6.x only support the v2 storage format. They accept `--proofs-history.storage-version=v2` as a no-op and reject any other value. How you upgrade depends on how you ran the previous release:
 
-- **You never set `--proofs-history.storage-version`, or set it to `v1`:** your proofs database uses the removed v1 format, and op-reth refuses to open it. Stop the node, remove `--proofs-history.storage-version=v1` if you set it, delete the proofs database directory (or point `--proofs-history.storage-path` at a fresh path), run `op-reth proofs init`, and restart with `--proofs-history`. The new database only serves proofs from the initialization point forward, so plan for the retention window to refill.
+- **You never set `--proofs-history.storage-version`, or set it to `v1`:** your existing proofs data uses the removed v1 format and is ignored. Stop the node, remove `--proofs-history.storage-version=v1` if you set it, run `op-reth proofs init` using the same proofs storage path, and restart with `--proofs-history`. The v2 store only serves proofs from the initialization point forward, so plan for the retention window to refill.
 - **You set `--proofs-history.storage-version=v2`:** no change is needed, and your existing proofs database is compatible. The flag is now a no-op, so you can remove it from `op-reth node` and every `op-reth proofs` command.
+
+Legacy v1 tables are never deleted, whether empty or populated. They remain unused and continue to occupy disk space.
 
 ## Metrics
 
