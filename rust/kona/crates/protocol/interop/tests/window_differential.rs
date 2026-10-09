@@ -199,7 +199,7 @@ fn window_differential_zero_override_omitted_or_explicit() {
     let omitted = parse_dep_set(None).expect("no override parses");
     assert_eq!(omitted.override_message_expiry_window, None);
     let explicit = parse_dep_set(Some(0)).expect("an explicit zero override parses");
-    assert_eq!(explicit.override_message_expiry_window, Some(0));
+    assert_eq!(explicit.override_message_expiry_window.map(u64::from), Some(0));
     assert_eq!(omitted.get_message_expiry_window(), MESSAGE_EXPIRY_WINDOW);
     assert_eq!(explicit.get_message_expiry_window(), MESSAGE_EXPIRY_WINDOW);
 }
