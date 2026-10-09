@@ -220,7 +220,7 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
     }
 
     /// @notice The code under test as NEW (overridden by run.sh's mutants).
-    function _newCode() internal view virtual returns (bytes memory code_) {
+    function _newCode() internal virtual returns (bytes memory code_) {
         code_ = L2ToL2Bytecodes.CURRENT;
     }
 

@@ -245,10 +245,14 @@ pragma solidity 0.8.25;
 
 import {{ L2ToL2CrossDomainMessenger_EquivalenceHalmos }} from "../L2ToL2Equivalence.t.sol";
 import {{ L2ToL2CrossDomainMessenger{name} }} from "./{name}.sol";
+import {{ Constants }} from "src/libraries/Constants.sol";
 
 contract {name}_EquivalenceHalmos is L2ToL2CrossDomainMessenger_EquivalenceHalmos {{
-    function _newCode() internal pure override returns (bytes memory code_) {{
-        code_ = type(L2ToL2CrossDomainMessenger{name}).runtimeCode;
+    /// @notice The mutant's runtime with its immutable filled, as a production deployment has it.
+    function _newCode() internal override returns (bytes memory code_) {{
+        address deployed = address(new L2ToL2CrossDomainMessenger{name}(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        code_ = deployed.code;
+        vm.etch(deployed, hex"");
     }}
 }}
 """)
