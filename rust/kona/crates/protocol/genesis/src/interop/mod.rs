@@ -9,7 +9,9 @@ mod constants;
 pub use constants::MESSAGE_EXPIRY_WINDOW;
 
 mod depset;
-pub use depset::{ChainDependency, DependencySet};
+pub use depset::{
+    ChainDependency, DependencySet, MessageExpiryOverride, MessageExpiryOverrideTooLong,
+};
 
 mod config;
 pub use config::InteropConfig;

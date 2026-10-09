@@ -1311,7 +1311,7 @@ mod tests {
         configs.rollup_configs.insert(u64::MAX, rollup.clone());
         let dependency = configs.dependency_set.dependencies.remove(&10).unwrap();
         configs.dependency_set.dependencies.insert(u64::MAX, dependency);
-        configs.dependency_set.override_message_expiry_window = Some(123);
+        configs.dependency_set.override_message_expiry_window = Some(123.try_into().unwrap());
         let rollup_path = dir.path().join("rollup.json");
         let dependency_path = dir.path().join("depset.json");
         let l1_path = dir.path().join("l1.json");

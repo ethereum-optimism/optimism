@@ -135,6 +135,13 @@ func (ds *StaticConfigDependencySet) UnmarshalTOML(v interface{}) error {
 
 // hydrate sets all the cached values, based on the dependencies attribute
 func (ds *StaticConfigDependencySet) hydrate() error {
+	// A dependency set may shorten the message expiry window but not lengthen it beyond
+	// MessageExpiryTimeSecondsInterop; see the Expiry Window section of the interop
+	// specification.
+	if ds.overrideMessageExpiryWindow > MessageExpiryTimeSecondsInterop {
+		return fmt.Errorf("overrideMessageExpiryWindow %ds exceeds protocol window %ds",
+			ds.overrideMessageExpiryWindow, MessageExpiryTimeSecondsInterop)
+	}
 	ds.chainIDs = make([]eth.ChainID, 0, len(ds.dependencies))
 	for id := range ds.dependencies {
 		ds.chainIDs = append(ds.chainIDs, id)
