@@ -36,8 +36,8 @@
     "sourceCodeHash": "0x9f38067280289999a50a8f2b6ce14898bd14d4c97406a26b88368e48c1317a3e"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0xdcfa4047561cb36e2b895535aaef1d1851252736a994936efea0129073446153",
-    "sourceCodeHash": "0xcde695b37dc267c642d66d090c43762c244a4f90daf7a9257d8344251103b837"
+    "initCodeHash": "0xe626a006db5ae49269a7ec4165259aa25a8f56470d8b3c56345a5c227e7fb578",
+    "sourceCodeHash": "0xc0c6762299435e29bcbcf566f2512f2895e22acc1927e60dada1eba5e19db6e7"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x18650c65fa6f23fefc6f0c5fff605f12be99fce0bfbcbc0644403138e4c8bb12",
