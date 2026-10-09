@@ -63,7 +63,7 @@ func TestWithZK(t *testing.T) {
 	require.Equal(t, &want, cfg.ZKDisputeGame)
 	require.Len(t, cfg.ZKProposerOptions, 1)
 	require.True(t, cfg.EnableTimeTravel)
-	require.Len(t, cfg.DeployerOptions, 2)
+	require.Len(t, cfg.DeployerOptions, 1)
 }
 
 func TestWithZKChallengeDuration(t *testing.T) {

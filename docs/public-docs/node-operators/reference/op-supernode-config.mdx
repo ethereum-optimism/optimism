@@ -229,23 +229,13 @@ To pin static ports per chain, set both the TCP (RLPx) and UDP (discovery v5) po
 The interop activity is the part of op-supernode that decides when a chain's blocks have satisfied their cross-chain dependencies.
 For background on how the activity decides between *wait*, *advance*, *invalidate*, and *rewind*, see the [supernode explainer](/op-stack/interop/supernode#cross-chain-message-safety).
 
-### interop.activation-timestamp
-
-Overrides the interop activation timestamp derived from the loaded rollup configs.
-The default value is `0` (use the value from the rollup config).
-Set this only when activating interop on a custom devnet whose rollup config does not yet carry the activation timestamp.
-
-<Tabs>
-  <Tab title="Syntax">`--interop.activation-timestamp=<value>`</Tab>
-  <Tab title="Example">`--interop.activation-timestamp=1735689600`</Tab>
-  <Tab title="Environment Variable">`OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP=`</Tab>
-</Tabs>
+The activity runs when the chains' rollup configs schedule the Lagoon (interop) upgrade, and treats that activation time as the start of interop.
+Every chain the supernode runs must schedule Lagoon at the same time.
 
 ### interop.log-backfill-depth
 
 Extends initiating-message log ingestion backward from the L2 tip by this duration, clamped to the interop activation timestamp.
 Validation still starts only beyond the local safe head; the backfill pre-ingests logs so they are available when validation needs them.
-Requires the interop activation timestamp to be known, either from the rollup config or via `--interop.activation-timestamp`.
 The default value is `0s` (no backfill).
 
 <Tabs>
