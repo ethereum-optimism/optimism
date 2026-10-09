@@ -28,10 +28,9 @@ type sp1VerifierOverride struct {
 	SP1Verifier common.Address `json:"sp1Verifier"`
 }
 
-// ResolveSuperchainProofParams merges the standard implementation inputs with the intent's global
-// deploy overrides. These are the values the implementations are deployed with, including the
-// bounds for the per-chain withdrawal delays; the delays themselves are resolved per chain by
-// ResolveChainProofParams.
+// ResolveSuperchainProofParams merges the standard superchain-level proof parameters with the
+// intent's global deploy overrides. These are the inputs the implementations are deployed with;
+// per-chain values are resolved by ResolveChainProofParams.
 func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofParams, error) {
 	return jsonutil.MergeJSON(
 		state.SuperchainProofParams{
