@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -16,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +54,7 @@ func TestOriginSelectorFetchCurrentError(t *testing.T) {
 
 	l1.ExpectL1BlockRefByHash(a.Hash, eth.L1BlockRef{}, errors.New("test error"))
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "test error")
@@ -59,7 +62,7 @@ func TestOriginSelectorFetchCurrentError(t *testing.T) {
 	// The same outcome occurs when the cached origin is different from that of the L2 head.
 	l1.ExpectL1BlockRefByHash(a.Hash, eth.L1BlockRef{}, errors.New("test error"))
 
-	s = NewL1OriginSelector(ctx, log, cfg, l1)
+	s = newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = b
 
 	_, err = s.FindL1Origin(ctx, l2Head)
@@ -94,7 +97,7 @@ func TestOriginSelectorFetchNextError(t *testing.T) {
 		Time:     24,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -164,7 +167,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 			Time:     24,
 		}
 
-		s := NewL1OriginSelector(ctx, log, cfg, l1)
+		s := newTestSelector(ctx, log, cfg, l1)
 
 		requireL1OriginAt := func(l2Head eth.L2BlockRef, want eth.L1BlockRef) {
 			got, err := s.FindL1Origin(ctx, l2Head)
@@ -256,7 +259,7 @@ func TestOriginSelectorHandlesReset(t *testing.T) {
 		Time:     24,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 	s.nextOrigin = b
 
@@ -314,7 +317,7 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 	l1.ExpectL1BlockRefByNumber(b.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -383,7 +386,7 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	requireFindl1OriginEqual := func(l1ref eth.L1BlockRef) {
@@ -460,7 +463,7 @@ func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 		Time:     22,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 	s.nextOrigin = b
 
@@ -508,7 +511,7 @@ func TestOriginSelectorRespectsSeqDrift(t *testing.T) {
 
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 
 	next, err := s.FindL1Origin(ctx, l2Head)
 	require.NoError(t, err)
@@ -550,7 +553,7 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 	}
 
 	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
-	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
+	s := newTestSelector(ctx, log, cfg, confDepthL1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -597,7 +600,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 
 	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
 	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
-	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
+	s := newTestSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorIs(t, err, ErrNextL1OriginRequired)
@@ -633,7 +636,7 @@ func TestOriginSelector_FjordSeqDrift(t *testing.T) {
 		Time:     27, // next L2 block time would be past pre-Fjord seq drift
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -674,7 +677,7 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
 		Time:     27,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 	s.nextOrigin = b
 
@@ -720,7 +723,7 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTimeNoCache(t *testing.T) {
 
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -783,7 +786,7 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 
 	l1Head := b
 	confDepthL1 := confdepth.NewConfDepth(2, func() eth.L1BlockRef { return l1Head }, l1)
-	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
+	s := newTestSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorIs(t, err, ErrNextL1OriginRequired)
@@ -812,7 +815,7 @@ func TestOriginSelectorMiscEvent(t *testing.T) {
 	l1 := &testutils.MockL1Source{}
 	defer l1.AssertExpectations(t)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s := newTestSelector(ctx, log, cfg, l1)
 
 	// This event is not handled
 	handled := s.OnEvent(context.Background(), rollup.L1TemporaryErrorEvent{})
@@ -825,7 +828,7 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 		BlockTime:         2,
 	}
 
-	los := NewL1OriginSelector(context.Background(), testlog.Logger(t, log.LevelDebug), cfg, &testutils.MockL1Source{})
+	los := newTestSelector(context.Background(), testlog.Logger(t, log.LevelDebug), cfg, &testutils.MockL1Source{})
 
 	require.Panics(t, func() {
 		_, _ = los.findL1OriginOfNextL2Block(
@@ -1019,6 +1022,15 @@ type simulatedL1 struct {
 	L1Blocks
 	now       uint64
 	confDepth uint64
+	// byHashLookups counts lookups by hash, which the selector only makes when its cache is reset.
+	byHashLookups int
+	// receiptsFetched records the blocks whose receipts were fetched.
+	receiptsFetched map[common.Hash]bool
+}
+
+func (s *simulatedL1) FetchReceipts(_ context.Context, h common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
+	s.receiptsFetched[h] = true
+	return nil, nil, nil
 }
 
 func simulatedL1Hash(n uint64) (h common.Hash) {
@@ -1043,42 +1055,210 @@ func (s *simulatedL1) L1BlockRefByNumber(_ context.Context, n uint64) (eth.L1Blo
 }
 
 func (s *simulatedL1) L1BlockRefByHash(_ context.Context, h common.Hash) (eth.L1BlockRef, error) {
+	s.byHashLookups++
 	return simulatedL1Block(binary.BigEndian.Uint64(h[24:])), nil
 }
 
-// TestOriginSelectorKeepsUpWithL1 ensures the L1 origin keeps pace with L1 whether the next
-// build or the previous block's forkchoice update reaches the selector first. A 10s block time
-// falls behind L1 if the origin can only advance every other L2 block.
+// TestOriginSelectorKeepsUpWithL1 ensures the L1 origin keeps pace with L1 however late the
+// previous block's forkchoice update reaches the selector relative to the next build. A 10s
+// block time falls behind L1 if the origin can only advance every other L2 block.
 func TestOriginSelectorKeepsUpWithL1(t *testing.T) {
 	const confDepth = 15
-	for _, blockTime := range []uint64{2, 10} {
-		for _, buildFirst := range []bool{false, true} {
-			t.Run(fmt.Sprintf("blockTime=%d/buildFirst=%v", blockTime, buildFirst), func(t *testing.T) {
+	// fcuDelay is the number of builds the forkchoice update of a block trails the build on
+	// top of it by: -1 delivers it before that build, 2 models an event loop lagging behind.
+	for _, fcuDelay := range []int{-1, 0, 2} {
+		for _, blockTime := range []uint64{2, 10} {
+			t.Run(fmt.Sprintf("fcuDelay=%d/blockTime=%d", fcuDelay, blockTime), func(t *testing.T) {
 				ctx := context.Background()
-				l1 := &simulatedL1{now: 10_000, confDepth: confDepth}
+				l1 := &simulatedL1{now: 10_000, confDepth: confDepth, receiptsFetched: make(map[common.Hash]bool)}
 				cfg := &rollup.Config{BlockTime: blockTime, MaxSequencerDrift: 1800}
-				s := NewL1OriginSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1)
+				s := NewL1OriginSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1).WithInlinePrefetch()
 
 				l2Head := eth.L2BlockRef{Time: l1.now, L1Origin: simulatedL1Block(l1.now/12 - confDepth).ID()}
+				initialOrigin := l2Head.L1Origin
+				var built []eth.L2BlockRef
+				var maxLag uint64
 				// Long enough for a lagging origin to drift all the way to the limit.
 				for l2Head.Time < 10_000+3*cfg.MaxSequencerDrift {
 					l1.now = l2Head.Time
-					fcu := engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head}
-					if !buildFirst {
-						s.OnEvent(ctx, fcu)
+					if fcuDelay < 0 {
+						s.OnEvent(ctx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 					}
 					origin, err := s.FindL1Origin(ctx, l2Head)
 					require.NoError(t, err)
-					if buildFirst {
-						s.OnEvent(ctx, fcu)
+					if origin.ID() != initialOrigin {
+						require.True(t, l1.receiptsFetched[origin.Hash], "receipts of origin %d were not prefetched", origin.Number)
+					}
+					built = append(built, l2Head)
+					if fcuDelay >= 0 && len(built) > fcuDelay {
+						s.OnEvent(ctx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: built[len(built)-1-fcuDelay]})
 					}
 					l2Head = eth.L2BlockRef{Number: l2Head.Number + 1, Time: l2Head.Time + blockTime, L1Origin: origin.ID()}
+					// Past the first drift window, a lagging origin would have drifted to the limit.
+					if l2Head.Time > 10_000+cfg.MaxSequencerDrift {
+						maxLag = max(maxLag, l2Head.Time/12-l2Head.L1Origin.Number)
+					}
 				}
 
-				l1Head := l2Head.Time / 12
-				require.LessOrEqual(t, l1Head-l2Head.L1Origin.Number, uint64(confDepth+2),
+				require.LessOrEqual(t, maxLag, uint64(confDepth+2),
 					"L1 origin fell behind the sequencer confirmation depth")
+				require.Equal(t, 1, l1.byHashLookups, "only the initial head should need a lookup by hash")
 			})
 		}
 	}
+}
+
+// TestOriginSelectorIgnoresLateForkchoiceUpdate ensures that a forkchoice update for a head
+// behind the current origin, which the event loop delivers after the sequencer has moved on,
+// leaves the cached origins alone instead of resetting them.
+func TestOriginSelectorIgnoresLateForkchoiceUpdate(t *testing.T) {
+	ctx := context.Background()
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	cfg := &rollup.Config{MaxSequencerDrift: 500, BlockTime: 10}
+	a := eth.L1BlockRef{Hash: common.Hash{'a'}, Number: 10, Time: 20}
+	b := eth.L1BlockRef{Hash: common.Hash{'b'}, Number: 11, Time: 32, ParentHash: a.Hash}
+	c := eth.L1BlockRef{Hash: common.Hash{'c'}, Number: 12, Time: 44, ParentHash: b.Hash}
+	d := eth.L1BlockRef{Hash: common.Hash{'d'}, Number: 13, Time: 56, ParentHash: c.Hash}
+
+	s := newTestSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1)
+	s.currentOrigin = b
+	s.nextOrigin = c
+	s.lookahead = d
+
+	// The late update names a head on origin `a`. Neither a lookup nor a fetch may happen.
+	handled := s.OnEvent(ctx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: eth.L2BlockRef{L1Origin: a.ID(), Time: 40}})
+	require.True(t, handled)
+
+	origin, err := s.FindL1Origin(ctx, eth.L2BlockRef{L1Origin: b.ID(), Time: 50})
+	require.NoError(t, err)
+	require.Equal(t, c, origin)
+	origin, err = s.FindL1Origin(ctx, eth.L2BlockRef{L1Origin: c.ID(), Time: 60})
+	require.NoError(t, err)
+	require.Equal(t, d, origin)
+
+	// Had the unsafe head really been rewound to origin `a`, the build on top of it repairs
+	// the cache by looking `a` up.
+	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
+	origin, err = s.FindL1Origin(ctx, eth.L2BlockRef{L1Origin: a.ID(), Time: 40})
+	require.NoError(t, err)
+	require.Equal(t, a, origin)
+}
+
+// TestOriginSelectorDropsFetchStraddlingReset ensures that a block fetched before a reset is
+// not cached after it, since the reset may have abandoned the chain the block was fetched from.
+func TestOriginSelectorDropsFetchStraddlingReset(t *testing.T) {
+	ctx := context.Background()
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	cfg := &rollup.Config{MaxSequencerDrift: 500, BlockTime: 10}
+	a := eth.L1BlockRef{Hash: common.Hash{'a'}, Number: 10, Time: 20}
+	orphan := eth.L1BlockRef{Hash: common.Hash{'b', '2'}, Number: 11, Time: 32, ParentHash: common.Hash{'a', '2'}}
+	l2Head := eth.L2BlockRef{L1Origin: a.ID(), Time: 40}
+
+	s := newTestSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1)
+	s.currentOrigin = a
+
+	// While the forkchoice update fetches the next origin, a reset happens and the build path
+	// restores the current origin.
+	l1.Mock.On("L1BlockRefByNumber", orphan.Number).Once().Run(func(mock.Arguments) {
+		s.OnEvent(ctx, rollup.ResetEvent{})
+		l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
+		_, _, err := s.CurrentAndNextOrigin(ctx, l2Head)
+		require.NoError(t, err)
+	}).Return(orphan, nil)
+	l1.ExpectL1BlockRefByNumber(orphan.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
+	s.OnEvent(ctx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+
+	_, next, err := s.CurrentAndNextOrigin(ctx, l2Head)
+	require.NoError(t, err)
+	require.Equal(t, eth.L1BlockRef{}, next)
+}
+
+// TestOriginSelectorPrefetchesInBackground ensures that the default prefetch runs off the
+// caller's goroutine and still fills the cache.
+func TestOriginSelectorPrefetchesInBackground(t *testing.T) {
+	ctx := context.Background()
+	l1 := &testutils.MockL1Source{}
+	cfg := &rollup.Config{MaxSequencerDrift: 500, BlockTime: 2}
+	a := eth.L1BlockRef{Hash: common.Hash{'a'}, Number: 10, Time: 20}
+	b := eth.L1BlockRef{Hash: common.Hash{'b'}, Number: 11, Time: 22, ParentHash: a.Hash}
+	c := eth.L1BlockRef{Hash: common.Hash{'c'}, Number: 12, Time: 24, ParentHash: b.Hash}
+
+	s := NewL1OriginSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1)
+	s.currentOrigin = a
+	s.nextOrigin = b
+
+	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
+	l1.ExpectFetchReceipts(c.Hash, nil, nil, nil)
+	origin, err := s.FindL1Origin(ctx, eth.L2BlockRef{L1Origin: a.ID(), Time: 24})
+	require.NoError(t, err)
+	require.Equal(t, b, origin)
+
+	require.Eventually(t, func() bool {
+		return s.isCached(c.Number) && l1.AssertNumberOfCalls(quietT{}, "FetchReceipts", 1)
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// quietT lets a mock assertion be polled without failing the test on early misses.
+type quietT struct{}
+
+func (quietT) Logf(string, ...any)   {}
+func (quietT) Errorf(string, ...any) {}
+func (quietT) FailNow()              {}
+
+// TestOriginSelectorPrefetchesOnAdoption ensures that adopting the next origin fetches its
+// successor and that successor's receipts, without waiting for a forkchoice update.
+func TestOriginSelectorPrefetchesOnAdoption(t *testing.T) {
+	ctx := context.Background()
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	cfg := &rollup.Config{MaxSequencerDrift: 500, BlockTime: 10}
+	a := eth.L1BlockRef{Hash: common.Hash{'a'}, Number: 10, Time: 20}
+	b := eth.L1BlockRef{Hash: common.Hash{'b'}, Number: 11, Time: 32, ParentHash: a.Hash}
+	c := eth.L1BlockRef{Hash: common.Hash{'c'}, Number: 12, Time: 44, ParentHash: b.Hash}
+
+	s := NewL1OriginSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1).WithInlinePrefetch()
+	s.currentOrigin = a
+	s.nextOrigin = b
+
+	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
+	l1.ExpectFetchReceipts(c.Hash, nil, nil, nil)
+	origin, err := s.FindL1Origin(ctx, eth.L2BlockRef{L1Origin: a.ID(), Time: 40})
+	require.NoError(t, err)
+	require.Equal(t, b, origin)
+
+	// Adopting `c` in turn looks for its successor, which does not exist yet.
+	l1.ExpectL1BlockRefByNumber(c.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
+	origin, err = s.FindL1Origin(ctx, eth.L2BlockRef{L1Origin: b.ID(), Time: 50})
+	require.NoError(t, err)
+	require.Equal(t, c, origin)
+}
+
+// TestOriginSelectorPrefetchesNextOriginReceipts ensures that caching a next origin on a
+// forkchoice update also warms its receipts, which the first build on it needs.
+func TestOriginSelectorPrefetchesNextOriginReceipts(t *testing.T) {
+	ctx := context.Background()
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	cfg := &rollup.Config{MaxSequencerDrift: 500, BlockTime: 10}
+	a := eth.L1BlockRef{Hash: common.Hash{'a'}, Number: 10, Time: 20}
+	b := eth.L1BlockRef{Hash: common.Hash{'b'}, Number: 11, Time: 32, ParentHash: a.Hash}
+
+	s := NewL1OriginSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1).WithInlinePrefetch()
+	s.currentOrigin = a
+
+	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
+	l1.ExpectFetchReceipts(b.Hash, nil, nil, nil)
+	l1.ExpectL1BlockRefByNumber(b.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
+	handled := s.OnEvent(ctx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: eth.L2BlockRef{L1Origin: a.ID(), Time: 40}})
+	require.True(t, handled)
+}
+
+// newTestSelector returns a selector that drops background prefetches, so that tests with
+// strict L1 mocks only see the fetches they set up. Tests of prefetching run them inline.
+func newTestSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks) *L1OriginSelector {
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s.runPrefetch = func(func()) {}
+	return s
 }

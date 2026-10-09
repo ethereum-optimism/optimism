@@ -39,18 +39,38 @@ type L1OriginSelector struct {
 	// lookahead is the prefetched successor of nextOrigin, so the origin can advance
 	// again on the build right after nextOrigin is adopted.
 	lookahead eth.L1BlockRef
+	// generation changes whenever the cache is reset, so that a fetch which straddles a reset
+	// does not cache a block of the chain the reset abandoned.
+	generation uint64
 
 	mu sync.Mutex
+
+	// runPrefetch runs a best-effort prefetch, which must not block the caller's build or
+	// event processing.
+	runPrefetch func(prefetch func())
+	// successorInFlight keeps a slow L1 from piling up successor prefetches.
+	successorInFlight atomic.Bool
 }
+
+// prefetchTimeout bounds a prefetch that runs off the build path and the event loop.
+const prefetchTimeout = 10 * time.Second
 
 func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks) *L1OriginSelector {
 	return &L1OriginSelector{
-		ctx:  ctx,
-		log:  log,
-		cfg:  cfg,
-		spec: rollup.NewChainSpec(cfg),
-		l1:   l1,
+		ctx:         ctx,
+		log:         log,
+		cfg:         cfg,
+		spec:        rollup.NewChainSpec(cfg),
+		l1:          l1,
+		runPrefetch: func(prefetch func()) { go prefetch() },
 	}
+}
+
+// WithInlinePrefetch makes prefetches run inline, so that step-driven tests stay deterministic.
+// It is intended for tests, and must be called before the selector is first used.
+func (los *L1OriginSelector) WithInlinePrefetch() *L1OriginSelector {
+	los.runPrefetch = func(prefetch func()) { prefetch() }
+	return los
 }
 
 func (los *L1OriginSelector) SetRecoverMode(enabled bool) {
@@ -76,6 +96,16 @@ func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 // FindL1Origin determines what the L1 Origin for the next L2 Block should be.
 // It wraps the FindL1OriginOfNextL2Block function and handles caching and network requests.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	origin, err := los.findL1Origin(ctx, l2Head)
+	if err == nil {
+		// The next build can adopt the successor of the origin selected here. Fetching it now
+		// gives it a whole block build to arrive, however late forkchoice updates are.
+		los.prefetchSuccessor(origin)
+	}
+	return origin, err
+}
+
+func (los *L1OriginSelector) findL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 	recoverMode := los.recoverMode.Load()
 	// Get cached values for currentOrigin and nextOrigin
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
@@ -150,23 +180,83 @@ func (los *L1OriginSelector) cachedOrigins(ctx context.Context, l2Head eth.L2Blo
 		los.currentOrigin = currentOrigin
 		los.nextOrigin = eth.L1BlockRef{}
 		los.lookahead = eth.L1BlockRef{}
+		los.generation++
 	}
 
 	return los.currentOrigin, los.nextOrigin, los.lookahead, nil
 }
 
-// maybeCacheOrigin caches origin as nextOrigin or lookahead if it follows currentOrigin
-// or nextOrigin by number. Hashes are checked where the cached blocks are used.
-func (los *L1OriginSelector) maybeCacheOrigin(origin eth.L1BlockRef) {
+func (los *L1OriginSelector) currentGeneration() uint64 {
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
+	return los.generation
+}
+
+// maybeCacheOrigin caches origin, fetched during the given cache generation, as nextOrigin
+// or lookahead if it follows currentOrigin or nextOrigin by number, and reports whether it
+// did. Hashes are checked where the cached blocks are used.
+func (los *L1OriginSelector) maybeCacheOrigin(origin eth.L1BlockRef, generation uint64) bool {
+	los.mu.Lock()
+	defer los.mu.Unlock()
+
+	if generation != los.generation {
+		return false
+	}
 	switch {
 	case origin.Number == los.currentOrigin.Number+1:
 		los.nextOrigin = origin
 	case los.nextOrigin != (eth.L1BlockRef{}) && origin.Number == los.nextOrigin.Number+1:
 		los.lookahead = origin
+	default:
+		return false
 	}
+	return true
+}
+
+func (los *L1OriginSelector) isCached(number uint64) bool {
+	los.mu.Lock()
+	defer los.mu.Unlock()
+
+	return (los.nextOrigin != (eth.L1BlockRef{}) && los.nextOrigin.Number == number) ||
+		(los.lookahead != (eth.L1BlockRef{}) && los.lookahead.Number == number)
+}
+
+// prefetchSuccessor fetches the successor of the origin a build has just selected: the next
+// origin if the build kept its parent's origin, or the lookahead if it adopted the next one.
+func (los *L1OriginSelector) prefetchSuccessor(selected eth.L1BlockRef) {
+	if los.isCached(selected.Number+1) || !los.successorInFlight.CompareAndSwap(false, true) {
+		return
+	}
+	los.runPrefetch(func() {
+		defer los.successorInFlight.Store(false)
+		ctx, cancel := context.WithTimeout(los.ctx, prefetchTimeout)
+		defer cancel()
+		if _, err := los.fetch(ctx, selected.Number+1); err != nil {
+			los.logFetchError("successor origin", err)
+		}
+	})
+}
+
+// prefetchReceipts warms the L1 receipts cache for a block that may become the origin of the
+// next builds. Preparing the attributes of the first L2 block on a new origin needs its
+// receipts. The node already prefetches the receipts of new L1 heads, but not of the older
+// blocks an origin catches up through, e.g. after a restart.
+func (los *L1OriginSelector) prefetchReceipts(origin eth.L1BlockRef) {
+	los.runPrefetch(func() {
+		ctx, cancel := context.WithTimeout(los.ctx, prefetchTimeout)
+		defer cancel()
+		if _, _, err := los.l1.FetchReceipts(ctx, origin.Hash); err != nil && los.ctx.Err() == nil {
+			los.log.Warn("Failed to prefetch L1 origin receipts", "origin", origin, "err", err)
+		}
+	})
+}
+
+func (los *L1OriginSelector) isBehindCurrentOrigin(l2Head eth.L2BlockRef) bool {
+	los.mu.Lock()
+	defer los.mu.Unlock()
+
+	return l2Head.L1Origin.Number < los.currentOrigin.Number
 }
 
 func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
@@ -174,6 +264,14 @@ func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 	// on a best-effort basis.
 	ctx, cancel := context.WithTimeout(los.ctx, 500*time.Millisecond)
 	defer cancel()
+
+	// The sequencer builds without waiting for forkchoice updates, so an update can name a
+	// head the sequencer has already built past. Resetting the cache to its origin would
+	// throw away the origins the next builds need. A real reorg to such a head is still
+	// handled, by the build on top of it.
+	if los.isBehindCurrentOrigin(unsafeL2Head) {
+		return
+	}
 
 	currentOrigin, nextOrigin, lookahead, err := los.cachedOrigins(ctx, unsafeL2Head)
 	if err != nil {
@@ -209,6 +307,10 @@ func (los *L1OriginSelector) tryFetchNextOrigins(ctx context.Context, currentOri
 }
 
 func (los *L1OriginSelector) logFetchError(what string, err error) {
+	if los.ctx.Err() != nil {
+		// Shutting down.
+		return
+	}
 	if errors.Is(err, ethereum.NotFound) {
 		los.log.Debug("No potential L1 origin found", "what", what)
 	} else {
@@ -220,12 +322,15 @@ func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1Bl
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
 	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
+	generation := los.currentGeneration()
 	nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, number)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
 
-	los.maybeCacheOrigin(nextOrigin)
+	if los.maybeCacheOrigin(nextOrigin, generation) {
+		los.prefetchReceipts(nextOrigin)
+	}
 
 	return nextOrigin, nil
 }
@@ -237,6 +342,7 @@ func (los *L1OriginSelector) reset() {
 	los.currentOrigin = eth.L1BlockRef{}
 	los.nextOrigin = eth.L1BlockRef{}
 	los.lookahead = eth.L1BlockRef{}
+	los.generation++
 }
 
 var (
