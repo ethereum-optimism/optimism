@@ -39,11 +39,12 @@ The [`RollupNode`][node] builds and starts the following actors.
   that are executed in priority order against the EL client.
   Read-only engine queries are served directly by `RollupRpc`.
   The [engine][engine] docs expand on this.
-- **L1 Watcher Actor**: Watches the L1 chain for new
-  head and finalized blocks and relays them to the
-  derivation actor. It also keeps the unsafe block
-  signer current from the `SystemConfig` contract, for
-  gossip validation and the signer actor.
+- **L1 Actors**: Poll head, safe, and finalized blocks and
+  publish the latest observations through watch channels.
+  Derivation, sequencing, and rollup RPC subscribe directly.
+- **L1 Signer Updater Actor**: Keeps the unsafe block signer
+  current from the `SystemConfig` contract, for gossip
+  validation and the signer actor.
 - **Network Actor**: Manages the P2P Network for the rollup
   node. The P2P stack consists of `discv5` peer discovery
   and block gossip through libp2p. Visit the [network][p2p]

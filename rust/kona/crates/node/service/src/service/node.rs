@@ -21,7 +21,7 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{DerivationStatus, l1, l1_watcher, sequencer};
+use kona_node_actors::{DerivationStatus, l1, l1_signer_updater, sequencer};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -37,7 +37,6 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
-use tokio_stream::wrappers::WatchStream;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -247,6 +246,8 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        head: watch::Receiver<BlockInfo>,
+        finalized: watch::Receiver<BlockInfo>,
     ) -> Result<(ConfiguredDerivationActor, watch::Receiver<DerivationStatus>), String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
@@ -271,32 +272,12 @@ impl RollupNode {
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
                 pipeline,
+                head,
+                finalized,
             );
             let status = actor.state_receiver();
             Ok((ConfiguredDerivationActor::Normal(Box::new(actor)), status))
         }
-    }
-
-    /// Wires the L1 watcher dependencies and returns its lifetime future.
-    fn build_l1_watcher(
-        &self,
-        builder: l1_watcher::Builder,
-        derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
-        signer_tx: watch::Sender<Address>,
-        head: watch::Receiver<BlockInfo>,
-        finalized: watch::Receiver<BlockInfo>,
-        safe: watch::Receiver<BlockInfo>,
-    ) -> impl Future<Output = Result<(), l1_watcher::ActorError>> + Send + 'static {
-        // Initial snapshots are not block events for derivation.
-        builder.build(
-            self.l1_config.engine_provider.clone(),
-            WatchStream::from_changes(head),
-            WatchStream::from_changes(finalized),
-            WatchStream::from_changes(safe),
-            self.config.clone(),
-            adapters::Derivation(derivation_actor_request_tx),
-            signer_tx,
-        )
     }
 
     /// Starts the signing backend when the node is in sequencer mode; otherwise returns `None`.
@@ -460,7 +441,9 @@ impl RollupNode {
         let head = head_builder.handle();
         let safe = safe_builder.handle();
         let finalized = finalized_builder.handle();
-        let l1_watcher_builder = l1_watcher::Builder::new();
+        let signer_updater_builder =
+            l1_signer_updater::Builder::new(self.p2p_config.unsafe_block_signer);
+        let signer_rx = signer_updater_builder.handle();
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
             mpsc::channel::<DerivationActorRequest>(1024);
@@ -487,19 +470,21 @@ impl RollupNode {
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<signer::Payload>(16);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
-        // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
-        // from the value read at startup.
-        let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let (engine_actor, l2_query_client, engine_state_rx) = self.build_engine_actor(
             engine_actor_request_rx,
-            derivation_actor_request_tx.clone(),
+            derivation_actor_request_tx,
             unsafe_head_tx,
         );
 
         let (derivation, derivation_status) = self
-            .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
+            .build_derivation_actor(
+                engine_actor_request_tx.clone(),
+                derivation_actor_request_rx,
+                head.clone(),
+                finalized.clone(),
+            )
             .await?;
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
@@ -534,13 +519,10 @@ impl RollupNode {
 
         let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
 
-        let l1_watcher = self.build_l1_watcher(
-            l1_watcher_builder,
-            derivation_actor_request_tx,
-            signer_tx,
+        let signer_updater = signer_updater_builder.build(
+            self.l1_config.engine_provider.clone(),
+            self.config.clone(),
             head.clone(),
-            finalized.clone(),
-            safe.clone(),
         );
         let l1_head = head_builder.build(
             self.l1_config.engine_provider.clone(),
@@ -601,7 +583,7 @@ impl RollupNode {
         supervisor.spawn("l1_head", l1_head);
         supervisor.spawn("l1_safe", l1_safe);
         supervisor.spawn("l1_finalized", l1_finalized);
-        supervisor.spawn("l1_watcher", l1_watcher);
+        supervisor.spawn("l1_signer_updater", signer_updater);
         supervisor.spawn("derivation", run_node_actor(derivation));
         supervisor.spawn("engine", run_node_actor(engine_actor));
         supervisor.wait().await

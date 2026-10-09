@@ -11,7 +11,7 @@ use kona_derive::{
     SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
-use kona_protocol::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
@@ -28,6 +28,10 @@ where
 {
     /// The channel on which all inbound requests are received by the [`DerivationActor`].
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+    /// The latest published L1 head.
+    head: watch::Receiver<BlockInfo>,
+    /// The latest published finalized L1 head.
+    finalized: watch::Receiver<BlockInfo>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
@@ -49,16 +53,22 @@ where
     PipelineSignalReceiver: Pipeline + SignalReceiver,
 {
     /// Creates a new instance of the [`DerivationActor`].
+    ///
+    /// L1 updates are consumed as changes; initial snapshots do not trigger processing.
     pub fn new(
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
+        head: watch::Receiver<BlockInfo>,
+        finalized: watch::Receiver<BlockInfo>,
     ) -> Self {
         let (status, _) = watch::channel(DerivationStatus { current_l1: pipeline.origin() });
         Self {
             status,
             pipeline,
             inbound_request_rx,
+            head,
+            finalized,
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
@@ -183,25 +193,6 @@ where
                 self.signal(*signal).await;
                 self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
             }
-            DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
-                // Attempt to finalize the block. If successful, notify engine.
-                if let Some(l2_block_number) = self.finalizer.try_finalize_next(*finalized_l1_block)
-                {
-                    // Local L1-finality: the engine's own canonical chain is the authoritative
-                    // source at this height, so finalize by number.
-                    self.engine_client
-                        .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
-                        .await
-                        .map_err(|e| DerivationError::Sender(Box::new(e)))?;
-                }
-            }
-            DerivationActorRequest::ProcessL1HeadUpdateRequest(l1_head) => {
-                info!(target: "derivation", l1_head = ?*l1_head, "Processing l1 head update");
-
-                self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
-
-                self.attempt_derivation().await?;
-            }
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
                 self.derivation_state_machine
@@ -219,6 +210,26 @@ where
         }
 
         Ok(())
+    }
+
+    async fn process_finalized_l1_block(
+        &mut self,
+        block: BlockInfo,
+    ) -> Result<(), DerivationError> {
+        if let Some(l2_block_number) = self.finalizer.try_finalize_next(block) {
+            // Finalize by number against the engine's canonical chain.
+            self.engine_client
+                .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
+                .await
+                .map_err(|error| DerivationError::Sender(Box::new(error)))?;
+        }
+        Ok(())
+    }
+
+    async fn process_l1_head(&mut self, head: BlockInfo) -> Result<(), DerivationError> {
+        info!(target: "derivation", l1_head = ?head, "Processing l1 head update");
+        self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
+        self.attempt_derivation().await
     }
 
     /// Attempts to process the next payload attributes.
@@ -272,14 +283,22 @@ where
     type Error = DerivationError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
-            error!(
-                target: "derivation",
-                "DerivationActor inbound request receiver closed unexpectedly",
-            );
-            DerivationError::RequestReceiveFailed
-        })?;
-        self.handle_derivation_actor_request(request).await
+        tokio::select! {
+            request = self.inbound_request_rx.recv() => {
+                let request = request.ok_or(DerivationError::RequestReceiveFailed)?;
+                self.handle_derivation_actor_request(request).await
+            }
+            result = self.head.changed() => {
+                result.map_err(|_| DerivationError::L1ReceiveFailed)?;
+                let head = *self.head.borrow_and_update();
+                self.process_l1_head(head).await
+            }
+            result = self.finalized.changed() => {
+                result.map_err(|_| DerivationError::L1ReceiveFailed)?;
+                let finalized = *self.finalized.borrow_and_update();
+                self.process_finalized_l1_block(finalized).await
+            }
+        }
     }
 }
 
@@ -298,6 +317,9 @@ pub enum DerivationError {
     /// Failed to receive inbound request
     #[error("Failed to receive inbound request")]
     RequestReceiveFailed,
+    /// An L1 observation publisher closed.
+    #[error("l1 observation channel closed")]
+    L1ReceiveFailed,
     /// An invalid state transition occurred.
     #[error(transparent)]
     StateTransitionError(#[from] DerivationStateTransitionError),
@@ -400,6 +422,8 @@ mod tests {
         engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
 
         let (request_tx, request_rx) = mpsc::channel(1);
+        let (_head_tx, head_rx) = watch::channel(BlockInfo::default());
+        let (_finalized_tx, finalized_rx) = watch::channel(BlockInfo::default());
         let mut actor = DerivationActor::new(
             engine_client,
             request_rx,
@@ -409,6 +433,8 @@ mod tests {
                 advance_to: None,
                 reorg: true,
             },
+            head_rx,
+            finalized_rx,
         );
 
         // Complete EL sync so the actor starts deriving, then let it hit the reorg.
@@ -426,6 +452,8 @@ mod tests {
         let initial = BlockInfo { number: 5, ..Default::default() };
         let advanced = BlockInfo { number: 7, ..Default::default() };
         let (tx, rx) = mpsc::channel(1);
+        let (head_tx, head_rx) = watch::channel(BlockInfo::default());
+        let (_finalized_tx, finalized_rx) = watch::channel(BlockInfo::default());
         let mut actor = DerivationActor::new(
             MockDerivationEngineClient::new(),
             rx,
@@ -435,6 +463,8 @@ mod tests {
                 advance_to: Some(advanced),
                 reorg: false,
             },
+            head_rx,
+            finalized_rx,
         );
         let status = actor.state_receiver();
         assert_eq!(status.borrow().current_l1, Some(initial));
@@ -444,12 +474,7 @@ mod tests {
         actor.step().await.unwrap();
         assert_eq!(status.borrow().current_l1, Some(advanced));
         // Observing a newer head does not mean derivation has processed it.
-        tx.send(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(BlockInfo {
-            number: 100,
-            ..Default::default()
-        })))
-        .await
-        .unwrap();
+        head_tx.send_replace(BlockInfo { number: 100, ..Default::default() });
         actor.step().await.unwrap();
         assert_eq!(status.borrow().current_l1, Some(advanced));
         let reset_origin = BlockInfo { number: 4, ..Default::default() };
@@ -462,5 +487,118 @@ mod tests {
         .unwrap();
         actor.step().await.unwrap();
         assert_eq!(status.borrow().current_l1, Some(reset_origin));
+    }
+    #[tokio::test]
+    async fn head_changes_wake_derivation_and_coalesce_reorgs() {
+        let (_requests, requests) = mpsc::channel(1);
+        let (heads, head_rx) = watch::channel(BlockInfo::default());
+        let (_finalized, finalized_rx) = watch::channel(BlockInfo::default());
+        let mut actor = DerivationActor::new(
+            MockDerivationEngineClient::new(),
+            requests,
+            TestPipeline {
+                rollup_config: Arc::new(RollupConfig::default()),
+                origin: Some(BlockInfo::default()),
+                advance_to: None,
+                reorg: false,
+            },
+            head_rx,
+            finalized_rx,
+        );
+        actor
+            .derivation_state_machine
+            .update(&DerivationStateUpdate::ELSyncCompleted(Box::default()))
+            .unwrap();
+        actor.attempt_derivation().await.unwrap();
+        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+        for (number, hash) in [(7, 1), (7, 2), (6, 3)] {
+            let block = BlockInfo { number, hash: B256::repeat_byte(hash), ..Default::default() };
+            actor.pipeline.advance_to = Some(block);
+            heads.send_replace(block);
+            actor.step().await.unwrap();
+            assert_eq!(actor.status.borrow().current_l1, Some(block));
+            assert_eq!(
+                actor.derivation_state_machine.current_state(),
+                DerivationState::AwaitingL1Data
+            );
+        }
+        heads.send_replace(BlockInfo { number: 8, ..Default::default() });
+        let latest = BlockInfo { number: 9, ..Default::default() };
+        heads.send_replace(latest);
+        actor.pipeline.advance_to = Some(latest);
+        actor.step().await.unwrap();
+        assert_eq!(actor.status.borrow().current_l1, Some(latest));
+        assert!(!actor.head.has_changed().unwrap());
+    }
+
+    #[tokio::test]
+    async fn finality_changes_finalize_without_new_heads() {
+        let (_requests, requests) = mpsc::channel(1);
+        let (_heads, head_rx) = watch::channel(BlockInfo::default());
+        let (finalized, finalized_rx) =
+            watch::channel(BlockInfo { number: 99, ..Default::default() });
+        let mut engine = MockDerivationEngineClient::new();
+        engine
+            .expect_send_finalized_l2_block()
+            .withf(|id| matches!(id, FinalizeBlockId::ByNumber(17)))
+            .once()
+            .returning(|_| Ok(()));
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            TestPipeline {
+                rollup_config: Arc::new(RollupConfig::default()),
+                origin: None,
+                advance_to: None,
+                reorg: false,
+            },
+            head_rx,
+            finalized_rx,
+        );
+        actor.finalizer.enqueue_for_finalization(&OpAttributesWithParent {
+            attributes: Default::default(),
+            parent: L2BlockInfo {
+                block_info: BlockInfo { number: 16, ..Default::default() },
+                ..Default::default()
+            },
+            derived_from: Some(BlockInfo { number: 7, ..Default::default() }),
+            is_last_in_span: false,
+        });
+        // Initial snapshots do not act as block events.
+        tokio::select! {
+            biased;
+            result = actor.step() => panic!("processed an initial snapshot: {result:?}"),
+            _ = std::future::ready(()) => {}
+        }
+        finalized.send_replace(BlockInfo { number: 6, ..Default::default() });
+        actor.step().await.unwrap();
+        finalized.send_replace(BlockInfo { number: 7, ..Default::default() });
+        finalized.send_replace(BlockInfo { number: 8, ..Default::default() });
+        actor.step().await.unwrap();
+    }
+
+    #[rstest]
+    #[case::head(true)]
+    #[case::finalized(false)]
+    #[tokio::test]
+    async fn closed_l1_publisher_is_fatal(#[case] close_head: bool) {
+        let (_requests, requests) = mpsc::channel(1);
+        let (heads, head_rx) = watch::channel(BlockInfo::default());
+        let (finalized, finalized_rx) = watch::channel(BlockInfo::default());
+        let mut actor = DerivationActor::new(
+            MockDerivationEngineClient::new(),
+            requests,
+            TestPipeline {
+                rollup_config: Arc::new(RollupConfig::default()),
+                origin: None,
+                advance_to: None,
+                reorg: false,
+            },
+            head_rx,
+            finalized_rx,
+        );
+        let mut publishers = vec![heads, finalized];
+        drop(publishers.remove(usize::from(!close_head)));
+        assert!(matches!(actor.step().await, Err(DerivationError::L1ReceiveFailed)));
     }
 }

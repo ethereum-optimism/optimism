@@ -31,7 +31,7 @@ pub use derivation::{
     DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
 };
 
-pub mod l1_watcher;
+pub mod l1_signer_updater;
 
 pub mod l1;
 

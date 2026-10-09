@@ -31,6 +31,9 @@ where
 {
     /// The channel on which all inbound requests are received by the actor.
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+    /// L1 observations published by the polling actors.
+    head: watch::Receiver<BlockInfo>,
+    finalized: watch::Receiver<BlockInfo>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
     /// The derivation pipeline.
@@ -44,13 +47,13 @@ where
 }
 ```
 
-Inbound requests are expressed as the `DerivationActorRequest` enum: L1 head updates, finalized L1 block updates, engine safe head updates, engine sync completion, and pipeline signals from the engine (for example flush or reset).
+Inbound requests are expressed as the `DerivationActorRequest` enum: engine safe head updates, engine sync completion, and pipeline signals from the engine (for example flush or reset). L1 head and finalized block updates arrive directly through watch receivers.
 
 The actor publishes `DerivationStatus` through a watch channel after pipeline steps and signals. Its `current_l1` is the pipeline's current origin, so observing a newer L1 head does not advance this field until derivation processes it. Resets can move the published origin backwards. In delegated mode, the actor publishes the delegate's current L1 block only after validating the reported L1 information against the canonical chain.
 
 The actor coordinates with several other node components:
 - **Engine Actor**: Receives payload attributes for execution and sends back safe head updates and pipeline signals
-- **L1 Watcher Actor**: Sends L1 head and finalized block updates from the L1 chain
+- **L1 Actors**: Publish head and finalized block observations through watch channels
 
 ### Pipeline Construction
 
@@ -169,9 +172,9 @@ self.engine_client
 
 The engine actor executes these attributes and updates the L2 safe head, which triggers the next derivation cycle.
 
-### With the L1 Watcher
+### With the L1 Actors
 
-The derivation actor receives L1 head updates from the L1 watcher actor as `DerivationActorRequest::ProcessL1HeadUpdateRequest` messages on its inbound request channel, which indicate when new L1 data is available for processing. Finalized L1 blocks arrive the same way and drive the `L2Finalizer`.
+The derivation actor subscribes directly to the head and finalized L1 block receivers published by the L1 polling actors. Head changes indicate when new L1 data is available for processing; finalized changes drive the `L2Finalizer`. These receivers retain the latest observation while derivation is busy, including reorgs. Initial snapshots do not trigger processing. Engine signals and safe-head updates still arrive on the inbound request channel.
 
 ### With RPC Layer
 

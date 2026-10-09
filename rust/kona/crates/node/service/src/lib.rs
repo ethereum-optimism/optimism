@@ -26,7 +26,7 @@ pub use kona_node_actors::{
     NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
     QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedNetworkEngineClient,
     QueuedSequencerEngineClient, ResetRequest, RpcActor, RpcActorError, SealRequest,
-    SequencerConfig, SequencerEngineClient, l1, l1_watcher, sequencer, signer,
+    SequencerConfig, SequencerEngineClient, l1, l1_signer_updater, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

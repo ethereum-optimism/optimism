@@ -92,14 +92,14 @@ to support advanced use cases and custom integrations.
 #### Actor Model
 
 At the core of `kona-node` is the concept of **actors**: independent,
-async services that communicate over channels. Each actor implements
-the [`NodeActor` trait][node-actor], a minimal interface with a single
-`step` method that the service drives in a loop until the actor reports
-a fatal error or the node shuts down.
+async services that communicate over channels. Actors expose lifetime
+futures, while some still implement the [`NodeActor` trait][node-actor]
+with a `step` method that the service drives in a loop. The supervisor
+aborts the remaining actors when one exits or the node shuts down.
 
 The [`RollupNode` service][node] builds and spawns a fixed set of
 actors covering derivation, the execution engine and its read-only
-engine RPC, the L1 watcher, P2P networking, the node's RPC server,
+engine RPC, L1 polling and signer updates, P2P networking, the node's RPC server,
 and, in sequencer mode, block building.
 
 The [Node Design section](/node-operators/kona-node/design/intro) is

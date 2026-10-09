@@ -38,7 +38,7 @@ async fn reset_recovers_and_completes_original_request(
     let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
     // Derivation waits for the reset reply and cannot drain its full queue until then.
     derivation_tx
-        .send(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default()))
+        .send(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::default()))
         .await
         .unwrap();
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
@@ -87,7 +87,7 @@ async fn reset_recovers_and_completes_original_request(
     time::timeout(Duration::from_secs(20), reset).await.unwrap().unwrap().unwrap();
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessL1HeadUpdateRequest(_)
+        DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
     ));
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),

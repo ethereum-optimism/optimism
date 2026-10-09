@@ -239,9 +239,7 @@ where
                 self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
-            DerivationActorRequest::ProcessEngineSignalRequest(_) |
-            DerivationActorRequest::ProcessFinalizedL1Block(_) |
-            DerivationActorRequest::ProcessL1HeadUpdateRequest(_) => {
+            DerivationActorRequest::ProcessEngineSignalRequest(_) => {
                 debug!(target: "derivation", "Ignoring request while derivation delegation: {:?}", request_type);
             }
         }
