@@ -122,8 +122,8 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     # Create .env file with your actual values
     cat > .env << 'EOF'
     # Core configuration (required)
-    OP_CHALLENGER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
-    OP_CHALLENGER_L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+    OP_CHALLENGER_L1_ETH_RPC=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+    OP_CHALLENGER_L1_BEACON=https://ethereum-sepolia-beacon-api.publicnode.com
     OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
 
     # L2 Configuration - Replace with your actual node endpoints  
@@ -132,7 +132,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     # OP Stack challenger configuration (optional - defaults provided)
     OP_CHALLENGER_GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
-    OP_CHALLENGER_CANNON_KONA_L2_GENESIS=/workspace/genesis.json
+    OP_CHALLENGER_CANNON_KONA_L2_GENESIS=/workspace/genesis-l2.json
     OP_CHALLENGER_CANNON_KONA_ROLLUP_CONFIG=/workspace/rollup.json
 
 
@@ -155,6 +155,8 @@ For challenger deployment, we recommend using Docker as it provides a consistent
       challenger:
         image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.4
         user: "1000"
+        env_file:
+          - .env
         volumes:
           - ./challenger-data:/data
           - ./rollup.json:/workspace/rollup.json:ro
@@ -162,7 +164,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
           - ./prestate-proof.json:/workspace/prestate-proof.json:ro
           - ./${PRESTATE_HASH}.bin.gz:/workspace/${PRESTATE_HASH}.bin.gz:ro
         command: >
-          op-challenger run-trace
+          op-challenger
           --trace-type=cannon-kona
           --datadir=/data
           --log.level=info
