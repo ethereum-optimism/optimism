@@ -205,23 +205,25 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	minSafety safety.Level,
 	execDescriptor messages.ExecutingDescriptor,
 ) error {
-	// Check that we have ingested data for the requested timestamp
+	// Check that we have ingested data for the requested timestamp. This check and the
+	// cross-unsafe checks below wrap ErrFuture: the filter is only behind, so the answer
+	// must not read as a verdict on the message (op-reth treats ErrFuture as a non-response).
 	minIngestedTs, ok := v.getMinIngestedTimestamp()
 	if !ok || access.Timestamp > minIngestedTs {
 		return fmt.Errorf("timestamp %d not yet ingested (min ingested: %d): %w",
-			access.Timestamp, minIngestedTs, interop.ErrOutOfScope)
+			access.Timestamp, minIngestedTs, interop.ErrFuture)
 	}
 
 	// Check cross-unsafe timestamp
 	if minSafety == safety.CrossUnsafe {
 		crossValidatedTs, ok := v.CrossValidatedTimestamp()
 		if !ok {
-			return fmt.Errorf("cross-validated timestamp not available: %w", interop.ErrOutOfScope)
+			return fmt.Errorf("cross-validated timestamp not available: %w", interop.ErrFuture)
 		}
 		if access.Timestamp > crossValidatedTs {
 			return fmt.Errorf("message at timestamp %d not yet cross-unsafe validated "+
 				"(current cross-validated timestamp: %d): %w",
-				access.Timestamp, crossValidatedTs, interop.ErrOutOfScope)
+				access.Timestamp, crossValidatedTs, interop.ErrFuture)
 		}
 	}
 
