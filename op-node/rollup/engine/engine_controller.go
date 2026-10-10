@@ -118,6 +118,10 @@ type EngineController struct {
 
 	// Block Head State
 	unsafeHead eth.L2BlockRef
+	// followSourceSyncTarget is the unsafe head that FollowSource last set ahead of what the
+	// EL has, expecting the EL to sync to it over devp2p. An FCU to this head may return
+	// SYNCING until it does. Cleared once the EL accepts a forkchoice.
+	followSourceSyncTarget common.Hash
 	// Pending localSafeHead
 	// L2 block processed from the middle of a span batch,
 	// but not marked as the safe block yet.
@@ -504,6 +508,11 @@ func (e *EngineController) SetDeprecatedSafeHead(r eth.L2BlockRef) {
 func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
+	if r.Hash != e.followSourceSyncTarget {
+		// The head moved somewhere else (payload insert, reset, backup reorg): a SYNCING
+		// answer for the old follow-source target is no longer expected.
+		e.followSourceSyncTarget = common.Hash{}
+	}
 	e.chainSpec.CheckForkActivation(e.log, r)
 }
 
@@ -707,10 +716,22 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	// If the EL returns SYNCING (e.g. after an EL restart where in-memory state was lost),
 	// trigger a reset to re-discover the EL's actual chain state via FindL2Heads. Done before
 	// recording lastForkchoice so a rejected FCU doesn't short-circuit the next retry.
+	// Exception: SYNCING for the head FollowSource deliberately set ahead of the EL is expected
+	// and only temporary.
 	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
+		if fcRes.PayloadStatus.Status == eth.ExecutionSyncing &&
+			e.followSourceSyncTarget != (common.Hash{}) && fc.HeadBlockHash == e.followSourceSyncTarget {
+			// FollowSource pointed the EL at a block it does not have yet, so SYNCING is the
+			// expected answer while the EL fetches it over devp2p. A reset here would re-run
+			// FindL2Heads on every follow-source tick (a full walk back to genesis while the
+			// EL's safe/finalized are still at genesis) without ever letting the EL catch up.
+			// Leave lastForkchoice unset so the next tick retries the FCU.
+			return derive.NewTemporaryError(fmt.Errorf("follow-source target %s: %w", fc.HeadBlockHash, ErrEngineSyncing))
+		}
 		return derive.NewResetError(fmt.Errorf("forkchoice update returned unexpected status %s, need reset to re-sync with engine", fcRes.PayloadStatus.Status))
 	}
 	e.lastForkchoice = fc
+	e.followSourceSyncTarget = common.Hash{}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.requestForkchoiceUpdate(ctx)
 	}
@@ -1523,6 +1544,7 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		// Assume the sanity of external safe and finalized are checked
 		if updateUnsafe {
 			// May interrupt ongoing EL Sync to update the target, or trigger EL Sync
+			e.followSourceSyncTarget = eLocalSafeRef.Hash
 			e.tryUpdateUnsafe(e.ctx, eLocalSafeRef)
 		}
 		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
