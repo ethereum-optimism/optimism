@@ -7,13 +7,14 @@
 #
 # Layers (LAYERS, comma-separated, default "unit,inv,halmos,hevm"):
 #   unit    the PR's unit tests of the four contracts, FOUNDRY_PROFILE=liteci, fixed fuzz seed; for mutants of
-#           Constants.sol and the deploy scripts (and the baseline), also the L2Genesis and GenerateNUTBundle tests;
+#           Constants.sol, L2ContractsManager.sol and the deploy scripts (and the baseline), also the
+#           L2ContractsManager, L2Genesis and GenerateNUTBundle tests;
 #   inv     ../invariants (FOUNDRY_PROFILE=liteci, its pinned runs x depth), seed SEED; if nothing fails, two more
 #           seeds (SEED+1, SEED+2);
 #   halmos  the PASS checks (from ../halmos/expected.tsv) of the touched contract's phase-1 Halmos contract; if none
 #           fails, also its phase-2 reachability contract (REACH=always runs both every time). Constants.sol mutants
-#           use the messenger's contracts (they deploy it with Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD); the deploy
-#           scripts have none (NA);
+#           use the messenger's contracts (they store or initialize Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD as its
+#           period); L2ContractsManager.sol and the deploy scripts have none (NA);
 #   hevm    the develop-vs-branch equivalence harness (../hevm, Halmos engine) with the mutated messenger as the new
 #           code; only for L2ToL2CrossDomainMessenger mutants.
 # Verdicts: CAUGHT (with the failing checks), SURVIVED, NA (layer does not apply), ERROR (the mutant does not compile
@@ -71,9 +72,9 @@ henv=(env -u FOUNDRY_PROFILE FOUNDRY_SRC="$HDIR" FOUNDRY_TEST="$HDIR" FOUNDRY_SC
   FOUNDRY_CACHE_PATH="$HDIR/cache")
 EDIR=test/formal/expiry/hevm
 UNIT_PATHS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/UndeliveredMessageExporter,L2/SuperchainETHBridge}.t.sol"
-# Constants.sol and deploy-script mutants (and the baseline) also run the tests of the scripts that deploy the
-# messenger with its period. They take about five minutes, so the other mutants skip them.
-UNIT_PATHS_SCRIPTS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/UndeliveredMessageExporter,L2/SuperchainETHBridge,scripts/L2Genesis,scripts/GenerateNUTBundle}.t.sol"
+# Constants.sol, L2ContractsManager.sol and deploy-script mutants (and the baseline) also run the tests of the code
+# that initializes the messenger with its period. They take about five minutes, so the other mutants skip them.
+UNIT_PATHS_SCRIPTS="test/{L1/L1CrossDomainMessenger,L2/L2ToL2CrossDomainMessenger,L2/UndeliveredMessageExporter,L2/SuperchainETHBridge,L2/L2ContractsManager,scripts/L2Genesis,scripts/GenerateNUTBundle}.t.sol"
 # The GenerateNUTBundle tests rewrite the upgrade bundle snapshot; it is restored with the code.
 RESTORE=(src scripts snapshots/upgrades)
 INV_PATHS="test/formal/expiry/invariants/*"
@@ -140,11 +141,13 @@ targets_of() { # targets_of <file>
     */libraries/Constants.sol) canary=L2Genesis.s.sol:L2Genesis p1=L2ToL2ExpiryHalmos p2=ReachL2ToL2Halmos ;;
     */L2Genesis.s.sol) canary=L2Genesis.s.sol:L2Genesis ;;
     */UpgradeUtils.sol) canary=GenerateNUTBundle.s.sol:GenerateNUTBundle ;;
+    */L2ContractsManager.sol) canary=L2ContractsManager.sol:L2ContractsManager ;;
   esac
 }
 CANARIES=(L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger
   UndeliveredMessageExporter.sol:UndeliveredMessageExporter L1CrossDomainMessenger.sol:L1CrossDomainMessenger
-  SuperchainETHBridge.sol:SuperchainETHBridge L2Genesis.s.sol:L2Genesis GenerateNUTBundle.s.sol:GenerateNUTBundle)
+  SuperchainETHBridge.sol:SuperchainETHBridge L2Genesis.s.sol:L2Genesis GenerateNUTBundle.s.sol:GenerateNUTBundle
+  L2ContractsManager.sol:L2ContractsManager)
 
 # One forge test layer: run_forge <id> <layer> <paths> <seed>; prints the failures to stdout, or COMPILE-ERROR, or
 # RUN-ERROR when forge did not finish normally (an exit status other than 0 or 1, e.g. killed by the memory cap, or
@@ -293,19 +296,18 @@ layer_hevm() { # layer_hevm <id>: the mutated messenger replaces NEW in the equi
   mkdir -p "$EDIR/mutants"
   sed "s/^contract L2ToL2CrossDomainMessenger is/contract L2ToL2CrossDomainMessenger$m is/" \
     src/L2/L2ToL2CrossDomainMessenger.sol >"$EDIR/mutants/$m.sol"
-  # The messenger has an immutable (EXPIRY_PERIOD), so type(...).runtimeCode is unavailable: NEW gets the code of a
-  # deployment with the production period, as L2ToL2Bytecodes.CURRENT is (as ../hevm/run.sh builds its mutants).
+  # NEW gets the runtime of a no-argument deployment (as ../hevm/run.sh builds its mutants); the harness's setUp
+  # stores the production period in NEW's slot 5, as an initialized proxy holds it.
   cat >"$EDIR/mutants/$m.t.sol" <<EOF
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
 import { L2ToL2CrossDomainMessenger_EquivalenceHalmos } from "../L2ToL2Equivalence.t.sol";
 import { L2ToL2CrossDomainMessenger$m } from "./$m.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 contract ${m}_EquivalenceHalmos is L2ToL2CrossDomainMessenger_EquivalenceHalmos {
     function _newCode() internal override returns (bytes memory code_) {
-        address deployed = address(new L2ToL2CrossDomainMessenger$m(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        address deployed = address(new L2ToL2CrossDomainMessenger$m());
         code_ = deployed.code;
         vm.etch(deployed, hex"");
     }
@@ -363,7 +365,7 @@ run_mutant() { # run_mutant <id> <file> <sed expression>
     fi
   fi
   targets_of "$file"
-  case "$file" in none | */libraries/Constants.sol | scripts/*) upaths="$UNIT_PATHS_SCRIPTS" ;; esac
+  case "$file" in none | */libraries/Constants.sol | */L2ContractsManager.sol | scripts/*) upaths="$UNIT_PATHS_SCRIPTS" ;; esac
   if [[ $LAYERS == *,unit,* ]]; then
     layer_unit "$id" "$canary" "$upaths"
     if [ "$(tail -n 1 "$MATRIX" | cut -f3,5 | grep -c 'stale or unchanged artifact')" -ne 0 ]; then
