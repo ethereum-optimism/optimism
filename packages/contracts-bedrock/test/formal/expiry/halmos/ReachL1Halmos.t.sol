@@ -4,7 +4,8 @@ pragma solidity 0.8.15;
 // Phase 2 (3): whole-contract reachability on the REAL L1CrossDomainMessenger. For sequences of calls to every
 // non-view entry point (sendMessage, relayMessage, relayUndeliveredMessage, initialize) with symbolic arguments, plus
 // unknown selectors, from symbolic callers with symbolic msg.value: A's L1CDM is the SENDER in the relayMessage
-// envelope of a deposit it makes ONLY in a relayUndeliveredMessage step; a deposit made in a sendMessage step carries
+// envelope of a deposit it makes ONLY in a relayUndeliveredMessage step while A is not paused; a deposit made in a
+// sendMessage step carries
 // that step's caller as the envelope sender;
 // nothing else deposits; at most one deposit per step. (On chain the L1CDM sits behind a ResolvedDelegateProxy, which
 // only forwards; it is not modelled here: the implementation is called directly.)
@@ -171,7 +172,7 @@ contract ReachL1CDMHalmos is Test {
 
         uint256 newDeps = portalA.deposits() - depBefore;
         assert(newDeps <= 1);
-        if (portalA.selfSenderDeposits() != selfBefore) assert(ok && k == 2);
+        if (portalA.selfSenderDeposits() != selfBefore) assert(ok && k == 2 && !sysCfgA.paused());
         if (newDeps == 1) {
             assert(ok);
             assert(portalA.lastFrom() == address(l1cdm));
@@ -213,6 +214,22 @@ contract ReachL1CDMHalmos is Test {
         svm.enableSymbolicStorage(address(lockbox));
         svm.enableSymbolicStorage(address(attackerCfg));
         svm.enableSymbolicStorage(address(attackerLockbox));
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): pausing A changes nothing about a relayUndeliveredMessage call. The same
+    ///         call, from the same symbolic world, is made with A paused and then with A unpaused; the counterexample
+    ///         is a word the unpaused chain accepts and the paused chain rejects.
+    function check_FALSE_reach_pauseChangesNothing(Step memory _s) public {
+        _symbolicMocks();
+        vm.assume(_s.from != address(l1cdm) && _s.from != address(0));
+        bytes memory data = abi.encodeCall(l1cdm.relayUndeliveredMessage, (_s.h, _s.t));
+        sysCfgA.set(address(l1cdm), true);
+        vm.prank(_s.from);
+        (bool okPaused,) = address(l1cdm).call(data);
+        sysCfgA.set(address(l1cdm), false);
+        vm.prank(_s.from);
+        (bool okUnpaused,) = address(l1cdm).call(data);
+        assert(okPaused == okUnpaused);
     }
 
     /// @notice NON-VACUITY (expected FAIL): A's L1CDM is never the envelope sender in one step (the

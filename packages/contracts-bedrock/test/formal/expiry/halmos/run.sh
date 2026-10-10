@@ -100,6 +100,9 @@ for c in sorted({c for c, _ in expected}):
             benign = "unknown deployed bytecode" in line and c in (
                 "RefundExpiryHalmos", "ReachBridgeHalmos", "L2ToL2ExpiryHalmos", "ReachL2ToL2Halmos"
             )
+            # --early-exit (on some witnesses) cancels the solver queries still pending after the first
+            # counterexample, and halmos logs each cancellation as this error.
+            benign = benign or "executor has been shutdown" in line
             if re.search(r"WARNING|ERROR|\[TIMEOUT\]", line) and not benign and "foundry.lock" not in line:
                 print(f"BAD {c}: halmos log: {line.strip()[:160]}"); bad += 1
     path = os.path.join(out, c + ".json")

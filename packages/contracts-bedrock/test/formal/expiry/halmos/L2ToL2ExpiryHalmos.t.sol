@@ -8,7 +8,9 @@ pragma solidity 0.8.25;
 //   (1) UnsafeTargetRule      sendMessage / relayMessage never succeed for target 0x..07 or 0x..16 (and 0x..23 on
 // send). (2) OnlyExportReachesL1   0x..23 never calls 0x..07 or 0x..16 (send, relay, re-entrant relay); an export made
 //                             re-entrantly during a relay carries exactly the export payload for an unrelayed hash.
-//   (5) expireMessage         auth + exact boundary at EXPIRY_PERIOD, as an iff, plus full storage frame.
+//   (5) expireMessage         auth + exact boundary at the stored expiryPeriod, as an iff, plus full storage frame;
+//                             the iff also holds for every stored period. initialize: who may set the period, its
+//                             bounds, one-shot, and the implementation's initializer disabled.
 //   (+) Storage effects/frames of sendMessage and relayMessage; relay delivery, value, context, failure.
 //   The exporter itself (group 3) is checked in ExporterExpiryHalmos.t.sol.
 //
@@ -29,6 +31,7 @@ import {
     MockCrossL2Inbox,
     Recorder,
     MockL2CDMGetters,
+    MockProxyAdmin,
     ReentrantTarget,
     RelayProbe
 } from "./HalmosMocks.sol";
@@ -40,6 +43,13 @@ contract L2ToL2ExpiryHalmos is Test {
     address internal constant L2CDM = Predeploys.L2_CROSS_DOMAIN_MESSENGER; // 0x..07
     address internal constant PASSER = Predeploys.L2_TO_L1_MESSAGE_PASSER; // 0x..16
     address internal constant INBOX = Predeploys.CROSS_L2_INBOX; // 0x..22
+    address internal constant PROXY_ADMIN = Predeploys.PROXY_ADMIN; // 0x..18
+
+    /// @notice Storage slot of `expiryPeriod` (forge inspect L2ToL2CrossDomainMessenger storageLayout).
+    bytes32 internal constant EXPIRY_PERIOD_SLOT = bytes32(uint256(5));
+    /// @notice Slot of OpenZeppelin v5 Initializable's namespaced storage (`_initialized` in the low 8 bytes,
+    ///         `_initializing` in the next byte).
+    bytes32 internal constant INITIALIZABLE_SLOT = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
 
     L2ToL2CrossDomainMessenger internal m = L2ToL2CrossDomainMessenger(L2_TO_L2);
 
@@ -50,7 +60,7 @@ contract L2ToL2ExpiryHalmos is Test {
     address internal constant EXPORTER = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
     function setUp() public {
-        templates[0] = address(new L2ToL2CrossDomainMessenger(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        templates[0] = address(new L2ToL2CrossDomainMessenger());
         templates[1] = address(new MockCrossL2Inbox());
         templates[2] = address(new Recorder());
         templates[3] = address(new Recorder());
@@ -68,6 +78,11 @@ contract L2ToL2ExpiryHalmos is Test {
         vm.etch(L2CDM, templates[2].code);
         vm.etch(PASSER, templates[3].code);
         vm.etch(EXPORTER, templates[4].code);
+        // The implementation's initializer is disabled, and the period lives in the proxy's storage, which
+        // L2ContractsManager initializes with the production period on every upgrade. The etched messenger gets that
+        // storage directly.
+        vm.store(L2_TO_L2, EXPIRY_PERIOD_SLOT, bytes32(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        assert(m.expiryPeriod() == Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD); // slot check
     }
 
     /// @notice ASSUMPTION for symbolic relay targets: the target is not a harness account. It may still be any of the
@@ -126,6 +141,7 @@ contract L2ToL2ExpiryHalmos is Test {
         uint256 tsK;
         bool succK;
         bool expK;
+        uint256 period;
     }
 
     function _snap(FrameKeys memory _fk) internal view returns (Snap memory s_) {
@@ -134,6 +150,7 @@ contract L2ToL2ExpiryHalmos is Test {
         s_.tsK = m.sentMessageTimestamps(_fk.k);
         s_.succK = m.successfulMessages(_fk.k);
         s_.expK = m.expiredMessages(_fk.k);
+        s_.period = m.expiryPeriod();
     }
 
     function _sameExceptNothing(Snap memory _a, Snap memory _b) internal pure {
@@ -142,6 +159,7 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(_a.tsK == _b.tsK);
         assert(_a.succK == _b.succK);
         assert(_a.expK == _b.expK);
+        assert(_a.period == _b.period);
     }
 
     function _hash(
@@ -762,9 +780,9 @@ contract L2ToL2ExpiryHalmos is Test {
     /// @notice expireMessage succeeds iff
     ///           msg.sender == 0x..07 && L2CDM.xDomainMessageSender() == L2CDM.otherMessenger()
     ///           && (expiredMessages[H] || (sentAt != 0 && t > sentAt + W))
-    ///         where sentAt = sentMessageTimestamps[H] and W = EXPIRY_PERIOD read from the contract (not
-    ///         hardcoded). For an already-expired H (the early return) the raw storage word of
-    ///         expiredMessages[H] is unchanged.
+    ///         where sentAt = sentMessageTimestamps[H] and W = expiryPeriod() read from the contract (not
+    ///         hardcoded: the production period stored in setUp; check_expire_iff_anyPeriod covers every period).
+    ///         For an already-expired H (the early return) the raw storage word of expiredMessages[H] is unchanged.
     ///         ASSUMPTION: sentAt <= 2^64 - 1 (a block timestamp). Without it see check_expire_iff_unbounded.
     ///         Frame: on success expiredMessages[H] becomes true; on revert it is unchanged; everything else
     ///         (sentMessageTimestamps[H], successfulMessages[H], nonce, sentMessages[j], and all five observations at
@@ -883,15 +901,140 @@ contract L2ToL2ExpiryHalmos is Test {
         assert(ok == (_t > sentAt + w));
     }
 
+    /// @notice The same iff for EVERY stored period P (any uint256, including 0 and values initialize rejects), with
+    ///         no bound on sentAt: expireMessage reads the period from storage, compares against that P, and changes
+    ///         neither P nor anything but expiredMessages[H].
+    function check_expire_iff_anyPeriod(
+        address _caller,
+        address _xSender,
+        address _other,
+        bytes32 _h,
+        bytes32 _h2,
+        uint256 _t,
+        uint256 _j,
+        uint256 _p
+    )
+        public
+    {
+        _setupExpire(_xSender, _other);
+        vm.store(L2_TO_L2, EXPIRY_PERIOD_SLOT, bytes32(_p));
+        assert(m.expiryPeriod() == _p); // slot check
+        uint256 sentAt = m.sentMessageTimestamps(_h);
+        bool expiredBefore = m.expiredMessages(_h);
+        vm.assume(_h2 != _h);
+        Snap memory before = _snap(FrameKeys(_h2, _j));
+
+        bool ok = _expire(_caller, _h, _t);
+
+        bool expected = _caller == L2CDM && _xSender == _other
+            && (expiredBefore || (sentAt != 0 && sentAt <= type(uint256).max - _p && _t > sentAt + _p));
+        assert(ok == expected);
+        assert(m.expiredMessages(_h) == (ok ? true : expiredBefore));
+        assert(m.sentMessageTimestamps(_h) == sentAt);
+        _sameExceptNothing(before, _snap(FrameKeys(_h2, _j)));
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): with a symbolic stored period, a first expiry succeeds only when the period
+    ///         is the production one. The counterexample is a successful first expiry under another stored period, so
+    ///         the success path of check_expire_iff_anyPeriod is reachable and the stored period is what is read.
+    function check_FALSE_expire_onlyProductionPeriodSucceeds(
+        address _l1Messenger,
+        bytes32 _h,
+        uint256 _t,
+        uint256 _p
+    )
+        public
+    {
+        _setupExpire(_l1Messenger, _l1Messenger);
+        vm.store(L2_TO_L2, EXPIRY_PERIOD_SLOT, bytes32(_p));
+        vm.assume(!m.expiredMessages(_h));
+        bool ok = _expire(L2CDM, _h, _t);
+        assert(!ok || _p == Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD);
+    }
+
+    // ================================================================ initialize
+
+    function _initialize(address _caller, uint256 _p) internal returns (bool ok_) {
+        vm.prank(_caller);
+        (ok_,) = L2_TO_L2.call(abi.encodeCall(m.initialize, (_p)));
+    }
+
+    /// @notice Symbolic messenger storage at 0x..23, except: the EIP-1967 admin slot names the L2 ProxyAdmin 0x..18
+    ///         (whose owner() is symbolic), and the Initializable word and the stored period are symbolic values the
+    ///         check names. initialize(p) succeeds
+    ///         iff the contract is not initialized and not initializing, the caller is the ProxyAdmin or its owner, and
+    ///         0 < p <= 365 days. On success the period is p and the contract is initialized (a second call reverts);
+    ///         on revert the period is unchanged. It changes nothing at any message key.
+    function check_initialize_iff(
+        address _caller,
+        address _owner,
+        uint256 _initWord,
+        uint256 _before,
+        uint256 _p,
+        bytes32 _k,
+        uint256 _j
+    )
+        public
+    {
+        svm.enableSymbolicStorage(L2_TO_L2);
+        vm.etch(PROXY_ADMIN, address(new MockProxyAdmin()).code);
+        MockProxyAdmin(PROXY_ADMIN).setOwner(_owner);
+        vm.store(L2_TO_L2, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(PROXY_ADMIN))));
+        vm.store(L2_TO_L2, INITIALIZABLE_SLOT, bytes32(_initWord));
+        vm.store(L2_TO_L2, EXPIRY_PERIOD_SLOT, bytes32(_before));
+        Snap memory frameBefore = _snap(FrameKeys(_k, _j));
+        bool fresh = uint64(_initWord) == 0 && uint8(_initWord >> 64) == 0;
+
+        bool ok = _initialize(_caller, _p);
+
+        bool expected = fresh && (_caller == PROXY_ADMIN || _caller == _owner) && _p != 0 && _p <= 365 days;
+        assert(ok == expected);
+        assert(m.expiryPeriod() == (ok ? _p : _before));
+        Snap memory frameAfter = _snap(FrameKeys(_k, _j));
+        frameAfter.period = frameBefore.period;
+        _sameExceptNothing(frameBefore, frameAfter);
+        if (ok) assert(!_initialize(_caller, _p));
+    }
+
+    /// @notice The implementation's initializer is disabled: initialize on a constructed implementation reverts for
+    ///         every caller and argument, even with the EIP-1967 admin slot naming the ProxyAdmin.
+    function check_initialize_implementationDisabled(address _caller, address _owner, uint256 _p) public {
+        address impl = address(new L2ToL2CrossDomainMessenger());
+        vm.etch(PROXY_ADMIN, address(new MockProxyAdmin()).code);
+        MockProxyAdmin(PROXY_ADMIN).setOwner(_owner);
+        vm.store(impl, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(PROXY_ADMIN))));
+        vm.prank(_caller);
+        (bool ok,) = impl.call(abi.encodeCall(m.initialize, (_p)));
+        assert(!ok);
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): initialize never succeeds (same world as check_initialize_iff).
+    function check_FALSE_initialize_neverSucceeds(
+        address _caller,
+        address _owner,
+        uint256 _initWord,
+        uint256 _p
+    )
+        public
+    {
+        svm.enableSymbolicStorage(L2_TO_L2);
+        vm.etch(PROXY_ADMIN, address(new MockProxyAdmin()).code);
+        MockProxyAdmin(PROXY_ADMIN).setOwner(_owner);
+        vm.store(L2_TO_L2, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(PROXY_ADMIN))));
+        vm.store(L2_TO_L2, INITIALIZABLE_SLOT, bytes32(_initWord));
+        assert(!_initialize(_caller, _p));
+    }
+
     // ================================================================ parameters / documented facts
 
-    /// @notice P_contract >= W_protocol: the contract's expiry period covers the protocol window, which op-core/kona
-    ///         config parsing caps at 7 days. Holds for the current constant (7 days) and the planned one (8 days).
+    /// @notice P_contract >= W_protocol: the production expiry period (the one stored in setUp, which
+    ///         L2ContractsManager initializes on every upgrade) covers the protocol window, which op-core/kona config
+    ///         parsing caps at 7 days.
     function check_contractWindowCoversProtocolCap() public view {
         assert(m.expiryPeriod() >= 7 days);
     }
 
-    /// @notice The expiry period is the protocol cap (7 days) plus the 1-day margin.
+    /// @notice The production expiry period is the protocol cap (7 days) plus the 1-day margin.
     function check_expiryPeriodIsCapPlusMargin() public view {
         assert(m.expiryPeriod() == 7 days + 1 days);
     }

@@ -7,8 +7,9 @@ Symbolic checks, using Halmos 0.3.3, on the real contracts of the exporter desig
 sequence of calls, made from a symbolic state**. These checks do not cover multi-chain or multi-transaction
 composition; that belongs to the Quint model, Kontrol and Lean, which cross-check against this suite.
 
-Last full run (`run.sh` and `mutants.sh`): contracts at c7c51d79e2. The logic is unchanged at 448d31ad19, where only
-the messenger's version string differs.
+Last full `run.sh` ("all results as expected", 79 checks): contracts at 0a88e080e6, where the messenger's expiry period is set by `initialize` and stored
+(slot 5) and `relayUndeliveredMessage` reverts on a paused chain. `mutants.sh` last ran in full at c7c51d79e2; at
+0a88e080e6 the mutants for the changed code were re-run (see "Retarget to the initializer-set period").
 
 ## Files
 
@@ -18,12 +19,12 @@ the messenger's version string differs.
 | `ExporterExpiryHalmos.t.sol` (solc 0.8.15) | Group (3) on the real `UndeliveredMessageExporter`: export binding, plus "any calldata ⇒ only the export payload". |
 | `L1CDMExpiryHalmos.t.sol` (solc 0.8.15) | Two test contracts. `L1CDMExpiryHalmos`: group (4) relayUndeliveredMessage, and (7) the parts of sender exclusivity that live in L1CrossDomainMessenger, including its relay gate. `L2CDMGateHalmos`: the same relay gate on the real L2CrossDomainMessenger, which expireMessage's authorization trusts. |
 | `RefundExpiryHalmos.t.sol` (solc 0.8.15) | Group (6) refundETH, and a composed sendETH → expire → refund check. |
-| `HalmosMocks.sol` | L2-side mocks: the inbox, call recorders, L2CDM getters, a re-entrant relay target and an observing (optionally reverting) relay target. |
+| `HalmosMocks.sol` | L2-side mocks: the inbox, call recorders, L2CDM getters, the L2 ProxyAdmin's `owner()`, a re-entrant relay target and an observing (optionally reverting) relay target. |
 | `expected.tsv` | The inventory: contract, check, expected outcome. `run.sh` fails on any deviation. |
 | `run.sh` | Builds and runs everything, then validates against `expected.tsv`. |
 | `halmos.toml` | Default halmos options (byte lengths, solver timeout). Function annotations override them; command-line flags override both. |
 | `.gitignore` | Ignores the build output (`out/`, `cache/`) and the per-contract halmos logs and JSON that `run.sh` keeps in `results/`. |
-| `mutants.sh` | 46 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
+| `mutants.sh` | 51 halmos mutants and 2 forge mutants. Each one must be killed by the checks designated for it. |
 | `halmos-selfdestruct.patch` | Patch to halmos 0.3.3: SELFDESTRUCT in constructors, and MAX_ETH raised to 2^200. See below. |
 
 ## How to run
@@ -33,7 +34,7 @@ cd packages/contracts-bedrock
 uv venv /tmp/halmos-sd --python 3.12
 uv pip install --link-mode copy --python /tmp/halmos-sd/bin/python halmos==0.3.3   # copy mode: never patch uv's cache
 patch -d /tmp/halmos-sd/lib/python3.12/site-packages -p1 < test/formal/expiry/halmos/halmos-selfdestruct.patch
-HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # about 70 min on a 32-core Linux host (ReachL1CDM ~38 min, ReachL2ToL2 ~16 min)
+HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/run.sh        # about 110 min on a loaded 32-core Linux host (ReachL1CDM ~48 min, ReachL2ToL2 ~57 min)
 HALMOS=/tmp/halmos-sd/bin/halmos test/formal/expiry/halmos/mutants.sh    # about 15 min; ONLY=<regex> selects mutants
 # On a shared host, cap memory (and time) per halmos process:
 #   HALMOS_WRAP="systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 timeout 3600" ...
@@ -57,7 +58,8 @@ Options and settings:
   - any stuck path in any check, PASS or FAIL. Halmos reports a counterexample in preference to stuck, error or timeout
     paths, so the exit code alone cannot rule them out;
   - any WARNING, ERROR or TIMEOUT line in the halmos log, except the benign "unknown deployed bytecode" (SafeSend deploys
-    empty code);
+    empty code) and "executor has been shutdown", which halmos logs for the solver queries that `--early-exit` cancels
+    after the first counterexample (only `check_FALSE_reach_step_noTransition` uses it; see "Non-vacuity");
   - a `contract X is Test` in the `.t.sol` files that is missing from `expected.tsv`, or the reverse.
 - **Stock halmos:** the refund checks ERROR (exit code 3), and the run fails.
 
@@ -116,26 +118,36 @@ The exporter is the real contract at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`; 
 | `check_FALSE_relay_revertingTargetStillSucceeds` | Non-vacuity: with a valid origin and fresh storage, the target's revert is the only possible cause of failure. | FAIL |
 | `check_relay_effects_and_frame` | Symbolic storage, target does not re-enter. On success, `successfulMessages[H]` goes false → true, where H = H(chainid, id.chainId, nonce, sender, target, message). successfulMessages[k≠H] is unchanged, and nonce, sentMessages[j], sentMessageTimestamps[k] and expiredMessages[k] are unchanged. On revert, nothing changes. | PASS |
 
-### (5) expireMessage (L2ToL2)
+### (5) expireMessage and initialize (L2ToL2)
 
-W is read from `EXPIRY_PERIOD()` in the contract, which is 8 days at the tip: the 7-day protocol cap plus a 1-day margin.
+W is read with `expiryPeriod()` from the contract's storage (slot 5). The implementation's initializer is disabled, and
+`L2ContractsManager` initializes the proxy with `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD` on every upgrade, so `setUp`
+stores that production period (8 days: the 7-day protocol cap plus a 1-day margin) in slot 5 of the etched messenger.
+`check_expire_iff_anyPeriod` drops that choice and stores a symbolic period.
 
 | Check | Statement | Expected |
 |---|---|---|
 | `check_expire_iff` | Symbolic storage and symbolic getter answers. Success **iff** `msg.sender == 0x..07 ∧ xDomainMessageSender == otherMessenger ∧ sentAt ≠ 0 ∧ t > sentAt + W`, where sentAt = sentMessageTimestamps[H]. **Assumes sentAt ≤ 2^64−1.** Frame: expiredMessages[H] becomes true on success and is unchanged on revert. sentMessageTimestamps[H], successfulMessages[H], nonce and sentMessages[j] are unchanged, as are all observations at every H2 ≠ H. | PASS |
 | `check_expire_iff_unbounded` | The same iff with no bound on sentAt, plus the conjunct sentAt ≤ 2^256−1−W, because otherwise the checked add reverts. | PASS |
 | `check_expire_boundary` | Authorized call, 0 < sentAt < 2^64: t = sentAt+W reverts and t = sentAt+W+1 succeeds. | PASS |
-| `check_contractWindowCoversProtocolCap` | W ≥ 7 days, i.e. P_contract ≥ W_protocol, the cap op-core and kona enforce. | PASS |
-| `check_expiryPeriodIsCapPlusMargin` | W == 7 days + 1 day. | PASS |
+| `check_expire_iff_anyPeriod` | The `check_expire_iff_unbounded` iff, with the full frame, for a **symbolic stored period P** (any uint256, including 0 and values `initialize` rejects): expireMessage compares against the stored P, and changes neither P nor anything but expiredMessages[H]. | PASS |
+| `check_FALSE_expire_onlyProductionPeriodSucceeds` | Non-vacuity: a first expiry succeeds under a stored period other than 8 days. | FAIL |
+| `check_initialize_iff` | Symbolic storage at 0x..23, except the EIP-1967 admin slot names the L2 ProxyAdmin 0x..18 (a mock whose `owner()` is symbolic); the Initializable word and the stored period are symbolic. `initialize(p)` succeeds **iff** the contract is neither initialized nor initializing ∧ the caller is the ProxyAdmin or its owner ∧ 0 < p ≤ 365 days. On success the period is p and a second call reverts; on revert the period is unchanged. Nothing at any message key changes. | PASS |
+| `check_initialize_implementationDisabled` | On a constructed implementation, `initialize` reverts for every caller and argument, even with the admin slot naming the ProxyAdmin. | PASS |
+| `check_FALSE_initialize_neverSucceeds` | Non-vacuity for both initialize checks. | FAIL |
+| `check_contractWindowCoversProtocolCap` | The production period W ≥ 7 days, i.e. P_contract ≥ W_protocol, the cap op-core and kona enforce. | PASS |
+| `check_expiryPeriodIsCapPlusMargin` | The production period W == 7 days + 1 day. | PASS |
 | `check_FALSE_expire_windowIsGte`, `check_FALSE_expire_ignoresXDomainSender` | Non-vacuity. The first has its counterexample at t = sentAt+W. | FAIL |
 
 ### (4) relayUndeliveredMessage (L1CDM)
 
 | Check | Statement | Expected |
 |---|---|---|
-| `check_relayUndelivered_iff_and_deposit` | Success **iff** A's SystemConfig has INTEROP enabled (symbolic) ∧ no dependency reverts ∧ (a) ∧ (b) ∧ (c). Gas is compared with an independent restatement of the baseGas formula. The possibly reverting dependencies are caller.portal(), callerPortal.systemConfig(), sysCfg.l1CrossDomainMessenger(), portalA.ethLockbox(), lockbox.authorizedPortals(), caller.xDomainMessageSender() and portalA.depositTransaction(); each has a symbolic revert flag. The three checks are: (a) the caller's SystemConfig names the caller; (b) A's lockbox authorizes the caller's portal; (c) caller.xDomainMessageSender() == `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`. All answers are symbolic. On success there is exactly one deposit, sent by A's L1CDM, with to = 0x..07, value 0, isCreation false, gasLimit = baseGas(expireMessage(H,t), 100000), and data = `relayMessage(messageNonce(), A's L1CDM, 0x..23, 0, 100000, expireMessage(H,t))`; the nonce is symbolic. On revert there is no deposit. | PASS |
+| `check_relayUndelivered_iff_and_deposit` | Success **iff** A's SystemConfig has INTEROP enabled (symbolic) ∧ A is not paused (symbolic) ∧ no dependency reverts ∧ (a) ∧ (b) ∧ (c). Gas is compared with an independent restatement of the baseGas formula. The possibly reverting dependencies are caller.portal(), callerPortal.systemConfig(), sysCfg.l1CrossDomainMessenger(), portalA.ethLockbox(), lockbox.authorizedPortals(), caller.xDomainMessageSender() and portalA.depositTransaction(); each has a symbolic revert flag. The three checks are: (a) the caller's SystemConfig names the caller; (b) A's lockbox authorizes the caller's portal; (c) caller.xDomainMessageSender() == `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`. All answers are symbolic. On success there is exactly one deposit, sent by A's L1CDM, with to = 0x..07, value 0, isCreation false, gasLimit = baseGas(expireMessage(H,t), 100000), and data = `relayMessage(messageNonce(), A's L1CDM, 0x..23, 0, 100000, expireMessage(H,t))`; the nonce is symbolic. On revert there is no deposit. | PASS |
 | `check_relayUndelivered_rejectsL2ToL2AsSender` | A caller whose xDomainMessageSender is 0x..23 is rejected, even when interop, (a), (b) and no-revert all hold. 0x..23 is no longer trusted. | PASS |
 | `check_FALSE_relayUndelivered_interopGateRedundant` | Non-vacuity: the INTEROP gate matters. | FAIL |
+| `check_relayUndelivered_rejectsWhenPaused` | A paused chain rejects every word and makes no deposit, whatever the other answers. | PASS |
+| `check_FALSE_relayUndelivered_pausedGateRedundant` | Non-vacuity: the paused check matters; the counterexample is a paused chain rejecting a word an unpaused one accepts. | FAIL |
 | `check_relayUndelivered_rejectsCallerClaimingPortalA` | A contract that names A's own portal as its portal always fails (a), because A's SystemConfig names A's L1CDM. | PASS |
 | `check_relayUndelivered_rejectsSelfCallOutsideRelay` | A's L1CDM calling itself while not relaying reverts: its xDomainMessageSender() reverts. | PASS |
 | `check_FALSE_relayUndelivered_lockboxCheckRedundant`, `check_FALSE_relayUndelivered_neverDeposits` | Non-vacuity. | FAIL |
@@ -176,6 +188,10 @@ What these checks show:
   group 3, such a withdrawal carries only the export payload.
 - On A, the L2CDM shows otherMessenger as the sender only for a message with that `_sender`, delivered by the aliased
   L1CDM.
+
+**Pause.** `relayUndeliveredMessage` reverts while A is paused (A's SystemConfig `paused()`), right after the INTEROP
+gate. Group (4) states it in the iff and in `check_relayUndelivered_rejectsWhenPaused`; `ReachL1CDMHalmos` requires A
+unpaused for every self-sender deposit.
 
 **Delegated, not checked here:**
 - **Event binding.** Halmos 0.3.3 has no `vm.recordLogs`, so the binding between the hash sendMessage returns and stores
@@ -219,7 +235,8 @@ and a non-decreasing symbolic timestamp, choosing symbolically among every state
 selectors (the proxy's own `upgradeTo`, `admin`, ... included, since a non-admin call to them is forwarded) and,
 where relevant, empty calldata. The properties are checked after **every** step.
 
-**Callers.** Not the ProxyAdmin, by the governance assumption. Not address(0), which only `eth_call` can be. Not the
+**Callers.** Not the ProxyAdmin or (for the L2ToL2 messenger, whose `initialize` also accepts it) its owner, by the
+governance assumption. Not address(0), which only `eth_call` can be. Not the
 contract under test or its implementation, which act only through their own code. Predeploys that legitimately call
 the contract are allowed: 0x..07 for expireMessage and 0x..23 for relayETH, with symbolic oracle answers.
 
@@ -227,12 +244,14 @@ the contract are allowed: 0x..07 for expireMessage and 0x..23 for relayETH, with
 
 | Check | Statement | Expected |
 |---|---|---|
-| `ReachL2ToL2Halmos.check_reach_sequence2` | Two steps from the deployed state, so every state is reachable; three steps exceeded 40 minutes. Relay targets are a codeless account, 0x..07 or 0x..16; arbitrary relay targets are covered by the L2ToL2ExpiryHalmos relay checks. Two steps already cover send-then-expire and send-then-relay. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0, sentAt ≤ 2^256−1−EXPIRY_PERIOD (so a wrapped sum is a counterexample, not a dropped panic) and t > sentAt + EXPIRY_PERIOD. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. Unknown selectors always revert. | PASS |
+| `ReachL2ToL2Halmos.check_reach_sequence2` | Two steps from the deployed state (the proxy initialized by the ProxyAdmin with the production period, as `L2ContractsManager` does), so every state is reachable; three steps exceeded 40 minutes. Steps include `initialize` (INIT) from any non-governance caller. Relay targets are a codeless account, 0x..07 or 0x..16; arbitrary relay targets are covered by the L2ToL2ExpiryHalmos relay checks. Two steps already cover send-then-expire and send-then-relay. At a symbolic hash K: **(E)** expiredMessages[K] never goes true → false. It goes false → true only in an expireMessage step with msg.sender == 0x..07, xDomainMessageSender == otherMessenger, h == K, sentAt ≠ 0, sentAt ≤ 2^256−1−expiryPeriod (so a wrapped sum is a counterexample, not a dropped panic) and t > sentAt + expiryPeriod. **(T)** sentMessageTimestamps[K] changes only in a sendMessage step that sends K, from 0 to block.timestamp, so it is never decreased or cleared. **(S)** successfulMessages[K] changes only in a relayMessage step that relays K, from false to true. **(P)** expiryPeriod() never changes. Unknown selectors always revert. | PASS |
 | `ReachL2ToL2Halmos.check_reach_step_symbolicStorage` | The same for one step from **fully symbolic** storage. (T) is weakened to "only a sendMessage step sending K, to block.timestamp", because an unreachable state can already hold a value for the next nonce's hash. | PASS |
 | `ReachExporterHalmos.check_reach_exporter_sequence2` | Two steps over export (symbolic arguments and message), version(), unknown selectors and empty calldata; three steps exceeded 40 minutes. successfulMessages is fully symbolic, so the first step already starts from every messenger state. Every call the exporter makes to 0x..07 is exactly the export payload for that step's arguments, with H computed with block.chainid and block.timestamp, and only when `successfulMessages[H]` was false before the step. It never calls 0x..16. The proxy slots and slots 0..3 never change; the implementation has no state variables. | PASS |
 | `ReachBridgeHalmos.check_reach_bridge_step` | One step from fully symbolic bridge and messenger storage, which covers every state, reachable or not; two- and three-step sequences exceeded 40 minutes, and every property here is a one-step transition property. The step is over the bridge (sendETH, relayETH, refundETH) **and** ETHLiquidity (burn, fund, mint), plus unknown selectors. refunded[K] never goes true → false, and goes false → true only in refundETH whose arguments hash to K with expiredMessages[K]. ETHLiquidity's balance decreases, i.e. a mint, only in relayETH called by 0x..23 with context sender == the bridge, or in refundETH, and by exactly the amount. With three steps the run exceeded 20 minutes. | PASS |
-| `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` | Two steps, each one of: sendMessage, relayMessage (any caller including A's portal; target a codeless account, A's L1CDM or A's portal, because arbitrary relay targets are the gate checks' job), relayUndeliveredMessage (any caller, including the mock messengers through symbolic aliasing), initialize, or an unknown selector, all with symbolic arguments. Three steps exceeded 40 minutes, and the earlier `createCalldata` form got stuck on symbolic offsets. A's L1CDM is the **envelope sender** of a deposit only in a relayUndeliveredMessage step. A sendMessage step's deposit carries that step's caller as the sender. Nothing else deposits, and there is at most one deposit per step. | PASS |
+| `ReachL2ToL2Halmos.check_FALSE_reach_periodNeverChanges` | Non-vacuity for (P): from symbolic storage, the ProxyAdmin or its owner changes the period with initialize. | FAIL |
+| `ReachL1CDMHalmos.check_reach_l1cdm_sequence2` | Two steps, each one of: sendMessage, relayMessage (any caller including A's portal; target a codeless account, A's L1CDM or A's portal, because arbitrary relay targets are the gate checks' job), relayUndeliveredMessage (any caller, including the mock messengers through symbolic aliasing), initialize, or an unknown selector, all with symbolic arguments. Three steps exceeded 40 minutes, and the earlier `createCalldata` form got stuck on symbolic offsets. A's L1CDM is the **envelope sender** of a deposit only in a relayUndeliveredMessage step, and only while A is not paused. A sendMessage step's deposit carries that step's caller as the sender. Nothing else deposits, and there is at most one deposit per step. | PASS |
 | `check_FALSE_reach_*` (one per contract) | Non-vacuity: expiry is reached, the exporter does call 0x..07, liquidity is minted, and the L1CDM is the self-sender. | FAIL |
+| `ReachL1CDMHalmos.check_FALSE_reach_pauseChangesNothing` | Non-vacuity for the pause: the same relayUndeliveredMessage call from the same symbolic world, made paused and then unpaused, has a different outcome. | FAIL |
 
 ## Non-vacuity
 
@@ -242,10 +261,14 @@ success path, the delivery, the transition, the deposit. The pairs are the 4th c
 fails if a PASS check names no witness, if the witness is not an expected-FAIL check of the same contract, or if the
 witness does not produce a validated counterexample in the same run.
 
+`check_FALSE_reach_step_noTransition` stops at its first counterexample (`@custom:halmos --early-exit`): with the
+period and the Initializable word symbolic, finding one for every failing path took over an hour. One validated
+counterexample is all the witness rule needs.
+
 A PASS check that asserts "always reverts" (the `reject*` checks) is paired with the witness for the success path of
 the same entry point under the same harness. Its counterexample shows that the harness can reach success, so the
-revert is not an artefact of the setup. The two constant checks on `EXPIRY_PERIOD` are paired with a FALSE check on the
-constant's value.
+revert is not an artefact of the setup. The two checks on the production period are paired with a FALSE check on its
+value.
 
 | Contract | PASS check | Witness |
 |---|---|---|
@@ -264,6 +287,9 @@ constant's value.
 | `L2ToL2ExpiryHalmos` | `check_expire_iff` | `check_FALSE_expire_neverSucceeds` |
 | `L2ToL2ExpiryHalmos` | `check_expire_iff_unbounded` | `check_FALSE_expire_neverSucceeds` |
 | `L2ToL2ExpiryHalmos` | `check_expire_boundary` | `check_FALSE_expire_windowIsGte` |
+| `L2ToL2ExpiryHalmos` | `check_expire_iff_anyPeriod` | `check_FALSE_expire_onlyProductionPeriodSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_initialize_iff` | `check_FALSE_initialize_neverSucceeds` |
+| `L2ToL2ExpiryHalmos` | `check_initialize_implementationDisabled` | `check_FALSE_initialize_neverSucceeds` |
 | `L2ToL2ExpiryHalmos` | `check_contractWindowCoversProtocolCap` | `check_FALSE_expiryPeriodIsProtocolCap` |
 | `L2ToL2ExpiryHalmos` | `check_expiryPeriodIsCapPlusMargin` | `check_FALSE_expiryPeriodIsProtocolCap` |
 | `ExporterExpiryHalmos` | `check_export_binding` | `check_FALSE_export_neverCallsL2CDM` |
@@ -272,6 +298,7 @@ constant's value.
 | `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsL2ToL2AsSender` | `check_FALSE_relayUndelivered_neverDeposits` |
 | `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsCallerClaimingPortalA` | `check_FALSE_relayUndelivered_neverDeposits` |
 | `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsSelfCallOutsideRelay` | `check_FALSE_relayUndelivered_neverDeposits` |
+| `L1CDMExpiryHalmos` | `check_relayUndelivered_rejectsWhenPaused` | `check_FALSE_relayUndelivered_neverDeposits` |
 | `L1CDMExpiryHalmos` | `check_L1_relayMessage_rejectsSelfAndPortalTargets` | `check_FALSE_L1_probeNeverCalled` |
 | `L1CDMExpiryHalmos` | `check_L1_relayGate_and_delivery` | `check_FALSE_L1_probeNeverCalled` |
 | `L1CDMExpiryHalmos` | `check_L1_replayNeedsExactFailedEntry` | `check_FALSE_L1_failedMessageNeverReplayable` |
@@ -301,6 +328,8 @@ could give.
   call that is later reverted leaves no trace; such a call also has no effect.
 - `MockL2CDMGetters` at 0x..07, for group 5: xDomainMessageSender() and otherMessenger() are symbolic. The real getter
   reverts when unset, so the mock only adds behaviours.
+- `MockProxyAdmin` at 0x..18, for the initialize checks and `ReachL2ToL2Halmos`: `owner()` answers a symbolic (or, in
+  the reach check, fixed) address.
 - L1 mocks: every getter has a symbolic revert flag and returns symbolic values. The mocks' own addresses are fixed.
 - Attacker-controlled getters on the OTHER chain's contracts, which the real code must not consult: the caller's own
   `systemConfig()` (answered by `AttackerSystemConfig`) and the caller portal's `ethLockbox()` (`AttackerLockbox`).
@@ -350,7 +379,7 @@ it by changing its own L2 state (the lockbox's own check compares the portals' L
 These checks cover the exporter code as deployed; they say nothing about an upgraded exporter.
 
 **Expiry.** `check_expire_iff` assumes sentAt ≤ 2^64−1, a block timestamp. `check_expire_iff_unbounded` drops that
-assumption.
+assumption. Both use the production period; `check_expire_iff_anyPeriod` drops that too.
 
 **Balances (refund).**
 - Halmos prunes any path that reads a balance above MAX_ETH. MAX_ETH is 2^128 in stock halmos, which is below
@@ -408,14 +437,17 @@ incremental build can miss them; in a copied tree it did, and 16 of a reviewer's
 build. For the forge mutants, the designated test must first PASS on the unmutated code. Under the mutant it must then
 fail itself after a successful `setUp`; a setUp or compile failure does not count as a kill.
 
-`mutants.sh` covers 46 halmos mutants and 2 forge mutants. Each must make **all** of its designated checks FAIL with a valid counterexample, and the
+`mutants.sh` covers 51 halmos mutants and 2 forge mutants. Each must make **all** of its designated checks FAIL with a valid counterexample, and the
 halmos process must exit 1. Stuck paths are tolerated for mutants only: a mutant can open code halmos cannot finish.
 For example, M20 lets the messenger call itself with symbolic calldata. The script exits nonzero on any survivor, any sed that does not
 apply, any other exit status, any halmos error or timeout, or any missing result.
 
 | Mutant | Designated checks |
 |---|---|
-| M1 window `<=` → `<` (EXPIRY_PERIOD) | expire_iff, expire_iff_unbounded, expire_boundary |
+| M1 window `<=` → `<` (at `sentAt + expiryPeriod`) | expire_iff, expire_iff_unbounded, expire_boundary, expire_iff_anyPeriod |
+| M38 expireMessage compares against 8 days instead of the stored period | expire_iff_anyPeriod |
+| M39 initialize accepts 0; M39b initialize has no upper bound; M40 initialize has no ProxyAdmin-or-owner check | initialize_iff |
+| M41 relayUndeliveredMessage without its paused check | relayUndelivered_iff_and_deposit, relayUndelivered_rejectsWhenPaused |
 | M2 relay skips the unsafe-target check | UnsafeTargetRule_relay, _relay_l2cdm, _relay_passer, OnlyExportReachesL1_relay_l2cdm, _relay_passer |
 | M3 send skips the unsafe-target check; M3b send accepts 0x..23 | UnsafeTargetRule_send (and _send_passer for M3) |
 | M3c the unsafe set drops 0x..16 | UnsafeTargetRule_send_passer, _relay_passer, OnlyExportReachesL1_relay_passer |
@@ -458,6 +490,28 @@ What changed from the suite for the earlier design (export inside the L2ToL2Cros
 - `MESSAGE_EXPIRY_WINDOW` became `EXPIRY_PERIOD` (8 days).
 - SuperchainETHBridge, ETHLiquidity, CrossDomainMessenger, L2CrossDomainMessenger and TransientContext are unchanged.
 - The same v3 suite also passed in full on the earlier design, before the retarget (round-2 log below).
+
+## Retarget to the initializer-set period
+
+What changed for the contracts at 0a88e080e6:
+- The messenger's period is no longer a constructor immutable. `constructor()` disables the initializers;
+  `initialize(uint256)` (the ProxyAdmin or its owner, once) requires `0 < p <= 365 days` and stores the period in
+  slot 5, which `expireMessage` reads. Harnesses that built the messenger with a constructor argument now deploy it
+  without one and store the production period in slot 5 after etching (`L2ToL2ExpiryHalmos`,
+  `RefundExpiryHalmos`'s composed check); `ReachL2ToL2Halmos` initializes its proxy as the ProxyAdmin, as
+  `L2ContractsManager` does, and its symbolic-storage checks give slot 5 and the Initializable word fresh symbolic
+  values (symbolic storage leaves the slots `setUp` wrote concrete).
+- New checks: `check_expire_iff_anyPeriod` (the expire iff for every stored period), `check_initialize_iff`,
+  `check_initialize_implementationDisabled`, the reach property (P) with an INIT step, and their witnesses. The
+  storage frames now also cover the stored period.
+- `L1CrossDomainMessenger` 3.0.0 reverts `relayUndeliveredMessage` while paused: the group (4) iff gains "not
+  paused" (A's `paused()` is symbolic), with `check_relayUndelivered_rejectsWhenPaused` and the witness
+  `check_FALSE_relayUndelivered_pausedGateRedundant`; `ReachL1CDMHalmos` requires A unpaused for every self-sender
+  deposit, with the witness `check_FALSE_reach_pauseChangesNothing`.
+- `mutants.sh`: M1 matches `expiryPeriod`; M33 names the current INTEROP error (its pattern had not applied since
+  that rename); new M38–M41 (period read from a constant, initialize bounds and caller check, paused check). These
+  and M1, M33 were run at 0a88e080e6: all killed by their designated checks.
+- `SuperchainETHBridge` is unchanged; the bridge checks are as before.
 
 ## Review log
 

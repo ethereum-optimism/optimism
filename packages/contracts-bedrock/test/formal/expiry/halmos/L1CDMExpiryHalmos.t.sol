@@ -7,7 +7,7 @@ pragma solidity 0.8.15;
 // Group (4): relayUndeliveredMessage(H, t), called by `caller`, succeeds iff no dependency getter reverts and
 //   (a) caller.portal().systemConfig().l1CrossDomainMessenger() == caller
 //   (b) A.portal.ethLockbox().authorizedPortals(caller.portal())
-//   (0) A's SystemConfig has the INTEROP feature enabled
+//   (0) A's SystemConfig has the INTEROP feature enabled, and A is not paused (A's SystemConfig.paused() is false)
 //   (c) caller.xDomainMessageSender() == TRUSTED_EXPORTER (Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
 // and on success A's portal receives EXACTLY ONE depositTransaction, from A's L1CrossDomainMessenger, with
 //   _to = 0x4200..0007, _value = 0, _isCreation = false, _gasLimit = baseGas(expireMessage(H, t), 100_000),
@@ -387,6 +387,7 @@ contract L1CDMExpiryHalmos is Test {
         svm.enableSymbolicStorage(address(attackerCfg));
         svm.enableSymbolicStorage(address(attackerLockbox));
         sysCfgA.setInterop(svm.createUint256("interop") & 1 == 1); // A's INTEROP feature: symbolic
+        sysCfgA.set(address(l1cdm), svm.createUint256("pausedA") & 1 == 1); // A paused: symbolic
         svm.enableSymbolicStorage(address(sysCfg));
         svm.enableSymbolicStorage(address(callerPortal));
         svm.enableSymbolicStorage(address(caller));
@@ -418,18 +419,19 @@ contract L1CDMExpiryHalmos is Test {
 
     // ================================================================ (4) relayUndeliveredMessage
 
-    /// @notice (4) accepts iff A's INTEROP feature is on, no dependency reverts and (a) && (b) && (c), where (c) trusts
-    ///         the UndeliveredMessageExporter; on success exactly one deposit with the exact fields in the header; on
-    ///         revert none.
+    /// @notice (4) accepts iff A's INTEROP feature is on, A is not paused, no dependency reverts and (a) && (b) && (c),
+    ///         where (c) trusts the UndeliveredMessageExporter; on success exactly one deposit with the exact fields in
+    ///         the header; on revert none.
     function check_relayUndelivered_iff_and_deposit(bytes32 _h, uint256 _t, bool _rvLockbox, bool _rvDeposit) public {
         uint256 nonce = _symbolicWorld(_rvLockbox, _rvDeposit);
         bool interop = sysCfgA.interop();
+        bool paused = sysCfgA.paused();
         bool noRevert = _noRevert();
         (bool a, bool b, bool c) = _checks();
 
         bool ok = _relayUndeliveredFrom(address(caller), _h, _t);
 
-        assert(ok == (interop && noRevert && a && b && c));
+        assert(ok == (interop && !paused && noRevert && a && b && c));
         if (ok) {
             bytes memory inner = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (_h, _t));
             bytes memory data = abi.encodeCall(
@@ -450,7 +452,7 @@ contract L1CDMExpiryHalmos is Test {
     }
 
     /// @notice The L2ToL2CrossDomainMessenger is no longer a trusted sender: a caller reporting xDomainMessageSender ==
-    ///         0x..23 is rejected even when everything else (interop, (a), (b), no reverts) holds.
+    ///         0x..23 is rejected even when everything else (interop, not paused, (a), (b), no reverts) holds.
     function check_relayUndelivered_rejectsL2ToL2AsSender(bytes32 _h, uint256 _t) public {
         _symbolicWorld(false, false);
         // MockCallerMessenger packs rvPortal (byte 0), rvX (byte 1) and xSender (bytes 2..21) into slot 0.
@@ -459,13 +461,35 @@ contract L1CDMExpiryHalmos is Test {
         assert(!_relayUndeliveredFrom(address(caller), _h, _t));
     }
 
-    /// @notice NON-VACUITY (expected FAIL): the INTEROP gate is redundant (accepts iff no revert && (a) && (b) && (c)).
+    /// @notice NON-VACUITY (expected FAIL): the INTEROP gate is redundant (accepts iff not paused && no revert
+    ///         && (a) && (b) && (c)).
     function check_FALSE_relayUndelivered_interopGateRedundant(bytes32 _h, uint256 _t) public {
         _symbolicWorld(false, false);
+        bool paused = sysCfgA.paused();
         bool noRevert = _noRevert();
         (bool a, bool b, bool c) = _checks();
         bool ok = _relayUndeliveredFrom(address(caller), _h, _t);
-        assert(ok == (noRevert && a && b && c));
+        assert(ok == (!paused && noRevert && a && b && c));
+    }
+
+    /// @notice A paused chain rejects every word, even when everything else (interop, (a), (b), (c), no reverts)
+    ///         holds, and makes no deposit.
+    function check_relayUndelivered_rejectsWhenPaused(bytes32 _h, uint256 _t) public {
+        _symbolicWorld(false, false);
+        vm.assume(sysCfgA.paused());
+        assert(!_relayUndeliveredFrom(address(caller), _h, _t));
+        assert(portalA.deposits() == 0);
+    }
+
+    /// @notice NON-VACUITY (expected FAIL): the pause check is redundant (accepts iff interop && no revert && (a)
+    ///         && (b) && (c)). The counterexample is a paused chain rejecting a word an unpaused chain accepts.
+    function check_FALSE_relayUndelivered_pausedGateRedundant(bytes32 _h, uint256 _t) public {
+        _symbolicWorld(false, false);
+        bool interop = sysCfgA.interop();
+        bool noRevert = _noRevert();
+        (bool a, bool b, bool c) = _checks();
+        bool ok = _relayUndeliveredFrom(address(caller), _h, _t);
+        assert(ok == (interop && noRevert && a && b && c));
     }
 
     /// @notice A contract that claims A's own portal as its portal is rejected: A's SystemConfig names A's L1CDM,
@@ -494,10 +518,11 @@ contract L1CDMExpiryHalmos is Test {
     function check_FALSE_relayUndelivered_lockboxCheckRedundant(bytes32 _h, uint256 _t) public {
         _symbolicWorld(false, false);
         bool interop = sysCfgA.interop();
+        bool paused = sysCfgA.paused();
         bool noRevert = _noRevert();
         (bool a,, bool c) = _checks();
         bool ok = _relayUndeliveredFrom(address(caller), _h, _t);
-        assert(ok == (interop && noRevert && a && c));
+        assert(ok == (interop && !paused && noRevert && a && c));
     }
 
     /// @notice NON-VACUITY (expected FAIL): relayUndeliveredMessage never produces a deposit.

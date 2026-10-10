@@ -80,6 +80,16 @@ contract MockL2CDMGetters {
     }
 }
 
+/// @notice L2 ProxyAdmin stand-in (etched at 0x4200..0018): owner() answers what the test sets (symbolic). The
+///         messenger's initialize accepts the ProxyAdmin or this owner.
+contract MockProxyAdmin {
+    address public owner;
+
+    function setOwner(address _owner) external {
+        owner = _owner;
+    }
+}
+
 interface IExportAndSend {
     function exportUndeliveredMessage(
         address _sourceMessenger,

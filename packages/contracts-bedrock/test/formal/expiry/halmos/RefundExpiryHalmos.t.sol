@@ -192,18 +192,15 @@ contract RefundExpiryHalmos is Test {
 
     // ================================================================ send -> expire -> refund (composed)
 
-    /// @notice With the REAL L2ToL2CrossDomainMessenger at 0x..23 (fresh storage except a SYMBOLIC prior nonce
-    ///         msgNonce < 2^240 - 1): sendETH from `from` succeeds, its message hash equals refundETH's recomputed H
-    /// for (destination, nonce = messageNonce() before, from, to, amount), sentMessageTimestamps[H] == block.timestamp,
-    /// refundETH reverts before expiry, and once
+    /// @notice With the REAL L2ToL2CrossDomainMessenger at 0x..23 (fresh storage except the production expiry period
+    ///         and a SYMBOLIC prior nonce msgNonce < 2^240 - 1): sendETH from `from` succeeds, its message hash
+    ///         equals refundETH's recomputed H for (destination, nonce = messageNonce() before, from, to, amount),
+    ///         sentMessageTimestamps[H] == block.timestamp, refundETH reverts before expiry, and once
     ///         expiredMessages[H] is set (written directly: expireMessage itself is checked in L2ToL2ExpiryHalmos)
     ///         the refund succeeds and pays `from` exactly `amount`.
     function check_sendETH_then_refund(uint256 _chainId, uint256 _ts, uint256 _liq0, Args memory _a) public {
-        bytes memory code = bytes.concat(
-            DeployUtils.getCode(
-                "test/formal/expiry/halmos/out/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json"
-            ),
-            abi.encode(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD)
+        bytes memory code = DeployUtils.getCode(
+            "test/formal/expiry/halmos/out/L2ToL2CrossDomainMessenger.sol/L2ToL2CrossDomainMessenger.json"
         );
         address real;
         assembly {
@@ -211,6 +208,9 @@ contract RefundExpiryHalmos is Test {
         }
         vm.etch(L2_TO_L2, real.code);
         IL2ToL2CrossDomainMessenger l2tol2 = IL2ToL2CrossDomainMessenger(L2_TO_L2);
+        // The period lives in the proxy's storage (slot 5), which an upgrade initializes with the production period.
+        vm.store(L2_TO_L2, bytes32(uint256(5)), bytes32(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        assert(l2tol2.expiryPeriod() == Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD); // slot check
 
         vm.chainId(_chainId);
         vm.warp(_ts);

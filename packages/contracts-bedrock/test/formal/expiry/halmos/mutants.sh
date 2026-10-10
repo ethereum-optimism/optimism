@@ -118,8 +118,19 @@ run_forge X1b_event_sender_origin $L2 's/emit SentMessage(_destination, _target,
   test/L2/L2ToL2CrossDomainMessenger.t.sol testFuzz_sendMessage_succeeds
 
 # --- L2ToL2CrossDomainMessenger
-run M1_window_lt $L2 's/if (_undeliveredAt <= sentAt + EXPIRY_PERIOD)/if (_undeliveredAt < sentAt + EXPIRY_PERIOD)/' \
-  L2ToL2ExpiryHalmos "check_expire_iff check_expire_iff_unbounded check_expire_boundary"
+run M1_window_lt $L2 's/if (_undeliveredAt <= sentAt + expiryPeriod)/if (_undeliveredAt < sentAt + expiryPeriod)/' \
+  L2ToL2ExpiryHalmos "check_expire_iff check_expire_iff_unbounded check_expire_boundary check_expire_iff_anyPeriod"
+# M38: expireMessage compares against the production constant instead of the stored period.
+run M38_expire_constant_period $L2 's/if (_undeliveredAt <= sentAt + expiryPeriod)/if (_undeliveredAt <= sentAt + 8 days)/' \
+  L2ToL2ExpiryHalmos "check_expire_iff_anyPeriod"
+# M39 / M39b: initialize accepts a zero period / a period above 365 days.
+run M39_init_accepts_zero $L2 's/if (_expiryPeriod == 0 || _expiryPeriod > MAX_EXPIRY_PERIOD) {/if (_expiryPeriod > MAX_EXPIRY_PERIOD) {/' \
+  L2ToL2ExpiryHalmos "check_initialize_iff"
+run M39b_init_no_upper_bound $L2 's/if (_expiryPeriod == 0 || _expiryPeriod > MAX_EXPIRY_PERIOD) {/if (_expiryPeriod == 0) {/' \
+  L2ToL2ExpiryHalmos "check_initialize_iff"
+# M40: initialize without its ProxyAdmin-or-owner check.
+run M40_init_any_caller $L2 's/^        _assertOnlyProxyAdminOrProxyAdminOwner();$//' \
+  L2ToL2ExpiryHalmos "check_initialize_iff"
 run M2_relay_skips_unsafe_check $L2 's/^        if (_isUnsafeTarget(target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();$//' \
   L2ToL2ExpiryHalmos "check_UnsafeTargetRule_relay check_UnsafeTargetRule_relay_l2cdm check_UnsafeTargetRule_relay_passer check_OnlyExportReachesL1_relay_l2cdm check_OnlyExportReachesL1_relay_passer"
 run M3_send_skips_unsafe_check $L2 's/^        if (_isUnsafeTarget(_target)) revert L2ToL2CrossDomainMessenger_MessageTargetUnsafe();$//' \
@@ -178,8 +189,11 @@ run K41_check_a_reads_callers_own_systemConfig $L1 's/callerPortal.systemConfig(
   L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
 run K42_check_b_reversed $L1 's/|| !portal.ethLockbox().authorizedPortals(callerPortal)/|| !callerPortal.ethLockbox().authorizedPortals(portal)/' \
   L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
-run M33_l1_no_interop_gate $L1 's/        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();//' \
+run M33_l1_no_interop_gate $L1 's/        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_InteropNotEnabled();//' \
   L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit"
+# M41: relayUndeliveredMessage without its paused check.
+run M41_l1_no_paused_check $L1 's/^        if (paused()) revert L1CrossDomainMessenger_Paused();$//' \
+  L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit check_relayUndelivered_rejectsWhenPaused"
 run M34_l1_trusts_l2tol2 $L1 's/!= Predeploys.UNDELIVERED_MESSAGE_EXPORTER/!= Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER/' \
   L1CDMExpiryHalmos "check_relayUndelivered_iff_and_deposit check_relayUndelivered_rejectsL2ToL2AsSender"
 run M8_l1_no_lockbox $L1 's/|| !portal.ethLockbox().authorizedPortals(callerPortal)//' \
