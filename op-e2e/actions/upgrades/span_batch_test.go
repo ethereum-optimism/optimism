@@ -543,7 +543,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 				require.NoError(t, err)
 				gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
 				require.NoError(t, err)
-				baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
+				baseFee := seqEngine.LatestHeader(t).BaseFee
 				nonce, err := cl.PendingNonceAt(t.Ctx(), addrs[userIdx])
 				require.NoError(t, err)
 				tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
@@ -683,7 +683,7 @@ func TestBatchEquivalence(gt *testing.T) {
 			require.NoError(t, err)
 			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
 			require.NoError(t, err)
-			baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
+			baseFee := seqEngine.LatestHeader(t).BaseFee
 			nonce, err := seqEngCl.PendingNonceAt(t.Ctx(), addrs[userIdx])
 			require.NoError(t, err)
 			tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
