@@ -903,6 +903,30 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         assertTrue(l2ToL2CrossDomainMessenger.expiredMessages(messageHash));
     }
 
+    /// @notice Tests that expiry follows the period the messenger was initialized with: word dated
+    ///         at the end of the period does not expire the message, and word a second later does.
+    function testFuzz_expireMessage_initializedPeriod_succeeds(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
+        // Clear the OZ v5 initializer state so the messenger can be initialized with another period.
+        vm.store(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00,
+            bytes32(0)
+        );
+        vm.prank(address(1));
+        l2ToL2CrossDomainMessenger.initialize(_expiryPeriod);
+        assertEq(l2ToL2CrossDomainMessenger.expiryPeriod(), _expiryPeriod);
+
+        uint256 sentAt_ = block.timestamp;
+        bytes32 messageHash_ = l2ToL2CrossDomainMessenger.sendMessage(block.chainid + 1, address(0xbeef), hex"5678");
+
+        vm.expectRevert(L2ToL2CrossDomainMessenger_MessageNotExpired.selector);
+        _expireMessage(l1Messenger, messageHash_, sentAt_ + _expiryPeriod);
+
+        _expireMessage(l1Messenger, messageHash_, sentAt_ + _expiryPeriod + 1);
+        assertTrue(l2ToL2CrossDomainMessenger.expiredMessages(messageHash_));
+    }
+
     /// @notice Tests that word dated within the window does not expire the message.
     function testFuzz_expireMessage_withinWindow_reverts(uint256 _undeliveredAt) external {
         _undeliveredAt = bound(_undeliveredAt, 0, sentAt + l2ToL2CrossDomainMessenger.expiryPeriod());
