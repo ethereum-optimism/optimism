@@ -85,6 +85,18 @@ func TestStandardBinary_Downloads(t *testing.T) {
 		require.True(t, progressed.Load())
 	})
 
+	t.Run("missing cache directory", func(t *testing.T) {
+		cacheDir := path.Join(t.TempDir(), "nested", "cache")
+		bin, err := NewStandardBinary(
+			WithURL(ts.URL+"/foundry.tgz"),
+			WithCachePather(func() (string, error) { return cacheDir, nil }),
+			WithChecksummer(staticChecksummer(string(expChecksum))),
+		)
+		require.NoError(t, err)
+		require.NoError(t, bin.Ensure(context.Background()))
+		require.FileExists(t, path.Join(cacheDir, "forge"))
+	})
+
 	t.Run("invalid checksum", func(t *testing.T) {
 		bin, err := NewStandardBinary(
 			WithURL(ts.URL+"/foundry.tgz"),

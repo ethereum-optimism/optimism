@@ -35,8 +35,6 @@ type SuperchainConfig struct {
 	ArtifactsLocator *artifacts.Locator
 	CacheDir         string
 	UseForge         bool
-	// ForgeSlowBroadcast confirms each Forge broadcast transaction before sending the next.
-	ForgeSlowBroadcast bool
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -105,7 +103,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
 		UseForge:                  useForge,
-		ForgeSlowBroadcast:        cliCtx.Bool(deployer.ForgeSlowBroadcastFlagName),
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
@@ -191,7 +188,6 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		if err != nil {
 			return dso, fmt.Errorf("failed to create forge client: %w", err)
 		}
-		forgeClient.SlowBroadcast = cfg.ForgeSlowBroadcast
 
 		forgeEnv := &opcm.ForgeEnv{
 			Client:     forgeClient,
