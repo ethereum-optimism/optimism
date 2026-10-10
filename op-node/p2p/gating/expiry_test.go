@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating/mocks"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -57,6 +58,34 @@ func TestExpiryConnectionGater_InterceptPeerDial(t *testing.T) {
 		allow := gater.InterceptPeerDial(mallory)
 		require.False(t, allow)
 	})
+}
+
+func TestExpiryConnectionGaterPeerUnbanMetrics(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		name := "expired ban"
+		if explicit {
+			name = "explicit unblock"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cl, expiryStore, inner, gater := expiryTestSetup(t)
+			m := metrics.NewMetrics("test", nil)
+			gater.m = m
+			id := peer.ID("test-peer")
+			expiryStore.EXPECT().SetPeerBanExpiration(id, time.Time{}).Return(nil).Once()
+			if explicit {
+				inner.EXPECT().UnblockPeer(id).Return(nil).Once()
+				require.NoError(t, gater.UnblockPeer(id))
+			} else {
+				inner.EXPECT().InterceptPeerDial(id).Return(true).Once()
+				expiryStore.EXPECT().GetPeerBanExpiration(id).Return(cl.Now().Add(-time.Second), nil).Once()
+				require.True(t, gater.InterceptPeerDial(id))
+			}
+			checker := metricstest.NewMetricChecker(t, m.Registry())
+			require.Equal(t, float64(1), checker.FindByName("op_node_test_p2p_peer_unbans").FindByLabels(nil).GetCounter().GetValue())
+			require.Zero(t, checker.FindByName("op_node_test_p2p_peer_bans").FindByLabels(nil).GetCounter().GetValue())
+		})
+	}
 }
 
 func TestExpiryConnectionGater_InterceptAddrDial(t *testing.T) {
