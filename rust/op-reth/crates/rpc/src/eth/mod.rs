@@ -43,7 +43,8 @@ use reth_rpc_eth_api::{
     },
 };
 use reth_rpc_eth_types::{
-    EthStateCache, FeeHistoryCache, GasPriceOracle, logs_utils::matching_block_logs_with_tx_hashes,
+    EthApiSettings, EthStateCache, FeeHistoryCache, GasPriceOracle,
+    logs_utils::matching_block_logs_with_tx_hashes,
 };
 use reth_storage_api::ProviderHeader;
 use reth_tasks::{
@@ -263,6 +264,10 @@ where
     type NetworkTypes = Rpc::Network;
     type RpcConvert = Rpc;
 
+    fn eth_api_settings(&self) -> &EthApiSettings {
+        self.inner.eth_api.eth_api_settings()
+    }
+
     fn converter(&self) -> &Self::RpcConvert {
         self.inner.eth_api.converter()
     }
@@ -417,6 +422,8 @@ where
 {
 }
 
+// Upstream's `FullEthApi` requires this helper trait even when its RPC methods are not served.
+// op-reth explicitly removes the untested BAL endpoints in `op-reth/crates/node/src/node.rs`.
 impl<N, Rpc> GetBlockAccessList for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
