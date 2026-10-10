@@ -101,6 +101,10 @@ sequenceDiagram
     This ensures that even if the destination is a smart contract, its custom logic is not executed.
 This behavior differs from [standard ETH transfers](https://docs.base.org/learn/address-and-payable/address-and-payable#receiving-ether-with-payable-addresses), where smart contracts can trigger custom logic upon receiving ETH.
 
+#### Refunds
+
+If the destination never relays the message, it [expires](/app-developers/guides/interoperability/message-expiration). Once the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, anyone can call `SuperchainETHBridge.refundETH` with the send's destination chain ID, message nonce, sender, recipient and amount, and the ETH goes back to the sender, once, again through `SafeSend`.
+
 ## L1 Treasury
 
 Every ETH in circulation on OP Stack chains—excluding ETH held by `ETHLiquidity`—must be backed by ETH on L1.
