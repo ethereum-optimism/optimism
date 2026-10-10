@@ -53,7 +53,8 @@ services:
     ports:
       - "8545:8545"
       - "8546:8546"
-      - "8551:8551"
+    # The Engine API (8551) is not published on the host: op-node, its only
+    # consumer, reaches it over the Compose network at http://op-reth:8551.
     # op-reth initializes its database from the chain spec on first startup;
     # no separate `init` step is needed.
     command: >
