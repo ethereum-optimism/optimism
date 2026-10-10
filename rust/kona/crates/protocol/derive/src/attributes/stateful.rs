@@ -859,9 +859,9 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 28 bundle txs. Single-chain superchains skip only the
+        // 1 L1InfoTx + 29 bundle txs. Single-chain superchains skip only the
         // setFeature and ETHLiquidity funding wrappers.
-        assert_eq!(payload.transactions.unwrap().len(), 1 + 28);
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 29);
     }
 
     /// Interop-activated, multi-chain `dep-set` → full bundle wrapped with setFeature + funding.
@@ -897,8 +897,8 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 30 interop txs (1 setFeature + 28 bundle + 1 ETHLiquidity funding).
-        assert_eq!(payload.transactions.unwrap().len(), 1 + 30);
+        // 1 L1InfoTx + 31 interop txs (1 setFeature + 29 bundle + 1 ETHLiquidity funding).
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 31);
     }
 
     /// The Lagoon activation block reserves the same upgrade gas for every dependency-set size.

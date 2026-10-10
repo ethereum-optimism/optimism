@@ -122,8 +122,8 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	txs, gas, err := UpgradeTransactions(forks.Lagoon)
 	require.NoError(t, err)
 
-	// 26 implementation deployments + L2CM deployment + upgradePredeploys = 28.
-	require.Len(t, txs, 28)
+	// 27 implementation deployments + L2CM deployment + upgradePredeploys = 29.
+	require.Len(t, txs, 29)
 
 	// First tx: StorageSetter implementation deployment (qualified intent).
 	first := UpgradeDepositSource{Intent: "Interop 0: Deploy StorageSetter Implementation"}
@@ -131,7 +131,7 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	require.Equal(t, first.SourceHash(), dep0.SourceHash())
 
 	// Last tx: L2ProxyAdmin upgradePredeploys.
-	last := UpgradeDepositSource{Intent: "Interop 27: L2ProxyAdmin Upgrade Predeploys"}
+	last := UpgradeDepositSource{Intent: "Interop 28: L2ProxyAdmin Upgrade Predeploys"}
 	_, depLast := toDepositTxn(t, txs[len(txs)-1])
 	require.Equal(t, last.SourceHash(), depLast.SourceHash())
 
