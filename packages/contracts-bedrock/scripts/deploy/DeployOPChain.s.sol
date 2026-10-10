@@ -194,7 +194,9 @@ contract DeployOPChain is Script {
             l2ChainId: _input.l2ChainId,
             resourceConfig: _resourceConfigForGasLimit(_input.gasLimit),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: _input.useCustomGasToken
+            useCustomGasToken: _input.useCustomGasToken,
+            proofMaturityDelaySeconds: _input.proofMaturityDelaySeconds,
+            disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds
         });
     }
 
@@ -348,6 +350,10 @@ contract DeployOPChain is Script {
         // Rejects a game type from the other family.
         (bool permissionless,) = _initialDeployGameSelection(_i.disputeGameType, superRoot);
 
+        require(_i.proofMaturityDelaySeconds != 0, "DeployOPChainInput: proofMaturityDelaySeconds not set");
+        require(_i.disputeGameFinalityDelaySeconds != 0, "DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+        _assertDelaysWithinBounds(_i);
+
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
         require(_i.disputeSplitDepth != 0, "DeployOPChainInput: disputeSplitDepth not set");
         require(_i.disputeMaxClockDuration.raw() != 0, "DeployOPChainInput: disputeMaxClockDuration not set");
@@ -403,6 +409,26 @@ contract DeployOPChain is Script {
         _assertValidDeploy(_i, _o);
     }
 
+    /// @notice Checks the per-chain withdrawal delays against the bounds baked into the OPCM's
+    ///         implementations. Without this, an out-of-range value only fails inside initialize()
+    ///         behind the proxy, where the custom error is swallowed.
+    /// @param _i The input to check.
+    function _assertDelaysWithinBounds(Types.DeployOPChainInput memory _i) internal view {
+        IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(_i.opcm).implementations();
+        IOptimismPortal portalImpl = IOptimismPortal(payable(impls.optimismPortalImpl));
+        require(
+            _i.proofMaturityDelaySeconds >= portalImpl.minProofMaturityDelaySeconds()
+                && _i.proofMaturityDelaySeconds <= portalImpl.maxProofMaturityDelaySeconds(),
+            "DeployOPChainInput: proofMaturityDelaySeconds out of bounds"
+        );
+        IAnchorStateRegistry asrImpl = IAnchorStateRegistry(impls.anchorStateRegistryImpl);
+        require(
+            _i.disputeGameFinalityDelaySeconds >= asrImpl.minDisputeGameFinalityDelaySeconds()
+                && _i.disputeGameFinalityDelaySeconds <= asrImpl.maxDisputeGameFinalityDelaySeconds(),
+            "DeployOPChainInput: disputeGameFinalityDelaySeconds out of bounds"
+        );
+    }
+
     /// @notice Asserts that the deploy is valid.
     /// @param _i The input to check.
     /// @param _o The output to check.
@@ -422,6 +448,16 @@ contract DeployOPChain is Script {
             L1ERC721Bridge: address(_o.l1ERC721BridgeProxy),
             SuperchainConfig: address(_i.superchainConfig)
         });
+
+        // Per-chain withdrawal delays must land in the proxies exactly as supplied.
+        require(
+            _o.optimismPortalProxy.proofMaturityDelaySeconds() == _i.proofMaturityDelaySeconds,
+            "DeployOPChain: proofMaturityDelaySeconds mismatch"
+        );
+        require(
+            _o.anchorStateRegistryProxy.disputeGameFinalityDelaySeconds() == _i.disputeGameFinalityDelaySeconds,
+            "DeployOPChain: disputeGameFinalityDelaySeconds mismatch"
+        );
 
         // Check dispute games and get superchain config
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
@@ -446,14 +482,23 @@ contract DeployOPChain is Script {
             "DeployOPChain: permissionedDisputeGame output mismatch"
         );
         ChainAssertions.checkAnchorStateRegistryProxy(
-            _o.anchorStateRegistryProxy, true, respectedGameType, _i.startingAnchorRoot
+            _o.anchorStateRegistryProxy,
+            true,
+            respectedGameType,
+            _i.startingAnchorRoot,
+            IAnchorStateRegistry(implementations.anchorStateRegistryImpl).minDisputeGameFinalityDelaySeconds(),
+            IAnchorStateRegistry(implementations.anchorStateRegistryImpl).maxDisputeGameFinalityDelaySeconds()
         );
         ChainAssertions.checkL1CrossDomainMessenger(_o.l1CrossDomainMessengerProxy, vm, true);
         ChainAssertions.checkOptimismPortal2({
             _contracts: proxies,
             _superchainConfig: _i.superchainConfig,
             _opChainProxyAdminOwner: _i.opChainProxyAdminOwner,
-            _isProxy: true
+            _isProxy: true,
+            _minProofMaturityDelaySeconds: IOptimismPortal(payable(implementations.optimismPortalImpl))
+                .minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: IOptimismPortal(payable(implementations.optimismPortalImpl))
+                .maxProofMaturityDelaySeconds()
         });
         ChainAssertions.checkSystemConfigProxies(proxies, _i);
 

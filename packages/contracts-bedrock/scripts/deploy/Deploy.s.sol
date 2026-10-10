@@ -257,8 +257,10 @@ contract Deploy is Deployer {
                 withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
                 minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
                 challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
-                proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+                minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+                maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+                minDisputeGameFinalityDelaySeconds: cfg.minDisputeGameFinalityDelaySeconds(),
+                maxDisputeGameFinalityDelaySeconds: cfg.maxDisputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 devFeatureBitmap: cfg.devFeatureBitmap(),
                 faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
@@ -294,7 +296,9 @@ contract Deploy is Deployer {
             _contracts: impls,
             _superchainConfig: superchainConfigProxy,
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds()
         });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
@@ -322,7 +326,9 @@ contract Deploy is Deployer {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            cfg.minDisputeGameFinalityDelaySeconds(),
+            cfg.maxDisputeGameFinalityDelaySeconds()
         );
     }
 
@@ -443,7 +449,9 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
         });
     }
 
@@ -509,7 +517,9 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
         });
     }
 }

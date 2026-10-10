@@ -122,6 +122,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_DisputeGameNotEnabled",
     "type": "error"
   },

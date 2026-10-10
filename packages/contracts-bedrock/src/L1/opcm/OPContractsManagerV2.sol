@@ -98,6 +98,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
+        // Withdrawal timing configuration. Stored per chain on the portal and the
+        // AnchorStateRegistry, and bounded by the implementations' min/max immutables.
+        uint256 proofMaturityDelaySeconds;
+        uint256 disputeGameFinalityDelaySeconds;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -151,6 +155,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
 
+    /// @notice Thrown when a withdrawal delay in the config is zero.
+    error OPContractsManagerV2_InvalidDelayConfig();
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -166,9 +173,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.3
+    /// @custom:semver 9.0.4
     function version() public pure returns (string memory) {
-        return "9.0.3";
+        return "9.0.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -677,6 +684,29 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _upgradeInput.extraInstructions
                 ),
                 (bool)
+            ),
+            // NOTE: The delays are read before any implementation is swapped, so on the first upgrade
+            // to a release with per-chain delays they return the legacy immutable values from the same selectors, which
+            // are then carried forward into proxy storage. The keys are deliberately not
+            // allow-listed in _isPermittedInstruction. An upgrade always leaves the live values
+            // which can only be changed by the L1PAO setters.
+            proofMaturityDelaySeconds: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.optimismPortal),
+                    _chainContracts.optimismPortal.proofMaturityDelaySeconds.selector,
+                    "overrides.cfg.proofMaturityDelaySeconds",
+                    _upgradeInput.extraInstructions
+                ),
+                (uint256)
+            ),
+            disputeGameFinalityDelaySeconds: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.anchorStateRegistry),
+                    _chainContracts.anchorStateRegistry.disputeGameFinalityDelaySeconds.selector,
+                    "overrides.cfg.disputeGameFinalityDelaySeconds",
+                    _upgradeInput.extraInstructions
+                ),
+                (uint256)
             )
         });
     }
@@ -697,6 +727,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     || _cfg.startingAnchorRoot.l2SequenceNumber >= type(uint64).max)
         ) {
             revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Withdrawal delays must be set. Bounds are enforced by the implementations' initializers
+        // so that the bounds live in exactly one place.
+        if (_cfg.proofMaturityDelaySeconds == 0 || _cfg.disputeGameFinalityDelaySeconds == 0) {
+            revert OPContractsManagerV2_InvalidDelayConfig();
         }
 
         bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
@@ -875,7 +911,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
             impls.optimismPortalImpl,
-            abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox))
+            abi.encodeCall(
+                IOptimismPortal.initialize,
+                (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox, _cfg.proofMaturityDelaySeconds)
+            )
         );
 
         // NOTE: Same general pattern, we call _upgrade for each contract rather than
@@ -954,7 +993,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (_cts.ethLockbox, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
+                (
+                    _cts.ethLockbox,
+                    _cts.disputeGameFactory,
+                    _cfg.startingAnchorRoot,
+                    _cfg.startingRespectedGameType,
+                    _cfg.disputeGameFinalityDelaySeconds
+                )
             )
         );
 

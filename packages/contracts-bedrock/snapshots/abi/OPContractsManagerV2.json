@@ -217,6 +217,16 @@
             "internalType": "bool",
             "name": "useCustomGasToken",
             "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "proofMaturityDelaySeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "disputeGameFinalityDelaySeconds",
+            "type": "uint256"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -832,6 +842,11 @@
       }
     ],
     "name": "OPContractsManagerV2_DuplicateUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InvalidDelayConfig",
     "type": "error"
   },
   {

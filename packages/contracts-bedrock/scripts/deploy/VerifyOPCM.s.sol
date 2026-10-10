@@ -1358,12 +1358,12 @@ contract VerifyOPCM is Script {
             success = _verifySP1Verifier(ISP1PlonkAdapter(_target.addr)) && success;
         }
 
-        // OptimismPortal2: Verify PROOF_MATURITY_DELAY_SECONDS
+        // OptimismPortal2: Verify the MIN/MAX_PROOF_MATURITY_DELAY_SECONDS bounds
         if (LibString.eq(_target.name, "OptimismPortal2")) {
             success = _verifyPortalDelays(IOptimismPortal2(payable(_target.addr))) && success;
         }
 
-        // AnchorStateRegistry: Verify DISPUTE_GAME_FINALITY_DELAY_SECONDS
+        // AnchorStateRegistry: Verify the MIN/MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS bounds
         if (LibString.eq(_target.name, "AnchorStateRegistry")) {
             success = _verifyAnchorStateRegistryDelays(IAnchorStateRegistry(_target.addr)) && success;
         }
@@ -1445,43 +1445,73 @@ contract VerifyOPCM is Script {
         return true;
     }
 
-    /// @notice Verifies OptimismPortal2 security-critical delay values.
-    /// @param _portal The OptimismPortal2 contract.
-    /// @return True if delay values match expected.
+    /// @notice Verifies the OptimismPortal2 proof maturity delay bounds. The delay itself lives
+    ///         in per-chain proxy storage, so only the implementation's bound immutables are
+    ///         release-critical.
+    /// @param _portal The OptimismPortal2 implementation.
+    /// @return True if the bound values match expected.
     function _verifyPortalDelays(IOptimismPortal2 _portal) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        uint256 expectedDelay = vm.envOr("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", uint256(604800));
-        uint256 actualDelay = _portal.proofMaturityDelaySeconds();
-
-        console.log("  Verifying PROOF_MATURITY_DELAY_SECONDS...");
-        console.log(string.concat("    Expected: ", vm.toString(expectedDelay)));
-        console.log(string.concat("    Actual: ", vm.toString(actualDelay)));
-
-        if (actualDelay != expectedDelay) {
-            console.log("    [FAIL] PROOF_MATURITY_DELAY_SECONDS mismatch");
-            return false;
-        }
-        console.log("    [OK] PROOF_MATURITY_DELAY_SECONDS verified");
-        return true;
+        uint256 expectedMin = vm.envOr("EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS", uint256(86400));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        uint256 expectedMax = vm.envOr("EXPECTED_MAX_PROOF_MATURITY_DELAY_SECONDS", uint256(604800));
+        return _verifyDelayBounds(
+            "PROOF_MATURITY_DELAY_SECONDS",
+            expectedMin,
+            expectedMax,
+            _portal.minProofMaturityDelaySeconds(),
+            _portal.maxProofMaturityDelaySeconds()
+        );
     }
 
-    /// @notice Verifies AnchorStateRegistry security-critical delay values.
-    /// @param _asr The AnchorStateRegistry contract.
-    /// @return True if delay values match expected.
+    /// @notice Verifies the AnchorStateRegistry dispute game finality delay bounds. The delay
+    ///         itself lives in per-chain proxy storage, so only the implementation's bound
+    ///         immutables are release-critical.
+    /// @param _asr The AnchorStateRegistry implementation.
+    /// @return True if the bound values match expected.
     function _verifyAnchorStateRegistryDelays(IAnchorStateRegistry _asr) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        uint256 expectedDelay = vm.envOr("EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400));
-        uint256 actualDelay = _asr.disputeGameFinalityDelaySeconds();
+        uint256 expectedMin = vm.envOr("EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(43200));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        uint256 expectedMax = vm.envOr("EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400));
+        return _verifyDelayBounds(
+            "DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            expectedMin,
+            expectedMax,
+            _asr.minDisputeGameFinalityDelaySeconds(),
+            _asr.maxDisputeGameFinalityDelaySeconds()
+        );
+    }
 
-        console.log("  Verifying DISPUTE_GAME_FINALITY_DELAY_SECONDS...");
-        console.log(string.concat("    Expected: ", vm.toString(expectedDelay)));
-        console.log(string.concat("    Actual: ", vm.toString(actualDelay)));
+    /// @notice Compares a pair of delay bound immutables against their expected values.
+    /// @param _name Name of the delay, used for logging.
+    /// @param _expectedMin Expected lower bound.
+    /// @param _expectedMax Expected upper bound.
+    /// @param _actualMin Lower bound read from the implementation.
+    /// @param _actualMax Upper bound read from the implementation.
+    /// @return True if both bounds match expected.
+    function _verifyDelayBounds(
+        string memory _name,
+        uint256 _expectedMin,
+        uint256 _expectedMax,
+        uint256 _actualMin,
+        uint256 _actualMax
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        console.log(string.concat("  Verifying MIN_/MAX_", _name, "..."));
+        console.log(string.concat("    Expected min: ", vm.toString(_expectedMin)));
+        console.log(string.concat("    Actual min: ", vm.toString(_actualMin)));
+        console.log(string.concat("    Expected max: ", vm.toString(_expectedMax)));
+        console.log(string.concat("    Actual max: ", vm.toString(_actualMax)));
 
-        if (actualDelay != expectedDelay) {
-            console.log("    [FAIL] DISPUTE_GAME_FINALITY_DELAY_SECONDS mismatch");
+        if (_actualMin != _expectedMin || _actualMax != _expectedMax) {
+            console.log(string.concat("    [FAIL] MIN_/MAX_", _name, " mismatch"));
             return false;
         }
-        console.log("    [OK] DISPUTE_GAME_FINALITY_DELAY_SECONDS verified");
+        console.log(string.concat("    [OK] MIN_/MAX_", _name, " verified"));
         return true;
     }
 

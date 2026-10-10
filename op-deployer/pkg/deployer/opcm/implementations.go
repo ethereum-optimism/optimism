@@ -13,22 +13,26 @@ import (
 // DeployImplementations.s.sol input struct exactly — script ABI matching is
 // checked at load time.
 type DeployImplementationsInput struct {
-	WithdrawalDelaySeconds          *big.Int
-	MinProposalSizeBytes            *big.Int
-	ChallengePeriodSeconds          *big.Int
-	ProofMaturityDelaySeconds       *big.Int
-	DisputeGameFinalityDelaySeconds *big.Int
-	MipsVersion                     *big.Int
-	DevFeatureBitmap                common.Hash
-	FaultGameV2MaxGameDepth         *big.Int
-	FaultGameV2SplitDepth           *big.Int
-	FaultGameV2ClockExtension       *big.Int
-	FaultGameV2MaxClockDuration     *big.Int
-	SuperchainConfigProxy           common.Address
-	SuperchainProxyAdmin            common.Address
-	L1ProxyAdminOwner               common.Address
-	Challenger                      common.Address
-	SP1Verifier                     common.Address `abi:"sp1Verifier"`
+	WithdrawalDelaySeconds *big.Int
+	MinProposalSizeBytes   *big.Int
+	ChallengePeriodSeconds *big.Int
+	// Bounds for the per-chain withdrawal delays. The delays themselves are per-chain inputs
+	// to DeployOPChain; the implementations only carry the sanctioned range.
+	MinProofMaturityDelaySeconds       *big.Int
+	MaxProofMaturityDelaySeconds       *big.Int
+	MinDisputeGameFinalityDelaySeconds *big.Int
+	MaxDisputeGameFinalityDelaySeconds *big.Int
+	MipsVersion                        *big.Int
+	DevFeatureBitmap                   common.Hash
+	FaultGameV2MaxGameDepth            *big.Int
+	FaultGameV2SplitDepth              *big.Int
+	FaultGameV2ClockExtension          *big.Int
+	FaultGameV2MaxClockDuration        *big.Int
+	SuperchainConfigProxy              common.Address
+	SuperchainProxyAdmin               common.Address
+	L1ProxyAdminOwner                  common.Address
+	Challenger                         common.Address
+	SP1Verifier                        common.Address `abi:"sp1Verifier"`
 }
 
 // DeployImplementationsOutput must mirror DeployImplementations.s.sol's
