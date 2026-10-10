@@ -21,3 +21,14 @@ pub enum OpPayloadBuilderError {
     #[error("blob transaction included in sequencer block")]
     BlobTransactionRejected,
 }
+
+/// Error returned by [`crate::builder::validate_derived_attributes`].
+#[derive(Debug, thiserror::Error)]
+pub enum DerivedAttributesError {
+    /// The transactions make the payload invalid.
+    #[error("invalid derived payload attributes: {0}")]
+    InvalidPayload(reth_payload_builder_primitives::PayloadBuilderError),
+    /// Validation failed for a node-local reason.
+    #[error("failed to validate derived payload attributes: {0}")]
+    Other(reth_payload_builder_primitives::PayloadBuilderError),
+}

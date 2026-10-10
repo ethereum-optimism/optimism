@@ -14,6 +14,7 @@ extern crate alloc;
 pub mod builder;
 pub use builder::{
     CommittedTxGas, OpPayloadBuilder, PayloadTransactionsWithCommitHook, RethPayloadTransactions,
+    validate_derived_attributes,
 };
 pub mod error;
 pub mod payload;
