@@ -54,7 +54,10 @@ type PresetConfig struct {
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool
 	MessageExpiryWindow        *uint64
-	UseInteropFilter           bool
+	// L2ToL2MessageExpiryPeriod, if non-zero, sets the L2ToL2CrossDomainMessenger's expiry period
+	// in every L2 genesis, in seconds. It must exceed MessageExpiryWindow.
+	L2ToL2MessageExpiryPeriod uint64
+	UseInteropFilter          bool
 	// InteropLogBackfillDepth, if non-zero, configures the supernode to backfill
 	// initiating-message logs backward from the tip by this duration at startup.
 	InteropLogBackfillDepth time.Duration

@@ -292,7 +292,8 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            devFeatureBitmap: bytes32(0)
+            devFeatureBitmap: bytes32(0),
+            l2ToL2MessageExpiryPeriod: 0
         });
     }
 
@@ -443,6 +444,16 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.useInterop = true;
         // devFeatureBitmap left at 0 — OPTIMISM_PORTAL_INTEROP bit not set
         vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that run refuses a messenger expiry period override, which this genesis cannot
+    ///         apply, whether or not interop is active at genesis.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodOverride_reverts(uint256 _period, bool _interop) external {
+        _period = bound(_period, 1, type(uint256).max);
+        if (_interop) _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _period;
+        vm.expectRevert("L2Genesis: expiry period override unsupported");
         genesis.run(input);
     }
 

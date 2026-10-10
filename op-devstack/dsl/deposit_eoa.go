@@ -3,9 +3,6 @@ package dsl
 import (
 	"math/rand"
 
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -13,9 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // DepositEOA wraps an L2 EOA so that transactions are sent via L1 deposit
@@ -33,10 +28,16 @@ func (u *EOA) ViaDepositTx(l1 *EOA, l2EL *L2ELNode, l2Net *L2Network) *DepositEO
 	return &DepositEOA{l2: u, l1: l1, l2EL: l2EL, l2Net: l2Net}
 }
 
+// DepositTxOpts configures a deposit transaction.
+type DepositTxOpts struct {
+	// GasLimit is the deposit's L2 gas limit. Zero uses max(100k, the portal's minimum).
+	GasLimit uint64
+}
+
 // DepositTx sends a transaction to the given address with the given calldata
 // via OptimismPortal2 on L1. It waits for L2 derivation and returns the L2 receipt.
-func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Receipt {
-	l2Receipt := d.sendDeposit(to, calldata)
+func (d *DepositEOA) DepositTx(to common.Address, calldata []byte, opts ...func(*DepositTxOpts)) *ethtypes.Receipt {
+	l2Receipt := d.sendDeposit(to, calldata, opts...)
 	d.l2.t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
 	return l2Receipt
 }
@@ -45,30 +46,26 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 // OptimismPortal2 on L1 and requires that it reverts on L2 with exactly the given error
 // signature (e.g. "CrossL2Inbox_NoExecutingDeposits()"). It waits for L2 derivation and
 // returns the L2 receipt.
-func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, errorSignature string) *ethtypes.Receipt {
+func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, errorSignature string, opts ...func(*DepositTxOpts)) *ethtypes.Receipt {
 	t := d.l2.t
 
-	l2Receipt := d.sendDeposit(to, calldata)
+	l2Receipt := d.sendDeposit(to, calldata, opts...)
 	t.Require().Equal(ethtypes.ReceiptStatusFailed, l2Receipt.Status, "deposit tx unexpectedly succeeded on L2")
 
-	trace := new(wait.TxTrace)
-	err := d.l2EL.EthClient().RPC().CallContext(d.l2.ctx, trace, "debug_traceTransaction",
-		hexutil.Bytes(l2Receipt.TxHash.Bytes()), map[string]any{
-			"enableReturnData": true,
-			"tracer":           "callTracer",
-			"tracerConfig":     map[string]any{},
-		})
-	t.Require().NoError(err, "failed to trace L2 deposit tx")
-	expected := crypto.Keccak256([]byte(errorSignature))[:4]
-	t.Require().Equal(expected, []byte(trace.Output), "deposit tx reverted for an unexpected reason")
+	trace := d.l2EL.TraceCalls(l2Receipt.TxHash)
+	t.Require().Equal(ErrorSelector(errorSignature), []byte(trace.Output), "deposit tx reverted for an unexpected reason")
 	return l2Receipt
 }
 
 // sendDeposit sends the deposit transaction on L1, waits for L2 derivation, and returns the
 // L2 receipt without asserting the L2 execution status.
-func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte) *ethtypes.Receipt {
+func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte, opts ...func(*DepositTxOpts)) *ethtypes.Receipt {
 	t := d.l2.t
 	ctx := d.l2.ctx
+	var o DepositTxOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	portalAddr := d.l2Net.DepositContractAddr()
 	l1Client := d.l1.el.stackEL().EthClient()
@@ -80,21 +77,18 @@ func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte) *ethtypes.R
 
 	minGas, err := contractio.Read(portal.MinimumGasLimit(uint64(len(calldata))), ctx)
 	t.Require().NoError(err, "failed to read MinimumGasLimit")
-	depositCall := portal.DepositTransaction(to, eth.ZeroWei, max(100_000, minGas), false, calldata)
+	gasLimit := o.GasLimit
+	if gasLimit == 0 {
+		gasLimit = max(100_000, minGas)
+	}
+	t.Require().GreaterOrEqual(gasLimit, minGas, "deposit gas limit is below the portal's minimum")
+	d.l2.log.Info("Sending deposit", "to", to, "gasLimit", gasLimit)
+	depositCall := portal.DepositTransaction(to, eth.ZeroWei, gasLimit, false, calldata)
 	l1Receipt, err := contractio.Write(depositCall, ctx, d.l1.Plan())
 	t.Require().NoError(err, "L1 deposit tx failed")
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1Receipt.Status, "L1 deposit tx reverted")
 
-	var l2DepositTx *optypes.DepositTx
-	for _, log := range l1Receipt.Logs {
-		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
-			break
-		}
-	}
-	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event in L1 receipt")
-
-	d.l2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)
-	return d.l2EL.WaitForReceipt(l2DepositTx.Hash())
+	return d.l2EL.WaitForDeposit(portalAddr, l1Receipt)
 }
 
 // SendInitMessage sends an initiating message via an L1 deposit transaction.
