@@ -203,11 +203,25 @@ impl L1BlockInfo {
         product.saturating_add(operator_fee_constant)
     }
 
-    /// Calculate the operator fee for executing this transaction.
+    /// Calculate the operator fee refund for executing this transaction: the
+    /// portion of the operator fee charged for `gas.limit()` that corresponds
+    /// to the gas that went unused.
     ///
     /// Introduced in isthmus. Prior to isthmus, the operator fee is always zero.
-    pub fn operator_fee_refund(&self, gas: &Gas, spec_id: OpSpecId) -> U256 {
+    ///
+    /// This mirrors [`L1BlockInfo::operator_fee_charge`]: a transaction whose
+    /// charge is zero because its enveloped bytes are empty or a deposit pays
+    /// no operator fee, so it is refunded none either. Refunding it anyway
+    /// would credit the sender ETH it never paid (RPC-built transactions, e.g.
+    /// the ones `eth_simulateV1` executes, carry an empty envelope).
+    pub fn operator_fee_refund(&self, input: &[u8], gas: &Gas, spec_id: OpSpecId) -> U256 {
         if !spec_id.is_enabled_in(OpSpecId::ISTHMUS) {
+            return U256::ZERO;
+        }
+
+        // If the input is a deposit transaction or empty, no operator fee was
+        // charged, so there is nothing to refund.
+        if input.is_empty() || input.first() == Some(&0x7E) {
             return U256::ZERO;
         }
 
@@ -681,7 +695,7 @@ mod tests {
             ..Default::default()
         };
 
-        let refunded = l1_block_info.operator_fee_refund(&gas, OpSpecId::ISTHMUS);
+        let refunded = l1_block_info.operator_fee_refund(&[0x01], &gas, OpSpecId::ISTHMUS);
 
         assert_eq!(refunded, U256::from(100))
     }
@@ -699,6 +713,27 @@ mod tests {
         };
 
         // Nothing was spent, so the whole limit-based charge is refunded.
-        assert_eq!(l1_block_info.operator_fee_refund(&gas, OpSpecId::ISTHMUS), U256::from(100));
+        assert_eq!(
+            l1_block_info.operator_fee_refund(&[0x01], &gas, OpSpecId::ISTHMUS),
+            U256::from(100)
+        );
+    }
+
+    /// A transaction that paid no operator fee (empty enveloped bytes, as
+    /// RPC-built transactions carry, or a deposit) must be refunded none:
+    /// `operator_fee_charge` returns zero for both, and the refund must not
+    /// exceed what was charged.
+    #[test]
+    fn test_operator_fee_refund_without_charge() {
+        let gas = Gas::new(50000);
+
+        let l1_block_info = L1BlockInfo {
+            operator_fee_scalar: Some(U256::from(2000)),
+            operator_fee_constant: Some(U256::from(5)),
+            ..Default::default()
+        };
+
+        assert_eq!(l1_block_info.operator_fee_refund(&[], &gas, OpSpecId::ISTHMUS), U256::ZERO);
+        assert_eq!(l1_block_info.operator_fee_refund(&[0x7E], &gas, OpSpecId::ISTHMUS), U256::ZERO);
     }
 }

@@ -313,7 +313,9 @@ where
             !evm.ctx().cfg().is_fee_charge_disabled()
         {
             let spec = evm.ctx().cfg().spec();
-            evm.ctx().chain().operator_fee_refund(frame_result.gas(), spec)
+            let enveloped_tx: &[u8] =
+                evm.ctx().tx().enveloped_tx().map_or(&[], |bytes| bytes.as_ref());
+            evm.ctx().chain().operator_fee_refund(enveloped_tx, frame_result.gas(), spec)
         } else {
             U256::ZERO
         };
@@ -1556,8 +1558,18 @@ mod tests {
         // refund is added to the refund amount.
         let mut expected_refund =
             U256::from(GAS_PRICE * (gas.remaining() + gas.refunded() as u64) as u128);
-        let op_fee_refund = evm.ctx().chain().operator_fee_refund(&gas, OpSpecId::ISTHMUS);
-        assert!(op_fee_refund > U256::ZERO);
+        let op_fee_refund = evm.ctx().chain().operator_fee_refund(
+            if is_deposit { &[] } else { &bytes!("FACADE")[..] },
+            &gas,
+            OpSpecId::ISTHMUS,
+        );
+        if is_deposit {
+            // A deposit carries no enveloped bytes and pays no operator fee,
+            // so there is nothing to refund.
+            assert_eq!(op_fee_refund, U256::ZERO);
+        } else {
+            assert!(op_fee_refund > U256::ZERO);
+        }
 
         if !is_deposit {
             expected_refund += op_fee_refund;
@@ -1566,6 +1578,54 @@ mod tests {
         // Check that the caller was reimbursed the correct amount of ETH.
         let account = evm.ctx().journal_mut().load_account(SENDER).unwrap();
         assert_eq!(account.info.balance, expected_refund);
+    }
+
+    #[test]
+    fn operator_fee_refund_without_charge() {
+        let caller = Address::ZERO;
+        let initial = U256::from(1_000);
+        let mut db = InMemoryDB::default();
+        db.insert_account_info(caller, AccountInfo { balance: initial, ..Default::default() });
+        let ctx = Context::op()
+            .with_db(db)
+            .with_chain(L1BlockInfo {
+                operator_fee_scalar: Some(U256::from(10_000_000)),
+                operator_fee_constant: Some(U256::from(50)),
+                l2_block: Some(U256::from(0)),
+                ..Default::default()
+            })
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::ISTHMUS))
+            .with_tx(
+                OpTransaction::builder()
+                    .base(TxEnv::builder().gas_limit(100_000).gas_price(0).gas_priority_fee(None))
+                    .enveloped_tx(Some(Bytes::new()))
+                    .build_fill(),
+            );
+        let mut evm = ctx.build_op();
+        let handler =
+            OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
+        handler
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
+            .unwrap();
+        let after_charge = evm.ctx().journal_mut().load_account(caller).unwrap().info.balance;
+        assert_eq!(after_charge, initial);
+        let mut gas = Gas::new(100_000);
+        gas.set_spent(21_000);
+        let mut exec_result = FrameResult::Call(CallOutcome::new(
+            InterpreterResult {
+                result: InstructionResult::Return,
+                output: Default::default(),
+                gas,
+            },
+            0..0,
+        ));
+        handler.reimburse_caller(&mut evm, &mut exec_result).unwrap();
+        let after_refund = evm.ctx().journal_mut().load_account(caller).unwrap().info.balance;
+        assert!(
+            after_refund <= initial,
+            "sender gained {} from an operator fee it never paid",
+            after_refund - initial
+        );
     }
 
     #[test]
