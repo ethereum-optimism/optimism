@@ -57,11 +57,11 @@ works for any contract. See `../evm-lean-kernel/README.md`.
 
 | | |
 |---|---|
-| Source | `src/L2/SuperchainETHBridge.sol` at `89a3d565ad` (the source is unchanged since `c7c51d79e2`, the guideline pass that renamed the errors to `SuperchainETHBridge_MessageNotExpired` / `SuperchainETHBridge_AlreadyRefunded`). Relative to the earlier target `5992028e08`, the runtime differs only in the two revert-selector `PUSH32` operands (pcs 1852 and 1925). The proof rebuilt unchanged; only the concrete selector checks were updated. |
+| Source | `src/L2/SuperchainETHBridge.sol` at `010881014f` (semver 2.0.0; apart from the version string the source is unchanged since `c7c51d79e2`, the guideline pass that renamed the errors to `SuperchainETHBridge_MessageNotExpired` / `SuperchainETHBridge_AlreadyRefunded`). Relative to the earlier target `5992028e08`, the runtime differs only in the two revert-selector `PUSH32` operands (pcs 1852 and 1925). The proof rebuilt unchanged; only the concrete selector checks were updated. |
 | Compiler | solc `0.8.15+commit.e14f2714` via forge 1.8.1, repository **default** profile |
 | Settings | `{"evmVersion":"london","libraries":{},"metadata":{"bytecodeHash":"none"},"optimizer":{"enabled":true,"runs":999999}}` (solc 0.8.15 caps the profile's `cancun` at `london`) |
-| Runtime | 3131 bytes, `keccak256 = 0x403a710da33008eb30fabda2f7599c9ff3107a2f24e632f268f98ba87f12b7c8` (`bytecode/SuperchainETHBridge.runtime.hex`) |
-| Init code | `keccak256 = 0xa9040c1ceb1ed6a404351ae4fdbfd6f20f2b088219b8e5d9e421d5b73e2ce22b` = `initCodeHash` in `snapshots/semver-lock.json` |
+| Runtime | 3131 bytes, `keccak256 = 0x75ab659187cc99eac81e04e34dbbf918a7dc3a05a062e8da1e13493056a0ce4d` (`bytecode/SuperchainETHBridge.runtime.hex`) |
+| Init code | `keccak256 = 0xf0789b4de18efc9ee1107d62420c3196543f152892ed0ac43aaf49136d6ffd20` = `initCodeHash` in `snapshots/semver-lock.json` |
 | SafeSend creation code | 89 bytes, `keccak256 = 0xfd5b265533779bec7c59f23224f55fcae732beb46dc9a7ebe6b132230063c8e5` (`bytecode/SafeSend.creation.hex`). It is embedded in the bridge runtime at offset 3030, which is the `CODECOPY` source of `new SafeSend`. |
 | Lean | `BridgeEvm/Bytecode.lean` (`ethbridgeRuntime`, one flat literal, generated). Its JUMPDEST table is checked by the kernel. |
 
@@ -448,6 +448,8 @@ each.
   `regen.sh` validated the new artifact against `semver-lock.json` (`0xa9040c1c…`). Only the two
   selector operands changed. The proof and the non-vacuity partners rebuilt unchanged; the
   concrete selector checks were updated.
+* **Retarget to `010881014f`** (semver 2.0.0). Only the version string's `PUSH32` operand changed;
+  `regen.sh` validated the artifact against `semver-lock.json`, and the proof rebuilt unchanged.
 * **Round 3: stronger non-vacuity check.** `#assert_headline` now also requires that each partner's
   proof term applies its theorem and that compiled evaluation occurs only inside `native_*`
   lemmas (`run_success_native`/`run_static_native` renamed `native_run_success`/
