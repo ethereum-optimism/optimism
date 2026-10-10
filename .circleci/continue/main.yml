@@ -129,7 +129,7 @@ parameters:
   c-run_contracts_feature_tests_short:
     type: boolean
     default: false
-  c-run_ci_gate_skip:
+  c-run_docs_only_ci:
     type: boolean
     default: false
   c-run_circleci_schedule_trigger_check:
@@ -2716,12 +2716,16 @@ workflows:
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
+      # Docs lints (navigation, redirects, component reference, link policy);
+      # defined in docs-ci.yml. Fast and deterministic, so it gates every PR.
+      - docs-lint
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
       # To add a new mandatory check: add it to requires here. No GitHub ruleset changes needed.
       - ci-gate:
           requires:
+            - docs-lint: terminal
             - check-kontrol-build: terminal
             - shell-check: terminal
             - go-lint: terminal
@@ -3226,15 +3230,18 @@ workflows:
             - circleci-api-token
 
   # ============================================================================
-  # ci-gate (skip) — runs only on the docs-only fast path.
-  # Produces the ci-gate required status check with always-succeed so docs-only
-  # PRs (which skip the full `main` workflow) aren't blocked by a missing check.
-  # The real ci-gate still runs in `main` for every other path.
+  # docs-only-ci — runs only on the docs-only fast path (every changed file is
+  # under docs/public-docs/). Runs the docs lints and produces the ci-gate
+  # required status check gated on them, so a docs-only PR (which skips the
+  # full `main` workflow) is still blocked by a lint failure. The real ci-gate
+  # runs in `main` for every other path; docs-lint is in its requires too.
   # ============================================================================
-  ci-gate-skip:
-    when: << pipeline.parameters.c-run_ci_gate_skip >>
+  docs-only-ci:
+    when: << pipeline.parameters.c-run_docs_only_ci >>
     jobs:
+      - docs-lint
       - ci-gate:
-          always-succeed: true
+          requires:
+            - docs-lint: terminal
           context:
             - circleci-api-token
