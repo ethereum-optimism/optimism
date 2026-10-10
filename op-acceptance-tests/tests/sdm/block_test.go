@@ -130,8 +130,8 @@ func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
 	sdmtest.VerifyOpReth(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
-	// Fund through an ordinary one-gas-refund transaction before sending the targeted fault. This
-	// proves the fixture and sequencer are healthy before the faulty policy output is exercised.
+	// Fund through an ordinary transaction before sending the targeted fault. This proves the
+	// sequencer is healthy before the faulty policy output is exercised.
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	faulty := txplan.NewPlannedTx(
 		alice.Plan(),
@@ -185,12 +185,16 @@ func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
 		"stock verifier must accept the block with the invalid refund zeroed")
 }
 
+// submitFixtureProbe sends one StateBloat call and returns its block. A plain transfer would not do:
+// it spends exactly its EIP-7623 floor, so the producer clips any refund on it to its zero net
+// saving and the fixture's one-gas refund never appears.
 func submitFixtureProbe(t devtest.T, sys *sdmtest.RethSystem) (*sdmpkg.RPCBlock, *types.Receipt) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	stateBloatAddr := sdmtest.DeployContract(t, alice, sdmpkg.StateBloatBin)
 	probe := txplan.NewPlannedTx(
 		alice.Plan(),
-		txplan.WithTo(sdmtest.AddrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
-		txplan.WithValue(eth.OneHundredthEther),
+		txplan.WithTo(sdmtest.AddrPtr(stateBloatAddr)),
+		txplan.WithData(sdmpkg.EncodeRun(1)),
 	)
 	receipt, err := probe.Included.Eval(t.Ctx())
 	t.Require().NoError(err, "fixture probe transaction must be included")
