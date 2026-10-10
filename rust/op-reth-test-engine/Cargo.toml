@@ -35,9 +35,11 @@ reth-consensus.workspace = true
 reth-evm.workspace = true
 reth-revm.workspace = true
 reth-chain-state.workspace = true
+reth-engine-tree.workspace = true
 reth-execution-types.workspace = true
 reth-trie.workspace = true
 reth-primitives-traits.workspace = true
+reth-rpc-engine-api.workspace = true
 
 # ethereum / alloy / op-alloy
 alloy-genesis.workspace = true
