@@ -18,21 +18,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestSequencerBuildsOnRethEngine is the GoSwitch R3 foundation gate: it runs the REAL op-node
-// sequencer (helpers.SetupSequencerTest, unmodified) against the out-of-process op-reth-test-engine
-// selected by OP_E2E_ACTIONS_EL, and drives the standard action-test block-building loop
-// (ActL2StartBlock -> ActL2IncludeTx -> ActL2EndBlock) over the socket. It proves the switch's core
-// claim: op-node's engine controller can build, seal, import, and advance L2 blocks on the
-// subprocess engine, and the parking-buffer reframing of ActL2IncludeTx includes a user tx.
+// TestSequencerBuildsOnRethEngine runs the real op-node sequencer (helpers.SetupSequencerTest,
+// unmodified) against the out-of-process op-reth-test-engine and drives the standard action-test
+// block-building loop (ActL2StartBlock -> ActL2IncludeTx -> ActL2EndBlock) over the socket: the
+// engine controller builds, seals, imports, and advances L2 blocks on the subprocess engine, and
+// the parking buffer behind ActL2IncludeTx includes a user tx.
 //
-// It reads the chain back through the backend-agnostic L2Engine.LatestHeader helper (the L2Chain()
-// replacement) and the standard eth client — the same surface the full switch rewrites the suite
-// onto.
+// It reads the chain back through the L2Engine.LatestHeader helper and the standard eth client —
+// the same surface the rest of the suite uses.
 func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	// Holocene keeps the fork surface simple (post-Cancun eip1559Params extraData, no Isthmus
-	// withdrawals-root / requests-hash); fork-fan coverage is a later round.
+	// withdrawals-root / requests-hash).
 	gt.Setenv("OP_E2E_USE_HOLOCENE", "true")
-	gt.Setenv(helpers.ELSelectorEnv, "reth-test-engine")
 
 	// SubTest (not NewDefaultTesting) avoids t.Parallel, which t.Setenv forbids.
 	t := helpers.SubTest(gt)
@@ -97,8 +94,8 @@ func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	require.Equal(t, uint8(optypes.DepositTxType), block.Transactions()[0].Type(), "block leads with the L1-info deposit")
 
 	// op-node's real receipt fetcher validates the receipts-root by re-encoding the fetched
-	// receipts (the deposit's nonce/version and the user receipt) and comparing to the header — the
-	// consensus-parity gate for the OP-enriched receipt RPC.
+	// receipts (the deposit's nonce/version and the user receipt) and comparing to the header, which
+	// checks the OP-enriched receipt RPC against consensus.
 	src := engine.SourceClient(t, 10)
 	info, receipts, err := src.FetchReceipts(t.Ctx(), head.Hash())
 	require.NoError(t, err, "FetchReceipts must validate the receipts-root against the header")

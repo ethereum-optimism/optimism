@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -34,7 +33,6 @@ type EngineBackend interface {
 	HasBlockAndState(hash common.Hash, number uint64) bool
 	GetCanonicalHash(n uint64) common.Hash
 
-	GetVMConfig() *vm.Config
 	Config() *params.ChainConfig
 	// Engine retrieves the chain's consensus engine.
 	Engine() consensus.Engine

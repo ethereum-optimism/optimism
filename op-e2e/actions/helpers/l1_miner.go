@@ -106,7 +106,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
-			// Copied from op-e2e/actions/helpers/engineapi/block_processor.go
+			// Mirrors the beacon-root setup in op-e2e/e2eutils/gethengine/engineapi/block_processor.go.
 			// TODO(client-pod#826)
 			// Unfortunately this is not part of any Geth environment setup,
 			// we just have to apply it, like how the Geth block-builder worker does.
@@ -147,7 +147,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
-		tx := firstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
+		tx := FirstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
 		s.IncludeTx(t, tx)
 		s.pendingIndices[from] = s.pendingIndices[from] + 1 // won't retry the tx
 	}

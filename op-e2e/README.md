@@ -21,6 +21,14 @@ just test-actions
 just test-ws
 ```
 
+The action tests run their L2 execution engine as an `op-reth-test-engine` subprocess.
+`just test-actions` builds it in release mode (`just build-op-reth-test-engine` in `rust/`) and
+points the tests at it, unless `RUST_BINARY_PATH_OP_RETH_TEST_ENGINE` already names a binary.
+Run with `go test` directly, the tests use that variable if set, otherwise the newest build in the
+cargo target directory, and otherwise fail with instructions. `RUST_JIT_BUILD=1` makes them run
+the release build themselves; a cold build takes long, so pass a `-timeout` that covers it (e.g.
+`-timeout 60m`).
+
 ## Overview
 
 `op-e2e` can be categorized as following:
