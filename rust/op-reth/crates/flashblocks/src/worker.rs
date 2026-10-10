@@ -19,7 +19,7 @@ use reth_evm::{
     },
 };
 use reth_execution_types::{BlockExecutionOutput, BlockExecutionResult};
-use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode};
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
 use reth_optimism_primitives::OpReceipt;
 use reth_primitives_traits::{
     AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, Recovered, RecoveredBlock,
@@ -175,10 +175,16 @@ where
         let transactions: Vec<_> = args.transactions.into_iter().collect();
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
         let post_exec_mode = streamed_post_exec_mode(&transactions)?;
-        // The transaction cache resumes from a prefix with a fresh executor, which would index a
-        // `Verify` payload's refund entries from the suffix rather than the block start. Its
-        // entries are also built against a provisional 0x7D that the next subblock supersedes.
-        let use_tx_cache = matches!(post_exec_mode, PostExecMode::Disabled);
+        // A streamed 0x7D is the list's last transaction and is restated by every subblock, so it
+        // is executed fresh on each build and never cached: only the user-tx prefix before it is.
+        // The refunds it grants that prefix settle into the prefix's receipts and balances, so a
+        // cached prefix is reused only when this build's entries for it are unchanged.
+        let (cacheable_tx_count, post_exec_entries) = match &post_exec_mode {
+            PostExecMode::Verify(payload) => {
+                (tx_hashes.len() - 1, payload.gas_refund_entries.clone())
+            }
+            _ => (tx_hashes.len(), Vec::new()),
+        };
 
         // Get state provider and parent header context.
         // For speculative builds, use the canonical anchor hash (not the pending parent hash)
@@ -243,13 +249,14 @@ where
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;
-        let cached_prefix = if is_canonical && use_tx_cache {
+        let cached_prefix = if is_canonical {
             tx_cache.as_ref().and_then(|cache| {
                 cache
                     .get_resumable_state_with_execution_meta_for_parent(
                         args.base.block_number,
                         canonical_parent_hash,
-                        &tx_hashes,
+                        &tx_hashes[..cacheable_tx_count],
+                        &post_exec_entries,
                     )
                     .map(
                         |(
@@ -309,7 +316,9 @@ where
             // - The only pre-execution effect we need is set_state_clear_flag, which configures EVM
             //   empty-account handling (OP Stack chains activate Spurious Dragon at genesis, so
             //   this is always true).
-            // - Suffix transactions execute against the warm prestate.
+            // - Suffix transactions execute against the warm prestate, numbered from the end of the
+            //   cached prefix so a `Verify` payload's refund entries land on the right block
+            //   indexes; the prefix's own entries already settled into the prestate.
             // - Post-execution (finish()) runs once on the suffix executor, producing correct
             //   results for the full block. For OP Stack post-merge, the
             //   post_block_balance_increments are empty (no block rewards, no ommers, no
@@ -322,15 +331,24 @@ where
                 .context_for_next_block(parent_header, attrs)
                 .map_err(RethError::other)?;
 
-            let evm = self.evm_config.evm_with_env(&mut state, evm_env);
-            let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
+            let mut executor = self
+                .evm_config
+                .post_exec_builder_for_next_block(
+                    &mut state,
+                    parent_header,
+                    args.base.clone().into(),
+                    post_exec_mode,
+                )
+                .map_err(RethError::other)?
+                .into_executor();
+            executor.resume_at_tx_index(cached_prefix.cached_tx_count as u64)?;
 
             for tx in transactions.iter().skip(cached_prefix.cached_tx_count).cloned() {
                 let _gas_used = executor.execute_transaction(tx)?;
             }
 
             let (evm, suffix_execution_result) = executor.finish()?;
-            let (db, evm_env) = evm.finish();
+            let (mut db, _) = evm.finish();
             db.merge_transitions(BundleRetention::Reverts);
 
             let execution_result =
@@ -404,21 +422,27 @@ where
             (execution_result, block, hashed_state, bundle)
         };
 
-        // Update transaction cache if provided (only in canonical mode)
+        // Update transaction cache if provided (only in canonical mode). A trailing 0x7D is left
+        // out: it executes as a zero-gas no-op, so dropping its hash and receipt leaves the bundle
+        // and gas totals describing exactly the user-tx prefix.
         if let Some(cache) = tx_cache &&
-            is_canonical &&
-            use_tx_cache
+            is_canonical
         {
+            let mut tx_hashes = tx_hashes;
+            tx_hashes.truncate(cacheable_tx_count);
+            let mut receipts = execution_result.receipts.clone();
+            receipts.truncate(cacheable_tx_count);
             cache.update_with_execution_meta_for_parent(
                 args.base.block_number,
                 canonical_parent_hash,
                 tx_hashes,
                 bundle.clone(),
-                execution_result.receipts.clone(),
+                receipts,
                 CachedExecutionMeta {
                     requests: execution_result.requests.clone(),
                     gas_used: execution_result.gas_used,
                     blob_gas_used: execution_result.blob_gas_used,
+                    post_exec_entries,
                 },
             );
         }
@@ -685,6 +709,7 @@ mod tests {
                 base.block_number,
                 base_parent_hash,
                 &cached_hashes,
+                &[],
             )
             .expect("cache should contain first build execution state");
         assert_eq!(skip, 2);
@@ -700,7 +725,12 @@ mod tests {
             cached_hashes,
             bundle.clone(),
             tampered_receipts,
-            CachedExecutionMeta { requests: requests.clone(), gas_used, blob_gas_used },
+            CachedExecutionMeta {
+                requests: requests.clone(),
+                gas_used,
+                blob_gas_used,
+                ..Default::default()
+            },
         );
 
         let second_hashes = vec![tx_a_hash, tx_b_hash, tx_c_hash];
@@ -709,6 +739,7 @@ mod tests {
                 base.block_number,
                 base_parent_hash,
                 &second_hashes,
+                &[],
             )
             .expect("second tx list should extend cached prefix");
         assert_eq!(skip, 2);
@@ -813,5 +844,280 @@ mod tests {
             balance(&refunded) - balance(&unrefunded),
             U256::from(REFUND as u128 * gas_price)
         );
+    }
+
+    fn post_exec_tx(
+        block_number: u64,
+        entries: Vec<SDMGasEntry>,
+    ) -> alloy_eips::eip2718::WithEncoded<Recovered<OpTransactionSigned>> {
+        into_encoded_recovered(
+            OpTransactionSigned::PostExec(build_post_exec_tx(block_number, entries).seal_slow()),
+            Address::ZERO,
+        )
+    }
+
+    /// Two refunded transfers from one sender, plus the base of the block they go in.
+    struct RefundFixture {
+        builder: FlashBlockBuilder<OpEvmConfig, MockEthProvider<OpPrimitives, Arc<OpChainSpec>>>,
+        base: OpFlashblockPayloadBase,
+        signer: Address,
+        tx_a: alloy_eips::eip2718::WithEncoded<Recovered<OpTransactionSigned>>,
+        tx_b: alloy_eips::eip2718::WithEncoded<Recovered<OpTransactionSigned>>,
+    }
+
+    impl RefundFixture {
+        fn new() -> Self {
+            let recipient = Address::repeat_byte(0x22);
+            let key = PrivateKeySigner::random();
+            let tx_a = signed_transfer_tx(&key, 0, recipient);
+            let tx_b = signed_transfer_tx(&key, 1, recipient);
+            let signer = tx_a.recover_signer().expect("tx signer recovery succeeds");
+            let (provider, base) = funded_provider(signer, recipient);
+            Self {
+                builder: FlashBlockBuilder::new(
+                    OpEvmConfig::optimism(OP_MAINNET.clone()),
+                    provider,
+                ),
+                base,
+                signer,
+                tx_a: into_encoded_recovered(tx_a, signer),
+                tx_b: into_encoded_recovered(tx_b, signer),
+            }
+        }
+
+        fn build(
+            &self,
+            transactions: Vec<alloy_eips::eip2718::WithEncoded<Recovered<OpTransactionSigned>>>,
+            tx_cache: &mut TransactionCache<OpPrimitives>,
+        ) -> BuildResult<OpPrimitives> {
+            self.builder
+                .execute(
+                    BuildArgs {
+                        base: self.base.clone(),
+                        transactions,
+                        cached_state: None,
+                        last_flashblock_index: 0,
+                        last_flashblock_hash: B256::ZERO,
+                        compute_state_root: false,
+                        pending_parent: None,
+                    },
+                    Some(tx_cache),
+                )
+                .expect("build succeeds")
+                .expect("build is canonical")
+        }
+
+        /// Builds `transactions` from scratch, with an empty cache.
+        fn fresh(
+            &self,
+            transactions: Vec<alloy_eips::eip2718::WithEncoded<Recovered<OpTransactionSigned>>>,
+        ) -> BuildResult<OpPrimitives> {
+            self.build(transactions, &mut TransactionCache::new())
+        }
+
+        fn sender_balance(&self, build: &BuildResult<OpPrimitives>) -> U256 {
+            build
+                .pending_state
+                .execution_outcome
+                .state
+                .account(&self.signer)
+                .and_then(|account| account.info.as_ref())
+                .expect("sender is touched")
+                .balance
+        }
+
+        /// Asserts `build` matches a from-scratch build of the same transactions.
+        fn assert_matches_fresh(
+            &self,
+            build: &BuildResult<OpPrimitives>,
+            transactions: Vec<alloy_eips::eip2718::WithEncoded<Recovered<OpTransactionSigned>>>,
+        ) {
+            let fresh = self.fresh(transactions);
+            let result =
+                |b: &BuildResult<OpPrimitives>| b.pending_state.execution_outcome.result.clone();
+            assert_eq!(result(build).gas_used, result(&fresh).gas_used);
+            assert_eq!(result(build).receipts, result(&fresh).receipts);
+            assert_eq!(self.sender_balance(build), self.sender_balance(&fresh));
+        }
+    }
+
+    /// A build whose subblock carries a 0x7D caches its user-tx prefix, without the provisional
+    /// 0x7D, so the next subblock's build can resume from it and still match a full re-execution.
+    #[test]
+    fn verify_build_caches_prefix_and_next_build_resumes_from_it() {
+        const REFUND: u64 = 1_000;
+        let f = RefundFixture::new();
+        let block = f.base.block_number;
+        let mut tx_cache = TransactionCache::<OpPrimitives>::new();
+
+        f.build(
+            vec![
+                f.tx_a.clone(),
+                post_exec_tx(block, vec![SDMGasEntry { index: 0, gas_refund: REFUND }]),
+            ],
+            &mut tx_cache,
+        );
+        assert_eq!(
+            tx_cache.executed_tx_hashes(),
+            &[B256::from(*f.tx_a.1.tx_hash())],
+            "the user-tx prefix is cached and the provisional 0x7D is not"
+        );
+
+        let second_txs = vec![
+            f.tx_a.clone(),
+            f.tx_b.clone(),
+            post_exec_tx(
+                block,
+                vec![
+                    SDMGasEntry { index: 0, gas_refund: REFUND },
+                    SDMGasEntry { index: 1, gas_refund: REFUND },
+                ],
+            ),
+        ];
+        let second = f.build(second_txs.clone(), &mut tx_cache);
+        f.assert_matches_fresh(&second, second_txs);
+    }
+
+    /// Nudges the cached prefix's first receipt so a later build reveals whether it resumed from
+    /// the cache (the nudged value carries through) or re-executed from scratch (it doesn't).
+    /// Returns the nudged cumulative gas.
+    fn tamper_cached_first_receipt(
+        tx_cache: &mut TransactionCache<OpPrimitives>,
+        base: &OpFlashblockPayloadBase,
+        hashes: &[B256],
+        entries: &[SDMGasEntry],
+    ) -> u64 {
+        let (bundle, receipts, requests, gas_used, blob_gas_used, _) = tx_cache
+            .get_resumable_state_with_execution_meta_for_parent(
+                base.block_number,
+                base.parent_hash,
+                hashes,
+                entries,
+            )
+            .expect("cache holds the first build");
+        let mut receipts = receipts.to_vec();
+        receipts[0].as_receipt_mut().cumulative_gas_used += 17;
+        let tampered = receipts[0].as_receipt().cumulative_gas_used;
+        let (bundle, requests) = (bundle.clone(), requests.clone());
+        tx_cache.update_with_execution_meta_for_parent(
+            base.block_number,
+            base.parent_hash,
+            hashes.to_vec(),
+            bundle,
+            receipts,
+            CachedExecutionMeta {
+                requests,
+                gas_used,
+                blob_gas_used,
+                post_exec_entries: entries.to_vec(),
+            },
+        );
+        tampered
+    }
+
+    /// The next subblock's build resumes from the cached prefix when the 0x7D's entry for the
+    /// prefix is unchanged, executing only the new transaction and the restated 0x7D.
+    #[test]
+    fn verify_build_resumes_when_prefix_refund_unchanged() {
+        const REFUND: u64 = 1_000;
+        let f = RefundFixture::new();
+        let block = f.base.block_number;
+        let prefix_entries = [SDMGasEntry { index: 0, gas_refund: REFUND }];
+        let mut tx_cache = TransactionCache::<OpPrimitives>::new();
+
+        f.build(vec![f.tx_a.clone(), post_exec_tx(block, prefix_entries.to_vec())], &mut tx_cache);
+        let tampered = tamper_cached_first_receipt(
+            &mut tx_cache,
+            &f.base,
+            &[B256::from(*f.tx_a.1.tx_hash())],
+            &prefix_entries,
+        );
+
+        let second = f.build(
+            vec![
+                f.tx_a.clone(),
+                f.tx_b.clone(),
+                post_exec_tx(
+                    block,
+                    vec![prefix_entries[0].clone(), SDMGasEntry { index: 1, gas_refund: REFUND }],
+                ),
+            ],
+            &mut tx_cache,
+        );
+        let receipts = &second.pending_state.execution_outcome.result.receipts;
+        assert_eq!(receipts.len(), 3);
+        assert_eq!(
+            receipts[0].as_receipt().cumulative_gas_used,
+            tampered,
+            "the prefix came from the cache"
+        );
+    }
+
+    /// A revised refund for an already-streamed transaction invalidates the cached prefix, whose
+    /// state has the old refund settled into it, so the build re-executes from scratch.
+    #[test]
+    fn verify_build_re_executes_when_prefix_refund_revised() {
+        let f = RefundFixture::new();
+        let block = f.base.block_number;
+        let first_entries = [SDMGasEntry { index: 0, gas_refund: 1_000 }];
+        let mut tx_cache = TransactionCache::<OpPrimitives>::new();
+
+        f.build(vec![f.tx_a.clone(), post_exec_tx(block, first_entries.to_vec())], &mut tx_cache);
+        let tampered = tamper_cached_first_receipt(
+            &mut tx_cache,
+            &f.base,
+            &[B256::from(*f.tx_a.1.tx_hash())],
+            &first_entries,
+        );
+
+        let second_txs = vec![
+            f.tx_a.clone(),
+            f.tx_b.clone(),
+            post_exec_tx(
+                block,
+                vec![
+                    SDMGasEntry { index: 0, gas_refund: 2_000 },
+                    SDMGasEntry { index: 1, gas_refund: 1_000 },
+                ],
+            ),
+        ];
+        let second = f.build(second_txs.clone(), &mut tx_cache);
+        assert_ne!(
+            second.pending_state.execution_outcome.result.receipts[0]
+                .as_receipt()
+                .cumulative_gas_used,
+            tampered,
+            "the stale prefix was not reused"
+        );
+        f.assert_matches_fresh(&second, second_txs);
+    }
+
+    /// A newest subblock without a 0x7D means no refunds so far, so a prefix that ran with
+    /// refunds cannot be reused.
+    #[test]
+    fn build_without_post_exec_re_executes_refunded_prefix() {
+        let f = RefundFixture::new();
+        let block = f.base.block_number;
+        let first_entries = [SDMGasEntry { index: 0, gas_refund: 1_000 }];
+        let mut tx_cache = TransactionCache::<OpPrimitives>::new();
+
+        f.build(vec![f.tx_a.clone(), post_exec_tx(block, first_entries.to_vec())], &mut tx_cache);
+        let tampered = tamper_cached_first_receipt(
+            &mut tx_cache,
+            &f.base,
+            &[B256::from(*f.tx_a.1.tx_hash())],
+            &first_entries,
+        );
+
+        let second_txs = vec![f.tx_a.clone(), f.tx_b.clone()];
+        let second = f.build(second_txs.clone(), &mut tx_cache);
+        assert_ne!(
+            second.pending_state.execution_outcome.result.receipts[0]
+                .as_receipt()
+                .cumulative_gas_used,
+            tampered,
+            "the refunded prefix was not reused"
+        );
+        f.assert_matches_fresh(&second, second_txs);
     }
 }
