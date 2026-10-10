@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStoreSafeHeads(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestStoreSafeHeads(t *testing.T) {
 }
 
 func TestSafeHeadAtL1_EmptyDatabase(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestSafeHeadAtL1_EmptyDatabase(t *testing.T) {
 }
 
 func TestFirstEntry_EmptyDatabase(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestFirstEntry_EmptyDatabase(t *testing.T) {
 }
 
 func TestFirstEntry_ReturnsLowestL1(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestFirstEntry_ReturnsLowestL1(t *testing.T) {
 }
 
 func TestFirstEntry_StableAfterResetAhead(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestFirstEntry_StableAfterResetAhead(t *testing.T) {
 }
 
 func TestTruncateOnSafeHeadReset(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -216,7 +216,7 @@ func TestTruncateOnSafeHeadReset(t *testing.T) {
 }
 
 func TestTruncateOnSafeHeadReset_BeforeFirstEntry(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -273,7 +273,7 @@ func TestTruncateOnSafeHeadReset_BeforeFirstEntry(t *testing.T) {
 }
 
 func TestTruncateOnSafeHeadReset_AfterLastEntry(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)
@@ -361,7 +361,7 @@ func TestTruncateOnSafeHeadReset_AfterLastEntry(t *testing.T) {
 }
 
 func TestL1AtSafeHead(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	dir := t.TempDir()
 	db, err := NewSafeDB(logger, dir)
 	require.NoError(t, err)

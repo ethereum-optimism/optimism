@@ -13,9 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func TestDataAndHashesFromTxs(t *testing.T) {
@@ -25,7 +25,7 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	publicKey, _ := privateKey.Public().(*ecdsa.PublicKey)
 	batcherAddr := crypto.PubkeyToAddress(*publicKey)
 	batchInboxAddr := testutils.RandomAddress(rng)
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	chainId := new(big.Int).SetUint64(rng.Uint64())
 	signer := types.NewPragueSigner(chainId)

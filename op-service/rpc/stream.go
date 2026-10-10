@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -242,7 +243,7 @@ func (evs *Stream[E]) Serve() (*E, error) {
 	// we don't want to push events over a subscription at the same time as a client is pulling.
 	evs.closeSub()
 	if len(evs.queue) == 0 {
-		return nil, &gethrpc.JsonError{
+		return nil, &jsonrpc.Error{
 			Code:    OutOfEventsErrCode,
 			Message: "out of events",
 		}

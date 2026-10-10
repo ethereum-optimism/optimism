@@ -26,6 +26,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `rust/Cargo.toml`. Reuse or clone that source, ensure a remote points to
    `https://github.com/paradigmxyz/reth`, then fetch upstream `main`, tags, the
    old pin, and the selected target. Validate reused remotes before diffing.
+   Skim upstream fixes newer than the candidate target (the guide's forward
+   sweep) so a retarget decision comes before the adaptation work.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
@@ -40,9 +42,15 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    it into `rust/UPDATING-RETH.md` before review.
 
 5. **Review and resolve.** Commit a review candidate and run code, security, and
-   the **`reth-update-reviewer` agent** (`docs/ai/reth-update-review.md`).
-   Complete its all-severities triage and selected investigations. Fix findings,
-   then rerun every matching reviewer until the candidate is clean.
+   the **`reth-update-reviewer` agent** (`docs/ai/reth-update-review.md`),
+   including its partitioned full-range sweep over every bumped family; the
+   mirror funnel alone does not clear a bump. Include its forward sweep for
+   upstream fixes newer than the target, and get the user's decision:
+   cherry-pick the fixes onto the pin (UPDATING-RETH step 3, then back to
+   step 3 here), or retarget to a newer upstream release or commit (back to
+   step 1 here with the new target, reusing the worktree). Complete its
+   all-severities triage and selected investigations. Fix findings, then
+   rerun every matching reviewer until the candidate is clean.
 
 6. **Final verification.** Verify everything the guide lists on the reviewed
    head. On memory-constrained machines, use

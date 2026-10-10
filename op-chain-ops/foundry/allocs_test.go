@@ -9,23 +9,23 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 )
 
 func TestForgeAllocs_FromState(t *testing.T) {
 	// Internals of state-dumping of Geth have silent errors.
-	cfg := oplog.DefaultCLIConfig()
+	cfg := logcli.DefaultCLIConfig()
 	cfg.Level = log.LevelTrace
-	oplog.SetGlobalLogHandler(oplog.NewLogHandler(os.Stdout, cfg))
+	logcli.SetGlobalLogHandler(logcli.NewLogHandler(os.Stdout, cfg))
 
 	rawDB := rawdb.NewMemoryDatabase()
 	stateDB := state.NewDatabase(triedb.NewDatabase(rawDB, &triedb.Config{

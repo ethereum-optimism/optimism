@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
@@ -23,7 +22,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"
@@ -38,9 +38,9 @@ func L2SemversCLI(cliCtx *cli.Context) error {
 	ctx, cancel := context.WithTimeout(cliCtx.Context, time.Minute)
 	defer cancel()
 
-	logCfg := oplog.ReadCLIConfig(cliCtx)
-	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(l.Handler())
+	logCfg := logcli.ReadCLIConfig(cliCtx)
+	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+	logcli.SetGlobalLogHandler(l.Handler())
 
 	globalState, err := pipeline.ReadState(cliCfg.Workdir)
 	if err != nil {

@@ -1,13 +1,13 @@
 package gnosis
 
 import (
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
 
 const EnvVarPrefix = "GNOSIS"
 
-var GlobalFlags = append([]cli.Flag{}, oplog.CLIFlags(EnvVarPrefix)...)
+var GlobalFlags = append([]cli.Flag{}, logcli.CLIFlags(EnvVarPrefix)...)
 
 var (
 	L1RpcUrlFlag = &cli.StringFlag{

@@ -11,8 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	log2 "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // runCmdWaitDelay bounds how long cmd.Wait blocks after the context is cancelled
@@ -47,10 +46,10 @@ func PreimageDir(dir string) string {
 
 func RunCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := log2.NewWriter(l, log.LevelInfo)
+	stdOut := log.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
 	// Keep stdErr at info level because FPVM uses stderr for progress messages
-	stdErr := log2.NewWriter(l, log.LevelInfo)
+	stdErr := log.NewWriter(l, log.LevelInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr

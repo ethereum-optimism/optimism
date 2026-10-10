@@ -6,9 +6,9 @@ use kona_disc::{Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, GossipDriverBuilder};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
 use std::time::Duration;
+use tokio::sync::watch;
 
 use crate::{
     NetworkBuilderError,
@@ -22,8 +22,6 @@ pub struct NetworkBuilder {
     pub(super) discovery: Discv5Builder,
     /// The gossip driver.
     pub(super) gossip: GossipDriverBuilder,
-    /// A signer for payloads.
-    pub(super) signer: Option<BlockSigner>,
     /// Whether to update the ENR socket after the libp2p Swarm is started.
     /// This is set to true by default.
     /// This may be set to false if the node is configured to use a static advertised address (when
@@ -40,7 +38,6 @@ impl From<NetworkConfig> for NetworkBuilder {
             config.keypair,
             config.discovery_address,
             config.discovery_config,
-            config.gossip_signer,
         )
         .with_enr_update(config.enr_update)
         .with_discovery_randomize(config.discovery_randomize)
@@ -64,7 +61,6 @@ impl NetworkBuilder {
         keypair: Keypair,
         discovery_address: LocalNode,
         discovery_config: discv5::Config,
-        signer: Option<BlockSigner>,
     ) -> Self {
         Self {
             discovery: Discv5Builder::new(
@@ -78,7 +74,6 @@ impl NetworkBuilder {
                 gossip_addr,
                 keypair,
             ),
-            signer,
             enr_update: true,
         }
     }
@@ -93,9 +88,11 @@ impl NetworkBuilder {
         Self { gossip: self.gossip.with_gater_config(config), ..self }
     }
 
-    /// Sets the signer for the [`NetworkBuilder`].
-    pub fn with_signer(self, signer: Option<BlockSigner>) -> Self {
-        Self { signer, ..self }
+    /// Sets the receiver of the unsafe block signer [`Address`] that gossiped blocks must be signed
+    /// by, so that validation follows its current value instead of the address given to
+    /// [`Self::new`].
+    pub fn with_unsafe_block_signer(self, signer: watch::Receiver<Address>) -> Self {
+        Self { gossip: self.gossip.with_unsafe_block_signer_receiver(signer), ..self }
     }
 
     /// Sets the bootstore path for the [`Discv5Builder`].
@@ -160,16 +157,10 @@ impl NetworkBuilder {
 
     /// Builds the [`NetworkDriver`].
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
-        let (gossip, unsafe_block_signer_sender) = self.gossip.build()?;
+        let gossip = self.gossip.build()?;
         let discovery = self.discovery.build()?;
 
-        Ok(NetworkDriver {
-            gossip,
-            discovery,
-            unsafe_block_signer_sender,
-            signer: self.signer,
-            enr_update: self.enr_update,
-        })
+        Ok(NetworkDriver { gossip, discovery, enr_update: self.enr_update })
     }
 }
 
@@ -177,7 +168,8 @@ impl NetworkBuilder {
 mod tests {
     use super::*;
     use alloy_chains::Chain;
-    use discv5::{ConfigBuilder, ListenConfig, enr::CombinedKey};
+    use discv5::{ConfigBuilder, ListenConfig};
+    use enr::CombinedKey;
     use libp2p::gossipsub::IdentTopic;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -218,7 +210,6 @@ mod tests {
             keypair,
             discovery_address,
             discovery_config,
-            None,
         )
     }
 

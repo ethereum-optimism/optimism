@@ -11,8 +11,8 @@ use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
 use metrics::{Counter, Gauge, Histogram};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
-use reth_evm::ConfigureEvm;
 use reth_metrics::Metrics;
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_primitives_traits::{AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy};
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use reth_tasks::TaskExecutor;
@@ -54,7 +54,7 @@ pub struct CanonicalBlockNotification {
 pub struct FlashBlockService<
     N: NodePrimitives,
     S,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
+    EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider,
 > {
     /// Incoming flashblock stream.
@@ -97,7 +97,7 @@ where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
     S: Stream<Item = eyre::Result<FlashBlock>> + Unpin + 'static,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>
+    EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>
         + Clone
         + 'static,
     Provider: StateProviderFactory

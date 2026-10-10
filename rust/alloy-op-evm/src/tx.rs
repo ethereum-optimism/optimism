@@ -299,7 +299,7 @@ impl TransactionEnvMut for OpTx {
     }
 
     fn set_access_list(&mut self, access_list: alloy_eips::eip2930::AccessList) {
-        self.0.base.access_list = access_list;
+        self.0.base.set_access_list(access_list);
     }
 }
 
@@ -307,10 +307,31 @@ impl TransactionEnvMut for OpTx {
 mod tests {
     use super::*;
     use alloc::vec;
+    use alloy_consensus::TxType;
+    use alloy_eips::eip2930::{AccessList, AccessListItem};
     use op_alloy::consensus::{
-        POST_EXEC_TX_TYPE_ID,
+        DEPOSIT_TX_TYPE_ID, POST_EXEC_TX_TYPE_ID,
         post_exec::{SDMGasEntry, build_post_exec_tx},
     };
+
+    #[test_case::test_case(TxType::Legacy as u8, TxType::Eip2930 as u8; "legacy")]
+    #[test_case::test_case(TxType::Eip2930 as u8, TxType::Eip2930 as u8; "eip2930")]
+    #[test_case::test_case(TxType::Eip1559 as u8, TxType::Eip1559 as u8; "eip1559")]
+    #[test_case::test_case(DEPOSIT_TX_TYPE_ID, DEPOSIT_TX_TYPE_ID; "deposit")]
+    #[test_case::test_case(POST_EXEC_TX_TYPE_ID, POST_EXEC_TX_TYPE_ID; "post_exec")]
+    fn set_access_list_updates_transaction_type(tx_type: u8, expected_type: u8) {
+        let mut tx = OpTx::default();
+        tx.0.base.tx_type = tx_type;
+        let access_list = AccessList(vec![AccessListItem {
+            address: Address::from([0x11; 20]),
+            storage_keys: vec![B256::ZERO],
+        }]);
+
+        tx.set_access_list(access_list.clone());
+
+        assert_eq!(tx.0.base.access_list, access_list);
+        assert_eq!(tx.0.base.tx_type, expected_type);
+    }
 
     #[test]
     fn post_exec_tx_env_reflects_transaction_fields() {

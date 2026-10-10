@@ -5,8 +5,9 @@ import (
 	"maps"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var mergeCommand = &cli.Command{

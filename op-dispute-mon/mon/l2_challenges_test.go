@@ -5,9 +5,9 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func TestMonitorL2Challenges(t *testing.T) {
 		{CommonGameData: types.CommonGameData{AgreeWithClaim: true}},
 	}
 	metrics := &stubL2ChallengeMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewL2ChallengesMonitor(logger, metrics)
 	monitor.CheckL2Challenges(games)
 	require.Equal(t, 1, metrics.challengeCount[true])

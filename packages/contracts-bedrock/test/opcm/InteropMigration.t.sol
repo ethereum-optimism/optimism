@@ -105,7 +105,12 @@ contract MockOPCMRevert {
         return "7.0.0";
     }
 
-    function migrate(IOPContractsManagerMigrator.MigrateInput memory /*_input*/ ) public pure {
+    function migrate(
+        IOPContractsManagerMigrator.MigrateInput memory /*_input*/
+    )
+        public
+        pure
+    {
         revert("MockOPCMRevert: revert migrate");
     }
 }

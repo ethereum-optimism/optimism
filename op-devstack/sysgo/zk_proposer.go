@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -24,20 +23,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 )
 
-// zkProposerReadyMessage is the structured tracing message kona-sp1-proposer
+// zkProposerReadyMessage is the structured tracing message op-zk-proposer
 // emits once config validation and provider construction have completed; the
 // launcher matches it to detect startup.
 const (
-	zkProposerReadyMessage   = "kona-sp1-proposer started"
-	konaSP1ELFDirEnv         = "KONA_SP1_ELF_DIR"
-	konaSP1ProposerEnvPrefix = "KONA_SP1_PROPOSER"
+	zkProposerReadyMessage = "op-zk-proposer started"
+	konaSP1ELFDirEnv       = "KONA_SP1_ELF_DIR"
+	opZKProposerEnvPrefix  = "OP_ZK_PROPOSER"
 )
 
 func zkProposerEnv(suffix, value string) string {
-	return konaSP1ProposerEnvPrefix + "_" + suffix + "=" + value
+	return opZKProposerEnvPrefix + "_" + suffix + "=" + value
 }
 
 func loadZKProgramVKey(elfDir string) (common.Hash, error) {
@@ -73,7 +73,7 @@ type zkProposerConfig struct {
 	Metrics          bool
 }
 
-// ZKProposerRuntime is the opaque handle for a running kona-sp1-proposer.
+// ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
 type ZKProposerRuntime struct {
 	metricsClient client.HTTP
 }
@@ -83,12 +83,12 @@ func (r *ZKProposerRuntime) MetricsClient() client.HTTP {
 	return r.metricsClient
 }
 
-// ZKProposerOption configures the kona-sp1-proposer process started by
+// ZKProposerOption configures the op-zk-proposer process started by
 // devstack.
 type ZKProposerOption func(cfg *zkProposerConfig)
 
 // WithZKProposalInterval overrides the proposal interval passed to
-// kona-sp1-proposer.
+// op-zk-proposer.
 func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.ProposalInterval = &interval
@@ -129,7 +129,7 @@ func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
 	return cfg, nil
 }
 
-// startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
+// startZKProposer launches the Rust op-zk-proposer binary against the ZK
 // dispute game type. The process has no HTTP API and is configured through
 // environment variables.
 func startZKProposer(
@@ -157,14 +157,14 @@ func startZKProposer(
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
-		Package: "kona-sp1-proposer",
-		Binary:  "kona-sp1-proposer",
+		Package: "op-zk-proposer",
+		Binary:  "op-zk-proposer",
 	}.EnsureExists(t.Ctx(), t.Logger())
-	require.NoError(err, "prepare kona-sp1-proposer binary")
-	require.NotEmpty(execPath, "kona-sp1-proposer binary path resolved")
+	require.NoError(err, "prepare op-zk-proposer binary")
+	require.NotEmpty(execPath, "op-zk-proposer binary path resolved")
 
 	// The proposer checks and loads program artifacts at
-	// KONA_SP1_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
+	// OP_ZK_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
 	// op-challenger's --prestates-url convention. The aggregation vkey embeds
 	// the range program's vkey, so it keys both ELFs. Devstack publishes the
 	// real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise stub bytes
@@ -240,8 +240,8 @@ func startZKProposer(
 	}
 	env = append(env, zkProposerEnv("METRICS_PORT", metricsPort))
 
-	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)
-	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stderr"), log.LevelWarn)
+	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-zk-proposer", "src", "stdout"), log.LevelWarn)
+	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-zk-proposer", "src", "stderr"), log.LevelWarn)
 	startedChan := make(chan logpipe.LogEntry, 1)
 
 	onLogEntry := func(e logpipe.LogEntry) {
@@ -264,7 +264,7 @@ func startZKProposer(
 	})
 	sub := NewSubProcess(t, stdOutLogs, stdErrLogs)
 
-	require.NoError(sub.Start(execPath, nil, env), "must start kona-sp1-proposer")
+	require.NoError(sub.Start(execPath, nil, env), "must start op-zk-proposer")
 
 	// Wait for the startup line, but fail fast if the process exits first
 	// (e.g. a crash on boot) rather than blocking until the test times out.
@@ -275,10 +275,10 @@ func startZKProposer(
 		select {
 		case started = <-startedChan:
 		default:
-			require.FailNow("kona-sp1-proposer exited before its startup line was emitted")
+			require.FailNow("op-zk-proposer exited before its startup line was emitted")
 		}
 	case <-t.Ctx().Done():
-		require.NoError(t.Ctx().Err(), "need kona-sp1-proposer startup")
+		require.NoError(t.Ctx().Err(), "need op-zk-proposer startup")
 	}
 
 	var metricsAddr string
@@ -288,7 +288,7 @@ func startZKProposer(
 		metricsClient = client.NewBasicHTTPClient("http://"+metricsAddr, t.Logger())
 	}
 
-	t.Logger().Info("kona-sp1-proposer is up",
+	t.Logger().Info("op-zk-proposer is up",
 		"chain", proposerChainID, "factory", factoryAddr, "metricsAddr", metricsAddr)
 	return &ZKProposerRuntime{metricsClient: metricsClient}
 }
@@ -298,7 +298,7 @@ func startZKProposer(
 // which is not an address the test process can dial.
 func loopbackMetricsAddr(t devtest.T, started logpipe.LogEntry) string {
 	reported, _ := started.FieldValue("metrics_addr").(string)
-	t.Require().NotEmpty(reported, "kona-sp1-proposer must report its metrics address")
+	t.Require().NotEmpty(reported, "op-zk-proposer must report its metrics address")
 	_, port, err := net.SplitHostPort(reported)
 	t.Require().NoErrorf(err, "parse reported metrics address %q", reported)
 	return net.JoinHostPort("127.0.0.1", port)

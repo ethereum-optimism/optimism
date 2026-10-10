@@ -85,6 +85,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
     error OPContractsManagerMigrator_InvalidAbsolutePrestate();
 
+    /// @notice Thrown when a ZK_DISPUTE_GAME config has a zero absolute prestate, a zero or
+    ///         greater-than-uint32-max challenge or prove duration, or a zero challenger bond.
+    error OPContractsManagerMigrator_InvalidZKDisputeGameConfig();
+
     /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
     error OPContractsManagerMigrator_InvalidGameType();
 
@@ -118,7 +122,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      migrating a subset of chains that share a lockbox) or any other migration scenario.
     ///      Re-migration is rejected: any chain that already has Features.INTEROP enabled is
     ///      refused, because re-migrating it would corrupt the shared DisputeGameFactory and
-    ///      ETHLockbox used by every chain in its set.
+    ///      ETHLockbox used by every chain in its set. SystemConfig does not allow INTEROP to be
+    ///      disabled.
     /// @dev NOTE: OPContractsManagerV2.upgrade() only performs standard chain upgrades. This
     ///      function performs the one-off interop activation by enabling required features,
     ///      connecting each portal to the shared ETHLockbox, migrating liquidity, and moving each
@@ -157,12 +162,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // provided in ascending order.
         _validateChainSystemConfigs(_input.chainSystemConfigs);
 
-        if (
-            SemverComp.lt(
+        if (SemverComp.lt(
                 _input.chainSystemConfigs[0].superchainConfig().version(),
                 ISuperchainConfig(contractsContainer().implementations().superchainConfigImpl).version()
-            )
-        ) {
+            )) {
             revert OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade();
         }
 
@@ -184,16 +187,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
             new IOPContractsManagerUtils.ExtraInstruction[](3);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("ETHLockbox")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
         });
         extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("DisputeGameFactory")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("DisputeGameFactory")
         });
         extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("AnchorStateRegistry")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("AnchorStateRegistry")
         });
 
         // Deploy the new ETHLockbox.
@@ -310,10 +310,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 revert OPContractsManagerMigrator_SuperchainConfigMismatch();
             }
 
-            // migrate() is the only thing that sets INTEROP on L1, so the flag means this chain is
-            // already in an interop set. Re-migrating it would drain that set's ETHLockbox into a
-            // fresh one and clear every game implementation from its shared DisputeGameFactory,
-            // for every chain sharing them.
+            // migrate() is the only thing that sets INTEROP on L1 and SystemConfig does not allow
+            // clearing it, so the flag means this chain is already in an interop set. Re-migrating
+            // it would drain that set's ETHLockbox into a fresh one and clear every game
+            // implementation from its shared DisputeGameFactory, for every chain sharing them.
             if (_chainSystemConfigs[i].isFeatureEnabled(Features.INTEROP)) {
                 revert OPContractsManagerMigrator_ChainAlreadyMigrated();
             }
@@ -410,10 +410,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
             }
         } else if (rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()) {
-            IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
-                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
-            if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
-                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
+            // The ZK game also needs bounded, non-zero durations and a non-zero challenger bond.
+            if (!_isValidZKDisputeGameConfig(_gameConfig.gameArgs)) {
+                revert OPContractsManagerMigrator_InvalidZKDisputeGameConfig();
             }
         }
     }

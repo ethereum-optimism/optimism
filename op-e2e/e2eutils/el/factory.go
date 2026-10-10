@@ -9,11 +9,11 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // L2Config carries everything needed to construct an L2 EL backend.

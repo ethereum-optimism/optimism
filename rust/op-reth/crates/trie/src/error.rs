@@ -5,8 +5,7 @@ use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
 use reth_provider::ProviderError;
-use reth_trie_common::Nibbles;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
 
 /// Error type for storage operations
@@ -53,30 +52,6 @@ pub enum OpProofsStorageError {
         current_state_hash: B256,
         /// Expected state root
         expected_state_hash: B256,
-    },
-    /// No change set for block
-    #[error("No change set found for block {0}")]
-    NoChangeSetForBlock(u64),
-    /// Missing account trie history for a specific path at a specific block number
-    #[error("Missing account trie history for path {0:?} at block {1}")]
-    MissingAccountTrieHistory(Nibbles, u64),
-    /// Missing storage trie history for a specific address and path at a specific block number
-    #[error("Missing storage trie history for address {0:?}, path {1:?} at block {2}")]
-    MissingStorageTrieHistory(B256, Nibbles, u64),
-    /// Missing hashed account history for a specific key at a specific block number
-    #[error("Missing hashed account history for key {0:?} at block {1}")]
-    MissingHashedAccountHistory(B256, u64),
-    /// Missing hashed storage history for a specific address and key at a specific block number
-    #[error(
-        "Missing hashed storage history for address {hashed_address:?}, key {hashed_storage_key:?} at block {block_number}"
-    )]
-    MissingHashedStorageHistory {
-        /// The hashed address
-        hashed_address: B256,
-        /// The hashed storage key
-        hashed_storage_key: B256,
-        /// The block number
-        block_number: u64,
     },
     /// Attempted to unwind to a block beyond the earliest stored block
     #[error(
@@ -137,6 +112,15 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the provider.
     #[error(transparent)]
     ProviderError(Arc<ProviderError>),
+    /// The proofs database still holds data written by the removed v1 proofs storage.
+    #[error(
+        "v1 proofs database detected at {}; delete it and run 'op-reth proofs init'",
+        path.display()
+    )]
+    LegacyV1Database {
+        /// Path of the proofs database.
+        path: PathBuf,
+    },
     /// Initialization detected inconsistent state between proofs storage and source DB.
     #[error(
         "Initialization Proofs storage detected inconsistent state. Storage does not match source DB. \

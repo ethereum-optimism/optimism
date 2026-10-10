@@ -18,6 +18,7 @@ sp1-sdk.workspace = true
 kona-sp1-client-utils.workspace = true
 
 # kona
+kona-sources.workspace = true
 kona-derive.workspace = true
 kona-preimage.workspace = true
 kona-proof.workspace = true
@@ -27,6 +28,8 @@ kona-protocol.workspace = true
 alloy-consensus.workspace = true
 alloy-eips = { workspace = true, features = ["kzg"] }
 alloy-primitives.workspace = true
+sp1-alloy-signer.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 
 # general
 anyhow.workspace = true
@@ -40,6 +43,7 @@ kzg-rs.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-process.workspace = true
+serde.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["net", "rt", "time"] }
 tracing.workspace = true

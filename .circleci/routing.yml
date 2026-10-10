@@ -59,6 +59,14 @@ api_dispatch:
   labeled_pr:
     - close_issue
 
+# Workflows that run only in ethereum-optimism/optimism. They publish to OP Labs
+# infrastructure or check this project's CircleCI schedules, so other repos
+# sharing this config lack the credentials or schedules they need.
+public_repo_only:
+  - publish_contract_artifacts
+  - kona_publish_prestates
+  - circleci_schedule_trigger_check
+
 # Change-detection patterns. Each value is a POSIX Extended Regular Expression
 # (ERE, like grep -E) matched line-by-line against the changed file list
 # (git diff --name-only origin/develop...HEAD). collect-params.sh reads these.

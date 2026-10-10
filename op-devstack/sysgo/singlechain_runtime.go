@@ -2,8 +2,10 @@ package sysgo
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
@@ -23,13 +25,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type singleChainRuntimeWorld struct {
@@ -187,7 +189,19 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	var l2Proposer *L2Proposer
 	if spec.StartProposer && !cfg.SkipHonestProposer {
-		l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
+		if slices.Contains(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType) {
+			dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+				world.L2Network.ChainID(): {},
+			})
+			require.NoError(err)
+			startZKProposer(t, keys, world.L2Network.ChainID(), world.L1Network, l1EL, l1CL,
+				dependencySet, primary.CL.UserRPC(), []*L2Network{world.L2Network}, []L2ELNode{primary.EL},
+				world.L2Network.deployment.DisputeGameFactoryProxyAddr(),
+				ZKDisputeGameConfigForRuntime().AbsolutePrestate, os.Getenv(konaSP1ELFDirEnv),
+				WithZKProposalInterval(6*time.Second))
+		} else {
+			l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
+		}
 	}
 
 	var l2Challenger *L2Challenger
@@ -266,8 +280,7 @@ func startMinimalBatcher(
 	require.NoError(err)
 	batcherTarget := NewComponentTarget("main", l2Net.ChainID())
 
-	logger := t.Logger().New("component", "l2-batcher")
-	logger.SetContext(t.Ctx())
+	logger := t.Logger().New("component", "l2-batcher").WithContext(t.Ctx())
 	logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
 	compressionAlgo := derive.Zlib
@@ -288,9 +301,9 @@ func startMinimalBatcher(
 		SubSafetyMargin:          4,
 		PollInterval:             500 * time.Millisecond,
 		TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), batcherSecret),
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		Stopped:               false,
 		BatchType:             derive.SpanBatchType,
@@ -364,9 +377,9 @@ func startMinimalProposer(
 		RPCConfig: oprpc.CLIConfig{
 			ListenAddr: "127.0.0.1",
 		},
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
-			Format: oplog.FormatText,
+		LogConfig: logcli.CLIConfig{
+			Level:  log.LevelInfo,
+			Format: log.FormatText,
 		},
 		MetricsConfig:                opmetrics.CLIConfig{},
 		PprofConfig:                  oppprof.CLIConfig{},

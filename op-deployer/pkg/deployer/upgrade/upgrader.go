@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
@@ -27,9 +27,9 @@ type Upgrader interface {
 
 func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(cliCtx)
-		lgr := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-		oplog.SetGlobalLogHandler(lgr.Handler())
+		logCfg := logcli.ReadCLIConfig(cliCtx)
+		lgr := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+		logcli.SetGlobalLogHandler(lgr.Handler())
 
 		ctx, cancel := context.WithCancel(cliCtx.Context)
 		defer cancel()
