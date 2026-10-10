@@ -779,6 +779,10 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
                 && _target != foundryVMAddress
         );
 
+        // Ensure the target is not a forge address such as the console, whose calls Foundry
+        // intercepts so they succeed instead of reverting
+        assumeNotForgeAddress(_target);
+
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
 
