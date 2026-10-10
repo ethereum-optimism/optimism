@@ -140,6 +140,14 @@ main's CI actually validated.
    one, call it out in the PR description so the downstream pin can move with
    it.
 
+   When a bump is genuinely needed, **version in-tree crate families as a
+   group.** Upstream reth versions every crate from one workspace version; two
+   in-tree families follow the same rule: the published op-reth crates
+   (`op-reth`, `reth-optimism-*`, `reth-op`) and the `op-alloy*` crates. When
+   any crate of a family needs a new version, bump the whole family to the
+   same version. A lone bump leaves siblings whose API also changed at a
+   version that downstream requirements still accept.
+
 5. Refresh both lockfiles — the main workspace and the SP1 guest programs
    workspace each have their own. `cargo update -p reth` does **not** work —
    there is no top-level crate literally named `reth` in the dependency graph.

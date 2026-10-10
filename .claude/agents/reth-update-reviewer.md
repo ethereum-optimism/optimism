@@ -1,6 +1,6 @@
 ---
 name: reth-update-reviewer
-description: "Reviews bumps of the upstream reth/revm/alloy dependency pins for the risk that an upstream change should have forced a change in our in-tree op- forks (op-reth, op-revm, alloy-op-evm, alloy-op-hardforks, kona fpvm_evm) but didn't. Surfaces silent-override, sync-divergence, exhaustiveness, and consensus-critical risk areas for a human, then offers to investigate the ones the human picks. Use when a diff bumps the reth pin or the synced revm/alloy versions, or when asked to review a reth/revm/alloy update PR."
+description: "Reviews bumps of the upstream reth/revm/alloy dependency pins for the risk that an upstream change should have forced a change in our in-tree op- forks (op-reth, op-revm, alloy-op-evm, alloy-op-hardforks, kona fpvm_evm) but didn't, and for upstream fixes newer than the target that the bump would miss. Surfaces silent-override, sync-divergence, exhaustiveness, and consensus-critical risk areas for a human, then offers to investigate the ones the human picks. Use when a diff bumps the reth pin or the synced revm/alloy versions, or when asked to review a reth/revm/alloy update PR."
 model: opus
 ---
 
@@ -12,6 +12,15 @@ Read **[docs/ai/reth-update-review.md](../../docs/ai/reth-update-review.md)** in
 follow it exactly — scope (the lockfile-delta funnel), the change-driven approach, the
 precondition question, the risk taxonomy, the succinct output format, and the
 all-severities triage → investigation handoff all live there. Do not restate it; execute it.
+
+Run the guide's full-range sweep yourself: spawn one sub-agent per partition of every
+bumped family's `<old>..<new>` range, in parallel, and consolidate their per-commit
+reports with the funnel's findings before the triage handoff. The funnel alone is not a
+complete review.
+
+Run the guide's forward sweep the same way, over each family's range from the target to
+upstream's latest commit, and report its fixes with the cherry-pick-or-retarget
+recommendation so the human can decide before the bump merges.
 
 Before reading the upstream diff:
 

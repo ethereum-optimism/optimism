@@ -76,8 +76,13 @@ fs_permissions = [
 # 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
 # 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
 ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424]
+# solady and safe-contracts trigger newer solc deprecation warnings (6335, 9207).
+ignored_warnings_from = ["lib/solady", "lib/safe-contracts"]
 deny = "warnings"
 ffi = true
+
+# Transaction isolation is enabled per test where required.
+isolate = false
 
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
 # gas limit is 1B and some of our tests require more gas than that, such as
@@ -88,6 +93,11 @@ gas_limit = 9223372036854775807
 
 [fuzz]
 runs = 64
+
+# Forge 1.8 runs `forge lint` after every build and fails on its findings. It isn't part of our
+# checks (static analysis is semgrep), so keep it off until we triage its findings.
+[lint]
+lint_on_build = false
 
 [fmt]
 line_length=120
@@ -113,6 +123,9 @@ depth = 32
 [profile.cicoverage]
 optimizer = false
 compilation_restrictions = []
+# Coverage is memory-bound; the CI runner was upsized for RAM, so cap workers at the
+# previous CPU count instead of scaling to the new one.
+threads = 16
 
 [profile.cicoverage.fuzz]
 runs = 1

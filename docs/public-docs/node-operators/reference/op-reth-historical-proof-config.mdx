@@ -1,30 +1,26 @@
 ---
 title: op-reth historical proof configuration
-description: Configuration options for the op-reth historical proof store (v2).
+description: Configuration options for the op-reth historical proof store.
 diataxis: reference
 ---
 
-This page documents the configuration options for the **historical proof store (v2)** in [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth).
+This page documents the configuration options for the **historical proof store** in [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth).
 
 When enabled, op-reth maintains a separate storage database for versioned trie data used to serve `eth_getProof` for historical blocks. This is critical for historical state access (for example, fault proof workloads) without requiring full archive-style behavior from the execution database.
 
-<Warning>
-op-reth **v2.2.3 or later** is required to enable historical proofs v2. Earlier versions do not support the `--proofs-history.storage-version=v2` flag.
-</Warning>
-
-<Info>
-Use the **historical proofs storage format v2** by setting `--proofs-history.storage-version=v2`.
-</Info>
-
 For a complete setup guide, see the tutorial on [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
+
+<Warning>
+On op-reth v2.6.x and earlier, the proofs store defaults to the deprecated v1 format. Pass `--proofs-history.storage-version=v2` to `op-reth node` and to every `op-reth proofs` subcommand. Later releases only support the v2 format: they accept `--proofs-history.storage-version=v2` as a no-op and reject any other value. op-reth v2.2.3 or later is required for the v2 format.
+</Warning>
 
 <Info>
 This fork inherits all standard op-reth configuration options. See the [op-reth configuration reference](/node-operators/reference/op-reth-config).
 </Info>
 
-## Historical proof store (v2)
+## Historical proof store
 
-Options for configuring the v2 historical proof store.
+Options for configuring the historical proof store.
 
 ### proofs-history
 
@@ -34,23 +30,21 @@ If true, enable the historical proof store and keep it updated as new blocks are
   <Tab title="Syntax">`--proofs-history`</Tab>
 </Tabs>
 
-### proofs-history.storage-version
-
-Storage format version for the historical proofs database.
-
-For the v2 system, set this to `v2`.
-
-<Tabs>
-  <Tab title="Syntax">`--proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION>`</Tab>
-  <Tab title="Recommended">`v2`</Tab>
-</Tabs>
-
 ### proofs-history.storage-path
 
 The path to the storage DB for proofs history.
 
 <Tabs>
   <Tab title="Syntax">`--proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH>`</Tab>
+</Tabs>
+
+### proofs-history.storage-version
+
+Deprecated. v2 is the only storage format, so `v2` is accepted as a no-op and any other value is rejected. The flag is kept so existing deployments that pass `v2` keep working.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION>`</Tab>
+  <Tab title="Accepted value">`v2`</Tab>
 </Tabs>
 
 ### proofs-history.window
@@ -81,10 +75,10 @@ Periodic verification helps catch data corruption while maintaining good perform
 
 ## Lifecycle and management commands
 
-In v2, operators usually follow this lifecycle:
+Operators usually follow this lifecycle:
 
 1. Run `op-reth proofs init` once to initialize the proofs DB at the current tip.
-2. Start `op-reth` with `--proofs-history --proofs-history.storage-version=v2` so the node uses historical proofs storage format v2.
+2. Start `op-reth` with `--proofs-history`.
 3. Let the store fill proofs data **forward** from the initialization point.
 4. Let automatic pruning enforce the configured retention window.
 5. Use manual `prune` or `unwind` only for recovery/maintenance scenarios.
@@ -97,7 +91,7 @@ The `op-reth proofs` command provides these maintenance operations.
 Initialize the proofs storage with the current state of the chain.
 
 ```bash
-op-reth proofs init --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --proofs-history.storage-version=v2
+op-reth proofs init --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH>
 ```
 
 <Info>
@@ -140,16 +134,23 @@ Returns the current sync status of the proofs store.
 debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
 ```
 
-`earliest` and `latest` define the currently available historical-proof interval in the v2 store.
+`earliest` and `latest` define the currently available historical-proof interval.
 
 Once `latest` tracks chain tip, `eth_getProof` calls for blocks within `[earliest, latest]` are served from the versioned proofs store.
 
-## v1 to v2 operator notes
+## Operator notes
 
 - The historical-proof path is now centered on a dedicated versioned proofs store lifecycle (`init` -> forward fill -> prune), rather than treating it as a standalone extension workflow.
 - `proofs init` establishes a starting point only; it does not reconstruct old proofs data.
 - Coverage is operationally measured via `debug_proofsSyncStatus` (`earliest`/`latest`).
 - For stable long-window proof serving, validate startup snapshots and retention settings together.
+
+### Upgrading from storage version flags
+
+Releases after op-reth v2.6.x only support the v2 storage format. They accept `--proofs-history.storage-version=v2` as a no-op and reject any other value. How you upgrade depends on how you ran the previous release:
+
+- **You never set `--proofs-history.storage-version`, or set it to `v1`:** your proofs database uses the removed v1 format, and op-reth refuses to open it. Stop the node, remove `--proofs-history.storage-version=v1` if you set it, delete the proofs database directory (or point `--proofs-history.storage-path` at a fresh path), run `op-reth proofs init`, and restart with `--proofs-history`. The new database only serves proofs from the initialization point forward, so plan for the retention window to refill.
+- **You set `--proofs-history.storage-version=v2`:** no change is needed, and your existing proofs database is compatible. The flag is now a no-op, so you can remove it from `op-reth node` and every `op-reth proofs` command.
 
 ## Metrics
 

@@ -13,6 +13,19 @@ use revm::{
 
 use super::{PostExecExecutedTx, PostExecTxContext};
 
+/// Creates fresh post-exec refund policies for new EVM instances.
+///
+/// Implementations hold immutable policy configuration while each returned policy owns its mutable
+/// execution state. This keeps policy construction explicit and avoids process-global
+/// configuration.
+pub trait PostExecRefundPolicyFactory {
+    /// Refund policy created by this factory.
+    type Policy: PostExecRefundInspector;
+
+    /// Creates a fresh refund policy.
+    fn create(&self) -> Self::Policy;
+}
+
 /// Per-transaction refund source, installed as the EVM's post-exec inspector during block
 /// production.
 ///

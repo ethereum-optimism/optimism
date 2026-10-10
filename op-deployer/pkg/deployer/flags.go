@@ -9,30 +9,31 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
 
 const (
-	EnvVarPrefix              = flags.EnvVarPrefix
-	L1RPCURLFlagName          = flags.L1RPCURLFlagName
-	CacheDirFlagName          = flags.CacheDirFlagName
-	L1ChainIDFlagName         = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName  = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName        = flags.L2ChainIDsFlagName
-	WorkdirFlagName           = flags.WorkdirFlagName
-	OutdirFlagName            = flags.OutdirFlagName
-	PrivateKeyFlagName        = flags.PrivateKeyFlagName
-	PrestateFlagName          = flags.PrestateFlagName
-	IntentTypeFlagName        = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName         = flags.InputFileFlagName
-	ContractNameFlagName      = flags.ContractNameFlagName
-	VerifierTypeFlagName      = flags.VerifierTypeFlagName
-	VerifierUrlFlagName       = flags.VerifierUrlFlagName
-	UseForgeFlagName          = flags.UseForgeFlagName
-	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
+	EnvVarPrefix               = flags.EnvVarPrefix
+	L1RPCURLFlagName           = flags.L1RPCURLFlagName
+	CacheDirFlagName           = flags.CacheDirFlagName
+	L1ChainIDFlagName          = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName   = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName         = flags.L2ChainIDsFlagName
+	WorkdirFlagName            = flags.WorkdirFlagName
+	OutdirFlagName             = flags.OutdirFlagName
+	PrivateKeyFlagName         = flags.PrivateKeyFlagName
+	PrestateFlagName           = flags.PrestateFlagName
+	IntentTypeFlagName         = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName     = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName    = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName          = flags.InputFileFlagName
+	ContractNameFlagName       = flags.ContractNameFlagName
+	VerifierTypeFlagName       = flags.VerifierTypeFlagName
+	VerifierUrlFlagName        = flags.VerifierUrlFlagName
+	UseForgeFlagName           = flags.UseForgeFlagName
+	ForgeSlowBroadcastFlagName = flags.ForgeSlowBroadcastFlagName
+	GenesisTimeOffsetFlagName  = flags.GenesisTimeOffsetFlagName
 )
 
 var (
@@ -144,6 +145,12 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
+	ForgeSlowBroadcastFlag = &cli.BoolFlag{
+		Name:    ForgeSlowBroadcastFlagName,
+		Usage:   "with --use-forge, wait for each broadcast transaction to confirm before sending the next",
+		EnvVars: PrefixEnvVar("FORGE_SLOW_BROADCAST"),
+		Value:   false,
+	}
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,
 		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
@@ -155,7 +162,7 @@ var (
 	}
 )
 
-var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
+var GlobalFlags = append([]cli.Flag{CacheDirFlag}, logcli.CLIFlags(EnvVarPrefix)...)
 
 var InitFlags = []cli.Flag{
 	L1ChainIDFlag,
@@ -187,6 +194,7 @@ var ApplyFlags = []cli.Flag{
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
+	ForgeSlowBroadcastFlag,
 }
 
 var PrestateFlags = []cli.Flag{

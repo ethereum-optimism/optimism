@@ -1,11 +1,8 @@
 package dsl
 
 import (
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
-	"sort"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -13,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	nodebindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -25,12 +23,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/holiman/uint256"
 )
 
 // ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
@@ -268,157 +264,6 @@ func (b *StandardBridge) extractL2TokenFromLogs(receipt *types.Receipt) common.A
 	return common.Address{} // Never reached
 }
 
-type disputeGame struct {
-	Index          *big.Int
-	Address        common.Address
-	L2BlockNumber  uint64
-	SequenceNumber uint64
-	OutputRoot     common.Hash
-	UsesSuperRoots bool
-}
-
-// forGamePublished waits until the earliest game that covers the given l2BlockNumber is published on L1.
-// Note that the l2 block number is passed even for super games. Conversion to timestamp is done automatically
-// when required by the respected game type
-func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
-	return b.waitForCoveringGames(l2BlockNumber, 1)[0]
-}
-
-func (b *StandardBridge) waitForCoveringGames(l2BlockNumber *big.Int, count int) []disputeGame {
-	b.require.Positive(count, "expected covering game count must be positive")
-
-	respectedGameType := b.RespectedGameType()
-	minSequence := bigs.Uint64Strict(l2BlockNumber)
-	superRootsActive := b.UsesSuperRoots()
-	if superRootsActive {
-		minSequence = b.rollupCfg.TimestampForBlock(minSequence)
-	}
-
-	var games []disputeGame
-	b.require.Eventuallyf(func() bool {
-		var err error
-		games, err = b.findCoveringGames(respectedGameType, new(big.Int).SetUint64(minSequence), superRootsActive)
-		if err != nil {
-			b.log.Warn("No covering game of required type found", "err", err)
-			return false
-		}
-		if len(games) < count {
-			b.log.Info("Waiting for covering games", "found", len(games), "expected", count, "minSequence", minSequence)
-			return false
-		}
-		b.log.Info("Found covering games", "count", len(games), "earliestIndex", games[0].Index, "earliestSeqNum", games[0].SequenceNumber, "earliestBlock", games[0].L2BlockNumber)
-		return true
-	}, 90*time.Second, 100*time.Millisecond, "did not find %d games of type %v at or after l2 sequence number %v", count, respectedGameType, minSequence)
-
-	return games
-}
-
-func (b *StandardBridge) findCoveringGames(gameType uint32, minSequence *big.Int, superRootsActive bool) ([]disputeGame, error) {
-	gameCount, err := contractio.Read(b.disputeGameFactory.GameCount(), b.ctx)
-	b.require.NoError(err, "Failed to read game count")
-	if gameCount.Cmp(common.Big0) == 0 {
-		return nil, errors.New("no games")
-	}
-
-	type candidate struct {
-		index      *big.Int
-		sequence   *big.Int
-		outputRoot common.Hash
-	}
-	var candidates []candidate
-	l2ChainID := b.rollupCfg.L2ChainID
-	searchStart := new(big.Int).Sub(gameCount, common.Big1)
-	for searchStart.Sign() >= 0 {
-		games, err := contractio.Read(b.disputeGameFactory.FindLatestGames(gameType, searchStart, big.NewInt(32)), b.ctx)
-		b.require.NoErrorf(err, "Failed to find latest games for %v", gameType)
-		if len(games) == 0 {
-			break
-		}
-		for _, game := range games {
-			sequence, outputRoot, ok, err := bridgeGameSequenceAndOutputRoot(game, gameTypes.GameType(gameType), l2ChainID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode game %v: %w", game.Index, err)
-			}
-			if ok && sequence.Cmp(minSequence) >= 0 {
-				candidates = append(candidates, candidate{
-					index:      game.Index,
-					sequence:   sequence,
-					outputRoot: outputRoot,
-				})
-			}
-			searchStart = new(big.Int).Sub(game.Index, common.Big1)
-		}
-	}
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no covering game found for sequence %v", minSequence)
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].index.Cmp(candidates[j].index) < 0
-	})
-
-	coveringGames := make([]disputeGame, 0, len(candidates))
-	for _, selected := range candidates {
-		gameAtIndex, err := contractio.Read(b.disputeGameFactory.GameAtIndex(selected.index), b.ctx)
-		b.require.NoErrorf(err, "Failed to get game at index %v", selected.index)
-		gameBlockNum := bigs.Uint64Strict(selected.sequence)
-		if superRootsActive {
-			blockNum, err := b.rollupCfg.TargetBlockNumber(gameBlockNum)
-			b.require.NoError(err, "Failed to convert game timestamp to block number")
-			gameBlockNum = blockNum
-		}
-		coveringGames = append(coveringGames, disputeGame{
-			Index:          selected.index,
-			Address:        gameAtIndex.Proxy,
-			L2BlockNumber:  gameBlockNum,
-			SequenceNumber: bigs.Uint64Strict(selected.sequence),
-			OutputRoot:     selected.outputRoot,
-			UsesSuperRoots: superRootsActive,
-		})
-	}
-	return coveringGames, nil
-}
-
-func bridgeGameSequenceAndOutputRoot(game bindings.GameSearchResult, gameType gameTypes.GameType, l2ChainID *big.Int) (*big.Int, common.Hash, bool, error) {
-	switch gameType {
-	case gameTypes.CannonKonaGameType, gameTypes.PermissionedGameType:
-		if len(game.ExtraData) < 32 {
-			return nil, common.Hash{}, false, fmt.Errorf("legacy game extra data is %d bytes, need at least 32", len(game.ExtraData))
-		}
-		return new(big.Int).SetBytes(game.ExtraData[:32]), game.RootClaim, true, nil
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
-		return bridgeSuperRootChainOutput(game.ExtraData, l2ChainID)
-	case gameTypes.ZKDisputeGameType:
-		if len(game.ExtraData) < 4 {
-			return nil, common.Hash{}, false, fmt.Errorf("ZK game extra data is %d bytes, need at least 4-byte parent index", len(game.ExtraData))
-		}
-		return bridgeSuperRootChainOutput(game.ExtraData[4:], l2ChainID)
-	default:
-		return nil, common.Hash{}, false, fmt.Errorf("unsupported game type: %v", gameType)
-	}
-}
-
-func bridgeSuperRootChainOutput(extraData []byte, l2ChainID *big.Int) (*big.Int, common.Hash, bool, error) {
-	if l2ChainID == nil {
-		return nil, common.Hash{}, false, errors.New("l2 chain id is required for super root games")
-	}
-	super, err := eth.UnmarshalSuperRoot(extraData)
-	if err != nil {
-		return nil, common.Hash{}, false, fmt.Errorf("failed to decode super root: %w", err)
-	}
-	superV1, ok := super.(*eth.SuperV1)
-	if !ok {
-		return nil, common.Hash{}, false, fmt.Errorf("unsupported super root type %T", super)
-	}
-	targetChainID := eth.ChainIDFromBig(l2ChainID)
-	sequence := new(big.Int).SetUint64(superV1.Timestamp)
-	for _, chain := range superV1.Chains {
-		if chain.ChainID.Cmp(targetChainID) == 0 {
-			return sequence, common.Hash(chain.Output), true, nil
-		}
-	}
-	return sequence, common.Hash{}, false, nil
-}
-
 type Withdrawal struct {
 	commonImpl
 	bridge      *StandardBridge
@@ -608,119 +453,42 @@ func (b *StandardBridge) ProveWithFaultProofParams(user *EOA, params withdrawals
 	return receipt
 }
 
-// ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
-// Ported from op-node/withdrawals/utils.go to fit in the op-devstack
+// proveWithdrawalParameters waits for a covering dispute game and builds the proof with the same
+// helpers as the op-chain-ops withdrawal tool, so the acceptance tests exercise that path for every
+// respected game type.
 func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
-	// Wait for a suitable game to be published
-	latestGame := w.bridge.forGamePublished(w.initReceipt.BlockNumber)
+	b := w.bridge
+	l1Client, err := ethclient.DialContext(w.ctx, b.l1Client.Escape().UserRPC())
+	w.require.NoError(err, "failed to dial L1 RPC")
+	defer l1Client.Close()
 
-	// Fetch the block header from the L2 node
-	l2Header, err := w.bridge.l2Client.InfoByNumber(w.ctx, latestGame.L2BlockNumber)
-	w.require.NoErrorf(err, "failed to fetch block header %v", latestGame.L2BlockNumber)
+	factoryAddr, err := contractio.Read(b.l1Portal.DisputeGameFactoryAddr(), w.ctx)
+	w.require.NoError(err, "failed to read dispute game factory address")
+	l2BlockNum := w.initReceipt.BlockNumber
+	l2BlockTimestamp := b.rollupCfg.TimestampForBlock(bigs.Uint64Strict(l2BlockNum))
+	_, err = wait.ForGamePublished(w.ctx, l1Client, b.l1PortalAddr, factoryAddr, l2BlockNum, l2BlockTimestamp)
+	w.require.NoErrorf(err, "no dispute game covering l2 block %v was published", l2BlockNum)
 
-	ev, err := withdrawals.ParseMessagePassed(w.initReceipt)
-	w.require.NoError(err, "failed to parse message passed receipt")
-	return w.proveWithdrawalParametersForEvent(ev, l2Header, latestGame)
-}
-
-// proveWithdrawalParametersForEvent queries L1 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
-// The l2Header provided is very important. It should be a block for which there is a submitted output in the L2 Output Oracle
-// contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
-// Ported from op-node/withdrawals/utils.go to fit in the op-devstack, using op-service ethclient
-func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1MessagePasserMessagePassed, l2Header eth.BlockInfo, disputeGame disputeGame) ProvenWithdrawalParameters {
-	// Generate then verify the withdrawal proof
-	withdrawalHash, err := withdrawals.WithdrawalHash(ev)
-	w.require.NoErrorf(err, "failed to calculate hash for withdrawal %v", ev)
-	w.require.Equal(withdrawalHash[:], ev.WithdrawalHash[:], "computed withdrawal hash incorrectly")
-	slot := withdrawals.StorageSlotOfWithdrawalHash(withdrawalHash)
-
-	// op-reth persists state asynchronously, so eth_getProof can briefly fail
-	// after the dispute game for the block exists. Retry until it succeeds.
-	blockTag := hexutil.Uint64(l2Header.NumberU64()).String()
-	var p *eth.AccountResult
-	w.require.Eventuallyf(func() bool {
-		var err error
-		p, err = w.bridge.l2Client.GetProof(w.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{slot}, blockTag)
-		return err == nil
-	}, 60*time.Second, 500*time.Millisecond, "failed to fetch proof for withdrawal at block %d: %v", l2Header.NumberU64(), ev)
-	w.require.Len(p.StorageProof, 1, "invalid amount of storage proofs")
-
-	err = verifyProof(l2Header.Root(), p)
-	w.require.NoErrorf(err, "failed to verify proof for withdrawal")
-
-	// Encode it as expected by the contract
-	trieNodes := make([][]byte, len(p.StorageProof[0].Proof))
-	for i, s := range p.StorageProof[0].Proof {
-		trieNodes[i] = s
-	}
-
-	params := ProvenWithdrawalParameters{
-		Nonce:              ev.Nonce,
-		Sender:             ev.Sender,
-		Target:             ev.Target,
-		Value:              ev.Value,
-		GasLimit:           ev.GasLimit,
-		DisputeGameAddress: disputeGame.Address,
-		DisputeGameIndex:   disputeGame.Index,
-		Data:               ev.Data,
+	params := w.FaultProofProveParams()
+	game, err := contractio.Read(b.disputeGameFactory.GameAtIndex(params.L2OutputIndex), w.ctx)
+	w.require.NoErrorf(err, "failed to read dispute game %v", params.L2OutputIndex)
+	return ProvenWithdrawalParameters{
+		Nonce:              params.Nonce,
+		Sender:             params.Sender,
+		Target:             params.Target,
+		Value:              params.Value,
+		GasLimit:           params.GasLimit,
+		DisputeGameAddress: game.Proxy,
+		DisputeGameIndex:   params.L2OutputIndex,
+		Data:               params.Data,
 		OutputRootProof: bindings.OutputRootProof{
-			Version:                  [32]byte{}, // Empty for version 1
-			StateRoot:                l2Header.Root(),
-			MessagePasserStorageRoot: *l2Header.WithdrawalsRoot(),
-			LatestBlockhash:          l2Header.Hash(),
+			Version:                  params.OutputRootProof.Version,
+			StateRoot:                params.OutputRootProof.StateRoot,
+			MessagePasserStorageRoot: params.OutputRootProof.MessagePasserStorageRoot,
+			LatestBlockhash:          params.OutputRootProof.LatestBlockhash,
 		},
-		WithdrawalProof: trieNodes,
+		WithdrawalProof: params.WithdrawalProof,
 	}
-	outputRoot := eth.OutputRoot(&eth.OutputV0{
-		StateRoot:                eth.Bytes32(params.OutputRootProof.StateRoot),
-		MessagePasserStorageRoot: eth.Bytes32(params.OutputRootProof.MessagePasserStorageRoot),
-		BlockHash:                common.Hash(params.OutputRootProof.LatestBlockhash),
-	})
-	w.require.Equalf(disputeGame.OutputRoot, common.Hash(outputRoot),
-		"computed output root must match dispute game root claim for game index %v", disputeGame.Index)
-	return params
-}
-
-// Ported from op-node/withdrawals/proof.go to fit in the op-devstack, using op-service proof types
-func verifyProof(stateRoot common.Hash, proof *eth.AccountResult) error {
-	balance, overflow := uint256.FromBig(proof.Balance.ToInt())
-	if overflow {
-		return fmt.Errorf("proof balance overflows uint256: %d", proof.Balance.ToInt())
-	}
-	proofHex := []string{}
-	for _, p := range proof.AccountProof {
-		proofHex = append(proofHex, hex.EncodeToString(p))
-	}
-	err := withdrawals.VerifyAccountProof(
-		stateRoot,
-		proof.Address,
-		types.StateAccount{
-			Nonce:    uint64(proof.Nonce),
-			Balance:  balance,
-			Root:     proof.StorageHash,
-			CodeHash: proof.CodeHash[:],
-		},
-		proofHex,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to validate account: %w", err)
-	}
-	for i, storageProof := range proof.StorageProof {
-		proofHex := []string{}
-		for _, p := range storageProof.Proof {
-			proofHex = append(proofHex, hex.EncodeToString(p))
-		}
-		convertedProof := gethclient.StorageResult{
-			Key:   storageProof.Key.String(),
-			Value: storageProof.Value.ToInt(),
-			Proof: proofHex,
-		}
-		err = withdrawals.VerifyStorageProof(proof.StorageHash, convertedProof)
-		if err != nil {
-			return fmt.Errorf("failed to validate storage proof %d: %w", i, err)
-		}
-	}
-	return nil
 }
 
 func (w *Withdrawal) Finalize(user *EOA) {

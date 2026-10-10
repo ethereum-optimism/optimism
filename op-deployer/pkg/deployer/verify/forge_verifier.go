@@ -10,8 +10,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type ForgeVerifier struct {
@@ -138,7 +138,7 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		args = append(args, "--guess-constructor-args")
 	}
 
-	// Need to add these settings forcefully, because forge doesn't parse them correctly (1.2.3)
+	// Supply artifact settings when the original Forge build cache is unavailable.
 	if metadata.Optimizer.Enabled {
 		args = append(args, "--num-of-optimizations", fmt.Sprintf("%d", metadata.Optimizer.Runs))
 	}

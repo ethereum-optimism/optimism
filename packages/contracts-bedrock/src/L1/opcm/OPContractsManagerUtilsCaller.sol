@@ -67,6 +67,21 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
+    /// @notice Checks that ZKDisputeGame args can produce a playable game. The absolute prestate is
+    ///         the verification key, so it must be set. Durations must be non-zero and capped at
+    ///         uint32 max so that `block.timestamp + duration` cannot overflow the game's uint64
+    ///         deadline cast, which would place the deadline in the past. A zero challenger bond
+    ///         would make challenges free.
+    /// @param _gameArgs The ABI-encoded IOPContractsManagerUtils.ZKDisputeGameConfig.
+    /// @return True if the config is valid, false otherwise.
+    function _isValidZKDisputeGameConfig(bytes memory _gameArgs) internal pure returns (bool) {
+        IOPContractsManagerUtils.ZKDisputeGameConfig memory cfg =
+            abi.decode(_gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+        return cfg.absolutePrestate.raw() != bytes32(0) && cfg.maxChallengeDuration.raw() > 0
+            && cfg.maxChallengeDuration.raw() <= type(uint32).max && cfg.maxProveDuration.raw() > 0
+            && cfg.maxProveDuration.raw() <= type(uint32).max && cfg.challengerBond > 0;
+    }
+
     /// @notice Helper for computing a salt for a contract deployment.
     /// @param _l2ChainId The L2 chain ID of the chain being deployed to.
     /// @param _saltMixer The salt mixer to use for the deployment.
@@ -189,8 +204,7 @@ abstract contract OPContractsManagerUtilsCaller {
         internal
         returns (address payable)
     {
-        return payable(
-            abi.decode(
+        return payable(abi.decode(
                 _delegatecall(
                     abi.encodeCall(
                         IOPContractsManagerUtils.loadOrDeployProxy,
@@ -198,8 +212,7 @@ abstract contract OPContractsManagerUtilsCaller {
                     )
                 ),
                 (address)
-            )
-        );
+            ));
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.

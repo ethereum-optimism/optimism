@@ -18,7 +18,7 @@ func TestInteropSingleChainFaultProofs(gt *testing.T) {
 
 func TestInteropSingleChainFaultProofsWithSDM(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := sdmtest.NewFixtureSingleChainFaultProofSystem(t)
+	sys := sdmtest.NewFixedPolicySingleChainFaultProofSystem(t)
 	sfp.RunSingleChainSuperFaultProofSDMSmokeTest(t, sys)
 }
 

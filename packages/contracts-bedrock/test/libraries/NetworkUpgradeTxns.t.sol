@@ -47,11 +47,7 @@ contract NetworkUpgradeTxns_SerializeTxn_Test is NetworkUpgradeTxns_TestInit {
         vm.assume(bytes(_intent).length > 0);
 
         NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            intent: _intent,
-            from: _from,
-            to: _to,
-            gasLimit: _gasLimit,
-            data: _data
+            intent: _intent, from: _from, to: _to, gasLimit: _gasLimit, data: _data
         });
 
         string memory json = NetworkUpgradeTxns.serializeTxn(txn, 0);
@@ -74,11 +70,7 @@ contract NetworkUpgradeTxns_SerializeTxn_Test is NetworkUpgradeTxns_TestInit {
         vm.assume(bytes(_intent).length > 0);
 
         NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            intent: _intent,
-            from: _from,
-            to: _to,
-            gasLimit: _gasLimit,
-            data: _data
+            intent: _intent, from: _from, to: _to, gasLimit: _gasLimit, data: _data
         });
 
         string memory json1 = NetworkUpgradeTxns.serializeTxn(txn, 0);
@@ -104,11 +96,7 @@ contract NetworkUpgradeTxns_SerializeTxn_Test is NetworkUpgradeTxns_TestInit {
         vm.assume(bytes(_intent).length > 0);
 
         NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            intent: _intent,
-            from: _from,
-            to: _to,
-            gasLimit: _gasLimit,
-            data: _data
+            intent: _intent, from: _from, to: _to, gasLimit: _gasLimit, data: _data
         });
 
         string memory json1 = NetworkUpgradeTxns.serializeTxn(txn, _index1);
@@ -295,11 +283,7 @@ contract NetworkUpgradeTxns_Uncategorized_Test is NetworkUpgradeTxns_TestInit {
         pure
     {
         NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            intent: _intent,
-            from: _from,
-            to: _to,
-            gasLimit: _gasLimit,
-            data: _data
+            intent: _intent, from: _from, to: _to, gasLimit: _gasLimit, data: _data
         });
 
         assertEq(txn.intent, _intent);

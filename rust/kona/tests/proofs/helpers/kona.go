@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -106,7 +106,7 @@ func RunKonaSuperNative(
 		L2SequenceNumber: new(big.Int).SetUint64(fixtureInputs.ClaimTimestamp),
 	}
 
-	logger := log.NewLogger(os.Stdout, log.DefaultCLIConfig())
+	logger := logcli.NewLogger(os.Stdout, logcli.DefaultCLIConfig())
 
 	if !rustbin.RunKonaSuperNative(t, logger, &vmCfg, workDir, &inputs) {
 		return ErrClaimNotValid

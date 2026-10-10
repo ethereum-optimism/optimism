@@ -29,10 +29,35 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use super::*;
 
 /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct TestRefundPolicy {
     current_kind: Option<post_exec::PostExecTxKind>,
     committed: u64,
+    refund_total: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TestRefundPolicyFactory {
+    initial_committed: u64,
+    refund_total: u64,
+}
+
+impl Default for TestRefundPolicyFactory {
+    fn default() -> Self {
+        Self { initial_committed: 0, refund_total: 7 }
+    }
+}
+
+impl post_exec::PostExecRefundPolicyFactory for TestRefundPolicyFactory {
+    type Policy = TestRefundPolicy;
+
+    fn create(&self) -> Self::Policy {
+        TestRefundPolicy {
+            current_kind: None,
+            committed: self.initial_committed,
+            refund_total: self.refund_total,
+        }
+    }
 }
 
 impl post_exec::PostExecRefundInspector for TestRefundPolicy {
@@ -47,7 +72,7 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
     fn finish_tx(&mut self) -> post_exec::PostExecExecutedTx {
         let refund_total = if self.current_kind.take() == Some(post_exec::PostExecTxKind::Normal) {
             self.committed += 1;
-            7
+            self.refund_total
         } else {
             0
         };
@@ -208,8 +233,8 @@ fn try_trace_many_covers_every_tx_in_a_post_exec_block() {
 }
 
 /// EIP-7825 caps a transaction's gas limit, and a transaction above the cap is rejected before
-/// it executes. The deposit exemption in `transact_raw` is scoped to the deposit that carries
-/// it and must leave that rule intact for every other transaction.
+/// it executes. The deposit exemption in `OpHandler::tx_gas` must leave that rule intact for
+/// every other transaction.
 #[test]
 fn non_deposit_above_tx_gas_limit_cap_is_rejected() {
     let caller = Address::ZERO;
@@ -251,14 +276,12 @@ fn cold_sload_burner_runtime() -> Bytes {
 }
 
 /// Deposits are force-included from L1 and must not be clamped by the EIP-7825 per-transaction
-/// gas cap, so `transact_raw` lifts the cap for the duration of a deposit.
+/// gas cap. The exemption lives in `OpHandler::tx_gas`; this pins that `OpEvm::transact_raw`
+/// reaches it without cap handling of its own.
 ///
-/// The cap is not enforced by a rejection on this path — deposits skip `validate_env`, which is
-/// where `TxGasLimitGreaterThanCap` is raised — so the exemption is only observable in how much
-/// gas the first frame actually receives: `initial_gas_and_reservoir` splits the limit at
-/// `min(gas_limit, cap)`, and OP does not override the `validate_initial_tx_gas` path that feeds
-/// it. This test therefore measures execution, not the error type: the deposit runs a payload
-/// that costs more than the capped budget and must still complete.
+/// Deposits skip `validate_env`, where `TxGasLimitGreaterThanCap` is raised, so there is no
+/// rejection to observe. The test measures execution instead: a payload costing more than the
+/// capped budget must still complete.
 #[test]
 fn deposit_above_tx_gas_limit_cap_receives_the_full_gas_limit() {
     let caller = Address::ZERO;
@@ -312,48 +335,8 @@ fn deposit_above_tx_gas_limit_cap_receives_the_full_gas_limit() {
         result.result.tx_gas_used(),
     );
 
-    // The exemption is scoped to the deposit: the previous cap must be back afterwards.
+    // The exemption must not touch the shared cfg.
     assert_eq!(evm.inner.0.ctx.cfg.tx_gas_limit_cap, Some(CAP));
-}
-
-/// The cap is saved and restored around a deposit as an `Option<Option<u64>>`, so it must
-/// round-trip whichever resting state the field is in — including `None`, which is the
-/// production shape (the env builder leaves the raw field unset and lets revm derive the
-/// effective cap from the spec).
-#[test]
-fn deposit_cap_exemption_round_trips_every_resting_state() {
-    let caller = Address::ZERO;
-    let target = Address::from([0x55; 20]);
-
-    for resting in [None, Some(TX_GAS_LIMIT_CAP), Some(u64::MAX)] {
-        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
-        cfg.tx_gas_limit_cap = resting;
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            EmptyDB::default(),
-            EvmEnv::new(cfg, BlockEnv { gas_limit: 60_000_000, ..Default::default() }),
-        );
-
-        let deposit = OpTx(OpTransaction {
-            base: TxEnv {
-                gas_limit: 100_000,
-                kind: TxKind::Call(target),
-                caller,
-                ..Default::default()
-            },
-            enveloped_tx: None,
-            deposit: op_revm::transaction::deposit::DepositTransactionParts::new(
-                B256::from([0x22; 32]),
-                None,
-                false,
-            ),
-        });
-        evm.transact_raw(deposit).expect("deposit executes");
-
-        assert_eq!(
-            evm.inner.0.ctx.cfg.tx_gas_limit_cap, resting,
-            "cap must be restored to its resting state {resting:?}",
-        );
-    }
 }
 
 #[test]
@@ -366,13 +349,15 @@ fn op_evm_factory_uses_configured_refund_policy_and_snapshot() {
         AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
     );
 
-    let mut evm = OpEvmFactory::<OpTx, TestRefundPolicy>::default().create_evm(
-        db,
-        EvmEnv::new(
-            CfgEnv::new_with_spec(OpSpecId::JOVIAN),
-            BlockEnv { gas_limit: 1_000_000, ..Default::default() },
-        ),
-    );
+    let mut evm =
+        OpEvmFactory::<OpTx, TestRefundPolicyFactory>::new(TestRefundPolicyFactory::default())
+            .create_evm(
+                db,
+                EvmEnv::new(
+                    CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+                    BlockEnv { gas_limit: 1_000_000, ..Default::default() },
+                ),
+            );
     evm.begin_post_exec_tx(post_exec::PostExecTxContext {
         tx_index: 0,
         kind: post_exec::PostExecTxKind::Normal,
@@ -382,6 +367,29 @@ fn op_evm_factory_uses_configured_refund_policy_and_snapshot() {
     assert_eq!(evm.refund_snapshot(), 1);
     evm.seed_refund_snapshot(9);
     assert_eq!(evm.refund_snapshot(), 9);
+}
+
+#[test]
+fn op_evm_factory_creates_fresh_configured_refund_policies() {
+    let factory = OpEvmFactory::<OpTx, TestRefundPolicyFactory>::new(TestRefundPolicyFactory {
+        initial_committed: 3,
+        refund_total: 11,
+    });
+
+    let mut first = factory.create_evm(EmptyDB::default(), lagoon_env_on_chain_901());
+    assert_eq!(first.refund_snapshot(), 3);
+    first.begin_post_exec_tx(post_exec::PostExecTxContext {
+        tx_index: 0,
+        kind: post_exec::PostExecTxKind::Normal,
+    });
+    first
+        .transact_raw(legacy_op_tx(0, Address::ZERO, Address::with_last_byte(1), 100_000))
+        .expect("tx executes");
+    assert_eq!(first.take_last_post_exec_tx_result().refund_total, 11);
+    assert_eq!(first.refund_snapshot(), 4);
+
+    let second = factory.create_evm(EmptyDB::default(), lagoon_env_on_chain_901());
+    assert_eq!(second.refund_snapshot(), 3, "each EVM must receive fresh policy state");
 }
 
 #[test]

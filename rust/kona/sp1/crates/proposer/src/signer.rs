@@ -16,6 +16,8 @@ use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result};
+use kona_sources::ReloadingRpcClient;
+use kona_sp1_host_utils::tls::ClientTls;
 use tokio::{sync::Mutex, time::Duration};
 
 use crate::env_var;
@@ -55,11 +57,18 @@ pub const fn clamp_fee_caps(request: &mut TransactionRequest, caps: FeeCaps) {
     }
 }
 
-#[derive(Clone, Debug)]
 /// The type of signer to use for signing transactions.
+#[derive(Clone, Debug)]
 pub enum Signer {
-    /// The signer URL and address.
-    Web3Signer(Url, Address),
+    /// The op-signer endpoint, address it signs for, and optional mTLS client.
+    Web3Signer {
+        /// op-signer JSON-RPC endpoint.
+        url: Url,
+        /// Address op-signer uses for L1 transactions.
+        address: Address,
+        /// op-signer client over mutual TLS; see [`ReloadingRpcClient`] for reloading.
+        mtls: Option<ReloadingRpcClient>,
+    },
     /// The local signer.
     LocalSigner(PrivateKeySigner),
 }
@@ -68,14 +77,19 @@ impl Signer {
     /// Returns the L1 address transactions are signed with.
     pub const fn address(&self) -> Address {
         match self {
-            Self::Web3Signer(_, address) => *address,
+            Self::Web3Signer { address, .. } => *address,
             Self::LocalSigner(signer) => signer.address(),
         }
     }
 
-    /// Creates a new Web3 signer with the given URL and address.
-    pub const fn new_web3_signer(url: Url, address: Address) -> Self {
-        Self::Web3Signer(url, address)
+    /// Creates a new Web3 signer with the given URL, address, and optional mTLS material.
+    pub fn new_web3_signer(url: Url, address: Address, tls: Option<ClientTls>) -> Result<Self> {
+        anyhow::ensure!(
+            tls.is_none() || url.scheme() == "https",
+            "Web3Signer URL must use HTTPS when TLS material is configured"
+        );
+        let mtls = tls.map(|tls| tls.rpc_client(url.clone())).transpose()?;
+        Ok(Self::Web3Signer { url, address, mtls })
     }
 
     /// Creates a new local signer from a private key string.
@@ -85,10 +99,11 @@ impl Signer {
         Ok(Self::LocalSigner(private_key))
     }
 
-    /// Builds a signer from the environment. `KONA_SP1_PROPOSER_SIGNER_URL` and
-    /// `KONA_SP1_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; otherwise,
-    /// `KONA_SP1_PROPOSER_PRIVATE_KEY` selects [`Signer::LocalSigner`]. Setting only one
-    /// `Web3Signer` variable is an error instead of falling back to the local key.
+    /// Builds a signer from the environment. `OP_ZK_PROPOSER_SIGNER_URL` and
+    /// `OP_ZK_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; optional signer
+    /// TLS variables configure mutual TLS. Otherwise, `OP_ZK_PROPOSER_PRIVATE_KEY`
+    /// selects [`Signer::LocalSigner`]. Setting only one `Web3Signer` variable, or setting
+    /// the local key alongside the `Web3Signer`, is an error.
     pub async fn from_env() -> Result<Self> {
         let signer_url_name = env_var("SIGNER_URL");
         let signer_address_name = env_var("SIGNER_ADDRESS");
@@ -97,16 +112,23 @@ impl Signer {
         let signer_address = std::env::var(&signer_address_name).ok();
         match (signer_url, signer_address) {
             (Some(url), Some(address)) => {
+                anyhow::ensure!(
+                    std::env::var_os(&private_key_name).is_none(),
+                    "{private_key_name} and {signer_url_name} are mutually exclusive; configure \
+                     either the local key or the Web3Signer"
+                );
                 let signer_url = Url::parse(&url)
                     .with_context(|| format!("Failed to parse {signer_url_name}"))?;
                 let signer_address = Address::from_str(&address)
                     .with_context(|| format!("Failed to parse {signer_address_name}"))?;
+                let tls = ClientTls::from_env(crate::ENV_VAR_PREFIX, "SIGNER")?;
                 tracing::info!(
-                    url = %crate::config::redacted_url(&signer_url),
+                    url = %kona_sources::redacted_url(&signer_url),
                     address = %signer_address,
+                    mtls = tls.is_some(),
                     "Using Web3Signer ({signer_url_name} + {signer_address_name})"
                 );
-                Ok(Self::new_web3_signer(signer_url, signer_address))
+                Self::new_web3_signer(signer_url, signer_address, tls)
             }
             (Some(_), None) => {
                 anyhow::bail!(
@@ -121,6 +143,12 @@ impl Signer {
                 )
             }
             (None, None) => {
+                let tls = ClientTls::from_env(crate::ENV_VAR_PREFIX, "SIGNER")?;
+                anyhow::ensure!(
+                    tls.is_none(),
+                    "{signer_url_name} and {signer_address_name} must be set when signer TLS \
+                     material is configured"
+                );
                 let private_key_str = std::env::var(&private_key_name).map_err(|_| {
                     anyhow::anyhow!(
                         "None of the required signer configurations are set in environment:\n\
@@ -150,18 +178,22 @@ impl Signer {
         fee_caps: FeeCaps,
     ) -> Result<TransactionReceipt> {
         match self {
-            Self::Web3Signer(signer_url, signer_address) => {
+            Self::Web3Signer { url, address, mtls } => {
                 // Set the from address to the signer address.
-                transaction_request.set_from(*signer_address);
+                transaction_request.set_from(*address);
 
                 // Fill the transaction request with all of the relevant gas and nonce information.
                 let provider = ProviderBuilder::new().network::<Ethereum>().connect_http(l1_rpc);
                 let filled_tx = provider.fill(transaction_request).await?;
 
                 // Sign the transaction request using the Web3Signer.
-                let web3_provider =
-                    ProviderBuilder::new().network::<Ethereum>().connect_http(signer_url.clone());
-                let signer = Web3Signer::new(web3_provider.clone(), *signer_address);
+                let signer_provider = mtls.as_ref().map_or_else(
+                    || ProviderBuilder::new().network::<Ethereum>().connect_http(url.clone()),
+                    |mtls| {
+                        ProviderBuilder::new().network::<Ethereum>().connect_client(mtls.client())
+                    },
+                );
+                let signer = Web3Signer::new(signer_provider, *address);
 
                 let mut tx = filled_tx.as_builder().unwrap().clone();
                 tx.normalize_data();
@@ -269,8 +301,12 @@ impl SignerLock {
 
 #[cfg(test)]
 mod tests {
-    use super::{FeeCaps, clamp_fee_caps};
+    use std::{env, path::Path};
+
     use alloy_rpc_types_eth::TransactionRequest;
+    use serial_test::serial;
+
+    use super::{Address, FeeCaps, Signer, clamp_fee_caps};
 
     fn filled_request(max_fee: u128, max_priority: u128) -> TransactionRequest {
         TransactionRequest {
@@ -278,6 +314,92 @@ mod tests {
             max_priority_fee_per_gas: Some(max_priority),
             ..Default::default()
         }
+    }
+    fn clear_signer_env() {
+        for suffix in [
+            "PRIVATE_KEY",
+            "SIGNER_URL",
+            "SIGNER_ADDRESS",
+            "SIGNER_TLS_CA",
+            "SIGNER_TLS_CERT",
+            "SIGNER_TLS_KEY",
+        ] {
+            // SAFETY: The environment-mutating tests in this module are serialized.
+            unsafe { env::remove_var(crate::env_var(suffix)) };
+        }
+    }
+
+    fn set_signer_env(suffix: &str, value: impl AsRef<std::ffi::OsStr>) {
+        // SAFETY: The environment-mutating tests in this module are serialized.
+        unsafe { env::set_var(crate::env_var(suffix), value) };
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn loads_web3_signer_with_tls_material() {
+        clear_signer_env();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../host/testdata/mtls");
+        set_signer_env("SIGNER_URL", "https://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+        set_signer_env("SIGNER_TLS_CA", fixtures.join("ca.crt"));
+        set_signer_env("SIGNER_TLS_CERT", fixtures.join("client.crt"));
+        set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
+
+        let signer = Signer::from_env().await.unwrap();
+        let Signer::Web3Signer { url, address, mtls } = signer else {
+            panic!("expected Web3Signer")
+        };
+        assert_eq!(url.as_str(), "https://localhost:8545/");
+        assert_eq!(address, Address::ZERO);
+        assert!(mtls.is_some());
+        clear_signer_env();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn rejects_http_web3_signer_with_tls_material() {
+        clear_signer_env();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../host/testdata/mtls");
+        set_signer_env("SIGNER_URL", "http://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+        set_signer_env("SIGNER_TLS_CA", fixtures.join("ca.crt"));
+        set_signer_env("SIGNER_TLS_CERT", fixtures.join("client.crt"));
+        set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains("must use HTTPS"), "{error}");
+        clear_signer_env();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn rejects_tls_material_without_web3_signer() {
+        clear_signer_env();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../host/testdata/mtls");
+        set_signer_env("PRIVATE_KEY", "unused");
+        set_signer_env("SIGNER_TLS_CA", fixtures.join("ca.crt"));
+        set_signer_env("SIGNER_TLS_CERT", fixtures.join("client.crt"));
+        set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
+        assert!(error.contains(&crate::env_var("SIGNER_ADDRESS")), "{error}");
+        clear_signer_env();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn rejects_local_key_with_web3_signer() {
+        clear_signer_env();
+        set_signer_env("PRIVATE_KEY", "unused");
+        set_signer_env("SIGNER_URL", "https://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains(&crate::env_var("PRIVATE_KEY")), "{error}");
+        assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
+        assert!(error.contains("mutually exclusive"), "{error}");
+        clear_signer_env();
     }
 
     #[test]

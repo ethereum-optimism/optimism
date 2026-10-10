@@ -47,7 +47,6 @@ members = [
   "op-reth/crates/primitives/",
   "op-reth/crates/reth/",
   "op-reth/crates/rpc/",
-  "op-reth/crates/sdm-fixture-node/",
   "op-reth/crates/storage/",
   "op-reth/crates/exex/",
   "op-reth/crates/trie/",
@@ -315,7 +314,7 @@ kona-sp1-elfs = { path = "kona/sp1/crates/elfs" }
 kona-sp1-ethereum-client-utils = { path = "kona/sp1/crates/ethereum/client" }
 kona-sp1-host-utils = { path = "kona/sp1/crates/host" }
 kona-sp1-super-range-executor = { path = "kona/sp1/crates/super-range-executor" }
-kona-sp1-proposer = { path = "kona/sp1/crates/proposer" }
+op-zk-proposer = { path = "kona/sp1/crates/proposer" }
 kona-zkvm-canary = { path = "kona/sp1/crates/zkvm-canary" }
 
 # ==================== OP-RETH INTERNAL CRATES ====================
@@ -488,6 +487,8 @@ alloy-rpc-types-trace = { version = "2.3.0", default-features = false }
 alloy-rpc-types-txpool = { version = "2.3.0", default-features = false }
 alloy-serde = { version = "2.3.0", default-features = false }
 alloy-signer = { version = "2.3.0", default-features = false }
+# sp1-sdk's dynamic_signer builder method uses alloy-signer 1.x, distinct from the workspace's 2.x.
+sp1-alloy-signer = { package = "alloy-signer", version = "1.0", default-features = false }
 alloy-signer-local = { version = "2.3.0", default-features = false }
 alloy-transport = { version = "2.3.0" }
 alloy-transport-http = { version = "2.3.0", features = [
@@ -501,11 +502,11 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-core-executor = { version = "6.8.0", default-features = false }
-sp1-sdk = { version = "6.8.0", default-features = false, features = [
+sp1-core-executor = { version = "6.8.1", default-features = false }
+sp1-sdk = { version = "6.8.1", default-features = false, features = [
   "network",
 ] }
-sp1-verifier = { version = "6.8.0", default-features = false, features = ["full"] }
+sp1-verifier = { version = "6.8.1", default-features = false, features = ["full"] }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"
@@ -542,7 +543,7 @@ jsonrpsee-types = "0.26.0"
 
 # ==================== CRYPTO ====================
 c-kzg = { version = "2.1.5", default-features = false }
-enr = { version = "0.13", default-features = false }
+enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
 sha2 = { version = "0.10.9", default-features = false }
@@ -628,11 +629,11 @@ tar-no-std = { version = "0.4.2", default-features = false }
 zstd = "0.13"
 
 # ==================== NETWORKING ====================
-discv5 = "0.10.2"
+discv5 = "0.12.0"
 ipnet = "2.11.0"
-libp2p = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
-libp2p-stream = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
-libp2p-identity = "0.2.13"
+libp2p = "0.57.0"
+libp2p-stream = "0.5.0-alpha"
+libp2p-identity = "0.3.0"
 openssl = "0.10.75"
 
 # ==================== MISC ====================
@@ -702,6 +703,7 @@ reqwest = { version = "0.13.2", default-features = false, features = ["query"] }
 ringbuffer = "0.16.0"
 rustc-hash = { version = "2.1", default-features = false }
 rustls = { version = "0.23", default-features = false }
+rustls-platform-verifier = { version = "0.6.2", default-features = false }
 rustls-pemfile = { version = "2.2", default-features = false }
 schnellru = "0.2"
 shellexpand = "3.1.1"

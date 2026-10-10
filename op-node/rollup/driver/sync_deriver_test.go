@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -21,7 +21,7 @@ import (
 // without reporting one.
 func TestEngineConfirmedResetTruncatesToLocalSafe(t *testing.T) {
 	ctx := context.Background()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	db, err := safedb.NewSafeDB(logger, t.TempDir())
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestEngineConfirmedResetTruncatesToLocalSafe(t *testing.T) {
 // removes the entries that derivation re-derives.
 func TestEngineConfirmedResetTruncatesAboveLocalSafe(t *testing.T) {
 	ctx := context.Background()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	db, err := safedb.NewSafeDB(logger, t.TempDir())
 	require.NoError(t, err)

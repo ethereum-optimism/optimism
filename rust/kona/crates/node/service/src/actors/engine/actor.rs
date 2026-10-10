@@ -1,6 +1,5 @@
 use crate::{
-    BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
@@ -13,7 +12,10 @@ use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
-use tokio::sync::{mpsc, watch};
+use tokio::{
+    sync::{mpsc, watch},
+    time::{self, Duration, Instant},
+};
 
 /// A request handled by the [`EngineActor`].
 #[derive(Debug)]
@@ -64,6 +66,14 @@ where
     /// Where to hand every imported block, so the derivation providers can read it locally
     /// instead of fetching it back from the execution layer.
     block_sink: Arc<dyn ImportedBlockSink>,
+    /// A reset is retained until successful; RPC failure must not lose the request.
+    reset_pending: bool,
+    /// Callers waiting for the retained reset to finish.
+    reset_waiters: Vec<mpsc::Sender<crate::EngineClientResult<()>>>,
+    /// Earliest next attempt after a dependency failure.
+    retry_at: Instant,
+    /// Exponentially increasing retry delay, capped to keep recovery responsive.
+    retry_delay: Duration,
 }
 
 impl<EngineClient_, DerivationClient> EngineActor<EngineClient_, DerivationClient>
@@ -91,13 +101,55 @@ where
             unsafe_head_tx,
             inbound_request_rx,
             block_sink,
+            reset_pending: false,
+            reset_waiters: Vec::new(),
+            retry_at: Instant::now(),
+            retry_delay: Duration::from_millis(100),
         }
+    }
+
+    fn defer_retry(&mut self) {
+        self.retry_at = Instant::now() + self.retry_delay;
+        self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
+    }
+
+    fn begin_reset(&mut self) {
+        if !self.reset_pending {
+            self.engine.clear();
+            self.reset_pending = true;
+            self.retry_at = Instant::now();
+        }
+    }
+
+    async fn attempt_reset(&mut self) -> Result<(), EngineError> {
+        match self.reset().await {
+            Ok(()) => {
+                self.reset_pending = false;
+                self.retry_delay = Duration::from_millis(100);
+                if !self.el_sync_complete && self.engine.state().el_sync_finished {
+                    self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+                }
+            }
+            Err(EngineError::EngineReset(err)) if err.is_temporary() => {
+                warn!(target: "engine", ?err, "Reset dependency unavailable; retaining reset");
+                self.defer_retry();
+            }
+            Err(err) => return Err(err),
+        }
+        Ok(())
     }
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+
+        // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
+        // Release those callers before awaiting delivery to that same queue. They transition
+        // to AwaitingSignal before consuming the queued reset signal below.
+        for waiter in self.reset_waiters.drain(..) {
+            let _ = waiter.try_send(Ok(()));
+        }
 
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
@@ -119,6 +171,7 @@ where
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
+                self.retry_delay = Duration::from_millis(100);
             }
             Err(err) => {
                 match err.severity() {
@@ -128,7 +181,8 @@ where
                     }
                     EngineTaskErrorSeverity::Reset => {
                         warn!(target: "engine", ?err, "Received reset request");
-                        self.reset().await?;
+                        self.begin_reset();
+                        return Ok(());
                     }
                     EngineTaskErrorSeverity::Flush => {
                         // This error is encountered when the payload is marked INVALID
@@ -148,6 +202,8 @@ where
                     }
                     EngineTaskErrorSeverity::Temporary => {
                         trace!(target: "engine", ?err, "Temporary error draining engine tasks");
+                        self.defer_retry();
+                        return Ok(());
                     }
                 }
             }
@@ -156,7 +212,11 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
-            self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+            if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
+                self.begin_reset();
+            } else {
+                self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+            }
         }
 
         Ok(())
@@ -166,15 +226,6 @@ where
         &mut self,
     ) -> Result<(), EngineError> {
         self.el_sync_complete = true;
-
-        // Reset the engine if the sync state does not already know about a finalized block.
-        if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
-            // If the sync status is finished, we can reset the engine and start derivation.
-            info!(target: "engine", "Performing initial engine reset");
-            self.reset().await?;
-        } else {
-            info!(target: "engine", "finalized head is not default, so not resetting");
-        }
 
         self.derivation_client
             .notify_sync_completed(self.engine.state().sync_state.safe_head())
@@ -216,10 +267,13 @@ where
     type Error = EngineError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        // Attempt to drain all outstanding tasks from the engine queue before adding new ones.
-        self.drain()
-            .await
-            .inspect_err(|err| error!(target: "engine", ?err, "Failed to drain engine tasks"))?;
+        if Instant::now() >= self.retry_at {
+            if self.reset_pending {
+                self.attempt_reset().await?;
+            } else {
+                self.drain().await?;
+            }
+        }
 
         // If the unsafe head has updated, propagate it to the outbound channels.
         if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
@@ -230,10 +284,16 @@ where
         }
 
         // Wait for the next processing request.
-        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
-            error!(target: "engine", "Engine processing request receiver closed unexpectedly");
-            EngineError::ChannelClosed
-        })?;
+        // Retry without needing a new inbound message, while still accepting requests during
+        // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
+        let request = tokio::select! {
+            request = self.inbound_request_rx.recv(),
+                if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
+                request.ok_or(EngineError::ChannelClosed)?
+            }
+            _ = time::sleep_until(self.retry_at),
+                if self.reset_pending || !self.engine.is_empty() => return Ok(()),
+        };
 
         match request {
             EngineActorRequest::Build(build_request) => {
@@ -278,19 +338,8 @@ where
             EngineActorRequest::Reset(reset_request) => {
                 warn!(target: "engine", "Received reset request");
 
-                let reset_res = self.reset().await;
-
-                // Send the result.
-                let response_payload = reset_res
-                    .as_ref()
-                    .map(|_| ())
-                    .map_err(|e| EngineClientError::ResetForkchoiceError(e.to_string()));
-                if reset_request.result_tx.send(response_payload).await.is_err() {
-                    warn!(target: "engine", "Sending reset response failed");
-                    // If there was an error and we couldn't notify the caller to handle it,
-                    // return the error.
-                    reset_res?;
-                }
+                self.begin_reset();
+                self.reset_waiters.push(reset_request.result_tx);
             }
             EngineActorRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;

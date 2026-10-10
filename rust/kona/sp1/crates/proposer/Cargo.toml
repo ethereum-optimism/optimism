@@ -1,5 +1,5 @@
 [package]
-name = "kona-sp1-proposer"
+name = "op-zk-proposer"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -19,6 +19,7 @@ kona-sp1-client-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 kona-sp1-super-range-executor.workspace = true
 kona-registry.workspace = true
+kona-sources.workspace = true
 
 # sp1
 sp1-sdk.workspace = true
@@ -34,7 +35,7 @@ alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-signer-local.workspace = true
 alloy-sol-types = { workspace = true, features = ["json"] }
-alloy-transport-http.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-contract.workspace = true
 
 # general
@@ -60,8 +61,9 @@ kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"
 metrics-exporter-prometheus.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 tempfile.workspace = true
+serial_test.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 [[bin]]
-name = "kona-sp1-proposer"
-path = "src/bin/kona-sp1-proposer.rs"
+name = "op-zk-proposer"
+path = "src/bin/op-zk-proposer.rs"

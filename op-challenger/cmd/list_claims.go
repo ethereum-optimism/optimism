@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"strconv"
@@ -18,7 +19,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +34,7 @@ const (
 var (
 	GameAddressFlag = &cli.StringFlag{
 		Name:    "game-address",
-		Usage:   "Address of the fault game contract.",
+		Usage:   "Address of the dispute game contract.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "GAME_ADDRESS"),
 	}
 	VerboseFlag = &cli.BoolFlag{
@@ -77,14 +78,29 @@ type claimRecord struct {
 type claimsReport struct {
 	Status                  string        `json:"status"`
 	ResolutionTime          string        `json:"resolutionTime,omitempty"` // RFC3339, when resolved
-	L2StartBlock            uint64        `json:"l2StartBlock"`
-	L2BlockNumber           uint64        `json:"l2BlockNumber"`
+	L2StartSequenceNumber   uint64        `json:"l2StartSequenceNumber"`
+	L2EndSequenceNumber     uint64        `json:"l2EndSequenceNumber"`
 	L2BlockNumberChallenged bool          `json:"l2BlockNumberChallenged"`
 	L2BlockNumberChallenger string        `json:"l2BlockNumberChallenger,omitempty"`
 	SplitDepth              uint64        `json:"splitDepth"`
 	MaxDepth                uint64        `json:"maxDepth"`
 	ClaimCount              int           `json:"claimCount"`
 	Claims                  []claimRecord `json:"claims"`
+}
+
+// zkGameReport is the structured, machine-readable view of a ZK dispute game. ZK games have a
+// single proposal and no claim tree, and their sequence numbers are super-root timestamps.
+type zkGameReport struct {
+	Status                     string `json:"status"`
+	ResolutionTime             string `json:"resolutionTime,omitempty"` // RFC3339, when resolved
+	ProposalStatus             string `json:"proposalStatus"`
+	ParentIndex                uint32 `json:"parentIndex"`
+	RootClaim                  string `json:"rootClaim"`
+	StartingSuperRootTimestamp uint64 `json:"startingSuperRootTimestamp"`
+	ProposalSuperRootTimestamp uint64 `json:"proposalSuperRootTimestamp"`
+	Challenger                 string `json:"challenger"`
+	Prover                     string `json:"prover"`
+	Deadline                   string `json:"deadline"` // RFC3339
 }
 
 func ListClaims(ctx *cli.Context) error {
@@ -114,19 +130,35 @@ func ListClaims(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, gameAddr, caller)
+	gameType, err := contracts.DetectGameType(ctx.Context, gameAddr, caller)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to detect dispute game type: %w", err)
 	}
-	report, err := buildClaimsReport(ctx.Context, contract)
+	contract, err := contracts.NewDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, caller, gameType, gameAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create dispute game bindings for game type %v: %w", gameType, err)
 	}
-	switch format {
-	case formatJSON:
-		return renderJSON(os.Stdout, report)
-	default:
+	switch contract := contract.(type) {
+	case contracts.ZKDisputeGameContract:
+		report, err := buildZKGameReport(ctx.Context, contract)
+		if err != nil {
+			return err
+		}
+		if format == formatJSON {
+			return renderJSON(os.Stdout, report)
+		}
+		return renderZKText(os.Stdout, report)
+	case contracts.FaultDisputeGameContract:
+		report, err := buildClaimsReport(ctx.Context, contract)
+		if err != nil {
+			return err
+		}
+		if format == formatJSON {
+			return renderJSON(os.Stdout, report)
+		}
 		return renderText(os.Stdout, report, ctx.Bool(VerboseFlag.Name))
+	default:
+		return fmt.Errorf("game type %v does not support list-claims", gameType)
 	}
 }
 
@@ -148,7 +180,7 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 		return claimsReport{}, fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
 	status := metadata.Status
-	l2StartBlockNum, l2BlockNum, err := game.GetGameRange(ctx)
+	l2StartSeq, l2EndSeq, err := game.GetGameRange(ctx)
 	if err != nil {
 		return claimsReport{}, fmt.Errorf("failed to retrieve status: %w", err)
 	}
@@ -160,8 +192,8 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 
 	report := claimsReport{
 		Status:                  status.String(),
-		L2StartBlock:            l2StartBlockNum,
-		L2BlockNumber:           l2BlockNum,
+		L2StartSequenceNumber:   l2StartSeq,
+		L2EndSequenceNumber:     l2EndSeq,
 		L2BlockNumberChallenged: metadata.L2BlockNumberChallenged,
 		SplitDepth:              uint64(splitDepth),
 		MaxDepth:                uint64(maxDepth),
@@ -259,6 +291,40 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 	return report, nil
 }
 
+func buildZKGameReport(ctx context.Context, game contracts.ZKDisputeGameContract) (zkGameReport, error) {
+	metadata, err := game.GetChallengerMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return zkGameReport{}, fmt.Errorf("failed to retrieve challenger metadata: %w", err)
+	}
+	status, err := game.GetStatus(ctx)
+	if err != nil {
+		return zkGameReport{}, fmt.Errorf("failed to retrieve status: %w", err)
+	}
+	startTimestamp, _, err := game.GetGameRange(ctx)
+	if err != nil {
+		return zkGameReport{}, fmt.Errorf("failed to retrieve game range: %w", err)
+	}
+	report := zkGameReport{
+		Status:                     status.String(),
+		ProposalStatus:             metadata.ProposalStatus.String(),
+		ParentIndex:                metadata.ParentIndex,
+		RootClaim:                  metadata.ProposedRoot.Hex(),
+		StartingSuperRootTimestamp: startTimestamp,
+		ProposalSuperRootTimestamp: metadata.L2SequenceNumber,
+		Challenger:                 metadata.Challenger.Hex(),
+		Prover:                     metadata.Prover.Hex(),
+		Deadline:                   metadata.Deadline.Format(time.RFC3339),
+	}
+	if status != gameTypes.GameStatusInProgress {
+		resolutionTime, err := game.GetResolvedAt(ctx, rpcblock.Latest)
+		if err != nil {
+			return zkGameReport{}, fmt.Errorf("failed to retrieve resolved at: %w", err)
+		}
+		report.ResolutionTime = resolutionTime.Format(time.RFC3339)
+	}
+	return report, nil
+}
+
 func weiToEther(weiStr string) float64 {
 	wei, ok := new(big.Int).SetString(weiStr, 10)
 	if !ok {
@@ -289,20 +355,37 @@ func renderText(out io.Writer, report claimsReport, verbose bool) error {
 			c.Index, c.Move, parent, c.Depth, c.TraceIndex, value, c.Claimant, bond,
 			time.Unix(c.Timestamp, 0).Format(time.DateTime), time.Duration(c.ClockUsedSeconds)*time.Second, c.resolution)
 	}
-	blockNumChallenger := "Unchallenged"
+	blockNumChallenge := "Block Num Challenge: none"
 	if report.L2BlockNumberChallenged {
-		blockNumChallenger = "❌ " + report.L2BlockNumberChallenger
+		blockNumChallenge = "Block Num Challenge: ❌ " + report.L2BlockNumberChallenger
 	}
 	statusStr := report.Status
 	if report.ResolutionTime != "" {
 		statusStr = fmt.Sprintf("%v • Resolution Time: %v", statusStr, report.ResolutionTime)
 	}
-	_, err := fmt.Fprintf(out, "Status: %v • L2 Blocks: %v to %v (%v) • Split Depth: %v • Max Depth: %v • Claim Count: %v\n%v\n",
-		statusStr, report.L2StartBlock, report.L2BlockNumber, blockNumChallenger, report.SplitDepth, report.MaxDepth, report.ClaimCount, info)
+	_, err := fmt.Fprintf(out, "Status: %v • L2 Sequence: %v to %v • %v • Split Depth: %v • Max Depth: %v • Claim Count: %v\n%v\n",
+		statusStr, report.L2StartSequenceNumber, report.L2EndSequenceNumber, blockNumChallenge, report.SplitDepth, report.MaxDepth, report.ClaimCount, info)
 	return err
 }
 
-func renderJSON(out io.Writer, report claimsReport) error {
+func renderZKText(out io.Writer, report zkGameReport) error {
+	statusStr := report.Status
+	if report.ResolutionTime != "" {
+		statusStr = fmt.Sprintf("%v • Resolution Time: %v", statusStr, report.ResolutionTime)
+	}
+	parent := strconv.FormatUint(uint64(report.ParentIndex), 10)
+	if report.ParentIndex == math.MaxUint32 {
+		parent = "anchor"
+	}
+	_, err := fmt.Fprintf(out, "Status: %v • Proposal Status: %v • Deadline: %v\nParent Index: %v • Root Claim: %v\nSuper Root Timestamps: %v to %v\nChallenger: %v • Prover: %v\n",
+		statusStr, report.ProposalStatus, report.Deadline,
+		parent, report.RootClaim,
+		report.StartingSuperRootTimestamp, report.ProposalSuperRootTimestamp,
+		report.Challenger, report.Prover)
+	return err
+}
+
+func renderJSON(out io.Writer, report any) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(report)
@@ -315,14 +398,14 @@ func listClaimsFlags() []cli.Flag {
 		VerboseFlag,
 		FormatFlag,
 	}
-	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+	cliFlags = append(cliFlags, logcli.CLIFlags(flags.EnvVarPrefix)...)
 	return cliFlags
 }
 
 var ListClaimsCommand = &cli.Command{
 	Name:        "list-claims",
 	Usage:       "List the claims in a dispute game",
-	Description: "Lists the claims in a dispute game",
+	Description: "Lists the claims in a fault dispute game. For a ZK dispute game, which has no claim tree, shows the proposal state instead.",
 	Action:      Interruptible(ListClaims),
 	Flags:       listClaimsFlags(),
 }

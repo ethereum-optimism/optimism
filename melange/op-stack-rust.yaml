@@ -55,7 +55,7 @@ pipeline:
       install-output: "false"
       modroot: rust
       profile: "${MELANGE_CARGO_PROFILE}"
-      opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client --package kona-sp1-proposer --package lokahi
+      opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client --package op-zk-proposer --package lokahi
 
 subpackages:
   - name: op-reth
@@ -106,14 +106,14 @@ subpackages:
         with:
           opts: -g --remove-section=.note.package
 
-  - name: kona-sp1-proposer
-    description: kona-sp1-proposer — OP Stack SP1 fault proof proposer
+  - name: op-zk-proposer
+    description: op-zk-proposer — OP Stack SP1 fault proof proposer
     pipeline:
       - runs: |
           profile="${MELANGE_CARGO_PROFILE:-release}"
           install -Dm755 \
-            "${CARGO_TARGET_DIR}/rust/${profile}/kona-sp1-proposer" \
-            "${{targets.contextdir}}/usr/local/bin/kona-sp1-proposer"
+            "${CARGO_TARGET_DIR}/rust/${profile}/op-zk-proposer" \
+            "${{targets.contextdir}}/usr/local/bin/op-zk-proposer"
       - uses: strip
         with:
           opts: -g --remove-section=.note.package

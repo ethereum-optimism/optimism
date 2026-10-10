@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -27,6 +27,7 @@ type SuperRootProvider interface {
 
 type GameStatusProvider interface {
 	GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error)
+	GetGameStatusAtBlock(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
 }
 
 type ChallengableContract interface {
@@ -67,15 +68,40 @@ func (a *Actor) Act(ctx context.Context) error {
 		return fmt.Errorf("failed to get zk game state: %w", err)
 	}
 
+	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
+		a.logger.Trace("Skipping resolved zk game")
+		a.logger.Debug("No challenge required")
+		a.logger.Debug("No resolution required")
+		return nil
+	}
+
+	parentStatus := gameTypes.GameStatusDefenderWon
+	if gameState.ParentIndex != math.MaxUint32 {
+		parentStatus, err = a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
+		if err != nil {
+			return fmt.Errorf("failed to get parent game status: %w", err)
+		}
+	}
+
+	if parentStatus == gameTypes.GameStatusChallengerWon &&
+		gameState.ProposalStatus == contracts.ProposalStatusUnchallenged &&
+		gameState.Deadline.After(a.l1Clock.Now()) {
+		// Wait for parent finality before challenging or resolving an unchallenged child in its window.
+		parentStatus, err = a.gameStatusProvider.GetGameStatusAtBlock(ctx, uint64(gameState.ParentIndex), rpcblock.Finalized)
+		if err != nil {
+			return fmt.Errorf("failed to get finalized parent game status: %w", err)
+		}
+	}
+
 	var txs []txmgr.TxCandidate
-	if tx, err := a.createChallengeTx(ctx, gameState); errors.Is(err, errNoChallengeRequired) {
+	if tx, err := a.createChallengeTx(ctx, gameState, parentStatus); errors.Is(err, errNoChallengeRequired) {
 		a.logger.Debug("No challenge required")
 	} else if err != nil {
 		return err
 	} else {
 		txs = append(txs, tx)
 	}
-	if tx, err := a.createResolveTx(ctx, gameState); errors.Is(err, errNoResolutionRequired) {
+	if tx, err := a.createResolveTx(gameState, parentStatus); errors.Is(err, errNoResolutionRequired) {
 		a.logger.Debug("No resolution required")
 	} else if err != nil {
 		return err
@@ -92,10 +118,14 @@ func (a *Actor) Act(ctx context.Context) error {
 	return nil
 }
 
-func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.ChallengerMetadata) (txmgr.TxCandidate, error) {
-	if gameState.ProposalStatus != contracts.ProposalStatusUnchallenged || gameState.Deadline.Before(a.l1Clock.Now()) {
+func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.ChallengerMetadata, parentStatus gameTypes.GameStatus) (txmgr.TxCandidate, error) {
+	if gameState.ProposalStatus != contracts.ProposalStatusUnchallenged || !gameState.Deadline.After(a.l1Clock.Now()) {
 		a.logger.Trace("Skipping unchallengeable zk game")
 		return txmgr.TxCandidate{}, errNoChallengeRequired
+	}
+	if parentStatus == gameTypes.GameStatusChallengerWon {
+		a.logger.Info("Challenging game with invalid parent")
+		return a.contract.ChallengeTx(ctx)
 	}
 	valid, err := a.isValidProposal(ctx)
 	if errors.Is(err, gameTypes.ErrNotInSync) {
@@ -136,26 +166,16 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 	return common.Hash(resp.Data.SuperRoot) == proposalHash, nil
 }
 
-func (a *Actor) createResolveTx(ctx context.Context, gameState contracts.ChallengerMetadata) (txmgr.TxCandidate, error) {
-	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
-		a.logger.Trace("Skipping resolution of resolved zk game")
-		return txmgr.TxCandidate{}, errNoResolutionRequired
-	}
+func (a *Actor) createResolveTx(gameState contracts.ChallengerMetadata, parentStatus gameTypes.GameStatus) (txmgr.TxCandidate, error) {
 	deadlineExpired := gameState.Deadline.Before(a.l1Clock.Now())
 
-	if gameState.ParentIndex != math.MaxUint32 {
-		parentStatus, err := a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
-		if err != nil {
-			return txmgr.TxCandidate{}, fmt.Errorf("failed to get parent game status: %w", err)
-		}
-		if parentStatus == gameTypes.GameStatusInProgress {
-			a.logger.Trace("Skipping resolution of zk game with parent in progress")
-			return txmgr.TxCandidate{}, errNoResolutionRequired
-		}
-		if parentStatus == gameTypes.GameStatusChallengerWon {
-			// Resolve if the parent game is invalid
-			return a.contract.ResolveTx()
-		}
+	if parentStatus == gameTypes.GameStatusInProgress {
+		a.logger.Trace("Skipping resolution of zk game with parent in progress")
+		return txmgr.TxCandidate{}, errNoResolutionRequired
+	}
+	if parentStatus == gameTypes.GameStatusChallengerWon {
+		// Resolve if the parent game is invalid
+		return a.contract.ResolveTx()
 	}
 
 	if gameState.ProposalStatus == contracts.ProposalStatusChallengedAndValidProofProvided ||

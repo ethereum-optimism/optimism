@@ -227,6 +227,44 @@ the exact values, and say what happens to a node that upgrades late:
 Saying which chains are *not* affected matters as much as which are: most readers of the
 note operate a different chain and should be able to stop reading at that sentence.
 
+## op-contracts and op-deployer
+
+These notes follow the same shape and rules, with the differences below. Each op-deployer
+release embeds the artifacts of one op-contracts release and deploys it by default.
+
+### The Overview sentence
+
+The recommendation vocabulary does not fit a contracts release. A chain does not choose to
+install it; a governance-approved upgrade does that. So the sentence names the upgrade
+instead, in an `> [!IMPORTANT]` callout:
+
+```markdown
+> [!IMPORTANT]
+> This is the op-contracts release for [Upgrade 20](<governance post>). It contains <what kind of changes>.
+```
+
+The op-deployer release that first ships an op-contracts release names both:
+
+```markdown
+> [!IMPORTANT]
+> This is the op-deployer release for [op-contracts/v8.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv8.0.0) ([Upgrade 20](<governance post>)). It deploys op-contracts/v8.0.0. It contains <what kind of changes>.
+```
+
+A later op-deployer release for the same contracts uses the standard recommendation
+vocabulary and callout type, and still names the op-contracts release it embeds. The
+upgrade notice under `docs/public-docs/notices/` links the governance post; otherwise ask
+the release manager.
+
+### Contract versions and images
+
+An op-contracts note has a `## Contract versions` section after `## Other changes`, and no
+image line, because there is no op-contracts image. The section holds this table, unedited,
+so a reader can check deployed implementations against it:
+
+```bash
+.claude/skills/release-notes/scripts/contract-versions.sh op-contracts/<prev-finalized> op-contracts/<this>
+```
+
 ## Tags, links and images
 
 The release **title** is `<component> <version>`, with a space — `op-node v1.19.6`, not the

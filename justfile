@@ -252,14 +252,12 @@ reproducible-prestate:
 cannon-prestates:
   cd rust && just build-kona-prestates-auto
 
-# Verifies the reproducibility of released cannon prestates against the
-# superchain-registry standard prestates. Only kona-client/v* releases are
-# rebuilt and verified; op-program prestates remain in the registry but are no
-# longer re-validated.
+# Rebuilds registered Kona SP1 releases and released Cannon prestates, then
+# compares both against one standard-prestates registry snapshot.
 verify-reproducibility:
   rm -rf ops/prestate-reproducibility/temp/states
   ./ops/prestate-reproducibility/build-prestates.sh
-  env GO111MODULE=on go run ./ops/prestate-reproducibility/prestates/verify/verify.go --input ops/prestate-reproducibility/temp/states/versions.json
+  env GO111MODULE=on go run ./ops/prestate-reproducibility/prestates/verify/verify.go --input ops/prestate-reproducibility/temp/states/versions.json --expected ops/prestate-reproducibility/temp/states/standard-prestates.toml
 
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
@@ -427,10 +425,8 @@ update-op-geth:
   ./ops/scripts/update-op-geth.py
 
 # Build all Rust binaries (release) for sysgo tests.
-# Every binary needs an explicit `-p`: a bare `--bin` only resolves against the
-# `default-members` of the workspace, and op-reth-sdm-fixture is a plain member.
 build-rust-release:
-  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture
+  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth
 
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:
@@ -565,17 +561,22 @@ release-paths component:
         op-reth)
             specs=("rust/{{ component }}/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/")
             ;;
-        kona-*)
+        kona-*|op-zk-proposer)
             specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/" "rust/op-revm/")
             ;;
         op-deployer)
-            specs=("op-deployer/")
+            # op-deployer embeds the contract artifacts and runs the scripts in
+            # them, so a script change alters what op-deployer does. The scripts
+            # import a few test mocks. Contract source changes belong to the
+            # op-contracts release that the op-deployer note links to.
+            cb=packages/contracts-bedrock
+            specs=("op-deployer/" "op-chain-ops/" "contract-scripts=$cb/scripts/,$cb/test/mocks/" "$go_shared")
             ;;
         op-contracts)
             specs=("packages/contracts-bedrock/")
             ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*; is {{ component }}" >&2
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*, op-zk-proposer; is {{ component }}" >&2
             exit 1
             ;;
     esac

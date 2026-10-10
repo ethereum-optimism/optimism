@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
@@ -21,7 +20,8 @@ import (
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -86,7 +86,7 @@ func makeFlags() []cli.Flag {
 		EndpointL2,
 		SecretKeyFlag,
 	}
-	return append(flags, oplog.CLIFlags(prefix)...)
+	return append(flags, logcli.CLIFlags(prefix)...)
 }
 
 func makeCommand(name string, fn CheckAction) *cli.Command {
@@ -99,8 +99,8 @@ func makeCommand(name string, fn CheckAction) *cli.Command {
 
 func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 	return func(c *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(c)
-		logger := oplog.NewLogger(c.App.Writer, logCfg)
+		logCfg := logcli.ReadCLIConfig(c)
+		logger := logcli.NewLogger(c.App.Writer, logCfg)
 
 		c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
 		l2Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL2.Name))

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
@@ -57,6 +57,12 @@ var (
 		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
 		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
 		Value:   168 * time.Hour, // 7 days default for interop message expiry
+	}
+	AssumeValidBeforeFlag = &cli.DurationFlag{
+		Name:    "assume-valid-before",
+		Usage:   "On startup, history older than this duration before now is assumed valid. Newer history is cross-validated before it counts as cross-unsafe (e.g., 1h, 30m)",
+		EnvVars: prefixEnvVars("ASSUME_VALID_BEFORE"),
+		Value:   30 * time.Minute,
 	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "admin.jwt-secret",
@@ -149,6 +155,7 @@ var optionalFlags = []cli.Flag{
 	DataDirFlag,
 	BackfillDurationFlag,
 	MessageExpiryWindowFlag,
+	AssumeValidBeforeFlag,
 	JWTSecretFlag,
 	AdminRPCAddrFlag,
 	AdminRPCPortFlag,
@@ -165,7 +172,7 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 

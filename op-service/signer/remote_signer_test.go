@@ -11,10 +11,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -96,7 +97,7 @@ func TestRemoteSigner(t *testing.T) {
 		remote, err := NewRemoteSigner(logger, signerCfg)
 		require.NoError(t, err)
 		t.Cleanup(must(remote.Close))
-		testErr := &rpc.JsonError{Code: -39000, Message: "test error"}
+		testErr := &jsonrpc.Error{Code: -39000, Message: "test error"}
 		remoteSigner.err = testErr
 		_, err = remote.SignBlockV1(context.Background(), chainID, payloadHash)
 		var rpcErr rpc.Error

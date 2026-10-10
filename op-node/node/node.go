@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -26,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -601,7 +602,7 @@ func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*s
 func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
 		node.l2Source.L2Client, node.l2Driver, node.safeDB,
-		node.log, node.metrics, node.appVersion)
+		node.log, node.appVersion)
 	if err := registerAPIs(cfg, node, server.Handler); err != nil {
 		// panic here is to match the behavior of oprcp.Server.AddAPI,
 		// which wraps the Handler and panics if the API can't be added.
@@ -776,13 +777,25 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
-			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", envelope.ID())
+			// Permanent: a signer does not appear without a restart, so retrying
+			// only holds the block at the head of the publish queue.
+			return fmt.Errorf("%w: node has no p2p signer, payload %s cannot be published",
+				async.ErrPermanentPublish, envelope.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", envelope.ID())
 		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil
+}
+
+// GossipTimestampThreshold reports the age past which peers reject a block. Zero
+// when p2p is disabled, where publishing is a no-op anyway.
+func (n *OpNode) GossipTimestampThreshold() time.Duration {
+	if !n.p2pEnabled() {
+		return 0
+	}
+	return n.cfg.P2P.GetGossipTimestampThreshold()
 }
 
 func (n *OpNode) P2P() p2p.Node {

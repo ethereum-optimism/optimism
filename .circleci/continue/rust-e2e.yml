@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.31
+  utils: ethereum-optimism/circleci-utils@1.0.32
 
 parameters:
   c-default_docker_image:
@@ -196,6 +196,10 @@ jobs:
 
   # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
   kona-build-sp1-elfs:
+    parameters:
+      features:
+        type: string
+        default: ""
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
@@ -292,7 +296,7 @@ jobs:
           name: Build SP1 guest ELFs
           working_directory: rust/kona/sp1
           no_output_timeout: 40m
-          command: just build-elfs-native
+          command: just build-elfs-native "<< parameters.features >>"
       - run:
           # The Go acceptance setup (op-acceptance-tests/tests/proofs/zk,
           # loadSuperAggregationVKey) reads this key when running with real
@@ -309,6 +313,9 @@ jobs:
           command: |
             set -euo pipefail
             EXPECTED=$(git rev-parse HEAD)
+            if [ -n "<< parameters.features >>" ]; then
+              EXPECTED="${EXPECTED}-test"
+            fi
             for ELF in super-range-elf super-aggregation-elf; do
               PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
               set +e
@@ -323,6 +330,12 @@ jobs:
               fi
               echo "${ELF}: ${FOUND}"
             done
+            if [ -n "<< parameters.features >>" ]; then
+              if ! grep -aqF 'KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}' rust/kona/sp1/elf/super-range-elf; then
+                echo "test guest ELF is missing the test-config-fallback marker" >&2
+                exit 1
+              fi
+            fi
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:
@@ -370,7 +383,7 @@ jobs:
           working_directory: rust
           command: |
             KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
-              cargo nextest run --package kona-sp1-proposer \
+              cargo nextest run --package op-zk-proposer \
               real_elf_agg_vkey_matches_vkeys_toml_prestate
       - run:
           name: Run SP1 super-root ELF acceptance
@@ -385,13 +398,13 @@ jobs:
             export DEVSTACK_L2EL_KIND=op-reth
             export RUST_BINARY_PATH_OP_RETH="$ROOT_DIR/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_HOST="$ROOT_DIR/rust/target/release/kona-host"
-            export RUST_BINARY_PATH_KONA_SP1_PROPOSER="$ROOT_DIR/rust/target/release/kona-sp1-proposer"
+            export RUST_BINARY_PATH_OP_ZK_PROPOSER="$ROOT_DIR/rust/target/release/op-zk-proposer"
             export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
             export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
 
             test -x "$RUST_BINARY_PATH_OP_RETH"
             test -x "$RUST_BINARY_PATH_KONA_HOST"
-            test -x "$RUST_BINARY_PATH_KONA_SP1_PROPOSER"
+            test -x "$RUST_BINARY_PATH_OP_ZK_PROPOSER"
             test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
             test -x "$ROOT_DIR/cannon/bin/cannon"
             test -s "$ROOT_DIR/rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
@@ -424,6 +437,59 @@ jobs:
           path: tmp/test-results
       - store_artifacts:
           path: tmp/testlogs/sp1-super-range-elf
+          when: always
+      - notify-failures-on-develop:
+          mentions: "@proofs-team"
+
+  # SP1 execute action tests (rust/kona/tests/proofs, TestSP1*). They skip without
+  # KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH, which kona-proof-action-tests does not set, so this
+  # is their only CI coverage, including the invalid-claim (soundness) path.
+  kona-sp1-action-tests:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # Runs the SP1 ELF in the emulator like sp1-super-range-elf-smoke, so it gets the same
+    # 32 GB runner.
+    resource_class: 2xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: kona-sp1-action-tests
+      - run:
+          name: Run SP1 execute action tests
+          no_output_timeout: 30m
+          command: |
+            ROOT_DIR="$(pwd)"
+            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
+            export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
+            test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
+            test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+
+            cd rust/kona/tests/proofs
+            mkdir -p tmp/test-results tmp/testlogs
+            # Fail rather than pass vacuously if a rename leaves nothing matching the pattern.
+            # List to a file first: grep -q closing the pipe early would SIGPIPE go test under pipefail.
+            go test -list '^TestSP1' . > tmp/testlogs/test-list.txt
+            grep -q '^TestSP1' tmp/testlogs/test-list.txt
+            gotestsum \
+              --format=testname \
+              --junitfile=tmp/test-results/results.xml \
+              --jsonfile=tmp/testlogs/log.json \
+              -- \
+              -count=1 \
+              -parallel=1 \
+              -timeout=60m \
+              -run '^TestSP1' \
+              .
+      - go-save-cache:
+          namespace: kona-sp1-action-tests
+      - store_test_results:
+          path: rust/kona/tests/proofs/tmp/test-results
+      - store_artifacts:
+          path: rust/kona/tests/proofs/tmp/testlogs
           when: always
       - notify-failures-on-develop:
           mentions: "@proofs-team"
@@ -463,6 +529,8 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # Release-build linking OOMs xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -501,7 +569,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # No kona-build-sp1-elfs here on purpose: main runs the identical job
-      # (same template, no parameters, same contexts) and gates it through
+      # (same template, features, and contexts) and gates it through
       # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
       # this workflow is duplicated work.
       # -----------------------------------------------------------------------
@@ -550,10 +618,13 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # Release-build linking OOMs xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
       - kona-build-sp1-elfs:
+          features: test-config-fallback
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -578,3 +649,13 @@ workflows:
             - kona-build-sp1-elfs
             - cannon-prestate
             - go-binaries-for-sysgo
+      - kona-sp1-action-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          requires:
+            - prep-go-modules
+            - prep-superchain
+            - contracts-bedrock-build
+            - sp1-elf-smoke-rust-binaries
+            - kona-build-sp1-elfs

@@ -8,12 +8,12 @@ import (
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -157,7 +157,7 @@ func newSuperroot(chains map[eth.ChainID]cc.ChainContainer, reader interop.Verif
 	if reader == nil {
 		reader = preInteropReader()
 	}
-	return New(gethlog.New(), chains, reader)
+	return New(oplog.New(), chains, reader)
 }
 
 // ------ Aggregate sync-status tests (regime-agnostic) ------

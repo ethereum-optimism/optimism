@@ -114,7 +114,7 @@ test-docs:
 
 # Run tests in the nested SP1 guest program workspace
 test-sp1-guest:
-  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked
+  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked --all-features
 
 ############################### Lint ################################
 
@@ -330,6 +330,7 @@ fmt-fix-sp1-guest: _sync-sp1-guest-lints
 
 lint-clippy-sp1-guest:
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
+  cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --locked -p kona-sp1-super-range --all-targets --no-default-features -- -D warnings
 
 # fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
 # else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.

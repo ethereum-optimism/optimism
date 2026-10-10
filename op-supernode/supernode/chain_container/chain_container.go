@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
@@ -26,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -148,7 +148,7 @@ type InteropChain interface {
 	WaitReady(ctx context.Context) error
 }
 
-type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
+type virtualNodeFactory func(cfg *opnodecfg.Config, log oplog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
 
 // RPCRouterGate is the chain container's narrow view of the shared RPC router.
 // It lets containers swap per-chain handlers while also controlling when the
@@ -180,7 +180,7 @@ type simpleChainContainer struct {
 	stop               atomic.Bool
 	resetting          atomic.Bool
 	stopped            chan struct{}
-	log                gethlog.Logger
+	log                oplog.Logger
 	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
@@ -207,7 +207,7 @@ var _ InteropChain = (*simpleChainContainer)(nil)
 func NewChainContainer(
 	chainID eth.ChainID,
 	vncfg *opnodecfg.Config,
-	log gethlog.Logger,
+	log oplog.Logger,
 	cfg config.CLIConfig,
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
@@ -299,7 +299,7 @@ func (c *simpleChainContainer) registeredVerifier() activity.VerificationActivit
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
-func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 	initOverload.SuperAuthority = superAuthority
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }
@@ -662,16 +662,23 @@ func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2,
 }
 
 // OptimisticOutputAtTimestamp returns the OutputV0 for the "optimistic" L2 block at the given timestamp.
-// If the block at this height has been denied (invalidated and replaced), the optimistic output
-// is the original (pre-replacement) block's output from the deny list — because optimistically
-// the block would not have been replaced. Otherwise it returns the current local safe block's output.
+// If the block at this height has been denied (invalidated and replaced) and was produced at exactly
+// this timestamp, the optimistic output is the original (pre-replacement) block's output from the deny
+// list — because optimistically the block would not have been replaced. Otherwise it returns the
+// current local safe block's output.
 func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	blockNum, err := c.TimestampToBlockNumber(ctx, ts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert timestamp to block number: %w", err)
 	}
+	blockTs, err := c.BlockNumberToTimestamp(ctx, blockNum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert block number to timestamp: %w", err)
+	}
 
-	if c.denyList != nil {
+	// Optimistic means the block as originally built, at the timestamp it was produced. Between a
+	// slower chain's blocks (blockTs < ts), the chain has no new block, so use the canonical state.
+	if c.denyList != nil && blockTs == ts {
 		outV0, err := c.denyList.LastDeniedOutputV0(blockNum)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query deny list at height %d: %w", blockNum, err)

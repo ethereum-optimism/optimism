@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
@@ -26,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -307,8 +307,8 @@ func (m *mockEngineController) PayloadByNumber(ctx context.Context, number uint6
 // Interface conformance assertion
 var _ engine_controller.EngineController = (*mockEngineController)(nil)
 
-func createTestLogger(t testing.TB) gethlog.Logger {
-	return testlog.Logger(t, gethlog.LevelDebug)
+func createTestLogger(t testing.TB) oplog.Logger {
+	return testlog.Logger(t, oplog.LevelDebug)
 }
 
 // mustNewChainContainer builds a chain container and fails the test on error.
@@ -316,7 +316,7 @@ func mustNewChainContainer(
 	t testing.TB,
 	chainID eth.ChainID,
 	vncfg *opnodecfg.Config,
-	log gethlog.Logger,
+	log oplog.Logger,
 	cfg config.CLIConfig,
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
@@ -470,7 +470,7 @@ func TestChainContainer_EngineControllerInitInConstructor(t *testing.T) {
 	mockEngine := &mockEngineController{outputV0Result: expectedOutput}
 
 	prevSetup := newEngineControllerFromConfig
-	newEngineControllerFromConfig = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+	newEngineControllerFromConfig = func(ctx context.Context, log oplog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
 		return mockEngine, nil
 	}
 	t.Cleanup(func() { newEngineControllerFromConfig = prevSetup })
@@ -498,7 +498,7 @@ func TestChainContainer_EngineControllerSetupErrorFailsConstruction(t *testing.T
 
 	setupErr := errors.New("bad engine config")
 	prevSetup := newEngineControllerFromConfig
-	newEngineControllerFromConfig = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+	newEngineControllerFromConfig = func(ctx context.Context, log oplog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
 		return nil, setupErr
 	}
 	t.Cleanup(func() { newEngineControllerFromConfig = prevSetup })
@@ -631,7 +631,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -664,7 +664,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 			return nil // Exit immediately to trigger restart
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -705,7 +705,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 			return nil // Exit immediately
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -781,7 +781,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 		var totalStartCalls int
 		var mu sync.Mutex
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			mockVN := newMockVirtualNode()
 			mockVN.blockOnStart = true
 			mockVN.startFunc = func(ctx context.Context) error {
@@ -1341,7 +1341,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -1383,7 +1383,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			return ctx.Err()
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -1417,7 +1417,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			<-ctx.Done()
 			return ctx.Err()
 		}
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -1442,7 +1442,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -1480,7 +1480,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -1540,7 +1540,7 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	vncfg := createTestVNConfig()
 	vncfg.Rollup.Genesis.L2Time = 1000
 	vncfg.Rollup.BlockTime = 2
-	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
+	log, logs := testlog.CaptureLogger(t, oplog.LevelDebug)
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
@@ -1592,7 +1592,7 @@ func TestChainContainer_OptimisticAt_LocalSafeTipNotFoundLogsDebug(t *testing.T)
 	vncfg := createTestVNConfig()
 	vncfg.Rollup.Genesis.L2Time = 1000
 	vncfg.Rollup.BlockTime = 2
-	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
+	log, logs := testlog.CaptureLogger(t, oplog.LevelDebug)
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
@@ -1925,6 +1925,68 @@ func TestChainContainer_OptimisticOutputAtTimestamp_FallsThroughWhenNoDenied(t *
 	_, err = container.OptimisticOutputAtTimestamp(context.Background(), genesisTime+5*blockTime)
 	require.Error(t, err)
 	require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+}
+
+// A replaced block's original output is only the optimistic output at the timestamp the block was
+// produced. On a chain slower than the super-root step, later timestamps before the next block must
+// return the canonical (replacement) output.
+func TestChainContainer_OptimisticOutputAtTimestamp_DeniedOnlyAtProducedTimestamp(t *testing.T) {
+	t.Parallel()
+
+	deniedHash := common.HexToHash("0xdead")
+	denied := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xabcd")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0x1234")),
+		BlockHash:                deniedHash,
+	}
+	canonical := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xbeef")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0x5678")),
+		BlockHash:                common.HexToHash("0xcafe"),
+	}
+
+	tests := []struct {
+		name      string
+		blockTime uint64
+		offset    uint64 // seconds after the replaced block's timestamp R
+		want      *eth.OutputV0
+	}{
+		{name: "2s chain at R returns denied original", blockTime: 2, offset: 0, want: denied},
+		{name: "2s chain at R+1 returns canonical replacement", blockTime: 2, offset: 1, want: canonical},
+		{name: "1s chain at R returns denied original", blockTime: 1, offset: 0, want: denied},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			genesisTime := uint64(1000)
+			vncfg := createTestVNConfig()
+			vncfg.Rollup.Genesis.L2Time = genesisTime
+			vncfg.Rollup.BlockTime = tc.blockTime
+
+			dl, err := OpenDenyList(filepath.Join(t.TempDir(), "denylist"))
+			require.NoError(t, err)
+			defer dl.Close()
+
+			height := uint64(5)
+			require.NoError(t, dl.Add(height, deniedHash, 0, denied.StateRoot, denied.MessagePasserStorageRoot))
+
+			engine := newMockEngineController()
+			engine.outputV0Result = canonical
+			container := &simpleChainContainer{
+				vncfg:    vncfg,
+				denyList: dl,
+				engine:   engine,
+				log:      createTestLogger(t),
+			}
+
+			ts := genesisTime + height*tc.blockTime + tc.offset
+			out, err := container.OptimisticOutputAtTimestamp(context.Background(), ts)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, out)
+		})
+	}
 }
 
 func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {

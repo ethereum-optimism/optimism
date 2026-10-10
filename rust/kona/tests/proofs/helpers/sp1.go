@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +82,7 @@ func RunSuperRangeExecutor(
 		args = append(args, "--native-core")
 	}
 
-	logger := log.NewLogger(os.Stdout, log.DefaultCLIConfig())
+	logger := logcli.NewLogger(os.Stdout, logcli.DefaultCLIConfig())
 
 	if !rustbin.RunKonaSP1SuperRange(t, logger, sp1SuperRangeExecutorPath, workDir, args...) {
 		return ErrClaimNotValid

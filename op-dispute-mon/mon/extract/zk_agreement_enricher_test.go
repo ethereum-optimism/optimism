@@ -10,10 +10,10 @@ import (
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func TestZKAgreementPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			metricer := &stubOutputMetrics{}
 			enricher := NewZKAgreementEnricher(
-				testlog.Logger(t, log.LvlDebug),
+				testlog.Logger(t, log.LevelDebug),
 				metricer,
 				test.providers,
 				clock.NewDeterministicClock(time.Unix(1234, 0)),
@@ -87,7 +87,7 @@ func TestZKAgreementCancellationPreventsMutation(t *testing.T) {
 	provider := zkSuperRootProvider{response: zkResponse(101, &root), action: cancel}
 	metricer := &stubOutputMetrics{}
 	enricher := NewZKAgreementEnricher(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		metricer,
 		[]SuperRootProvider{provider},
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
@@ -103,7 +103,7 @@ func TestZKAgreementCancellationPreventsMutation(t *testing.T) {
 func TestZKAgreementReplacesEndpointTracking(t *testing.T) {
 	root := common.Hash{0xaa}
 	enricher := NewZKAgreementEnricher(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		&stubOutputMetrics{},
 		[]SuperRootProvider{zkFound(101, root)},
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
@@ -133,7 +133,7 @@ func TestZKAgreementReplacesEndpointTracking(t *testing.T) {
 
 func TestZKAgreementRequiresProvider(t *testing.T) {
 	enricher := NewZKAgreementEnricher(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		&stubOutputMetrics{},
 		nil,
 		clock.NewDeterministicClock(time.Unix(1234, 0)),

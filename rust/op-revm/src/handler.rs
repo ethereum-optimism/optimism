@@ -199,6 +199,28 @@ where
         Ok(())
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::tx_gas`
+    ///
+    /// Deposits are force-included from L1 and are exempt from EIP-7825's per-transaction gas
+    /// limit cap (<https://specs.optimism.io/protocol/karst/overview.html#execution-layer>), so
+    /// the deposit arm reproduces the upstream body with the cap lifted and everything else
+    /// delegates to the default. Re-derive the deposit arm when the upstream body changes.
+    ///
+    /// `validate_initial_tx_gas` is not overridden and still reads the cap, so under EIP-8037 a
+    /// deposit's intrinsic and floor gas are still checked against it.
+    fn tx_gas(&self, evm: &mut Self::Evm, init_and_floor_gas: &InitialAndFloorGas) -> GasTracker {
+        if evm.ctx_ref().tx().tx_type() != DEPOSIT_TRANSACTION_TYPE {
+            return self.mainnet.tx_gas(evm, init_and_floor_gas);
+        }
+
+        // With no OP fork enabling EIP-8037, an uncapped split is the whole exemption: all
+        // regular gas, empty reservoir.
+        let tx_gas_limit = evm.ctx_ref().tx().gas_limit();
+        let (remaining, reservoir) =
+            init_and_floor_gas.initial_gas_and_reservoir(tx_gas_limit, u64::MAX);
+        GasTracker::new(tx_gas_limit, remaining, reservoir)
+    }
+
     /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::last_frame_result`
     ///
     /// Structure and comments are taken verbatim from the upstream default: the frame is
@@ -550,13 +572,18 @@ mod tests {
     };
     use alloy_primitives::uint;
     use revm::{
+        ExecuteEvm,
+        bytecode::Bytecode,
         context::{BlockEnv, CfgEnv, Context, TxEnv},
         context_interface::{cfg::GasParams, result::InvalidTransaction},
         database::InMemoryDB,
         database_interface::EmptyDB,
         handler::EthFrame,
+        inspector::{InspectEvm, NoOpInspector},
         interpreter::{CallOutcome, CreateOutcome, Gas, InstructionResult, InterpreterResult},
-        primitives::{Address, B256, Bytes, bytes, hardfork::SpecId},
+        primitives::{
+            Address, B256, Bytes, bytes, eip7825::TX_GAS_LIMIT_CAP, hardfork::SpecId, keccak256,
+        },
         state::AccountInfo,
     };
     use rstest::rstest;
@@ -1582,6 +1609,129 @@ mod tests {
         assert_eq!(
             handler.validate_env(&mut evm),
             Err(EVMError::Transaction(OpTransactionError::MissingEnvelopedTx))
+        );
+    }
+
+    /// Runtime that reads 16 distinct cold storage slots (`PUSH1 n; SLOAD; POP` x16, then
+    /// `STOP`), costing ~33.7k gas — comfortably more than the capped budget in the test below
+    /// and comfortably less than the uncapped one.
+    fn cold_sload_burner_runtime() -> Bytes {
+        let mut code = Vec::new();
+        for slot in 0u8..16 {
+            code.extend_from_slice(&[0x60, slot, 0x54, 0x50]);
+        }
+        code.push(0x00);
+        Bytes::from(code)
+    }
+
+    /// A deposit above the EIP-7825 cap must execute on its whole gas limit (see
+    /// `OpHandler::tx_gas`). Deposits skip `validate_env`, so there is no rejection to observe;
+    /// the test measures execution instead: a payload costing more than the capped budget must
+    /// still complete, on both the plain and the inspected path.
+    #[rstest]
+    #[case::transact(false)]
+    #[case::inspect(true)]
+    fn deposit_is_exempt_from_the_tx_gas_limit_cap(#[case] inspect: bool) {
+        // An explicit low cap keeps the burner payload cheap while reproducing the real shape:
+        // capped budget = 30_000 - 21_000 intrinsic = 9_000 gas, which the payload exceeds.
+        const CAP: u64 = 30_000;
+        const DEPOSIT_GAS_LIMIT: u64 = 200_000;
+        let target = Address::from([0x44; 20]);
+
+        let runtime = cold_sload_burner_runtime();
+        let mut db = InMemoryDB::default();
+        db.insert_account_info(
+            target,
+            AccountInfo {
+                code_hash: keccak256(&runtime),
+                code: Some(Bytecode::new_raw(runtime)),
+                ..Default::default()
+            },
+        );
+
+        // Karst is Osaka-based, so EIP-7825 is live; the explicit cap only lowers it.
+        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
+        cfg.tx_gas_limit_cap = Some(CAP);
+
+        let mut evm = Context::op()
+            .with_db(db)
+            .with_cfg(cfg)
+            .with_block(BlockEnv { gas_limit: 60_000_000, ..Default::default() })
+            .build_op_with_inspector(NoOpInspector);
+
+        let deposit = OpTransaction::builder()
+            .base(TxEnv::builder().gas_limit(DEPOSIT_GAS_LIMIT).call(target))
+            .source_hash(B256::from([0x11; 32]))
+            .build_fill();
+
+        let result = if inspect { evm.inspect_tx(deposit) } else { evm.transact(deposit) }
+            .expect("this deposit must not be rejected")
+            .result;
+
+        assert!(
+            result.is_success(),
+            "the deposit must receive its full gas limit, not the capped budget; got {result:?}",
+        );
+        assert!(
+            result.tx_gas_used() > CAP,
+            "the payload must actually exceed the cap or this test proves nothing; used {}",
+            result.tx_gas_used(),
+        );
+    }
+
+    /// Pins both arms of `OpHandler::tx_gas` on the split itself: a full run cannot observe the
+    /// non-deposit arm, because `validate_env` rejects a non-deposit above the cap before the
+    /// split is computed.
+    #[rstest]
+    #[case::explicit_cap(Some(30_000), 200_000)]
+    #[case::spec_derived_cap(None, 2 * TX_GAS_LIMIT_CAP)]
+    fn tx_gas_lifts_the_cap_for_deposits_only(
+        #[case] resting_cap: Option<u64>,
+        #[case] gas_limit: u64,
+    ) {
+        // Karst is Osaka-based, so an unset cap resolves to the EIP-7825 constant.
+        let cap = resting_cap.unwrap_or(TX_GAS_LIMIT_CAP);
+        let intrinsic = InitialAndFloorGas::new(21_000, 0);
+        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
+        cfg.tx_gas_limit_cap = resting_cap;
+        let handler =
+            OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
+
+        let deposit = OpTransaction::builder()
+            .base(TxEnv::builder().gas_limit(gas_limit))
+            .source_hash(B256::from([0x11; 32]))
+            .build_fill();
+        let mut evm = Context::op().with_cfg(cfg.clone()).with_tx(deposit).build_op();
+        let gas = handler.tx_gas(&mut evm, &intrinsic);
+        assert_eq!((gas.remaining(), gas.reservoir()), (gas_limit - 21_000, 0));
+
+        let non_deposit =
+            OpTransaction::builder().base(TxEnv::builder().gas_limit(gas_limit)).build_fill();
+        let mut evm = Context::op().with_cfg(cfg).with_tx(non_deposit).build_op();
+        let gas = handler.tx_gas(&mut evm, &intrinsic);
+        assert_eq!((gas.remaining(), gas.reservoir()), (cap - 21_000, gas_limit - cap));
+    }
+
+    /// The cap keeps applying to every other transaction driven through op-revm directly.
+    #[test]
+    fn non_deposit_above_the_tx_gas_limit_cap_is_rejected() {
+        let mut evm = Context::op()
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST))
+            .with_block(BlockEnv { gas_limit: 60_000_000, ..Default::default() })
+            .build_op();
+        let tx = OpTransaction::builder()
+            .base(TxEnv::builder().gas_limit(TX_GAS_LIMIT_CAP + 1).call(Address::ZERO))
+            .build_fill();
+
+        let err = evm.transact(tx).expect_err("a non-deposit above the cap must be rejected");
+        assert!(
+            matches!(
+                err,
+                EVMError::Transaction(OpTransactionError::Base(
+                    InvalidTransaction::TxGasLimitGreaterThanCap { .. }
+                ))
+            ),
+            "expected TxGasLimitGreaterThanCap, got {err:?}",
         );
     }
 }

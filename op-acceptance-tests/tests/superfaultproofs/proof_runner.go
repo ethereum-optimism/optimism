@@ -1,6 +1,9 @@
 package superfaultproofs
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -271,7 +275,16 @@ func superRangeExecutorArgs(
 		"--depset-cfg", cfg.DepsetConfigPath,
 	}
 	if cfg.L1GenesisPath != "" {
-		args = append(args, "--l1-config-path", cfg.L1GenesisPath)
+		genesisBytes, err := os.ReadFile(cfg.L1GenesisPath)
+		t.Require().NoError(err, "read L1 genesis")
+		var genesis core.Genesis
+		t.Require().NoError(json.Unmarshal(genesisBytes, &genesis), "decode L1 genesis")
+		t.Require().NotNil(genesis.Config, "L1 genesis must contain chain config")
+		configBytes, err := json.Marshal(genesis.Config)
+		t.Require().NoError(err, "encode L1 chain config")
+		configPath := filepath.Join(t.TempDir(), "l1-chain-config.json")
+		t.Require().NoError(os.WriteFile(configPath, configBytes, 0o600), "write L1 chain config")
+		args = append(args, "--l1-config-path", configPath)
 	}
 	return args
 }

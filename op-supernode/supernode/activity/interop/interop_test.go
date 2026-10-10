@@ -14,11 +14,11 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -2125,8 +2125,8 @@ func (m *mockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.InteropChain = (*mockChainContainer)(nil)
 
-func testLogger() gethlog.Logger {
-	return gethlog.New()
+func testLogger() oplog.Logger {
+	return oplog.New()
 }
 
 // =============================================================================

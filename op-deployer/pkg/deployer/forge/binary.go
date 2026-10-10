@@ -43,9 +43,8 @@ func init() {
 	checksums = versionConfig.Checksums
 }
 
-// maxDownloadSize is the maximum size of the Foundry tarball that will be downloaded. It's typically ~60MB so
-// this should be more than enough.
-const maxDownloadSize = 100 * 1024 * 1024
+// maxDownloadSize bounds downloads while accommodating the supported Foundry release archives.
+const maxDownloadSize = 150 * 1024 * 1024
 
 func getOS() string {
 	if os.Getenv("FORGE_ENV") == "alpine" {

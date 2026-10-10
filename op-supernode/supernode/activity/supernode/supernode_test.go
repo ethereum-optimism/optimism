@@ -7,11 +7,11 @@ import (
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -157,7 +157,7 @@ func TestSupernode_SyncStatus_Succeeds(t *testing.T) {
 		},
 	}
 
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestSupernode_SyncStatus_UsesMinimumCurrentL1(t *testing.T) {
 			},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestSupernode_SyncStatus_UsesMinimumVerifierCurrentL1(t *testing.T) {
 			verifierL1: &eth.BlockID{Number: 190, Hash: common.Hash{0x55}},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -229,7 +229,7 @@ func TestSupernode_SyncStatus_ErrorOnCurrentL1(t *testing.T) {
 			syncStatusErr: assertErr(),
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	_, err := api.SyncStatus(context.Background())
 	require.Error(t, err)
@@ -249,7 +249,7 @@ func TestSupernode_SyncStatus_IgnoresUnsafeOutputRootErrors(t *testing.T) {
 			},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestSupernode_SyncStatus_IgnoresUnsafeOutputRootErrors(t *testing.T) {
 func TestSupernode_SyncStatus_EmptyChains(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 
 	out, err := api.SyncStatus(context.Background())

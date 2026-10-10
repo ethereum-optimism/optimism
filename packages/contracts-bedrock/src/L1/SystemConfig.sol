@@ -175,9 +175,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.2.0
+    /// @custom:semver 4.3.0
     function version() public pure virtual returns (string memory) {
-        return "4.2.0";
+        return "4.3.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -552,6 +552,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
             if (superchainConfig.paused(optimismPortal())) {
                 revert SystemConfig_InvalidFeatureState();
             }
+        }
+
+        // INTEROP cannot be disabled as the OPCM relies on it to reject re-migrating a
+        // member of an interop set.
+        if (_feature == Features.INTEROP && !_enabled) {
+            revert SystemConfig_InvalidFeatureState();
         }
 
         // Set the feature.

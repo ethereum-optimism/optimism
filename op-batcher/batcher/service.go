@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
@@ -22,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -419,7 +419,6 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPC.ListenPort,
 		bs.Version,
 		oprpc.WithLogger(bs.Log),
-		oprpc.WithRPCRecorder(bs.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPC.EnableAdmin {
 		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Log)

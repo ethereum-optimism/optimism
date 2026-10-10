@@ -4,10 +4,10 @@ import (
 	"log/slog"
 	"testing"
 
-	gethlog "github.com/ethereum/go-ethereum/log"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -40,7 +40,7 @@ func TestRaftLoggerUsesAppLogLevel(t *testing.T) {
 }
 
 func TestRaftLoggerMapsDebugAndTraceLevels(t *testing.T) {
-	log, captured := testlog.CaptureLogger(t, gethlog.LevelTrace)
+	log, captured := testlog.CaptureLogger(t, oplog.LevelTrace)
 	raftLog := newRaftLogger(log)
 
 	raftLog.Log(hclog.Trace, "trace message")
@@ -48,7 +48,7 @@ func TestRaftLoggerMapsDebugAndTraceLevels(t *testing.T) {
 
 	require.NotNil(t, captured.FindLog(
 		testlog.NewMessageFilter("trace message"),
-		testlog.NewLevelFilter(gethlog.LevelTrace),
+		testlog.NewLevelFilter(oplog.LevelTrace),
 	))
 	require.NotNil(t, captured.FindLog(
 		testlog.NewMessageFilter("debug message"),
