@@ -131,7 +131,7 @@ a change, not as a semantic catch.
 | K60 | the upgrade reads back the messenger's current period instead of setting the production one | new; initializer retarget | upgrade breaks (a messenger without `expiryPeriod()`, and non-interop chains, revert); a test network keeps its period | K | · | n/a | n/a | — | n/a | n/a |
 | K61 | the upgrade resets slot 6 instead of the messenger's Initializable word before initializing | new; initializer retarget | **equivalent** (argued below) | · | · | n/a | n/a | — | n/a | n/a |
 | K62 | initialize has no upper bound (accepts periods above 365 days) | new; initializer retarget | liveness (a period that large delays every refund); only governance initializes | K | · | K | excl. | — | pin | n/m |
-| K63 | expireMessage compares against the production 8 days instead of the stored period | new; initializer retarget | test networks only (their shorter period is ignored); none at the production period | · | · | K | excl. | — (P fixed per instance) | stmt | n/m |
+| K63 | expireMessage compares against the production 8 days instead of the stored period | new; initializer retarget | test networks only (their shorter period is ignored); none at the production period | K | · | K | excl. | — (P fixed per instance) | stmt | n/m |
 | K64 | initialize has no ProxyAdmin-or-owner check | new; initializer retarget | none reachable (the implementation's initializer is disabled; upgrades reset and initialize in one call) | K | · | K | excl. | — | pin | n/m |
 | K65 | relayUndeliveredMessage has no paused check | new; paused check | a paused chain accepts expiry words (no ETH moves on L1) | K | n/a | K | n/a | — (pause not modeled) | stmt | n/m |
 | K66 | relayUndeliveredMessage's paused check is inverted (it reverts while not paused) | new; paused check | liveness (no expiry word is ever accepted on a running chain) | K | n/a | K | n/a | — | stmt | n/m |
@@ -157,7 +157,7 @@ payouts, reached through different arguments.
 
 | Layer | Caught | Survived | Not applicable or excluded |
 |---|---|---|---|
-| Unit tests | 60 (K56–K58 by `test/scripts/L2Genesis.t.sol`; K59, K60 by `test/L2/L2ContractsManager.t.sol`) | K04, K25, K46, K51, K61 (equivalent), K63 | — |
+| Unit tests | 61 (K56–K58 by `test/scripts/L2Genesis.t.sol`; K59, K60 by `test/L2/L2ContractsManager.t.sol`; K63 by `testFuzz_expireMessage_initializedPeriod_succeeds`, re-run at `98056cc81f`) | K04, K25, K46, K51, K61 (equivalent) | — |
 | Invariants | 31 (of them: K03 and K56 by a setUp assertion; K11, K20, K36, K37, K49, K51 by witness tests only) | K02, K04, K09, K43, K44, K45, K46, K50, K52–K55, K57–K64 | 15 L1CrossDomainMessenger mutants (the harness does not execute L1) |
 | Halmos | 54 | K25, K44, K45, K51 (phase 2 also ran and survived) | K43, K50: phase 1 survived, phase 2 not run; K56–K61: no Halmos contract runs the scripts or `L2ContractsManager` |
 | hevm harness | 6 (K05–K08, K15, K45) | K46 | 19 messenger mutants outside the compared surface by design; 40 not the messenger's source |
@@ -442,7 +442,7 @@ logs; invariants: the first seed that failed, invariants first, then witnesses)<
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_initialize_iff
   - hevm: S-map: SURVIVED; S-all: SURVIVED
 - **K63**
-  - unit: -
+  - unit: L2ToL2CrossDomainMessenger_ExpireMessage_Test.testFuzz_expireMessage_initializedPeriod_succeeds (re-run at `98056cc81f`)
   - inv: -
   - halmos: L2ToL2ExpiryHalmos: CAUGHT check_expire_iff_anyPeriod
   - hevm: S-map: SURVIVED; S-all: SURVIVED
@@ -488,9 +488,10 @@ other two survivors at `557e7691e9`, are now caught by the unit tests:
   which counts that event.
 - **K04** (unchecked `sentAt + P`) is caught only by Halmos (`check_expire_iff_unbounded`,
   `check_expire_iff_anyPeriod`), and changes no reachable state on a real chain (argued below).
-- **K63** (`expireMessage` compares against a hard-coded 8 days instead of the stored period) is caught only by
-  Halmos (`check_expire_iff_anyPeriod`, which stores a symbolic period). Every unit test and the invariant harness
-  run with the production period, where the two agree (finding 18).
+- **K63** (`expireMessage` compares against a hard-coded 8 days instead of the stored period) was first caught
+  only by Halmos (`check_expire_iff_anyPeriod`, which stores a symbolic period). The unit test
+  `testFuzz_expireMessage_initializedPeriod_succeeds` (fuzzed period in [1, 365 days]: reverts at `sentAt +
+  period`, succeeds one second later), added after finding 18, now catches it too (re-run at `98056cc81f`).
 - **Only the unit tests:** K43 (`test_refundETH_zeroAmount_succeeds`), K44 and K50 (above), K57 and K58 (each by
   one test of `test/scripts/L2Genesis.t.sol`), K59 and K60 (`test/L2/L2ContractsManager.t.sol`). K54, K55, K62 and
   K64 (the initializer) are now caught by Halmos as well (`check_initialize_iff`), and K56 also by the invariant
@@ -657,11 +658,12 @@ Findings 1, 2, 3, 11, 12 (K45), 13, 14, 15 and 16 are resolved; each says by whi
     covered by `L2Genesis_Run_Test` (K56–K58), `L2ContractsManager_Upgrade_InteropFlagEnabled_Test` (K59, K60) and
     the invariant suite's setUp assertion (K56). `test_productionExpiryPeriod_exceedsProtocolWindowByADay_succeeds`
     compares the constant with a literal 7 days plus a day, not with itself, and catches K02 and K03.
-18. **Only Halmos sees an `expireMessage` that ignores the stored period (K63).** Every unit test of `expireMessage`
+18. **Only Halmos saw an `expireMessage` that ignores the stored period (K63); closed.** Every unit test of `expireMessage`
     and the invariant harness run with the production 8 days, so a hard-coded `8 days` passes them all. The check
     that would kill it in the unit tests: a test that initializes (or stores) a shorter period, such as 1 hour, and
     expects `expireMessage` to succeed just after `sentAt + 1 hour`. Halmos's `check_expire_iff_anyPeriod`, which
-    stores a symbolic period, catches it.
+    stores a symbolic period, catches it. Closed by `testFuzz_expireMessage_initializedPeriod_succeeds`, which alone
+    kills K63 (re-run at `98056cc81f`).
 19. **The slot argument of the messenger's re-initialization is not load-bearing (K61, equivalent).**
     `L2ContractsManagerUtils.upgradeToAndCall` always clears the OZ v5 Initializable word; the `_slot` argument
     only adds an OZ v4-style byte clear. Passing any slot other than a used one changes nothing for an OZ v5
