@@ -956,7 +956,7 @@ mod tests {
     #[tokio::test]
     async fn handle_notification_defers_execution_while_merkle_stage_is_behind() {
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         init_storage(store.clone());
 
         let (ctx, _handle) =
