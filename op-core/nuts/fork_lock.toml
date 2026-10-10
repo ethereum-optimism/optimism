@@ -8,7 +8,7 @@
 
 [lagoon]
   bundle = "op-core/nuts/bundles/lagoon_nut_bundle.json"
-  hash = "sha256:92219d7f258dec57e9669ae52e660a6bf8af3fcb81c83bd458b24c1ec6b581e1"
+  hash = "sha256:7b1954d1c4869cd12110f1c1780ea8d173b83605fa5bc85a96e82897b59ea0c3"
   commit = "c9b441bac55079a5b0865ddad2ab5dd673584c46"
 
 # REVIEWER NOTE: Changes to this file affect which NUT bundles are embedded
