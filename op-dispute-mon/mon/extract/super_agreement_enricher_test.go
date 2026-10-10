@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -639,4 +641,194 @@ func TestSuperRootEndpointTracking(t *testing.T) {
 		require.Equal(t, 0, game.NodeEndpointUnsafeCount)
 		require.False(t, game.NodeEndpointDifferentRoots)
 	})
+}
+
+func TestSuperAgreementEnricher_RollupFallback(t *testing.T) {
+	t.Parallel()
+
+	const (
+		genesisTimestamp = uint64(1_000)
+		genesisBlock     = uint64(10)
+		blockTime        = uint64(2)
+		timestamp        = uint64(1_100)
+		targetBlock      = uint64(60)
+	)
+	chainID := big.NewInt(901)
+	outputRoot := common.HexToHash("0x1234")
+	rootClaim := common.Hash(eth.SuperRoot(eth.NewSuperV1(timestamp, eth.ChainIDAndOutput{
+		ChainID: eth.ChainIDFromBig(chainID),
+		Output:  eth.Bytes32(outputRoot),
+	})))
+
+	setup := func(t *testing.T) (*SuperAgreementEnricher, *stubSuperRootRollupClient, *stubOutputMetrics) {
+		client := &stubSuperRootRollupClient{
+			currentL1:  201,
+			outputRoot: outputRoot,
+			safeHeadNum: targetBlock,
+			config: &rollup.Config{
+				Genesis: rollup.Genesis{
+					L2:     eth.BlockID{Number: genesisBlock},
+					L2Time: genesisTimestamp,
+				},
+				BlockTime: blockTime,
+				L2ChainID: new(big.Int).Set(chainID),
+			},
+		}
+		metrics := &stubOutputMetrics{}
+		enricher := NewSuperAgreementEnricherWithRollupFallback(
+			testlog.Logger(t, log.LvlInfo),
+			metrics,
+			nil,
+			[]SuperRootRollupClient{client},
+			clock.NewDeterministicClock(time.Unix(9824924, 499)),
+		)
+		return enricher, client, metrics
+	}
+
+	newGame := func(claim common.Hash) *types.CommonGameData {
+		return &types.CommonGameData{
+			GameMetadata: challengerTypes.GameMetadata{GameType: uint32(challengerTypes.SuperPermissionedGameType)},
+			L1HeadNum:          200,
+			L2SequenceNumber:   timestamp,
+			RootClaim:          claim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+	}
+
+	t.Run("MatchingRootUsesConvertedBlockForSafety", func(t *testing.T) {
+		enricher, client, metrics := setup(t)
+		game := newGame(rootClaim)
+
+		require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+		require.Equal(t, targetBlock, client.requestedOutputBlock)
+		require.Equal(t, uint64(200), client.requestedSafeHeadL1)
+		require.Equal(t, rootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim)
+		require.Equal(t, 1, game.NodeEndpointSafeCount)
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("MismatchingRootSkipsSafetyCheck", func(t *testing.T) {
+		enricher, client, _ := setup(t)
+		game := newGame(common.HexToHash("0xbeef"))
+
+		require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+		require.Equal(t, targetBlock, client.requestedOutputBlock)
+		require.Zero(t, client.safeHeadCalls)
+		require.Equal(t, rootClaim, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+	})
+
+	t.Run("UnsafeProposalUsesConvertedBlock", func(t *testing.T) {
+		enricher, client, _ := setup(t)
+		client.safeHeadNum = targetBlock - 1
+		game := newGame(rootClaim)
+
+		require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.Equal(t, 1, game.NodeEndpointUnsafeCount)
+	})
+
+	t.Run("UnavailableSafetyHistoryAssumesSafe", func(t *testing.T) {
+		enricher, client, _ := setup(t)
+		client.safeHeadErr = errors.New("safe head history unavailable")
+		game := newGame(rootClaim)
+
+		require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+		require.Equal(t, rootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim)
+		require.Equal(t, 1, game.NodeEndpointSafeCount)
+	})
+
+	t.Run("RollupConfigFailureIsEndpointError", func(t *testing.T) {
+		enricher, client, metrics := setup(t)
+		client.configErr = errors.New("config unavailable")
+		game := newGame(rootClaim)
+
+		err := enricher.Enrich(t.Context(), rpcblock.Latest, nil, game)
+		require.ErrorIs(t, err, ErrAllSuperRootRpcsUnavailable)
+		require.Equal(t, 1, game.NodeEndpointErrorCount)
+		require.Zero(t, metrics.fetchTime)
+	})
+
+	t.Run("MultipleRollupEndpointsReportDifferentRoots", func(t *testing.T) {
+		enricher, client, _ := setup(t)
+		otherClient := *client
+		otherClient.outputRoot = common.HexToHash("0x5678")
+		enricher.rollupClients = []SuperRootRollupClient{client, &otherClient}
+		game := newGame(rootClaim)
+
+		require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+		require.Equal(t, rootClaim, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.True(t, game.NodeEndpointDifferentRoots)
+	})
+
+	t.Run("ExplicitSuperRootProviderTakesPrecedence", func(t *testing.T) {
+		_, rollupClient, metrics := setup(t)
+		superClient := &stubSuperRootProvider{derivedFromL1BlockNum: 200, superRoot: rootClaim}
+		enricher := NewSuperAgreementEnricherWithRollupFallback(
+			testlog.Logger(t, log.LvlInfo),
+			metrics,
+			[]SuperRootProvider{superClient},
+			[]SuperRootRollupClient{rollupClient},
+			clock.NewDeterministicClock(time.Unix(9824924, 499)),
+		)
+		game := newGame(rootClaim)
+
+		require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+		require.Equal(t, timestamp, superClient.requestedTimestamp)
+		require.Zero(t, rollupClient.configCalls)
+		require.Zero(t, rollupClient.outputCalls)
+	})
+}
+
+type stubSuperRootRollupClient struct {
+	config                *rollup.Config
+	configErr             error
+	outputRoot            common.Hash
+	outputErr             error
+	safeHeadNum           uint64
+	safeHeadErr           error
+	currentL1             uint64
+	syncStatusErr         error
+	configCalls           int
+	outputCalls           int
+	safeHeadCalls         int
+	requestedOutputBlock  uint64
+	requestedSafeHeadL1   uint64
+}
+
+func (s *stubSuperRootRollupClient) SyncStatus(_ context.Context) (*eth.SyncStatus, error) {
+	if s.syncStatusErr != nil {
+		return nil, s.syncStatusErr
+	}
+	return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: s.currentL1}}, nil
+}
+
+func (s *stubSuperRootRollupClient) RollupConfig(context.Context) (*rollup.Config, error) {
+	s.configCalls++
+	if s.configErr != nil {
+		return nil, s.configErr
+	}
+	return s.config, nil
+}
+
+func (s *stubSuperRootRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
+	s.outputCalls++
+	s.requestedOutputBlock = blockNum
+	if s.outputErr != nil {
+		return nil, s.outputErr
+	}
+	return &eth.OutputResponse{OutputRoot: eth.Bytes32(s.outputRoot)}, nil
+}
+
+func (s *stubSuperRootRollupClient) SafeHeadAtL1Block(_ context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
+	s.safeHeadCalls++
+	s.requestedSafeHeadL1 = blockNum
+	if s.safeHeadErr != nil {
+		return nil, s.safeHeadErr
+	}
+	return &eth.SafeHeadResponse{SafeHead: eth.BlockID{Number: s.safeHeadNum}}, nil
 }
