@@ -4,14 +4,18 @@ Foundry invariant tests that drive the **real** contracts through sends, relays,
 facts and refunds across several chains in one EVM, and check the expiry safety properties after
 every call.
 
-- **Target:** the PR #23259 branch at `c7c51d79e2`, the landed exporter design after the
-  style-guide pass (`ContractName_`-prefixed errors and the exporter's `UndeliveredMessageExported`
-  event).
+- **Target:** the exporter design at `0a88e080e6`, where the messenger's expiry period is set by
+  `initialize` and stored in the proxy (slot 5), and `L1CrossDomainMessenger.relayUndeliveredMessage`
+  reverts on a paused chain (the L1 hop is abstracted here, see below).
   - `UndeliveredMessageExporter` sits at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`, which is
     0x..0030 (it was 0x..2E before). The harness only ever uses the constant.
   - The harness matches no error selectors. It matches only the `SentMessage`, `MessageExpired` and
     `MessagePassed` events, and a witness asserts that each one is observed on the real contracts.
-  - `EXPIRY_PERIOD` is 8 days.
+  - `expiryPeriod()` is 8 days (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`): genesis initializes the
+    messenger proxy with it, as `L2ContractsManager` does on every upgrade, and `setUp` asserts that.
+    The messenger mutants are etched over the implementation, and `setUp` stores the same period in
+    the proxy's slot 5 (the mutants have no immutables, so their artifact's deployed bytecode is
+    their runtime).
   - The messenger rejects both the L2CrossDomainMessenger and the L2ToL1MessagePasser as targets.
 - **Files:**
   - `ExpiryHandler.sol`: the handler, its ghost state, and the model and abstraction notes in its
@@ -26,7 +30,8 @@ every call.
     - `L2ToL2CrossDomainMessengerLegacyNoTargetRule`: the `37b44c48c7` design without its target
       rule.
 
-    All of them except the legacy copy are copies of the `c7c51d79e2` sources.
+    The two messenger copies are copies of the `0a88e080e6` source, with the same edits as before;
+    the bridge copy is a copy of the `c7c51d79e2` bridge (the bridge has not changed since).
 - **Kind of evidence:** randomized stateful testing. It is not a proof: it explores bounded random
   call sequences. The deterministic witnesses and the expected-to-fail configurations show that the
   campaigns reach the relevant states, and that the checks can fail.
@@ -182,7 +187,7 @@ property is checked after every call.
 
 | Contract | What it is | Expected |
 |---|---|---|
-| `ExpiryInvariants_Safety_Invariant` | Real contracts, with W_protocol = 7 days (the protocol's maximum) and P_contract = `EXPIRY_PERIOD` (8 days). | pass |
+| `ExpiryInvariants_Safety_Invariant` | Real contracts, with W_protocol = 7 days (the protocol's maximum) and P_contract = the stored `expiryPeriod()` (8 days). | pass |
 | `ExpiryInvariants_TightWindow_Invariant` | W_protocol = P_contract: the boundary case, without the 1-day margin. | pass |
 | `ExpiryInvariants_NoUnsafeTargetRule_Invariant` | Uses `mutants/L2ToL2CrossDomainMessengerNoUnsafeTargets.sol`, where `_isUnsafeTarget` always returns false, together with the real exporter. Shows that safety does not depend on the messenger's target rule. | pass |
 | `ExpiryInvariants_NonVacuity_Invariant` | Asserts that "no relay", "no expiry", "no refund" and "no hash refunded after a window-blocked relay attempt on that same hash" hold. | **fail** (`RUN_EXPECTED_FAIL = true`) |
@@ -287,12 +292,13 @@ The witnesses are:
     implies never relayable".
 - **L1 hop:** abstracted as described under "Facts and the L1 hop", and **not exercised** here. The
   following are not executed:
-  - the L1CrossDomainMessenger's three checks, its INTEROP gate and its lockbox membership checks;
+  - the L1CrossDomainMessenger's three checks, its INTEROP gate, its paused check and its lockbox
+    membership checks;
   - withdrawal proving and finality;
   - deposit gas.
 
-  The model assumes A has the INTEROP feature on, and that every chain in the model is in A's
-  lockbox. These checks are covered elsewhere:
+  The model assumes A has the INTEROP feature on and is not paused, and that every chain in the
+  model is in A's lockbox. These checks are covered elsewhere:
   - `L1CrossDomainMessenger_RelayUndeliveredMessage_Test` in `test/L1/L1CrossDomainMessenger.t.sol`
     (about lines 1249–1410: success, borrowed portal, other cluster, wrong L2 sender, interop
     disabled, 0x..23 sender, not a messenger, no lockbox, own chain);
@@ -333,6 +339,21 @@ The witnesses are:
 All runs used a 32-core Linux host, under a 12–16 GB memory cap, with one forge job at a time. For
 each configuration, forge runs one campaign that checks all of that contract's invariants after
 every call. `fail-on-revert` is on in every run, and every passing run had 0 handler reverts.
+
+**At `0a88e080e6`** (period set by `initialize`; forge 1.8.3, 32-core shared host, 16 GB cap):
+
+| Configuration | Profile, runs × depth | Calls | Result |
+|---|---|---|---|
+| whole directory: Safety (12 invariants), TightWindow, NoUnsafeTargetRule and all witnesses | `liteci`, pinned 32 × 256 | 8,192 per suite | pass: 23 passed, 3 skipped (the expected-to-fail suites), 0 handler reverts, 166 s |
+| Safety, TightWindow, NoUnsafeTargetRule | `default` 512 × 256 | 131,072 each | pass, 2088 s |
+| NonVacuity | `default` 256 × 256, `RUN_EXPECTED_FAIL = true` | stops at the first failure | all 4 fail (as expected) |
+| UnsafeWindow | the same | stops at the first failure | NoDoubleSpend and ExpiredImpliesNeverRelayable fail (as expected) |
+| LegacyNoTargetRule | the same | stops at the first failure | NoDoubleSpend, NoForgedFact and OnlyExportReachesL1 fail (as expected); the three suites took 420 s |
+| Witness tests (reach and failing) | — | — | 20/20 pass |
+
+The mutation campaign (`../mutation`) re-ran the invariant layer on the period and paused-check mutants at this
+commit; the genesis-period assertion in `setUp` now also catches an `L2Genesis` that initializes a non-production
+default (K56 there).
 
 **At `c7c51d79e2`:**
 
@@ -485,6 +506,13 @@ Notes on running:
 - **Retarget to `c7c51d79e2`:** the exporter moved to 0x..0030 and the style-guide pass renamed
   errors. The harness matches no error selectors, so the only changes were to regenerate the
   mutants from the new sources and re-run everything.
+- **Retarget to `0a88e080e6`** (the period set by `initialize`): the messenger mutants were
+  regenerated from the new source with the same edits; they have no immutables, so `setUp` etches
+  their artifact's deployed bytecode and stores the production period in the proxy's slot 5
+  (`_etchMessengerMutant`, which replaces the constructor-argument helper). `setUp` also asserts
+  that genesis initialized the proxy with `Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`, and P_contract
+  is read from storage. The L1 messenger's new paused check is outside this harness (the L1 hop is
+  abstracted); the Halmos and unit layers cover it. Every suite was re-run (results above).
 - **Repo compliance (v2):**
   - no `vm.env*` (the env knobs are replaced by constants, and expected-to-fail suites are gated
     by `RUN_EXPECTED_FAIL`);
