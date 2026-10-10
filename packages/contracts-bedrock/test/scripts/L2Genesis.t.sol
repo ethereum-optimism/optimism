@@ -11,11 +11,13 @@ import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
@@ -320,6 +322,36 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
     }
 
+    /// @notice Tests that genesis initializes the messenger with the production expiry period of
+    ///         8 days when the input sets none.
+    function test_run_defaultL2ToL2MessageExpiryPeriod_succeeds() external {
+        _setInputInteropEnabled();
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 691200);
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
+            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+        );
+    }
+
+    /// @notice Tests that genesis initializes the messenger with the expiry period the input sets.
+    function testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that genesis refuses an expiry period above 365 days.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodTooLong_reverts(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 365 days + 1, type(uint256).max);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
+        genesis.run(input);
+    }
+
     /// @notice Tests that the run function succeeds when interop is enabled.
     function test_run_withInterop_succeeds() external {
         _setInputInteropEnabled();
@@ -447,13 +479,12 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         genesis.run(input);
     }
 
-    /// @notice Tests that run refuses a messenger expiry period override, which this genesis cannot
-    ///         apply, whether or not interop is active at genesis.
-    function testFuzz_run_l2ToL2MessageExpiryPeriodOverride_reverts(uint256 _period, bool _interop) external {
+    /// @notice Tests that run refuses a messenger expiry period override when interop is not active
+    ///         at genesis, where it would have no effect.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts(uint256 _period) external {
         _period = bound(_period, 1, type(uint256).max);
-        if (_interop) _setInputInteropEnabled();
         input.l2ToL2MessageExpiryPeriod = _period;
-        vm.expectRevert("L2Genesis: expiry period override unsupported");
+        vm.expectRevert("L2Genesis: expiry period override needs interop at genesis");
         genesis.run(input);
     }
 

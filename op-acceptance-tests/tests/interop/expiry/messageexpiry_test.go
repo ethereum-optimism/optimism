@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -58,9 +57,6 @@ const (
 const productionExpiryPeriod = 8 * 24 * 60 * 60
 
 var (
-	// undeliveredMessageExporterAddr is the UndeliveredMessageExporter predeploy.
-	undeliveredMessageExporterAddr = common.HexToAddress("0x4200000000000000000000000000000000000030")
-
 	failedRelayedMessageTopic = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
 	messageExpiredTopic       = crypto.Keccak256Hash([]byte("MessageExpired(bytes32,uint256)"))
 )
@@ -93,7 +89,6 @@ func TestShortGameClocksReachDeployedGames(gt *testing.T) {
 // through a withdrawal; A's L1CrossDomainMessenger deposits the word into A. The 8-day expiry
 // period cannot pass in this system, so A must reject the word.
 func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
-	gt.Skip("requires the UndeliveredMessageExporter predeploy and the L1 messengers' undelivered message relay")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks())
 	require := t.Require()
@@ -132,7 +127,6 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 // A marks the message expired. The system deploys the messenger with a short expiry period so it
 // can pass within the test.
 func TestUnrelayedMessageExpires(gt *testing.T) {
-	gt.Skip("requires the L2ToL2CrossDomainMessenger's expireMessage and an expiry period set at deploy")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks(),
 		presets.WithMessageExpiryWindow(testMessageExpiryWindow),
@@ -165,7 +159,6 @@ func TestUnrelayedMessageExpires(gt *testing.T) {
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
 // speak for a message it relayed.
 func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
-	gt.Skip("requires the UndeliveredMessageExporter predeploy")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
@@ -176,7 +169,7 @@ func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
 	send.Relay(sys.FunderB.NewFundedEOA(eth.OneEther), sys.Supernode())
 
 	exporterB := bindings.NewBindings[bindings.UndeliveredMessageExporter](bindings.WithClient(sys.L2ELB.EthClient()),
-		bindings.WithTo(undeliveredMessageExporterAddr), bindings.WithTest(t))
+		bindings.WithTo(predeploys.UndeliveredMessageExporterAddr), bindings.WithTest(t))
 	m := send.Message
 	_, err := contractio.Read(exporterB.ExportUndeliveredMessage(sys.L2ChainA.L1CrossDomainMessengerAddr(), m.Source,
 		m.Nonce, m.Sender, m.Target, m.Message, exportL1GasLimit), t.Ctx())
@@ -189,7 +182,7 @@ func TestRelayedMessageCannotBeExportedAsUndelivered(gt *testing.T) {
 // portal, and returns the receipt and B's timestamp at the export.
 func exportAsDeposit(sys *presets.SimpleInterop, l1User *dsl.EOA, m dsl.SentMessage) (*types.Receipt, uint64) {
 	return sys.FunderB.NewFundedEOA(eth.ZeroWei).ViaDepositTx(l1User, sys.L2ELB, sys.L2ChainB).
-		ExportUndeliveredMessage(undeliveredMessageExporterAddr, sys.L2ChainA.L1CrossDomainMessengerAddr(), m,
+		ExportUndeliveredMessage(predeploys.UndeliveredMessageExporterAddr, sys.L2ChainA.L1CrossDomainMessengerAddr(), m,
 			exportL1GasLimit, func(o *dsl.DepositTxOpts) { o.GasLimit = exportGasLimit })
 }
 
