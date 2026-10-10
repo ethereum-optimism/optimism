@@ -66,28 +66,11 @@ The engine uses a priority-based task queue (a binary heap ordered by the `Engin
 4. **Consolidate** - Advances safe chain via derivation
 5. **Finalize** - Finalizes L2 blocks
 
-Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
+Only the queue executes tasks. A task never runs another task: the steps that several tasks share, such as starting a build, fetching a built payload, inserting a payload, and synchronizing forkchoice, are plain functions that the tasks call.
+
+Forkchoice updates are not a standalone queue entry. Whenever a task moves the unsafe, safe, or finalized head, it calls the shared synchronize step, which sends `engine_forkchoiceUpdated` without payload attributes and tracks whether the execution layer has finished syncing. Its failures are reported as `SynchronizeTaskError`.
 
 ### Task Types
-
-#### SynchronizeTask
-
-Updates the execution layer's forkchoice state. It is invoked by the other tasks rather than queued directly:
-
-```rust
-pub struct SynchronizeTask {
-    /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The rollup config.
-    pub rollup: Arc<RollupConfig>,
-    /// The sync state update to apply to the engine state.
-    pub state_update: EngineSyncStateUpdate,
-}
-```
-
-Handles:
-- Forkchoice synchronization via `engine_forkchoiceUpdated`
-- EL sync status management
 
 #### BuildTask
 
@@ -111,7 +94,7 @@ Handles payload building initiation with `engine_forkchoiceUpdated`.
 
 #### SealTask
 
-Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
+Seals a block started by a `BuildTask` in sequencer mode. It checks that the build's parent is still the unsafe head, retrieves the payload with version-specific `engine_getPayload` calls, inserts it, and canonicalizes it:
 
 ```rust
 pub struct SealTask {
@@ -123,11 +106,11 @@ pub struct SealTask {
     pub payload_id: PayloadId,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
     /// An optional sender for the built OpExecutionPayloadEnvelope or the
     /// SealTaskError that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
 
@@ -141,10 +124,12 @@ pub struct InsertTask {
     client: Arc<EngineClient>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
-    /// The network payload envelope.
-    envelope: OpExecutionPayloadEnvelope,
+    /// The complete execution payload envelope.
+    payload: OpExecutionPayloadEnvelope,
     /// If the payload is safe this is true.
     is_payload_safe: bool,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
 
@@ -160,10 +145,12 @@ pub struct ConsolidateTask {
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
     pub input: ConsolidateInput,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
 
-If consolidation fails, the task reverts to payload attribute processing via the `BuildTask`.
+If consolidation fails, the task builds a block from the attributes itself, seals it, and imports it as the new safe head. Post-Holocene, if the execution layer rejects that block, it is replaced with a deposits-only block and the derivation pipeline's current channel is flushed.
 
 #### FinalizeTask
 

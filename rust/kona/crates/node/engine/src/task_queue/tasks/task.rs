@@ -98,8 +98,8 @@ pub enum EngineTask {
     /// Seals the block with the given payload ID and attributes, inserting it into the execution
     /// engine.
     Seal(Box<SealTask>),
-    /// Performs consolidation on the engine state, reverting to payload attribute processing
-    /// via the [`BuildTask`] if consolidation fails.
+    /// Performs consolidation on the engine state. If consolidation fails, a block is built from
+    /// the payload attributes and imported instead.
     Consolidate(Box<ConsolidateTask>),
     /// Finalizes an L2 block
     Finalize(Box<FinalizeTask>),

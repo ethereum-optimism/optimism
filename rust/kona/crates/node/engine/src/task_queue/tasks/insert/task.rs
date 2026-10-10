@@ -1,8 +1,8 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
+    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError,
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -40,11 +40,6 @@ impl InsertTask {
     ) -> Self {
         Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
     }
-
-    /// Checks the response of the `engine_newPayload` call.
-    const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
-        matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
-    }
 }
 
 #[async_trait]
@@ -54,67 +49,88 @@ impl EngineTaskExt for InsertTask {
     type Error = InsertTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
-        // Insert the new payload.
-        // Form the new unsafe block ref from the execution payload.
-        let payload = self.payload.clone();
-        let response = match payload.clone() {
-            OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
-            OpExecutionPayloadEnvelope::V2(payload) => {
-                let payload_input = ExecutionPayloadInputV2 {
-                    execution_payload: payload.payload_inner,
-                    withdrawals: Some(payload.withdrawals),
-                };
-                self.client.new_payload_v2(payload_input).await
-            }
-            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v3(payload, parent_beacon_block_root).await
-            }
-            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v4(payload, parent_beacon_block_root).await
-            }
-        };
-
-        // Check the `engine_newPayload` response.
-        let response = match response {
-            Ok(resp) => resp,
-            Err(e) => {
-                warn!(target: "engine", "Failed to insert new payload: {e}");
-                return Err(InsertTaskError::InsertFailed(e));
-            }
-        };
-        if !self.check_new_payload_status(&response.status) {
-            return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
-        }
-
-        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
-        let new_unsafe_ref =
-            L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
-                .map_err(InsertTaskError::L2BlockInfoConstruction)?;
-
-        // Send a FCU to canonicalize the imported block.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            self.rollup_config.clone(),
-            EngineSyncStateUpdate {
-                unsafe_head: Some(new_unsafe_ref),
-                local_safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
-                safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
-                ..Default::default()
-            },
+        insert_payload(
+            self.client.as_ref(),
+            &self.rollup_config,
+            state,
+            self.payload.clone(),
+            self.is_payload_safe,
+            self.block_sink.as_ref(),
         )
-        .execute(state)
-        .await?;
-
-        // The block is now canonical, so anything reading the L2 chain locally can rely on it.
-        self.block_sink.block_imported(block, new_unsafe_ref);
-
-        info!(
-            target: "engine",
-            hash = %new_unsafe_ref.block_info.hash,
-            number = new_unsafe_ref.block_info.number,
-            "Inserted new unsafe block"
-        );
-
-        Ok(new_unsafe_ref)
+        .await
     }
+}
+
+/// Inserts `payload` into the execution engine with `engine_newPayload`, then makes it the unsafe
+/// head, and the safe head too if `is_payload_safe`, with a forkchoice update. Returns the
+/// inserted block's [`L2BlockInfo`].
+///
+/// Once the block is canonical it is handed to `block_sink`.
+pub(in crate::task_queue) async fn insert_payload(
+    client: &EngineClient,
+    rollup_config: &RollupConfig,
+    state: &mut EngineState,
+    payload: OpExecutionPayloadEnvelope,
+    is_payload_safe: bool,
+    block_sink: &dyn ImportedBlockSink,
+) -> Result<L2BlockInfo, InsertTaskError> {
+    // Insert the new payload.
+    // Form the new unsafe block ref from the execution payload.
+    let response = match payload.clone() {
+        OpExecutionPayloadEnvelope::V1(payload) => client.new_payload_v1(payload).await,
+        OpExecutionPayloadEnvelope::V2(payload) => {
+            let payload_input = ExecutionPayloadInputV2 {
+                execution_payload: payload.payload_inner,
+                withdrawals: Some(payload.withdrawals),
+            };
+            client.new_payload_v2(payload_input).await
+        }
+        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+            client.new_payload_v3(payload, parent_beacon_block_root).await
+        }
+        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+            client.new_payload_v4(payload, parent_beacon_block_root).await
+        }
+    };
+
+    // Check the `engine_newPayload` response.
+    let response = match response {
+        Ok(resp) => resp,
+        Err(e) => {
+            warn!(target: "engine", "Failed to insert new payload: {e}");
+            return Err(InsertTaskError::InsertFailed(e));
+        }
+    };
+    if !matches!(response.status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
+        return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
+    }
+
+    let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
+    let new_unsafe_ref = L2BlockInfo::from_block_and_genesis(&block, &rollup_config.genesis)
+        .map_err(InsertTaskError::L2BlockInfoConstruction)?;
+
+    // Send a FCU to canonicalize the imported block.
+    synchronize(
+        client,
+        state,
+        EngineSyncStateUpdate {
+            unsafe_head: Some(new_unsafe_ref),
+            local_safe_head: is_payload_safe.then_some(new_unsafe_ref),
+            safe_head: is_payload_safe.then_some(new_unsafe_ref),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    // The block is now canonical, so anything reading the L2 chain locally can rely on it.
+    block_sink.block_imported(block, new_unsafe_ref);
+
+    info!(
+        target: "engine",
+        hash = %new_unsafe_ref.block_info.hash,
+        number = new_unsafe_ref.block_info.number,
+        "Inserted new unsafe block"
+    );
+
+    Ok(new_unsafe_ref)
 }

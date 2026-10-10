@@ -2,7 +2,7 @@
 
 use crate::{
     BuildTaskError, EngineTaskError, SealTaskError, SynchronizeTaskError,
-    task_queue::tasks::{BuildAndSealError, task::EngineTaskErrorSeverity},
+    task_queue::tasks::{BuildAndImportError, task::EngineTaskErrorSeverity},
 };
 use thiserror::Error;
 
@@ -15,10 +15,10 @@ pub enum ConsolidateTaskError {
     /// Failed to fetch the unsafe L2 block.
     #[error("Failed to fetch the unsafe L2 block")]
     FailedToFetchUnsafeL2Block,
-    /// The build task failed.
+    /// Starting the build of a block from the payload attributes failed.
     #[error(transparent)]
     BuildTaskFailed(#[from] BuildTaskError),
-    /// The seal task failed.
+    /// Sealing or importing the block built from the payload attributes failed.
     #[error(transparent)]
     SealTaskFailed(#[from] SealTaskError),
     /// The consolidation forkchoice update call to the engine api failed.
@@ -26,11 +26,11 @@ pub enum ConsolidateTaskError {
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
 }
 
-impl From<BuildAndSealError> for ConsolidateTaskError {
-    fn from(err: BuildAndSealError) -> Self {
+impl From<BuildAndImportError> for ConsolidateTaskError {
+    fn from(err: BuildAndImportError) -> Self {
         match err {
-            BuildAndSealError::Build(e) => Self::BuildTaskFailed(e),
-            BuildAndSealError::Seal(e) => Self::SealTaskFailed(e),
+            BuildAndImportError::Build(e) => Self::BuildTaskFailed(e),
+            BuildAndImportError::Seal(e) => Self::SealTaskFailed(e),
         }
     }
 }

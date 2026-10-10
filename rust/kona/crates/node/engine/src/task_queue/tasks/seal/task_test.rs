@@ -1,5 +1,4 @@
 use crate::{
-    BuildSealCoupling::{self, Atomic, Detached},
     EngineTaskExt, SealTask, SealTaskError,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
@@ -29,13 +28,10 @@ fn classify(err: &SealTaskError) -> SealOutcome {
 }
 
 #[rstest]
-#[case::detached_with_moved_unsafe_head(Detached, false, SealOutcome::AbortedAsStale)]
-#[case::detached_with_current_unsafe_head(Detached, true, SealOutcome::ProceededToSeal)]
-#[case::atomic_with_reorged_unsafe_head(Atomic, false, SealOutcome::ProceededToSeal)]
-#[case::atomic_with_current_unsafe_head(Atomic, true, SealOutcome::ProceededToSeal)]
+#[case::moved_unsafe_head(false, SealOutcome::AbortedAsStale)]
+#[case::current_unsafe_head(true, SealOutcome::ProceededToSeal)]
 #[tokio::test]
 async fn unsafe_head_check_variants(
-    #[case] coupling: BuildSealCoupling,
     #[case] unsafe_head_at_parent: bool,
     #[case] expected: SealOutcome,
     #[values(true, false)] with_channel: bool,
@@ -49,7 +45,7 @@ async fn unsafe_head_check_variants(
     let (tx, mut rx) = mpsc::channel(1);
     let cfg = Arc::new(RollupConfig::default());
     let (client, l1, l2) = test_engine_client(cfg.clone());
-    if unsafe_head_at_parent || coupling == Atomic {
+    if unsafe_head_at_parent {
         l2.expect_error("engine_getPayloadV2");
     }
     let task = SealTask::new(
@@ -57,8 +53,6 @@ async fn unsafe_head_check_variants(
         cfg,
         PayloadId::new([1u8; 8]),
         attributes,
-        false,
-        coupling,
         with_channel.then_some(tx),
         Arc::new(crate::NoopBlockSink),
     );
@@ -151,19 +145,7 @@ async fn payload_fetch_selects_version_and_decodes_reply(
         );
         OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
     };
-    let attributes = TestAttributesBuilder::new().with_timestamp(timestamp).build();
-    let client = Arc::new(client);
-    let task = SealTask::new(
-        client.clone(),
-        cfg.clone(),
-        id,
-        attributes.clone(),
-        false,
-        Detached,
-        None,
-        Arc::new(crate::NoopBlockSink),
-    );
-    let actual = task.seal_payload(&cfg, &client, id, attributes).await.unwrap();
+    let actual = super::task::get_payload(&client, &cfg, id, timestamp).await.unwrap();
     assert_eq!(actual, expected);
     l1.assert_finished();
     l2.assert_finished();

@@ -6,16 +6,20 @@ pub use task::{
 };
 
 mod synchronize;
-pub use synchronize::{SynchronizeTask, SynchronizeTaskError};
+pub use synchronize::SynchronizeTaskError;
+pub(super) use synchronize::synchronize;
 
 mod insert;
+pub(super) use insert::insert_payload;
 pub use insert::{InsertTask, InsertTaskError};
 
 mod build;
+pub(super) use build::start_build;
 pub use build::{BuildTask, BuildTaskError, EngineBuildError};
 
 mod seal;
-pub use seal::{BuildSealCoupling, SealTask, SealTaskError};
+pub(super) use seal::get_payload;
+pub use seal::{SealTask, SealTaskError};
 
 mod consolidate;
 pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
@@ -24,4 +28,6 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
-pub(super) use util::{BuildAndSealError, build_and_seal};
+pub(super) use util::{
+    BuildAndImportError, build_and_import, insert_payload_with_holocene_fallback,
+};
