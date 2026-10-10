@@ -912,13 +912,11 @@ func (s *Sequencer) Init(ctx context.Context, active bool) error {
 
 	if active {
 		return s.forceStart()
-	} else {
-		s.metrics.SetSequencerState(false)
-		if err := s.listener.SequencerStopped(); err != nil {
-			return fmt.Errorf("failed to notify sequencer-state listener of initial stopped state: %w", err)
-		}
-		return nil
 	}
+	s.metrics.SetSequencerState(false)
+	s.active.Store(false)
+	// Do not persist on startup: admin state was loaded via LoadPersisted before Init.
+	return nil
 }
 
 // forceStart skips all the checks, and just starts the sequencer

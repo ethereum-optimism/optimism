@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand" // nosemgrep
+	"os"
 	"testing"
 	"time"
 
@@ -1485,4 +1486,36 @@ func TestSequencerStopAfterResetDropsSealed(t *testing.T) {
 	hash, err := s.seq.Stop(ctx)
 	require.NoError(t, err, "Stop must not wait for a block the reset discarded")
 	require.Equal(t, s.seq.unsafeHead.Hash, hash)
+}
+
+type adminStateFileListener struct {
+	file       string
+	stopWrites int
+}
+
+func (l *adminStateFileListener) SequencerStarted() error {
+	return os.WriteFile(l.file, []byte(`{"sequencerStarted":true}`), 0o644)
+}
+
+func (l *adminStateFileListener) SequencerStopped() error {
+	l.stopWrites++
+	return os.WriteFile(l.file, []byte(`{"sequencerStarted":false}`), 0o644)
+}
+
+func TestInitStoppedDoesNotOverwritePersistedStartedState(t *testing.T) {
+	log := testlog.Logger(t, log.LevelInfo)
+	dir := t.TempDir()
+	stateFile := dir + "/state"
+	require.NoError(t, os.WriteFile(stateFile, []byte(`{"sequencerStarted":true}`), 0o644))
+
+	listener := &adminStateFileListener{file: stateFile}
+	seq, _ := createSequencer(log)
+	seq.listener = listener
+
+	require.NoError(t, seq.Init(context.Background(), false))
+	require.Equal(t, 0, listener.stopWrites)
+
+	data, err := os.ReadFile(stateFile)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"sequencerStarted":true`)
 }
