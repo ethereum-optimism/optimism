@@ -10,6 +10,7 @@ out = 'out'
 cache_path = 'cache'
 libs = ['../../../../lib']
 remappings = [
+  '@openzeppelin/contracts-v5/=../../../../lib/openzeppelin-contracts-v5/contracts',
   'forge-std/=../../../../lib/forge-std/src',
   'src/=../../../../src/',
   'interfaces/=../../../../interfaces/',

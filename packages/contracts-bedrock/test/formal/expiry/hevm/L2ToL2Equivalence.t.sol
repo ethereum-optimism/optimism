@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// Equivalence harness: develop's L2ToL2CrossDomainMessenger (c2fe2a991b) vs the current one, on
+// Equivalence harness: develop's L2ToL2CrossDomainMessenger (c9b441bac5) vs the current one, on
 // the shared surface (sendMessage, relayMessage). The shared getters are checked at bytecode level
 // with `hevm equivalence` (see run.sh). README.md states the result, the bounds and the review log.
 //
@@ -21,11 +21,14 @@ pragma solidity 0.8.25;
 //   (S) same storage, in two forms:
 //       (S-map) Halmos, solidity storage layout: for a symbolic key q, equal msgNonce (slot 1),
 //               successfulMessages[q] (slot 0) and sentMessages[q] (slot 2); the new-only
-//               mappings are pinned exactly in NEW (sentMessageTimestamps[q], slot 3;
-//               expiredMessages[q], slot 4) and zero in OLD. Slots 0-4 are every storage
-//               variable of both versions (the cross-domain context is transient). This is the
-//               only check of MAPPING ENTRIES: one symbolic key per mapping, so any one entry.
-//       (S-all) a symbolic raw slot s outside the pinned new-only slots is equal: hevm (empty
+//               state is pinned exactly in NEW (sentMessageTimestamps[q], slot 3;
+//               expiredMessages[q], slot 4; expiryPeriod, slot 5) and zero in OLD. Slots 0-5 are
+//               every storage variable of both versions (the cross-domain context is transient;
+//               the current version's Initializable word is never read or written by send or
+//               relay). This is the only check of MAPPING ENTRIES: one symbolic key per mapping,
+//               so any one entry.
+//       (S-all) a symbolic raw slot s outside the pinned new-only slots (E3, E7) is equal, and
+//               NEW's expiryPeriod (slot 5) is unchanged: hevm (empty
 //               message) and Halmos with the generic storage layout (every length;
 //               check_allSlots_*). Under Halmos 0.3.3 this covers only NON-HASH-DERIVED slots:
 //               its generic layout keeps keccak-derived slots (mapping entries) in separate
@@ -56,8 +59,8 @@ pragma solidity 0.8.25;
 //      with one arbitrary entry in each (sentMessageTimestamps[y] = uy, expiredMessages[z] = uz),
 //      to show send/relay do not read them; pinned (unchanged, except E2), not compared with OLD.
 //   E4 selectors outside the shared surface are not called: resendMessage (removed),
-//      expireMessage, sentMessageTimestamps, expiredMessages, expiryPeriod (added), version
-//      (changed).
+//      expireMessage, sentMessageTimestamps, expiredMessages, expiryPeriod, initialize,
+//      proxyAdmin, proxyAdminOwner (added), version (changed).
 //   E5 relay targets are the target mock and an address with no code. A relay to the messenger
 //      itself (0x..23) is not modelled; there the two DO differ (the self-call reaches E4, e.g.
 //      develop's resendMessage). It needs a SentMessage log from 0x..23 with target 0x..23, which
@@ -69,6 +72,10 @@ pragma solidity 0.8.25;
 //      both sources; empty while nothing is renamed). Only top-level revert data is mapped:
 //      revert data nested in the target mock's output (its reentrant relay attempt) is compared
 //      raw, which holds while the reentrancy error is not renamed.
+//   E7 the new-only expiryPeriod (slot 5): NEW holds the production period
+//      (Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD) there, as a proxy initialized by
+//      L2ContractsManager does; OLD has no such variable. Like E3, it is pinned (send and relay
+//      leave it unchanged) and not compared with OLD.
 //
 // DOMAIN (beyond E1-E6):
 //   - Message lengths are concrete per check: send 0/4/37/100/128 bytes, relay 0/4/37/100 bytes
@@ -89,8 +96,10 @@ pragma solidity 0.8.25;
 //     id.chainId are symbolic. Transient storage starts zero (start of a transaction).
 //   - Pre-state: storage zero, then symbolic msgNonce (slot 1, all 256 bits), sentMessages[n0]
 //     (n0 = the nonce the send uses), successfulMessages[q0] for a free q0 and, for relay,
-//     successfulMessages[H] (H = the hash the relay computes). hevm instead seeds slot 1 and one
-//     arbitrary raw slot k := v (k free covers any one of those entries). NEW also gets E3.
+//     successfulMessages[H] (H = the hash the relay computes); NEW also gets E3 and E7. hevm
+//     seeds slot 1 only (and E7): with the current messenger's bytecode it runs out of 16 GB as
+//     soon as storage has an entry at a symbolic key, so its S-all statement is from that
+//     narrower pre-state; the Halmos checks cover the others.
 //   - Caveat (hevm): only the bytecode-level getter checks read transient storage under hevm, from
 //     the same initial store for both codes.
 // The code under test has no loops. Solvers: hevm with z3 4.13.3; halmos 0.3.3 with yices.
@@ -100,6 +109,7 @@ import { Test } from "test/setup/Test.sol";
 
 // Libraries
 import { L2ToL2Bytecodes } from "./L2ToL2Bytecodes.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @notice Identifier of a SentMessage log, as relayMessage takes it.
 struct EquivalenceIdentifier {
@@ -210,13 +220,27 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
     address internal constant INBOX = 0x4200000000000000000000000000000000000022;
     bytes32 internal constant SENT_MESSAGE_SELECTOR =
         0x382409ac69001e11931a28435afef442cbfd20d9891907e8fa373ba7d351f320;
+    /// @notice Storage slot of NEW's expiryPeriod (E7).
+    bytes32 internal constant EXPIRY_PERIOD_SLOT = bytes32(uint256(5));
 
-    /// @notice Etches both messengers and the mocks.
+    /// @notice Etches both messengers and the mocks; NEW gets the production period in storage (E7).
     function setUp() public virtual {
         vm.etch(OLD, L2ToL2Bytecodes.DEVELOP);
         vm.etch(NEW, _newCode());
+        _storePeriod();
         vm.etch(INBOX, address(new EquivalenceInboxMock()).code);
         vm.etch(TARGET, address(new EquivalenceTargetMock()).code);
+    }
+
+    /// @notice NEW's expiryPeriod, as a proxy initialized with the production period holds it (E7).
+    function _storePeriod() internal {
+        vm.store(NEW, EXPIRY_PERIOD_SLOT, bytes32(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+    }
+
+    /// @notice E7 pin: NEW's period is unchanged, and OLD (which has no such variable) has `_oldWord` there.
+    function _checkPeriodPinned(bytes32 _oldWord) internal view {
+        assert(vm.load(NEW, EXPIRY_PERIOD_SLOT) == bytes32(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        assert(vm.load(OLD, EXPIRY_PERIOD_SLOT) == _oldWord);
     }
 
     /// @notice The code under test as NEW (overridden by run.sh's mutants).
@@ -277,8 +301,6 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         bytes32 uy;
         bytes32 z; // NEW only: expiredMessages[z] = uz
         bytes32 uz;
-        bytes32 k; // hevm only: one arbitrary raw slot k := v
-        bytes32 v;
     }
 
     struct Bal {
@@ -331,6 +353,7 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         vm.store(NEW, _mapSlot(_p.q0, 0), _p.s0);
         vm.store(NEW, _mapSlot(_p.y, 3), _p.uy);
         vm.store(NEW, _mapSlot(_p.z, 4), _p.uz);
+        _storePeriod();
     }
 
     /// @notice Configures the mocks.
@@ -353,12 +376,15 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         ok_ = t == TARGET || t == EOA;
     }
 
-    /// @notice (S-all): the symbolic raw slot `_s`, if outside the pinned new-only slots, is equal.
-    ///         Under Halmos's generic layout `_s` ranges over non-hash-derived slots only (see the
-    ///         header); mapping entries are compared by S-map.
+    /// @notice (S-all): the symbolic raw slot `_s`, if outside the pinned new-only slots (E3, E7),
+    ///         is equal, and NEW's period (E7) is unchanged. Under Halmos's generic layout `_s`
+    ///         ranges over non-hash-derived slots only (see the header); mapping entries are
+    ///         compared by S-map.
     function _checkAllSlots(Pre memory _p, bool _sent, bytes32 _h, bytes32 _s) internal view {
-        bool pinned = _s == _mapSlot(_p.y, 3) || _s == _mapSlot(_p.z, 4) || (_sent && _s == _mapSlot(_h, 3));
+        bool pinned = _s == _mapSlot(_p.y, 3) || _s == _mapSlot(_p.z, 4) || (_sent && _s == _mapSlot(_h, 3))
+            || _s == EXPIRY_PERIOD_SLOT;
         if (!pinned) assert(vm.load(OLD, _s) == vm.load(NEW, _s));
+        assert(vm.load(NEW, EXPIRY_PERIOD_SLOT) == bytes32(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
     }
 
     /// @notice What (O) compares: the return data, or the revert data with its selector passed
@@ -385,15 +411,20 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         bytes memory cd = abi.encodeCall(IEquivalenceMessenger.sendMessage, (_in.dest, _in.target, m));
 
         vm.prank(_in.sender);
-        (bool okO, bytes memory rO) = OLD.call(cd);
+        (bool okO, bytes memory rO) = _sendCall(OLD, cd);
         vm.prank(_in.sender);
-        (bool okN, bytes memory rN) = NEW.call(cd);
+        (bool okN, bytes memory rN) = _sendCall(NEW, cd);
 
         assert(okO == okN);
         assert(_outKey(okO, rO) == _outKey(okN, rN));
 
         ok_ = okN;
         if (okN) h_ = abi.decode(rN, (bytes32));
+    }
+
+    /// @notice One sendMessage call; overridden by the hevm engine.
+    function _sendCall(address _to, bytes memory _cd) internal virtual returns (bool ok_, bytes memory ret_) {
+        (ok_, ret_) = _to.call(_cd);
     }
 
     /// @notice (S-map) after a send, for the symbolic key `_q`.
@@ -406,6 +437,7 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         assert(vm.load(NEW, _mapSlot(_q, 4)) == (_q == _p.z ? _p.uz : bytes32(0)));
         assert(vm.load(OLD, _mapSlot(_q, 3)) == bytes32(0));
         assert(vm.load(OLD, _mapSlot(_q, 4)) == bytes32(0));
+        _checkPeriodPinned(bytes32(0));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -493,6 +525,7 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
         assert(vm.load(NEW, _mapSlot(_q, 4)) == (_q == _p.z ? _p.uz : bytes32(0)));
         assert(vm.load(OLD, _mapSlot(_q, 3)) == bytes32(0));
         assert(vm.load(OLD, _mapSlot(_q, 4)) == bytes32(0));
+        _checkPeriodPinned(bytes32(0));
     }
 
     /// @notice A relay through NEW to the target mock; whether it succeeded with the right context.
@@ -511,26 +544,45 @@ abstract contract L2ToL2CrossDomainMessenger_EquivalenceBase is Test {
 
 /// @notice hevm engine (hevm test, prove_*): sendMessage with the empty message, (O) and (S-all).
 contract L2ToL2CrossDomainMessenger_EquivalenceHevm is L2ToL2CrossDomainMessenger_EquivalenceBase {
-    /// @notice hevm's pre-state: msgNonce and one arbitrary raw slot (both), E3 in NEW. (hevm runs
-    ///         out of memory with _seed's mapping-shaped entries on top.)
+    /// @notice hevm's pre-state: msgNonce (both) and NEW's period (E7). With the current messenger's
+    ///         bytecode, hevm 0.58 runs out of 16 GB on prove_sendMessage_len0 as soon as either
+    ///         code has any storage entry at a symbolic key (the arbitrary raw slot k := v, or the
+    ///         E3 entries); the Halmos checks keep those entries.
     function _seedHevm(Pre memory _p) internal {
         vm.store(OLD, bytes32(uint256(1)), _p.nonceWord);
         vm.store(NEW, bytes32(uint256(1)), _p.nonceWord);
-        vm.store(OLD, _p.k, _p.v);
-        vm.store(NEW, _p.k, _p.v);
-        vm.store(NEW, _mapSlot(_p.y, 3), _p.uy);
-        vm.store(NEW, _mapSlot(_p.z, 4), _p.uz);
+        _storePeriod();
     }
 
-    /// @notice (O) and (S-all), plus the E2/E3 pins.
+    /// @notice sendMessage's outputs, copied with a concrete size: 32 bytes on success, 0, 4 or
+    ///         36 bytes on revert (any other size is a counterexample). hevm 0.58 cannot copy a
+    ///         returndata region whose size it holds only symbolically, which the current
+    ///         messenger's revert paths produce once its storage has a symbolic-key entry.
+    function _sendCall(address _to, bytes memory _cd) internal override returns (bool ok_, bytes memory ret_) {
+        assembly {
+            ok_ := call(gas(), _to, 0, add(_cd, 32), mload(_cd), 0, 0)
+        }
+        uint256 n;
+        assembly {
+            n := returndatasize()
+        }
+        if (n == 0) ret_ = new bytes(0);
+        else if (n == 4) ret_ = new bytes(4);
+        else if (n == 32) ret_ = new bytes(32);
+        else if (n == 36) ret_ = new bytes(36);
+        else assert(false);
+        assembly {
+            returndatacopy(add(ret_, 32), 0, mload(ret_))
+        }
+    }
+
+    /// @notice (O) and (S-all), plus the E2/E7 pins.
     function prove_sendMessage_len0(SendIn memory _in, Pre memory _p, bytes32 _s) public {
         vm.assume(_safe(_in.target));
         _seedHevm(_p);
         (bool ok, bytes32 h) = _send(0, _in);
         _checkAllSlots(_p, ok, h, _s);
-        assert(vm.load(NEW, _mapSlot(_p.z, 4)) == _p.uz);
         if (ok) assert(vm.load(NEW, _mapSlot(h, 3)) == bytes32(_in.ts));
-        if (!(ok && _p.y == h)) assert(vm.load(NEW, _mapSlot(_p.y, 3)) == _p.uy);
     }
 
     // Non-vacuity witnesses: each must produce a validated counterexample (run.sh checks that).

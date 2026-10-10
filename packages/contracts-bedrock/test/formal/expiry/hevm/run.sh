@@ -68,14 +68,16 @@ record() { # record <want> <got> <secs> <label>
 # early grep exit into a SIGPIPE failure on large logs).
 strip() { sed -e 's/\x1b\[[0-9;]*m//g' "$1" >"$1.txt"; echo "$1.txt"; }
 
-# Verdict of an hevm log (`hevm test` or `hevm equivalence`).
+# Verdict of an hevm log (`hevm test` or `hevm equivalence`). A validated counterexample is a
+# witness even if some other path was explored only partially (it is a real execution); a check
+# that must PASS is PARTIAL whenever any path was not fully explored.
 hevm_verdict() { # hevm_verdict <log> <rc>
   local txt rc="$2"
   txt=$(strip "$1")
-  if grep -q "partially explore" "$txt"; then
-    echo PARTIAL
-  elif grep -qE "Counterexample: *\[validated\]|^Not equivalent" "$txt"; then
+  if grep -qE "Counterexample: *\[validated\]|^Not equivalent" "$txt"; then
     echo WITNESS
+  elif grep -q "partially explore" "$txt"; then
+    echo PARTIAL
   elif grep -qE "Counterexample" "$txt"; then
     echo UNVALIDATED-CEX
   elif [ "$rc" = 0 ] && grep -qE "^ *\[PASS\]|No discrepancies found" "$txt"; then
@@ -211,12 +213,13 @@ if [ -z "${SKIP_MUTANTS:-}" ]; then
   SRC="$HERE/../../../../src/L2/L2ToL2CrossDomainMessenger.sol"
   MUTANTS=(
     "M0|identity|check_allSlots_relayMessage_len37 check_allSlots_sendMessage_len37 check_relayMessage_len37 check_sendMessage_len37"
-    "M1|relay writes a stray slot (sstore(5, 1))|check_allSlots_relayMessage_len37"
-    "M2|send writes a stray slot (sstore(5, 1))|check_allSlots_sendMessage_len37"
+    "M1|relay writes a stray slot (sstore(6, 1))|check_allSlots_relayMessage_len37"
+    "M2|send writes a stray slot (sstore(6, 1))|check_allSlots_sendMessage_len37"
     "M3|relay passes another hash to the inbox|check_relayMessage_len37"
     "M4|relay forwards no ETH to the target|check_relayMessage_len37"
     "M5|relay does not set successfulMessages[H]|check_relayMessage_len37|check_allSlots_relayMessage_len37"
     "M6|send does not set sentMessages[nonce]|check_sendMessage_len37|check_allSlots_sendMessage_len37"
+    "M7|send overwrites the expiry period (sstore(5, 1))|check_sendMessage_len37 check_allSlots_sendMessage_len37"
   )
   python3 -I - "$SRC" mutants <<'PY' || { note "mutant generation FAILED"; exit 1; }
 import sys
@@ -225,14 +228,16 @@ s = open(src).read()
 patches = {
     "M0": [],
     "M1": [("successfulMessages[messageHash] = true;",
-            "successfulMessages[messageHash] = true;\n        assembly { sstore(5, 1) }")],
+            "successfulMessages[messageHash] = true;\n        assembly { sstore(6, 1) }")],
     "M2": [("sentMessageTimestamps[messageHash_] = block.timestamp;",
-            "sentMessageTimestamps[messageHash_] = block.timestamp;\n        assembly { sstore(5, 1) }")],
+            "sentMessageTimestamps[messageHash_] = block.timestamp;\n        assembly { sstore(6, 1) }")],
     "M3": [("validateMessage(_id, keccak256(_sentMessage));",
             "validateMessage(_id, bytes32(uint256(keccak256(_sentMessage)) ^ 1));")],
     "M4": [("target.call{ value: msg.value }(message)", "target.call{ value: 0 }(message)")],
     "M5": [("successfulMessages[messageHash] = true;", "")],
     "M6": [("sentMessages[nonce] = messageHash_;", "")],
+    "M7": [("sentMessageTimestamps[messageHash_] = block.timestamp;",
+            "sentMessageTimestamps[messageHash_] = block.timestamp;\n        assembly { sstore(5, 1) }")],
 }
 for name, ps in patches.items():
     m = s.replace("contract L2ToL2CrossDomainMessenger is", f"contract L2ToL2CrossDomainMessenger{name} is")
@@ -245,12 +250,12 @@ pragma solidity 0.8.25;
 
 import {{ L2ToL2CrossDomainMessenger_EquivalenceHalmos }} from "../L2ToL2Equivalence.t.sol";
 import {{ L2ToL2CrossDomainMessenger{name} }} from "./{name}.sol";
-import {{ Constants }} from "src/libraries/Constants.sol";
 
 contract {name}_EquivalenceHalmos is L2ToL2CrossDomainMessenger_EquivalenceHalmos {{
-    /// @notice The mutant's runtime with its immutable filled, as a production deployment has it.
+    /// @notice The mutant's runtime, from a no-argument deployment; the base setUp stores the
+    ///         production period in NEW's slot 5, as an initialized proxy holds it (E7).
     function _newCode() internal override returns (bytes memory code_) {{
-        address deployed = address(new L2ToL2CrossDomainMessenger{name}(Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD));
+        address deployed = address(new L2ToL2CrossDomainMessenger{name}());
         code_ = deployed.code;
         vm.etch(deployed, hex"");
     }}
