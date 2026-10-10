@@ -419,6 +419,19 @@ upstream's config cannot); the block/state-root is computed against upstream via
 `state`/`triedb` + `op-core/predeploys`. This is why `GethChainConfig()` is a real bridge rather
 than throwaway.
 
+`op-core/genesis.Genesis` is the one L2 genesis JSON encoding: the `core.Genesis` envelope (header
+fields, alloc) with a `config` object in `opparams.ChainConfig`'s own JSON encoding.
+`GethGenesis()` bridges to `core.Genesis` for `ToBlock()` and state commitment. It is the genesis
+(un)marshalling home for the op-reth test-engine helpers (`op-e2e/e2eutils/testengine`) and for
+`op-chain-ops/genesis`'s `genesis.json` in the #21281 migration; op-geth's `stateHash` genesis
+key is rejected.
+
+`opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
+embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
+same-named embedded one, so the OP fields win over op-geth's duplicates and need no change once
+upstream's config has none. The Ethereum fork keys of a decoded config are not kept (they are
+re-derived on encoding, and decoding rejects one that contradicts the derivation).
+
 ---
 
 ## 15. Infrastructure fork extensions — `log` and `rpc`
