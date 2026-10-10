@@ -2,8 +2,7 @@
 //!
 //! Covers both `PreState::SuperRoot` and `PreState::TransitionState` agreed prestates at
 //! `prestate.timestamp == claimed_l2_timestamp` (legitimate boundary) and the strict-`>` case
-//! (invariant violation, must panic to match op-program; see
-//! `op-program/client/interop/interop.go:87-97`).
+//! (invariant violation, must panic in `BootInfo::load`).
 
 use alloy_primitives::B256;
 use alloy_rlp::Encodable;
@@ -236,7 +235,7 @@ async fn trace_extension_super_root_at_game_timestamp_rejects_mismatched_claim()
 }
 
 // `prestate.timestamp > claimed_l2_timestamp`: invariant violation, must panic in
-// `BootInfo::load`. Matches op-program's defensive panic on the same condition.
+// `BootInfo::load`.
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "agreed prestate timestamp")]
 async fn rejects_transition_state_with_timestamp_after_game_timestamp() {

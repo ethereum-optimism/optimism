@@ -46,7 +46,7 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - The selected raw verifier is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain.
    - Genesis deployments never select the release verifier: it does not exist in a generated genesis. They must set `sp1Verifier` explicitly, or the op-devstack builder can opt into deploying a test raw verifier during genesis.
 
-There is no other production operator-facing surface. `op-node`, `op-program`, `kona`, and rollup config do not take a bitmap at runtime.
+There is no other production operator-facing surface. `op-node`, `kona`, and rollup config do not take a bitmap at runtime.
 
 ### Developer-only: `op-node/rollup/toggles.go`
 
@@ -97,7 +97,7 @@ From op-deployer the bitmap fans out two ways:
 1. **Into L2 genesis state** — `scripts/L2Genesis.s.sol` (Foundry script) writes the bitmap into the **`L2DevFeatureFlags` predeploy at `0x42...2D`** via `setDevFeatureBitmap()`. Only `DEPOSITOR_ACCOUNT` can write; effectively write-once at genesis.
 2. **Into L1 implementation deployment** — `scripts/deploy/DeployImplementations.s.sol` consults the bitmap to decide which implementation contracts to deploy / configure.
 
-It does **not** flow to op-node, op-program, or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
+It does **not** flow to op-node or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
 
 ## E. Activation — who reads it and what they gate
 
@@ -110,7 +110,7 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 **On Go**, the bitmap is essentially deploy-time-only:
 
 - The interop cross-check in `buildDevFeatureBitmap()` noted above.
-- No runtime callers. (op-node / op-program use hardfork timestamps, not the bitmap.)
+- No runtime callers. (op-node uses hardfork timestamps, not the bitmap.)
 
 **The L2DevFeatureFlags predeploy API** (`src/L2/L2DevFeatureFlags.sol`):
 
