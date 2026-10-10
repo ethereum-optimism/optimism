@@ -75,3 +75,14 @@ func TestFrom(t *testing.T) {
 		require.Panics(t, func() { From(Name("unknown")) })
 	})
 }
+
+func TestAllEL(t *testing.T) {
+	var want []Name
+	for _, f := range All {
+		if f != Delta {
+			want = append(want, f)
+		}
+	}
+	require.Equal(t, want, AllEL)
+	require.Equal(t, Bedrock, AllEL[0], "Bedrock, the only block-based fork, must come first")
+}
