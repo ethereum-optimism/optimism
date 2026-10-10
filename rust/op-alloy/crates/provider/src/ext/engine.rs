@@ -5,7 +5,7 @@ use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadInputV2,
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
 };
-use alloy_transport::{Transport, TransportResult};
+use alloy_transport::TransportResult;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
@@ -20,7 +20,7 @@ use op_alloy_rpc_types_engine::{
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-pub trait OpEngineApi<N, T> {
+pub trait OpEngineApi<N> {
     /// Sends the given payload to the execution layer client, as specified for the Shanghai fork.
     ///
     /// See also <https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2>
@@ -192,10 +192,9 @@ pub trait OpEngineApi<N, T> {
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl<N, T, P> OpEngineApi<N, T> for P
+impl<N, P> OpEngineApi<N> for P
 where
     N: Network,
-    T: Transport + Clone,
     P: Provider<N>,
 {
     async fn new_payload_v2(

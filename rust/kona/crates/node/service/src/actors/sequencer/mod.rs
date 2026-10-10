@@ -12,9 +12,6 @@ pub use origin_selector::{
 mod actor;
 pub use actor::SequencerActor;
 
-mod admin_api_impl;
-pub use admin_api_impl::SequencerAdminQuery;
-
 mod metrics;
 
 mod error;
@@ -35,6 +32,3 @@ pub use engine_client::MockSequencerEngineClient;
 
 #[cfg(test)]
 pub use origin_selector::MockOriginSelector;
-
-#[cfg(test)]
-mod tests;

@@ -5,7 +5,6 @@ use clap::Parser;
 use futures::future::OptionFuture;
 use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
-use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
 };
@@ -72,7 +71,7 @@ impl NetCommand {
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         // admin_rpc_tx and gossip_payload_tx are not used by this single-purpose binary — they
@@ -81,13 +80,16 @@ impl NetCommand {
 
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
+        let discovery = handler.discovery.clone();
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
             handler,
-            p2p_rpc_rx,
+            gossip_command_rx,
             admin_rpc_rx,
             gossip_payload_rx,
         );
+
+        let rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx.clone());
 
         // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
         tokio::spawn(async move {
@@ -101,7 +103,7 @@ impl NetCommand {
 
         info!(target: "net", "Network started, receiving blocks.");
 
-        // On an interval, use the rpc tx to request stats about the p2p network.
+        // On an interval, read gossip state and query discovery for peer counts.
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
 
         let handle = if let Some(config) = rpc_config {
@@ -109,7 +111,7 @@ impl NetCommand {
 
             // Setup the RPC server with the P2P RPC Module
             let mut launcher = RpcModule::new(());
-            launcher.merge(P2pRpc::new(rpc.clone()).into_rpc())?;
+            launcher.merge(rpc.clone().into_rpc())?;
 
             let server = Server::builder().build(config.socket).await?;
             Some(server.start(launcher))
@@ -123,29 +125,13 @@ impl NetCommand {
                 Some(payload) = block_rx.recv() => {
                     info!(target: "net", "Received unsafe payload: {:?}", payload.block_hash());
                 }
-                _ = interval.tick(), if !rpc.is_closed() => {
-                    let (otx, mut orx) = tokio::sync::oneshot::channel();
-                    if let Err(e) = rpc.send(P2pRpcRequest::PeerCount(otx)).await {
-                        warn!(target: "net", "Failed to send network rpc request: {:?}", e);
-                        continue;
-                    }
-                    tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
-                        loop {
-                            match orx.try_recv() {
-                                Ok((d, g)) => {
-                                    let d = d.unwrap_or_default();
-                                    info!(target: "net", "Peer counts: Discovery={} | Swarm={}", d, g);
-                                    break;
-                                }
-                                Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
-                                    /* Keep trying to receive */
-                                }
-                                Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-                                    break;
-                                }
-                            }
+                _ = interval.tick(), if !gossip_command_tx.is_closed() => {
+                    match tokio::time::timeout(tokio::time::Duration::from_secs(5), rpc.opp2p_peer_count()).await? {
+                        Ok(count) => {
+                            info!(target: "net", "Peer counts: Discovery={} | Swarm={}", count.connected_discovery.unwrap_or_default(), count.connected_gossip);
                         }
-                    }).await.unwrap();
+                        Err(e) => warn!(target: "net", "Failed to query peer counts: {e:?}"),
+                    }
                 }
                 _ = OptionFuture::from(handle.clone().map(|h| h.stopped())) => {
                     warn!(target: "net", "RPC server stopped");

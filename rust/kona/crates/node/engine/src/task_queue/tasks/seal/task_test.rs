@@ -2,7 +2,7 @@ use crate::{
     BuildSealCoupling::{self, Atomic, Detached},
     EngineTaskExt, SealTask, SealTaskError,
     test_utils::{
-        TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client_builder,
+        TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
 };
 use alloy_rpc_types_engine::PayloadId;
@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// The two paths the unsafe-head check can steer `execute` into: aborting the seal as stale, or
-/// proceeding to the payload fetch — which the unconfigured mock client fails, surfacing as
+/// proceeding to the payload fetch — whose injected RPC failure surfaces as
 /// [`SealTaskError::GetPayloadFailed`].
 #[derive(Debug, PartialEq, Eq)]
 enum SealOutcome {
@@ -47,9 +47,14 @@ async fn unsafe_head_check_variants(
     let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
 
     let (tx, mut rx) = mpsc::channel(1);
+    let cfg = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    if unsafe_head_at_parent || coupling == Atomic {
+        l2.expect_error("engine_getPayloadV2");
+    }
     let task = SealTask::new(
-        Arc::new(test_engine_client_builder().build()),
-        Arc::new(RollupConfig::default()),
+        Arc::new(client),
+        cfg,
         PayloadId::new([1u8; 8]),
         attributes,
         false,
@@ -68,4 +73,98 @@ async fn unsafe_head_check_variants(
     } else {
         assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
     }
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// Exercise version selection and decoding through the production client and OP Alloy extension.
+#[rstest]
+#[case(5, "engine_getPayloadV2")]
+#[case(15, "engine_getPayloadV3")]
+#[case(25, "engine_getPayloadV4")]
+#[case(35, "engine_getPayloadV5")]
+#[tokio::test]
+async fn payload_fetch_selects_version_and_decodes_reply(
+    #[case] timestamp: u64,
+    #[case] method: &'static str,
+) {
+    use alloy_primitives::B256;
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV2, ExecutionPayloadV3,
+    };
+    use op_alloy_rpc_types_engine::{
+        OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
+        OpExecutionPayloadV4,
+    };
+
+    let mut cfg = RollupConfig::default();
+    cfg.hardforks.ecotone_time = Some(10);
+    cfg.hardforks.isthmus_time = Some(20);
+    cfg.hardforks.karst_time = Some(30);
+    let cfg = Arc::new(cfg);
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    let id = PayloadId::new([1; 8]);
+    let params = serde_json::json!([id]);
+    let root = B256::repeat_byte(0x42);
+    let block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+    let expected = if timestamp < 10 {
+        let payload = ExecutionPayloadV2::from_block_slow(&block);
+        l2.expect_params(
+            method,
+            params,
+            ExecutionPayloadEnvelopeV2 {
+                execution_payload: ExecutionPayloadFieldV2::V2(payload.clone()),
+                block_value: Default::default(),
+            },
+        );
+        OpExecutionPayloadEnvelope::V2(payload)
+    } else if timestamp < 20 {
+        let payload = ExecutionPayloadV3::from_block_slow(&block);
+        l2.expect_params(
+            method,
+            params,
+            OpExecutionPayloadEnvelopeV3 {
+                execution_payload: payload.clone(),
+                block_value: Default::default(),
+                blobs_bundle: Default::default(),
+                should_override_builder: false,
+                parent_beacon_block_root: root,
+            },
+        );
+        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root: root }
+    } else {
+        let payload = OpExecutionPayloadV4::from_v3_with_withdrawals_root(
+            ExecutionPayloadV3::from_block_slow(&block),
+            root,
+        );
+        l2.expect_params(
+            method,
+            params,
+            OpExecutionPayloadEnvelopeV4 {
+                execution_payload: payload.clone(),
+                block_value: Default::default(),
+                blobs_bundle: Default::default(),
+                should_override_builder: false,
+                parent_beacon_block_root: root,
+                execution_requests: vec![],
+            },
+        );
+        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
+    };
+    let attributes = TestAttributesBuilder::new().with_timestamp(timestamp).build();
+    let client = Arc::new(client);
+    let task = SealTask::new(
+        client.clone(),
+        cfg.clone(),
+        id,
+        attributes.clone(),
+        false,
+        Detached,
+        None,
+        Arc::new(crate::NoopBlockSink),
+    );
+    let actual = task.seal_payload(&cfg, &client, id, attributes).await.unwrap();
+    assert_eq!(actual, expected);
+    l1.assert_finished();
+    l2.assert_finished();
 }

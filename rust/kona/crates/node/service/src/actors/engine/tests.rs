@@ -1,9 +1,9 @@
-use super::{EngineActor, EngineActorRequest, QueuedEngineDerivationClient, ResetRequest};
+use super::{EngineActor, QueuedEngineDerivationClient};
 use crate::{DerivationActorRequest, NodeActor};
-use alloy_eips::BlockId;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
-use kona_engine::{Engine, EngineState, NoopBlockSink, test_utils::MockEngineClient};
+use kona_engine::{Engine, EngineState, NoopBlockSink, test_utils::test_engine_client};
 use kona_genesis::RollupConfig;
+use kona_rpc::{AdminApiServer, AdminRpc};
 use std::sync::Arc;
 use tokio::{
     sync::mpsc,
@@ -17,7 +17,7 @@ use tokio::{
 #[case(false, Duration::ZERO)]
 #[case(false, Duration::from_secs(4))]
 #[tokio::test(start_paused = true)]
-async fn reset_recovers_and_completes_original_request(
+async fn admin_reset_recovers_and_completes_original_request(
     #[case] l1_failure: bool,
     #[case] read_delay: Duration,
 ) {
@@ -26,26 +26,15 @@ async fn reset_recovers_and_completes_original_request(
     let mut config = RollupConfig::default();
     config.genesis.l2.hash = block.header.inner.hash_slow();
     let config = Arc::new(config);
-    let client = Arc::new(
-        MockEngineClient::builder()
-            .with_config(config.clone())
-            .with_l2_block(BlockId::finalized(), block.clone())
-            .with_l2_block(BlockId::safe(), block.clone())
-            .with_l2_block(BlockId::latest(), block)
-            .with_l1_block(config.genesis.l1.hash.into(), Default::default())
-            .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(
-                PayloadStatus::from_status(PayloadStatusEnum::Valid),
-            ))
-            .build(),
-    );
-    let storage = client.storage();
-    {
-        let mut data = storage.write().await;
-        if l1_failure {
-            data.l1_read_error = Some("L1 timeout".into());
-        } else {
-            data.l2_read_error = Some("L2 timeout".into());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let client = Arc::new(client);
+    if l1_failure {
+        for tag in ["finalized", "safe", "latest"] {
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
         }
+        l1.expect_error("eth_getBlockByHash");
+    } else {
+        l2.expect_error("eth_getBlockByNumber");
     }
     let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
     // Derivation waits for the reset reply and cannot drain its full queue until then.
@@ -56,30 +45,32 @@ async fn reset_recovers_and_completes_original_request(
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
     let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
-    let (queue_tx, _queue_rx) = tokio::sync::watch::channel(0);
     let mut actor = EngineActor::new(
         client,
         config,
         derivation,
-        Engine::new(EngineState::default(), state_tx, queue_tx),
+        Engine::new(EngineState::default(), state_tx),
         None,
         request_rx,
         Arc::new(NoopBlockSink),
     );
-    let (reply, mut reply_rx) = mpsc::channel(1);
-    requests
-        .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx: reply })))
-        .await
-        .unwrap();
+    // Validators have no sequencer; admin reset goes directly to the engine.
+    let rpc = AdminRpc::new(None, requests, mpsc::channel(1).0);
+    let reset = tokio::spawn(async move { rpc.admin_reset_derivation_pipeline().await });
     actor.step().await.unwrap(); // retain the reset
     actor.step().await.unwrap(); // failed attempt, then wait for backoff
-    assert!(reply_rx.try_recv().is_err());
-    {
-        let mut data = storage.write().await;
-        data.l1_read_error = None;
-        data.l2_read_error = None;
-        data.l2_read_delay = read_delay;
+    assert!(!reset.is_finished());
+    for _ in 0..3 {
+        l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
     }
+    l1.expect(
+        "eth_getBlockByHash",
+        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+    );
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
     // A step performs recovery and then waits for another message; the response arrives first.
     let mut tasks = tokio::task::JoinSet::new();
     tasks.spawn(async move {
@@ -89,7 +80,7 @@ async fn reset_recovers_and_completes_original_request(
         #[allow(unreachable_code)]
         Ok::<(), crate::EngineError>(())
     });
-    time::timeout(Duration::from_secs(20), reply_rx.recv()).await.unwrap().unwrap().unwrap();
+    time::timeout(Duration::from_secs(20), reset).await.unwrap().unwrap().unwrap();
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessL1HeadUpdateRequest(_)
@@ -107,4 +98,6 @@ async fn reset_recovers_and_completes_original_request(
         DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
     ));
     tasks.abort_all();
+    l1.assert_finished();
+    l2.assert_finished();
 }

@@ -105,7 +105,7 @@ impl EngineSyncState {
     /// Updates a block label metric, keyed by the label.
     #[inline]
     fn update_block_label_metric(label: &'static str, number: u64) {
-        kona_macros::set!(gauge, Metrics::BLOCK_LABELS, "label", label, number as f64);
+        metrics::gauge!(Metrics::BLOCK_LABELS, "label" => label).set(number as f64);
     }
 }
 
@@ -201,7 +201,6 @@ mod test {
     #[case::set_local_safe(EngineState::set_local_safe_head, Metrics::LOCAL_SAFE_BLOCK_LABEL, 3)]
     #[case::set_safe_head(EngineState::set_safe_head, Metrics::SAFE_BLOCK_LABEL, 4)]
     #[case::set_finalized_head(EngineState::set_finalized_head, Metrics::FINALIZED_BLOCK_LABEL, 5)]
-    #[cfg(feature = "metrics")]
     fn test_chain_label_metrics(
         #[case] set_fn: impl Fn(&mut EngineState, L2BlockInfo),
         #[case] label_name: &str,

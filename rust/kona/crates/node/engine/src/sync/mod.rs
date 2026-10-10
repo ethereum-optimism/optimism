@@ -25,9 +25,9 @@ use crate::EngineClient;
 /// Plausible: meaning that the blockhash of the L2 block's L1 origin
 /// (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another
 /// height in the L1 chain, and the same holds for all its ancestors.
-pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
+pub async fn find_starting_forkchoice(
     cfg: &RollupConfig,
-    engine_client: &EngineClient_,
+    engine_client: &EngineClient,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
     let mut current_fc = L2ForkchoiceState::current(cfg, engine_client).await?;
     info!(

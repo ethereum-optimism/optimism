@@ -9,14 +9,15 @@ use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_consensus::OpBlock;
+use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 /// The task to insert a payload into the execution engine.
 #[derive(Debug, Clone)]
-pub struct InsertTask<EngineClient_: EngineClient> {
+pub struct InsertTask {
     /// The engine client.
-    client: Arc<EngineClient_>,
+    client: Arc<EngineClient>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
     /// The complete execution payload envelope.
@@ -28,10 +29,10 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     block_sink: Arc<dyn ImportedBlockSink>,
 }
 
-impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
+impl InsertTask {
     /// Creates a new insert task.
     pub const fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
         is_attributes_derived: bool,
@@ -47,18 +48,15 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
+impl EngineTaskExt for InsertTask {
     type Output = L2BlockInfo;
 
     type Error = InsertTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
-        let time_start = Instant::now();
-
         // Insert the new payload.
         // Form the new unsafe block ref from the execution payload.
         let payload = self.payload.clone();
-        let insert_time_start = Instant::now();
         let response = match payload.clone() {
             OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
             OpExecutionPayloadEnvelope::V2(payload) => {
@@ -87,7 +85,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         if !self.check_new_payload_status(&response.status) {
             return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
         }
-        let insert_duration = insert_time_start.elapsed();
 
         let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
         let new_unsafe_ref =
@@ -111,14 +108,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         // The block is now canonical, so anything reading the L2 chain locally can rely on it.
         self.block_sink.block_imported(block, new_unsafe_ref);
 
-        let total_duration = time_start.elapsed();
-
         info!(
             target: "engine",
             hash = %new_unsafe_ref.block_info.hash,
             number = new_unsafe_ref.block_info.number,
-            total_duration = ?total_duration,
-            insert_duration = ?insert_duration,
             "Inserted new unsafe block"
         );
 

@@ -101,15 +101,15 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 ## RPC Arguments
 
+The RPC server starts once. If it stops unexpectedly, the node shuts down with an error.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | Disable the RPC server | `false` |
-| `--rpc.no-restart` | `KONA_NODE_RPC_NO_RESTART` | Prevent RPC server from restarting | `false` |
 | `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
 | `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
 | `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
 | `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
-| `--rpc.ws-enabled` | `KONA_NODE_RPC_WS_ENABLED` | Enable websocket RPC server | `false` |
 
 ## Sequencer Arguments
 

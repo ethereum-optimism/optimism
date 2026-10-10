@@ -1,13 +1,11 @@
-#[cfg(test)]
+use super::test_actor;
 use crate::{
-    NodeActor, SequencerActorError, SequencerAdminQuery,
-    actors::{
-        MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-        sequencer::tests::test_util::test_actor,
-    },
+    NodeActor, SequencerActorError,
+    actors::{MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient},
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::SequencerAdminCommand;
 use rstest::rstest;
 use std::sync::{
     Arc,
@@ -22,8 +20,8 @@ use tokio::{
 #[case::temp(PipelineErrorKind::Temporary(BuilderError::Custom(String::new()).into()), false)]
 #[case::reset(PipelineErrorKind::Reset(BuilderError::Custom(String::new()).into()), false)]
 #[case::critical(PipelineErrorKind::Critical(BuilderError::Custom(String::new()).into()), true)]
-#[tokio::test]
-async fn test_build_unsealed_payload_prepare_payload_attributes_error(
+#[tokio::test(start_paused = true)]
+async fn step_handles_payload_attributes_errors(
     #[case] forced_error: PipelineErrorKind,
     #[case] expect_err: bool,
 ) {
@@ -33,9 +31,8 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
     client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
     // Must not be called on critical error
     client.expect_start_build_block().times(0);
-    if let PipelineErrorKind::Reset(_) = &forced_error {
-        client.expect_reset_engine_forkchoice().times(1).return_once(move || Ok(()));
-    }
+    let resets = if matches!(&forced_error, PipelineErrorKind::Reset(_)) { 2 } else { 1 };
+    client.expect_reset_engine_forkchoice().times(resets).returning(|| Ok(()));
 
     let l1_origin = BlockInfo::default();
     let mut origin_selector = MockOriginSelector::new();
@@ -48,7 +45,8 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
     actor.engine_client = client;
     actor.attributes_builder = attributes_builder;
 
-    let result = actor.build_unsealed_payload().await;
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    let result = actor.step().await;
     if expect_err {
         assert!(result.is_err());
         assert!(matches!(
@@ -66,7 +64,7 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
 async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     let mut actor = test_actor();
     let (admin_tx, admin_rx) = mpsc::channel(1);
-    actor.admin_api_rx = admin_rx;
+    actor.admin_command_rx = admin_rx;
 
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
@@ -84,10 +82,10 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 
     let (tx, rx) = oneshot::channel();
-    admin_tx.send(SequencerAdminQuery::StopSequencer(tx)).await.unwrap();
+    admin_tx.send(SequencerAdminCommand::StopSequencer(tx)).await.unwrap();
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     assert_eq!(rx.await.unwrap().unwrap(), L2BlockInfo::default().hash());
-    assert!(!actor.is_active);
+    assert!(!actor.state().active);
 }
 
 /// Block building resumes on the first tick after the gossip queue has room again.
