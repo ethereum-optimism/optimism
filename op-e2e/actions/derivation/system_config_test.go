@@ -438,7 +438,7 @@ func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
 
-	oldGasLimit := seqEngine.L2Chain().CurrentBlock().GasLimit
+	oldGasLimit := seqEngine.LatestHeader(t).GasLimit
 	require.Equal(t, oldGasLimit, uint64(dp.DeployConfig.L2GenesisBlockGasLimit))
 
 	// change gas limit on L1 to triple what it was
@@ -460,12 +460,12 @@ func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1HeadExcl(t)
 
-	require.Equal(t, oldGasLimit, seqEngine.L2Chain().CurrentBlock().GasLimit)
+	require.Equal(t, oldGasLimit, seqEngine.LatestHeader(t).GasLimit)
 	require.Equal(t, uint64(1), sequencer.SyncStatus().UnsafeL2.L1Origin.Number)
 
 	// now include the L1 block with the gaslimit change, and see if it changes as expected
 	sequencer.ActBuildToL1Head(t)
-	require.Equal(t, oldGasLimit*3, seqEngine.L2Chain().CurrentBlock().GasLimit)
+	require.Equal(t, oldGasLimit*3, seqEngine.LatestHeader(t).GasLimit)
 	require.Equal(t, uint64(2), sequencer.SyncStatus().UnsafeL2.L1Origin.Number)
 
 	// now submit all this to L1, and see if a verifier can sync and reproduce it
