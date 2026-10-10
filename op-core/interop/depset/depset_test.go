@@ -37,6 +37,28 @@ func TestDependencySet(t *testing.T) {
 		)
 	})
 
+	t.Run("expiry window override above the protocol window", func(t *testing.T) {
+		deps := map[eth.ChainID]*StaticConfigDependency{eth.ChainIDFromUInt64(900): {}}
+		const wantErr = "overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"
+		_, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop+1)
+		require.ErrorContains(t, err, wantErr)
+		var jsonDS StaticConfigDependencySet
+		err = json.Unmarshal([]byte(`{"dependencies":{"900":{}},"overrideMessageExpiryWindow":604801}`), &jsonDS)
+		require.ErrorContains(t, err, wantErr)
+		var tomlDS StaticConfigDependencySet
+		_, err = toml.Decode("override_message_expiry_window = 604801\n[dependencies.900]\n", &tomlDS)
+		require.ErrorContains(t, err, wantErr)
+
+		ok, err := NewStaticConfigDependencySetWithMessageExpiryOverride(deps, MessageExpiryTimeSecondsInterop)
+		require.NoError(t, err)
+		require.Equal(t, MessageExpiryTimeSecondsInterop, ok.MessageExpiryWindow())
+	})
+
+	// kona-genesis pins the same 7 days (MESSAGE_EXPIRY_WINDOW).
+	t.Run("protocol expiry window is 7 days", func(t *testing.T) {
+		require.Equal(t, uint64(604800), MessageExpiryTimeSecondsInterop)
+	})
+
 	t.Run("invalid TOML", func(t *testing.T) {
 		bad := []byte(`dependencies = { bad = 1 }`)
 		var ds StaticConfigDependencySet

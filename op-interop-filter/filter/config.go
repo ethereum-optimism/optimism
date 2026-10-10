@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -74,6 +75,12 @@ func (c *Config) Check() error {
 	if c.MessageExpiryWindow == 0 {
 		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
 	}
+	// The protocol window is at most 7 days (see the Expiry Window section of the interop
+	// specification), so the filter must not admit older messages.
+	if c.MessageExpiryWindow > depset.MessageExpiryTimeSecondsInterop {
+		result = errors.Join(result, fmt.Errorf("message-expiry-window %ds exceeds protocol window %ds",
+			c.MessageExpiryWindow, depset.MessageExpiryTimeSecondsInterop))
+	}
 	if c.PollInterval <= 0 {
 		result = errors.Join(result, errors.New("poll-interval must be positive"))
 	}
@@ -119,6 +126,10 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	messageExpiryWindow := ctx.Duration(flags.MessageExpiryWindowFlag.Name)
 	if messageExpiryWindow <= 0 {
 		return nil, fmt.Errorf("message-expiry-window must be positive, got %s", messageExpiryWindow)
+	}
+	// Check the duration before it is truncated to whole seconds below.
+	if maxWindow := time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second; messageExpiryWindow > maxWindow {
+		return nil, fmt.Errorf("message-expiry-window %s exceeds protocol window %s", messageExpiryWindow, maxWindow)
 	}
 
 	pollInterval := ctx.Duration(flags.PollIntervalFlag.Name)
