@@ -49,14 +49,22 @@ pub trait PostExecRefundPolicyFactory {
 ///   **including when the EVM call itself errors** (`transact_raw` runs its finish block before
 ///   propagating). Implementors must tolerate finishing a failed tx.
 /// - [`begin_tx`](Self::begin_tx) must fully reset per-transaction state.
-///   [`snapshot`](Self::snapshot)/[`restore`](Self::restore) only cover block-scoped carry-forward,
-///   so a failed or declined candidate relies on the next `begin_tx` for per-tx cleanup.
+///   [`checkpoint`](Self::checkpoint)/[`revert_to_checkpoint`](Self::revert_to_checkpoint) only
+///   cover block-scoped state, so a failed or declined candidate relies on the next `begin_tx` for
+///   per-tx cleanup.
+/// - The producer takes a [`checkpoint`](Self::checkpoint) before every candidate transaction, so
+///   it must be O(1), and a revert must cost no more than undoing the block-scoped changes made
+///   since its checkpoint. Neither may copy or walk the block-scoped state accumulated so far: that
+///   state grows with every transaction in the block, so a per-candidate cost proportional to it
+///   makes block building quadratic in the block's transaction count.
 /// - The observer hooks must never synthesize call/create outcomes and must not mutate EVM state.
 ///   Every implementation must define every hook explicitly so a downstream observing policy cannot
 ///   compile after an API migration while silently inheriting no-op behavior.
 pub trait PostExecRefundInspector {
-    /// Opaque block-scoped state carried across subblocks and candidate rollback.
-    type Snapshot: Clone;
+    /// Opaque marker of the block-scoped state, used to roll back a candidate transaction the
+    /// producer does not commit. Only valid on the policy that issued it, and only until that
+    /// policy reverts to an earlier checkpoint.
+    type Checkpoint;
 
     /// Begin observing the next transaction.
     fn begin_tx(&mut self, ctx: PostExecTxContext);
@@ -114,10 +122,9 @@ pub trait PostExecRefundInspector {
     /// Observe a self-destruct while post-exec tracking is active.
     fn inspect_selfdestruct(&mut self, contract: Address, target: Address, value: U256);
 
-    /// Snapshot the block-scoped carry-forward state.
-    fn snapshot(&self) -> Self::Snapshot;
+    /// Mark the current block-scoped state. Must be O(1).
+    fn checkpoint(&self) -> Self::Checkpoint;
 
-    /// Restore block-scoped carry-forward state previously captured by
-    /// [`snapshot`](Self::snapshot).
-    fn restore(&mut self, snapshot: Self::Snapshot);
+    /// Undo every block-scoped change made since `checkpoint` was taken.
+    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint);
 }

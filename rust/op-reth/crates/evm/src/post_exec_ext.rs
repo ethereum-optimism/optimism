@@ -25,10 +25,6 @@ use crate::{OpBlockExecutorFactory, OpEvmConfig, OpEvmFactory, OpTx, PostExecMod
 /// Optimism-specific EVM helpers that expose post-exec-aware executors and builders.
 #[allow(clippy::type_complexity)]
 pub trait ConfigurePostExecEvm: ConfigureEvm {
-    /// Opaque block-scoped carry-forward state of the refund inspector the produced executors run.
-    /// Matches [`PostExecExecutorExt::Snapshot`] of those executors.
-    type Snapshot: Clone;
-
     /// Returns a block executor for the given block with explicit post-exec entry access.
     ///
     /// # Errors
@@ -43,7 +39,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
         impl BlockExecutor<
             Transaction = <Self::Primitives as NodePrimitives>::SignedTx,
             Receipt = <Self::Primitives as NodePrimitives>::Receipt,
-        > + PostExecExecutorExt<Snapshot = Self::Snapshot>
+        > + PostExecExecutorExt
         + 'a,
         Self::Error,
     >;
@@ -62,7 +58,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
-            Executor: PostExecExecutorExt<Snapshot = Self::Snapshot>
+            Executor: PostExecExecutorExt
                           + BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
                 Result: PreRefundGasUsed,
@@ -93,8 +89,6 @@ where
         + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Snapshot = ();
-
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -104,7 +98,7 @@ where
         impl BlockExecutor<
             Transaction = <Self::Primitives as NodePrimitives>::SignedTx,
             Receipt = <Self::Primitives as NodePrimitives>::Receipt,
-        > + PostExecExecutorExt<Snapshot = Self::Snapshot>
+        > + PostExecExecutorExt
         + 'a,
         Self::Error,
     > {
@@ -128,7 +122,7 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
-            Executor: PostExecExecutorExt<Snapshot = Self::Snapshot>
+            Executor: PostExecExecutorExt
                           + BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
                 Result: PreRefundGasUsed,
@@ -199,8 +193,6 @@ where
         + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Snapshot = F::Snapshot;
-
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -210,7 +202,7 @@ where
         impl BlockExecutor<
             Transaction = <Self::Primitives as NodePrimitives>::SignedTx,
             Receipt = <Self::Primitives as NodePrimitives>::Receipt,
-        > + PostExecExecutorExt<Snapshot = Self::Snapshot>
+        > + PostExecExecutorExt
         + 'a,
         Self::Error,
     > {
@@ -234,7 +226,7 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
-            Executor: PostExecExecutorExt<Snapshot = Self::Snapshot>
+            Executor: PostExecExecutorExt
                           + BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
                 Result: PreRefundGasUsed,

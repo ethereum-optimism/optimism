@@ -236,14 +236,14 @@ where
         core::mem::take(&mut self.last_tx_post_exec_result)
     }
 
-    /// Snapshot refund state to carry across subblock executors.
-    pub fn refund_snapshot(&self) -> R::Snapshot {
-        self.inner.0.inspector.refund_snapshot()
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    pub fn refund_checkpoint(&self) -> R::Checkpoint {
+        self.inner.0.inspector.refund_checkpoint()
     }
 
-    /// Seed refund state captured from a prior subblock.
-    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
-        self.inner.0.inspector.seed_refund_snapshot(state);
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    pub fn revert_refund_checkpoint(&mut self, checkpoint: R::Checkpoint) {
+        self.inner.0.inspector.revert_refund_checkpoint(checkpoint);
     }
 }
 
@@ -252,7 +252,7 @@ where
     Self: Evm,
     R: post_exec::PostExecRefundInspector,
 {
-    type Snapshot = R::Snapshot;
+    type Checkpoint = R::Checkpoint;
 
     fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         Self::begin_post_exec_tx(self, ctx);
@@ -262,12 +262,12 @@ where
         Self::take_last_post_exec_tx_result(self)
     }
 
-    fn refund_snapshot(&self) -> Self::Snapshot {
-        Self::refund_snapshot(self)
+    fn refund_checkpoint(&self) -> Self::Checkpoint {
+        Self::refund_checkpoint(self)
     }
 
-    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
-        Self::seed_refund_snapshot(self, state);
+    fn revert_refund_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+        Self::revert_refund_checkpoint(self, checkpoint);
     }
 }
 
@@ -276,7 +276,7 @@ where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
     F: post_exec::PostExecRefundPolicyFactory,
 {
-    type Snapshot = <F::Policy as post_exec::PostExecRefundInspector>::Snapshot;
+    type Checkpoint = <F::Policy as post_exec::PostExecRefundInspector>::Checkpoint;
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
@@ -296,20 +296,20 @@ where
         evm.take_last_post_exec_tx_result()
     }
 
-    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    fn refund_checkpoint<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Checkpoint
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.refund_snapshot()
+        evm.refund_checkpoint()
     }
 
-    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    fn revert_refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>, checkpoint: Self::Checkpoint)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.seed_refund_snapshot(state);
+        evm.revert_refund_checkpoint(checkpoint);
     }
 }
 

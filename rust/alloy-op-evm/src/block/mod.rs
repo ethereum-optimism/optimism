@@ -500,22 +500,6 @@ where
     }
 }
 
-impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
-where
-    E: PostExecEvm,
-    R: OpReceiptBuilder,
-{
-    /// Snapshot refund state to carry across subblock executors.
-    pub fn refund_snapshot(&self) -> E::Snapshot {
-        self.evm.refund_snapshot()
-    }
-
-    /// Seed refund state captured from a prior subblock.
-    pub fn seed_refund_snapshot(&mut self, state: E::Snapshot) {
-        self.evm.seed_refund_snapshot(state);
-    }
-}
-
 /// Custom errors that can occur during OP block execution.
 #[derive(Debug, thiserror::Error)]
 pub enum OpBlockExecutionError {
@@ -908,22 +892,23 @@ where
         // Producer policy state is updated during EVM execution (before the commit decision) and
         // is not journaled with EVM state. A declined candidate must not affect a later committed
         // transaction, or the producer's payload can diverge from commit-only derivation paths.
-        // Snapshot only in Produce mode and restore on decline or execution error.
-        let refund_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
+        // Checkpoint only in Produce mode and revert on decline or execution error. This runs for
+        // every candidate, which is why the policy contract requires an O(1) checkpoint.
+        let refund_checkpoint = self.post_exec.is_producing().then(|| self.evm.refund_checkpoint());
 
         let output = match self.execute_transaction_without_commit(tx) {
             Ok(output) => output,
             Err(err) => {
-                if let Some(snapshot) = refund_snapshot {
-                    self.seed_refund_snapshot(snapshot);
+                if let Some(checkpoint) = refund_checkpoint {
+                    self.evm.revert_refund_checkpoint(checkpoint);
                 }
                 return Err(err);
             }
         };
 
         if !f(&output).should_commit() {
-            if let Some(snapshot) = refund_snapshot {
-                self.seed_refund_snapshot(snapshot);
+            if let Some(checkpoint) = refund_checkpoint {
+                self.evm.revert_refund_checkpoint(checkpoint);
             }
             return Ok(None);
         }
@@ -931,12 +916,13 @@ where
         Ok(Some(self.commit_transaction(output)))
     }
 
-    /// In Produce mode, this method does not snapshot or restore producer-policy state. A failing
+    /// In Produce mode, this method does not checkpoint or revert producer-policy state. A failing
     /// transaction still records its fee-vault touches on the `transact_raw` error path, and a
     /// successfully executed transaction does the same even if its commit is later declined.
-    /// Callers that may discard a candidate must snapshot and restore the policy themselves or use
+    /// Callers that may discard a candidate must checkpoint and revert the policy themselves, via
+    /// [`PostExecEvm::refund_checkpoint`] and [`PostExecEvm::revert_refund_checkpoint`], or use
     /// [`execute_transaction_with_commit_condition`](Self::execute_transaction_with_commit_condition),
-    /// which restores the per-candidate snapshot on execution error and declined commit.
+    /// which reverts to the per-candidate checkpoint on execution error and declined commit.
     fn execute_transaction_without_commit(
         &mut self,
         tx: impl ExecutableTx<Self>,
