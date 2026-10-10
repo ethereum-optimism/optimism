@@ -375,6 +375,11 @@ where
             }
         };
 
+        // A history miss may still be a local pending or preconfirmed transaction.
+        if req.method_name() == "eth_getTransactionByHash" && raw.is_null() {
+            return None;
+        }
+
         let payload = jsonrpsee_types::ResponsePayload::success(raw).into();
         Some(MethodResponse::response(req.id.clone(), payload, usize::MAX))
     }
@@ -544,6 +549,31 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
     };
     use tower::layer::util::Identity;
+
+    /// A history miss must allow the local transaction handler to inspect pending sources.
+    #[tokio::test]
+    async fn transaction_lookup_falls_through_only_on_null() {
+        let hash = B256::from([0x11; 32]);
+        let params = json!([hash]).to_string();
+        for (method, result, fall_through) in [
+            ("eth_getTransactionByHash", serde_json::Value::Null, true),
+            ("eth_getTransactionByHash", json!({"hash": hash}), false),
+            ("eth_getTransactionReceipt", serde_json::Value::Null, false),
+        ] {
+            let asserter = Asserter::new();
+            asserter.push_success(&result);
+            let historical = mocked_historical(asserter);
+            let response = historical.maybe_forward_request(&owned_request(method, &params)).await;
+            if fall_through {
+                assert!(
+                    response.is_none(),
+                    "history null must not hide a local pending transaction"
+                );
+            } else {
+                assert_eq!(result_of(&response.unwrap()), result);
+            }
+        }
+    }
 
     fn method_not_found_payload() -> ErrorPayload {
         ErrorPayload {
