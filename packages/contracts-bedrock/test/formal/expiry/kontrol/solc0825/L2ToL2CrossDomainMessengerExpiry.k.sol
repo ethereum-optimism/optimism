@@ -473,8 +473,8 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
 
     /// @notice Any other selector, followed by 64 symbolic bytes. The other functions take at most
     ///         one 32-byte argument, so their decoders ignore bytes past it; a message shorter than
-    ///         4 bytes, or an unknown selector, reverts (no fallback). They are views, except
-    ///         initialize, which only writes storage (its authorization check makes static calls).
+    ///         4 bytes, or an unknown selector, reverts (no fallback). They are views; initialize
+    ///         has its own proof below.
     /// @custom:kontrol-bytes-length-equals _args: 64,
     function prove_relayMessage_selfTarget_otherSelectors_neverCallsL2CDMOrPasser(
         uint256 _source,
@@ -488,11 +488,37 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         vm.assume(_selector != L2ToL2CrossDomainMessenger.sendMessage.selector);
         vm.assume(_selector != L2ToL2CrossDomainMessenger.relayMessage.selector);
         vm.assume(_selector != L2ToL2CrossDomainMessenger.expireMessage.selector);
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.initialize.selector);
         _symbolicChain();
         _useRecordingL2CDM();
         kevm.symbolicStorage(L2TOL2);
         bytes memory message = abi.encodePacked(_selector, _args);
         _relaySelf(_source, _nonce, _sender, message);
+        assert(_callsFrom(L2CDM, L2TOL2) == 0);
+        assert(_callsFrom(PASSER, L2TOL2) == 0);
+    }
+
+    /// @notice Nested initialize(period), with the messenger's ProxyAdmin (EIP-1967 admin slot) a
+    ///         fresh address other than the messenger: initialize's authorization check makes static
+    ///         calls only (proxyAdmin().owner()), the caller 0x..23 is not the ProxyAdmin, and the
+    ///         rest of initialize writes storage, so no non-static call to 0x..07 or 0x..16 is made.
+    function prove_relayMessage_selfTarget_initialize_neverCallsL2CDMOrPasser(
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        uint256 _period
+    )
+        external
+    {
+        _symbolicChain();
+        _useRecordingL2CDM();
+        kevm.symbolicStorage(L2TOL2);
+        address admin = kevm.freshAddress();
+        vm.assume(admin != address(0) && admin != L2TOL2);
+        vm.assume(admin != address(this) && admin != address(vm) && admin != CONSOLE);
+        vm.assume(uint160(admin) > 0x1ff);
+        vm.store(L2TOL2, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(admin))));
+        _relaySelf(_source, _nonce, _sender, abi.encodeCall(L2ToL2CrossDomainMessenger.initialize, (_period)));
         assert(_callsFrom(L2CDM, L2TOL2) == 0);
         assert(_callsFrom(PASSER, L2TOL2) == 0);
     }
@@ -512,6 +538,7 @@ contract L2ToL2CrossDomainMessengerExpiryKontrol is ExpiryKontrolBaseL2 {
         vm.assume(_selector != L2ToL2CrossDomainMessenger.sendMessage.selector);
         vm.assume(_selector != L2ToL2CrossDomainMessenger.relayMessage.selector);
         vm.assume(_selector != L2ToL2CrossDomainMessenger.expireMessage.selector);
+        vm.assume(_selector != L2ToL2CrossDomainMessenger.initialize.selector);
         _symbolicChain();
         _useRecordingL2CDM();
         kevm.symbolicStorage(L2TOL2);
