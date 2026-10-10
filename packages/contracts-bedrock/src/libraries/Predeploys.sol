@@ -450,7 +450,7 @@ library Predeploys {
         });
         records_[17] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
-            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 757_000),
+            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 1_175_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,
