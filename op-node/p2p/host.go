@@ -37,6 +37,9 @@ import (
 
 const (
 	staticPeerTag = "static"
+	// staticPeerAddrTTL is how long the configured addresses of a static peer are kept in the
+	// peerstore. They are re-added on every dial attempt, so the peer stays dialable after this.
+	staticPeerAddrTTL = time.Hour * 24 * 7
 )
 
 type HostNewStream interface {
@@ -87,7 +90,7 @@ func (e *extraHost) Close() error {
 
 func (e *extraHost) initStaticPeers() {
 	for _, addr := range e.staticPeers {
-		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
+		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, staticPeerAddrTTL)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
 		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
 		e.connMgr.Protect(addr.ID, staticPeerTag)
@@ -104,6 +107,10 @@ func (e *extraHost) initStaticPeers() {
 
 func (e *extraHost) dialStaticPeer(ctx context.Context, addr *peer.AddrInfo) error {
 	e.log.Info("dialing static peer", "peer", addr.ID, "addrs", addr.Addrs)
+	// DialPeer only uses the addresses known to the peerstore. The ones added at startup expire
+	// after staticPeerAddrTTL, and the peer may not advertise a dialable address itself, so
+	// re-add the configured addresses before every dial.
+	e.Peerstore().AddAddrs(addr.ID, addr.Addrs, staticPeerAddrTTL)
 	if _, err := e.Network().DialPeer(ctx, addr.ID); err != nil {
 		return err
 	}
