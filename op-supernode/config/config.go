@@ -14,18 +14,17 @@ import (
 )
 
 type CLIConfig struct {
-	Chains                     []uint64
-	DataDir                    string
-	L1NodeAddr                 string
-	L1HTTPPollInterval         time.Duration
-	L1BeaconAddr               string
-	L1BeaconFallbackAddrs      []string
-	RPCConfig                  oprpc.CLIConfig
-	LogConfig                  logcli.CLIConfig
-	MetricsConfig              opmetrics.CLIConfig
-	PprofConfig                oppprof.CLIConfig
-	RawCtx                     *cli.Context
-	InteropActivationTimestamp *uint64
+	Chains                []uint64
+	DataDir               string
+	L1NodeAddr            string
+	L1HTTPPollInterval    time.Duration
+	L1BeaconAddr          string
+	L1BeaconFallbackAddrs []string
+	RPCConfig             oprpc.CLIConfig
+	LogConfig             logcli.CLIConfig
+	MetricsConfig         opmetrics.CLIConfig
+	PprofConfig           oppprof.CLIConfig
+	RawCtx                *cli.Context
 	// InteropLogBackfillDepth is the duration (e.g. 168h) to extend initiating-message log ingestion
 	// backward from the tip before interop message validation runs. Set to zero to disable.
 	InteropLogBackfillDepth time.Duration
@@ -53,12 +52,6 @@ func (c *CLIConfig) Check() error {
 	if c.InteropLogBackfillDepth < 0 {
 		return errors.New("interop.log-backfill-depth must be >= 0")
 	}
-	// Note: InteropLogBackfillDepth > 0 also requires a resolved interop
-	// activation timestamp, but that can be satisfied either by the CLI
-	// override (InteropActivationTimestamp) or by rollup configs loaded
-	// later during supernode construction. The pairing check runs after
-	// resolution, in supernode.New, so that rollup-derived activation
-	// counts as configured.
 	return nil
 }
 
@@ -77,10 +70,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		RawCtx:                  ctx,
 		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
 		DependencySetPath:       ctx.Path(flags.DependencySet.Name),
-	}
-	if ctx.IsSet("interop.activation-timestamp") {
-		ts := ctx.Uint64("interop.activation-timestamp")
-		cfg.InteropActivationTimestamp = &ts
 	}
 	return cfg
 }

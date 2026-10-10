@@ -109,7 +109,7 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 	// Resolve interop activation before constructing Superroot so the
 	// verified-result reader is available. When interop is not configured,
 	// the no-op reader routes every call into the pre-interop fallback.
-	interopActivationTimestamp, err := resolveInteropActivationTimestamp(cfg.InteropActivationTimestamp, vnCfgs)
+	interopActivationTimestamp, err := resolveInteropActivationTimestamp(vnCfgs)
 	if err != nil {
 		return nil, fmt.Errorf("resolve interop activation timestamp: %w", err)
 	}
@@ -162,9 +162,20 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 	return s, nil
 }
 
-func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
-	if override != nil {
-		return override, nil
+// resolveInteropActivationTimestamp returns the Lagoon activation timestamp shared by every
+// chain's rollup config, or nil when no chain schedules Lagoon. Each chain's Lagoon time is
+// raised to the earliest chain genesis before the chains are compared: a rollup config stores
+// Lagoon-at-genesis as 0, and the interop activity needs the timestamp of the first L2 block
+// that has interop active.
+func resolveInteropActivationTimestamp(vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
+	var earliestGenesis *uint64
+	for _, vnCfg := range vnCfgs {
+		if vnCfg == nil {
+			continue
+		}
+		if genesis := vnCfg.Rollup.Genesis.L2Time; earliestGenesis == nil || genesis < *earliestGenesis {
+			earliestGenesis = &genesis
+		}
 	}
 
 	var resolved *uint64
@@ -187,19 +198,19 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 			continue
 		}
 
+		activation := max(*vnCfg.Rollup.LagoonTime, *earliestGenesis)
 		if missingChain != nil {
-			return nil, fmt.Errorf("chain %s is configured for Lagoon activation timestamp %d, but chain %s has no Lagoon activation timestamp", chainID, *vnCfg.Rollup.LagoonTime, *missingChain)
+			return nil, fmt.Errorf("chain %s is configured for Lagoon activation timestamp %d, but chain %s has no Lagoon activation timestamp", chainID, activation, *missingChain)
 		}
 
 		if resolved == nil {
-			ts := *vnCfg.Rollup.LagoonTime
-			resolved = &ts
+			resolved = &activation
 			resolvedChain = chainID
 			continue
 		}
 
-		if *resolved != *vnCfg.Rollup.LagoonTime {
-			return nil, fmt.Errorf("mismatched Lagoon activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.LagoonTime)
+		if *resolved != activation {
+			return nil, fmt.Errorf("mismatched Lagoon activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, activation)
 		}
 	}
 

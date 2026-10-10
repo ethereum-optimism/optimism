@@ -107,9 +107,8 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	if cfg.SupernodeVerifierSyncMode != nil {
 		verifierSyncMode = *cfg.SupernodeVerifierSyncMode
 	}
-	activationTimestamp := l2Net.rollupCfg.Genesis.L2Time + delaySeconds
 	supernode, supernodeProxy := startSingleChainSharedSupernode(
-		t, l1Net, l1EL, l1CL, l2Net, syncTesterEL, depSetStatic, jwtSecret, &activationTimestamp, false, verifierSyncMode,
+		t, l1Net, l1EL, l1CL, l2Net, syncTesterEL, depSetStatic, jwtSecret, false, verifierSyncMode,
 	)
 	// Peer the VN with the sequencer so unsafe payloads flow via P2P
 	// (the two-L2 supernode runtime does the same for verifier-mode VNs).

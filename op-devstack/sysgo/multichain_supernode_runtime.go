@@ -191,12 +191,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
-	var interopActivationTimestamp *uint64
-	if lagoonAtGenesis {
-		ts := l2Net.rollupCfg.Genesis.L2Time
-		interopActivationTimestamp = &ts
-	}
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 
 	// Use the potentially-overridden depSetStatic if available.
@@ -311,10 +306,8 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	}
 
 	var activationTime uint64
-	var interopActivationTimestamp *uint64
 	if enableInterop {
 		activationTime = l2Nets[0].rollupCfg.Genesis.L2Time + delaySeconds
-		interopActivationTimestamp = &activationTime
 	}
 
 	var depSet *depset.StaticConfigDependencySet
@@ -344,7 +337,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		l2Nets,
 		l2ELs,
 		depSet,
-		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
 		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
@@ -539,7 +531,6 @@ func startSharedSupernode(
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
-	interopActivationTimestamp *uint64,
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 	sequencerEnabled bool,
@@ -610,14 +601,13 @@ func startSharedSupernode(
 	}
 
 	snCfg := &snconfig.CLIConfig{
-		Chains:                     chainIDs,
-		DataDir:                    t.TempDirWithPrefix("supernode"),
-		L1NodeAddr:                 l1EL.UserRPC(),
-		L1HTTPPollInterval:         100 * time.Millisecond,
-		L1BeaconAddr:               l1CL.beaconHTTPAddr,
-		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
-		InteropActivationTimestamp: interopActivationTimestamp,
-		InteropLogBackfillDepth:    interopLogBackfillDepth,
+		Chains:                  chainIDs,
+		DataDir:                 t.TempDirWithPrefix("supernode"),
+		L1NodeAddr:              l1EL.UserRPC(),
+		L1HTTPPollInterval:      100 * time.Millisecond,
+		L1BeaconAddr:            l1CL.beaconHTTPAddr,
+		RPCConfig:               oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+		InteropLogBackfillDepth: interopLogBackfillDepth,
 	}
 	supernode := &SuperNode{
 		p:            t,
@@ -654,7 +644,6 @@ func startSingleChainSharedSupernode(
 	l2EL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
-	interopActivationTimestamp *uint64,
 	sequencerEnabled bool,
 	verifierSyncMode nodeSync.Mode,
 ) (*SuperNode, *SuperNodeProxy) {
@@ -711,13 +700,12 @@ func startSingleChainSharedSupernode(
 	}
 
 	snCfg := &snconfig.CLIConfig{
-		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
-		DataDir:                    t.TempDirWithPrefix("supernode"),
-		L1NodeAddr:                 l1EL.UserRPC(),
-		L1HTTPPollInterval:         100 * time.Millisecond,
-		L1BeaconAddr:               l1CL.beaconHTTPAddr,
-		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
-		InteropActivationTimestamp: interopActivationTimestamp,
+		Chains:             []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
+		DataDir:            t.TempDirWithPrefix("supernode"),
+		L1NodeAddr:         l1EL.UserRPC(),
+		L1HTTPPollInterval: 100 * time.Millisecond,
+		L1BeaconAddr:       l1CL.beaconHTTPAddr,
+		RPCConfig:          oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 	}
 
 	supernode := &SuperNode{

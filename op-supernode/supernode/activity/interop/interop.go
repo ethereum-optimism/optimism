@@ -44,24 +44,16 @@ const (
 	InteropStateHalted           = 3
 )
 
-// InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
-var InteropActivationTimestampFlag = &cli.Uint64Flag{
-	Name:    "interop.activation-timestamp",
-	Usage:   "Override the interop activation timestamp derived from rollup configs",
-	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_ACTIVATION_TIMESTAMP"),
-	Value:   0,
-}
-
 // InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the startup boundary by this duration (clamped to activation).
 var InteropLogBackfillDepthFlag = &cli.DurationFlag{
 	Name:    "interop.log-backfill-depth",
-	Usage:   "Duration to pre-ingest logs behind the tip before interop validation. Never loads logs before interop.activation-timestamp. Set to 0 to disable.",
+	Usage:   "Duration to pre-ingest logs behind the tip before interop validation. Never loads logs before interop activation. Set to 0 to disable.",
 	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_LOG_BACKFILL_DEPTH"),
 	Value:   DefaultLogBackfillDepth,
 }
 
 func init() {
-	flags.RegisterActivityFlags(InteropActivationTimestampFlag, InteropLogBackfillDepthFlag)
+	flags.RegisterActivityFlags(InteropLogBackfillDepthFlag)
 }
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
@@ -426,7 +418,7 @@ func (i *Interop) progress() (time.Duration, error) {
 			i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
 			i.metrics.InteropActivityState.Set(InteropStateHalted)
 			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+				"remediation", "reseed data dir or rederive from L1")
 			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
 		}
 		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()

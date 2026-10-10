@@ -203,34 +203,3 @@ var _ L2CLNode = (*SuperNodeProxy)(nil)
 func (n *SuperNodeProxy) Start()          {}
 func (n *SuperNodeProxy) Stop()           {}
 func (n *SuperNodeProxy) UserRPC() string { return n.userRPC }
-
-// SupernodeConfig holds configuration options for the shared supernode.
-type SupernodeConfig struct {
-	// InteropActivationTimestamp enables the interop activity at the given timestamp.
-	// Set to nil to disable interop (default). Non-nil (including 0) enables interop.
-	InteropActivationTimestamp *uint64
-
-	// UseGenesisInterop, when true, sets InteropActivationTimestamp to the genesis
-	// timestamp of the first configured chain at deploy time. Takes effect inside
-	// withSharedSupernodeCLsImpl after deployment, when the genesis time is known.
-	UseGenesisInterop bool
-}
-
-// SupernodeOption is a functional option for configuring the supernode.
-type SupernodeOption func(*SupernodeConfig)
-
-// WithSupernodeInterop enables the interop activity with the given activation timestamp.
-func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
-	return func(cfg *SupernodeConfig) {
-		ts := activationTimestamp
-		cfg.InteropActivationTimestamp = &ts
-	}
-}
-
-// WithSupernodeInteropAtGenesis enables interop at the genesis timestamp of the first
-// configured chain. The timestamp is resolved after deployment, when genesis is known.
-func WithSupernodeInteropAtGenesis() SupernodeOption {
-	return func(cfg *SupernodeConfig) {
-		cfg.UseGenesisInterop = true
-	}
-}
