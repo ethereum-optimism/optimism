@@ -116,15 +116,23 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 }
 
 func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDerivedEvent) {
-	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
-		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.Source.ID()); err != nil {
-			// At this point our state is in a potentially inconsistent state as we've updated the safe head
-			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
-			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
-			s.Emitter.Emit(ctx, rollup.ResetEvent{
-				Err: fmt.Errorf("safe head notifications failed: %w", err),
-			})
-		}
+	if s.SafeHeadNotifs == nil || !s.SafeHeadNotifs.Enabled() {
+		return
+	}
+	if x.Source == (eth.L1BlockRef{}) {
+		// The head was adopted from an external source (follow-source), not derived from L1.
+		// The safedb records which L1 block made a head safe, so there is nothing truthful to
+		// write. Mirrors the derivedFrom check on the payload-success path.
+		s.Log.Debug("Not recording safe head without an L1 source", "l2", x.Safe.ID())
+		return
+	}
+	if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.Source.ID()); err != nil {
+		// At this point our state is in a potentially inconsistent state as we've updated the safe head
+		// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+		// a little (it always rolls back at least 1 block) and then it will retry storing the entry
+		s.Emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("safe head notifications failed: %w", err),
+		})
 	}
 }
 
