@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 
 mod admin;
 mod building;
+mod conductor_commit_test;
 
 type TestSequencerActor = SequencerActor<
     TestAttributesBuilder,

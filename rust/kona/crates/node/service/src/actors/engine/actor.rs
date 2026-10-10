@@ -1,10 +1,12 @@
-use crate::{BuildRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest};
+use crate::{
+    BuildRequest, CanonicalizeRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest,
+};
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink, InsertTask,
-    SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
+    InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -318,6 +320,18 @@ where
                 self.begin_reset();
                 self.reset_waiters.push(reset_request.result_tx);
             }
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, parent, result_tx } = *request;
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(CanonicalizeTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    parent,
+                    result_tx,
+                    self.unsafe_head_tx.clone(),
+                    Arc::clone(&self.block_sink),
+                ))));
+            }
             EngineActorRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
                 let task = EngineTask::Seal(Box::new(SealTask::new(
@@ -326,7 +340,6 @@ where
                     payload_id,
                     attributes,
                     Some(result_tx),
-                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }
