@@ -359,6 +359,47 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
         Ok(())
     }
 
+    /// Remove a suffix of a logical key's history, starting at its actual last shard.
+    ///
+    /// Walk backwards so that deleting the entire last shard also promotes the
+    /// preceding survivor to the sentinel. Reinsert only after finding the surviving
+    /// boundary: moving the cursor to the sentinel during a forward scan would skip
+    /// shards that still need removal.
+    ///
+    /// Histories written before this fix can lack a sentinel tail: the old forward
+    /// prune deleted the sentinel and left the boundary shard under a finite key.
+    /// Start from the key's actual last shard so its suffix is still removed and the
+    /// survivor is moved back to the sentinel. Stale keys below the unwind boundary
+    /// are left as they are.
+    fn unwind_history_for_key<T>(
+        cursor: &mut (impl DbCursorRO<T> + DbCursorRW<T>),
+        first_removed_block: BlockNumber,
+        last_shard_key: T::Key,
+        same_logical_key: impl Fn(&T::Key) -> bool,
+    ) -> OpProofsStorageResult<()>
+    where
+        T: Table<Value = BlockNumberList>,
+        T::Key: Clone,
+    {
+        let mut entry = cursor.seek(last_shard_key.clone())?;
+        if !entry.as_ref().is_some_and(|(key, _)| same_logical_key(key)) {
+            entry = if entry.is_some() { cursor.prev()? } else { cursor.last()? };
+        }
+        while let Some((key, list)) = entry &&
+            same_logical_key(&key)
+        {
+            cursor.delete_current()?;
+            let remaining: Vec<u64> =
+                list.iter().take_while(|&block| block < first_removed_block).collect();
+            if !remaining.is_empty() {
+                cursor.upsert(last_shard_key, &BlockNumberList::new_pre_sorted(remaining))?;
+                break;
+            }
+            entry = cursor.prev()?;
+        }
+        Ok(())
+    }
+
     /// Prune-specific history removal: for a given logical key, seek its first
     /// history shard and walk forward, removing all block numbers that fall
     /// within `range`.  Requires only **one seek per unique key** (instead
@@ -891,6 +932,7 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
 
     /// Unwind all 4 data types in `range`: restore state, collect affected keys,
     /// delete changesets, then remove the affected block numbers from history bitmaps.
+    /// The range must be a suffix ending at the current proof window's latest block.
     pub(super) fn unwind_changesets_and_history(
         &self,
         range: &std::ops::RangeInclusive<u64>,
@@ -900,7 +942,67 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
         let acct_keys = self.unwind_and_collect_hashed_accounts(range)?;
         let stor_keys = self.unwind_and_collect_hashed_storages(range)?;
 
-        self.prune_all_history(range, &acct_trie_keys, &stor_trie_keys, &acct_keys, &stor_keys)
+        self.unwind_all_history(
+            *range.start(),
+            &acct_trie_keys,
+            &stor_trie_keys,
+            &acct_keys,
+            &stor_keys,
+        )
+    }
+
+    /// Remove a suffix from all four history tables without changing retention pruning.
+    fn unwind_all_history(
+        &self,
+        first_removed_block: BlockNumber,
+        acct_trie_keys: &BTreeSet<StoredNibbles>,
+        stor_trie_keys: &BTreeSet<(B256, StoredNibbles)>,
+        acct_keys: &BTreeSet<B256>,
+        stor_keys: &BTreeSet<(B256, B256)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut cursor = self.tx.cursor_write::<V2AccountsTrieHistory>()?;
+        for nibbles in acct_trie_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                AccountTrieShardedKey::new(nibbles.clone(), u64::MAX),
+                |key| key.key == *nibbles,
+            )?;
+        }
+
+        let mut cursor = self.tx.cursor_write::<V2StoragesTrieHistory>()?;
+        for (address, nibbles) in stor_trie_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                StorageTrieShardedKey::new(*address, nibbles.clone(), u64::MAX),
+                |key| key.hashed_address == *address && key.key == *nibbles,
+            )?;
+        }
+
+        let mut cursor = self.tx.cursor_write::<V2HashedAccountsHistory>()?;
+        for address in acct_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                HashedAccountShardedKey::new(*address, u64::MAX),
+                |key| key.0.key == *address,
+            )?;
+        }
+
+        let mut cursor = self.tx.cursor_write::<V2HashedStoragesHistory>()?;
+        for (address, slot) in stor_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                HashedStorageShardedKey {
+                    hashed_address: *address,
+                    sharded_key: ShardedKey::new(*slot, u64::MAX),
+                },
+                |key| key.hashed_address == *address && key.sharded_key.key == *slot,
+            )?;
+        }
+        Ok(())
     }
 
     /// Prune changesets for all 4 data types in `range`, then remove the
