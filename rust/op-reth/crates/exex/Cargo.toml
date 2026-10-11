@@ -42,6 +42,7 @@ reth-optimism-node.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-primitives-traits.workspace = true
 reth-ethereum-primitives.workspace = true
+reth-evm-ethereum.workspace = true
 reth-exex-test-utils.workspace = true
 tempfile.workspace = true
 

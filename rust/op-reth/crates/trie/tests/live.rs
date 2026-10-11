@@ -8,7 +8,10 @@ use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN
 use reth_db::Database;
 use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::{Block, BlockBody, Receipt, Transaction, TransactionSigned};
-use reth_evm::{ConfigureEvm, execute::Executor};
+use reth_evm::{
+    ConfigureEvm,
+    execute::{BlockExecutionOutput, Executor},
+};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
@@ -19,10 +22,10 @@ use reth_optimism_trie::{
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
-    BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache,
+    BlockWriter as _, CanonChainTracker, ExecutionOutcome, HashedPostStateProvider,
+    LatestStateProviderRef, ProviderFactory, StateRootProvider, StorageSettingsCache,
     providers::{BlockchainProvider, ProviderNodeTypes},
-    test_utils::create_test_provider_factory_with_chain_spec,
+    test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, rand::rng};
@@ -632,14 +635,21 @@ where
     run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
 }
 
-/// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the
-/// parent-state provider. The parent deploys a contract; its child executes the deployed code.
-#[test]
-#[serial]
-fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
-    use reth_db::{tables, transaction::DbTxMut};
-    use reth_provider::StateProviderFactory;
+/// Block 1 deploys a contract and block 2 calls it. The proofs engine has executed block 1 and
+/// reth has committed it; block 2 is built with its correct state root but not executed or
+/// committed.
+struct DeployAndCall {
+    factory: ProviderFactory<MockNodeTypesWithDB>,
+    blockchain: BlockchainProvider<MockNodeTypesWithDB>,
+    storage: OpProofsStorage<Arc<MdbxProofsStorage>>,
+    engine: EngineHandle<Block>,
+    code_hash: B256,
+    parent: RecoveredBlock<Block>,
+    child: RecoveredBlock<Block>,
+    child_output: BlockExecutionOutput<Receipt>,
+}
 
+fn deploy_and_call() -> eyre::Result<DeployAndCall> {
     let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
     let contract = sender.create(0);
@@ -683,8 +693,10 @@ fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
         &mut nonce,
     );
     let output = execute_block(&mut parent, &factory, &chain_spec)?;
+    let code_hash = output.state.account(&contract).unwrap().info.as_ref().unwrap().code_hash;
     engine.execute_block(&parent)?;
     commit_block_to_database(&parent, &output, &factory)?;
+    blockchain.set_canonical_head(parent.clone_sealed_header());
 
     let call = BlockSpec::new(vec![TxSpec {
         to: TxKind::Call(contract),
@@ -695,11 +707,34 @@ fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
     }]);
     let mut child =
         create_block_from_spec(&call, 2, parent.hash(), &chain_spec, key_pair, &mut nonce);
-    let output = execute_block(&mut child, &factory, &chain_spec)?;
+    let child_output = execute_block(&mut child, &factory, &chain_spec)?;
     assert_eq!(
-        output.state.account(&contract).unwrap().storage_slot(U256::ZERO),
+        child_output.state.account(&contract).unwrap().storage_slot(U256::ZERO),
         Some(U256::from(1))
     );
+
+    Ok(DeployAndCall {
+        factory,
+        blockchain,
+        storage,
+        engine,
+        code_hash,
+        parent,
+        child,
+        child_output,
+    })
+}
+
+/// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the
+/// parent-state provider. The parent deploys a contract; its child executes the deployed code.
+#[test]
+#[serial]
+fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
+    use reth_db::{tables, transaction::DbTxMut};
+    use reth_provider::StateProviderFactory;
+
+    let DeployAndCall { factory, blockchain, storage, engine, parent, child, .. } =
+        deploy_and_call()?;
 
     // Model the unavailable-parent failure without deleting the bytecode or proofs state.
     let rw = factory.provider_rw()?;
@@ -713,5 +748,46 @@ fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
     engine.execute_block(&child)?;
     engine.flush();
     assert_eq!(storage.provider_ro()?.get_latest_block()?.number, 2);
+    Ok(())
+}
+
+/// A retryable execution failure leaves the proofs tip in place, and the sync loop retries until
+/// execution succeeds. Missing bytecode stands in for code reth reads from another fork.
+#[test]
+#[serial]
+fn sync_loop_retries_failed_execution() -> eyre::Result<()> {
+    use reth_db::{
+        tables,
+        transaction::{DbTx, DbTxMut},
+    };
+    use std::time::{Duration, Instant};
+
+    let DeployAndCall {
+        factory, blockchain, storage, engine, code_hash, child, child_output, ..
+    } = deploy_and_call()?;
+    commit_block_to_database(&child, &child_output, &factory)?;
+    blockchain.set_canonical_head(child.clone_sealed_header());
+    let rw = factory.provider_rw()?;
+    let code = rw.tx_ref().get::<tables::Bytecodes>(code_hash)?.expect("deployed code");
+    rw.tx_ref().delete::<tables::Bytecodes>(code_hash, None)?;
+    rw.commit()?;
+
+    let err = engine.execute_block(&child).expect_err("missing code should fail execution");
+    assert!(err.is_retryable(), "{err}");
+    engine.sync_to(child.number())?;
+    std::thread::sleep(Duration::from_millis(300));
+    engine.flush();
+    assert_eq!(storage.provider_ro()?.get_latest_block()?.number, 1);
+
+    let rw = factory.provider_rw()?;
+    rw.tx_ref().put::<tables::Bytecodes>(code_hash, code)?;
+    rw.commit()?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    // Keep sending engine actions while waiting: they must not postpone the retry.
+    while storage.provider_ro()?.get_latest_block()?.number < 2 {
+        assert!(Instant::now() < deadline, "sync loop did not retry the failed block");
+        std::thread::sleep(Duration::from_millis(100));
+        engine.flush();
+    }
     Ok(())
 }

@@ -20,7 +20,7 @@ use reth_optimism_trie::{
 use reth_provider::BlockNumReader;
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // Safety threshold for maximum blocks to prune automatically on startup.
 // If the required prune exceeds this, the node will error out and require manual pruning. Default
@@ -315,7 +315,23 @@ where
             } else {
                 // Slow path: execute the block in full (no trie data, or verification interval
                 // hit).
-                engine_handle.execute_block(block)?;
+                match engine_handle.execute_block(block) {
+                    Ok(()) => {}
+                    Err(err) if err.is_retryable() => {
+                        // The sync loop retries with reth's canonical blocks, which also covers
+                        // a reorg away from this notification's chain.
+                        error!(
+                            target: "optimism::exex",
+                            block_number,
+                            block_hash = ?block.hash(),
+                            %err,
+                            "Proofs-history execution failed; retrying in the sync loop",
+                        );
+                        engine_handle.sync_to(new.tip().number())?;
+                        return Ok(());
+                    }
+                    Err(err) => return Err(err.into()),
+                }
             }
         }
 
@@ -931,6 +947,45 @@ mod tests {
             ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(5, 10)) };
         exex.handle_notification(notif, &engine_handle)
             .expect("missing predecessor blocks should schedule catch-up");
+
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
+        assert_eq!(latest, 0);
+    }
+
+    #[tokio::test]
+    async fn handle_notification_survives_retryable_execution_failure() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        // The test context's EVM config is a no-op that cannot execute blocks.
+        let engine_handle = EngineHandle::spawn_with_thresholds(
+            reth_evm_ethereum::EthEvmConfig::mainnet(),
+            ctx.components.provider.clone(),
+            store.clone(),
+            pruner,
+            1,
+            2,
+        );
+        let exex = build_test_exex(ctx, store.clone());
+
+        // Block 1 builds on the proofs tip but its header's state root is not the one execution
+        // produces, so execution fails with a retryable error. The ExEx must keep running. The
+        // test provider has no blocks, so the sync loop's retry is covered by the trie crate's
+        // `sync_loop_retries_failed_execution` instead.
+        let block = mk_block(1);
+        let err = engine_handle.execute_block(&block).expect_err("state root should not match");
+        assert!(err.is_retryable(), "{err}");
+
+        let notif =
+            ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(1, 1)) };
+        exex.handle_notification(notif, &engine_handle)
+            .expect("a retryable execution failure should not stop the ExEx");
 
         engine_handle.flush();
         let latest =

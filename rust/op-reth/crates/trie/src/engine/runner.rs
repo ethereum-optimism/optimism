@@ -43,6 +43,9 @@ where
     backpressure_threshold: u64,
     /// Current retry delay for the sync arm; grows on failure, resets on success.
     sync_backoff: Duration,
+    /// Earliest time the sync arm may run again. A deadline rather than a fresh timer per event,
+    /// so incoming actions cannot postpone a retry indefinitely.
+    next_sync_at: Instant,
 }
 
 impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
@@ -69,6 +72,7 @@ where
             persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
             backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             sync_backoff: Duration::ZERO,
+            next_sync_at: Instant::now(),
         }
     }
 
@@ -171,10 +175,10 @@ where
             if backpressure { crossbeam_channel::never() } else { self.incoming.clone() };
 
         // Fire when there is sync work to do; block indefinitely otherwise. After a failed
-        // sync step we delay by `sync_backoff` so a sustained failure (e.g. a stale sync target
+        // sync step we wait until `next_sync_at` so a sustained failure (e.g. a stale sync target
         // ahead of the provider's tip) doesn't spin the CPU and flood logs.
         let sync_rx: Receiver<Instant> = if self.needs_sync() && !backpressure {
-            crossbeam_channel::after(self.sync_backoff)
+            crossbeam_channel::at(self.next_sync_at)
         } else {
             crossbeam_channel::never()
         };
@@ -189,14 +193,27 @@ where
 
         crossbeam_channel::select! {
             recv(incoming_rx) -> msg => match msg {
-                Ok(action) => action.execute(&mut self.state),
+                Ok(action) => {
+                    let tip = self.state.get_tip().ok();
+                    action.execute(&mut self.state);
+                    // Another path moved the tip, e.g. a reorg replaced the block the sync loop
+                    // kept failing on, so the next sync step need not wait out the backoff.
+                    if self.state.get_tip().ok() != tip {
+                        self.sync_backoff = Duration::ZERO;
+                        self.next_sync_at = Instant::now();
+                    }
+                }
                 Err(_) => return ControlFlow::Break(()),
             },
             recv(persist_rx) -> result => self.state.persistence.on_complete(result, &self.state.memory),
             recv(sync_rx) -> _ => match self.advance_sync() {
-                Ok(()) => self.sync_backoff = Duration::ZERO,
+                Ok(()) => {
+                    self.sync_backoff = Duration::ZERO;
+                    self.next_sync_at = Instant::now();
+                }
                 Err(err) => {
                     self.sync_backoff = next_sync_backoff(self.sync_backoff);
+                    self.next_sync_at = Instant::now() + self.sync_backoff;
                     error!(target: "trie::engine::runner", ?err, backoff = ?self.sync_backoff, "Sync step failed");
                 }
             },

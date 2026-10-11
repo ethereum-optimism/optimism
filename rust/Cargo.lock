@@ -13840,6 +13840,7 @@ dependencies = [
  "futures-util",
  "reth-db",
  "reth-ethereum-primitives",
+ "reth-evm-ethereum",
  "reth-execution-types",
  "reth-exex",
  "reth-exex-test-utils",
