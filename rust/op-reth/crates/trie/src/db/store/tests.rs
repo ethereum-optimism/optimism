@@ -57,6 +57,580 @@ fn sample_node() -> BranchNodeCompact {
     BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::repeat_byte(0xAB)))
 }
 
+// Adapted from omerfirmak's reproduction in ethereum-optimism/optimism#22501:
+// https://github.com/ethereum-optimism/optimism/issues/22501
+// Keep historical-value checks independent of the shard's physical key. A finite key
+// equal to the surviving maximum can also give correct reads; the sentinel-layout
+// check below is a separate structural requirement, not another wrong-value report.
+mod history_shard_unwind_regressions {
+    use super::*;
+    use reth_trie::hashed_cursor::HashedCursor;
+
+    const ADDR: B256 = B256::repeat_byte(0xA1);
+    const TIP: u64 = 2_100;
+    const UNWIND_FROM: u64 = 1_801;
+
+    fn block_hash(number: u64) -> B256 {
+        let mut bytes = [0; 32];
+        bytes[24..].copy_from_slice(&number.to_be_bytes());
+        B256::new(bytes)
+    }
+
+    fn block_ref(number: u64) -> BlockWithParent {
+        make_block_ref(number, block_hash(number), block_hash(number - 1))
+    }
+
+    fn nonce_diff(number: u64) -> BlockStateDiff {
+        let mut post_state = HashedPostState::default();
+        post_state.accounts.insert(ADDR, Some(Account { nonce: number, ..Default::default() }));
+        BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state: post_state.into_sorted(),
+        }
+    }
+
+    fn store_blocks(
+        db: &DatabaseEnv,
+        range: std::ops::RangeInclusive<u64>,
+        diff: impl Fn(u64) -> BlockStateDiff,
+    ) {
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
+        let blocks = range.map(|number| (block_ref(number), diff(number))).collect();
+        provider.store_trie_updates_batch(blocks).expect("store blocks");
+        OpProofsProviderRw::commit(provider).expect("commit blocks");
+    }
+
+    fn setup_empty_history() -> DatabaseEnv {
+        let db = setup_db();
+        {
+            let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
+            provider
+                .store_hashed_accounts(vec![(ADDR, Some(Account::default()))])
+                .expect("initial account");
+            provider.set_initial_state_anchor(BlockNumHash::new(0, block_hash(0))).expect("anchor");
+            provider.commit_initial_state().expect("initial state");
+            OpProofsInitProvider::commit(provider).expect("commit initial state");
+        }
+        db
+    }
+
+    fn setup_history(diff: impl Fn(u64) -> BlockStateDiff) -> DatabaseEnv {
+        let db = setup_empty_history();
+        store_blocks(&db, 1..=TIP, diff);
+        db
+    }
+
+    fn unwind_from(db: &DatabaseEnv, number: u64) {
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
+        provider.unwind_history(block_ref(number)).expect("unwind");
+        OpProofsProviderRw::commit(provider).expect("commit unwind");
+    }
+
+    fn nonces_at(db: &DatabaseEnv, blocks: &[u64]) -> Vec<(u64, u64)> {
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro tx"));
+        blocks
+            .iter()
+            .map(|&number| {
+                let (address, account) = provider
+                    .account_hashed_cursor(number)
+                    .expect("account cursor")
+                    .seek(ADDR)
+                    .expect("seek account")
+                    .expect("account exists");
+                assert_eq!(address, ADDR);
+                (number, account.nonce)
+            })
+            .collect()
+    }
+
+    fn account_shards(db: &DatabaseEnv) -> Vec<(u64, u64)> {
+        let tx = db.tx().expect("ro tx");
+        let mut cursor = tx.cursor_read::<V2HashedAccountsHistory>().expect("history cursor");
+        let mut result = Vec::new();
+        let mut entry = cursor.seek(HashedAccountShardedKey::new(ADDR, 0)).expect("seek history");
+        while let Some((key, list)) = entry {
+            if key.0.key != ADDR {
+                break;
+            }
+            result.push((
+                key.0.highest_block_number,
+                list.iter().next_back().expect("nonempty shard"),
+            ));
+            entry = cursor.next().expect("next shard");
+        }
+        result
+    }
+
+    #[test]
+    fn partial_unwind_then_refill_preserves_historical_nonces() {
+        let db = setup_history(nonce_diff);
+        let blocks = [1_500, 1_799, 1_800, 1_850, 1_900, 1_999, 2_000, TIP];
+        let expected: Vec<_> = blocks.iter().map(|&number| (number, number)).collect();
+        assert_eq!(nonces_at(&db, &blocks), expected, "baseline historical values");
+
+        unwind_from(&db, UNWIND_FROM);
+        store_blocks(&db, UNWIND_FROM..=TIP, nonce_diff);
+
+        // The oracle is the written nonce sequence, not a proposed shard-key fix.
+        assert_eq!(nonces_at(&db, &blocks), expected, "historical values after unwind and refill");
+    }
+
+    #[test]
+    fn partial_unwind_then_refill_restores_sentinel_layout() {
+        let db = setup_history(nonce_diff);
+        unwind_from(&db, UNWIND_FROM);
+        assert_eq!(
+            account_shards(&db),
+            vec![(u64::MAX, UNWIND_FROM - 1)],
+            "the remaining partial shard becomes the last shard"
+        );
+
+        store_blocks(&db, UNWIND_FROM..=TIP, nonce_diff);
+        assert_eq!(
+            account_shards(&db),
+            vec![(2_000, 2_000), (u64::MAX, TIP)],
+            "append fills and rechunks the surviving sentinel"
+        );
+    }
+
+    #[test]
+    fn whole_tail_unwind_keeps_last_shard_sentinel_layout() {
+        let db = setup_history(nonce_diff);
+        assert_eq!(account_shards(&db), vec![(2_000, 2_000), (u64::MAX, TIP)]);
+
+        unwind_from(&db, 2_001);
+
+        // Exact-boundary deletion need not give incorrect reads. Test that separately
+        // before asserting the canonical layout produced by append and prepend.
+        let blocks = [1_799, 1_800, 1_999, 2_000];
+        let expected: Vec<_> = blocks.iter().map(|&number| (number, number)).collect();
+        assert_eq!(nonces_at(&db, &blocks), expected, "exact-boundary historical values");
+        assert_eq!(
+            account_shards(&db),
+            vec![(u64::MAX, 2_000)],
+            "structural normalization only: the surviving last shard uses the sentinel"
+        );
+    }
+
+    #[test]
+    fn lower_end_retention_preserves_historical_nonces() {
+        let db = setup_history(nonce_diff);
+        let blocks = [1_801, 1_850, 1_900, 1_999, 2_000, TIP];
+        let expected: Vec<_> = blocks.iter().map(|&number| (number, number)).collect();
+        assert_eq!(nonces_at(&db, &blocks), expected, "baseline historical values");
+        {
+            let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
+            provider.prune_earliest_state(block_ref(UNWIND_FROM)).expect("prune low end");
+            OpProofsProviderRw::commit(provider).expect("commit retention");
+        }
+
+        assert_eq!(nonces_at(&db, &blocks), expected, "retained historical values");
+        assert_eq!(
+            account_shards(&db),
+            vec![(2_000, 2_000), (u64::MAX, TIP)],
+            "removing low entries does not change a surviving shard's maximum"
+        );
+    }
+
+    #[test]
+    fn partial_unwind_then_refill_preserves_composite_storage_keys() {
+        let keys = [
+            (ADDR, B256::repeat_byte(0x11), 10_000u64),
+            (ADDR, B256::repeat_byte(0x22), 20_000u64),
+            (B256::repeat_byte(0xB1), B256::repeat_byte(0x11), 30_000u64),
+        ];
+        let diff = |number| {
+            let mut post_state = HashedPostState::default();
+            for &(address, slot, offset) in &keys {
+                post_state
+                    .storages
+                    .entry(address)
+                    .or_default()
+                    .storage
+                    .insert(slot, U256::from(offset + number));
+            }
+            BlockStateDiff {
+                sorted_trie_updates: TrieUpdates::default().into_sorted(),
+                sorted_post_state: post_state.into_sorted(),
+            }
+        };
+        let db = setup_history(diff);
+        let blocks = [1_799, 1_800, 1_850, 1_999, 2_000, TIP];
+        let expected: Vec<_> = blocks
+            .iter()
+            .flat_map(|&number| {
+                keys.iter().map(move |&(address, slot, offset)| {
+                    (number, address, slot, U256::from(offset + number))
+                })
+            })
+            .collect();
+        let read_values = || {
+            let provider = MdbxProofsProvider::new(db.tx().expect("ro tx"));
+            let mut values = Vec::new();
+            for number in blocks {
+                for &(address, slot, _) in &keys {
+                    let (actual_slot, value) = provider
+                        .storage_hashed_cursor(address, number)
+                        .expect("storage cursor")
+                        .seek(slot)
+                        .expect("seek storage")
+                        .expect("storage exists");
+                    assert_eq!(actual_slot, slot);
+                    values.push((number, address, slot, value));
+                }
+            }
+            values
+        };
+        assert_eq!(read_values(), expected, "baseline values for distinct address/slot pairs");
+
+        unwind_from(&db, UNWIND_FROM);
+        store_blocks(&db, UNWIND_FROM..=TIP, diff);
+
+        assert_eq!(read_values(), expected, "address/slot-specific values after unwind and refill");
+    }
+
+    fn decoded_rows<T: reth_db::table::Table>(db: &DatabaseEnv) -> Vec<(T::Key, T::Value)> {
+        let tx = db.tx().expect("ro tx");
+        let mut cursor = tx.cursor_read::<T>().expect("snapshot cursor");
+        let mut rows = Vec::new();
+        let mut entry = cursor.first().expect("first snapshot row");
+        while let Some(row) = entry {
+            rows.push(row);
+            entry = cursor.next().expect("next snapshot row");
+        }
+        rows
+    }
+
+    fn history_rows<T>(db: &DatabaseEnv) -> Vec<(T::Key, Vec<u64>)>
+    where
+        T: reth_db::table::Table<Value = BlockNumberList>,
+    {
+        decoded_rows::<T>(db).into_iter().map(|(key, list)| (key, list.iter().collect())).collect()
+    }
+
+    // Compare decoded rows in the 13 tables changed by forward updates and unwind.
+    // Snapshot/backfill metadata is deliberately outside this fixture's contract.
+    fn forward_state_snapshot(db: &DatabaseEnv) -> impl PartialEq + std::fmt::Debug {
+        (
+            (
+                decoded_rows::<V2AccountsTrie>(db),
+                decoded_rows::<V2StoragesTrie>(db),
+                decoded_rows::<V2HashedAccounts>(db),
+                decoded_rows::<V2HashedStorages>(db),
+            ),
+            (
+                decoded_rows::<V2AccountTrieChangeSets>(db),
+                decoded_rows::<V2StorageTrieChangeSets>(db),
+                decoded_rows::<V2HashedAccountChangeSets>(db),
+                decoded_rows::<V2HashedStorageChangeSets>(db),
+            ),
+            (
+                history_rows::<V2AccountsTrieHistory>(db),
+                history_rows::<V2StoragesTrieHistory>(db),
+                history_rows::<V2HashedAccountsHistory>(db),
+                history_rows::<V2HashedStoragesHistory>(db),
+            ),
+            decoded_rows::<V2ProofWindow>(db),
+        )
+    }
+
+    fn all_history_tables_diff(number: u64, seed_length: u64) -> BlockStateDiff {
+        let mut trie_updates = TrieUpdates::default();
+        let mut post_state = HashedPostState::default();
+        // A hot key, two unchanged neighbours (same address / same storage subkey),
+        // and a key that exists only in the suffix being unwound. Distinct account
+        // trie paths also put neighbours on either side of the hot path.
+        let keys = [
+            (ADDR, 0x22, 2, 2, true),
+            (ADDR, 0x11, 1, 1, number == 1 && seed_length > 0),
+            (B256::repeat_byte(0xB1), 0x22, 3, 2, number == 1 && seed_length > 0),
+            (B256::repeat_byte(0xC1), 0x33, 4, 4, number > seed_length),
+        ];
+        for (address, slot_byte, account_nibble, storage_nibble, update) in keys {
+            if !update {
+                continue;
+            }
+            let node = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(block_hash(number)));
+            trie_updates
+                .account_nodes
+                .insert(Nibbles::from_nibbles_unchecked([account_nibble]), node.clone());
+            trie_updates
+                .storage_tries
+                .entry(address)
+                .or_default()
+                .storage_nodes
+                .insert(Nibbles::from_nibbles_unchecked([storage_nibble]), node);
+            post_state
+                .accounts
+                .insert(address, Some(Account { nonce: number, ..Default::default() }));
+            post_state
+                .storages
+                .entry(address)
+                .or_default()
+                .storage
+                .insert(B256::repeat_byte(slot_byte), U256::from(number));
+        }
+        BlockStateDiff {
+            sorted_trie_updates: trie_updates.into_sorted(),
+            sorted_post_state: post_state.into_sorted(),
+        }
+    }
+
+    fn assert_forward_suffix_unwind_roundtrip(seed_length: u64) {
+        let db = setup_empty_history();
+        let diff = |number| all_history_tables_diff(number, seed_length);
+        if seed_length > 0 {
+            store_blocks(&db, 1..=seed_length, diff);
+        }
+        let expected = forward_state_snapshot(&db);
+        // Only successful contiguous appends occur between snapshots: no pruning,
+        // backfill, snapshot updates, or direct table writes. All storage values are
+        // nonzero. This avoids assuming an inverse for arbitrary database layouts.
+        let suffix_end = seed_length + 2 * NUM_OF_INDICES_IN_SHARD as u64 + 1;
+        for round in 0..2 {
+            store_blocks(&db, (seed_length + 1)..=suffix_end, diff);
+            assert!(
+                forward_state_snapshot(&db) != expected,
+                "suffix must change the snapshot (seed={seed_length}, round={round})"
+            );
+            unwind_from(&db, seed_length + 1);
+            assert!(
+                forward_state_snapshot(&db) == expected,
+                "unwind must restore all 13 forward-state tables (seed={seed_length}, round={round})"
+            );
+        }
+    }
+
+    macro_rules! suffix_unwind_roundtrip_test {
+        ($name:ident, $seed:expr) => {
+            #[test]
+            fn $name() {
+                assert_forward_suffix_unwind_roundtrip($seed);
+            }
+        };
+    }
+
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_empty_seed, 0);
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_one_entry, 1);
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_partial_shard, 1_800);
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_before_boundary, 1_999);
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_at_boundary, 2_000);
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_after_boundary, 2_001);
+    suffix_unwind_roundtrip_test!(all_history_tables_roundtrip_two_full_shards, 4_000);
+
+    // Histories written before this fix can lack a sentinel tail: the old forward
+    // prune deleted the sentinel and left the boundary shard under a finite key.
+    // Upgraded databases keep those layouts, so a later unwind must still remove
+    // the key's suffix entries.
+    fn move_account_sentinel_to(db: &DatabaseEnv, legacy_key: u64) {
+        let tx = db.tx_mut().expect("rw tx");
+        {
+            let mut cursor = tx.cursor_write::<V2HashedAccountsHistory>().expect("history cursor");
+            // Pre-fix code already leaves no sentinel here; only rewrite if one exists.
+            if let Some((_, list)) = cursor
+                .seek_exact(HashedAccountShardedKey::new(ADDR, u64::MAX))
+                .expect("seek sentinel")
+            {
+                cursor.delete_current().expect("delete sentinel");
+                cursor
+                    .upsert(HashedAccountShardedKey::new(ADDR, legacy_key), &list)
+                    .expect("write legacy key");
+            }
+        }
+        tx.commit().expect("commit legacy layout");
+    }
+
+    fn nonce_at(db: &DatabaseEnv, number: u64) -> Option<u64> {
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro tx"));
+        provider
+            .account_hashed_cursor(number)
+            .expect("account cursor")
+            .seek(ADDR)
+            .expect("seek account")
+            .filter(|(address, _)| *address == ADDR)
+            .map(|(_, account)| account.nonce)
+    }
+
+    fn assert_unwind_normalizes_legacy_tail(
+        first_unwind: u64,
+        legacy_key: u64,
+        second_unwind: u64,
+    ) {
+        let db = setup_history(nonce_diff);
+        unwind_from(&db, first_unwind);
+        move_account_sentinel_to(&db, legacy_key);
+        assert_eq!(account_shards(&db), vec![(legacy_key, first_unwind - 1)], "legacy layout");
+
+        unwind_from(&db, second_unwind);
+        assert_eq!(
+            account_shards(&db),
+            vec![(u64::MAX, second_unwind - 1)],
+            "suffix removed and legacy tail normalized"
+        );
+    }
+
+    #[test]
+    fn unwind_normalizes_legacy_whole_tail_without_sentinel() {
+        // Pre-fix result of `unwind_from(2_001)`: [(2_000, 2_000)], correct key, no sentinel.
+        assert_unwind_normalizes_legacy_tail(2_001, 2_000, 1_995);
+    }
+
+    #[test]
+    fn unwind_normalizes_legacy_stale_boundary_without_sentinel() {
+        // Pre-fix result of `unwind_from(1_801)`: [(2_000, 1_800)], stale key, no sentinel.
+        assert_unwind_normalizes_legacy_tail(1_801, 2_000, 1_500);
+    }
+
+    // The account changes in every block up to 1_990, in 1_995..=2_004, and at 2_050 and
+    // 2_100. The first 2_000 entries therefore end at 2_004: one full shard keyed 2_004,
+    // and a sentinel holding 2_050 and 2_100.
+    fn sparse_nonce_diff(number: u64) -> BlockStateDiff {
+        let touched = number <= 1_990 ||
+            (1_995..=2_004).contains(&number) ||
+            number == 2_050 ||
+            number == TIP;
+        let mut post_state = HashedPostState::default();
+        if touched {
+            post_state.accounts.insert(ADDR, Some(Account { nonce: number, ..Default::default() }));
+        }
+        BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state: post_state.into_sorted(),
+        }
+    }
+
+    #[test]
+    fn unwind_over_legacy_tail_keeps_sparse_history_correct() {
+        let db = setup_history(sparse_nonce_diff);
+        assert_eq!(account_shards(&db), vec![(2_004, 2_004), (u64::MAX, TIP)]);
+
+        // Unwinding from 2_005 deletes the whole sentinel. Pre-fix code leaves the full
+        // shard under its finite key with no sentinel; reproduce that if this code did not.
+        unwind_from(&db, 2_005);
+        move_account_sentinel_to(&db, 2_004);
+        assert_eq!(account_shards(&db), vec![(2_004, 2_004)], "legacy layout");
+
+        // Unwind into that shard. Blocks 1_991..=1_994 leave the account unchanged, so
+        // below the new tip its value is the one written at 1_990.
+        unwind_from(&db, 1_995);
+        assert_eq!(nonce_at(&db, 1_992), Some(1_990), "value in the gap below the new tip");
+        assert_eq!(nonce_at(&db, 1_994), Some(1_990), "value at the new tip");
+    }
+
+    fn storage_history_key(slot: B256, highest_block_number: u64) -> HashedStorageShardedKey {
+        HashedStorageShardedKey {
+            hashed_address: ADDR,
+            sharded_key: ShardedKey::new(slot, highest_block_number),
+        }
+    }
+
+    // These cursor-boundary fixtures seed history rows directly. A synthetic
+    // changeset selects exactly one storage key through the existing internal
+    // entry point; they are not block-execution or public-RPC regressions.
+    fn unwind_seeded_storage_history(db: &DatabaseEnv, slot: B256, first_removed_block: u64) {
+        let tx = db.tx_mut().expect("rw tx");
+        tx.put::<V2HashedStorageChangeSets>(
+            BlockNumberHashedAddress((first_removed_block, ADDR)),
+            reth_primitives_traits::StorageEntry { key: slot, value: U256::ZERO },
+        )
+        .expect("seed affected storage key");
+        let provider = MdbxProofsProvider::new(tx);
+        provider
+            .unwind_changesets_and_history(&(first_removed_block..=10))
+            .expect("unwind seeded storage history");
+        OpProofsProviderRw::commit(provider).expect("commit seeded unwind");
+    }
+
+    #[test]
+    fn legacy_storage_tail_unwind_preserves_adjacent_slots() {
+        let db = setup_db();
+        let lower = B256::repeat_byte(0x11);
+        let target = B256::repeat_byte(0x22);
+        let upper = B256::repeat_byte(0x33);
+        let neighbours = vec![
+            (storage_history_key(lower, u64::MAX), vec![2, 8]),
+            (storage_history_key(upper, u64::MAX), vec![3, 9]),
+        ];
+        {
+            let tx = db.tx_mut().expect("rw tx");
+            for (key, blocks) in &neighbours {
+                tx.put::<V2HashedStoragesHistory>(
+                    key.clone(),
+                    BlockNumberList::new_pre_sorted(blocks.clone()),
+                )
+                .expect("seed neighbour");
+            }
+            tx.put::<V2HashedStoragesHistory>(
+                storage_history_key(target, 10),
+                BlockNumberList::new_pre_sorted(vec![1, 4, 7, 10]),
+            )
+            .expect("seed finite tail");
+            tx.commit().expect("commit history fixture");
+        }
+        {
+            let tx = db.tx().expect("ro tx");
+            let mut cursor = tx.cursor_read::<V2HashedStoragesHistory>().expect("history cursor");
+            let (key, _) = cursor
+                .seek(storage_history_key(target, u64::MAX))
+                .expect("seek missing sentinel")
+                .expect("successor exists");
+            assert_eq!(key, neighbours[1].0, "lookup starts on the upper slot, not at table end");
+        }
+
+        unwind_seeded_storage_history(&db, target, 6);
+        assert_eq!(
+            history_rows::<V2HashedStoragesHistory>(&db),
+            vec![
+                neighbours[0].clone(),
+                (storage_history_key(target, u64::MAX), vec![1, 4]),
+                neighbours[1].clone(),
+            ],
+            "partial removal normalizes only the target slot"
+        );
+
+        unwind_seeded_storage_history(&db, target, 1);
+        assert_eq!(
+            history_rows::<V2HashedStoragesHistory>(&db),
+            neighbours,
+            "complete removal must stop before the lower slot"
+        );
+    }
+
+    #[test]
+    fn missing_storage_history_unwind_preserves_other_keys() {
+        let db = setup_db();
+        unwind_seeded_storage_history(&db, B256::repeat_byte(0x30), 1);
+        assert!(history_rows::<V2HashedStoragesHistory>(&db).is_empty(), "empty table stays empty");
+
+        let expected = vec![
+            (storage_history_key(B256::repeat_byte(0x20), u64::MAX), vec![1, 2]),
+            (storage_history_key(B256::repeat_byte(0x40), u64::MAX), vec![1, 3]),
+        ];
+        {
+            let tx = db.tx_mut().expect("rw tx");
+            for (key, blocks) in &expected {
+                tx.put::<V2HashedStoragesHistory>(
+                    key.clone(),
+                    BlockNumberList::new_pre_sorted(blocks.clone()),
+                )
+                .expect("seed neighbouring keys");
+            }
+            tx.commit().expect("commit neighbouring keys");
+        }
+
+        // Absent targets before, between, and after existing logical keys exercise
+        // the cursor edges without granting permission to edit a neighbouring slot.
+        for slot_byte in [0x10, 0x30, 0x50] {
+            unwind_seeded_storage_history(&db, B256::repeat_byte(slot_byte), 1);
+            assert_eq!(
+                history_rows::<V2HashedStoragesHistory>(&db),
+                expected,
+                "missing slot {slot_byte:#x} must not change another key"
+            );
+        }
+    }
+}
+
 // ========================== Init provider tests ==========================
 
 #[test]
