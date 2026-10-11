@@ -129,6 +129,7 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 // TestUnrelayedMessageExpiresAndIsRefunded runs the expiry path to a refund: A sends ETH that B
 // never relays; once B is past the expiry period, B's exporter, forced in as a deposit, tells A
 // through L1; A marks the message expired, and anyone can then return the ETH to the sender, once.
+// op-interop-mon, watching both chains, verifies the expiry and the refund and finds no violation.
 // The system deploys the messenger with a short expiry period so it can pass within the test.
 func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	t := devtest.ParallelT(gt)
@@ -136,6 +137,7 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 		presets.WithMessageExpiryWindow(testMessageExpiryWindow),
 		presets.WithL2ToL2MessageExpiryPeriod(testExpiryPeriod))
 	require := t.Require()
+	monitorMetrics := startInteropMonitor(t, sys)
 	l1User := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	messengerA := sys.L2ELA.L2ToL2CrossDomainMessenger()
 	require.Equal(uint64(testExpiryPeriod), bigs.Uint64Strict(contract.Read(messengerA.ExpiryPeriod())),
@@ -167,6 +169,8 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	_, err := contractio.Read(send.RefundCall(), t.Ctx())
 	require.ErrorContains(errutil.TryAddRevertReason(err),
 		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_AlreadyRefunded()")), "a send must be refunded only once")
+
+	verifyMonitorPassedChecks(t, monitorMetrics, sys)
 }
 
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
