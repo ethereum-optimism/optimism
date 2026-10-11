@@ -662,8 +662,8 @@ func TestSuperAgreementEnricher_RollupFallback(t *testing.T) {
 
 	setup := func(t *testing.T) (*SuperAgreementEnricher, *stubSuperRootRollupClient, *stubOutputMetrics) {
 		client := &stubSuperRootRollupClient{
-			currentL1:  201,
-			outputRoot: outputRoot,
+			currentL1:   201,
+			outputRoot:  outputRoot,
 			safeHeadNum: targetBlock,
 			config: &rollup.Config{
 				Genesis: rollup.Genesis{
@@ -687,7 +687,7 @@ func TestSuperAgreementEnricher_RollupFallback(t *testing.T) {
 
 	newGame := func(claim common.Hash) *types.CommonGameData {
 		return &types.CommonGameData{
-			GameMetadata: challengerTypes.GameMetadata{GameType: uint32(challengerTypes.SuperPermissionedGameType)},
+			GameMetadata:       challengerTypes.GameMetadata{GameType: uint32(challengerTypes.SuperPermissionedGameType)},
 			L1HeadNum:          200,
 			L2SequenceNumber:   timestamp,
 			RootClaim:          claim,
@@ -785,19 +785,19 @@ func TestSuperAgreementEnricher_RollupFallback(t *testing.T) {
 }
 
 type stubSuperRootRollupClient struct {
-	config                *rollup.Config
-	configErr             error
-	outputRoot            common.Hash
-	outputErr             error
-	safeHeadNum           uint64
-	safeHeadErr           error
-	currentL1             uint64
-	syncStatusErr         error
-	configCalls           int
-	outputCalls           int
-	safeHeadCalls         int
-	requestedOutputBlock  uint64
-	requestedSafeHeadL1   uint64
+	config               *rollup.Config
+	configErr            error
+	outputRoot           common.Hash
+	outputErr            error
+	safeHeadNum          uint64
+	safeHeadErr          error
+	currentL1            uint64
+	syncStatusErr        error
+	configCalls          int
+	outputCalls          int
+	safeHeadCalls        int
+	requestedOutputBlock uint64
+	requestedSafeHeadL1  uint64
 }
 
 func (s *stubSuperRootRollupClient) SyncStatus(_ context.Context) (*eth.SyncStatus, error) {
