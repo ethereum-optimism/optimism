@@ -37,7 +37,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:5e85ad9
+/// UPSTREAM-MIRROR(copy): reth@rev:03b699f
 /// `reth_ethereum_payload_builder::validator::ensure_well_formed_payload`
 ///
 /// Copies upstream's ordered payload checks with OP payload fields and fork activation.
