@@ -8,7 +8,7 @@ use super::{
     tasks::{ExecuteBlockTask, IndexBlockTask, ReorgTask, SyncToTask, UnwindTask},
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Sender, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
@@ -17,6 +17,7 @@ use reth_provider::{
 };
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{panic, sync::Arc, thread};
+use tokio::sync::watch;
 use tracing::error;
 
 /// A thin, cloneable handle used to communicate with the collector engine.
@@ -26,6 +27,7 @@ use tracing::error;
 #[derive(Debug, Clone)]
 pub struct EngineHandle<Block: reth_primitives_traits::Block> {
     sender: Sender<EngineAction<Block>>,
+    persisted_tip: watch::Receiver<Option<NumHash>>,
     _service_guard: Arc<ServiceGuard>,
 }
 
@@ -77,7 +79,8 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
         Store: OpProofsStore + Clone + 'static,
     {
         let (tx, rx) = bounded(10);
-        let engine = Engine::new(evm_config, provider, storage, pruner, rx)
+        let (persisted_tip_tx, persisted_tip) = watch::channel(None);
+        let engine = Engine::new(evm_config, provider, storage, pruner, rx, persisted_tip_tx)
             .with_persistence_threshold(persistence_threshold)
             .with_backpressure_threshold(backpressure_threshold);
 
@@ -95,7 +98,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             })
             .expect("failed to spawn live-trie-collector thread");
 
-        Self { sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
+        Self { sender: tx, persisted_tip, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
     }
 
     fn send_and_recv(
@@ -145,6 +148,13 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     /// Unwind indexed data back to `to` (first block number removed, inclusive).
     pub fn unwind(&self, to: BlockWithParent) -> Result<(), EngineError> {
         self.send_and_recv(|reply| EngineAction::Unwind(UnwindTask { to, reply }))
+    }
+
+    /// Subscribes to the highest block whose proofs data is persisted.
+    ///
+    /// Buffered blocks are not included, so a published block survives a restart.
+    pub fn subscribe_persisted_tip(&self) -> watch::Receiver<Option<NumHash>> {
+        self.persisted_tip.clone()
     }
 
     /// Update the sync catch-up target (fire-and-forget).

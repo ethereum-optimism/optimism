@@ -4,7 +4,8 @@ use super::{
     DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
     IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
 };
-use crate::{OpProofStoragePruner, OpProofsStore};
+use crate::{OpProofStoragePruner, OpProofsProviderRO, OpProofsStore};
+use alloy_eips::NumHash;
 use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
@@ -16,7 +17,8 @@ use std::{
     ops::ControlFlow,
     time::{Duration, Instant},
 };
-use tracing::{debug, error};
+use tokio::sync::watch;
+use tracing::{debug, error, info};
 
 /// First retry delay after a sync step fails. Successful steps reset the delay to zero.
 const SYNC_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
@@ -46,6 +48,10 @@ where
     /// Earliest time the sync arm may run again. A deadline rather than a fresh timer per event,
     /// so incoming actions cannot postpone a retry indefinitely.
     next_sync_at: Instant,
+    /// Publishes the highest block whose proofs data is persisted.
+    persisted_tip: watch::Sender<Option<NumHash>>,
+    /// Whether the last persisted-tip read failed, so a failure is logged once, not per event.
+    persisted_tip_read_failed: bool,
 }
 
 impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
@@ -65,6 +71,7 @@ where
         storage: Store,
         pruner: OpProofStoragePruner<Store, Provider>,
         incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
+        persisted_tip: watch::Sender<Option<NumHash>>,
     ) -> Self {
         Self {
             state: State::new(evm_config, provider, storage, pruner),
@@ -73,6 +80,8 @@ where
             backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             sync_backoff: Duration::ZERO,
             next_sync_at: Instant::now(),
+            persisted_tip,
+            persisted_tip_read_failed: false,
         }
     }
 
@@ -84,6 +93,31 @@ where
     pub(super) const fn with_backpressure_threshold(mut self, threshold: u64) -> Self {
         self.backpressure_threshold = threshold;
         self
+    }
+
+    /// Publishes the persisted tip if it changed.
+    ///
+    /// Only persisted blocks are published: buffered blocks are lost on a crash and must then be
+    /// re-executed from reth, so reth must not prune them yet.
+    fn publish_persisted_tip(&mut self) {
+        let tip = match self.state.storage.provider_ro().and_then(|p| p.get_latest_block()) {
+            Ok(tip) => tip,
+            Err(err) => {
+                if !self.persisted_tip_read_failed {
+                    error!(target: "trie::engine::runner", ?err, "Failed to read persisted tip");
+                }
+                self.persisted_tip_read_failed = true;
+                return;
+            }
+        };
+        if std::mem::take(&mut self.persisted_tip_read_failed) {
+            info!(target: "trie::engine::runner", "Persisted tip readable again");
+        }
+        self.persisted_tip.send_if_modified(|published| {
+            let changed = *published != Some(tip);
+            *published = Some(tip);
+            changed
+        });
     }
 
     /// Returns `true` if the engine is behind its sync target.
@@ -233,6 +267,7 @@ where
             self.persistence_threshold,
         );
         debug!(target: "trie::engine::runner", "Collector engine started");
+        self.publish_persisted_tip();
 
         loop {
             match self.process_next_event() {
@@ -240,6 +275,7 @@ where
                 ControlFlow::Continue(()) => {}
             }
             self.maybe_start_save();
+            self.publish_persisted_tip();
         }
 
         debug!(target: "trie::engine::runner", "Collector engine shutting down, draining in-flight persist");

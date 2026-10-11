@@ -215,10 +215,25 @@ where
             pruner,
         );
 
+        let mut persisted_tip = engine_handle.subscribe_persisted_tip();
         engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;
 
-        while let Some(notification) = self.ctx.notifications.try_next().await? {
-            self.handle_notification(notification, &engine_handle)?;
+        loop {
+            tokio::select! {
+                changed = persisted_tip.changed() => {
+                    changed.map_err(|_| eyre::eyre!("proofs-history engine stopped"))?;
+                    // Acknowledge only persisted heights: reth may prune blocks below the
+                    // finished height, and buffered blocks must be re-executed after a crash.
+                    let tip = *persisted_tip.borrow_and_update();
+                    if let Some(tip) = tip {
+                        self.ctx.events.send(ExExEvent::FinishedHeight(tip))?;
+                    }
+                }
+                notification = self.ctx.notifications.try_next() => {
+                    let Some(notification) = notification? else { break };
+                    self.handle_notification(notification, &engine_handle)?;
+                }
+            }
         }
 
         Ok(())
@@ -269,10 +284,6 @@ where
             ExExNotification::ChainReverted { old } => {
                 self.handle_chain_reverted(old.clone(), engine_handle)?
             }
-        }
-
-        if let Some(committed_chain) = notification.committed_chain() {
-            self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().num_hash()))?;
         }
 
         Ok(())
@@ -1065,6 +1076,44 @@ mod tests {
         let latest =
             store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
         assert_eq!(latest, 0);
+    }
+
+    #[tokio::test]
+    async fn run_acknowledges_only_persisted_heights() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, mut handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let run = tokio::spawn(build_test_exex(ctx, store).run());
+
+        // Blocks 1..=3 stay below the engine's default persistence threshold of five, so they are
+        // only buffered; blocks 4..=5 reach it. Acknowledging buffered blocks would report 3 first.
+        handle
+            .send_notification_chain_committed(mk_chain_with_updates(1, 3, None))
+            .await
+            .expect("send notification");
+        handle
+            .send_notification_chain_committed(mk_chain_with_updates(4, 5, None))
+            .await
+            .expect("send notification");
+
+        let finished = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let ExExEvent::FinishedHeight(height) =
+                    handle.events_rx.recv().await.expect("ExEx event channel closed");
+                if height.number >= 1 {
+                    return height;
+                }
+            }
+        })
+        .await
+        .expect("persisted blocks should be acknowledged");
+        assert_eq!(finished, NumHash::new(5, hash_for_num(5)));
+
+        run.abort();
+        let _ = run.await;
     }
 
     #[tokio::test]
