@@ -781,13 +781,15 @@ where
 ///
 /// UPSTREAM-MIRROR(set): reth@rev:a280002 `reth_rpc_api::DebugApi`
 ///
-/// Upstream installs these methods as part of the full `eth` and `debug` APIs.
+/// UPSTREAM-MIRROR(set): reth@rev:a280002 `reth_rpc_api::EngineEthApi`
+///
+/// Upstream installs these methods as part of the full `eth` and `debug` APIs, and the auth-port
+/// `eth` namespace.
 /// `eth_getMultiProof` has no OP users and a proofs-history node could not answer it consistently
 /// from its pruned state window. The block access list methods are explicitly disabled because OP
 /// execution data does not carry EIP-7928 BALs and reconstruction has not been tested against
 /// OP-specific state transitions. Do not expose them until that behavior is tested; re-check this
-/// list whenever upstream changes the `EthApi` or `DebugApi` method set, and keep it in step with
-/// [`ensure_no_computed_bals`].
+/// list whenever upstream changes the `EthApi`, `DebugApi` or `EngineEthApi` method set.
 const UNSERVED_RPC_METHODS: &[&str] = &[
     "eth_getMultiProof",
     "eth_getBlockAccessListByBlockHash",
@@ -805,7 +807,13 @@ const UNSERVED_RPC_METHODS: &[&str] = &[
 /// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
 /// tracing positions its replay state from computed BALs cached with
 /// `--rpc-cache.cache-computed-bals`. Both rely on the BAL reconstruction that
-/// [`UNSERVED_RPC_METHODS`] withholds, so an OP node refuses to start with either.
+/// [`UNSERVED_RPC_METHODS`] withholds, so an OP node refuses to start with either. The other
+/// block access list options only tune BAL handling that OP blocks never trigger.
+///
+/// op-reth's CLI already rejects every block access list option (`DENIED_ARGS` in
+/// `reth-optimism-cli`), and these two have no environment variable, so this check only fires for
+/// code that builds a `NodeConfig` without that CLI. Add new upstream BAL flags to `DENIED_ARGS`,
+/// and here too if they re-execute blocks or feed tracing.
 fn ensure_no_computed_bals(cache: &RpcStateCacheArgs) -> eyre::Result<()> {
     eyre::ensure!(
         cache.prewarm_bals.is_none(),
