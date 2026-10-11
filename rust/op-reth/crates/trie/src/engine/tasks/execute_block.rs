@@ -7,8 +7,8 @@ use crossbeam_channel::Sender;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_primitives_traits::{AlloyBlockHeader, BlockBody, NodePrimitives, RecoveredBlock};
 use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider, StateReader,
-    StateRootProvider,
+    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
+    HashedPostStateProvider, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie_common::EMPTY_ROOT_HASH;
@@ -25,7 +25,7 @@ impl<Block: reth_primitives_traits::Block> ExecuteBlockTask<Block> {
     where
         Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>>,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
             + DatabaseProviderFactory
             + BlockReader<Block = Block>
             + Clone
@@ -45,7 +45,7 @@ where
     Block: reth_primitives_traits::Block,
     Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>>,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
         + DatabaseProviderFactory
         + BlockReader<Block = Block>
         + Clone
@@ -99,8 +99,10 @@ where
     let block_ref =
         BlockWithParent::new(block.parent_hash(), NumHash::new(block.number(), block.hash()));
 
-    let auxiliary =
-        super::reth_auxiliary::RethAuxiliaryProvider::new(&state.provider, parent_block_number);
+    let auxiliary = super::reth_auxiliary::RethAuxiliaryProvider::new(
+        &state.provider,
+        NumHash::new(parent_block_number, block.parent_hash()),
+    );
     let inner_provider = OpProofsStateProviderRef::with_auxiliary(
         Box::new(auxiliary),
         state.storage.provider_ro()?,

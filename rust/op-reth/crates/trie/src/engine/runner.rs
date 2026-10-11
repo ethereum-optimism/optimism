@@ -9,7 +9,8 @@ use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
 use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, StateReader, TransactionVariant,
+    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
+    TransactionVariant,
 };
 use std::{
     ops::ControlFlow,
@@ -34,7 +35,7 @@ fn next_sync_backoff(current: Duration) -> Duration {
 pub(super) struct Engine<Evm, Provider, Store>
 where
     Evm: ConfigureEvm,
-    Provider: StateReader + DatabaseProviderFactory + BlockReader,
+    Provider: CanonicalInMemoryStateProvider + DatabaseProviderFactory + BlockReader,
 {
     state: State<Evm, Provider, Store>,
     incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
@@ -48,7 +49,7 @@ impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
 where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
         + DatabaseProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone

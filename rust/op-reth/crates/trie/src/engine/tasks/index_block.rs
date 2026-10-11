@@ -4,7 +4,9 @@ use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StateReader};
+use reth_provider::{
+    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
+};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::time::Instant;
 use tracing::{debug, info};
@@ -21,7 +23,7 @@ impl IndexBlockTask {
     where
         Evm: ConfigureEvm,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
             + DatabaseProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone
@@ -42,7 +44,7 @@ fn run<Evm, Provider, Store>(
 where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
         + DatabaseProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone

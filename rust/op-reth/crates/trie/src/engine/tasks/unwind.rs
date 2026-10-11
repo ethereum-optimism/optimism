@@ -4,7 +4,9 @@ use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StateReader};
+use reth_provider::{
+    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
+};
 use tracing::{debug, info};
 
 pub(crate) struct UnwindTask {
@@ -17,7 +19,7 @@ impl UnwindTask {
     where
         Evm: ConfigureEvm,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
             + DatabaseProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone
@@ -35,7 +37,7 @@ fn run<Evm, Provider, Store>(
 where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
         + DatabaseProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone

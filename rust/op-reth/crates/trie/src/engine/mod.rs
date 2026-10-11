@@ -65,7 +65,7 @@ impl<Block: reth_primitives_traits::Block> EngineAction<Block> {
                 Primitives: reth_primitives_traits::NodePrimitives<Block = Block>,
             >,
         Provider: reth_provider::BlockHashReader
-            + reth_provider::StateReader
+            + reth_provider::CanonicalInMemoryStateProvider
             + reth_provider::DatabaseProviderFactory
             + reth_provider::BlockReader<Block = Block>
             + Clone

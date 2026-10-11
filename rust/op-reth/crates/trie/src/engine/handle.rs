@@ -12,7 +12,9 @@ use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::{Sender, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StateReader};
+use reth_provider::{
+    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
+};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{panic, sync::Arc, thread};
 use tracing::error;
@@ -38,7 +40,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     where
         Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>> + 'static,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
             + DatabaseProviderFactory
             + BlockReader<Block = Block>
             + Clone
@@ -67,7 +69,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     where
         Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>> + 'static,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
             + DatabaseProviderFactory
             + BlockReader<Block = Block>
             + Clone
