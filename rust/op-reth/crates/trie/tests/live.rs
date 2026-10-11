@@ -2,7 +2,7 @@
 
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
 use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, B256, TxKind, U256, keccak256};
+use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
 use derive_more::Constructor;
 use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
 use reth_db::Database;
@@ -12,7 +12,8 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofStoragePruner, OpProofsStorage, OpProofsStore, RethTrieStorageLayout,
+    MdbxProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStorage, OpProofsStore,
+    RethTrieStorageLayout,
     engine::{EngineError, EngineHandle},
     initialize::InitializationJob,
 };
@@ -53,8 +54,12 @@ fn sign_tx_with_key_pair(key_pair: Keypair, tx: Transaction) -> TransactionSigne
 /// Specification for a transaction within a block
 #[derive(Debug, Clone)]
 struct TxSpec {
-    /// Recipient address for the transaction
-    to: Address,
+    /// Call recipient or contract creation.
+    to: TxKind,
+    /// Transaction input, including initcode for deployments.
+    data: Bytes,
+    /// Maximum execution gas.
+    gas_limit: u64,
     /// Value to transfer (in wei)
     value: U256,
     /// Nonce for the transaction (will be automatically assigned if None)
@@ -64,7 +69,13 @@ struct TxSpec {
 impl TxSpec {
     /// Create a simple transfer transaction
     const fn transfer(to: Address, value: U256) -> Self {
-        Self { to, value, nonce: None }
+        Self {
+            to: TxKind::Call(to),
+            data: Bytes::new(),
+            gas_limit: MIN_TRANSACTION_GAS,
+            value,
+            nonce: None,
+        }
     }
 }
 
@@ -126,9 +137,10 @@ fn create_block_from_spec(
                 TxEip2930 {
                     chain_id: chain_spec.chain.id(),
                     nonce,
-                    gas_limit: MIN_TRANSACTION_GAS,
+                    gas_limit: tx_spec.gas_limit,
+                    input: tx_spec.data.clone(),
                     gas_price: 1_500_000_000,
-                    to: TxKind::Call(tx_spec.to),
+                    to: tx_spec.to,
                     value: tx_spec.value,
                     ..Default::default()
                 }
@@ -137,7 +149,7 @@ fn create_block_from_spec(
         })
         .collect();
 
-    let gas_total = transactions.len() as u64 * MIN_TRANSACTION_GAS;
+    let gas_total = spec.txs.iter().map(|tx| tx.gas_limit).sum::<u64>();
 
     Block {
         header: Header {
@@ -618,4 +630,88 @@ where
     );
 
     run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
+}
+
+/// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the
+/// parent-state provider. The parent deploys a contract; its child executes the deployed code.
+#[test]
+#[serial]
+fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
+    use reth_db::{tables, transaction::DbTxMut};
+    use reth_provider::StateProviderFactory;
+
+    let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
+    let sender = public_key_to_address(key_pair.public_key());
+    let contract = sender.create(0);
+    let chain_spec = chain_spec_with_address(sender);
+    let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&factory)?;
+    let storage: OpProofsStorage<_> = create_mdbx_proofs_storage().into();
+    {
+        let tx = factory.db_ref().tx()?;
+        InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Legacy)
+            .run(0, chain_spec.genesis_hash())?;
+    }
+    let blockchain = BlockchainProvider::new(factory.clone())?;
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain.clone(), 1000);
+    let engine = EngineHandle::spawn_with_thresholds(
+        EthEvmConfig::ethereum(chain_spec.clone()),
+        blockchain.clone(),
+        storage.clone(),
+        pruner,
+        1,
+        2,
+    );
+    let mut nonce = 0;
+    // Initcode returns runtime code that writes 1 to storage slot 0.
+    let deployment = BlockSpec::new(vec![TxSpec {
+        to: TxKind::Create,
+        data: Bytes::from_static(&[
+            0x60, 0x06, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, 0x06, 0x60, 0x00, 0xf3, 0x60, 0x01,
+            0x60, 0x00, 0x55, 0x00,
+        ]),
+        gas_limit: 100_000,
+        value: U256::ZERO,
+        nonce: None,
+    }]);
+    let mut parent = create_block_from_spec(
+        &deployment,
+        1,
+        chain_spec.genesis_hash(),
+        &chain_spec,
+        key_pair,
+        &mut nonce,
+    );
+    let output = execute_block(&mut parent, &factory, &chain_spec)?;
+    engine.execute_block(&parent)?;
+    commit_block_to_database(&parent, &output, &factory)?;
+
+    let call = BlockSpec::new(vec![TxSpec {
+        to: TxKind::Call(contract),
+        data: Bytes::new(),
+        gas_limit: 100_000,
+        value: U256::ZERO,
+        nonce: None,
+    }]);
+    let mut child =
+        create_block_from_spec(&call, 2, parent.hash(), &chain_spec, key_pair, &mut nonce);
+    let output = execute_block(&mut child, &factory, &chain_spec)?;
+    assert_eq!(
+        output.state.account(&contract).unwrap().storage_slot(U256::ZERO),
+        Some(U256::from(1))
+    );
+
+    // Model the unavailable-parent failure without deleting the bytecode or proofs state.
+    let rw = factory.provider_rw()?;
+    rw.tx_ref().delete::<tables::HeaderNumbers>(parent.hash(), None)?;
+    rw.commit()?;
+    assert!(matches!(
+        blockchain.state_by_block_hash(parent.hash()),
+        Err(reth_provider::ProviderError::StateForHashNotFound(_))
+    ));
+
+    engine.execute_block(&child)?;
+    engine.flush();
+    assert_eq!(storage.provider_ro()?.get_latest_block()?.number, 2);
+    Ok(())
 }

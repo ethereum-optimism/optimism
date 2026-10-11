@@ -9,7 +9,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_consensus::BlockHeader;
-use alloy_eips::{NumHash, eip1898::BlockWithParent};
+use alloy_eips::eip1898::BlockWithParent;
 use futures_util::TryStreamExt;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
@@ -17,8 +17,7 @@ use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, engine::EngineHandle,
 };
-use reth_provider::{BlockNumReader, StageCheckpointReader};
-use reth_stages_types::StageId;
+use reth_provider::BlockNumReader;
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -299,18 +298,6 @@ where
             return Ok(());
         }
 
-        if let Some(parent) = self.execution_parent_above_durable_trie(&new)? {
-            debug!(
-                target: "optimism::exex",
-                parent_number = parent.number,
-                parent_hash = ?parent.hash,
-                target_block = new.tip().number(),
-                "Deferring proofs-history execution until parent state is available",
-            );
-            engine_handle.sync_to(new.tip().number())?;
-            return Ok(());
-        }
-
         // `Chain::blocks()` is a BTreeMap so iteration is already ordered oldest → newest.
         for (&block_number, block) in new.blocks() {
             // Fast path: use pre-computed trie data only when verification is not due.
@@ -333,41 +320,6 @@ where
         }
 
         Ok(())
-    }
-
-    /// Returns the highest parent required for block execution if it is above reth's durable state
-    /// trie frontier.
-    ///
-    /// During pipeline sync, state above this frontier may depend on the canonical in-memory chain,
-    /// which the pipeline can prune concurrently.
-    fn execution_parent_above_durable_trie(
-        &self,
-        chain: &Chain<Primitives>,
-    ) -> eyre::Result<Option<NumHash>> {
-        // Checking the highest execution parent is sufficient because the durable trie frontier is
-        // monotonic by block number.
-        let Some(parent) = chain.blocks().iter().rev().find_map(|(&block_number, block)| {
-            let should_verify = self.verification_interval > 0 &&
-                block_number.is_multiple_of(self.verification_interval);
-            (should_verify || chain.trie_data_at(block_number).is_none())
-                .then_some(NumHash::new(block_number.saturating_sub(1), block.parent_hash()))
-        }) else {
-            return Ok(None);
-        };
-
-        let durable_trie_tip = self
-            .ctx
-            .provider()
-            .get_stage_checkpoint(StageId::Finish)?
-            .map(|checkpoint| {
-                checkpoint
-                    .finish_stage_checkpoint()
-                    .and_then(|finish| finish.partial_state_trie())
-                    .unwrap_or(checkpoint.block_number)
-            })
-            .unwrap_or_default();
-
-        Ok((parent.number > durable_trie_tip).then_some(parent))
     }
 
     fn handle_chain_reorged(
@@ -954,7 +906,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_notification_defers_execution_while_merkle_stage_is_behind() {
+    async fn handle_notification_schedules_execution_on_gap_without_trie_data() {
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         init_storage(store.clone());
@@ -972,13 +924,13 @@ mod tests {
         );
         let exex = build_test_exex(ctx, store.clone());
 
-        // Without pre-computed trie data this notification needs EVM execution. The test provider
-        // has no state for its parent and no completed Merkle checkpoint, so execution must be
-        // handed to the retrying sync loop rather than failing the ExEx.
+        // Without pre-computed trie data this notification needs EVM execution. The proofs DB
+        // is still at genesis, so blocks 1..4 must be indexed before executing this range. The
+        // engine schedules catch-up; the empty test provider has no blocks to replay.
         let notif =
             ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(5, 10)) };
         exex.handle_notification(notif, &engine_handle)
-            .expect("unavailable parent state should defer execution");
+            .expect("missing predecessor blocks should schedule catch-up");
 
         engine_handle.flush();
         let latest =

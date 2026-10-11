@@ -13,9 +13,7 @@ use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, StateProviderFactory, StateReader,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StateReader};
 use std::time::Duration;
 #[cfg(feature = "metrics")]
 use std::time::Instant;
@@ -152,7 +150,7 @@ impl PersistenceState {
 pub(crate) struct EngineState<Evm, Provider, Store>
 where
     Evm: ConfigureEvm,
-    Provider: StateReader + DatabaseProviderFactory + StateProviderFactory + BlockReader,
+    Provider: StateReader + DatabaseProviderFactory + BlockReader,
 {
     /// The highest block number the engine should sync to between processing actions.
     pub(crate) sync_target: u64,
@@ -174,7 +172,6 @@ where
     Provider: BlockHashReader
         + StateReader
         + DatabaseProviderFactory
-        + StateProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone
         + 'static,

@@ -13850,7 +13850,6 @@ dependencies = [
  "reth-optimism-trie",
  "reth-primitives-traits",
  "reth-provider",
- "reth-stages-types",
  "reth-trie",
  "tempfile",
  "tokio",
