@@ -676,7 +676,7 @@ func TestSuperAgreementEnricher_RollupFallback(t *testing.T) {
 		}
 		metrics := &stubOutputMetrics{}
 		enricher := NewSuperAgreementEnricherWithRollupFallback(
-			testlog.Logger(t, log.LvlInfo),
+			testlog.Logger(t, log.LevelInfo),
 			metrics,
 			nil,
 			[]SuperRootRollupClient{client},
@@ -769,7 +769,7 @@ func TestSuperAgreementEnricher_RollupFallback(t *testing.T) {
 		_, rollupClient, metrics := setup(t)
 		superClient := &stubSuperRootProvider{derivedFromL1BlockNum: 200, superRoot: rootClaim}
 		enricher := NewSuperAgreementEnricherWithRollupFallback(
-			testlog.Logger(t, log.LvlInfo),
+			testlog.Logger(t, log.LevelInfo),
 			metrics,
 			[]SuperRootProvider{superClient},
 			[]SuperRootRollupClient{rollupClient},
