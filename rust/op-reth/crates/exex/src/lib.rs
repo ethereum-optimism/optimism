@@ -955,18 +955,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_notification_survives_retryable_execution_failure() {
+    async fn handle_notification_hands_failed_execution_to_sync_loop() {
+        use alloy_consensus::Header;
+        use reth_optimism_trie::engine::EngineError;
+        use reth_primitives_traits::SealedBlock;
+        use reth_provider::{BlockWriter, CanonChainTracker};
+        use std::time::{Duration, Instant};
+
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         init_storage(store.clone());
 
-        let (ctx, _handle) =
+        let (ctx, handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let provider = ctx.components.provider.clone();
+        let pruner = OpProofStoragePruner::new(store.clone(), provider.clone(), 20);
         // The test context's EVM config is a no-op that cannot execute blocks.
         let engine_handle = EngineHandle::spawn_with_thresholds(
             reth_evm_ethereum::EthEvmConfig::mainnet(),
-            ctx.components.provider.clone(),
+            provider.clone(),
             store.clone(),
             pruner,
             1,
@@ -974,23 +981,45 @@ mod tests {
         );
         let exex = build_test_exex(ctx, store.clone());
 
-        // Block 1 builds on the proofs tip but its header's state root is not the one execution
-        // produces, so execution fails with a retryable error. The ExEx must keep running. The
-        // test provider has no blocks, so the sync loop's retry is covered by the trie crate's
-        // `sync_loop_retries_failed_execution` instead.
-        let block = mk_block(1);
-        let err = engine_handle.execute_block(&block).expect_err("state root should not match");
-        assert!(err.is_retryable(), "{err}");
+        // The notification's block 1 builds on the proofs tip, but its header's state root is not
+        // the one execution produces, so execution fails with a retryable error.
+        let err = engine_handle.execute_block(&mk_block(1)).expect_err("state root should differ");
+        let EngineError::StateRootMismatch { current_state_hash, .. } = err else {
+            panic!("expected a state root mismatch, got {err}");
+        };
+
+        // reth's canonical block 1 has the state root execution produces, standing in for the
+        // block that replaced the notification's block in a reorg.
+        let header = Header {
+            number: 1,
+            parent_hash: hash_for_num(0),
+            state_root: current_state_hash,
+            ..Default::default()
+        };
+        let canonical = SealedBlock::seal_slow(Block { header, body: Default::default() })
+            .try_recover()
+            .expect("empty block");
+        let rw = handle.provider_factory.provider_rw().expect("provider rw");
+        rw.insert_block(&canonical).expect("insert block");
+        rw.commit().expect("commit");
+        provider.set_canonical_head(canonical.clone_sealed_header());
 
         let notif =
             ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(1, 1)) };
         exex.handle_notification(notif, &engine_handle)
             .expect("a retryable execution failure should not stop the ExEx");
 
-        engine_handle.flush();
-        let latest =
-            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
-        assert_eq!(latest, 0);
+        // Only the sync loop can index reth's block 1: the ExEx stopped at the failed block.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let latest = store.provider_ro().expect("provider ro").get_latest_block().expect("get");
+            if latest.number == 1 {
+                assert_eq!(latest.hash, canonical.hash());
+                break;
+            }
+            assert!(Instant::now() < deadline, "sync loop did not index reth's block 1");
+            std::thread::sleep(Duration::from_millis(100));
+        }
     }
 
     #[tokio::test]
