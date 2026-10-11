@@ -99,6 +99,7 @@ strum.workspace = true
 alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+reth-optimism-evm = { workspace = true, features = ["rpc"] }
 rstest.workspace = true
 
 [features]
