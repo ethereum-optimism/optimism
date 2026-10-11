@@ -131,15 +131,28 @@ pub enum OpProofsStorageError {
     /// single block and cannot seed the proofs storage.
     #[error(
         "reth database state is not durable at its tip #{db_tip}: hashed state and trie tables \
-         are only persisted through #{partial_state_trie}. This happens after an unclean \
-         shutdown or when the datadir was copied from a running node. Start `op-reth node` on \
-         this datadir so it repairs its state, stop it cleanly, then re-run initialization."
+         are only persisted through #{partial_state_trie}. This happens while a node is running \
+         on this datadir, after an unclean shutdown, or when the datadir was copied from a \
+         running node. Stop any node running on this datadir, start `op-reth node` on it so it \
+         repairs its state, stop it cleanly, then re-run initialization."
     )]
     InitializeSourceStateTrieLagging {
         /// Block number of reth's Finish checkpoint.
         db_tip: u64,
         /// Highest block whose hashed state and trie are durable in reth's database.
         partial_state_trie: u64,
+    },
+    /// reth's database tip moved past the initialization anchor before the copy, so the copied
+    /// tables would not describe the anchored block.
+    #[error(
+        "reth database tip moved from #{anchor} to #{db_tip} during initialization. Stop any \
+         node running on this datadir, then re-run initialization."
+    )]
+    InitializeSourceTipMoved {
+        /// Block number read as the chain tip when initialization started.
+        anchor: u64,
+        /// Block number of reth's Finish checkpoint in the copy transaction.
+        db_tip: u64,
     },
     /// reth's repair unwind of a lagging hashed-state/trie frontier was interrupted, so those
     /// tables are half-unwound.

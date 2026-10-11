@@ -443,7 +443,14 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
     /// block. An interrupted repair leaves Finish at the unwind target but the hashed-state and
     /// trie tables half-unwound; reth records that with a metadata marker until the unwind
     /// completes.
-    fn ensure_source_state_trie_durable(&self) -> Result<(), OpProofsStorageError> {
+    ///
+    /// The caller reads `best_number` in an earlier transaction, so a node still running on the
+    /// datadir can persist past it before the copy. Refuse when this transaction's Finish
+    /// checkpoint no longer matches, so the anchor and the copied tables describe the same block.
+    fn ensure_source_state_trie_durable(
+        &self,
+        best_number: u64,
+    ) -> Result<(), OpProofsStorageError> {
         if self
             .tx
             .get::<tables::Metadata>(PARTIAL_STATE_TRIE_UNWIND_METADATA_KEY.to_string())?
@@ -455,6 +462,12 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         else {
             return Ok(());
         };
+        if finish.block_number != best_number {
+            return Err(OpProofsStorageError::InitializeSourceTipMoved {
+                anchor: best_number,
+                db_tip: finish.block_number,
+            });
+        }
         match finish.finish_stage_checkpoint().and_then(|finish| finish.partial_state_trie()) {
             Some(partial_state_trie) if partial_state_trie < finish.block_number => {
                 Err(OpProofsStorageError::InitializeSourceStateTrieLagging {
@@ -474,12 +487,12 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         match anchor.status {
             InitialStateStatus::Completed => return Ok(()),
             InitialStateStatus::NotStarted => {
-                self.ensure_source_state_trie_durable()?;
+                self.ensure_source_state_trie_durable(best_number)?;
                 provider.set_initial_state_anchor(BlockNumHash::new(best_number, best_hash))?;
                 provider.commit()?;
             }
             InitialStateStatus::InProgress => {
-                self.ensure_source_state_trie_durable()?;
+                self.ensure_source_state_trie_durable(best_number)?;
                 self.validate_anchor_block(&anchor, best_number, best_hash)?;
                 drop(provider); // Release the RW transaction before initialize_trie opens a new one
             }
@@ -1767,6 +1780,30 @@ mod tests {
                 }
                 Err(err) => panic!("unexpected error: {err:?}"),
             }
+            assert!(matches!(
+                storage.provider_ro().unwrap().get_earliest_block(),
+                Err(OpProofsStorageError::NoBlocksFound)
+            ));
+        }
+
+        /// The anchor comes from an earlier read than the copy, so a node still running on the
+        /// datadir can persist past it in between. Initialization must refuse instead of
+        /// anchoring the earlier block over tables from a later one.
+        #[test]
+        fn run_refuses_tip_moved_since_anchor() {
+            let (factory, _, _) = build_chain_with_partial_state_trie(6, 6);
+            let hash = reth_provider::BlockHashReader::block_hash(&factory, 5).unwrap().unwrap();
+            let storage = create_storage();
+            let tx = factory.db_ref().tx().unwrap();
+            let result = InitializationJob::new(storage.clone(), tx, layout(&factory)).run(5, hash);
+
+            assert!(
+                matches!(
+                    result,
+                    Err(OpProofsStorageError::InitializeSourceTipMoved { anchor: 5, db_tip: 6 })
+                ),
+                "unexpected result: {result:?}"
+            );
             assert!(matches!(
                 storage.provider_ro().unwrap().get_earliest_block(),
                 Err(OpProofsStorageError::NoBlocksFound)
