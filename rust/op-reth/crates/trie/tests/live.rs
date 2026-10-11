@@ -656,7 +656,7 @@ fn deploy_and_call() -> eyre::Result<DeployAndCall> {
     let chain_spec = chain_spec_with_address(sender);
     let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
     init_genesis(&factory)?;
-    let storage: OpProofsStorage<_> = create_mdbx_proofs_storage().into();
+    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = create_mdbx_proofs_storage().into();
     {
         let tx = factory.db_ref().tx()?;
         InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Legacy)

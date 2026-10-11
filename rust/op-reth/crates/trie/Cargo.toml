@@ -84,6 +84,7 @@ serial_test.workspace = true
 
 [features]
 test-utils = [
+	"reth-chain-state/test-utils",
 	"reth-codecs/test-utils",
 	"reth-db/test-utils",
 	"reth-ethereum-primitives?/test-utils",
