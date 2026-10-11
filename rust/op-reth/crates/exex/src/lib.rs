@@ -317,6 +317,13 @@ where
                 // hit).
                 match engine_handle.execute_block(block) {
                     Ok(()) => {}
+                    // Verification checks re-execution against reth's own result, so a failure
+                    // is a correctness problem to surface rather than a reorg to wait out.
+                    Err(err) if should_verify && err.is_retryable() => {
+                        return Err(eyre::Report::new(err).wrap_err(format!(
+                            "proofs-history verification failed at block {block_number}"
+                        )));
+                    }
                     Err(err) if err.is_retryable() => {
                         // The sync loop retries with reth's canonical blocks, which also covers
                         // a reorg away from this notification's chain.
@@ -1020,6 +1027,44 @@ mod tests {
             assert!(Instant::now() < deadline, "sync loop did not index reth's block 1");
             std::thread::sleep(Duration::from_millis(100));
         }
+    }
+
+    #[tokio::test]
+    async fn handle_notification_halts_on_failed_verification() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        // The test context's EVM config is a no-op that cannot execute blocks.
+        let engine_handle = EngineHandle::spawn_with_thresholds(
+            reth_evm_ethereum::EthEvmConfig::mainnet(),
+            ctx.components.provider.clone(),
+            store.clone(),
+            pruner,
+            1,
+            2,
+        );
+        let exex = OpProofsExEx::builder(ctx, store.clone())
+            .with_proofs_history_window(20)
+            .with_verification_interval(1)
+            .build();
+
+        // Block 1 has trie data, but the interval makes it a verification block, so it is
+        // re-executed; its header's state root is not the one execution produces.
+        let notif =
+            ExExNotification::ChainCommitted { new: Arc::new(mk_chain_with_updates(1, 1, None)) };
+        let err = exex
+            .handle_notification(notif, &engine_handle)
+            .expect_err("a failed verification should stop the ExEx");
+        assert!(err.to_string().contains("verification failed at block 1"), "{err:#}");
+
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
+        assert_eq!(latest, 0);
     }
 
     #[tokio::test]
