@@ -30,6 +30,42 @@ makes the cross-chain safety decision), Light CL follower nodes, and `op-interop
 layer, holds the failsafe and answers `interop_checkAccessList`). The monitor optionally cross-checks
 the interop-filter and supernode read-only (see flags) but never depends on them to function.
 
+## Message expiry and ETH refund checks
+
+A source chain can learn that its message was never relayed: the destination's
+`UndeliveredMessageExporter` sends that fact through L1, the source's `L2ToL2CrossDomainMessenger`
+marks the message expired, and the `SuperchainETHBridge` can then refund an expired ETH send. The
+monitor checks the two safety rules of this path from logs and storage, never from the success of a
+contract call: a destination never relays a message its source marked expired, and every ETH burn
+is matched by at most one mint.
+
+The finders hand every `MessageExpired` and `RefundETH` event to the `ExpiryChecker`, which checks
+it once its block is at or below `--expiry-check-head` (`finalized` by default, or `safe`), refunds
+first:
+
+- **Expiry** (`MessageExpired(messageHash, undeliveredAt)` on the source): the source recorded a
+  send time for the message; a `SentMessage` in the block at that time rebuilds to the hash;
+  `undeliveredAt` is past the send time plus `expiryPeriod`; the destination emitted no
+  `RelayedMessage` for it within the expiry window and does not have it in `successfulMessages`;
+  and the destination emitted `UndeliveredMessageExported` for it, naming the source, in its block
+  at `undeliveredAt`.
+- **Refund** (`RefundETH(from, amount, messageHash)`): the message is marked expired; it is a
+  `SuperchainETHBridge` send calling `relayETH` with the same sender and amount; its transaction
+  emitted the matching `SendETH` and an `ETHLiquidity` burn of the amount; and it was refunded once.
+- **Conservation**, every 12 seconds, reading every chain at one L2 timestamp: each `ETHLiquidity`
+  burn and mint is paired with a `SendETH`, `RelayETH` or `RefundETH` of the amount in the same
+  transaction; each chain's `ETHLiquidity` balance, less its balance at the baseline block
+  (`--eth-liquidity-baseline-blocks`, default genesis) and less `LiquidityFunded` top-ups, never
+  falls behind its bridge events; and the cluster's ETH in flight is never negative.
+
+A relay after an expiry is past the expiry window, so the executing-message check above already
+marks it `expired`.
+
+The checks read historical state, so the L2 RPCs must serve state back to the baseline block.
+
+Metrics: `expiry_checks_total{chain_id,check,result}`, `expiry_violations_total{chain_id,check,reason}`
+(alert on any increase), `expiry_last_verified_block{chain_id}`, and `eth_in_flight` with the L2 timestamp it was read at, `eth_in_flight_timestamp`.
+
 ## Optional cross-checks
 
 These observers are read-only and never gate the monitor's own verdict; they only emit additional

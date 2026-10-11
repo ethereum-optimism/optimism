@@ -23,6 +23,10 @@ type Metricer interface {
 	RecordSupernodeUp(endpoint string, up bool)
 	RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64)
 	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string)
+	RecordExpiryCheck(chainID string, check string, valid bool)
+	RecordExpiryViolation(chainID string, check string, reason string)
+	RecordExpiryLastVerifiedBlock(chainID string, blockNumber uint64)
+	RecordETHInFlight(ether float64, timestamp uint64)
 
 	opmetrics.RefMetricer
 }
@@ -50,6 +54,13 @@ type Metrics struct {
 	supernodeUp           prometheus.GaugeVec
 	supernodeSafeHead     prometheus.GaugeVec
 	crossSafetyViolations prometheus.CounterVec
+
+	// Message expiry and ETH bridge refund checks
+	expiryChecks            prometheus.CounterVec
+	expiryViolations        prometheus.CounterVec
+	expiryLastVerifiedBlock prometheus.GaugeVec
+	ethInFlight             prometheus.Gauge
+	ethInFlightTimestamp    prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -161,6 +172,41 @@ func NewMetrics(procName string) *Metrics {
 			"executing_chain_id",
 			"initiating_chain_id",
 		}),
+		expiryChecks: *factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "expiry_checks_total",
+			Help:      "Count of finished message expiry, ETH refund and ETH conservation checks, by result (valid or violation)",
+		}, []string{
+			"chain_id",
+			"check",
+			"result",
+		}),
+		expiryViolations: *factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "expiry_violations_total",
+			Help:      "Count of broken message expiry safety rules found, by check and reason",
+		}, []string{
+			"chain_id",
+			"check",
+			"reason",
+		}),
+		expiryLastVerifiedBlock: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "expiry_last_verified_block",
+			Help:      "Highest block up to which every MessageExpired and RefundETH event the monitor saw has been checked",
+		}, []string{
+			"chain_id",
+		}),
+		ethInFlight: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "eth_in_flight",
+			Help:      "ETH sent through the SuperchainETHBridge and not yet relayed or refunded, summed over the cluster from its SendETH, RelayETH and RefundETH events; negative means a mint without a burn",
+		}),
+		ethInFlightTimestamp: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "eth_in_flight_timestamp",
+			Help:      "L2 timestamp every chain was read at for eth_in_flight",
+		}),
 	}
 }
 
@@ -254,4 +300,29 @@ func (m *Metrics) RecordSupernodeSafeHead(chainID string, level string, blockNum
 // RecordCrossSafetyViolation increments when a bad executing message is observed at/below the supernode cross-safe head.
 func (m *Metrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string) {
 	m.crossSafetyViolations.WithLabelValues(executingChainID, initiatingChainID).Inc()
+}
+
+// RecordExpiryCheck counts a finished expiry, refund or conservation check.
+func (m *Metrics) RecordExpiryCheck(chainID string, check string, valid bool) {
+	result := "valid"
+	if !valid {
+		result = "violation"
+	}
+	m.expiryChecks.WithLabelValues(chainID, check, result).Inc()
+}
+
+// RecordExpiryViolation counts a broken message expiry safety rule.
+func (m *Metrics) RecordExpiryViolation(chainID string, check string, reason string) {
+	m.expiryViolations.WithLabelValues(chainID, check, reason).Inc()
+}
+
+// RecordExpiryLastVerifiedBlock records the highest block up to which every expiry and refund event was checked.
+func (m *Metrics) RecordExpiryLastVerifiedBlock(chainID string, blockNumber uint64) {
+	m.expiryLastVerifiedBlock.WithLabelValues(chainID).Set(float64(blockNumber))
+}
+
+// RecordETHInFlight records the cluster's ETH sent and not yet relayed or refunded, at an L2 timestamp.
+func (m *Metrics) RecordETHInFlight(ether float64, timestamp uint64) {
+	m.ethInFlight.Set(ether)
+	m.ethInFlightTimestamp.Set(float64(timestamp))
 }

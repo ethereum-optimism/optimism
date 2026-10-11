@@ -26,3 +26,7 @@ func (*noopMetrics) RecordSupernodeUp(endpoint string, up bool)                 
 func (*noopMetrics) RecordSupernodeSafeHead(chainID string, level string, bn uint64) {}
 func (*noopMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string) {
 }
+func (*noopMetrics) RecordExpiryCheck(chainID string, check string, valid bool)        {}
+func (*noopMetrics) RecordExpiryViolation(chainID string, check string, reason string) {}
+func (*noopMetrics) RecordExpiryLastVerifiedBlock(chainID string, blockNumber uint64)  {}
+func (*noopMetrics) RecordETHInFlight(ether float64, timestamp uint64)                 {}

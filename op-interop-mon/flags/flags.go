@@ -51,6 +51,21 @@ var (
 		Value:    "cross-unsafe",
 	}
 
+	LiquidityBaselineBlocksFlag = &cli.StringSliceFlag{
+		Name:     "eth-liquidity-baseline-blocks",
+		Usage:    "Per-chain block, as <chain-id>=<block>, to measure ETHLiquidity balances from in the ETH conservation check, such as the chain's interop activation block. Defaults to genesis. Needs state at that block",
+		EnvVars:  prefixEnvVars("ETH_LIQUIDITY_BASELINE_BLOCKS"),
+		Required: false,
+	}
+
+	ExpiryCheckHeadFlag = &cli.StringFlag{
+		Name:     "expiry-check-head",
+		Usage:    "Head the message expiry, ETH refund and ETH conservation checks read up to: finalized, or safe (cross-safe). Reading ahead of finality lets a reorg cause a false violation",
+		EnvVars:  prefixEnvVars("EXPIRY_CHECK_HEAD"),
+		Required: false,
+		Value:    "finalized",
+	}
+
 	SupernodeEndpointsFlag = &cli.StringSliceFlag{
 		Name:     "supernode-endpoints",
 		Usage:    "Optional op-supernode CL RPC endpoints to observe liveness, per-chain safe/finalized heads, and cross-safety violations (read-only)",
@@ -68,6 +83,8 @@ var optionalFlags = []cli.Flag{
 	InteropFilterEndpointFlag,
 	InteropFilterMinSafetyFlag,
 	SupernodeEndpointsFlag,
+	LiquidityBaselineBlocksFlag,
+	ExpiryCheckHeadFlag,
 }
 
 func init() {

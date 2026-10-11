@@ -37,6 +37,7 @@ type InteropMonitorService struct {
 	finders   map[eth.ChainID]Finder
 	updaters  map[eth.ChainID]Updater
 	collector *MetricCollector
+	expiry    *ExpiryChecker
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	// messageExpiryWindow (seconds) is sourced from the dependency set and passed to updaters.
@@ -134,6 +135,11 @@ func (ms *InteropMonitorService) initFromClients(
 	ms.updaters = make(map[eth.ChainID]Updater)
 	if err := ms.initUpdaters(clients); err != nil {
 		return fmt.Errorf("failed to init updaters: %w", err)
+	}
+
+	// Initialize the expiry checker, which the finders hand expiry and refund events to
+	if err := ms.initExpiryChecker(cfg, clients); err != nil {
+		return fmt.Errorf("failed to init expiry checker: %w", err)
 	}
 
 	// Initialize all finders
@@ -237,10 +243,29 @@ func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.E
 	return nil
 }
 
+// initExpiryChecker initializes the checker of message expiries, ETH bridge refunds and ETH
+// conservation across the chains.
+func (ms *InteropMonitorService) initExpiryChecker(cfg *CLIConfig, clients map[eth.ChainID]*sources.EthClient) error {
+	baselines, err := cfg.LiquidityBaselines()
+	if err != nil {
+		return err
+	}
+	head, err := cfg.ExpiryHead()
+	if err != nil {
+		return err
+	}
+	expiryClients := make(map[eth.ChainID]ExpiryClient, len(clients))
+	for chainID, ethClient := range clients {
+		expiryClients[chainID] = NewExpiryClient(ethClient)
+	}
+	ms.expiry = NewExpiryChecker(expiryClients, head, ms.messageExpiryWindow, baselines, ms.Metrics, ms.Log)
+	return nil
+}
+
 // initFinders initializes the finders for the given clients
 func (ms *InteropMonitorService) initFinders(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.RouteNewJob, ms.SetExpiry, 1000, ms.Log)
+		finder := NewFinder(chainID, ethClient, ms.expiry.ObservingJobFilter(BlockReceiptsToJobs), ms.RouteNewJob, ms.SetExpiry, 1000, ms.Log)
 		ms.finders[chainID] = finder
 	}
 	return nil
@@ -335,6 +360,11 @@ func (ms *InteropMonitorService) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start updater: %w", err)
 		}
 	}
+	if ms.expiry != nil {
+		if err := ms.expiry.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start expiry checker: %w", err)
+		}
+	}
 	for _, finder := range ms.finders {
 		if err := finder.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start finder: %w", err)
@@ -364,6 +394,13 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		if err := finder.Stop(); err != nil {
 			ms.Log.Error("failed to stop finder", "error", err)
 			result = errors.Join(result, fmt.Errorf("failed to stop finder: %w", err))
+		}
+	}
+
+	ms.Log.Info("stopping expiry checker")
+	if ms.expiry != nil {
+		if err := ms.expiry.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop expiry checker: %w", err))
 		}
 	}
 
