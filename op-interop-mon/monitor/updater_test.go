@@ -375,6 +375,19 @@ func TestUpdaterValidityInvariants(t *testing.T) {
 			expectedStatus: []jobStatus{jobStatusExpired},
 		},
 		{
+			// A source chain marks a message expired only once its destination exports that the
+			// message was unrelayed more than the 8-day expiry period after it was sent. Any
+			// relay after that is past the 7-day window, so the monitor flags it.
+			name:           "relay after the message expired is expired",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  1000,
+			execTimestamp:  1000 + 8*24*60*60 + 1,
+			blockTime:      1000,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusExpired},
+		},
+		{
 			name:           "executing before initiating is invalid",
 			origin:         common.HexToAddress("0xabc"),
 			initTimestamp:  1000,
