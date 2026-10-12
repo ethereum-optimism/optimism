@@ -1,7 +1,6 @@
 use crate::{
     derivation::{
-        ActorError, Builder, DerivationDelegateProvider, DerivationEngineClient, DerivationStatus,
-        reset_engine,
+        ActorError, Builder, DerivationDelegateProvider, DerivationStatus, Engine, reset_engine,
     },
     engine::FinalizeBlockId,
 };
@@ -17,22 +16,20 @@ impl Builder {
     /// delegate, and produces its lifetime future without spawning it.
     ///
     /// Runtime work begins when the future is polled. Dropping the future stops the actor.
-    pub fn build_delegated<DerivationEngineClient_, DelegateProvider, L1Provider>(
+    pub fn build_delegated<Engine_, DelegateProvider, L1Provider>(
         self,
-        engine_client: DerivationEngineClient_,
+        engine: Engine_,
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
     where
-        DerivationEngineClient_: DerivationEngineClient + 'static,
+        Engine_: Engine + 'static,
         DelegateProvider: DerivationDelegateProvider + 'static,
         L1Provider: ChainProvider + Send + 'static,
     {
         let Self { handle: _, status_tx } = self;
         async move {
-            Actor::new(engine_client, status_tx, derivation_delegate_provider, l1_provider)
-                .run()
-                .await
+            Actor::new(engine, status_tx, derivation_delegate_provider, l1_provider).run().await
         }
     }
 }
@@ -41,14 +38,14 @@ impl Builder {
 /// against the canonical L1 chain, and sends the validated safe and finalized L2 heads to the
 /// engine actor.
 #[derive(Debug)]
-struct Actor<DerivationEngineClient_, DelegateProvider, L1Provider>
+struct Actor<Engine_, DelegateProvider, L1Provider>
 where
-    DerivationEngineClient_: DerivationEngineClient,
+    Engine_: Engine,
     DelegateProvider: DerivationDelegateProvider,
     L1Provider: ChainProvider,
 {
     /// The Engine client used to interact with the engine.
-    engine_client: DerivationEngineClient_,
+    engine: Engine_,
 
     /// Validated progress published to RPC readers.
     status: watch::Sender<DerivationStatus>,
@@ -62,16 +59,15 @@ where
     delegated_derivation_ticker: time::Interval,
 }
 
-impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    Actor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<Engine_, DelegateProvider, L1Provider> Actor<Engine_, DelegateProvider, L1Provider>
 where
-    DerivationEngineClient_: DerivationEngineClient + 'static,
+    Engine_: Engine + 'static,
     DelegateProvider: DerivationDelegateProvider + 'static,
     L1Provider: ChainProvider + Send + 'static,
 {
     /// Creates the actor. Its poll timer needs a Tokio runtime.
     fn new(
-        engine_client: DerivationEngineClient_,
+        engine: Engine_,
         status: watch::Sender<DerivationStatus>,
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
@@ -81,7 +77,7 @@ where
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
             status,
-            engine_client,
+            engine,
             derivation_delegate_provider,
             l1_provider,
             delegated_derivation_ticker,
@@ -90,7 +86,7 @@ where
 
     /// Resets the engine once the execution layer is synced, then follows the delegate.
     async fn run(mut self) -> Result<(), ActorError> {
-        reset_engine(&self.engine_client).await?;
+        reset_engine(&self.engine).await?;
         info!(target: "derivation", "Engine reset; following the derivation delegate");
         loop {
             self.delegated_derivation_ticker.tick().await;
@@ -99,10 +95,9 @@ where
     }
 }
 
-impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    Actor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<Engine_, DelegateProvider, L1Provider> Actor<Engine_, DelegateProvider, L1Provider>
 where
-    DerivationEngineClient_: DerivationEngineClient + 'static,
+    Engine_: Engine + 'static,
     DelegateProvider: DerivationDelegateProvider + 'static,
     L1Provider: ChainProvider + 'static,
 {
@@ -180,15 +175,13 @@ where
 
         self.status.send_replace(DerivationStatus { current_l1: Some(sync_status.current_l1) });
 
-        self.engine_client.send_delegated_safe_head(sync_status.safe_l2).await?;
+        self.engine.follow_safe_head(sync_status.safe_l2).await?;
 
         // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
         // finalizes the specific block we were asked to, not whatever it happens to have at the
         // same height.
-        self.engine_client
-            .send_finalized_l2_block(FinalizeBlockId::ByHash(
-                sync_status.finalized_l2.block_info.id(),
-            ))
+        self.engine
+            .finalize(FinalizeBlockId::ByHash(sync_status.finalized_l2.block_info.id()))
             .await?;
 
         debug!(
@@ -217,7 +210,7 @@ enum DerivationDelegationError {
 mod tests {
     use super::*;
     use crate::{
-        derivation::{DerivationDelegateClientError, engine_client::MockDerivationEngineClient},
+        derivation::{DerivationDelegateClientError, engine::MockEngine},
         engine::EngineState,
     };
     use async_trait::async_trait;
@@ -239,7 +232,7 @@ mod tests {
     fn build_delegated_does_not_require_a_runtime() {
         let builder = Builder::new();
         let task = builder.build_delegated(
-            MockDerivationEngineClient::new(),
+            MockEngine::new(),
             TestDelegate(Mutex::new(VecDeque::new())),
             TestChainProvider::default(),
         );
@@ -270,19 +263,15 @@ mod tests {
         let mut provider = TestChainProvider::default();
         provider.insert_block(0, BlockInfo::default());
         provider.insert_block(current.number, current);
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         let mut sequence = mockall::Sequence::new();
         engine
             .expect_reset()
             .once()
             .in_sequence(&mut sequence)
             .returning(|| Ok(EngineState::default()));
-        engine
-            .expect_send_delegated_safe_head()
-            .once()
-            .in_sequence(&mut sequence)
-            .returning(|_| Ok(()));
-        engine.expect_send_finalized_l2_block().once().returning(|_| Ok(()));
+        engine.expect_follow_safe_head().once().in_sequence(&mut sequence).returning(|_| Ok(()));
+        engine.expect_finalize().once().returning(|_| Ok(()));
         let (status, mut progress) = watch::channel(DerivationStatus::default());
         let actor = tokio::spawn(Actor::new(engine, status, delegate, provider).run());
 
@@ -310,9 +299,9 @@ mod tests {
         let mut provider = TestChainProvider::default();
         provider.insert_block(0, BlockInfo::default());
         provider.insert_block(current.number, current);
-        let mut engine = MockDerivationEngineClient::new();
-        engine.expect_send_delegated_safe_head().times(1).returning(|_| Ok(()));
-        engine.expect_send_finalized_l2_block().times(1).returning(|_| Ok(()));
+        let mut engine = MockEngine::new();
+        engine.expect_follow_safe_head().times(1).returning(|_| Ok(()));
+        engine.expect_finalize().times(1).returning(|_| Ok(()));
         let (status, progress) = watch::channel(DerivationStatus::default());
         let mut actor = Actor::new(engine, status, delegate, provider);
         actor.fetch_and_apply_delegate_safe_head().await.unwrap();

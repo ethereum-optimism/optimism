@@ -141,13 +141,13 @@ Runtime configuration includes:
 
 ### With Engine Actor
 
-The derivation actor produces `OpAttributesWithParent` and consolidates the engine's safe head with them through the `DerivationEngineClient` interface:
+The derivation actor produces `OpAttributesWithParent` and consolidates the engine's safe head with them through the `derivation::Engine` interface:
 
 ```rust
 let consolidation = self.engine_client.consolidate(payload_attributes).await?;
 ```
 
-The engine actor executes these attributes, updates the L2 safe head, and replies with its state, which lets derivation derive the next attributes, or reset if the engine reset. When derivation is delegated, the delegated derivation actor sends the delegate's safe head with `send_delegated_safe_head` instead.
+The engine actor executes these attributes, updates the L2 safe head, and replies with its state, which lets derivation derive the next attributes, or reset if the engine reset. When derivation is delegated, the delegated derivation actor sends the delegate's safe head with `follow_safe_head` instead.
 
 ### With the L1 Actors
 

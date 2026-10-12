@@ -1,8 +1,6 @@
 //! The derivation actor, which derives payload attributes from L1.
 
-use super::{
-    ActorError, Builder, DerivationEngineClient, DerivationStatus, L2Finalizer, reset_engine,
-};
+use super::{ActorError, Builder, DerivationStatus, Engine, L2Finalizer, reset_engine};
 use crate::{
     Metrics,
     engine::{Consolidation, EngineState, FinalizeBlockId},
@@ -21,20 +19,20 @@ impl Builder {
     ///
     /// The status reports the pipeline's origin from now on. Runtime work begins when the future is
     /// polled. Dropping the future stops the actor.
-    pub fn build<DerivationEngineClient_, PipelineSignalReceiver>(
+    pub fn build<Engine_, PipelineSignalReceiver>(
         self,
-        engine_client: DerivationEngineClient_,
+        engine: Engine_,
         engine_state: watch::Receiver<EngineState>,
         pipeline: PipelineSignalReceiver,
         head: watch::Receiver<BlockInfo>,
         finalized: watch::Receiver<BlockInfo>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
     where
-        DerivationEngineClient_: DerivationEngineClient + 'static,
+        Engine_: Engine + 'static,
         PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync + 'static,
     {
         let Self { handle: _, status_tx } = self;
-        Actor::new(engine_client, engine_state, status_tx, pipeline, head, finalized).run()
+        Actor::new(engine, engine_state, status_tx, pipeline, head, finalized).run()
     }
 }
 
@@ -45,9 +43,9 @@ impl Builder {
 /// engine reset through the reset count in the engine's state. It derives one set of attributes at
 /// a time, so engine resets and L1 updates are handled between them.
 #[derive(Debug)]
-struct Actor<DerivationEngineClient_, PipelineSignalReceiver>
+struct Actor<Engine_, PipelineSignalReceiver>
 where
-    DerivationEngineClient_: DerivationEngineClient,
+    Engine_: Engine,
     PipelineSignalReceiver: Pipeline + SignalReceiver,
 {
     /// The engine's published state, whose reset count moves when another actor resets the engine.
@@ -64,7 +62,7 @@ where
     /// The latest published finalized L1 head.
     finalized: watch::Receiver<BlockInfo>,
     /// The Engine client used to interact with the engine.
-    engine_client: DerivationEngineClient_,
+    engine: Engine_,
 
     /// Progress published to RPC readers.
     status: watch::Sender<DerivationStatus>,
@@ -75,17 +73,16 @@ where
     finalizer: L2Finalizer,
 }
 
-impl<DerivationEngineClient_, PipelineSignalReceiver>
-    Actor<DerivationEngineClient_, PipelineSignalReceiver>
+impl<Engine_, PipelineSignalReceiver> Actor<Engine_, PipelineSignalReceiver>
 where
-    DerivationEngineClient_: DerivationEngineClient,
+    Engine_: Engine,
     PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync,
 {
     /// Creates the actor and publishes the pipeline's origin.
     ///
     /// L1 updates are consumed as changes; initial snapshots do not trigger processing.
     fn new(
-        engine_client: DerivationEngineClient_,
+        engine: Engine_,
         engine_state: watch::Receiver<EngineState>,
         status: watch::Sender<DerivationStatus>,
         pipeline: PipelineSignalReceiver,
@@ -102,7 +99,7 @@ where
             deriving: false,
             head,
             finalized,
-            engine_client,
+            engine,
             finalizer: L2Finalizer::default(),
         }
     }
@@ -116,7 +113,7 @@ where
 
     /// Resets the engine once the execution layer is synced, and the pipeline onto its safe head.
     async fn start(&mut self) -> Result<(), ActorError> {
-        let state = reset_engine(&self.engine_client).await?;
+        let state = reset_engine(&self.engine).await?;
         info!(target: "derivation", safe_head = ?state.safe_head(), "Starting derivation from the engine's safe head");
         self.reset_onto(state).await;
         Ok(())
@@ -163,7 +160,7 @@ where
         trace!(target: "derivation", ?attributes, "Produced payload attributes.");
         self.finalizer.enqueue_for_finalization(&attributes);
 
-        let Consolidation { state, flush } = self.engine_client.consolidate(attributes).await?;
+        let Consolidation { state, flush } = self.engine.consolidate(attributes).await?;
         // The engine may have reset before or while consolidating, so the attributes may be stale.
         if self.follow_reset(state).await {
             return Ok(());
@@ -234,7 +231,7 @@ where
 
                                     metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
                                 }
-                                let state = reset_engine(&self.engine_client).await?;
+                                let state = reset_engine(&self.engine).await?;
                                 self.reset_onto(state).await;
                                 continue;
                             }
@@ -299,9 +296,7 @@ where
     async fn finalize(&mut self, finalized: BlockInfo) -> Result<(), ActorError> {
         if let Some(l2_block_number) = self.finalizer.try_finalize_next(finalized) {
             // Finalize by number against the engine's canonical chain.
-            self.engine_client
-                .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
-                .await?;
+            self.engine.finalize(FinalizeBlockId::ByNumber(l2_block_number)).await?;
         }
         Ok(())
     }
@@ -310,10 +305,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        EngineClientError, derivation::engine_client::MockDerivationEngineClient,
-        engine::HeadsUpdate,
-    };
+    use crate::{EngineClientError, derivation::engine::MockEngine, engine::HeadsUpdate};
     use alloy_primitives::B256;
     use async_trait::async_trait;
     use kona_derive::PipelineResult;
@@ -419,21 +411,20 @@ mod tests {
 
     /// Creates an actor that publishes to its own status channel, with the publishers it reads.
     fn actor(
-        engine_client: MockDerivationEngineClient,
+        engine: MockEngine,
         pipeline: TestPipeline,
         finalized: BlockInfo,
-    ) -> (Actor<MockDerivationEngineClient, TestPipeline>, Publishers) {
+    ) -> (Actor<MockEngine, TestPipeline>, Publishers) {
         let (engine_state, engine_state_rx) = watch::channel(EngineState::default());
         let (heads, head_rx) = watch::channel(BlockInfo::default());
         let (finalized, finalized_rx) = watch::channel(finalized);
         let (status, _) = watch::channel(DerivationStatus::default());
-        let actor =
-            Actor::new(engine_client, engine_state_rx, status, pipeline, head_rx, finalized_rx);
+        let actor = Actor::new(engine, engine_state_rx, status, pipeline, head_rx, finalized_rx);
         (actor, Publishers { engine_state, heads, finalized })
     }
 
     /// Steps the actor until the pipeline runs out of data.
-    async fn derive(actor: &mut Actor<MockDerivationEngineClient, TestPipeline>) {
+    async fn derive(actor: &mut Actor<MockEngine, TestPipeline>) {
         for _ in 0..100 {
             if !actor.deriving {
                 return;
@@ -472,7 +463,7 @@ mod tests {
         let (_heads, head) = watch::channel(BlockInfo::default());
         let (_finalized, finalized) = watch::channel(BlockInfo::default());
         let task = builder.build(
-            MockDerivationEngineClient::new(),
+            MockEngine::new(),
             engine_state,
             TestPipeline::new(Some(origin)),
             head,
@@ -487,7 +478,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn starts_from_the_engine_reset_once_the_el_is_synced() {
         let origin = BlockInfo { number: 4, ..Default::default() };
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         let mut attempts = 0;
         engine.expect_reset().times(2).returning(move || {
             attempts += 1;
@@ -517,7 +508,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn pipeline_reset_resets_the_engine_and_the_pipeline(#[case] lagoon_time: Option<u64>) {
         let reset_origin = BlockInfo { number: 3, ..Default::default() };
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         let mut attempts = 0;
         engine.expect_reset().times(3).returning(move || {
             attempts += 1;
@@ -560,7 +551,7 @@ mod tests {
             block_info: BlockInfo { number: 1, ..Default::default() },
             ..Default::default()
         };
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
         engine.expect_consolidate().once().returning(move |_| {
             Ok(Consolidation { state: engine_state(new_safe_head, resets), flush })
@@ -591,7 +582,7 @@ mod tests {
     /// reset changes nothing.
     #[tokio::test]
     async fn follows_resets_made_by_other_actors() {
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
         let (mut actor, publishers) =
             actor(engine, TestPipeline::new(Some(BlockInfo::default())), BlockInfo::default());
@@ -625,7 +616,7 @@ mod tests {
     async fn follows_a_reset_made_during_a_consolidation() {
         let reset_origin = BlockInfo { number: 4, ..Default::default() };
         let (engine_state_tx, engine_state_rx) = watch::channel(EngineState::default());
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
         engine.expect_consolidate().once().returning(move |attributes| {
             let consolidated = engine_state(attributes.parent, 1);
@@ -661,7 +652,7 @@ mod tests {
                 flush: false,
             })
         };
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         let mut sequence = mockall::Sequence::new();
         engine
             .expect_reset()
@@ -670,7 +661,7 @@ mod tests {
             .returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
         engine.expect_consolidate().once().in_sequence(&mut sequence).returning(consolidated);
         engine
-            .expect_send_finalized_l2_block()
+            .expect_finalize()
             .withf(|id| matches!(id, FinalizeBlockId::ByNumber(1)))
             .once()
             .in_sequence(&mut sequence)
@@ -691,7 +682,7 @@ mod tests {
 
     #[tokio::test]
     async fn head_changes_wake_derivation_and_coalesce_reorgs() {
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
         let (mut actor, publishers) =
             actor(engine, TestPipeline::new(Some(BlockInfo::default())), BlockInfo::default());
@@ -720,7 +711,7 @@ mod tests {
     /// it resumes derivation.
     #[tokio::test(start_paused = true)]
     async fn head_during_derivation_resumes_it_afterwards() {
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
         engine.expect_consolidate().once().returning(|_| {
             Ok(Consolidation { state: engine_state(L2BlockInfo::default(), 1), flush: false })
@@ -743,9 +734,9 @@ mod tests {
     /// A reset drops the blocks awaiting finalization, which may no longer be canonical.
     #[tokio::test]
     async fn reset_drops_blocks_awaiting_finalization() {
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
-        engine.expect_send_finalized_l2_block().never();
+        engine.expect_finalize().never();
         let (mut actor, publishers) =
             actor(engine, TestPipeline::new(Some(BlockInfo::default())), BlockInfo::default());
         actor.start().await.unwrap();
@@ -761,9 +752,9 @@ mod tests {
 
     #[tokio::test]
     async fn finality_changes_finalize_without_new_heads() {
-        let mut engine = MockDerivationEngineClient::new();
+        let mut engine = MockEngine::new();
         engine
-            .expect_send_finalized_l2_block()
+            .expect_finalize()
             .withf(|id| matches!(id, FinalizeBlockId::ByNumber(17)))
             .once()
             .returning(|_| Ok(()));
@@ -798,7 +789,7 @@ mod tests {
     #[tokio::test]
     async fn closed_publisher_is_fatal(#[case] closed: usize) {
         let (mut actor, publishers) =
-            actor(MockDerivationEngineClient::new(), TestPipeline::new(None), BlockInfo::default());
+            actor(MockEngine::new(), TestPipeline::new(None), BlockInfo::default());
         let Publishers { engine_state, heads, finalized } = publishers;
         match closed {
             0 => drop(heads),

@@ -20,9 +20,7 @@ mod rpc;
 pub use rpc::{RpcActor, RpcActorError};
 
 pub mod derivation;
-pub use derivation::{
-    DerivationDelegateClientError, DerivationDelegateProvider, DerivationEngineClient,
-};
+pub use derivation::{DerivationDelegateClientError, DerivationDelegateProvider};
 
 pub mod l1_signer_updater;
 

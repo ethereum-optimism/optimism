@@ -14,8 +14,8 @@ mod actor;
 mod delegated;
 pub use delegated::{DerivationDelegateClientError, DerivationDelegateProvider};
 
-mod engine_client;
-pub use engine_client::DerivationEngineClient;
+mod engine;
+pub use engine::Engine;
 
 mod error;
 pub use error::ActorError;
@@ -71,11 +71,9 @@ pub struct Handle {
 
 /// Resets the engine and returns its state afterwards, asking again while the execution layer
 /// syncs.
-async fn reset_engine(
-    engine_client: &impl DerivationEngineClient,
-) -> Result<EngineState, ActorError> {
+async fn reset_engine(engine: &impl Engine) -> Result<EngineState, ActorError> {
     loop {
-        match engine_client.reset().await {
+        match engine.reset().await {
             Err(EngineClientError::ElSyncing) => {
                 debug!(target: "derivation", "Waiting for the execution layer to sync");
                 time::sleep(ENGINE_RESET_RETRY_INTERVAL).await;

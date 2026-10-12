@@ -3,8 +3,8 @@
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_node_actors::{
-    DerivationEngineClient, EngineClientError, EngineClientResult, NetworkEngineClient,
-    SequencerEngineClient, engine,
+    EngineClientError, EngineClientResult, NetworkEngineClient, SequencerEngineClient, derivation,
+    engine,
     engine::{Consolidation, EngineState, FinalizeBlockId},
     sequencer, signer,
 };
@@ -56,7 +56,7 @@ impl SequencerEngineClient for Engine {
 }
 
 #[async_trait]
-impl DerivationEngineClient for Engine {
+impl derivation::Engine for Engine {
     async fn reset(&self) -> EngineClientResult<EngineState> {
         info!(target: "derivation", "Sending reset request to engine.");
         self.0.reset_if_el_synced().await.inspect(
@@ -72,12 +72,12 @@ impl DerivationEngineClient for Engine {
         self.0.consolidate(attributes).await
     }
 
-    async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
+    async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
         self.0.finalize(block_id).await
     }
 
-    async fn send_delegated_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
+    async fn follow_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
         trace!(target: "derivation", ?safe_head, "Sending delegated safe head to engine.");
         self.0.follow_safe_head(safe_head).await
     }
@@ -120,8 +120,7 @@ mod tests {
         let engine = Engine(builder.handle());
         drop(builder);
         assert!(matches!(
-            DerivationEngineClient::send_finalized_l2_block(&engine, FinalizeBlockId::ByNumber(1))
-                .await,
+            derivation::Engine::finalize(&engine, FinalizeBlockId::ByNumber(1)).await,
             Err(EngineClientError::RequestError(_))
         ));
     }
