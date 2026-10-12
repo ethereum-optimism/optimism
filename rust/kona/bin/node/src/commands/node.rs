@@ -394,23 +394,25 @@ impl NodeCommand {
         }
     }
 
-    /// Get the L2 rollup config, either from a file or the superchain registry.
+    /// Get the L2 rollup config, either from a file or the superchain registry, with the
+    /// hardfork overrides applied.
     pub fn get_l2_config(&self, args: &GlobalArgs) -> Result<RollupConfig> {
-        match &self.l2_config_file {
+        let cfg = match &self.l2_config_file {
             Some(path) => {
                 debug!("Loading l2 config from file: {:?}", path);
                 let file = File::open(path)
                     .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))
+                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))?
             }
             None => {
                 debug!("Loading l2 config from superchain registry");
                 let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
                     bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
                 };
-                Ok(cfg.clone())
+                cfg.clone()
             }
-        }
+        };
+        Ok(args.apply_overrides(cfg))
     }
 
     /// Returns the L2 JWT secret for the engine API
@@ -532,6 +534,22 @@ mod tests {
             let command =
                 NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
             assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
+        }
+    }
+
+    #[test]
+    fn test_get_l2_config_applies_overrides() {
+        let args = GlobalArgs::try_parse_from(["test", "--karst-override", "123"]).unwrap();
+
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        serde_json::to_writer(&mut file, &RollupConfig::default()).unwrap();
+        let commands = [
+            NodeCommand::default(),
+            NodeCommand { l2_config_file: Some(file.path().into()), ..Default::default() },
+        ];
+
+        for command in commands {
+            assert_eq!(command.get_l2_config(&args).unwrap().hardforks.karst_time, Some(123));
         }
     }
 
