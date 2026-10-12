@@ -135,7 +135,7 @@ impl RollupNode {
     /// Creates a network builder for the node whose gossip validation follows
     /// `unsafe_block_signer`.
     fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
-        NetworkBuilder::from(self.p2p_config.clone()).with_unsafe_block_signer(unsafe_block_signer)
+        NetworkBuilder::from_config(self.p2p_config.clone(), unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -410,8 +410,13 @@ impl RollupNode {
         let head = head_builder.handle();
         let safe = safe_builder.handle();
         let finalized = finalized_builder.handle();
-        let signer_updater_builder =
-            l1_signer_updater::Builder::new(self.p2p_config.unsafe_block_signer);
+        let initial_signer = l1_signer_updater::signer_at_l1_head(
+            &self.l1_config.engine_provider,
+            self.config.l1_system_config_address,
+        )
+        .await
+        .map_err(|error| format!("Failed to read the unsafe block signer from L1: {error}"))?;
+        let signer_updater_builder = l1_signer_updater::Builder::new(initial_signer);
         let signer_rx = signer_updater_builder.handle();
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =

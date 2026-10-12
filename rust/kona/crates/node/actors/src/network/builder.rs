@@ -29,29 +29,6 @@ pub struct NetworkBuilder {
     pub(super) enr_update: bool,
 }
 
-impl From<NetworkConfig> for NetworkBuilder {
-    fn from(config: NetworkConfig) -> Self {
-        Self::new(
-            config.rollup_config,
-            config.unsafe_block_signer,
-            config.gossip_address,
-            config.keypair,
-            config.discovery_address,
-            config.discovery_config,
-        )
-        .with_enr_update(config.enr_update)
-        .with_discovery_randomize(config.discovery_randomize)
-        .with_bootstore(config.bootstore)
-        .with_bootnodes(config.bootnodes)
-        .with_discovery_interval(config.discovery_interval)
-        .with_gossip_config(config.gossip_config)
-        .with_peer_scoring(config.scoring)
-        .with_peer_monitoring(config.monitor_peers)
-        .with_topic_scoring(config.topic_scoring)
-        .with_gater_config(config.gater_config)
-    }
-}
-
 impl NetworkBuilder {
     /// Creates a new [`NetworkBuilder`].
     pub fn new(
@@ -76,6 +53,34 @@ impl NetworkBuilder {
             ),
             enr_update: true,
         }
+    }
+
+    /// Creates a [`NetworkBuilder`] from a [`NetworkConfig`], whose gossip validation accepts
+    /// blocks signed by the current value of `unsafe_block_signer`.
+    pub fn from_config(
+        config: NetworkConfig,
+        unsafe_block_signer: watch::Receiver<Address>,
+    ) -> Self {
+        let initial_signer = *unsafe_block_signer.borrow();
+        Self::new(
+            config.rollup_config,
+            initial_signer,
+            config.gossip_address,
+            config.keypair,
+            config.discovery_address,
+            config.discovery_config,
+        )
+        .with_unsafe_block_signer(unsafe_block_signer)
+        .with_enr_update(config.enr_update)
+        .with_discovery_randomize(config.discovery_randomize)
+        .with_bootstore(config.bootstore)
+        .with_bootnodes(config.bootnodes)
+        .with_discovery_interval(config.discovery_interval)
+        .with_gossip_config(config.gossip_config)
+        .with_peer_scoring(config.scoring)
+        .with_peer_monitoring(config.monitor_peers)
+        .with_topic_scoring(config.topic_scoring)
+        .with_gater_config(config.gater_config)
     }
 
     /// Sets the ENR update flag for the [`NetworkBuilder`].

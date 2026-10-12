@@ -10,13 +10,11 @@ use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
 use libp2p::identity::Keypair;
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -24,7 +22,6 @@ use std::{
     str::FromStr,
 };
 use tokio::time::Duration;
-use url::Url;
 
 /// Resolves a hostname or IP address string to an [`IpAddr`].
 ///
@@ -286,26 +283,8 @@ impl P2PArgs {
         None
     }
 
-    /// Reads the unsafe block signer from the rollup's `SystemConfig` at the L1 head.
-    async fn unsafe_block_signer(
-        rollup_config: &RollupConfig,
-        l1_eth_rpc: Url,
-    ) -> Result<alloy_primitives::Address> {
-        let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-        let latest_block_num = provider.latest_block_number().await?;
-        let block_info = provider.block_info_by_number(latest_block_num).await?;
-        Ok(kona_providers_alloy::unsafe_block_signer(
-            &provider.inner,
-            rollup_config.l1_system_config_address,
-            block_info.hash,
-        )
-        .await?)
-    }
-
     /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
-    ///
-    /// Reads the unsafe block signer from L1 through `l1_rpc`, and errors if it cannot.
-    pub async fn config(self, config: &RollupConfig, l1_rpc: Url) -> Result<NetworkConfig> {
+    pub fn config(self, config: &RollupConfig) -> Result<NetworkConfig> {
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
@@ -365,8 +344,6 @@ impl P2PArgs {
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = Self::unsafe_block_signer(config, l1_rpc).await?;
-
         let bootstore = self.bootstore_file(config);
 
         let bootnodes = self
@@ -384,7 +361,6 @@ impl P2PArgs {
             enr_update: !static_ip,
             gossip_address,
             keypair,
-            unsafe_block_signer,
             gossip_config,
             scoring: self.scoring,
             monitor_peers,

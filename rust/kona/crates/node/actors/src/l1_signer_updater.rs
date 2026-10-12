@@ -4,7 +4,8 @@
 
 use alloy_primitives::{Address, B256};
 use alloy_provider::Provider;
-use alloy_transport::TransportError;
+use alloy_rpc_types_eth::BlockNumberOrTag;
+use alloy_transport::{TransportError, TransportErrorKind};
 use futures::StreamExt;
 use kona_protocol::BlockInfo;
 use std::future::Future;
@@ -34,6 +35,18 @@ impl<P: Provider> SignerProvider for P {
     ) -> Result<Address, Self::Error> {
         kona_providers_alloy::unsafe_block_signer(self, system_config, block_hash).await
     }
+}
+
+/// Reads the signer at the current L1 head, to give [`Builder::new`] its initial signer.
+pub async fn signer_at_l1_head(
+    provider: &impl Provider,
+    system_config: Address,
+) -> Result<Address, TransportError> {
+    let head = provider
+        .get_block_by_number(BlockNumberOrTag::Latest)
+        .await?
+        .ok_or_else(|| TransportErrorKind::custom_str("the L1 RPC returned no head block"))?;
+    provider.signer_at_block(system_config, head.header.hash).await
 }
 
 /// Constructs the signer publisher and task.
@@ -185,6 +198,52 @@ mod tests {
             self.signer.changed().await.unwrap();
             *self.signer.borrow_and_update()
         }
+    }
+
+    #[tokio::test]
+    async fn signer_at_l1_head_reads_the_signer_at_the_head() {
+        let server = httpmock::MockServer::start();
+        let provider = RootProvider::new_http(server.url("/").parse().unwrap());
+        let signer = Address::repeat_byte(7);
+        let mut block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+        block.header.hash = head(5).hash;
+        let head_mock = server.mock(|when, then| {
+            when.method("POST").json_body_includes(
+                r#"{"id": 0, "method": "eth_getBlockByNumber", "params": ["latest", false]}"#,
+            );
+            then.json_body(serde_json::json!({"jsonrpc": "2.0", "id": 0, "result": block}));
+        });
+        // The signer is only answered for a read pinned to the head's hash.
+        let signer_mock = server.mock(|when, then| {
+            when.method("POST").json_body_includes(
+                serde_json::json!({
+                    "id": 1,
+                    "method": "eth_getStorageAt",
+                    "params": [
+                        SYSTEM_CONFIG,
+                        "0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08",
+                        {"blockHash": head(5).hash, "requireCanonical": true}
+                    ]
+                })
+                .to_string(),
+            );
+            then.json_body(
+                serde_json::json!({"jsonrpc": "2.0", "id": 1, "result": signer.into_word()}),
+            );
+        });
+
+        assert_eq!(signer_at_l1_head(&provider, SYSTEM_CONFIG).await.unwrap(), signer);
+        head_mock.assert();
+        signer_mock.assert();
+    }
+
+    #[tokio::test]
+    async fn signer_at_l1_head_errors_without_a_head_block() {
+        let responses = Asserter::new();
+        let provider = RootProvider::new(RpcClient::mocked(responses.clone()));
+        // An RPC without a head block is an error rather than a zero signer.
+        responses.push_success(&Option::<alloy_rpc_types_eth::Block>::None);
+        assert!(signer_at_l1_head(&provider, SYSTEM_CONFIG).await.is_err());
     }
 
     #[tokio::test]

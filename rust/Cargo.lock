@@ -7600,6 +7600,7 @@ dependencies = [
  "discv5 0.12.0",
  "enr 0.14.0",
  "futures",
+ "httpmock",
  "jsonrpsee",
  "kona-derive",
  "kona-disc",

@@ -23,7 +23,7 @@ use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient, NodeActor,
 };
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -32,7 +32,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     time::Duration,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -112,10 +112,9 @@ impl GossipCommand {
         // satisfy NetworkActor::new and are held to keep them open.
         let _unused_senders = (gossip_command_tx, admin_rpc_tx, gossip_payload_tx);
 
-        let network_config: kona_node_service::NetworkBuilder = NetworkConfig {
+        let network_config = NetworkConfig {
             discovery_address: disc_addr,
             gossip_address: gossip_addr,
-            unsafe_block_signer: signer,
             discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
                 ip: disc_ip,
                 port: self.disc_port,
@@ -134,10 +133,10 @@ impl GossipCommand {
             rollup_config: rollup_config.clone(),
             gossip_signer: None,
             enr_update: true,
-        }
-        .into();
+        };
+        let network_builder = NetworkBuilder::from_config(network_config, watch::channel(signer).1);
 
-        let handler = network_config.build()?.start().await?;
+        let handler = network_builder.build()?.start().await?;
 
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
