@@ -65,6 +65,42 @@ pub struct SealTask {
 }
 
 impl SealTask {
+    /// Seals the payload and imports it, returning the sealed payload.
+    ///
+    /// A detached seal fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe
+    /// head moved since the build started.
+    pub(crate) async fn seal(
+        &self,
+        state: &mut EngineState,
+    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+        debug!(
+            target: "engine",
+            txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            is_deposits = self.attributes.is_deposits_only(),
+            "Starting new seal job"
+        );
+
+        let unsafe_block_info = state.sync_state.unsafe_head().block_info;
+        let parent_block_info = self.attributes.parent.block_info;
+
+        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
+            (unsafe_block_info.hash != parent_block_info.hash ||
+                unsafe_block_info.number != parent_block_info.number);
+
+        if build_is_stale {
+            info!(
+                target: "engine",
+                unsafe_block_info = ?unsafe_block_info,
+                parent_block_info = ?parent_block_info,
+                "Seal attributes parent does not match unsafe head, returning rebuild error"
+            );
+            Err(SealTaskError::UnsafeHeadChangedSinceBuild)
+        } else {
+            // Seal the block and import it into the engine.
+            self.seal_and_canonicalize_block(state).await
+        }
+    }
+
     /// Seals the execution payload in the EL, returning the execution envelope.
     ///
     /// ## Engine Method Selection
@@ -273,33 +309,7 @@ impl EngineTaskExt for SealTask {
     type Error = SealTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
-        debug!(
-            target: "engine",
-            txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
-            is_deposits = self.attributes.is_deposits_only(),
-            "Starting new seal job"
-        );
-
-        let unsafe_block_info = state.sync_state.unsafe_head().block_info;
-        let parent_block_info = self.attributes.parent.block_info;
-
-        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
-            (unsafe_block_info.hash != parent_block_info.hash ||
-                unsafe_block_info.number != parent_block_info.number);
-
-        let res = if build_is_stale {
-            info!(
-                target: "engine",
-                unsafe_block_info = ?unsafe_block_info,
-                parent_block_info = ?parent_block_info,
-                "Seal attributes parent does not match unsafe head, returning rebuild error"
-            );
-            Err(SealTaskError::UnsafeHeadChangedSinceBuild)
-        } else {
-            // Seal the block and import it into the engine.
-            self.seal_and_canonicalize_block(state).await
-        };
-
+        let res = self.seal(state).await;
         self.send_channel_result_or_get_error(res).await?;
 
         Ok(())

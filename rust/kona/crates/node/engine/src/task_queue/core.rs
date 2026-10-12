@@ -1,25 +1,36 @@
-//! The [`Engine`] executes [`EngineTask`]s against the engine state and publishes the state.
+//! The [`Engine`] performs Engine API operations against the engine state and publishes the
+//! state.
 
 use super::EngineTaskExt;
 use crate::{
-    EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, EngineTaskErrors, Metrics, SyncStartError, SynchronizeTask,
-    SynchronizeTaskError, find_starting_forkchoice,
+    BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
+    ConsolidateTaskError, EngineClient, EngineState, EngineSyncStateUpdate, EngineTask,
+    EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeBlockId, FinalizeTask,
+    FinalizeTaskError, ImportedBlockSink, InsertTask, InsertTaskError, Metrics, SealTask,
+    SealTaskError, SyncStartError, SynchronizeTask, SynchronizeTaskError, find_starting_forkchoice,
 };
+use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch::Sender;
 
-/// Owns the engine state, executes [`EngineTask`]s against it, and publishes it.
+/// Owns the engine state, performs Engine API operations against it, and publishes it.
 ///
-/// Tasks execute one at a time with exclusive access to the [`EngineState`], so each is an atomic
-/// operation over it. After every task and reset, successful or not, the state is published to
-/// the watch channel's readers. A failed task returns its error; the caller decides whether to
-/// retry it.
+/// Operations run one at a time with exclusive access to the [`EngineState`], so each is atomic
+/// over it. After every operation, successful or not, the state is published to the watch
+/// channel's readers. A failed operation returns its error; the caller decides whether to retry
+/// it.
 #[derive(Debug)]
 pub struct Engine {
+    /// The Engine API client.
+    client: Arc<EngineClient>,
+    /// The rollup configuration.
+    config: Arc<RollupConfig>,
+    /// Where to hand every block the engine canonicalizes.
+    block_sink: Arc<dyn ImportedBlockSink>,
     /// The state of the engine.
     state: EngineState,
     /// Publishes the state to readers.
@@ -28,8 +39,14 @@ pub struct Engine {
 
 impl Engine {
     /// Creates a new [`Engine`] with the passed initial [`EngineState`].
-    pub const fn new(initial_state: EngineState, state_sender: Sender<EngineState>) -> Self {
-        Self { state: initial_state, state_sender }
+    pub const fn new(
+        client: Arc<EngineClient>,
+        config: Arc<RollupConfig>,
+        block_sink: Arc<dyn ImportedBlockSink>,
+        initial_state: EngineState,
+        state_sender: Sender<EngineState>,
+    ) -> Self {
+        Self { client, config, block_sink, state: initial_state, state_sender }
     }
 
     /// Returns a reference to the inner [`EngineState`].
@@ -45,17 +62,13 @@ impl Engine {
     /// Resets the engine by finding a plausible sync starting point via
     /// [`find_starting_forkchoice`]. The state is updated to the starting point, and a forkchoice
     /// update reorgs the execution layer to it.
-    pub async fn reset(
-        &mut self,
-        client: Arc<EngineClient>,
-        config: Arc<RollupConfig>,
-    ) -> Result<L2BlockInfo, EngineResetError> {
-        let start = find_starting_forkchoice(&config, client.as_ref()).await?;
+    pub async fn reset(&mut self) -> Result<L2BlockInfo, EngineResetError> {
+        let start = find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
 
         // One attempt. The caller retries transient failures.
         let synchronize = SynchronizeTask::new(
-            client,
-            config,
+            Arc::clone(&self.client),
+            Arc::clone(&self.config),
             EngineSyncStateUpdate {
                 unsafe_head: Some(start.un_safe),
                 local_safe_head: Some(start.safe),
@@ -70,6 +83,112 @@ impl Engine {
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)
+    }
+
+    /// Inserts an unsafe payload received from gossip or the admin API.
+    ///
+    /// A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped: retrying
+    /// returns the same verdict.
+    pub async fn insert_unsafe(
+        &mut self,
+        payload: OpExecutionPayloadEnvelope,
+    ) -> Result<(), InsertTaskError> {
+        let task = InsertTask::new(
+            Arc::clone(&self.client),
+            Arc::clone(&self.config),
+            payload,
+            false,
+            Arc::clone(&self.block_sink),
+        );
+        let result = match task.execute(&mut self.state).await {
+            Err(InsertTaskError::UnexpectedPayloadStatus(
+                status @ (PayloadStatusEnum::Invalid { .. } | PayloadStatusEnum::Accepted),
+            )) => {
+                warn!(target: "engine", %status, "Dropping rejected unsafe payload");
+                Ok(())
+            }
+            result => result.map(|_| ()),
+        };
+        self.finish(Metrics::INSERT_TASK_LABEL, result)
+    }
+
+    /// Starts building a block on the execution layer and returns its payload ID.
+    pub async fn build(
+        &mut self,
+        attributes: OpAttributesWithParent,
+    ) -> Result<PayloadId, BuildTaskError> {
+        let task =
+            BuildTask::new(Arc::clone(&self.client), Arc::clone(&self.config), attributes, None);
+        let result = task.execute(&mut self.state).await;
+        self.finish(Metrics::BUILD_TASK_LABEL, result)
+    }
+
+    /// Seals a block started with [`Self::build`] and makes it the unsafe head.
+    ///
+    /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head moved since
+    /// the build started.
+    pub async fn seal(
+        &mut self,
+        payload_id: PayloadId,
+        attributes: OpAttributesWithParent,
+    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+        let task = SealTask::new(
+            Arc::clone(&self.client),
+            Arc::clone(&self.config),
+            payload_id,
+            attributes,
+            false,
+            BuildSealCoupling::Detached,
+            None,
+            Arc::clone(&self.block_sink),
+        );
+        let result = task.seal(&mut self.state).await;
+        self.finish(Metrics::SEAL_TASK_LABEL, result)
+    }
+
+    /// Advances the safe head to a derived or delegated block, reorging the unsafe chain to it
+    /// if necessary.
+    pub async fn consolidate(
+        &mut self,
+        input: ConsolidateInput,
+    ) -> Result<(), ConsolidateTaskError> {
+        let task = ConsolidateTask::new(
+            Arc::clone(&self.client),
+            Arc::clone(&self.config),
+            input,
+            Arc::clone(&self.block_sink),
+        );
+        let result = task.execute(&mut self.state).await;
+        self.finish(Metrics::CONSOLIDATE_TASK_LABEL, result)
+    }
+
+    /// Finalizes an L2 block.
+    pub async fn finalize(&mut self, block_id: FinalizeBlockId) -> Result<(), FinalizeTaskError> {
+        let task = FinalizeTask::new(Arc::clone(&self.client), Arc::clone(&self.config), block_id);
+        let result = task.execute(&mut self.state).await;
+        self.finish(Metrics::FINALIZE_TASK_LABEL, result)
+    }
+
+    /// Publishes the state and records the outcome of an operation.
+    ///
+    /// The state is published even if the operation failed: it can update the state before a
+    /// later step fails.
+    fn finish<T, E: EngineTaskError>(
+        &self,
+        label: &'static str,
+        result: Result<T, E>,
+    ) -> Result<T, E> {
+        self.state_sender.send_replace(self.state);
+        match &result {
+            Ok(_) => {
+                metrics::counter!(Metrics::ENGINE_TASK_SUCCESS, "type" => label).increment(1);
+            }
+            Err(err) => {
+                metrics::counter!(Metrics::ENGINE_TASK_FAILURE, label => err.severity().to_string())
+                    .increment(1);
+            }
+        }
+        result
     }
 
     /// Executes a task against the engine state, then publishes the state.
@@ -108,11 +227,25 @@ impl EngineResetError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InsertTask, NoopBlockSink, test_utils::test_engine_client};
+    use crate::{
+        NoopBlockSink,
+        test_utils::{
+            TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
+        },
+    };
     use alloy_rpc_types_engine::{
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
     };
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+
+    fn engine(
+        client: EngineClient,
+        config: Arc<RollupConfig>,
+        state: EngineState,
+        state_tx: Sender<EngineState>,
+    ) -> Engine {
+        Engine::new(Arc::new(client), config, Arc::new(NoopBlockSink), state, state_tx)
+    }
 
     #[tokio::test]
     async fn reset_publishes_the_new_state() {
@@ -134,8 +267,8 @@ mod tests {
             ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
         );
         let (state_tx, mut state_rx) = tokio::sync::watch::channel(EngineState::default());
-        let mut engine = Engine::new(EngineState::default(), state_tx);
-        engine.reset(Arc::new(client), config.clone()).await.unwrap();
+        let mut engine = engine(client, config.clone(), EngineState::default(), state_tx);
+        engine.reset().await.unwrap();
         // Readers observe the reset without waiting for a task to drain.
         assert!(state_rx.has_changed().unwrap());
         let state = *state_rx.borrow_and_update();
@@ -145,42 +278,107 @@ mod tests {
         l2.assert_finished();
     }
 
-    #[tokio::test]
-    async fn execute_publishes_the_state_after_every_attempt() {
+    /// Returns an unsafe payload, and a configuration whose genesis is the payload's block.
+    fn genesis_payload() -> (OpExecutionPayloadEnvelope, Arc<RollupConfig>) {
         let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
             &alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default(),
         ));
         let block: op_alloy_consensus::OpBlock = payload.clone().try_into_block().unwrap();
         let mut config = RollupConfig::default();
         config.genesis.l2.hash = block.header.hash_slow();
-        let config = Arc::new(config);
+        (payload, Arc::new(config))
+    }
+
+    #[tokio::test]
+    async fn operations_publish_the_state_after_every_attempt() {
+        let (payload, config) = genesis_payload();
         let (client, l1, l2) = test_engine_client(config.clone());
         let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
         l2.expect_error("engine_newPayloadV1");
         l2.expect("engine_newPayloadV1", valid());
         l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
         let (state_tx, mut state_rx) = tokio::sync::watch::channel(EngineState::default());
-        let mut engine = Engine::new(EngineState::default(), state_tx);
-        let task = EngineTask::Insert(Box::new(InsertTask::new(
-            Arc::new(client),
-            config.clone(),
-            payload,
-            false,
-            Arc::new(NoopBlockSink),
-        )));
+        let mut engine = engine(client, config.clone(), EngineState::default(), state_tx);
 
         // A failed attempt returns its error for the caller to retry, and is still published.
-        let error = engine.execute(&task).await.unwrap_err();
+        let error = engine.insert_unsafe(payload.clone()).await.unwrap_err();
         assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
         assert!(state_rx.has_changed().unwrap());
         state_rx.mark_unchanged();
 
-        engine.execute(&task).await.unwrap();
+        engine.insert_unsafe(payload).await.unwrap();
         assert!(state_rx.has_changed().unwrap());
         assert_eq!(
             state_rx.borrow().sync_state.unsafe_head().block_info.hash,
             config.genesis.l2.hash
         );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    #[rstest::rstest]
+    #[case::invalid(PayloadStatusEnum::Invalid { validation_error: "invalid transaction".into() })]
+    #[case::accepted(PayloadStatusEnum::Accepted)]
+    #[tokio::test]
+    async fn insert_unsafe_drops_rejected_payloads(#[case] status: PayloadStatusEnum) {
+        let (payload, config) = genesis_payload();
+        let (client, l1, l2) = test_engine_client(config.clone());
+        l2.expect("engine_newPayloadV1", PayloadStatus::from_status(status));
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let mut engine = engine(client, config, EngineState::default(), state_tx);
+
+        engine.insert_unsafe(payload).await.unwrap();
+        assert_eq!(*engine.state(), EngineState::default());
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Builds with attributes the execution layer answers with `status` and a payload ID.
+    async fn build(status: PayloadStatusEnum) -> Result<PayloadId, BuildTaskError> {
+        let mut config = RollupConfig::default();
+        config.hardforks.ecotone_time = Some(0);
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated::new(PayloadStatus::from_status(status))
+                .with_payload_id(PayloadId::new([1; 8])),
+        );
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let mut engine = engine(client, config, EngineState::default(), state_tx);
+
+        let result = engine.build(TestAttributesBuilder::new().build()).await;
+        l1.assert_finished();
+        l2.assert_finished();
+        result
+    }
+
+    #[tokio::test]
+    async fn build_returns_the_payload_id() {
+        assert_eq!(build(PayloadStatusEnum::Valid).await.unwrap(), PayloadId::new([1; 8]));
+    }
+
+    #[tokio::test]
+    async fn build_returns_a_rejection_to_the_caller() {
+        let result = build(PayloadStatusEnum::Invalid { validation_error: String::new() }).await;
+        assert!(matches!(
+            result,
+            Err(BuildTaskError::EngineBuildError(crate::EngineBuildError::InvalidPayload(_)))
+        ));
+    }
+
+    #[tokio::test]
+    async fn seal_rejects_a_build_whose_parent_is_no_longer_the_unsafe_head() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let unsafe_head = test_block_info(2);
+        let state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = engine(client, config, state, state_tx);
+
+        let attributes = TestAttributesBuilder::new().with_parent(test_block_info(1)).build();
+        let result = engine.seal(PayloadId::new([1; 8]), attributes).await;
+        assert!(matches!(result, Err(SealTaskError::UnsafeHeadChangedSinceBuild)));
         l1.assert_finished();
         l2.assert_finished();
     }

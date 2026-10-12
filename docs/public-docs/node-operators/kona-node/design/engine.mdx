@@ -228,30 +228,31 @@ let state = EngineState::default();
 let (state_sender, state_receiver) = watch::channel(state);
 
 // Create the engine, which publishes its state to `state_receiver`.
-let mut engine = Engine::new(state, state_sender);
+let mut engine = Engine::new(
+    Arc::new(client),
+    rollup_config.clone(),
+    block_sink,
+    state,
+    state_sender,
+);
 ```
 
-### Executing Tasks
+### Performing Operations
+
+`Engine` has one method per operation: `insert_unsafe`, `build`, `seal`, `consolidate`, `finalize`, and `reset`. Each returns its own error type, whose severity tells the caller how to recover.
 
 ```rust
-let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
-    client.clone(),
-    rollup_config.clone(),
-    input,
-    block_sink,
-)));
-
-match engine.execute(&task).await {
-    Ok(()) => info!("Task completed"),
+match engine.consolidate(input).await {
+    Ok(()) => info!("Consolidated"),
     Err(e) => match e.severity() {
         EngineTaskErrorSeverity::Temporary => {
-            // Retry the task after a delay
+            // Retry after a delay
         },
         EngineTaskErrorSeverity::Reset => {
             // Reset the engine and derivation
         },
         EngineTaskErrorSeverity::Flush => {
-            // Flush derivation; the task is complete
+            // Flush derivation; the operation is complete
         },
         EngineTaskErrorSeverity::Critical => {
             // Stop

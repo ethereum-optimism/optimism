@@ -54,7 +54,13 @@ impl Builder {
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx } = self;
         async move {
-            let engine = Engine::new(EngineState::default(), state_tx);
+            let engine = Engine::new(
+                Arc::clone(&client),
+                Arc::clone(&rollup),
+                Arc::clone(&block_sink),
+                EngineState::default(),
+                state_tx,
+            );
             Actor::new(client, rollup, derivation_client, engine, messages_rx, block_sink)
                 .run()
                 .await
@@ -265,7 +271,7 @@ where
     async fn reset(&mut self, result_tx: Option<oneshot::Sender<()>>) -> Result<(), ActorError> {
         let mut backoff = Backoff::default();
         let l2_safe_head = loop {
-            match self.engine.reset(self.client.clone(), self.rollup.clone()).await {
+            match self.engine.reset().await {
                 Ok(l2_safe_head) => break l2_safe_head,
                 Err(err) if err.is_temporary() => {
                     warn!(target: "engine", ?err, "Reset dependency unavailable; retrying reset");
@@ -402,13 +408,22 @@ mod tests {
     ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
         let (messages, messages_rx) = mpsc::channel(8);
         let (state_tx, state_rx) = watch::channel(state);
+        let client = Arc::new(client);
+        let block_sink: Arc<dyn ImportedBlockSink> = Arc::new(NoopBlockSink);
+        let engine = Engine::new(
+            Arc::clone(&client),
+            Arc::clone(&config),
+            Arc::clone(&block_sink),
+            state,
+            state_tx,
+        );
         let actor = Actor::new(
-            Arc::new(client),
+            client,
             config,
             QueuedEngineDerivationClient::new(derivation_tx),
-            Engine::new(state, state_tx),
+            engine,
             messages_rx,
-            Arc::new(NoopBlockSink),
+            block_sink,
         );
         (Handle::new(messages, state_rx), tokio::spawn(actor.run()))
     }
