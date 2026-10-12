@@ -69,14 +69,15 @@ fn gas_used_with_spend_discount(gas: &ResultGas, discount: u64, max_refund_quoti
 /// Returns a producer policy's consensus-safe refund for an executed transaction.
 ///
 /// A refund policy is advisory: malformed output must not reject an otherwise valid transaction or
-/// abort payload production. A normal-transaction refund that exceeds the gas the EVM actually used
-/// is discarded, while deposits are never refundable. Verifiers independently enforce these same
-/// bounds on the resulting post-exec payload.
+/// abort payload production. A normal-transaction refund that exceeds the gas execution spent can
+/// only come from a faulty policy and is discarded, while deposits are never refundable.
 ///
 /// A policy's refund is a discount on the gas execution spent (for block-level warming, the
 /// EIP-2929 surcharges on block-warm accesses). It is clipped to what that discount actually saves
 /// the transaction, so the refund never lowers canonical gas below the gas the transaction would
-/// have used had execution spent that much less. The clip is producer policy, not consensus:
+/// have used had execution spent that much less. Gas used is net of the EIP-3529 refund, so a
+/// discount can exceed it; the clip, not a comparison with gas used, is what keeps the refund
+/// within the verifier's `refund <= evmGasUsed` bound. The clip is producer policy, not consensus:
 /// verifiers apply whatever refund the payload carries.
 #[cfg_attr(not(feature = "metrics"), allow(clippy::missing_const_for_fn))]
 fn sanitize_producer_refund(
@@ -85,13 +86,12 @@ fn sanitize_producer_refund(
     max_refund_quotient: u64,
     is_deposit: bool,
 ) -> u64 {
-    let evm_gas_used = gas.tx_gas_used();
     let (refund, correction) = if is_deposit && refund > 0 {
         (0, Some("ineligible_transaction"))
-    } else if refund > evm_gas_used {
-        (0, Some("exceeds_evm_gas"))
+    } else if refund > gas.total_gas_spent() {
+        (0, Some("exceeds_gas_spent"))
     } else {
-        let net_saving = evm_gas_used.saturating_sub(gas_used_with_spend_discount(
+        let net_saving = gas.tx_gas_used().saturating_sub(gas_used_with_spend_discount(
             gas,
             refund,
             max_refund_quotient,
