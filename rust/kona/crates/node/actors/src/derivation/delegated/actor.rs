@@ -7,7 +7,7 @@ use crate::{
 };
 use alloy_primitives::BlockHash;
 use kona_derive::ChainProvider;
-use kona_protocol::{L2BlockInfo, SyncStatus};
+use kona_protocol::SyncStatus;
 use std::future::Future;
 use thiserror::Error;
 use tokio::{
@@ -70,8 +70,6 @@ where
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
 
-    /// The engine's L2 safe head, according to updates from the Engine.
-    engine_l2_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
     has_engine_sync_completed: bool,
     /// Ticker driving periodic polls of the derivation delegate provider.
@@ -102,7 +100,6 @@ where
             engine_client,
             derivation_delegate_provider,
             l1_provider,
-            engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
         }
@@ -243,11 +240,9 @@ where
         match message {
             Message::SafeHead(safe_head) => {
                 debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
-                self.engine_l2_safe_head = *safe_head;
             }
-            Message::ElSyncCompleted(safe_head) => {
+            Message::ElSyncCompleted(_) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
             Message::Signal(signal) => {
@@ -277,7 +272,7 @@ mod tests {
     };
     use async_trait::async_trait;
     use kona_derive::test_utils::TestChainProvider;
-    use kona_protocol::BlockInfo;
+    use kona_protocol::{BlockInfo, L2BlockInfo};
     use std::{collections::VecDeque, sync::Mutex};
 
     struct TestDelegate(Mutex<VecDeque<SyncStatus>>);
