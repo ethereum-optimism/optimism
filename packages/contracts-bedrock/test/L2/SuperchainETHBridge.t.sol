@@ -662,7 +662,7 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
             l2CrossDomainMessenger.relayMessage(nonce, sender, Predeploys.ETH_LIQUIDITY, 0, gasLimit, message);
             return;
         }
-        revert("no SentMessage from the L1CrossDomainMessenger");
+        revert("SuperchainETHBridge_Integration_Test: no SentMessage from the L1CrossDomainMessenger");
     }
 
     /// @notice Tests the whole pause path: the guardian pauses the chain on L1, anyone syncs it to
