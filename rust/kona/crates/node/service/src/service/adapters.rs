@@ -1,8 +1,82 @@
 //! Connects actor handles to dependency traits.
 
+use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
-use kona_node_actors::{sequencer, signer};
+use kona_engine::{ConsolidateInput, FinalizeBlockId};
+use kona_node_actors::{
+    DerivationEngineClient, EngineClientError, EngineClientResult, NetworkEngineClient,
+    SequencerEngineClient, engine, sequencer, signer,
+};
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+
+#[derive(Debug, Clone)]
+pub(super) struct Engine(pub(super) engine::Handle);
+
+#[async_trait]
+impl SequencerEngineClient for Engine {
+    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+        info!(target: "sequencer", "Sending reset request to engine.");
+        self.0.reset().await.inspect(|_| info!(target: "sequencer", "Engine reset successfully."))
+    }
+
+    async fn start_build_block(
+        &self,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<PayloadId> {
+        trace!(target: "sequencer", "Sending start build request to engine.");
+        self.0.start_build(attributes).await.inspect(|payload_id| {
+            trace!(target: "sequencer", ?payload_id, "Start build request successfully.")
+        })
+    }
+
+    async fn seal_and_canonicalize_block(
+        &self,
+        payload_id: PayloadId,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
+        trace!(target: "sequencer", ?attributes, "Sending seal request to engine.");
+        self.0
+            .seal(payload_id, attributes)
+            .await
+            .inspect(|payload| trace!(target: "sequencer", ?payload, "Seal succeeded."))
+            .inspect_err(|err| {
+                if matches!(err, EngineClientError::SealError(_)) {
+                    info!(target: "sequencer", ?err, "Seal failed.");
+                }
+            })
+    }
+
+    async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {
+        Ok(self.0.state().borrow().sync_state.unsafe_head())
+    }
+}
+
+#[async_trait]
+impl DerivationEngineClient for Engine {
+    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+        info!(target: "derivation", "Sending reset request to engine.");
+        self.0.reset().await.inspect(|_| info!(target: "derivation", "Engine reset successfully."))
+    }
+
+    async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
+        trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
+        self.0.finalize(block_id).await
+    }
+
+    async fn send_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
+        trace!(target: "derivation", ?signal, "Sending safe L2 signal info to engine.");
+        self.0.consolidate(signal).await
+    }
+}
+
+#[async_trait]
+impl NetworkEngineClient for Engine {
+    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+        trace!(target: "network", ?block, "Sending unsafe block to engine.");
+        self.0.insert_unsafe_block(block).await
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(super) struct Signer(pub(super) signer::Handle);
@@ -26,6 +100,18 @@ mod tests {
     use alloy_rpc_types_engine::ExecutionPayloadV1;
     use sequencer::Signer as _;
     use std::future::ready;
+
+    #[tokio::test]
+    async fn engine_reports_a_closed_queue() {
+        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let engine = Engine(builder.handle());
+        drop(builder);
+        assert!(matches!(
+            DerivationEngineClient::send_finalized_l2_block(&engine, FinalizeBlockId::ByNumber(1))
+                .await,
+            Err(EngineClientError::RequestError(_))
+        ));
+    }
 
     #[tokio::test]
     async fn signer_preserves_backpressure_and_reports_closed_channels() {

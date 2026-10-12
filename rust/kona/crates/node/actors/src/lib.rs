@@ -27,7 +27,7 @@ pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
     DerivationClientResult, DerivationDelegateClientError, DerivationDelegateProvider,
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
+    DerivationStateTransitionError, DerivationStateUpdate,
 };
 
 pub mod l1_signer_updater;
@@ -40,15 +40,14 @@ mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
     NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    QueuedNetworkEngineClient,
 };
 
 pub mod sequencer;
 
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
-    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerConfig, SequencerEngineClient,
+    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, SequencerConfig,
+    SequencerEngineClient,
 };
 
 #[cfg(test)]

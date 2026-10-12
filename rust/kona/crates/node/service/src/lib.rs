@@ -23,8 +23,7 @@ pub use kona_node_actors::{
     EngineConfig, EngineDerivationClient, L1OriginSelector, L1OriginSelectorError,
     L1OriginSelectorProvider, NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError,
     NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    NodeActor, OriginSelector, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, RpcActorError,
+    NodeActor, OriginSelector, QueuedEngineDerivationClient, RpcActor, RpcActorError,
     SequencerConfig, SequencerEngineClient, engine, l1, l1_signer_updater, sequencer, signer,
 };
 

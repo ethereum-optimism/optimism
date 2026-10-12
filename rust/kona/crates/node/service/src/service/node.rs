@@ -4,8 +4,7 @@ use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineConfig,
     L1OriginSelector, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
-    NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerConfig,
+    NodeMode, QueuedEngineDerivationClient, RpcActor, SequencerConfig,
     service::BufferImportedBlocks, signer,
 };
 use alloy_primitives::Address;
@@ -22,7 +21,7 @@ use kona_engine::{EngineClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_actors::{DerivationStatus, engine, l1, l1_signer_updater, sequencer};
-use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
     OnlineBlobProvider, OnlinePipeline,
@@ -104,26 +103,18 @@ pub struct RollupNode {
 enum ConfiguredDerivationActor {
     Delegate(
         Box<
-            DelegateDerivationActor<
-                QueuedDerivationEngineClient,
-                DerivationDelegateClient,
-                AlloyChainProvider,
-            >,
+            DelegateDerivationActor<adapters::Engine, DerivationDelegateClient, AlloyChainProvider>,
         >,
     ),
-    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
+    Normal(Box<DerivationActor<adapters::Engine, OnlinePipeline>>),
 }
 
 #[async_trait::async_trait]
 impl NodeActor for ConfiguredDerivationActor
 where
-    DelegateDerivationActor<
-        QueuedDerivationEngineClient,
-        DerivationDelegateClient,
-        AlloyChainProvider,
-    >: NodeActor<Error = DerivationError>,
-    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
+    DelegateDerivationActor<adapters::Engine, DerivationDelegateClient, AlloyChainProvider>:
         NodeActor<Error = DerivationError>,
+    DerivationActor<adapters::Engine, OnlinePipeline>: NodeActor<Error = DerivationError>,
 {
     type Error = DerivationError;
 
@@ -213,16 +204,11 @@ impl RollupNode {
         builder: engine::Builder,
         client: Arc<EngineClient>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
-        unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
-        // unsafe_head_tx is only meaningful in sequencer mode; validators ignore it.
-        let unsafe_head_tx_opt = self.mode().is_sequencer().then_some(unsafe_head_tx);
-
         builder.build(
             client,
             self.config.clone(),
             QueuedEngineDerivationClient::new(derivation_actor_request_tx),
-            unsafe_head_tx_opt,
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )
     }
@@ -243,7 +229,7 @@ impl RollupNode {
                 DERIVATION_PROVIDER_CACHE_SIZE,
             );
             let actor = DelegateDerivationActor::new(
-                QueuedDerivationEngineClient { engine },
+                adapters::Engine(engine),
                 derivation_actor_request_rx,
                 provider,
                 l1_provider,
@@ -256,7 +242,7 @@ impl RollupNode {
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
             let actor = DerivationActor::<_, OnlinePipeline>::new(
-                QueuedDerivationEngineClient { engine },
+                adapters::Engine(engine),
                 derivation_actor_request_rx,
                 pipeline,
                 head,
@@ -292,7 +278,6 @@ impl RollupNode {
         &self,
         engine: engine::Handle,
         signer: signer::Handle,
-        unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head: watch::Receiver<BlockInfo>,
         builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
@@ -304,11 +289,9 @@ impl RollupNode {
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
 
-        let sequencer_engine_client = QueuedSequencerEngineClient { engine, unsafe_head_rx };
-
         builder.build(
             self.create_attributes_builder(),
-            sequencer_engine_client,
+            adapters::Engine(engine),
             delayed_origin_selector,
             self.config.clone(),
             self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
@@ -456,18 +439,12 @@ impl RollupNode {
         );
         let signer_handle = signer_builder.handle();
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<signer::Payload>(16);
-        // watch channels
-        let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
         let l2_query_client = engine_client.as_ref().clone();
-        let engine_actor = self.build_engine(
-            engine_builder,
-            engine_client,
-            derivation_actor_request_tx,
-            unsafe_head_tx,
-        );
+        let engine_actor =
+            self.build_engine(engine_builder, engine_client, derivation_actor_request_tx);
 
         let (derivation, derivation_status) = self
             .build_derivation_actor(
@@ -501,7 +478,7 @@ impl RollupNode {
 
         let discovery = handler.discovery.clone();
         let network = NetworkActor::new(
-            QueuedNetworkEngineClient { engine: engine.clone() },
+            adapters::Engine(engine.clone()),
             handler,
             gossip_command_rx,
             admin_payload_rx,
@@ -532,13 +509,7 @@ impl RollupNode {
         );
 
         let sequencer_actor = sequencer_builder.map(|builder| {
-            self.build_sequencer(
-                engine.clone(),
-                signer_handle,
-                unsafe_head_rx,
-                head.clone(),
-                builder,
-            )
+            self.build_sequencer(engine.clone(), signer_handle, head.clone(), builder)
         });
 
         let engine_state = engine.state();

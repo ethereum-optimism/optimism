@@ -50,23 +50,14 @@ impl Builder {
         client: Arc<EngineClient>,
         rollup: Arc<RollupConfig>,
         derivation_client: DerivationClient,
-        unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx } = self;
         async move {
             let engine = Engine::new(EngineState::default(), state_tx);
-            Actor::new(
-                client,
-                rollup,
-                derivation_client,
-                engine,
-                unsafe_head_tx,
-                messages_rx,
-                block_sink,
-            )
-            .run()
-            .await
+            Actor::new(client, rollup, derivation_client, engine, messages_rx, block_sink)
+                .run()
+                .await
         }
     }
 }
@@ -85,11 +76,6 @@ where
     el_sync_complete: bool,
     /// The last safe head update sent.
     last_safe_head_sent: L2BlockInfo,
-    /// A channel to use to relay the current unsafe head.
-    /// ## Note
-    /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
-    /// mode.
-    unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
 
     /// The [`RollupConfig`] used to build tasks.
     rollup: Arc<RollupConfig>,
@@ -121,7 +107,6 @@ where
         config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
         engine: Engine,
-        unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         messages_rx: mpsc::Receiver<Message>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
@@ -132,7 +117,6 @@ where
             engine,
             last_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
-            unsafe_head_tx,
             messages_rx,
             block_sink,
             reset_pending: false,
@@ -307,14 +291,6 @@ where
             }
         }
 
-        // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
-        }
-
         // Wait for the next processing request.
         // Retry without needing a new inbound message, while still accepting requests during
         // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
@@ -412,7 +388,6 @@ mod tests {
             Arc::new(client),
             config,
             QueuedEngineDerivationClient::new(derivation_tx),
-            None,
             Arc::new(NoopBlockSink),
         );
         assert_eq!(*handle.state().borrow(), EngineState::default());
@@ -456,12 +431,13 @@ mod tests {
         let (messages, messages_rx) = mpsc::channel(8);
         let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
         let handle = Handle::new(messages, state_rx);
+        let genesis = config.genesis.l2.hash;
+        let reader = handle.clone();
         let mut actor = Actor::new(
             client,
             config,
             derivation,
             Engine::new(EngineState::default(), state_tx),
-            None,
             messages_rx,
             Arc::new(NoopBlockSink),
         );
@@ -484,6 +460,8 @@ mod tests {
         let mut tasks = tokio::task::JoinSet::new();
         tasks.spawn(actor.run());
         time::timeout(Duration::from_secs(20), reset).await.unwrap().unwrap().unwrap();
+        // The reset's heads are published before the reply.
+        assert_eq!(reader.state().borrow().sync_state.unsafe_head().block_info.hash, genesis);
         assert!(matches!(
             derivation_rx.recv().await.unwrap(),
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)

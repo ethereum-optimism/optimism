@@ -178,7 +178,6 @@ mod tests {
             Arc::new(client),
             config,
             QueuedEngineDerivationClient::new(derivation_tx),
-            None,
             Arc::new(NoopBlockSink),
         );
         (handle, task, derivation_rx)

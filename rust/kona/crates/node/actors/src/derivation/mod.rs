@@ -7,7 +7,7 @@ pub use delegated::{
 };
 
 mod engine_client;
-pub use engine_client::{DerivationEngineClient, QueuedDerivationEngineClient};
+pub use engine_client::DerivationEngineClient;
 
 mod finalizer;
 pub(crate) use finalizer::L2Finalizer;
