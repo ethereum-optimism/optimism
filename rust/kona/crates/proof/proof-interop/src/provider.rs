@@ -342,13 +342,23 @@ impl<C: CommsClient> TrieHinter for ChainScopedHinter<'_, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::{collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
-    use alloy_consensus::Header;
-    use alloy_primitives::{B256, Sealable, keccak256};
-    use alloy_rlp::Decodable;
+    use alloc::{
+        collections::{BTreeMap, BTreeSet},
+        format,
+        string::String,
+        sync::Arc,
+        vec,
+        vec::Vec,
+    };
+    use alloy_consensus::{EMPTY_ROOT_HASH, Header};
+    use alloy_primitives::{B256, Sealable, U256, keccak256};
+    use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
     use async_trait::async_trait;
-    use kona_genesis::RollupConfig;
-    use kona_interop::{DependencySet, MESSAGE_EXPIRY_WINDOW, SuperRoot};
+    use kona_genesis::{ChainDependency, RollupConfig};
+    use kona_interop::{
+        ChainBuilder, DependencySet, ExecutingMessageBuilder, MESSAGE_EXPIRY_WINDOW, MessageGraph,
+        MessageGraphError, SuperRoot, SuperchainBuilder,
+    };
     use kona_preimage::{
         HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
         errors::PreimageOracleResult,
@@ -495,7 +505,11 @@ mod tests {
         let mut rollup_configs = HashMap::default();
         rollup_configs.insert(fixture.chain_id, rollup_config);
 
-        let boot = BootInfo {
+        OracleInteropProvider::new(Arc::new(client), boot_info(rollup_configs), local_safe_heads)
+    }
+
+    fn boot_info(rollup_configs: HashMap<u64, RollupConfig>) -> BootInfo {
+        BootInfo {
             l1_head: B256::ZERO,
             agreed_pre_state_commitment: B256::ZERO,
             agreed_pre_state: PreState::SuperRoot(SuperRoot::new(0, Vec::new())),
@@ -507,9 +521,106 @@ mod tests {
                 override_message_expiry_window: None,
             },
             l1_config: Default::default(),
+        }
+    }
+
+    /// A stale block number with a recent timestamp is rejected without reading chain A's history.
+    ///
+    /// Chain B's head executes a message whose identifier pairs chain A's recent timestamp with
+    /// block number `1`. The verdict must come from the identifier alone: resolving block `1`
+    /// through the real [`OracleInteropProvider`] would walk back through chain A's entire
+    /// history one header at a time.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_stale_initiating_block_number_rejected_without_history_walk() {
+        const CHAIN_A: u64 = u64::MAX - 1;
+        const CHAIN_B: u64 = u64::MAX;
+        const BLOCK_TIME: u64 = 2;
+        const HEAD: u64 = 1_000;
+        const STALE_TS: u64 = (HEAD - 1) * BLOCK_TIME;
+
+        let mut client = MockCommsClient { preimages: BTreeMap::new(), reads: Default::default() };
+        client
+            .preimages
+            .insert(PreimageKey::new_keccak256(*EMPTY_ROOT_HASH).into(), vec![EMPTY_STRING_CODE]);
+
+        // Chain A: a linear history `0..=HEAD` without EIP-2935, so resolving an old block by
+        // number can only walk parent hashes back from the head.
+        let mut history = BTreeSet::new();
+        let mut head_a = insert_test_header(
+            &mut client,
+            Header { receipts_root: EMPTY_ROOT_HASH, ..Default::default() },
+        );
+        for number in 1..=HEAD {
+            history.insert(PreimageKey::new_keccak256(*head_a.hash()));
+            head_a = insert_test_header(
+                &mut client,
+                Header {
+                    number,
+                    timestamp: number * BLOCK_TIME,
+                    parent_hash: head_a.hash(),
+                    receipts_root: EMPTY_ROOT_HASH,
+                    ..Default::default()
+                },
+            );
+        }
+
+        // Chain B: the head executes the stale-numbered message.
+        let mut chain_b = ChainBuilder::default();
+        chain_b.add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(B256::repeat_byte(0x11))
+                .with_origin_chain_id(CHAIN_A)
+                .with_origin_block_number(1)
+                .with_origin_timestamp(STALE_TS),
+        );
+        let receipts_root = insert_test_receipts(&mut client, &chain_b.receipts);
+        let head_b = insert_test_header(
+            &mut client,
+            Header {
+                number: HEAD,
+                timestamp: HEAD * BLOCK_TIME,
+                receipts_root,
+                ..Default::default()
+            },
+        );
+
+        let mut rollup_config = RollupConfig { block_time: BLOCK_TIME, ..Default::default() };
+        rollup_config.hardforks.lagoon_time = Some(0);
+        let cfgs: HashMap<u64, RollupConfig> =
+            [(CHAIN_A, rollup_config.clone()), (CHAIN_B, rollup_config)].into_iter().collect();
+        let heads: HashMap<_, _> = [(CHAIN_A, head_a), (CHAIN_B, head_b)].into_iter().collect();
+        let dep_set = DependencySet {
+            dependencies: [(CHAIN_A, ChainDependency {}), (CHAIN_B, ChainDependency {})].into(),
+            override_message_expiry_window: None,
         };
 
-        OracleInteropProvider::new(Arc::new(client), boot, local_safe_heads)
+        let provider = OracleInteropProvider::new(
+            Arc::new(client.clone()),
+            boot_info(cfgs.clone()),
+            heads.clone(),
+        );
+        let result =
+            MessageGraph::derive(&heads, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
+                .await
+                .unwrap()
+                .resolve()
+                .await;
+
+        let walked = client.reads.lock().iter().filter(|key| history.contains(*key)).count();
+        assert_eq!(walked, 0, "proof walked {walked} headers of chain A's history");
+        let Err(MessageGraphError::InvalidMessages(invalid)) = result else {
+            panic!("expected InvalidMessages, got {result:?}");
+        };
+        assert_eq!(invalid.len(), 1);
+        assert!(
+            matches!(
+                invalid[&CHAIN_B],
+                MessageGraphError::InvalidMessageBlockNumber { block_number, timestamp: STALE_TS }
+                    if block_number == U256::from(1)
+            ),
+            "unexpected verdict: {:?}",
+            invalid[&CHAIN_B]
+        );
     }
 
     /// Tests the EIP-2935 fast path: looking up a block at the boundary of the 8,191-block
@@ -740,15 +851,12 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_message_graph_revalidates_cached_source_after_replacement() {
         use alloy_consensus::{Receipt, ReceiptWithBloom};
-        use kona_genesis::ChainDependency;
-        use kona_interop::{
-            ExecutingMessageBuilder, MessageGraph, MessageGraphError, SuperchainBuilder,
-        };
 
         let mut superchain = SuperchainBuilder::new();
         for chain in [1, 2] {
             superchain
                 .chain(chain)
+                .with_number(1)
                 .with_timestamp(2)
                 .with_block_time(2)
                 .with_lagoon_activation_time(0);
@@ -757,6 +865,7 @@ mod tests {
         superchain.chain(2).add_executing_message(
             ExecutingMessageBuilder::default()
                 .with_origin_chain_id(1)
+                .with_origin_block_number(1)
                 .with_origin_timestamp(2)
                 .with_message_hash(keccak256(b"payload")),
         );
