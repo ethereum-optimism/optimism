@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "bytes": "1",
+    "label": "paused",
+    "offset": 0,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "32",
+    "label": "pausedL1Timestamp",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256"
+  }
+]
