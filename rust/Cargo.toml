@@ -380,7 +380,7 @@ reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", rev = "a280
 reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89" }
 reth-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89" }
 reth-ethereum-cli = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89" }
-reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89" }
+reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89", default-features = false }
 reth-ethereum-forks = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89", default-features = false }
 reth-ethereum-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89" }
 reth-evm = { git = "https://github.com/ethereum-optimism/reth", rev = "a2800024d40fc3206e0503aba161114c43158a89", default-features = false }

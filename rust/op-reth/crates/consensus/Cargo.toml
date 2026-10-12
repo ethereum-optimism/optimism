@@ -17,6 +17,7 @@ reth-execution-types.workspace = true
 reth-chainspec.workspace = true
 reth-consensus-common.workspace = true
 reth-consensus.workspace = true
+reth-ethereum-consensus.workspace = true
 reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
 reth-storage-errors.workspace = true
@@ -67,6 +68,7 @@ std = [
     "reth-chainspec/std",
     "reth-consensus/std",
     "reth-consensus-common/std",
+    "reth-ethereum-consensus/std",
     "reth-primitives-traits/std",
     "reth-optimism-forks/std",
     "reth-optimism-chainspec/std",

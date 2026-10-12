@@ -13787,6 +13787,7 @@ dependencies = [
  "reth-consensus",
  "reth-consensus-common",
  "reth-db-common",
+ "reth-ethereum-consensus",
  "reth-execution-types",
  "reth-metrics",
  "reth-optimism-chainspec",
