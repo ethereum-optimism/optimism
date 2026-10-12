@@ -1,7 +1,7 @@
 use crate::{
     derivation::{
         ActorError, Builder, DerivationDelegateProvider, DerivationEngineClient, DerivationStatus,
-        Message,
+        reset_engine,
     },
     engine::FinalizeBlockId,
 };
@@ -10,11 +10,7 @@ use kona_derive::ChainProvider;
 use kona_protocol::SyncStatus;
 use std::future::Future;
 use thiserror::Error;
-use tokio::{
-    select,
-    sync::{mpsc, watch},
-    time,
-};
+use tokio::{sync::watch, time};
 
 impl Builder {
     /// Supplies the dependencies of the derivation actor that follows an external derivation
@@ -32,17 +28,11 @@ impl Builder {
         DelegateProvider: DerivationDelegateProvider + 'static,
         L1Provider: ChainProvider + Send + 'static,
     {
-        let Self { handle: _, messages_rx, status_tx } = self;
+        let Self { handle: _, status_tx } = self;
         async move {
-            Actor::new(
-                engine_client,
-                messages_rx,
-                status_tx,
-                derivation_delegate_provider,
-                l1_provider,
-            )
-            .run()
-            .await
+            Actor::new(engine_client, status_tx, derivation_delegate_provider, l1_provider)
+                .run()
+                .await
         }
     }
 }
@@ -57,8 +47,6 @@ where
     DelegateProvider: DerivationDelegateProvider,
     L1Provider: ChainProvider,
 {
-    /// Receives messages from handles.
-    inbound_request_rx: mpsc::Receiver<Message>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
@@ -70,8 +58,6 @@ where
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
 
-    /// Whether the engine sync has completed. This will only ever go from false -> true.
-    has_engine_sync_completed: bool,
     /// Ticker driving periodic polls of the derivation delegate provider.
     delegated_derivation_ticker: time::Interval,
 }
@@ -86,7 +72,6 @@ where
     /// Creates the actor. Its poll timer needs a Tokio runtime.
     fn new(
         engine_client: DerivationEngineClient_,
-        inbound_request_rx: mpsc::Receiver<Message>,
         status: watch::Sender<DerivationStatus>,
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
@@ -96,40 +81,20 @@ where
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
             status,
-            inbound_request_rx,
             engine_client,
             derivation_delegate_provider,
             l1_provider,
-            has_engine_sync_completed: false,
             delegated_derivation_ticker,
         }
     }
 
+    /// Resets the engine once the execution layer is synced, then follows the delegate.
     async fn run(mut self) -> Result<(), ActorError> {
+        reset_engine(&self.engine_client).await?;
+        info!(target: "derivation", "Engine reset; following the derivation delegate");
         loop {
-            self.step().await?;
-        }
-    }
-
-    /// Handles the next message, or polls the delegate once EL sync has completed.
-    async fn step(&mut self) -> Result<(), ActorError> {
-        select! {
-            biased;
-
-            req = self.inbound_request_rx.recv() => {
-                let request = req.ok_or_else(|| {
-                    error!(
-                        target: "derivation",
-                        "Derivation request receiver closed unexpectedly",
-                    );
-                    ActorError::RequestReceiveFailed
-                })?;
-                self.handle_message(request).await
-            }
-            _ = self.delegated_derivation_ticker.tick(),
-            if self.has_engine_sync_completed => {
-                self.fetch_and_apply_delegate_safe_head().await
-            }
+            self.delegated_derivation_ticker.tick().await;
+            self.fetch_and_apply_delegate_safe_head().await?;
         }
     }
 }
@@ -235,22 +200,6 @@ where
 
         Ok(())
     }
-
-    async fn handle_message(&mut self, message: Message) -> Result<(), ActorError> {
-        match message {
-            Message::SafeHead(safe_head) => {
-                debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
-            }
-            Message::ElSyncCompleted(_) => {
-                info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                self.has_engine_sync_completed = true;
-            }
-            Message::Signal(signal) => {
-                debug!(target: "derivation", ?signal, "Ignoring signal while delegating derivation");
-            }
-        }
-        Ok(())
-    }
 }
 
 #[derive(Error, Debug)]
@@ -267,8 +216,9 @@ enum DerivationDelegationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::derivation::{
-        DerivationDelegateClientError, engine_client::MockDerivationEngineClient,
+    use crate::{
+        derivation::{DerivationDelegateClientError, engine_client::MockDerivationEngineClient},
+        engine::EngineState,
     };
     use async_trait::async_trait;
     use kona_derive::test_utils::TestChainProvider;
@@ -287,7 +237,7 @@ mod tests {
     /// Building needs no runtime: the actor creates its poll timer when it starts running.
     #[test]
     fn build_delegated_does_not_require_a_runtime() {
-        let builder = Builder::new(crate::derivation::Capacity::try_from(1).unwrap());
+        let builder = Builder::new();
         let task = builder.build_delegated(
             MockDerivationEngineClient::new(),
             TestDelegate(Mutex::new(VecDeque::new())),
@@ -296,15 +246,10 @@ mod tests {
         drop(task);
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn publishes_only_validated_delegate_progress() {
-        let current = BlockInfo {
-            number: 7,
-            hash: alloy_primitives::B256::repeat_byte(1),
-            ..Default::default()
-        };
+    /// Returns a delegate sync status whose L1 blocks are the given current L1 block and genesis.
+    fn sync_status(current: BlockInfo) -> SyncStatus {
         // Fill the delegate's unused sync fields with zero values.
-        let status = SyncStatus {
+        SyncStatus {
             current_l1: current,
             current_l1_finalized: BlockInfo::default(),
             head_l1: BlockInfo::default(),
@@ -314,7 +259,51 @@ mod tests {
             local_safe_l2: L2BlockInfo::default(),
             safe_l2: L2BlockInfo::default(),
             finalized_l2: L2BlockInfo::default(),
+        }
+    }
+
+    /// The actor resets the engine before it follows the delegate.
+    #[tokio::test(start_paused = true)]
+    async fn resets_the_engine_before_following_the_delegate() {
+        let current = BlockInfo { number: 7, ..Default::default() };
+        let delegate = TestDelegate(Mutex::new(VecDeque::from([sync_status(current)])));
+        let mut provider = TestChainProvider::default();
+        provider.insert_block(0, BlockInfo::default());
+        provider.insert_block(current.number, current);
+        let mut engine = MockDerivationEngineClient::new();
+        let mut sequence = mockall::Sequence::new();
+        engine
+            .expect_reset()
+            .once()
+            .in_sequence(&mut sequence)
+            .returning(|| Ok(EngineState::default()));
+        engine
+            .expect_send_delegated_safe_head()
+            .once()
+            .in_sequence(&mut sequence)
+            .returning(|_| Ok(()));
+        engine.expect_send_finalized_l2_block().once().returning(|_| Ok(()));
+        let (status, mut progress) = watch::channel(DerivationStatus::default());
+        let actor = tokio::spawn(Actor::new(engine, status, delegate, provider).run());
+
+        time::timeout(
+            time::Duration::from_secs(10),
+            progress.wait_for(|progress| progress.current_l1 == Some(current)),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        actor.abort();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn publishes_only_validated_delegate_progress() {
+        let current = BlockInfo {
+            number: 7,
+            hash: alloy_primitives::B256::repeat_byte(1),
+            ..Default::default()
         };
+        let status = sync_status(current);
         let mut invalid = status.clone();
         invalid.current_l1.hash = alloy_primitives::B256::repeat_byte(2);
         let delegate = TestDelegate(Mutex::new(VecDeque::from([invalid.clone(), status, invalid])));
@@ -324,16 +313,13 @@ mod tests {
         let mut engine = MockDerivationEngineClient::new();
         engine.expect_send_delegated_safe_head().times(1).returning(|_| Ok(()));
         engine.expect_send_finalized_l2_block().times(1).returning(|_| Ok(()));
-        let (tx, rx) = mpsc::channel(1);
         let (status, progress) = watch::channel(DerivationStatus::default());
-        let mut actor = Actor::new(engine, rx, status, delegate, provider);
-        tx.send(Message::ElSyncCompleted(Box::default())).await.unwrap();
-        actor.step().await.unwrap();
-        actor.step().await.unwrap();
+        let mut actor = Actor::new(engine, status, delegate, provider);
+        actor.fetch_and_apply_delegate_safe_head().await.unwrap();
         assert_eq!(progress.borrow().current_l1, None);
-        actor.step().await.unwrap();
+        actor.fetch_and_apply_delegate_safe_head().await.unwrap();
         assert_eq!(progress.borrow().current_l1, Some(current));
-        actor.step().await.unwrap();
+        actor.fetch_and_apply_delegate_safe_head().await.unwrap();
         assert_eq!(progress.borrow().current_l1, Some(current));
     }
 }

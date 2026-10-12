@@ -14,16 +14,15 @@ use async_trait::async_trait;
 mod capacity;
 
 pub mod engine;
-pub use engine::{EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient};
+pub use engine::{EngineClientError, EngineClientResult, EngineConfig};
 
 mod rpc;
 pub use rpc::{RpcActor, RpcActorError};
 
 pub mod derivation;
 pub use derivation::{
-    DerivationClientError, DerivationClientResult, DerivationDelegateClientError,
-    DerivationDelegateProvider, DerivationEngineClient, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate,
+    DerivationDelegateClientError, DerivationDelegateProvider, DerivationEngineClient,
+    DerivationState, DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
 };
 
 pub mod l1_signer_updater;

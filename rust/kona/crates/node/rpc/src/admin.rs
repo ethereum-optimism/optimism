@@ -85,7 +85,11 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
-        self.engine.reset().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.engine
+            .reset()
+            .await
+            .map(|_| ())
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 }
 
@@ -95,12 +99,11 @@ mod tests {
     use alloy_rpc_types_engine::{
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
     };
-    use kona_derive::{Signal, test_utils::TestAttributesBuilder};
+    use kona_derive::test_utils::TestAttributesBuilder;
     use kona_engine::{NoopBlockSink, test_utils::test_engine_client};
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
-        DerivationClientResult, EngineClientResult, EngineDerivationClient, L1OriginSelectorError,
-        OriginSelector, SequencerEngineClient,
+        EngineClientResult, L1OriginSelectorError, OriginSelector, SequencerEngineClient,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -148,25 +151,6 @@ mod tests {
         engine::Builder::new(engine::Capacity::try_from(1).unwrap()).handle()
     }
 
-    /// Accepts and discards everything the engine actor sends derivation.
-    #[derive(Debug)]
-    struct IgnoredDerivation;
-
-    #[async_trait]
-    impl EngineDerivationClient for IgnoredDerivation {
-        async fn notify_sync_completed(&self, _: L2BlockInfo) -> DerivationClientResult<()> {
-            Ok(())
-        }
-
-        async fn send_new_engine_safe_head(&self, _: L2BlockInfo) -> DerivationClientResult<()> {
-            Ok(())
-        }
-
-        async fn send_signal(&self, _: Signal) -> DerivationClientResult<()> {
-            Ok(())
-        }
-    }
-
     /// Returns an engine whose execution and L1 clients complete one reset.
     fn resetting_engine()
     -> (engine::Handle, impl Future<Output = Result<(), engine::ActorError>> + Send + 'static) {
@@ -189,8 +173,7 @@ mod tests {
         );
         let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
         let handle = builder.handle();
-        let task =
-            builder.build(Arc::new(client), config, IgnoredDerivation, Arc::new(NoopBlockSink));
+        let task = builder.build(Arc::new(client), config, Arc::new(NoopBlockSink));
         (handle, task)
     }
 

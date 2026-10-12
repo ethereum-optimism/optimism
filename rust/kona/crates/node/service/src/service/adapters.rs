@@ -2,11 +2,11 @@
 
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
-use kona_derive::Signal;
 use kona_node_actors::{
-    DerivationClientResult, DerivationEngineClient, EngineClientError, EngineClientResult,
-    EngineDerivationClient, NetworkEngineClient, SequencerEngineClient, derivation, engine,
-    engine::FinalizeBlockId, sequencer, signer,
+    DerivationEngineClient, EngineClientError, EngineClientResult, NetworkEngineClient,
+    SequencerEngineClient, engine,
+    engine::{Consolidation, EngineState, FinalizeBlockId},
+    sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -18,7 +18,9 @@ pub(super) struct Engine(pub(super) engine::Handle);
 impl SequencerEngineClient for Engine {
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
         info!(target: "sequencer", "Sending reset request to engine.");
-        self.0.reset().await.inspect(|_| info!(target: "sequencer", "Engine reset successfully."))
+        let state = self.0.reset().await?;
+        info!(target: "sequencer", safe_head = ?state.safe_head(), "Engine reset successfully.");
+        Ok(())
     }
 
     async fn start_build_block(
@@ -55,22 +57,24 @@ impl SequencerEngineClient for Engine {
 
 #[async_trait]
 impl DerivationEngineClient for Engine {
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+    async fn reset(&self) -> EngineClientResult<EngineState> {
         info!(target: "derivation", "Sending reset request to engine.");
-        self.0.reset().await.inspect(|_| info!(target: "derivation", "Engine reset successfully."))
+        self.0.reset_if_el_synced().await.inspect(
+            |state| info!(target: "derivation", safe_head = ?state.safe_head(), "Engine reset successfully."),
+        )
+    }
+
+    async fn consolidate(
+        &self,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<Consolidation> {
+        trace!(target: "derivation", ?attributes, "Sending derived attributes to engine.");
+        self.0.consolidate(attributes).await
     }
 
     async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
         self.0.finalize(block_id).await
-    }
-
-    async fn send_derived_attributes(
-        &self,
-        attributes: OpAttributesWithParent,
-    ) -> EngineClientResult<()> {
-        trace!(target: "derivation", ?attributes, "Sending derived attributes to engine.");
-        self.0.consolidate(attributes).await
     }
 
     async fn send_delegated_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
@@ -100,30 +104,6 @@ impl sequencer::Signer for Signer {
 
     fn has_capacity(&self) -> bool {
         self.0.has_capacity()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct Derivation(pub(super) derivation::Handle);
-
-#[async_trait]
-impl EngineDerivationClient for Derivation {
-    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()> {
-        info!(target: "engine", "Sending sync completed to derivation actor");
-        self.0.notify_el_sync_completed(safe_head).await
-    }
-
-    async fn send_new_engine_safe_head(
-        &self,
-        safe_head: L2BlockInfo,
-    ) -> DerivationClientResult<()> {
-        info!(target: "engine", safe_head = ?safe_head, "Sending new safe head to derivation actor");
-        self.0.send_safe_head(safe_head).await
-    }
-
-    async fn send_signal(&self, signal: Signal) -> DerivationClientResult<()> {
-        info!(target: "engine", signal = ?signal, "Sending signal to derivation actor");
-        self.0.send_signal(signal).await
     }
 }
 

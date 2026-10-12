@@ -1,5 +1,5 @@
 use super::*;
-use crate::derivation::{DerivationClientError, DerivationClientResult};
+use crate::EngineClientError;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, FixedBytes, b256};
 use alloy_rpc_types_engine::{
@@ -7,7 +7,6 @@ use alloy_rpc_types_engine::{
     ForkchoiceUpdated, PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
-use async_trait::async_trait;
 use kona_engine::{
     NoopBlockSink,
     test_utils::{RpcMock, TestAttributesBuilder, test_block_info, test_engine_client},
@@ -18,9 +17,9 @@ use op_alloy_consensus::OpTxType;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use rstest::rstest;
 use std::sync::Mutex;
+use tokio::sync::oneshot;
 
-/// Builds engine states for tests, defaulting every head to the unsafe head. The execution layer
-/// has not finished syncing, as when the engine starts.
+/// Builds engine states for tests, defaulting every head to the unsafe head.
 struct TestEngineStateBuilder {
     unsafe_head: L2BlockInfo,
     safe_head: Option<L2BlockInfo>,
@@ -58,98 +57,32 @@ impl TestEngineStateBuilder {
     }
 }
 
-/// A request the engine actor sent derivation, as [`QueuedDerivation`] records it.
-#[derive(Debug)]
-enum DerivationRequest {
-    SyncCompleted(L2BlockInfo),
-    SafeHead(L2BlockInfo),
-    Signal(Signal),
-}
-
-/// Queues the engine actor's derivation requests in a bounded channel, as the derivation actor's
-/// handle does.
-#[derive(Debug)]
-struct QueuedDerivation(mpsc::Sender<DerivationRequest>);
-
-impl QueuedDerivation {
-    async fn send(&self, request: DerivationRequest) -> DerivationClientResult<()> {
-        self.0
-            .send(request)
-            .await
-            .map_err(|_| DerivationClientError::RequestError("request channel closed.".to_string()))
-    }
-}
-
-#[async_trait]
-impl EngineDerivationClient for QueuedDerivation {
-    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()> {
-        self.send(DerivationRequest::SyncCompleted(safe_head)).await
-    }
-
-    async fn send_new_engine_safe_head(
-        &self,
-        safe_head: L2BlockInfo,
-    ) -> DerivationClientResult<()> {
-        self.send(DerivationRequest::SafeHead(safe_head)).await
-    }
-
-    async fn send_signal(&self, signal: Signal) -> DerivationClientResult<()> {
-        self.send(DerivationRequest::Signal(signal)).await
-    }
-}
-
 type L2Block = <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse;
 
-/// Returns an actor that is not running, for calling its methods directly, with the receivers of
-/// its derivation requests and published state.
+/// Returns an actor that is not running, for calling its methods directly, with the receiver of
+/// its published state.
 fn actor(
     client: EngineClient,
     config: Arc<RollupConfig>,
     state: EngineState,
     block_sink: Arc<dyn ImportedBlockSink>,
-) -> (Actor<QueuedDerivation>, mpsc::Receiver<DerivationRequest>, watch::Receiver<EngineState>) {
-    let (derivation_tx, derivation_rx) = mpsc::channel(8);
+) -> (Actor, watch::Receiver<EngineState>) {
     let (state_tx, state_rx) = watch::channel(state);
     let (_, messages_rx) = mpsc::channel(1);
-    let actor = Actor::new(
-        QueuedDerivation(derivation_tx),
-        Arc::new(client),
-        config,
-        block_sink,
-        state_tx,
-        messages_rx,
-    );
-    (actor, derivation_rx, state_rx)
+    (Actor::new(Arc::new(client), config, block_sink, state_tx, messages_rx), state_rx)
 }
 
 /// Spawns an actor with the initial engine state and returns its handle and task.
 fn spawn(
     client: EngineClient,
     config: Arc<RollupConfig>,
-    derivation_tx: mpsc::Sender<DerivationRequest>,
     state: EngineState,
 ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
-    let actor = Actor::new(
-        QueuedDerivation(derivation_tx),
-        Arc::new(client),
-        config,
-        Arc::new(NoopBlockSink),
-        state_tx,
-        messages_rx,
-    );
+    let actor =
+        Actor::new(Arc::new(client), config, Arc::new(NoopBlockSink), state_tx, messages_rx);
     (Handle::new(messages, state_rx), tokio::spawn(actor.run()))
-}
-
-/// Returns an engine state with a finalized head, which keeps a completed EL sync from triggering a
-/// reset.
-fn state_with_finalized_head() -> EngineState {
-    let finalized = L2BlockInfo {
-        block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
-        ..Default::default()
-    };
-    TestEngineStateBuilder::new().with_finalized_head(finalized).build()
 }
 
 /// Returns a rollup configuration whose genesis is the default L2 block.
@@ -201,13 +134,7 @@ fn construction_and_build_do_not_require_a_runtime() {
     let (client, _, _) = test_engine_client(config.clone());
     let builder = Builder::new(Capacity::try_from(1).unwrap());
     let handle = builder.handle();
-    let (derivation_tx, _derivation_rx) = mpsc::channel(1);
-    let task = builder.build(
-        Arc::new(client),
-        config,
-        QueuedDerivation(derivation_tx),
-        Arc::new(NoopBlockSink),
-    );
+    let task = builder.build(Arc::new(client), config, Arc::new(NoopBlockSink));
     assert_eq!(*handle.state().borrow(), EngineState::default());
     drop(task);
 }
@@ -239,75 +166,53 @@ async fn reset_recovers_and_completes_original_request(
         l2.expect_error("eth_getBlockByNumber");
     }
     expect_reset(&l1, &l2, read_delay);
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
-    // Derivation waits for the reset reply and cannot drain its full queue until then.
-    derivation_tx.send(DerivationRequest::SafeHead(L2BlockInfo::default())).await.unwrap();
-    let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
+    let (handle, actor) = spawn(client, config.clone(), EngineState::default());
 
     let started = Instant::now();
-    time::timeout(Duration::from_secs(20), handle.reset()).await.unwrap().unwrap();
+    let state = time::timeout(Duration::from_secs(20), handle.reset()).await.unwrap().unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
-    // The reset's heads are published before the reply.
-    assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
-    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::SafeHead(_)));
-    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::Signal(_)));
-    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::SafeHead(_)));
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationRequest::SyncCompleted(safe_head) if safe_head.block_info.hash == config.genesis.l2.hash
-    ));
+    assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
+    assert_eq!(state.resets(), 1);
+    // The reset's state is published before the reply.
+    assert_eq!(*handle.state().borrow(), state);
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
 }
 
-/// When the execution layer finishes syncing without a finalized head, the engine resets to find
-/// one, then tells derivation the new safe head and that the sync completed.
+/// A reset that asks for a synced execution layer sends the current forkchoice again, and is
+/// refused unless the execution layer validates it. A rejected forkchoice lets the reset proceed,
+/// because the reset replaces it.
 #[tokio::test(start_paused = true)]
-async fn el_sync_without_a_finalized_head_resets_before_derivation_starts() {
+async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
     let config = config();
     let (client, l1, l2) = test_engine_client(config.clone());
-    // Following a safe head sends the first forkchoice update, which finishes EL sync.
-    l2.expect(
-        "engine_forkchoiceUpdatedV3",
-        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
-    );
+    let forkchoice_updated = |status| ForkchoiceUpdated::new(PayloadStatus::from_status(status));
+    let invalid = PayloadStatusEnum::Invalid { validation_error: "invalid block".into() };
+    // The execution layer syncs, and still syncs when the engine asks.
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
+    // It finished syncing when the engine asks again, so the reset proceeds.
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
     expect_reset(&l1, &l2, Duration::ZERO);
-    // A later safe head, after the sync completed.
-    l2.expect(
-        "engine_forkchoiceUpdatedV3",
-        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
-    );
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-    let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
+    // It validates a later forkchoice, then falls back into syncing.
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
+    // It rejects the forkchoice, so the reset proceeds.
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(invalid));
+    expect_reset(&l1, &l2, Duration::ZERO);
+    let (handle, actor) = spawn(client, config.clone(), EngineState::default());
 
-    handle.follow_safe_head(test_block_info(0)).await.unwrap();
-
-    let wait = Duration::from_secs(10);
-    assert!(matches!(
-        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
-        Some(DerivationRequest::Signal(Signal::Reset(_)))
-    ));
-    assert!(matches!(
-        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
-        Some(DerivationRequest::SafeHead(safe_head))
-            if safe_head.block_info.hash == config.genesis.l2.hash
-    ));
-    assert!(matches!(
-        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
-        Some(DerivationRequest::SyncCompleted(safe_head))
-            if safe_head.block_info.hash == config.genesis.l2.hash
-    ));
-
-    // Later requests send the new safe head, but never the sync completion again.
-    let later = test_block_info(1);
-    handle.follow_safe_head(later).await.unwrap();
-    assert!(matches!(
-        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
-        Some(DerivationRequest::SafeHead(safe_head)) if safe_head == later
-    ));
-    time::sleep(Duration::from_secs(1)).await;
-    assert!(derivation_rx.try_recv().is_err());
+    // With no heads, there is no forkchoice to ask with.
+    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
+    handle.follow_safe_head(test_block_info(1)).await.unwrap();
+    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
+    let state = handle.reset_if_el_synced().await.unwrap();
+    assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
+    handle.follow_safe_head(test_block_info(1)).await.unwrap();
+    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
+    let state = handle.reset_if_el_synced().await.unwrap();
+    assert_eq!(state.resets(), 2);
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -323,8 +228,7 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     l2.expect_error("engine_newPayloadV1");
     l2.expect("engine_newPayloadV1", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-    let (handle, actor) = spawn(client, config, derivation_tx, state_with_finalized_head());
+    let (handle, actor) = spawn(client, config, EngineState::default());
 
     let started = Instant::now();
     handle.insert_unsafe_block(payload).await.unwrap();
@@ -337,7 +241,6 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     .unwrap()
     .unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
-    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::SyncCompleted(_)));
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -356,8 +259,7 @@ async fn abandoned_replies_do_not_stop_the_engine() {
     };
     l2.expect_with_delay("engine_forkchoiceUpdatedV3", started(), Duration::from_secs(1));
     l2.expect("engine_forkchoiceUpdatedV3", started());
-    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
-    let (handle, actor) = spawn(client, config, derivation_tx, EngineState::default());
+    let (handle, actor) = spawn(client, config, EngineState::default());
     let wait = Duration::from_millis(100);
 
     // Abandon a build while the engine performs it, and a seal queued behind it. The seal's
@@ -376,7 +278,7 @@ async fn abandoned_replies_do_not_stop_the_engine() {
 }
 
 /// An operation that keeps failing temporarily is abandoned after [`TASK_RETRY_TIMEOUT`], and
-/// the engine is reset so derivation starts over from the execution layer's heads.
+/// the engine is reset to the execution layer's heads, which it publishes.
 #[tokio::test(start_paused = true)]
 async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     let config = config();
@@ -391,24 +293,19 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
         l2.expect_error("engine_newPayloadV1");
     }
     expect_reset(&l1, &l2, Duration::ZERO);
-    // Room for the reset signal only, so the actor waits to send anything after it.
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
-    let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
+    let (handle, actor) = spawn(client, config.clone(), EngineState::default());
 
     let started = Instant::now();
     handle.insert_unsafe_block(genesis_payload().0).await.unwrap();
-    let signal = time::timeout(TASK_RETRY_TIMEOUT * 2, derivation_rx.recv()).await.unwrap();
-    assert!(matches!(signal, Some(DerivationRequest::Signal(_))));
+    let mut state = handle.state();
+    time::timeout(
+        TASK_RETRY_TIMEOUT * 2,
+        state.wait_for(|state| state.safe_head().block_info.hash == config.genesis.l2.hash),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
-    // The reset published its heads before signalling derivation to reset.
-    assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
-    // The reset finished EL sync, so derivation then gets the safe head and the sync completion.
-    assert!(matches!(
-        derivation_rx.recv().await,
-        Some(DerivationRequest::SafeHead(safe_head))
-            if safe_head.block_info.hash == config.genesis.l2.hash
-    ));
-    assert!(matches!(derivation_rx.recv().await, Some(DerivationRequest::SyncCompleted(_))));
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -417,8 +314,8 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
 /// After Holocene, a derived payload the execution layer rejects is replaced by a deposits-only
 /// block built from the same attributes, without retrying the consolidation.
 ///
-/// If the replacement is accepted, derivation is told to flush its channel, and the replacement
-/// becomes the safe head. If it is rejected too, the engine actor stops.
+/// If the replacement is accepted, the engine replies that derivation must flush its channel, with
+/// the replacement as the safe head. If it is rejected too, the engine actor stops.
 #[rstest]
 #[case::replacement_accepted(true)]
 #[case::replacement_rejected(false)]
@@ -452,10 +349,12 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
     let attributes = TestAttributesBuilder::new()
         .with_transactions(vec![vec![OpTxType::Legacy as u8, 0xbb].into()])
         .build();
-    let state = state_with_finalized_head();
-    let forkchoice = state
-        .apply_update(HeadsUpdate { unsafe_head: Some(attributes.parent), ..Default::default() })
-        .create_forkchoice_state();
+    // The attributes extend the safe head, which is also the unsafe head.
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(attributes.parent)
+        .with_finalized_head(L2BlockInfo::default())
+        .build();
+    let forkchoice = state.create_forkchoice_state();
 
     let (client, l1, l2) = test_engine_client(config.clone());
     let started = || fcu_for_payload(Some(PayloadId::new([1; 8])), PayloadStatusEnum::Valid);
@@ -486,26 +385,17 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
     } else {
         l2.expect("engine_newPayloadV3", invalid());
     }
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-    let (handle, actor) = spawn(client, config.clone(), derivation_tx, state);
+    let (handle, actor) = spawn(client, config.clone(), state);
 
-    handle.consolidate(attributes).await.unwrap();
-    // Once the actor stops, derivation's receiver ends instead of waiting forever.
-    drop(handle);
+    let consolidation = handle.consolidate(attributes).await;
 
     if replacement_accepted {
-        let request = time::timeout(Duration::from_secs(10), derivation_rx.recv()).await.unwrap();
-        assert!(matches!(
-            request,
-            Some(DerivationRequest::Signal(signal))
-                if matches!(signal, Signal::FlushChannel)
-        ));
-        let Some(DerivationRequest::SafeHead(safe_head)) = derivation_rx.recv().await else {
-            panic!("derivation should receive the new safe head");
-        };
-        assert_eq!(safe_head.block_info.hash, config.genesis.l2.hash);
+        let Consolidation { state, flush } = consolidation.unwrap();
+        assert!(flush);
+        assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
         actor.abort();
     } else {
+        assert!(consolidation.is_err(), "the engine stops without replying");
         let result = time::timeout(Duration::from_secs(10), actor).await.unwrap().unwrap();
         assert!(matches!(
             result,
@@ -513,8 +403,61 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
                 SealTaskError::DepositOnlyPayloadReattemptFailed
             )))
         ));
-        assert!(derivation_rx.recv().await.is_none(), "derivation is not told to flush");
     }
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A consolidation the engine abandons for a reset replies with the state after the reset, whose
+/// reset count tells derivation to reset onto it.
+#[tokio::test(start_paused = true)]
+async fn consolidation_that_resets_replies_with_the_reset_state() {
+    let config = config();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    // The unsafe block at the attributes' height is missing, which needs a reset.
+    l2.expect("eth_getBlockByNumber", Option::<RpcBlock<op_alloy_rpc_types::Transaction>>::None);
+    expect_reset(&l1, &l2, Duration::ZERO);
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(2))
+        .with_safe_head(L2BlockInfo::default())
+        .with_finalized_head(L2BlockInfo::default())
+        .build();
+    let (handle, actor) = spawn(client, config.clone(), state);
+
+    let attributes = TestAttributesBuilder::new().with_parent(L2BlockInfo::default()).build();
+    let Consolidation { state, flush } = handle.consolidate(attributes).await.unwrap();
+
+    assert!(!flush);
+    assert_eq!(state.resets(), 1);
+    assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
+    assert_eq!(*handle.state().borrow(), state);
+    actor.abort();
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// Attributes derived before a reset do not extend the reset's safe head, so the engine skips
+/// them, and its reply carries the reset.
+#[tokio::test(start_paused = true)]
+async fn consolidation_skips_attributes_derived_before_a_reset() {
+    let config = config();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    expect_reset(&l1, &l2, Duration::ZERO);
+    let safe_head = test_block_info(1);
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(2))
+        .with_safe_head(safe_head)
+        .with_finalized_head(L2BlockInfo::default())
+        .build();
+    let (handle, actor) = spawn(client, config, state);
+
+    // The reset is queued before the consolidation.
+    let attributes = TestAttributesBuilder::new().with_parent(safe_head).build();
+    let (reset, consolidation) = tokio::join!(handle.reset(), handle.consolidate(attributes));
+
+    let reset = reset.unwrap();
+    assert_eq!(consolidation.unwrap(), Consolidation { state: reset, flush: false });
+    actor.abort();
     l1.assert_finished();
     l2.assert_finished();
 }
@@ -527,7 +470,7 @@ async fn inserted_blocks_are_handed_to_the_block_sink() {
     l2.expect("engine_newPayloadV1", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     let sink = Arc::new(RecordingSink::default());
-    let (mut actor, _, _) = actor(client, config.clone(), EngineState::default(), sink.clone());
+    let (mut actor, _) = actor(client, config.clone(), EngineState::default(), sink.clone());
 
     actor.handle_insert(payload).await.unwrap();
     assert_eq!(
@@ -548,7 +491,7 @@ async fn insert_drops_rejected_payloads(#[case] status: PayloadStatusEnum) {
     let (client, l1, l2) = test_engine_client(config.clone());
     l2.expect("engine_newPayloadV1", PayloadStatus::from_status(status));
     let sink = Arc::new(RecordingSink::default());
-    let (mut actor, _, _) = actor(client, config, EngineState::default(), sink.clone());
+    let (mut actor, _) = actor(client, config, EngineState::default(), sink.clone());
 
     actor.handle_insert(payload).await.unwrap();
     assert_eq!(actor.state, EngineState::default());
@@ -635,7 +578,7 @@ async fn build_variants(
         .with_finalized_head(parent_block)
         .build();
 
-    let (actor, _, _) = actor(engine_client, cfg, state, Arc::new(NoopBlockSink));
+    let (actor, _) = actor(engine_client, cfg, state, Arc::new(NoopBlockSink));
     let result = simplify(actor.start_build(attributes).await);
 
     if expected_err.is_some() {
@@ -658,7 +601,7 @@ async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
         .with_unsafe_head(test_block_info(1))
         .with_finalized_head(test_block_info(2))
         .build();
-    let (actor, _, _) = actor(client, config, state, Arc::new(NoopBlockSink));
+    let (actor, _) = actor(client, config, state, Arc::new(NoopBlockSink));
 
     let result = simplify(actor.start_build(TestAttributesBuilder::new().build()).await);
     assert_eq!(result, Err(BuildErr::FinalizedAheadOfUnsafe));
@@ -668,7 +611,7 @@ async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
 
 /// Sends a seal request and returns the reply.
 async fn seal(
-    actor: &mut Actor<QueuedDerivation>,
+    actor: &mut Actor,
     payload_id: PayloadId,
     attributes: OpAttributesWithParent,
 ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
@@ -698,7 +641,7 @@ async fn seal_publishes_the_new_unsafe_head_before_replying() {
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     let attributes = TestAttributesBuilder::new().build();
     let state = TestEngineStateBuilder::new().with_unsafe_head(attributes.parent).build();
-    let (mut actor, _, state_rx) = actor(client, config.clone(), state, Arc::new(NoopBlockSink));
+    let (mut actor, state_rx) = actor(client, config.clone(), state, Arc::new(NoopBlockSink));
 
     let (result_tx, mut result_rx) = oneshot::channel();
     actor
@@ -769,7 +712,7 @@ async fn unsafe_head_check_variants(
     if unsafe_head_at_parent || sealing == Sealing::Reorg {
         l2.expect_error("engine_getPayloadV2");
     }
-    let (mut actor, _, _) = actor(client, cfg, state, Arc::new(NoopBlockSink));
+    let (mut actor, _) = actor(client, cfg, state, Arc::new(NoopBlockSink));
 
     let result = match sealing {
         Sealing::Request => seal(&mut actor, payload_id, attributes).await,
@@ -810,7 +753,7 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
     // The unsafe head is ahead of the safe block, so it is consolidated rather than applied.
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(1)).build();
     let sink = Arc::new(RecordingSink::default());
-    let (mut actor, _, _) = actor(client, cfg, state, sink.clone());
+    let (mut actor, _) = actor(client, cfg, state, sink.clone());
 
     actor.handle_follow_safe_head(safe_l2).await.unwrap();
 
@@ -851,7 +794,7 @@ async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
         .with_safe_head(genesis)
         .with_finalized_head(genesis)
         .build();
-    let (mut actor, _, _) = actor(client, config, state, Arc::new(NoopBlockSink));
+    let (mut actor, _) = actor(client, config, state, Arc::new(NoopBlockSink));
 
     actor.handle_follow_safe_head(safe_head).await.unwrap();
 
@@ -895,7 +838,7 @@ async fn finalize_by_hash_errors_when_engine_lacks_hash() {
     };
     let state =
         TestEngineStateBuilder::new().with_unsafe_head(safe_head).with_safe_head(safe_head).build();
-    let (mut actor, _, _) = actor(engine_client, cfg, state, Arc::new(NoopBlockSink));
+    let (mut actor, _) = actor(engine_client, cfg, state, Arc::new(NoopBlockSink));
 
     let result = actor
         .handle_finalize(FinalizeBlockId::ByHash(BlockNumHash { number: N, hash: hash_b }))

@@ -17,9 +17,9 @@ pub enum ActorError {
     /// A request to the engine actor failed.
     #[error("Failed to send a request to the engine actor: {0}")]
     Sender(#[from] EngineClientError),
-    /// Failed to receive inbound request
-    #[error("Failed to receive inbound request")]
-    RequestReceiveFailed,
+    /// The engine's state publisher closed.
+    #[error("engine state channel closed")]
+    EngineStateClosed,
     /// An L1 observation publisher closed.
     #[error("l1 observation channel closed")]
     L1ReceiveFailed,

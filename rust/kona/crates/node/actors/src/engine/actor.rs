@@ -1,16 +1,17 @@
 //! Engine construction and execution.
 
 use super::{
-    ActorError, BuildTaskError, Capacity, ConsolidateTaskError, EngineBuildError, EngineResetError,
-    EngineState, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError,
-    Handle, HeadsUpdate, InsertTaskError, SealTaskError, SynchronizeTaskError,
-    handle::{BuildRequest, Message, SealRequest},
+    ActorError, BuildTaskError, Capacity, ConsolidateTaskError, Consolidation, EngineBuildError,
+    EngineClientError, EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity,
+    FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, InsertTaskError, SealTaskError,
+    SynchronizeTaskError,
+    handle::{BuildRequest, ConsolidateRequest, Message, ResetRequest, SealRequest},
 };
-use crate::EngineDerivationClient;
 use alloy_eips::BlockId;
-use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum};
+use alloy_rpc_types_engine::{
+    ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
+};
 use alloy_rpc_types_eth::Block as RpcBlock;
-use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     AttributesMatch, EngineClient, ImportedBlockSink, Metrics, find_starting_forkchoice,
 };
@@ -21,7 +22,7 @@ use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
-    sync::{mpsc, oneshot, watch},
+    sync::{mpsc, watch},
     time::{self, Duration, Instant},
 };
 
@@ -54,15 +55,14 @@ impl Builder {
     /// The caller must retain a handle to keep the request channel open.
     /// Runtime work begins when the future is polled.
     /// Dropping the future stops the actor.
-    pub fn build<DerivationClient: EngineDerivationClient + 'static>(
+    pub fn build(
         self,
         client: Arc<EngineClient>,
         rollup: Arc<RollupConfig>,
-        derivation_client: DerivationClient,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx } = self;
-        Actor::new(derivation_client, client, rollup, block_sink, state_tx, messages_rx).run()
+        Actor::new(client, rollup, block_sink, state_tx, messages_rx).run()
     }
 }
 
@@ -104,14 +104,7 @@ impl Backoff {
 /// An operation that keeps failing for [`TASK_RETRY_TIMEOUT`] is abandoned and the engine is
 /// reset; a reset retries until it succeeds.
 #[derive(Debug)]
-struct Actor<DerivationClient>
-where
-    DerivationClient: EngineDerivationClient,
-{
-    /// The client used to send messages to the derivation actor.
-    derivation_client: DerivationClient,
-    /// The last safe head update sent.
-    last_safe_head_sent: L2BlockInfo,
+struct Actor {
     /// The Engine API client.
     client: Arc<EngineClient>,
     /// The rollup configuration.
@@ -126,14 +119,9 @@ where
     messages_rx: mpsc::Receiver<Message>,
 }
 
-impl<DerivationClient> Actor<DerivationClient>
-where
-    DerivationClient: EngineDerivationClient + 'static,
-{
-    /// Creates the actor, starting from the state that `state_tx` holds, which must not have
-    /// finished EL sync yet.
+impl Actor {
+    /// Creates the actor, starting from the state that `state_tx` holds.
     fn new(
-        derivation_client: DerivationClient,
         client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -141,27 +129,12 @@ where
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let state = *state_tx.borrow();
-        // Derivation learns that EL sync finished only when this actor sees it happen.
-        debug_assert!(
-            !state.el_sync_finished,
-            "the engine actor must start before EL sync finishes"
-        );
-        Self {
-            derivation_client,
-            last_safe_head_sent: L2BlockInfo::default(),
-            client,
-            config,
-            block_sink,
-            state,
-            state_tx,
-            messages_rx,
-        }
+        Self { client, config, block_sink, state, state_tx, messages_rx }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
             let message = self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)?;
-            let was_el_synced = self.state.el_sync_finished;
             let result = match message {
                 Message::Build(request) => {
                     self.handle_build(*request).await;
@@ -171,40 +144,87 @@ where
                     self.handle_seal(*request).await;
                     Ok(())
                 }
-                Message::Consolidate(attributes) => {
+                Message::Consolidate(request) => {
+                    let ConsolidateRequest { attributes, result_tx } = *request;
                     self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
-                        Box::pin(actor.handle_consolidate((*attributes).clone()))
+                        Box::pin(actor.handle_consolidate(attributes.clone()))
                     })
                     .await
+                    .map(|recovery| {
+                        // The reply's state must match the published one.
+                        self.publish_state();
+                        // A caller that stopped waiting does not undo the consolidation.
+                        let _ = result_tx.send(Consolidation {
+                            state: self.state,
+                            flush: recovery == Recovery::Flushed,
+                        });
+                    })
                 }
-                Message::FollowSafeHead(safe_head) => {
-                    self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
+                Message::FollowSafeHead(safe_head) => self
+                    .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
                         Box::pin(actor.handle_follow_safe_head(*safe_head))
                     })
                     .await
-                }
-                Message::Finalize(block_id) => {
-                    self.retry(Metrics::FINALIZE_TASK_LABEL, |actor| {
+                    .map(|_| ()),
+                Message::Finalize(block_id) => self
+                    .retry(Metrics::FINALIZE_TASK_LABEL, |actor| {
                         Box::pin(actor.handle_finalize(*block_id))
                     })
                     .await
-                }
-                Message::InsertUnsafeBlock(payload) => {
-                    self.retry(Metrics::INSERT_TASK_LABEL, |actor| {
+                    .map(|_| ()),
+                Message::InsertUnsafeBlock(payload) => self
+                    .retry(Metrics::INSERT_TASK_LABEL, |actor| {
                         Box::pin(actor.handle_insert((*payload).clone()))
                     })
                     .await
-                }
-                Message::Reset(result_tx) => {
-                    warn!(target: "engine", "Received reset request");
-                    self.reset(Some(result_tx)).await
-                }
+                    .map(|_| ()),
+                Message::Reset(request) => self.handle_reset(request).await,
             };
             // Publish the state even if the request failed: it can update the state before a
             // later step fails.
             self.publish_state();
             result?;
-            self.sync_derivation(was_el_synced).await?;
+        }
+    }
+
+    /// Resets the engine and replies with the state afterwards.
+    ///
+    /// A request that asks for a synced execution layer is refused unless the execution layer
+    /// validates the current forkchoice.
+    async fn handle_reset(&mut self, request: ResetRequest) -> Result<(), ActorError> {
+        let ResetRequest { only_if_el_synced, result_tx } = request;
+        if only_if_el_synced && !self.el_synced().await {
+            debug!(target: "engine", "Refusing a reset while the execution layer syncs");
+            let _ = result_tx.send(Err(EngineClientError::ElSyncing));
+            return Ok(());
+        }
+
+        warn!(target: "engine", "Received reset request");
+        self.reset().await?;
+        // The reply's state must match the published one.
+        self.publish_state();
+        let _ = result_tx.send(Ok(self.state));
+        Ok(())
+    }
+
+    /// Returns whether the execution layer is synced, by sending it the current forkchoice again.
+    ///
+    /// With no heads, no forkchoice has been sent, and the execution layer is taken to be syncing.
+    /// A rejected forkchoice counts as synced, because a reset replaces it.
+    async fn el_synced(&self) -> bool {
+        if !self.state.has_heads() {
+            return false;
+        }
+        match self.update_forkchoice(self.state.create_forkchoice_state()).await {
+            Ok(synced) => synced,
+            Err(err) if err.severity() == EngineTaskErrorSeverity::Reset => {
+                warn!(target: "engine", ?err, "The execution layer rejected the forkchoice");
+                true
+            }
+            Err(err) => {
+                warn!(target: "engine", ?err, "Failed to ask whether the execution layer synced");
+                false
+            }
         }
     }
 
@@ -269,11 +289,25 @@ where
     /// The derivation and engine actors coordinate the safe and unsafe heads. While the unsafe head
     /// is ahead of the safe head, the unsafe block at the attributes' height becomes safe if it
     /// matches them. Otherwise the attributes are built and sealed, reorging the unsafe chain.
+    ///
+    /// Attributes whose parent is not the safe head were derived before a reset, and are skipped.
     async fn handle_consolidate(
         &mut self,
         attributes: OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        if self.state.safe_head().block_info.number < self.state.unsafe_head().block_info.number {
+        let safe_head = self.state.safe_head().block_info;
+        let parent = attributes.parent.block_info;
+        if parent.id() != safe_head.id() {
+            warn!(
+                target: "engine",
+                safe_head = ?safe_head,
+                parent = ?parent,
+                "Skipping attributes that do not extend the safe head"
+            );
+            return Ok(());
+        }
+
+        if safe_head.number < self.state.unsafe_head().block_info.number {
             let block = self.fetch_unsafe_block(attributes.block_number()).await?;
             let matches = AttributesMatch::check(&self.config, &attributes, &block).is_match();
             if !matches {
@@ -408,12 +442,12 @@ where
     }
 
     /// Performs an operation, retrying temporary failures with backoff, and acts on its other
-    /// failures.
+    /// failures. Returns how the operation completed.
     async fn retry<E>(
         &mut self,
         label: &'static str,
         mut attempt: impl for<'a> FnMut(&'a mut Self) -> Attempt<'a, E> + Send,
-    ) -> Result<(), ActorError>
+    ) -> Result<Recovery, ActorError>
     where
         E: EngineTaskError + std::fmt::Debug + Send,
         ActorError: From<E>,
@@ -428,7 +462,8 @@ where
                 }
                 EngineTaskErrorSeverity::Temporary => {
                     warn!(target: "engine", ?err, "Engine operation kept failing; abandoning it and resetting");
-                    return self.reset(None).await;
+                    self.reset().await?;
+                    return Ok(Recovery::Reset);
                 }
                 EngineTaskErrorSeverity::Critical => {
                     error!(target: "engine", ?err, "Critical error performing engine operation");
@@ -436,66 +471,37 @@ where
                 }
                 EngineTaskErrorSeverity::Reset => {
                     warn!(target: "engine", ?err, "Engine operation requires a reset");
-                    return self.reset(None).await;
+                    self.reset().await?;
+                    return Ok(Recovery::Reset);
                 }
                 EngineTaskErrorSeverity::Flush => {
                     // This error is encountered when the payload is marked INVALID by the engine
                     // api. Post-holocene, the payload is replaced by a "deposits-only" block, which
-                    // completes the operation. At the same time, the channel and any remaining
-                    // buffered batches are flushed.
-                    warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
-                    // Derivation continues from the deposits-only block, so publish it first.
-                    self.publish_state();
-                    self.derivation_client.send_signal(Signal::FlushChannel).await.map_err(|err| {
-                        error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
-                        ActorError::ChannelClosed
-                    })?;
-                    debug!(target: "engine", "Sent flush signal to derivation actor");
-                    break;
+                    // completes the operation. Derivation must flush the channel and any remaining
+                    // buffered batches.
+                    warn!(target: "engine", ?err, "Invalid payload replaced by a deposits-only block");
+                    return Ok(Recovery::Flushed);
                 }
             }
         }
-        Ok(())
+        Ok(Recovery::Completed)
     }
 
     /// Publishes the state to handles.
     ///
-    /// The actor publishes after every request, and before any reply or derivation signal whose
-    /// recipient reads the state.
+    /// The actor publishes after every request, and before any reply whose recipient reads the
+    /// state.
     fn publish_state(&self) {
-        self.state_tx.send_replace(self.state);
+        self.state_tx.send_if_modified(|state| std::mem::replace(state, self.state) != self.state);
     }
 
-    /// Sends derivation the safe head if it changed, and tells it when the execution layer
-    /// finished syncing during the last request (`was_el_synced` is whether it had before).
+    /// Resets the engine to a sync starting point found with [`find_starting_forkchoice`], reorgs
+    /// the execution layer to it, and counts the reset in the state. Callers publish the state.
     ///
-    /// An EL sync that finishes without a finalized head first resets the engine to find one.
-    async fn sync_derivation(&mut self, was_el_synced: bool) -> Result<(), ActorError> {
-        let el_sync_just_finished = !was_el_synced && self.state.el_sync_finished;
-        if el_sync_just_finished && self.state.finalized_head() == L2BlockInfo::default() {
-            self.reset(None).await?;
-        }
-
-        self.send_derivation_actor_safe_head_if_updated().await?;
-
-        if el_sync_just_finished {
-            self.notify_el_sync_completed().await?;
-        }
-
-        Ok(())
-    }
-
-    /// Resets the engine to a sync starting point found with [`find_starting_forkchoice`], and
-    /// reorgs the execution layer to it. Then publishes the state, replies to the caller, if any,
-    /// and signals the derivation actor to reset. Callers must follow it with
-    /// [`Self::sync_derivation`], which sends derivation the new safe head and, if the reset
-    /// finished EL sync, the sync completion.
-    ///
-    /// Temporary failures are retried until the reset succeeds: losing it would leave derivation
-    /// waiting for a reset signal.
-    async fn reset(&mut self, result_tx: Option<oneshot::Sender<()>>) -> Result<(), ActorError> {
+    /// Temporary failures are retried until the reset succeeds.
+    async fn reset(&mut self) -> Result<(), ActorError> {
         let mut backoff = Backoff::default();
-        let l2_safe_head = loop {
+        loop {
             let attempt = async {
                 let start = find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
                 self.synchronize(HeadsUpdate {
@@ -505,68 +511,19 @@ where
                     finalized_head: Some(start.finalized),
                 })
                 .await?;
-                Ok::<_, EngineResetError>(start.safe)
+                Ok::<_, EngineResetError>(())
             };
             match attempt.await {
-                Ok(l2_safe_head) => break l2_safe_head,
+                Ok(()) => break,
                 Err(err) if err.is_temporary() => {
                     warn!(target: "engine", ?err, "Reset dependency unavailable; retrying reset");
                     backoff.wait().await;
                 }
                 Err(err) => return Err(err.into()),
             }
-        };
+        }
+        self.state = self.state.count_reset();
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
-
-        // The caller reads the reset's heads as soon as it gets the reply.
-        self.publish_state();
-
-        // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
-        // Release the caller before awaiting delivery to that same queue. It transitions
-        // to AwaitingSignal before consuming the queued reset signal below.
-        if let Some(result_tx) = result_tx {
-            let _ = result_tx.send(());
-        }
-
-        // Signal the derivation actor to reset.
-        let signal = Signal::Reset(ResetSignal { l2_safe_head });
-        match self.derivation_client.send_signal(signal).await {
-            Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
-            Err(err) => {
-                error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
-                return Err(ActorError::ChannelClosed);
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Tells derivation that the execution layer finished syncing, with the safe head to start
-    /// from.
-    async fn notify_el_sync_completed(&self) -> Result<(), ActorError> {
-        self.derivation_client.notify_sync_completed(self.state.safe_head()).await.map_err(|e| {
-            error!(target: "engine", ?e, "Failed to notify sync completed");
-            ActorError::ChannelClosed
-        })
-    }
-
-    /// Attempts to send the derivation actor the safe head if updated.
-    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), ActorError> {
-        let engine_safe_head = self.state.safe_head();
-        if engine_safe_head == self.last_safe_head_sent {
-            info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
-            // This was already sent, so do not send it.
-            return Ok(());
-        }
-
-        self.derivation_client.send_new_engine_safe_head(engine_safe_head).await.map_err(|e| {
-            error!(target: "engine", ?e, "Failed to send new engine safe head");
-            ActorError::ChannelClosed
-        })?;
-
-        info!(target: "engine", safe_head = ?engine_safe_head, "Attempted L2 Safe Head Update");
-        self.last_safe_head_sent = engine_safe_head;
-
         Ok(())
     }
 
@@ -578,7 +535,7 @@ where
     /// instead.
     async fn synchronize(&mut self, update: HeadsUpdate) -> Result<(), SynchronizeTaskError> {
         // Apply the update to the engine state's heads.
-        let mut new_state = self.state.apply_update(update);
+        let new_state = self.state.apply_update(update);
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
@@ -603,9 +560,18 @@ where
             ));
         }
 
-        // Send the forkchoice update through the input.
         let forkchoice = new_state.create_forkchoice_state();
+        self.update_forkchoice(forkchoice).await?;
+        self.state = new_state;
+        Ok(())
+    }
 
+    /// Sends the forkchoice to the execution layer with `engine_forkchoiceUpdated`, without payload
+    /// attributes. Returns whether the execution layer validated it, rather than still syncing.
+    async fn update_forkchoice(
+        &self,
+        forkchoice: ForkchoiceState,
+    ) -> Result<bool, SynchronizeTaskError> {
         // Handle the forkchoice update result.
         let response = self.client.forkchoice_updated(forkchoice, None).await;
 
@@ -624,28 +590,18 @@ where
             error
         })?;
 
-        match &valid_response.payload_status.status {
-            PayloadStatusEnum::Valid => {
-                if !new_state.el_sync_finished {
-                    info!(
-                        target: "engine",
-                        "Finished execution layer sync."
-                    );
-                    new_state.el_sync_finished = true;
-                }
-            }
+        let synced = match &valid_response.payload_status.status {
+            PayloadStatusEnum::Valid => true,
             PayloadStatusEnum::Syncing => {
                 // If we're not building a new payload, we're driving EL sync.
                 debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+                false
             }
             status => {
                 // Other codes are not expected.
                 return Err(SynchronizeTaskError::UnexpectedPayloadStatus(status.clone()));
             }
-        }
-
-        // Commit the new state.
-        self.state = new_state;
+        };
 
         debug!(
             target: "engine",
@@ -654,7 +610,7 @@ where
             "Forkchoice updated"
         );
 
-        Ok(())
+        Ok(synced)
     }
 
     /// Starts building a block by sending `engine_forkchoiceUpdated` with the payload attributes,
@@ -967,6 +923,17 @@ where
 
         Ok(true)
     }
+}
+
+/// How an operation completed after [`Actor::retry`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Recovery {
+    /// The operation succeeded.
+    Completed,
+    /// The execution layer rejected the operation's block, and a deposits-only block replaced it.
+    Flushed,
+    /// The operation was abandoned and the engine reset, counting the reset in its state.
+    Reset,
 }
 
 /// Records the outcome of one attempt at an operation, and returns it.

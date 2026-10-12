@@ -11,15 +11,15 @@ pub(super) enum Message {
     /// Start building a block.
     Build(Box<BuildRequest>),
     /// Consolidate the safe head with attributes derived from L1.
-    Consolidate(Box<OpAttributesWithParent>),
+    Consolidate(Box<ConsolidateRequest>),
     /// Follow a safe head supplied by the derivation delegate.
     FollowSafeHead(Box<L2BlockInfo>),
     /// Finalize an L2 block.
     Finalize(Box<FinalizeBlockId>),
     /// Insert an unsafe L2 block.
     InsertUnsafeBlock(Box<OpExecutionPayloadEnvelope>),
-    /// Reset the forkchoice and signal derivation to reset, replying once the reset succeeds.
-    Reset(oneshot::Sender<()>),
+    /// Reset the forkchoice, replying with the new engine state once the reset succeeds.
+    Reset(ResetRequest),
     /// Seal a block.
     Seal(Box<SealRequest>),
 }
@@ -31,6 +31,37 @@ pub(super) struct BuildRequest {
     pub(super) attributes: OpAttributesWithParent,
     /// Receives the payload ID once the build starts, or the reason it could not start.
     pub(super) result_tx: oneshot::Sender<Result<PayloadId, BuildTaskError>>,
+}
+
+/// A request to consolidate the safe head with derived attributes.
+#[derive(Debug)]
+pub(super) struct ConsolidateRequest {
+    /// The attributes derived from L1.
+    pub(super) attributes: OpAttributesWithParent,
+    /// Receives how the engine consolidated the attributes.
+    pub(super) result_tx: oneshot::Sender<Consolidation>,
+}
+
+/// A request to reset the forkchoice.
+#[derive(Debug)]
+pub(super) struct ResetRequest {
+    /// Whether to refuse the reset unless the execution layer validated the latest forkchoice.
+    pub(super) only_if_el_synced: bool,
+    /// Receives the engine state after the reset, or why the engine refused it.
+    pub(super) result_tx: oneshot::Sender<EngineClientResult<EngineState>>,
+}
+
+/// The engine's reply to a consolidation.
+///
+/// The engine publishes its state before replying, so the state matches the published one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Consolidation {
+    /// The engine state after the consolidation. If the engine reset, before or during the
+    /// consolidation, its reset count moved, and derivation must start over from its safe head.
+    pub state: EngineState,
+    /// Whether the execution layer rejected the attributes' block, and a deposits-only block built
+    /// from the same attributes replaced it, so derivation must flush its channel.
+    pub flush: bool,
 }
 
 /// A request to seal and canonicalize a block.
@@ -65,13 +96,29 @@ impl Handle {
         self.state.clone()
     }
 
-    /// Resets the engine forkchoice and signals derivation to reset.
+    /// Resets the engine forkchoice to a starting point found from the execution layer's heads,
+    /// and returns the engine state afterwards.
     ///
     /// Waits until the reset succeeds. The engine retains the reset across temporary failures.
-    pub async fn reset(&self) -> EngineClientResult<()> {
+    pub async fn reset(&self) -> EngineClientResult<EngineState> {
+        self.request_reset(false).await
+    }
+
+    /// Resets the engine forkchoice like [`Self::reset`], but only if the execution layer is
+    /// synced: the engine sends it the current forkchoice again, and refuses the reset with
+    /// [`EngineClientError::ElSyncing`] unless the execution layer validates it. The caller may
+    /// try again later.
+    ///
+    /// Resetting while the execution layer syncs would point it at its own stale heads, away from
+    /// the chain it is syncing.
+    pub async fn reset_if_el_synced(&self) -> EngineClientResult<EngineState> {
+        self.request_reset(true).await
+    }
+
+    async fn request_reset(&self, only_if_el_synced: bool) -> EngineClientResult<EngineState> {
         let (result_tx, result_rx) = oneshot::channel();
-        self.send(Message::Reset(result_tx)).await?;
-        result_rx.await.map_err(|_| response_closed())
+        self.send(Message::Reset(ResetRequest { only_if_el_synced, result_tx })).await?;
+        result_rx.await.map_err(|_| response_closed())?
     }
 
     /// Starts building a block and returns the payload ID to seal it with.
@@ -98,11 +145,20 @@ impl Handle {
         Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 
-    /// Queues attributes derived from L1 to consolidate the safe head with.
+    /// Consolidates the safe head with attributes derived from L1, and returns the engine state
+    /// afterwards.
     ///
-    /// Success means the attributes were queued, not that they were processed.
-    pub async fn consolidate(&self, attributes: OpAttributesWithParent) -> EngineClientResult<()> {
-        self.send(Message::Consolidate(Box::new(attributes))).await
+    /// The engine retries temporary failures, so this waits until the consolidation completes.
+    /// Attributes whose parent is not the engine's safe head are stale, typically because the
+    /// engine reset since they were derived; the engine skips them and replies with its state.
+    pub async fn consolidate(
+        &self,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<Consolidation> {
+        let (result_tx, result_rx) = oneshot::channel();
+        self.send(Message::Consolidate(Box::new(ConsolidateRequest { attributes, result_tx })))
+            .await?;
+        result_rx.await.map_err(|_| response_closed())
     }
 
     /// Queues a safe head supplied by the derivation delegate, for the engine to follow.
@@ -166,8 +222,9 @@ mod tests {
         let reply = tokio::select! {
             result = &mut reset => panic!("reset returned before it was received: {result:?}"),
             message = receiver.recv() => {
-                let Some(Message::Reset(reply)) = message else { panic!("expected reset") };
-                reply
+                let Some(Message::Reset(request)) = message else { panic!("expected reset") };
+                assert!(!request.only_if_el_synced);
+                request.result_tx
             }
         };
         // Receiving the request is insufficient: the actor must complete the reset.
@@ -176,8 +233,28 @@ mod tests {
             result = &mut reset => panic!("reset returned before the actor replied: {result:?}"),
             _ = ready(()) => {}
         }
-        reply.send(()).unwrap();
-        reset.await.unwrap();
+        let state = EngineState::default().count_reset();
+        reply.send(Ok(state)).unwrap();
+        assert_eq!(reset.await.unwrap(), state);
+
+        // A reset that asks for a synced execution layer can be refused.
+        let (result, ()) = tokio::join!(handle.reset_if_el_synced(), async {
+            let Message::Reset(request) = receiver.recv().await.unwrap() else {
+                panic!("expected reset");
+            };
+            assert!(request.only_if_el_synced);
+            request.result_tx.send(Err(EngineClientError::ElSyncing)).unwrap();
+        });
+        assert!(matches!(result, Err(EngineClientError::ElSyncing)));
+
+        let (result, ()) = tokio::join!(handle.consolidate(attributes()), async {
+            let Message::Consolidate(request) = receiver.recv().await.unwrap() else {
+                panic!("expected consolidate");
+            };
+            assert_eq!(request.attributes, attributes());
+            request.result_tx.send(Consolidation { state, flush: true }).unwrap();
+        });
+        assert_eq!(result.unwrap(), Consolidation { state, flush: true });
 
         let payload_id = PayloadId::new([1; 8]);
         let (result, ()) = tokio::join!(handle.start_build(attributes()), async {
@@ -220,11 +297,6 @@ mod tests {
     #[tokio::test]
     async fn queued_requests_send_their_message() {
         let (handle, mut receiver) = handle();
-        handle.consolidate(attributes()).await.unwrap();
-        assert!(matches!(
-            receiver.recv().await.unwrap(),
-            Message::Consolidate(consolidated) if *consolidated == attributes()
-        ));
         let head = L2BlockInfo::default();
         handle.follow_safe_head(head).await.unwrap();
         assert!(matches!(

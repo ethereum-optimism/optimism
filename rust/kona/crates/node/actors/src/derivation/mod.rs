@@ -3,6 +3,11 @@
 //! The [`Builder`] creates the [`Handle`] before any dependencies exist, then builds one of two
 //! actors: [`Builder::build`] derives payload attributes from L1 with a derivation pipeline, and
 //! [`Builder::build_delegated`] follows the safe head of an external derivation delegate.
+//!
+//! Derivation drives the engine: it starts by resetting the engine once the execution layer is
+//! synced, and it learns every result from the engine's replies and published state. The engine
+//! never sends derivation anything on its own. The engine counts its resets in its state, and
+//! derivation starts over from the engine's safe head whenever the count moves.
 
 mod actor;
 
@@ -19,8 +24,6 @@ mod finalizer;
 pub(crate) use finalizer::L2Finalizer;
 
 mod handle;
-pub use crate::capacity::{Capacity, InvalidCapacity};
-pub use handle::{DerivationClientError, DerivationClientResult};
 
 mod state_machine;
 pub use state_machine::{
@@ -30,24 +33,27 @@ pub use state_machine::{
 mod status;
 pub use status::DerivationStatus;
 
-use kona_derive::Signal;
-use kona_protocol::L2BlockInfo;
-use tokio::sync::{mpsc, watch};
+use crate::{EngineClientError, engine::EngineState};
+use tokio::{
+    sync::watch,
+    time::{self, Duration},
+};
+
+/// How long to wait before asking the engine to reset again while the execution layer syncs.
+const ENGINE_RESET_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Constructs the handle and one of the derivation actors.
 #[derive(Debug)]
 pub struct Builder {
     handle: Handle,
-    messages_rx: mpsc::Receiver<Message>,
     status_tx: watch::Sender<DerivationStatus>,
 }
 
 impl Builder {
     /// Creates the builder with no derivation progress.
-    pub fn new(capacity: Capacity) -> Self {
-        let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
+    pub fn new() -> Self {
         let (status_tx, status_rx) = watch::channel(DerivationStatus::default());
-        Self { handle: Handle { messages: messages_tx, status: status_rx }, messages_rx, status_tx }
+        Self { handle: Handle { status: status_rx }, status_tx }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -56,20 +62,35 @@ impl Builder {
     }
 }
 
-/// Derivation progress and the derivation actor's request queue.
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// The derivation actor's published progress.
 #[derive(Debug, Clone)]
 pub struct Handle {
-    messages: mpsc::Sender<Message>,
     status: watch::Receiver<DerivationStatus>,
 }
 
-/// Work for the derivation actor, all from the engine actor.
-#[derive(Debug)]
-enum Message {
-    /// The execution layer finished syncing; derivation starts from the safe head.
-    ElSyncCompleted(Box<L2BlockInfo>),
-    /// The engine's safe head changed.
-    SafeHead(Box<L2BlockInfo>),
-    /// A signal for the derivation pipeline, such as a reset or a flush.
-    Signal(Box<Signal>),
+/// Resets the engine and returns its state afterwards, asking again while the execution layer
+/// syncs.
+async fn reset_engine(
+    engine_client: &impl DerivationEngineClient,
+) -> Result<EngineState, ActorError> {
+    loop {
+        match engine_client.reset().await {
+            Err(EngineClientError::ElSyncing) => {
+                debug!(target: "derivation", "Waiting for the execution layer to sync");
+                time::sleep(ENGINE_RESET_RETRY_INTERVAL).await;
+            }
+            result => {
+                return result.map_err(|err| {
+                    error!(target: "derivation", ?err, "Failed to reset the engine");
+                    err.into()
+                });
+            }
+        }
+    }
 }

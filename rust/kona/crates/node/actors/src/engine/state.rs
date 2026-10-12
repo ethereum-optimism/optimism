@@ -4,8 +4,7 @@ use alloy_rpc_types_engine::ForkchoiceState;
 use kona_engine::Metrics;
 use kona_protocol::L2BlockInfo;
 
-/// The engine's view of the L2 chain: its heads at each safety level, and whether the execution
-/// layer has finished syncing.
+/// The engine's view of the L2 chain: its heads at each safety level.
 ///
 /// Tracks block progression through various stages of verification and finalization,
 /// from initial unsafe blocks received via P2P to fully finalized blocks derived from
@@ -31,8 +30,9 @@ pub struct EngineState {
     safe_head: L2BlockInfo,
     /// Derived from finalized L1 data with only finalized dependencies (highest safety level).
     finalized_head: L2BlockInfo,
-    /// Whether the execution layer has finished syncing.
-    pub el_sync_finished: bool,
+    /// How many times the engine has reset. A reset can move every head, so a reader that follows
+    /// the engine's chain starts over when this changes.
+    resets: u64,
 }
 
 impl EngineState {
@@ -56,6 +56,17 @@ impl EngineState {
         self.finalized_head
     }
 
+    /// Returns how many times the engine has reset.
+    pub const fn resets(&self) -> u64 {
+        self.resets
+    }
+
+    /// Returns the state after one more reset.
+    #[must_use]
+    pub const fn count_reset(self) -> Self {
+        Self { resets: self.resets + 1, ..self }
+    }
+
     /// Creates a `ForkchoiceState`
     ///
     /// - `head_block` = `unsafe_head`
@@ -73,7 +84,7 @@ impl EngineState {
 
     /// Returns whether any head is set, as it is once the initial forkchoice state is sent.
     pub fn has_heads(&self) -> bool {
-        Self { el_sync_finished: false, ..*self } != Self::default()
+        Self { resets: 0, ..*self } != Self::default()
     }
 
     /// Applies the update to the heads, keeping each head the update does not specify. Returns the
@@ -107,7 +118,7 @@ impl EngineState {
             local_safe_head: update.local_safe_head.unwrap_or(self.local_safe_head),
             safe_head: update.safe_head.unwrap_or(self.safe_head),
             finalized_head: update.finalized_head.unwrap_or(self.finalized_head),
-            el_sync_finished: self.el_sync_finished,
+            resets: self.resets,
         }
     }
 

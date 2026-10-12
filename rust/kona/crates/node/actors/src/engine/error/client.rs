@@ -29,4 +29,9 @@ pub enum EngineClientError {
     /// An error occurred performing the reset.
     #[error("An error occurred performing the reset: {0}.")]
     ResetForkchoiceError(String),
+
+    /// The engine refused a reset because the execution layer has not validated the latest
+    /// forkchoice update; it may still be syncing.
+    #[error("The execution layer is syncing; the engine cannot reset yet.")]
+    ElSyncing,
 }

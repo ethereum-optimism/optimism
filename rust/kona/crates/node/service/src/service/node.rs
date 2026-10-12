@@ -171,12 +171,10 @@ impl RollupNode {
         &self,
         builder: engine::Builder,
         client: Arc<EngineClient>,
-        derivation: derivation::Handle,
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
             self.config.clone(),
-            adapters::Derivation(derivation),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )
     }
@@ -201,7 +199,14 @@ impl RollupNode {
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(Box::pin(builder.build(adapters::Engine(engine), pipeline, head, finalized)))
+            let engine_state = engine.state();
+            Ok(Box::pin(builder.build(
+                adapters::Engine(engine),
+                engine_state,
+                pipeline,
+                head,
+                finalized,
+            )))
         }
     }
 
@@ -366,9 +371,7 @@ impl RollupNode {
             l1_signer_updater::Builder::new(self.p2p_config.unsafe_block_signer);
         let signer_rx = signer_updater_builder.handle();
         // actor request channels
-        let derivation_builder = derivation::Builder::new(
-            derivation::Capacity::try_from(1024).map_err(|error| error.to_string())?,
-        );
+        let derivation_builder = derivation::Builder::new();
         let derivation = derivation_builder.handle();
         let engine_builder = engine::Builder::new(
             engine::Capacity::try_from(1024).map_err(|error| error.to_string())?,
@@ -397,7 +400,7 @@ impl RollupNode {
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
         let l2_query_client = engine_client.as_ref().clone();
-        let engine_actor = self.build_engine(engine_builder, engine_client, derivation.clone());
+        let engine_actor = self.build_engine(engine_builder, engine_client);
 
         let derivation_actor = self
             .build_derivation(derivation_builder, engine.clone(), head.clone(), finalized.clone())

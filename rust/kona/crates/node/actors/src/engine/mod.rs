@@ -3,9 +3,6 @@
 mod actor;
 pub use actor::Builder;
 
-mod client;
-pub use client::EngineDerivationClient;
-
 mod config;
 pub use config::EngineConfig;
 
@@ -18,7 +15,7 @@ pub use error::{
 
 mod handle;
 pub use crate::capacity::{Capacity, InvalidCapacity};
-pub use handle::Handle;
+pub use handle::{Consolidation, Handle};
 
 mod input;
 pub use input::FinalizeBlockId;
