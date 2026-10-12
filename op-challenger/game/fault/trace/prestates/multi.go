@@ -19,9 +19,8 @@ import (
 var (
 	ErrPrestateUnavailable = errors.New("prestate unavailable")
 
-	// supportedFileTypes lists, in preferred order, the prestate file types to attempt to download.
-	// JSON states are legacy singlethreaded v1 states, which the VM no longer loads.
-	supportedFileTypes = []string{".bin.gz"}
+	// supportedFileTypes lists, in preferred order, the prestate file types to attempt to download
+	supportedFileTypes = []string{".bin.gz", ".json.gz", ".json"}
 )
 
 type MultiPrestateProvider struct {
