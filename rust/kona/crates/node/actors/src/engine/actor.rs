@@ -7,13 +7,13 @@ use super::{
 use crate::EngineDerivationClient;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateTask, Engine, EngineClient, EngineState, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink, InsertTask,
-    SealTask,
+    ConsolidateInput, Engine, EngineClient, EngineState, EngineTaskError, EngineTaskErrorSeverity,
+    FinalizeBlockId, ImportedBlockSink,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use std::{future::Future, sync::Arc};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
     sync::{mpsc, oneshot, watch},
     time::{self, Duration, Instant},
@@ -54,16 +54,8 @@ impl Builder {
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx } = self;
         async move {
-            let engine = Engine::new(
-                Arc::clone(&client),
-                Arc::clone(&rollup),
-                Arc::clone(&block_sink),
-                EngineState::default(),
-                state_tx,
-            );
-            Actor::new(client, rollup, derivation_client, engine, messages_rx, block_sink)
-                .run()
-                .await
+            let engine = Engine::new(client, rollup, block_sink, EngineState::default(), state_tx);
+            Actor::new(derivation_client, engine, messages_rx).run().await
         }
     }
 }
@@ -72,8 +64,11 @@ impl Builder {
 const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
 /// The longest delay between retries, capped to keep recovery responsive.
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
-/// How long a task may keep failing temporarily before it is dropped and the engine reset.
+/// How long an operation may keep failing temporarily before it is abandoned and the engine reset.
 const TASK_RETRY_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// An engine operation in progress, boxed so the actor's future stays `Send`.
+type Operation<'a, E> = Pin<Box<dyn Future<Output = Result<(), E>> + Send + 'a>>;
 
 /// Exponentially increasing delays between retries of one piece of work.
 #[derive(Debug)]
@@ -98,8 +93,9 @@ impl Backoff {
 /// Executes the operations sent to the execution layer's Engine API, one request at a time in the
 /// order they arrive.
 ///
-/// Temporary failures are retried in place with backoff, so later requests wait in the handle's
-/// bounded queue. A task that keeps failing for [`TASK_RETRY_TIMEOUT`] is dropped and the engine is
+/// Builds and seals reply to their caller, which decides whether to retry. Other operations retry
+/// temporary failures in place with backoff, so later requests wait in the handle's bounded queue.
+/// An operation that keeps failing for [`TASK_RETRY_TIMEOUT`] is abandoned and the engine is
 /// reset; a reset retries until it succeeds.
 #[derive(Debug)]
 struct Actor<DerivationClient>
@@ -112,18 +108,10 @@ where
     el_sync_complete: bool,
     /// The last safe head update sent.
     last_safe_head_sent: L2BlockInfo,
-
-    /// The [`RollupConfig`] used to build tasks.
-    rollup: Arc<RollupConfig>,
-    /// An [`EngineClient`] used for creating engine tasks.
-    client: Arc<EngineClient>,
-    /// The engine state and the publisher handle readers subscribe to.
+    /// Performs Engine API operations and publishes the engine state.
     engine: Engine,
     /// Receives messages from handles.
     messages_rx: mpsc::Receiver<Message>,
-    /// Where to hand every imported block, so the derivation providers can read it locally
-    /// instead of fetching it back from the execution layer.
-    block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl<DerivationClient> Actor<DerivationClient>
@@ -131,115 +119,103 @@ where
     DerivationClient: EngineDerivationClient + 'static,
 {
     fn new(
-        client: Arc<EngineClient>,
-        config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
         engine: Engine,
         messages_rx: mpsc::Receiver<Message>,
-        block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
         Self {
-            client,
             derivation_client,
             el_sync_complete: false,
-            engine,
             last_safe_head_sent: L2BlockInfo::default(),
-            rollup: config,
+            engine,
             messages_rx,
-            block_sink,
         }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
-            let message = self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)?;
-            let task = match message {
-                Message::Build(build_request) => {
-                    let BuildRequest { attributes, result_tx } = *build_request;
-                    EngineTask::Build(Box::new(BuildTask::new(
-                        self.client.clone(),
-                        self.rollup.clone(),
-                        attributes,
-                        Some(result_tx),
-                    )))
-                }
-                Message::Consolidate(safe_signal) => {
-                    EngineTask::Consolidate(Box::new(ConsolidateTask::new(
-                        self.client.clone(),
-                        self.rollup.clone(),
-                        safe_signal,
-                        Arc::clone(&self.block_sink),
-                    )))
-                }
-                Message::Finalize(finalized_l2_block_id) => {
-                    // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
-                    EngineTask::Finalize(Box::new(FinalizeTask::new(
-                        self.client.clone(),
-                        self.rollup.clone(),
-                        *finalized_l2_block_id,
-                    )))
-                }
-                Message::InsertUnsafeBlock(envelope) => {
-                    EngineTask::Insert(Box::new(InsertTask::new(
-                        self.client.clone(),
-                        self.rollup.clone(),
-                        *envelope,
-                        false, /* The payload is not derived in this case. This is an unsafe
-                                * block. */
-                        Arc::clone(&self.block_sink),
-                    )))
-                }
-                Message::Reset(result_tx) => {
-                    warn!(target: "engine", "Received reset request");
-                    self.reset(Some(result_tx)).await?;
-                    continue;
-                }
-                Message::Seal(seal_request) => {
-                    let SealRequest { payload_id, attributes, result_tx } = *seal_request;
-                    EngineTask::Seal(Box::new(SealTask::new(
-                        self.client.clone(),
-                        self.rollup.clone(),
-                        payload_id,
-                        attributes,
-                        // The payload is not derived in this case.
-                        false,
-                        BuildSealCoupling::Detached,
-                        Some(result_tx),
-                        Arc::clone(&self.block_sink),
-                    )))
-                }
-            };
-            self.execute(task).await?;
+            match self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)? {
+                Message::Build(request) => self.handle_build(*request).await,
+                Message::Seal(request) => self.handle_seal(*request).await,
+                Message::Consolidate(input) => self.handle_consolidate(input).await?,
+                Message::Finalize(block_id) => self.handle_finalize(*block_id).await?,
+                Message::InsertUnsafeBlock(payload) => self.handle_insert(*payload).await?,
+                Message::Reset(result_tx) => self.handle_reset(result_tx).await?,
+            }
+            self.sync_derivation().await?;
         }
     }
 
-    /// Executes a task, retrying temporary failures with backoff, and acts on its outcome.
-    async fn execute(&mut self, task: EngineTask) -> Result<(), ActorError> {
+    /// Starts a build and replies with its payload ID or failure; the caller decides whether to
+    /// retry.
+    async fn handle_build(&mut self, request: BuildRequest) {
+        let BuildRequest { attributes, result_tx } = request;
+        // A caller that stopped waiting does not cancel the build.
+        let _ = result_tx.send(self.engine.build(attributes).await);
+    }
+
+    /// Seals a build and replies with the payload or failure; the caller decides whether to retry.
+    async fn handle_seal(&mut self, request: SealRequest) {
+        let SealRequest { payload_id, attributes, result_tx } = request;
+        // A caller that stopped waiting does not cancel the seal.
+        let _ = result_tx.send(self.engine.seal(payload_id, attributes).await);
+    }
+
+    async fn handle_consolidate(&mut self, input: ConsolidateInput) -> Result<(), ActorError> {
+        self.retry(|engine| Box::pin(engine.consolidate(input.clone()))).await
+    }
+
+    async fn handle_finalize(&mut self, block_id: FinalizeBlockId) -> Result<(), ActorError> {
+        self.retry(|engine| Box::pin(engine.finalize(block_id))).await
+    }
+
+    async fn handle_insert(
+        &mut self,
+        payload: OpExecutionPayloadEnvelope,
+    ) -> Result<(), ActorError> {
+        self.retry(|engine| Box::pin(engine.insert_unsafe(payload.clone()))).await
+    }
+
+    async fn handle_reset(&mut self, result_tx: oneshot::Sender<()>) -> Result<(), ActorError> {
+        warn!(target: "engine", "Received reset request");
+        self.reset(Some(result_tx)).await
+    }
+
+    /// Performs an operation, retrying temporary failures with backoff, and acts on its other
+    /// failures.
+    async fn retry<E>(
+        &mut self,
+        mut operation: impl for<'a> FnMut(&'a mut Engine) -> Operation<'a, E> + Send,
+    ) -> Result<(), ActorError>
+    where
+        E: EngineTaskError + std::fmt::Debug + Send,
+        ActorError: From<E>,
+    {
         let deadline = Instant::now() + TASK_RETRY_TIMEOUT;
         let mut backoff = Backoff::default();
-        while let Err(err) = self.engine.execute(&task).await {
+        while let Err(err) = operation(&mut self.engine).await {
             match err.severity() {
                 EngineTaskErrorSeverity::Temporary if Instant::now() < deadline => {
-                    trace!(target: "engine", ?err, "Temporary error executing engine task");
+                    trace!(target: "engine", ?err, "Temporary error performing engine operation");
                     backoff.wait().await;
                 }
                 EngineTaskErrorSeverity::Temporary => {
-                    warn!(target: "engine", ?err, "Engine task kept failing; dropping it and resetting");
+                    warn!(target: "engine", ?err, "Engine operation kept failing; abandoning it and resetting");
                     return self.reset(None).await;
                 }
                 EngineTaskErrorSeverity::Critical => {
-                    error!(target: "engine", ?err, "Critical error executing engine task");
+                    error!(target: "engine", ?err, "Critical error performing engine operation");
                     return Err(err.into());
                 }
                 EngineTaskErrorSeverity::Reset => {
-                    warn!(target: "engine", ?err, "Engine task requires a reset");
+                    warn!(target: "engine", ?err, "Engine operation requires a reset");
                     return self.reset(None).await;
                 }
                 EngineTaskErrorSeverity::Flush => {
                     // This error is encountered when the payload is marked INVALID by the engine
                     // api. Post-holocene, the payload is replaced by a "deposits-only" block, which
-                    // completes the task. At the same time, the channel and any remaining buffered
-                    // batches are flushed.
+                    // completes the operation. At the same time, the channel and any remaining
+                    // buffered batches are flushed.
                     warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
                     self.derivation_client.send_signal(Signal::FlushChannel).await.map_err(|err| {
                         error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
@@ -250,7 +226,14 @@ where
                 }
             }
         }
+        Ok(())
+    }
 
+    /// Sends derivation the safe head if it changed, and reports a completed EL sync.
+    ///
+    /// An EL sync that completes without a finalized head resets the engine to find one. After a
+    /// reset, which reports both itself, this does nothing.
+    async fn sync_derivation(&mut self) -> Result<(), ActorError> {
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
@@ -349,11 +332,14 @@ mod tests {
     use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
     use alloy_primitives::B256;
     use alloy_rpc_types_engine::{
-        ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
+        ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
     };
     use kona_engine::{
         NoopBlockSink,
-        test_utils::{RpcMock, TestEngineStateBuilder, test_engine_client},
+        test_utils::{
+            RpcMock, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
+            test_engine_client,
+        },
     };
     use kona_protocol::BlockInfo;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -408,23 +394,10 @@ mod tests {
     ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
         let (messages, messages_rx) = mpsc::channel(8);
         let (state_tx, state_rx) = watch::channel(state);
-        let client = Arc::new(client);
-        let block_sink: Arc<dyn ImportedBlockSink> = Arc::new(NoopBlockSink);
-        let engine = Engine::new(
-            Arc::clone(&client),
-            Arc::clone(&config),
-            Arc::clone(&block_sink),
-            state,
-            state_tx,
-        );
-        let actor = Actor::new(
-            client,
-            config,
-            QueuedEngineDerivationClient::new(derivation_tx),
-            engine,
-            messages_rx,
-            block_sink,
-        );
+        let engine =
+            Engine::new(Arc::new(client), config, Arc::new(NoopBlockSink), state, state_tx);
+        let actor =
+            Actor::new(QueuedEngineDerivationClient::new(derivation_tx), engine, messages_rx);
         (Handle::new(messages, state_rx), tokio::spawn(actor.run()))
     }
 
@@ -501,9 +474,9 @@ mod tests {
         l2.assert_finished();
     }
 
-    /// A task that fails temporarily is retried after a backoff without another request.
+    /// An operation that fails temporarily is retried after a backoff without another request.
     #[tokio::test(start_paused = true)]
-    async fn temporary_failure_is_retried_until_the_task_succeeds() {
+    async fn temporary_failure_is_retried_until_the_operation_succeeds() {
         let (payload, hash) = unsafe_payload();
         let mut config = RollupConfig::default();
         config.genesis.l2.hash = hash;
@@ -542,10 +515,42 @@ mod tests {
         l2.assert_finished();
     }
 
-    /// A task that keeps failing temporarily is dropped after [`TASK_RETRY_TIMEOUT`], and the
-    /// engine is reset so derivation starts over from the execution layer's heads.
+    /// Build and seal callers that stop waiting for their replies do not stop the engine.
     #[tokio::test(start_paused = true)]
-    async fn persistent_temporary_failure_drops_the_task_and_resets() {
+    async fn abandoned_replies_do_not_stop_the_engine() {
+        let mut config = RollupConfig::default();
+        config.hardforks.ecotone_time = Some(0);
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let started = || {
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid))
+                .with_payload_id(PayloadId::new([1; 8]))
+        };
+        l2.expect_with_delay("engine_forkchoiceUpdatedV3", started(), Duration::from_secs(1));
+        l2.expect("engine_forkchoiceUpdatedV3", started());
+        let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+        let (handle, actor) = spawn(client, config, derivation_tx, EngineState::default());
+        let wait = Duration::from_millis(100);
+
+        // Abandon a build while the engine performs it, and a seal queued behind it. The seal's
+        // parent is not the unsafe head, so it fails without a request to the execution layer.
+        let build = handle.start_build(TestAttributesBuilder::new().build());
+        assert!(time::timeout(wait, build).await.is_err());
+        let stale = TestAttributesBuilder::new().with_parent(test_block_info(1)).build();
+        assert!(time::timeout(wait, handle.seal(PayloadId::new([1; 8]), stale)).await.is_err());
+
+        // The engine still answers later requests.
+        let payload_id = handle.start_build(TestAttributesBuilder::new().build()).await.unwrap();
+        assert_eq!(payload_id, PayloadId::new([1; 8]));
+        actor.abort();
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An operation that keeps failing temporarily is abandoned after [`TASK_RETRY_TIMEOUT`], and
+    /// the engine is reset so derivation starts over from the execution layer's heads.
+    #[tokio::test(start_paused = true)]
+    async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
         let config = config();
         let (client, l1, l2) = test_engine_client(config.clone());
         // Fail every attempt made before the timeout, and the first one after it.

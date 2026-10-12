@@ -28,7 +28,7 @@ pub(super) struct BuildRequest {
     /// The attributes to build the block from.
     pub(super) attributes: OpAttributesWithParent,
     /// Receives the payload ID once the build starts, or the reason it could not start.
-    pub(super) result_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
+    pub(super) result_tx: oneshot::Sender<Result<PayloadId, BuildTaskError>>,
 }
 
 /// A request to seal and canonicalize a block.
@@ -39,7 +39,7 @@ pub(super) struct SealRequest {
     /// The attributes the block was built from.
     pub(super) attributes: OpAttributesWithParent,
     /// Receives the sealed payload or the reason sealing failed.
-    pub(super) result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+    pub(super) result_tx: oneshot::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
 }
 
 /// Published engine state and the engine's request queue.
@@ -79,9 +79,9 @@ impl Handle {
         &self,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId> {
-        let (result_tx, mut result_rx) = mpsc::channel(1);
+        let (result_tx, result_rx) = oneshot::channel();
         self.send(Message::Build(Box::new(BuildRequest { attributes, result_tx }))).await?;
-        Ok(result_rx.recv().await.ok_or_else(response_closed)??)
+        Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 
     /// Seals and canonicalizes a block started with [`Self::start_build`].
@@ -90,10 +90,10 @@ impl Handle {
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
-        let (result_tx, mut result_rx) = mpsc::channel(1);
+        let (result_tx, result_rx) = oneshot::channel();
         self.send(Message::Seal(Box::new(SealRequest { payload_id, attributes, result_tx })))
             .await?;
-        Ok(result_rx.recv().await.ok_or_else(response_closed)??)
+        Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 
     /// Queues derived attributes or delegated safe block information for consolidation.
@@ -175,7 +175,7 @@ mod tests {
             let Message::Build(request) = receiver.recv().await.unwrap() else {
                 panic!("expected build");
             };
-            request.result_tx.send(Ok(payload_id)).await.unwrap();
+            request.result_tx.send(Ok(payload_id)).unwrap();
         });
         assert_eq!(result.unwrap(), payload_id);
 
@@ -186,7 +186,6 @@ mod tests {
             request
                 .result_tx
                 .send(Err(BuildTaskError::EngineBuildError(EngineBuildError::EngineSyncing)))
-                .await
                 .unwrap();
         });
         assert!(matches!(
@@ -201,7 +200,7 @@ mod tests {
                 panic!("expected seal");
             };
             assert_eq!(request.payload_id, payload_id);
-            request.result_tx.send(Err(SealTaskError::DepositOnlyPayloadFailed)).await.unwrap();
+            request.result_tx.send(Err(SealTaskError::DepositOnlyPayloadFailed)).unwrap();
         });
         assert!(matches!(
             result,
