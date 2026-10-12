@@ -1,7 +1,8 @@
 //! [`EngineHandle`] — the public, cloneable, Send + Sync interface.
 
 use super::{
-    DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
+    CanonicalInMemoryStateProvider, DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD,
+    EngineAction,
     error::EngineError,
     runner::Engine,
     service_guard::ServiceGuard,
@@ -12,9 +13,7 @@ use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Sender, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
-use reth_provider::{
-    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{panic, sync::Arc, thread};
 use tokio::sync::watch;

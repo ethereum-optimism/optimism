@@ -1,14 +1,16 @@
 use super::super::state::EngineState;
 use crate::{
-    BlockStateDiff, OpProofsStore, engine::EngineError, provider::OpProofsStateProviderRef,
+    BlockStateDiff, OpProofsStore,
+    engine::{CanonicalInMemoryStateProvider, EngineError},
+    provider::OpProofsStateProviderRef,
 };
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::Sender;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_primitives_traits::{AlloyBlockHeader, BlockBody, NodePrimitives, RecoveredBlock};
 use reth_provider::{
-    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
-    HashedPostStateProvider, StateRootProvider,
+    BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider,
+    StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie_common::EMPTY_ROOT_HASH;

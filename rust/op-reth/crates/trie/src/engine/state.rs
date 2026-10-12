@@ -3,7 +3,7 @@
 #[cfg(feature = "metrics")]
 use super::metrics::EngineMetrics;
 use super::{
-    DEFAULT_PERSISTENCE_TIMEOUT_SECS,
+    CanonicalInMemoryStateProvider, DEFAULT_PERSISTENCE_TIMEOUT_SECS,
     buffer::state::TrieBufferState,
     error::EngineError,
     persistence::{PersistenceHandle, error::PersistenceError},
@@ -13,9 +13,7 @@ use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{
-    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
 use std::time::Duration;
 #[cfg(feature = "metrics")]
 use std::time::Instant;

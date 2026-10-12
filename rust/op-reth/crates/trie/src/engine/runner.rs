@@ -1,18 +1,15 @@
 //! [`Engine`] — the thin event-loop dispatcher.
 
 use super::{
-    DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
-    IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
+    CanonicalInMemoryStateProvider, DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD,
+    EngineAction, IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
 };
 use crate::{OpProofStoragePruner, OpProofsProviderRO, OpProofsStore};
 use alloy_eips::NumHash;
 use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{
-    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
-    TransactionVariant,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, TransactionVariant};
 use std::{
     ops::ControlFlow,
     time::{Duration, Instant},

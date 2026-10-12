@@ -12,6 +12,9 @@ mod buffer;
 pub mod persistence;
 mod tasks;
 
+mod canonical_state;
+pub use canonical_state::CanonicalInMemoryStateProvider;
+
 mod error;
 pub use error::EngineError;
 
@@ -65,7 +68,7 @@ impl<Block: reth_primitives_traits::Block> EngineAction<Block> {
                 Primitives: reth_primitives_traits::NodePrimitives<Block = Block>,
             >,
         Provider: reth_provider::BlockHashReader
-            + reth_provider::CanonicalInMemoryStateProvider
+            + CanonicalInMemoryStateProvider
             + reth_provider::DatabaseProviderFactory
             + reth_provider::BlockReader<Block = Block>
             + Clone

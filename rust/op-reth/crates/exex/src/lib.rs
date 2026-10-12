@@ -15,7 +15,8 @@ use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
-    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, engine::EngineHandle,
+    CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
+    engine::EngineHandle,
 };
 use reth_provider::BlockNumReader;
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
@@ -194,6 +195,7 @@ where
 impl<Node, Storage, Primitives> OpProofsExEx<Node, Storage>
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
+    Node::Provider: CanonicalInMemoryStateProvider,
     Primitives: NodePrimitives,
     Primitives::Block: Clone,
     Storage: OpProofsStore + Clone + 'static,

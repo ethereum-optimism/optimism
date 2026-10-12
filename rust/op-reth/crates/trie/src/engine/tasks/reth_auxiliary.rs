@@ -1,8 +1,9 @@
 //! Bytecode and block-hash reads without constructing reth's historical state provider.
 
+use crate::engine::CanonicalInMemoryStateProvider;
 use alloy_eips::{BlockHashOrNumber, BlockNumHash};
 use alloy_primitives::{B256, BlockNumber};
-use reth_chain_state::{BlockState, CanonicalInMemoryStateProvider};
+use reth_chain_state::BlockState;
 use reth_db::{tables, transaction::DbTx};
 use reth_primitives_traits::Bytecode;
 use reth_provider::{

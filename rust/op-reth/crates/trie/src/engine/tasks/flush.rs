@@ -1,11 +1,9 @@
 use super::super::state::EngineState;
-use crate::OpProofsStore;
+use crate::{OpProofsStore, engine::CanonicalInMemoryStateProvider};
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{
-    BlockHashReader, BlockReader, CanonicalInMemoryStateProvider, DatabaseProviderFactory,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
 
 pub(crate) struct FlushTask {
     pub(crate) reply: Sender<()>,
