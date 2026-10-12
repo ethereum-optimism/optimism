@@ -51,14 +51,14 @@ EOF
 RUN forge --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine3.23 AS builder
+FROM --platform=$BUILDPLATFORM chainguard/wolfi-base:latest AS builder
 
 # Enforce that builds use the committed go.mod/go.sum exactly and never
 # silently mutate them. Fails the build if the lockfile is out of date.
 ENV GOFLAGS=-mod=readonly
 
 # apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
-RUN n=0; until apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go zip bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
+RUN n=0; until apk add --no-cache go-1.26 curl gzip make gcc build-base linux-headers git jq yq zip bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 ARG TARGETARCH
 
