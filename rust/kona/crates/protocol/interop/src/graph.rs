@@ -1810,6 +1810,7 @@ mod test {
                     ExecutingMessageBuilder::default()
                         .with_message_hash(keccak256(MOCK_MESSAGE))
                         .with_origin_chain_id(CHAIN_A_ID)
+                        .with_origin_block_number(1)
                         .with_origin_timestamp(2),
                 );
             }
@@ -1841,7 +1842,10 @@ mod test {
                 }
                 "timestamp" => {
                     message.identifier.timestamp = U256::from(1);
-                    MessageGraphError::InvalidMessageTimestamp { expected: 1, actual: 2 }
+                    MessageGraphError::InvalidMessageBlockNumber {
+                        block_number: U256::from(1),
+                        timestamp: 1,
+                    }
                 }
                 "index" => {
                     message.identifier.logIndex = U256::from(1);
@@ -1879,6 +1883,7 @@ mod test {
                 ExecutingMessageBuilder::default()
                     .with_message_hash(keccak256(MOCK_MESSAGE))
                     .with_origin_chain_id(CHAIN_A_ID)
+                    .with_origin_block_number(1)
                     .with_origin_timestamp(2),
             );
         }
@@ -1930,6 +1935,7 @@ mod test {
                 ExecutingMessageBuilder::default()
                     .with_message_hash(keccak256(log.data.data.as_ref()))
                     .with_origin_chain_id(CHAIN_A_ID)
+                    .with_origin_block_number(1)
                     .with_origin_timestamp(2)
                     .with_origin_log_index(index as u64),
             );
@@ -1986,6 +1992,7 @@ mod test {
             superchain.chain(CHAIN_B_ID).add_executing_message(
                 ExecutingMessageBuilder::default()
                     .with_origin_chain_id(CHAIN_A_ID)
+                    .with_origin_block_number(1)
                     .with_origin_timestamp(2),
             );
         }
@@ -2029,11 +2036,16 @@ mod test {
             message.inner.identifier.blockNumber = wide_number;
         }
         graph.messages[1].inner.identifier.blockNumber = wide_number + U256::from(1);
-        provider.header_reads.store(0, Ordering::Relaxed);
-        assert!(matches!(graph.resolve().await, Err(MessageGraphError::InvalidMessages(_))));
+        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
+            panic!("expected block number failure");
+        };
+        // Sorting validates the wider identifier last, so its verdict is the one kept.
         assert_eq!(
-            provider.header_reads.load(Ordering::Relaxed),
-            2,
+            invalid[&CHAIN_B_ID],
+            MessageGraphError::InvalidMessageBlockNumber {
+                block_number: wide_number + U256::from(1),
+                timestamp: 2,
+            },
             "raw identifiers remain distinct despite saturated lookup heights"
         );
     }
@@ -2048,12 +2060,13 @@ mod test {
         for _ in 0..8 {
             superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
         }
+        superchain.chain(CHAIN_B_ID).with_timestamp(16);
         for index in 0..8 {
-            for number in [7, 0, 6, 1, 5, 2, 4, 3] {
+            for number in [8, 1, 7, 2, 6, 3, 5, 4] {
                 superchain.chain(CHAIN_B_ID).add_executing_message(
                     ExecutingMessageBuilder::default()
                         .with_origin_chain_id(CHAIN_A_ID)
-                        .with_origin_timestamp(2)
+                        .with_origin_timestamp(2 * number)
                         .with_origin_block_number(number)
                         .with_origin_log_index(index)
                         .with_message_hash(keccak256(MOCK_MESSAGE)),
@@ -2063,12 +2076,11 @@ mod test {
         let (mut headers, cfgs, mut inner) = superchain.build();
         let source = headers.remove(&CHAIN_A_ID).unwrap();
         let receipts = inner.receipts[&CHAIN_A_ID][&source.number].clone();
-        for number in 1..8 {
-            inner
-                .headers
-                .get_mut(&CHAIN_A_ID)
-                .unwrap()
-                .insert(number, Header { number, ..source.inner().clone() }.seal_slow());
+        for number in 2..=8 {
+            inner.headers.get_mut(&CHAIN_A_ID).unwrap().insert(
+                number,
+                Header { number, timestamp: 2 * number, ..source.inner().clone() }.seal_slow(),
+            );
             inner.receipts.get_mut(&CHAIN_A_ID).unwrap().insert(number, receipts.clone());
         }
         let provider = CountingProvider {
@@ -2109,6 +2121,7 @@ mod test {
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
                 .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_block_number(1)
                 .with_origin_timestamp(2)
                 .with_origin_log_index(63)
                 .with_message_hash(keccak256(MOCK_MESSAGE)),

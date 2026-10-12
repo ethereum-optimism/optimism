@@ -866,6 +866,7 @@ mod tests {
         for chain in [1, 2] {
             superchain
                 .chain(chain)
+                .with_number(1)
                 .with_timestamp(2)
                 .with_block_time(2)
                 .with_lagoon_activation_time(0);
@@ -874,6 +875,7 @@ mod tests {
         superchain.chain(2).add_executing_message(
             ExecutingMessageBuilder::default()
                 .with_origin_chain_id(1)
+                .with_origin_block_number(1)
                 .with_origin_timestamp(2)
                 .with_message_hash(keccak256(b"payload")),
         );
