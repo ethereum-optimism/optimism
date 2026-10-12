@@ -7640,7 +7640,6 @@ dependencies = [
  "mockall",
  "op-alloy-consensus",
  "op-alloy-network",
- "op-alloy-provider",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
  "rand 0.9.4",

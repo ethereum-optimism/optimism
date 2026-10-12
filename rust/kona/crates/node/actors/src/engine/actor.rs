@@ -8,19 +8,15 @@ use super::{
 };
 use crate::EngineDerivationClient;
 use alloy_eips::BlockId;
-use alloy_rpc_types_engine::{
-    ExecutionPayload, ExecutionPayloadInputV2, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId,
-    PayloadStatusEnum,
-};
+use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum};
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    AttributesMatch, EngineClient, EngineForkchoiceVersion, EngineGetPayloadVersion, EngineState,
-    EngineSyncStateUpdate, ImportedBlockSink, Metrics, find_starting_forkchoice,
+    AttributesMatch, EngineClient, EngineState, EngineSyncStateUpdate, ImportedBlockSink, Metrics,
+    find_starting_forkchoice,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_consensus::OpBlock;
-use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
@@ -642,10 +638,7 @@ where
         let forkchoice = new_sync_state.create_forkchoice_state();
 
         // Handle the forkchoice update result.
-        // NOTE: it doesn't matter which version we use here, because we're not sending any
-        // payload attributes. The forkchoice updated call is version agnostic if no payload
-        // attributes are provided.
-        let response = self.client.fork_choice_updated_v3(forkchoice, None).await;
+        let response = self.client.forkchoice_updated(forkchoice, None).await;
 
         let valid_response = response.map_err(|e| {
             // Fatal forkchoice update error.
@@ -735,26 +728,14 @@ where
             })
             .create_forkchoice_state();
 
-        let forkchoice_version = EngineForkchoiceVersion::from_cfg(
-            &self.config,
-            attributes_envelope.attributes.payload_attributes.timestamp,
-        );
-        let update = match forkchoice_version {
-            EngineForkchoiceVersion::V3 => {
-                self.client
-                    .fork_choice_updated_v3(new_forkchoice, Some(attributes_envelope.attributes))
-                    .await
-            }
-            EngineForkchoiceVersion::V2 => {
-                self.client
-                    .fork_choice_updated_v2(new_forkchoice, Some(attributes_envelope.attributes))
-                    .await
-            }
-        }
-        .map_err(|e| {
-            error!(target: "engine_builder", "Forkchoice update failed: {}", e);
-            BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
-        })?;
+        let update = self
+            .client
+            .forkchoice_updated(new_forkchoice, Some(attributes_envelope.attributes))
+            .await
+            .map_err(|e| {
+                error!(target: "engine_builder", "Forkchoice update failed: {}", e);
+                BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
+            })?;
 
         match update.payload_status.status {
             PayloadStatusEnum::Valid => {}
@@ -807,32 +788,12 @@ where
         is_payload_safe: bool,
     ) -> Result<L2BlockInfo, InsertTaskError> {
         // Insert the new payload.
-        // Form the new unsafe block ref from the execution payload.
-        let response = match payload.clone() {
-            OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
-            OpExecutionPayloadEnvelope::V2(payload) => {
-                let payload_input = ExecutionPayloadInputV2 {
-                    execution_payload: payload.payload_inner,
-                    withdrawals: Some(payload.withdrawals),
-                };
-                self.client.new_payload_v2(payload_input).await
-            }
-            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v3(payload, parent_beacon_block_root).await
-            }
-            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v4(payload, parent_beacon_block_root).await
-            }
-        };
-
-        // Check the `engine_newPayload` response.
-        let response = match response {
-            Ok(resp) => resp,
-            Err(e) => {
-                warn!(target: "engine", "Failed to insert new payload: {e}");
-                return Err(InsertTaskError::InsertFailed(e));
-            }
-        };
+        let response = self
+            .client
+            .new_payload(payload.clone())
+            .await
+            .inspect_err(|e| warn!(target: "engine", "Failed to insert new payload: {e}"))
+            .map_err(InsertTaskError::InsertFailed)?;
         if !matches!(response.status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
             return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
         }
@@ -885,7 +846,17 @@ where
         );
 
         // Fetch the payload just built from the EL and import it into the engine.
-        let payload = self.fetch_payload(payload_id, &attributes).await?;
+        let timestamp = attributes.attributes().payload_attributes.timestamp;
+        debug!(
+            target: "engine",
+            payload_id = payload_id.to_string(),
+            l2_time = timestamp,
+            "Sealing payload"
+        );
+        let payload = self.client.get_payload(payload_id, timestamp).await.map_err(|e| {
+            error!(target: "engine", "Payload fetch failed: {e}");
+            SealTaskError::GetPayloadFailed(e)
+        })?;
 
         let new_block_ref = match self.insert_payload(payload.clone(), is_attributes_derived).await
         {
@@ -898,9 +869,7 @@ where
                 return Err(SealTaskError::DepositOnlyPayloadFailed);
             }
             Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self
-                    .config
-                    .is_holocene_active(attributes.attributes().payload_attributes.timestamp) =>
+                if self.config.is_holocene_active(timestamp) =>
             {
                 warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
 
@@ -931,84 +900,6 @@ where
         );
 
         Ok(payload)
-    }
-
-    /// Fetches the built payload from the EL, returning the execution envelope.
-    ///
-    /// ## Engine Method Selection
-    /// The method used to fetch the payload from the EL is determined by the payload timestamp. The
-    /// method used to import the payload into the engine is determined by the payload version.
-    ///
-    /// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
-    /// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
-    /// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
-    /// - `engine_getPayloadV5` is used for payloads with a timestamp after the Karst fork.
-    async fn fetch_payload(
-        &self,
-        payload_id: PayloadId,
-        payload_attrs: &OpAttributesWithParent,
-    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-        let payload_timestamp = payload_attrs.attributes().payload_attributes.timestamp;
-
-        debug!(
-            target: "engine",
-            payload_id = payload_id.to_string(),
-            l2_time = payload_timestamp,
-            "Sealing payload"
-        );
-
-        let get_payload_version =
-            EngineGetPayloadVersion::from_cfg(&self.config, payload_timestamp);
-        let payload_envelope = match get_payload_version {
-            EngineGetPayloadVersion::V5 => {
-                // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-                let payload = self.client.get_payload_v5(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                OpExecutionPayloadEnvelope::V4 {
-                    parent_beacon_block_root: payload.parent_beacon_block_root,
-                    payload: payload.execution_payload,
-                }
-            }
-            EngineGetPayloadVersion::V4 => {
-                let payload = self.client.get_payload_v4(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                OpExecutionPayloadEnvelope::V4 {
-                    parent_beacon_block_root: payload.parent_beacon_block_root,
-                    payload: payload.execution_payload,
-                }
-            }
-            EngineGetPayloadVersion::V3 => {
-                let payload = self.client.get_payload_v3(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                OpExecutionPayloadEnvelope::V3 {
-                    parent_beacon_block_root: payload.parent_beacon_block_root,
-                    payload: payload.execution_payload,
-                }
-            }
-            EngineGetPayloadVersion::V2 => {
-                let payload = self.client.get_payload_v2(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                match payload.execution_payload.into_payload() {
-                    ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
-                    ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
-                    _ => unreachable!("the response should be a V1 or V2 payload"),
-                }
-            }
-        };
-
-        Ok(payload_envelope)
     }
 
     /// Builds and seals a payload in sequence, so no other request can advance the unsafe head

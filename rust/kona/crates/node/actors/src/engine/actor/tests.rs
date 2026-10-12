@@ -500,8 +500,6 @@ async fn build_variants(
     #[case] payload_id_present: bool,
     // NB: none = success
     #[case] expected_err: Option<BuildErr>,
-    #[values(EngineForkchoiceVersion::V2, EngineForkchoiceVersion::V3)]
-    fcu_version: EngineForkchoiceVersion,
 ) {
     let payload_id = payload_id_present.then(|| PayloadId::new([1u8; 8]));
 
@@ -509,24 +507,15 @@ async fn build_variants(
     let unsafe_block = test_block_info(1);
     let attributes_timestamp = unsafe_block.block_info.timestamp;
 
+    // The engine client selects the forkchoice method version, and is tested for it.
     let mut cfg = RollupConfig::default();
-
-    let method = match fcu_version {
-        EngineForkchoiceVersion::V2 => {
-            cfg.hardforks.ecotone_time = Some(attributes_timestamp + 1);
-            "engine_forkchoiceUpdatedV2"
-        }
-        EngineForkchoiceVersion::V3 => {
-            cfg.hardforks.ecotone_time = Some(attributes_timestamp);
-            "engine_forkchoiceUpdatedV3"
-        }
-    };
+    cfg.hardforks.ecotone_time = Some(0);
     let cfg = Arc::new(cfg);
     let (engine_client, l1, l2) = test_engine_client(cfg.clone());
     if let Some(status) = fcu_status {
-        l2.expect(method, fcu_for_payload(payload_id, status));
+        l2.expect("engine_forkchoiceUpdatedV3", fcu_for_payload(payload_id, status));
     } else {
-        l2.expect_error(method);
+        l2.expect_error("engine_forkchoiceUpdatedV3");
     }
 
     let attributes = TestAttributesBuilder::new()
@@ -684,82 +673,6 @@ async fn unsafe_head_check_variants(
         },
     };
     assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
-    l1.assert_finished();
-    l2.assert_finished();
-}
-
-/// Exercise version selection and decoding through the production client and OP Alloy extension.
-#[rstest]
-#[case(5, "engine_getPayloadV2")]
-#[case(15, "engine_getPayloadV3")]
-#[case(25, "engine_getPayloadV4")]
-#[case(35, "engine_getPayloadV5")]
-#[tokio::test]
-async fn payload_fetch_selects_version_and_decodes_reply(
-    #[case] timestamp: u64,
-    #[case] method: &'static str,
-) {
-    use alloy_rpc_types_engine::ExecutionPayloadV2;
-    use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4};
-
-    let mut cfg = RollupConfig::default();
-    cfg.hardforks.ecotone_time = Some(10);
-    cfg.hardforks.isthmus_time = Some(20);
-    cfg.hardforks.karst_time = Some(30);
-    let cfg = Arc::new(cfg);
-    let (client, l1, l2) = test_engine_client(cfg.clone());
-    let id = PayloadId::new([1; 8]);
-    let params = serde_json::json!([id]);
-    let root = B256::repeat_byte(0x42);
-    let block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
-    let expected = if timestamp < 10 {
-        let payload = ExecutionPayloadV2::from_block_slow(&block);
-        l2.expect_params(
-            method,
-            params,
-            ExecutionPayloadEnvelopeV2 {
-                execution_payload: ExecutionPayloadFieldV2::V2(payload.clone()),
-                block_value: Default::default(),
-            },
-        );
-        OpExecutionPayloadEnvelope::V2(payload)
-    } else if timestamp < 20 {
-        let payload = ExecutionPayloadV3::from_block_slow(&block);
-        l2.expect_params(
-            method,
-            params,
-            OpExecutionPayloadEnvelopeV3 {
-                execution_payload: payload.clone(),
-                block_value: Default::default(),
-                blobs_bundle: Default::default(),
-                should_override_builder: false,
-                parent_beacon_block_root: root,
-            },
-        );
-        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root: root }
-    } else {
-        let payload = OpExecutionPayloadV4::from_v3_with_withdrawals_root(
-            ExecutionPayloadV3::from_block_slow(&block),
-            root,
-        );
-        l2.expect_params(
-            method,
-            params,
-            OpExecutionPayloadEnvelopeV4 {
-                execution_payload: payload.clone(),
-                block_value: Default::default(),
-                blobs_bundle: Default::default(),
-                should_override_builder: false,
-                parent_beacon_block_root: root,
-                execution_requests: vec![],
-            },
-        );
-        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
-    };
-    let attributes = TestAttributesBuilder::new().with_timestamp(timestamp).build();
-    let (actor, _, _) = actor(client, cfg, EngineState::default(), Arc::new(NoopBlockSink));
-    let actual = actor.fetch_payload(id, &attributes).await.unwrap();
-    assert_eq!(actual, expected);
     l1.assert_finished();
     l2.assert_finished();
 }
