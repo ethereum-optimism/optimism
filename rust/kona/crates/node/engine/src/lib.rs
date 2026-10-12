@@ -9,7 +9,6 @@
 //! ## Module Organization
 //!
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
-//! - **State** - Engine state management and synchronization via [`EngineState`]
 //! - **Sync** - Sync starting point discovery via [`find_starting_forkchoice`]
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
 //!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
@@ -32,9 +31,6 @@ pub use client::{EngineClient, EngineClientBuilder, EngineClientError};
 
 mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
-
-mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
 
 mod kinds;
 pub use kinds::EngineKind;

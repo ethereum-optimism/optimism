@@ -1,7 +1,6 @@
-use super::{BuildTaskError, FinalizeBlockId, SealTaskError};
+use super::{BuildTaskError, EngineState, FinalizeBlockId, SealTaskError};
 use crate::{EngineClientError, EngineClientResult};
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::EngineState;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::{mpsc, oneshot, watch};

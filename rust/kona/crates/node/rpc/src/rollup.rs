@@ -11,8 +11,8 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::EngineState;
 use kona_genesis::RollupConfig;
+use kona_node_actors::engine::EngineState;
 use kona_protocol::{BlockInfo, FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
 use op_alloy_network::Optimism;
 use std::sync::Arc;
@@ -233,7 +233,8 @@ mod tests {
     use super::*;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
-    use kona_engine::test_utils::{RpcMock, TestEngineStateBuilder, test_engine_client};
+    use kona_engine::test_utils::{RpcMock, test_engine_client};
+    use kona_node_actors::engine::{EngineSyncState, EngineSyncStateUpdate};
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use op_alloy_rpc_types::Transaction;
     use serde_json::json;
@@ -368,7 +369,15 @@ mod tests {
             block_info: BlockInfo { number: 17, ..Default::default() },
             ..Default::default()
         };
-        state_tx.send_replace(TestEngineStateBuilder::new().with_unsafe_head(head).build());
+        state_tx.send_replace(EngineState {
+            sync_state: EngineSyncState::default().apply_update(EngineSyncStateUpdate {
+                unsafe_head: Some(head),
+                local_safe_head: Some(head),
+                safe_head: Some(head),
+                finalized_head: Some(head),
+            }),
+            ..Default::default()
+        });
         let head_l1 = BlockInfo { number: 42, ..Default::default() };
         let safe_l1 = BlockInfo { number: 40, ..Default::default() };
         let finalized_l1 = BlockInfo { number: 38, ..Default::default() };

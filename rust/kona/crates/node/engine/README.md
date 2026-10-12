@@ -9,7 +9,6 @@ The `kona-engine` crate provides the building blocks a rollup node uses to drive
 ## Key Components
 
 - **[`EngineClient`](crate::EngineClient)** - HTTP client for Engine API communication with JWT authentication
-- **[`EngineState`](crate::EngineState)** - Tracks the current state of the execution layer
 - **[`find_starting_forkchoice`](crate::find_starting_forkchoice)** - Finds a plausible forkchoice to sync from
 - **[`AttributesMatch`](crate::AttributesMatch)** - Checks whether a block matches derived payload attributes
 - **[`ImportedBlockSink`](crate::ImportedBlockSink)** - Receives every block the engine makes canonical

@@ -2,8 +2,8 @@
 
 use super::{
     ActorError, BuildTaskError, Capacity, ConsolidateTaskError, EngineBuildError, EngineResetError,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError, Handle,
-    InsertTaskError, SealTaskError, SynchronizeTaskError,
+    EngineState, EngineSyncStateUpdate, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTaskError, Handle, InsertTaskError, SealTaskError, SynchronizeTaskError,
     handle::{BuildRequest, Message, SealRequest},
 };
 use crate::EngineDerivationClient;
@@ -12,8 +12,7 @@ use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, Payload
 use alloy_rpc_types_eth::Block as RpcBlock;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    AttributesMatch, EngineClient, EngineState, EngineSyncStateUpdate, ImportedBlockSink, Metrics,
-    find_starting_forkchoice,
+    AttributesMatch, EngineClient, ImportedBlockSink, Metrics, find_starting_forkchoice,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};

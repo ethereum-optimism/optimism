@@ -7637,6 +7637,7 @@ dependencies = [
  "kona-sources",
  "libp2p",
  "metrics",
+ "metrics-exporter-prometheus",
  "mockall",
  "op-alloy-consensus",
  "op-alloy-network",

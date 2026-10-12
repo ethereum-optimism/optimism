@@ -66,6 +66,7 @@ kona-engine = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }
 enr.workspace = true
 rstest.workspace = true
+metrics-exporter-prometheus.workspace = true
 arbitrary.workspace = true
 rand.workspace = true
 mockall.workspace = true

@@ -1,9 +1,8 @@
-//! The internal state of the engine controller.
+//! The engine state that the engine actor publishes.
 
-use crate::Metrics;
 use alloy_rpc_types_engine::ForkchoiceState;
+use kona_engine::Metrics;
 use kona_protocol::L2BlockInfo;
-use serde::{Deserialize, Serialize};
 
 /// The synchronization state of the execution layer across different safety levels.
 ///
@@ -110,7 +109,7 @@ impl EngineSyncState {
 }
 
 /// Specifies how to update the sync state of the engine.
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineSyncStateUpdate {
     /// Most recent block found on the p2p network
     pub unsafe_head: Option<L2BlockInfo>,
@@ -137,7 +136,6 @@ pub struct EngineState {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Metrics;
     use kona_protocol::BlockInfo;
     use metrics_exporter_prometheus::PrometheusBuilder;
     use rstest::rstest;
@@ -187,7 +185,7 @@ mod test {
         #[case] number: u64,
     ) {
         let handle = PrometheusBuilder::new().install_recorder().unwrap();
-        crate::Metrics::init();
+        Metrics::init();
 
         let mut state = EngineState::default();
         set_fn(
