@@ -1,6 +1,8 @@
-use crate::EngineClientResult;
+use crate::{
+    EngineClientResult,
+    engine::{ConsolidateInput, FinalizeBlockId},
+};
 use async_trait::async_trait;
-use kona_engine::{ConsolidateInput, FinalizeBlockId};
 use std::fmt::Debug;
 
 /// Client to use to interact with the engine.

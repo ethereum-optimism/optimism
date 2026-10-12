@@ -1,0 +1,138 @@
+use super::BuildSealCoupling::{self, Atomic, Detached};
+use crate::engine::{SealTaskError, operations::Engine};
+use alloy_rpc_types_engine::PayloadId;
+use kona_engine::test_utils::{
+    TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
+};
+use kona_genesis::RollupConfig;
+use rstest::rstest;
+use std::sync::Arc;
+
+/// The two paths the unsafe-head check can steer `seal` into: aborting the seal as stale, or
+/// proceeding to the payload fetch — whose injected RPC failure surfaces as
+/// [`SealTaskError::GetPayloadFailed`].
+#[derive(Debug, PartialEq, Eq)]
+enum SealOutcome {
+    AbortedAsStale,
+    ProceededToSeal,
+}
+
+fn classify(err: &SealTaskError) -> SealOutcome {
+    match err {
+        SealTaskError::UnsafeHeadChangedSinceBuild => SealOutcome::AbortedAsStale,
+        SealTaskError::GetPayloadFailed(_) => SealOutcome::ProceededToSeal,
+        other => panic!("unexpected seal error: {other:?}"),
+    }
+}
+
+#[rstest]
+#[case::detached_with_moved_unsafe_head(Detached, false, SealOutcome::AbortedAsStale)]
+#[case::detached_with_current_unsafe_head(Detached, true, SealOutcome::ProceededToSeal)]
+#[case::atomic_with_reorged_unsafe_head(Atomic, false, SealOutcome::ProceededToSeal)]
+#[case::atomic_with_current_unsafe_head(Atomic, true, SealOutcome::ProceededToSeal)]
+#[tokio::test]
+async fn unsafe_head_check_variants(
+    #[case] coupling: BuildSealCoupling,
+    #[case] unsafe_head_at_parent: bool,
+    #[case] expected: SealOutcome,
+) {
+    let parent_block = test_block_info(10);
+    let unsafe_head = if unsafe_head_at_parent { parent_block } else { test_block_info(15) };
+
+    let attributes = TestAttributesBuilder::new().with_parent(parent_block).build();
+    let state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+
+    let cfg = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    if unsafe_head_at_parent || coupling == Atomic {
+        l2.expect_error("engine_getPayloadV2");
+    }
+    let mut engine = Engine::for_test(client, cfg, state);
+
+    let result = engine.seal_block(PayloadId::new([1u8; 8]), attributes, false, coupling).await;
+    assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// Exercise version selection and decoding through the production client and OP Alloy extension.
+#[rstest]
+#[case(5, "engine_getPayloadV2")]
+#[case(15, "engine_getPayloadV3")]
+#[case(25, "engine_getPayloadV4")]
+#[case(35, "engine_getPayloadV5")]
+#[tokio::test]
+async fn payload_fetch_selects_version_and_decodes_reply(
+    #[case] timestamp: u64,
+    #[case] method: &'static str,
+) {
+    use alloy_primitives::B256;
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV2, ExecutionPayloadV3,
+    };
+    use op_alloy_rpc_types_engine::{
+        OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
+        OpExecutionPayloadV4,
+    };
+
+    let mut cfg = RollupConfig::default();
+    cfg.hardforks.ecotone_time = Some(10);
+    cfg.hardforks.isthmus_time = Some(20);
+    cfg.hardforks.karst_time = Some(30);
+    let cfg = Arc::new(cfg);
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    let id = PayloadId::new([1; 8]);
+    let params = serde_json::json!([id]);
+    let root = B256::repeat_byte(0x42);
+    let block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+    let expected = if timestamp < 10 {
+        let payload = ExecutionPayloadV2::from_block_slow(&block);
+        l2.expect_params(
+            method,
+            params,
+            ExecutionPayloadEnvelopeV2 {
+                execution_payload: ExecutionPayloadFieldV2::V2(payload.clone()),
+                block_value: Default::default(),
+            },
+        );
+        OpExecutionPayloadEnvelope::V2(payload)
+    } else if timestamp < 20 {
+        let payload = ExecutionPayloadV3::from_block_slow(&block);
+        l2.expect_params(
+            method,
+            params,
+            OpExecutionPayloadEnvelopeV3 {
+                execution_payload: payload.clone(),
+                block_value: Default::default(),
+                blobs_bundle: Default::default(),
+                should_override_builder: false,
+                parent_beacon_block_root: root,
+            },
+        );
+        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root: root }
+    } else {
+        let payload = OpExecutionPayloadV4::from_v3_with_withdrawals_root(
+            ExecutionPayloadV3::from_block_slow(&block),
+            root,
+        );
+        l2.expect_params(
+            method,
+            params,
+            OpExecutionPayloadEnvelopeV4 {
+                execution_payload: payload.clone(),
+                block_value: Default::default(),
+                blobs_bundle: Default::default(),
+                should_override_builder: false,
+                parent_beacon_block_root: root,
+                execution_requests: vec![],
+            },
+        );
+        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
+    };
+    let attributes = TestAttributesBuilder::new().with_timestamp(timestamp).build();
+    let engine = Engine::for_test(client, cfg, Default::default());
+    let actual = engine.fetch_payload(id, &attributes).await.unwrap();
+    assert_eq!(actual, expected);
+    l1.assert_finished();
+    l2.assert_finished();
+}

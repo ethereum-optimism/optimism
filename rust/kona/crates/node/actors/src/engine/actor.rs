@@ -1,15 +1,14 @@
 //! Engine construction and execution.
 
 use super::{
-    ActorError, Capacity, Handle,
+    ActorError, Capacity, ConsolidateInput, EngineTaskError, EngineTaskErrorSeverity,
+    FinalizeBlockId, Handle,
     handle::{BuildRequest, Message, SealRequest},
+    operations::Engine,
 };
 use crate::EngineDerivationClient;
 use kona_derive::{ResetSignal, Signal};
-use kona_engine::{
-    ConsolidateInput, Engine, EngineClient, EngineState, EngineTaskError, EngineTaskErrorSeverity,
-    FinalizeBlockId, ImportedBlockSink,
-};
+use kona_engine::{EngineClient, EngineState, ImportedBlockSink};
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -148,7 +147,7 @@ where
 
     /// Starts a build and replies with its payload ID or failure; the caller decides whether to
     /// retry.
-    async fn handle_build(&mut self, request: BuildRequest) {
+    async fn handle_build(&self, request: BuildRequest) {
         let BuildRequest { attributes, result_tx } = request;
         // A caller that stopped waiting does not cancel the build.
         let _ = result_tx.send(self.engine.build(attributes).await);

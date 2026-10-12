@@ -35,6 +35,9 @@ alloy-transport.workspace = true
 
 # op-alloy
 op-alloy-network.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-provider.workspace = true
+op-alloy-rpc-types.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
 
 # general
@@ -46,7 +49,7 @@ tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 strum = { workspace = true, features = ["derive"] }
-derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
+derive_more = { workspace = true, features = ["debug", "display", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "client-core"] }
 tokio = { workspace = true, features = ["macros"] }
 tokio-stream = { workspace = true, features = ["sync"] }

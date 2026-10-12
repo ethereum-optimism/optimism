@@ -1,6 +1,7 @@
+use super::{BuildTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError};
 use crate::{EngineClientError, EngineClientResult};
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, ConsolidateInput, EngineState, FinalizeBlockId, SealTaskError};
+use kona_engine::EngineState;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -135,7 +136,7 @@ fn response_closed() -> EngineClientError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kona_engine::EngineBuildError;
+    use crate::engine::EngineBuildError;
     use kona_protocol::L2BlockInfo;
     use std::future::ready;
 

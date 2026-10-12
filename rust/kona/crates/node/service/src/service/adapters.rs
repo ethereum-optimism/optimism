@@ -2,10 +2,11 @@
 
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
-use kona_engine::{ConsolidateInput, FinalizeBlockId};
 use kona_node_actors::{
     DerivationEngineClient, EngineClientError, EngineClientResult, NetworkEngineClient,
-    SequencerEngineClient, engine, sequencer, signer,
+    SequencerEngineClient, engine,
+    engine::{ConsolidateInput, FinalizeBlockId},
+    sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;

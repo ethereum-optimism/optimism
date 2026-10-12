@@ -3,16 +3,16 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time.
+The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It is built on the Engine API client, engine state, and version selection from the `kona-engine` crate.
 
 ## Architecture Overview
 
 The execution engine is built around several key components:
 
-- **Engine Operations**: Engine API operations performed one at a time against the engine state
-- **Error Severities**: Each operation's errors say how the caller should recover
-- **Engine Client**: HTTP client for communicating with the execution layer
-- **Actor Integration**: Service layer integration through the engine actor
+- **Engine Operations**: Engine API operations the engine actor performs one at a time against the engine state
+- **Error Severities**: Each operation's errors say how to recover
+- **Engine Client**: HTTP client for communicating with the execution layer, from `kona-engine`
+- **Actor Integration**: Service layer integration through the engine actor's handle
 
 ## Error Severity
 
@@ -33,18 +33,18 @@ pub enum EngineTaskErrorSeverity {
 }
 ```
 
-This allows operations to signal different recovery strategies based on the error type.
+This allows operations to signal different recovery strategies based on the error type. The trait and the error types live in `kona_node_actors::engine`.
 
 ## Operations
 
-The `Engine` performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every operation, whether or not it succeeds. A failed operation returns its error, and the caller decides whether to retry it; the engine actor retries temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order the caller performs them; there is no priority ordering. They use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
+The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every operation, whether or not it succeeds. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
 
 Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
-- **`insert_unsafe`** inserts an unsafe payload, received from gossip or the admin API, with `engine_newPayload`, then makes it the unsafe head. A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped.
-- **`build`** starts building a block from payload attributes in sequencer mode, and returns the payload ID. Its failures are returned to the caller instead of being retried by the engine; the sequencer retries a failed build on its next block-time tick.
+- **`insert_unsafe_block`** inserts an unsafe payload, received from gossip or the admin API, with `engine_newPayload`, then makes it the unsafe head. A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped.
+- **`start_build`** starts building a block from payload attributes in sequencer mode, and returns the payload ID. Its failures are returned to the caller instead of being retried by the actor; the sequencer retries a failed build on its next block-time tick.
 - **`seal`** retrieves a started block with the version-specific `engine_getPayload` call, inserts it, and makes it the unsafe head. It fails if the unsafe head moved since the build started.
-- **`consolidate`** advances the safe chain through derivation. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the engine builds and seals the attributes, reorging the unsafe chain. With derivation delegated, the engine follows the delegated safe block instead.
+- **`consolidate`** advances the safe chain through derivation. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the actor builds and seals the attributes, reorging the unsafe chain. With derivation delegated, the actor follows the delegated safe block instead.
 - **`finalize`** finalizes an L2 block identified by number or hash.
 - **`reset`** finds a plausible sync starting point and reorgs the execution layer to it.
 
@@ -95,46 +95,26 @@ let client = EngineClientBuilder {
     l2: l2_engine_url,
     l2_jwt: jwt_secret,
     l1_rpc: l1_rpc_url,
-    cfg: rollup_config,
+    cfg: rollup_config.clone(),
 }
 .build();
 
-// Initialize engine state
-let state = EngineState::default();
-let (state_sender, state_receiver) = watch::channel(state);
+// Create the request queue and state publisher, and hand out handles.
+let builder = engine::Builder::new(capacity);
+let handle = builder.handle();
 
-// Create the engine, which publishes its state to `state_receiver`.
-let mut engine = Engine::new(
-    Arc::new(client),
-    rollup_config.clone(),
-    block_sink,
-    state,
-    state_sender,
-);
+// Supply the dependencies and spawn the actor's lifetime future.
+let actor = builder.build(Arc::new(client), rollup_config, derivation_client, block_sink);
+tokio::spawn(actor);
 ```
 
 ### Performing Operations
 
-`Engine` has one method per operation: `insert_unsafe`, `build`, `seal`, `consolidate`, `finalize`, and `reset`. Each returns its own error type, whose severity tells the caller how to recover.
+`engine::Handle` has one method per operation: `insert_unsafe_block`, `start_build`, `seal`, `consolidate`, `finalize`, and `reset`. Builds and seals reply with the operation's result; the sequencer classifies a failed build by its error.
 
 ```rust
-match engine.consolidate(input).await {
-    Ok(()) => info!("Consolidated"),
-    Err(e) => match e.severity() {
-        EngineTaskErrorSeverity::Temporary => {
-            // Retry after a delay
-        },
-        EngineTaskErrorSeverity::Reset => {
-            // Reset the engine and derivation
-        },
-        EngineTaskErrorSeverity::Flush => {
-            // Flush derivation; the operation is complete
-        },
-        EngineTaskErrorSeverity::Critical => {
-            // Stop
-        },
-    }
-}
+let payload_id = handle.start_build(attributes.clone()).await?;
+let payload = handle.seal(payload_id, attributes).await?;
 ```
 
 ## Error Handling and Recovery
@@ -144,11 +124,11 @@ The engine provides robust error handling through:
 ### Severity-Based Recovery
 
 - **Temporary errors**: Retried by the engine actor
-- **Critical errors**: Propagated to the actor
+- **Critical errors**: Stop the engine actor
 - **Reset errors**: Trigger derivation pipeline reset
 - **Flush errors**: Trigger derivation pipeline flush
 
-A verdict from the execution layer is not a temporary error, because retrying returns the same verdict. An unsafe payload that `engine_newPayload` reports as `INVALID` or `ACCEPTED` is dropped. A forkchoice update reported as `INVALID` or `ACCEPTED` is a reset error: the engine actor resets the engine for the operations it retries itself, while `build` and `seal` return the error to their caller.
+A verdict from the execution layer is not a temporary error, because retrying returns the same verdict. An unsafe payload that `engine_newPayload` reports as `INVALID` or `ACCEPTED` is dropped. A forkchoice update reported as `INVALID` or `ACCEPTED` is a reset error: the engine actor resets the engine for the operations it retries itself, while builds and seals return the error to their caller.
 
 ### State Consistency
 
@@ -174,4 +154,4 @@ The engine always includes metrics instrumentation for:
 
 ## Extensibility
 
-Each operation's error type implements `EngineTaskError`, so callers can decide how to recover from any operation's failure by its severity. Tests run the operations against mock RPC transports through the same `EngineClient`.
+Each operation's error type implements `EngineTaskError`, whose severity decides how the engine actor recovers from the operation's failure. Tests run the operations against mock RPC transports through the same `EngineClient`.

@@ -3,14 +3,13 @@
 use crate::{
     DerivationActorRequest, DerivationEngineClient, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, DerivationStatus, Metrics, NodeActor,
-    derivation::L2Finalizer,
+    derivation::L2Finalizer, engine::FinalizeBlockId,
 };
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,
     SignalReceiver, StepResult,
 };
-use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};

@@ -1,10 +1,10 @@
 use super::{super::UnsealedPayloadHandle, test_actor, test_actor_with_config};
 use crate::{
     EngineClientError, MockOriginSelector, MockSequencerEngineClient,
+    engine::{BuildTaskError, EngineBuildError},
     sequencer::{ActorError, MockSigner, handle::Message},
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
-use kona_engine::{BuildTaskError, EngineBuildError};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rstest::rstest;

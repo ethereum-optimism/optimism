@@ -3,7 +3,10 @@
 use super::Capacity;
 use crate::{
     SequencerEngineClient,
-    engine::EngineClientError,
+    engine::{
+        BuildTaskError, EngineBuildError, EngineClientError, InsertTaskError, SealTaskError,
+        SynchronizeTaskError,
+    },
     sequencer::{
         Handle, HandleError, Signer,
         conductor::Conductor,
@@ -19,9 +22,6 @@ use crate::{
 };
 use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{
-    BuildTaskError, EngineBuildError, InsertTaskError, SealTaskError, SynchronizeTaskError,
-};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;

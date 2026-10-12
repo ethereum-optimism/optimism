@@ -1,11 +1,11 @@
 use crate::{
     DerivationActorRequest, DerivationEngineClient, DerivationStatus, NodeActor,
     derivation::{DerivationDelegateProvider, DerivationError},
+    engine::FinalizeBlockId,
 };
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use kona_derive::ChainProvider;
-use kona_engine::FinalizeBlockId;
 use kona_protocol::{L2BlockInfo, SyncStatus};
 use thiserror::Error;
 use tokio::{

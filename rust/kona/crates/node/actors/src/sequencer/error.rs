@@ -1,6 +1,8 @@
-use crate::{L1OriginSelectorError, engine::EngineClientError};
+use crate::{
+    L1OriginSelectorError,
+    engine::{BuildTaskError, EngineClientError},
+};
 use kona_derive::PipelineErrorKind;
-use kona_engine::BuildTaskError;
 
 /// An error returned by the actor.
 #[derive(Debug, thiserror::Error)]
