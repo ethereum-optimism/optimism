@@ -1,14 +1,10 @@
-//! Error type for the [`EngineActor`].
-//!
-//! [`EngineActor`]: super::EngineActor
+//! Error type for the engine actor.
 
 use kona_engine::{EngineResetError, EngineTaskErrors};
 
-/// An error from the [`EngineActor`].
-///
-/// [`EngineActor`]: super::EngineActor
+/// A fatal error from the engine actor.
 #[derive(thiserror::Error, Debug)]
-pub enum EngineError {
+pub enum ActorError {
     /// Closed channel error.
     #[error("a channel has been closed unexpectedly")]
     ChannelClosed,

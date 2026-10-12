@@ -1,24 +1,81 @@
-use crate::{BuildRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest};
-use async_trait::async_trait;
+//! Engine construction and execution.
+
+use super::{
+    ActorError, Capacity, Handle,
+    handle::{BuildRequest, Message, SealRequest},
+};
+use crate::EngineDerivationClient;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
-    InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, ConsolidateTask, Engine, EngineClient, EngineState, EngineTask,
+    EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink, InsertTask,
+    SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 use tokio::{
     sync::{mpsc, watch},
     time::{self, Duration, Instant},
 };
 
+/// Constructs the handle and task.
+#[derive(Debug)]
+pub struct Builder {
+    handle: Handle,
+    messages_rx: mpsc::Receiver<Message>,
+    state_tx: watch::Sender<EngineState>,
+}
+
+impl Builder {
+    /// Creates the builder with the default engine state.
+    pub fn new(capacity: Capacity) -> Self {
+        let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
+        let (state_tx, state_rx) = watch::channel(EngineState::default());
+        Self { handle: Handle::new(messages_tx, state_rx), messages_rx, state_tx }
+    }
+
+    /// Returns a handle that can be wired into other components before the actor starts.
+    pub fn handle(&self) -> Handle {
+        self.handle.clone()
+    }
+
+    /// Supplies dependencies and produces the actor's lifetime future without spawning it.
+    ///
+    /// The caller must retain a handle to keep the request channel open.
+    /// Runtime work begins when the future is polled.
+    /// Dropping the future stops the actor.
+    pub fn build<DerivationClient: EngineDerivationClient + 'static>(
+        self,
+        client: Arc<EngineClient>,
+        rollup: Arc<RollupConfig>,
+        derivation_client: DerivationClient,
+        unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
+        block_sink: Arc<dyn ImportedBlockSink>,
+    ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
+        let Self { handle: _, messages_rx, state_tx } = self;
+        async move {
+            let engine = Engine::new(EngineState::default(), state_tx);
+            Actor::new(
+                client,
+                rollup,
+                derivation_client,
+                engine,
+                unsafe_head_tx,
+                messages_rx,
+                block_sink,
+            )
+            .run()
+            .await
+        }
+    }
+}
+
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
 #[derive(Debug)]
-pub struct EngineActor<DerivationClient>
+struct Actor<DerivationClient>
 where
     DerivationClient: EngineDerivationClient,
 {
@@ -40,8 +97,8 @@ where
     client: Arc<EngineClient>,
     /// The [`Engine`] task queue.
     engine: Engine,
-    /// The inbound request channel.
-    inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
+    /// Receives messages from handles.
+    messages_rx: mpsc::Receiver<Message>,
     /// Where to hand every imported block, so the derivation providers can read it locally
     /// instead of fetching it back from the execution layer.
     block_sink: Arc<dyn ImportedBlockSink>,
@@ -55,18 +112,17 @@ where
     retry_delay: Duration,
 }
 
-impl<DerivationClient> EngineActor<DerivationClient>
+impl<DerivationClient> Actor<DerivationClient>
 where
     DerivationClient: EngineDerivationClient + 'static,
 {
-    /// Constructs a new [`EngineActor`] from the params.
-    pub fn new(
+    fn new(
         client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
         engine: Engine,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
-        inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
+        messages_rx: mpsc::Receiver<Message>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
         Self {
@@ -77,12 +133,18 @@ where
             last_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
-            inbound_request_rx,
+            messages_rx,
             block_sink,
             reset_pending: false,
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
             retry_delay: Duration::from_millis(100),
+        }
+    }
+
+    async fn run(mut self) -> Result<(), ActorError> {
+        loop {
+            self.step().await?;
         }
     }
 
@@ -99,7 +161,7 @@ where
         }
     }
 
-    async fn attempt_reset(&mut self) -> Result<(), EngineError> {
+    async fn attempt_reset(&mut self) -> Result<(), ActorError> {
         match self.reset().await {
             Ok(()) => {
                 self.reset_pending = false;
@@ -108,7 +170,7 @@ where
                     self.mark_el_sync_complete_and_notify_derivation_actor().await?;
                 }
             }
-            Err(EngineError::EngineReset(err)) if err.is_temporary() => {
+            Err(ActorError::EngineReset(err)) if err.is_temporary() => {
                 warn!(target: "engine", ?err, "Reset dependency unavailable; retaining reset");
                 self.defer_retry();
             }
@@ -118,7 +180,7 @@ where
     }
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
-    async fn reset(&mut self) -> Result<(), EngineError> {
+    async fn reset(&mut self) -> Result<(), ActorError> {
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
 
@@ -135,7 +197,7 @@ where
             Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
             Err(err) => {
                 error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
-                return Err(EngineError::ChannelClosed);
+                return Err(ActorError::ChannelClosed);
             }
         }
 
@@ -145,7 +207,7 @@ where
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
-    async fn drain(&mut self) -> Result<(), EngineError> {
+    async fn drain(&mut self) -> Result<(), ActorError> {
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
@@ -174,7 +236,7 @@ where
                             }
                             Err(err) => {
                                 error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
-                                return Err(EngineError::ChannelClosed);
+                                return Err(ActorError::ChannelClosed);
                             }
                         }
                     }
@@ -202,7 +264,7 @@ where
 
     async fn mark_el_sync_complete_and_notify_derivation_actor(
         &mut self,
-    ) -> Result<(), EngineError> {
+    ) -> Result<(), ActorError> {
         self.el_sync_complete = true;
 
         self.derivation_client
@@ -211,12 +273,12 @@ where
             .map(|_| Ok(()))
             .map_err(|e| {
                 error!(target: "engine", ?e, "Failed to notify sync completed");
-                EngineError::ChannelClosed
+                ActorError::ChannelClosed
             })?
     }
 
     /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
-    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
+    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), ActorError> {
         let engine_safe_head = self.engine.state().sync_state.safe_head();
         if engine_safe_head == self.last_safe_head_sent {
             info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
@@ -226,7 +288,7 @@ where
 
         self.derivation_client.send_new_engine_safe_head(engine_safe_head).await.map_err(|e| {
             error!(target: "engine", ?e, "Failed to send new engine safe head");
-            EngineError::ChannelClosed
+            ActorError::ChannelClosed
         })?;
 
         info!(target: "engine", safe_head = ?engine_safe_head, "Attempted L2 Safe Head Update");
@@ -234,16 +296,9 @@ where
 
         Ok(())
     }
-}
 
-#[async_trait]
-impl<DerivationClient> NodeActor for EngineActor<DerivationClient>
-where
-    DerivationClient: EngineDerivationClient + 'static,
-{
-    type Error = EngineError;
-
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    /// Runs due retries, then waits for and enqueues the next request.
+    async fn step(&mut self) -> Result<(), ActorError> {
         if Instant::now() >= self.retry_at {
             if self.reset_pending {
                 self.attempt_reset().await?;
@@ -263,17 +318,17 @@ where
         // Wait for the next processing request.
         // Retry without needing a new inbound message, while still accepting requests during
         // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
-        let request = tokio::select! {
-            request = self.inbound_request_rx.recv(),
+        let message = tokio::select! {
+            message = self.messages_rx.recv(),
                 if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
-                request.ok_or(EngineError::ChannelClosed)?
+                message.ok_or(ActorError::ChannelClosed)?
             }
             _ = time::sleep_until(self.retry_at),
                 if self.reset_pending || !self.engine.is_empty() => return Ok(()),
         };
 
-        match request {
-            EngineActorRequest::Build(build_request) => {
+        match message {
+            Message::Build(build_request) => {
                 let BuildRequest { attributes, result_tx } = *build_request;
                 let task = EngineTask::Build(Box::new(BuildTask::new(
                     self.client.clone(),
@@ -283,7 +338,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessSafeL2Signal(safe_signal) => {
+            Message::Consolidate(safe_signal) => {
                 let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
@@ -292,7 +347,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
+            Message::Finalize(finalized_l2_block_id) => {
                 // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
                 let task = EngineTask::Finalize(Box::new(FinalizeTask::new(
                     self.client.clone(),
@@ -301,7 +356,7 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
+            Message::InsertUnsafeBlock(envelope) => {
                 let task = EngineTask::Insert(Box::new(InsertTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
@@ -312,13 +367,13 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::Reset(reset_request) => {
+            Message::Reset(result_tx) => {
                 warn!(target: "engine", "Received reset request");
 
                 self.begin_reset();
-                self.reset_waiters.push(reset_request.result_tx);
+                self.reset_waiters.push(result_tx);
             }
-            EngineActorRequest::Seal(seal_request) => {
+            Message::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
                 let task = EngineTask::Seal(Box::new(SealTask::new(
                     self.client.clone(),
@@ -336,5 +391,117 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_engine::{NoopBlockSink, test_utils::test_engine_client};
+
+    #[test]
+    fn construction_and_build_do_not_require_a_runtime() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, _, _) = test_engine_client(config.clone());
+        let builder = Builder::new(Capacity::try_from(1).unwrap());
+        let handle = builder.handle();
+        let (derivation_tx, _derivation_rx) = mpsc::channel(1);
+        let task = builder.build(
+            Arc::new(client),
+            config,
+            QueuedEngineDerivationClient::new(derivation_tx),
+            None,
+            Arc::new(NoopBlockSink),
+        );
+        assert_eq!(*handle.state().borrow(), EngineState::default());
+        drop(task);
+    }
+
+    /// Both L1 and L2 outages during a reset must retain the original request and finish it
+    /// after recovery, without a new reset request or L1 head to wake the actor.
+    #[rstest::rstest]
+    #[case(true, Duration::ZERO)]
+    #[case(false, Duration::ZERO)]
+    #[case(false, Duration::from_secs(4))]
+    #[tokio::test(start_paused = true)]
+    async fn reset_recovers_and_completes_original_request(
+        #[case] l1_failure: bool,
+        #[case] read_delay: Duration,
+    ) {
+        let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        let mut config = RollupConfig::default();
+        config.genesis.l2.hash = block.header.inner.hash_slow();
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        if l1_failure {
+            for tag in ["finalized", "safe", "latest"] {
+                l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+            }
+            l1.expect_error("eth_getBlockByHash");
+        } else {
+            l2.expect_error("eth_getBlockByNumber");
+        }
+        let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
+        // Derivation waits for the reset reply and cannot drain its full queue until then.
+        derivation_tx
+            .send(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::default()))
+            .await
+            .unwrap();
+        let derivation =
+            QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
+        let (messages, messages_rx) = mpsc::channel(8);
+        let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let handle = Handle::new(messages, state_rx);
+        let mut actor = Actor::new(
+            client,
+            config,
+            derivation,
+            Engine::new(EngineState::default(), state_tx),
+            None,
+            messages_rx,
+            Arc::new(NoopBlockSink),
+        );
+        let reset = tokio::spawn(async move { handle.reset().await });
+        actor.step().await.unwrap(); // retain the reset
+        actor.step().await.unwrap(); // failed attempt, then wait for backoff
+        assert!(!reset.is_finished());
+        for _ in 0..3 {
+            l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
+        }
+        l1.expect(
+            "eth_getBlockByHash",
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        // A step performs recovery and then waits for another message; the response arrives first.
+        let mut tasks = tokio::task::JoinSet::new();
+        tasks.spawn(actor.run());
+        time::timeout(Duration::from_secs(20), reset).await.unwrap().unwrap().unwrap();
+        assert!(matches!(
+            derivation_rx.recv().await.unwrap(),
+            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
+        ));
+        assert!(matches!(
+            derivation_rx.recv().await.unwrap(),
+            DerivationActorRequest::ProcessEngineSignalRequest(_)
+        ));
+        assert!(matches!(
+            derivation_rx.recv().await.unwrap(),
+            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
+        ));
+        assert!(matches!(
+            derivation_rx.recv().await.unwrap(),
+            DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
+        ));
+        tasks.abort_all();
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

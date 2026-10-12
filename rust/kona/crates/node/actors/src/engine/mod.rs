@@ -1,7 +1,7 @@
-//! The [`EngineActor`] and its components.
+//! Engine actor and handle.
 
 mod actor;
-pub use actor::EngineActor;
+pub use actor::Builder;
 
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
@@ -10,12 +10,12 @@ mod config;
 pub use config::EngineConfig;
 
 mod error;
-pub use error::EngineError;
+pub use error::ActorError;
+
+mod handle;
+pub use crate::capacity::{Capacity, InvalidCapacity};
+pub use handle::Handle;
 
 pub use kona_engine::{
-    BuildRequest, EngineActorRequest, EngineRequestError as EngineClientError,
-    EngineRequestResult as EngineClientResult, ResetRequest, SealRequest,
+    EngineRequestError as EngineClientError, EngineRequestResult as EngineClientResult,
 };
-
-#[cfg(test)]
-mod tests;

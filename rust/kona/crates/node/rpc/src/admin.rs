@@ -8,8 +8,7 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::{EngineActorRequest, ResetRequest};
-use kona_node_actors::sequencer::Handle;
+use kona_node_actors::{engine, sequencer::Handle};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 use tokio::sync::mpsc;
 
@@ -18,7 +17,7 @@ use tokio::sync::mpsc;
 pub struct AdminRpc {
     sequencer: Option<Handle>,
     conductor_enabled: bool,
-    engine: mpsc::Sender<EngineActorRequest>,
+    engine: engine::Handle,
     unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
@@ -27,7 +26,7 @@ impl AdminRpc {
     pub const fn new(
         sequencer: Option<Handle>,
         conductor_enabled: bool,
-        engine: mpsc::Sender<EngineActorRequest>,
+        engine: engine::Handle,
         unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
     ) -> Self {
         Self { sequencer, conductor_enabled, engine, unsafe_payloads }
@@ -86,35 +85,104 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
-        let (result_tx, mut result_rx) = mpsc::channel(1);
-        self.engine
-            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        result_rx
-            .recv()
-            .await
-            .ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.engine.reset().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_rpc_types_engine::ExecutionPayloadV1;
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
+    };
     use kona_derive::test_utils::TestAttributesBuilder;
+    use kona_engine::{NoopBlockSink, test_utils::test_engine_client};
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
-        L1OriginSelectorError, OriginSelector, QueuedSequencerEngineClient,
+        DerivationActorRequest, EngineClientResult, L1OriginSelectorError, OriginSelector,
+        QueuedEngineDerivationClient, SequencerEngineClient,
         sequencer::{self, ConductorClient},
     };
-    use kona_protocol::{BlockInfo, L2BlockInfo};
+    use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
     use std::{
         future::{Future, ready},
         sync::Arc,
+        time::Duration,
     };
-    use tokio::sync::watch;
+
+    /// Completes the sequencer's startup reset and reports a fixed unsafe head.
+    #[derive(Debug)]
+    struct IdleEngine;
+
+    #[async_trait]
+    impl SequencerEngineClient for IdleEngine {
+        async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+            Ok(())
+        }
+
+        async fn start_build_block(
+            &self,
+            _attributes: OpAttributesWithParent,
+        ) -> EngineClientResult<PayloadId> {
+            panic!("a full signer queue must pause building")
+        }
+
+        async fn seal_and_canonicalize_block(
+            &self,
+            _payload_id: PayloadId,
+            _attributes: OpAttributesWithParent,
+        ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
+            panic!("a full signer queue must pause building")
+        }
+
+        async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {
+            Ok(L2BlockInfo {
+                block_info: BlockInfo { hash: B256::repeat_byte(42), ..Default::default() },
+                ..Default::default()
+            })
+        }
+    }
+
+    /// Returns a handle to an engine that never runs.
+    fn idle_engine() -> engine::Handle {
+        engine::Builder::new(engine::Capacity::try_from(1).unwrap()).handle()
+    }
+
+    /// Returns an engine whose execution and L1 clients complete one reset.
+    fn resetting_engine() -> (
+        engine::Handle,
+        impl Future<Output = Result<(), engine::ActorError>> + Send + 'static,
+        mpsc::Receiver<DerivationActorRequest>,
+    ) {
+        let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        let mut config = RollupConfig::default();
+        config.genesis.l2.hash = block.header.inner.hash_slow();
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+        for _ in 0..3 {
+            l2.expect("eth_getBlockByNumber", &block);
+        }
+        l1.expect(
+            "eth_getBlockByHash",
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let handle = builder.handle();
+        let (derivation_tx, derivation_rx) = mpsc::channel(8);
+        let task = builder.build(
+            Arc::new(client),
+            config,
+            QueuedEngineDerivationClient::new(derivation_tx),
+            None,
+            Arc::new(NoopBlockSink),
+        );
+        (handle, task, derivation_rx)
+    }
 
     #[derive(Debug)]
     struct PausedSigner;
@@ -147,47 +215,31 @@ mod tests {
 
     fn sequencer(
         conductor_enabled: bool,
-    ) -> (
-        Handle,
-        impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static,
-        mpsc::Receiver<EngineActorRequest>,
-    ) {
+    ) -> (Handle, impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static) {
         let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
         let handle = builder.handle();
-        let (engine_actor_request_tx, requests) = mpsc::channel(1);
-        let (_, unsafe_head_rx) = watch::channel(L2BlockInfo {
-            block_info: BlockInfo { hash: B256::repeat_byte(42), ..Default::default() },
-            ..Default::default()
-        });
         let task = builder.build(
             TestAttributesBuilder { attributes: vec![] },
-            QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx },
+            IdleEngine,
             UnusedOriginSelector,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
             conductor_enabled
                 .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),
             PausedSigner,
         );
-        (handle, task, requests)
-    }
-
-    async fn acknowledge_startup(requests: &mut mpsc::Receiver<EngineActorRequest>) {
-        let EngineActorRequest::Reset(request) = requests.recv().await.unwrap() else {
-            panic!("expected initial engine reset");
-        };
-        request.result_tx.send(Ok(())).await.unwrap();
+        (handle, task)
     }
 
     #[tokio::test]
     async fn reads_published_state_without_queueing_and_rejects_closed_publisher() {
-        let (handle, task, _requests) = sequencer(true);
+        let (handle, task) = sequencer(true);
         // Queue a command without running the actor, leaving the mailbox full.
         tokio::select! {
             biased;
             result = handle.start() => panic!("command completed before startup: {result:?}"),
             _ = ready(()) => {}
         }
-        let rpc = AdminRpc::new(Some(handle), true, mpsc::channel(1).0, mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(handle), true, idle_engine(), mpsc::channel(1).0);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(rpc.admin_conductor_enabled().await.unwrap());
 
@@ -202,7 +254,7 @@ mod tests {
     #[tokio::test]
     async fn sequencer_methods_are_unavailable_on_validators() {
         let (tx, _) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, false, mpsc::channel(1).0, tx);
+        let rpc = AdminRpc::new(None, false, idle_engine(), tx);
         for result in [
             rpc.admin_sequencer_active().await.map(|_| ()),
             rpc.admin_conductor_enabled().await.map(|_| ()),
@@ -216,10 +268,9 @@ mod tests {
 
     #[tokio::test]
     async fn commands_return_actor_results_and_map_failures() {
-        let (handle, task, mut requests) = sequencer(false);
+        let (handle, task) = sequencer(false);
         let task = tokio::spawn(task);
-        acknowledge_startup(&mut requests).await;
-        let rpc = AdminRpc::new(Some(handle), false, mpsc::channel(1).0, mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(handle), false, idle_engine(), mpsc::channel(1).0);
         assert_eq!(rpc.admin_stop_sequencer().await.unwrap(), B256::repeat_byte(42));
         assert_eq!(
             rpc.admin_override_leader().await.unwrap_err().code(),
@@ -239,8 +290,7 @@ mod tests {
     #[tokio::test]
     async fn reads_initial_state_before_build() {
         let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
-        let rpc =
-            AdminRpc::new(Some(builder.handle()), false, mpsc::channel(1).0, mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(builder.handle()), false, idle_engine(), mpsc::channel(1).0);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(!rpc.admin_conductor_enabled().await.unwrap());
     }
@@ -257,51 +307,28 @@ mod tests {
                 _ = ready(()) => {}
             }
             let sequencer = is_sequencer.then_some(handle);
-            let (engine_tx, mut engine_rx) = mpsc::channel(1);
-            let rpc = AdminRpc::new(sequencer, false, engine_tx, mpsc::channel(1).0).into_rpc();
+            let (engine, engine_task, _derivation) = resetting_engine();
+            let rpc = AdminRpc::new(sequencer, false, engine, mpsc::channel(1).0).into_rpc();
             let reset =
                 rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);
             tokio::pin!(reset);
-            let request = tokio::select! {
-                result = &mut reset => panic!("reset returned before engine acknowledgement: {result:?}"),
-                request = engine_rx.recv() => request.unwrap(),
-            };
-            let EngineActorRequest::Reset(request) = request else {
-                panic!("expected engine reset");
-            };
-            // Receiving the request is insufficient: the engine must acknowledge it.
-            assert!(
-                tokio::time::timeout(std::time::Duration::from_millis(10), &mut reset)
-                    .await
-                    .is_err()
-            );
-            request.result_tx.send(Ok(())).await.unwrap();
+            // The reset is queued, but the engine has not performed it.
+            assert!(tokio::time::timeout(Duration::from_millis(10), &mut reset).await.is_err());
+            let engine_task = tokio::spawn(engine_task);
             reset.await.unwrap();
+            engine_task.abort();
         }
     }
 
     #[tokio::test]
-    async fn maps_engine_reset_failures_and_closed_channels() {
-        let (engine_tx, mut engine_rx) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, false, engine_tx, mpsc::channel(1).0);
+    async fn maps_closed_engine_channels() {
+        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let rpc = AdminRpc::new(None, false, builder.handle(), mpsc::channel(1).0);
+        // The engine stops with the reset queued.
         let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
-            let EngineActorRequest::Reset(request) = engine_rx.recv().await.unwrap() else {
-                panic!("expected engine reset");
-            };
-            request
-                .result_tx
-                .send(Err(kona_engine::EngineRequestError::ResetForkchoiceError(
-                    "reset failed".to_owned(),
-                )))
-                .await
-                .unwrap();
+            drop(builder);
         });
         assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
-        let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
-            drop(engine_rx.recv().await.unwrap());
-        });
-        assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
-        drop(engine_rx);
         assert_eq!(
             rpc.admin_reset_derivation_pipeline().await.unwrap_err().code(),
             ErrorCode::InternalError.code()
@@ -311,7 +338,7 @@ mod tests {
     #[tokio::test]
     async fn validates_payloads_before_forwarding_on_validators() {
         let (tx, mut rx) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, false, mpsc::channel(1).0, tx);
+        let rpc = AdminRpc::new(None, false, idle_engine(), tx);
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),
             fee_recipient: Default::default(),

@@ -569,10 +569,10 @@ where
 
 // Determines whether the provided [`SealTaskError`] is fatal for the sequencer.
 //
-// NB: We could use `err.severity()`, but that gives EngineActor control over this classification.
-// `Actor` may have different interpretations of severity, and it is not clear when making
-// a change in that area of the codebase that it will affect this area. When a new task error is
-// added, this approach guarantees compilation will fail until it is handled here.
+// NB: We could use `err.severity()`, but that gives the engine actor control over this
+// classification. `Actor` may have different interpretations of severity, and it is not clear when
+// making a change in that area of the codebase that it will affect this area. When a new task error
+// is added, this approach guarantees compilation will fail until it is handled here.
 fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
     match err {
         SealTaskError::PayloadInsertionFailed(insert_err) => match &**insert_err {

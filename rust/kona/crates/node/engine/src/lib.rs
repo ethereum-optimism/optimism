@@ -56,10 +56,7 @@ mod client;
 pub use client::{EngineClient, EngineClientBuilder, EngineClientError};
 
 mod request;
-pub use request::{
-    BuildRequest, EngineActorRequest, EngineRequestError, EngineRequestResult, ResetRequest,
-    SealRequest,
-};
+pub use request::{EngineRequestError, EngineRequestResult};
 
 mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};

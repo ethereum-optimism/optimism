@@ -13,11 +13,10 @@ use async_trait::async_trait;
 
 mod capacity;
 
-mod engine;
+pub mod engine;
 pub use engine::{
-    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, QueuedEngineDerivationClient, ResetRequest,
-    SealRequest,
+    EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient,
+    QueuedEngineDerivationClient,
 };
 
 mod rpc;

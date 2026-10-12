@@ -12,7 +12,7 @@ The execution engine is built around several key components:
 - **Engine Task Queue**: A priority-ordered queue that manages Engine API operations
 - **Trait Abstractions**: Extensible interfaces for tasks, errors, and state management  
 - **Engine Client**: HTTP client for communicating with the execution layer
-- **Actor Integration**: Service layer integration through the `EngineActor`
+- **Actor Integration**: Service layer integration through the engine actor
 
 ## Core Trait Abstractions
 
@@ -201,26 +201,15 @@ The unsafe, safe, and finalized heads live in the nested `EngineSyncState`. Stat
 
 ## Integration with kona-node
 
-The `kona-node` service layer integrates the engine through the `EngineActor`:
+The `kona-node` service layer integrates the engine through the engine actor in `kona_node_actors::engine`.
 
-### Actor Pattern
+### Builder, Handle, and Actor
 
-The `EngineActor` implements the `NodeActor` trait:
-
-```rust
-#[async_trait]
-pub trait NodeActor: Send + 'static {
-    /// The error type for the actor.
-    type Error: std::fmt::Debug;
-
-    /// Handle the next inbound request, event, or scheduled tick.
-    async fn step(&mut self) -> Result<(), Self::Error>;
-}
-```
+`engine::Builder::new` creates the actor's bounded request queue and engine state publisher before any dependencies exist, so the node can give `engine::Handle` clones to derivation, the network, the sequencer, and the admin RPC before building the actor. `Builder::build` takes the Engine API client, rollup configuration, derivation client, and imported block sink, and returns the actor's lifetime future. The node supervisor spawns that future; dropping it stops the actor.
 
 ### Communication Channels
 
-The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). The `RollupRpc` module serves read-only RPC requests directly. It shares the engine's connection through a cloned `EngineClient`, constrained by the `OutputProvider` trait to query only `output_at_block`, and reads engine state through a watch channel.
+The engine actor receives all state-mutating input through its handle: payload attributes from derivation, unsafe blocks from gossip and the admin API, reset requests, finalization requests, and block building requests (sequencer mode only). Reset, build, and seal requests wait for the actor's reply; the others return once the request is queued. `Handle::state` subscribes to the engine state the actor publishes. The `RollupRpc` module serves read-only RPC requests directly. It shares the engine's connection through a cloned `EngineClient`, constrained by the `OutputProvider` trait to query only `output_at_block`, and reads engine state through that subscription.
 
 ### Rollup RPC Reads
 

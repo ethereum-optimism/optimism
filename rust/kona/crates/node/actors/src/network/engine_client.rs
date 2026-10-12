@@ -1,8 +1,7 @@
-use crate::{EngineActorRequest, EngineClientError, EngineClientResult};
+use crate::{EngineClientResult, engine};
 use async_trait::async_trait;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::fmt::Debug;
-use tokio::sync::mpsc;
 
 /// Client used to interact with the Engine.
 #[cfg_attr(test, mockall::automock)]
@@ -13,21 +12,17 @@ pub trait NetworkEngineClient: Debug + Send + Sync {
     async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()>;
 }
 
-/// Client to use to send unsafe blocks to the Engine's inbound channel.
+/// Client to use to send unsafe blocks to the engine actor.
 #[derive(Debug)]
 pub struct QueuedNetworkEngineClient {
-    /// A channel to use to send the `EngineActor` requests.
-    pub engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+    /// The engine actor's handle.
+    pub engine: engine::Handle,
 }
 
 #[async_trait]
 impl NetworkEngineClient for QueuedNetworkEngineClient {
     async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
-        Ok(self
-            .engine_actor_request_tx
-            .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(block)))
-            .await
-            .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?)
+        self.engine.insert_unsafe_block(block).await
     }
 }

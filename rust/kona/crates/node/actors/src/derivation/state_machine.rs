@@ -12,7 +12,7 @@ pub enum DerivationState {
     AwaitingELSyncCompletion,
     /// The [`crate::DerivationActor`] is idle awaiting data.
     AwaitingL1Data,
-    /// [`kona_protocol::OpAttributesWithParent`] were sent to the [`crate::EngineActor`], and the
+    /// [`kona_protocol::OpAttributesWithParent`] were sent to the engine actor, and the
     /// [`crate::DerivationActor`] is waiting for confirmation that they were processed into a safe
     /// head.
     AwaitingSafeHeadConfirmation,
