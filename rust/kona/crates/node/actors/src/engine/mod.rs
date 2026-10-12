@@ -22,5 +22,3 @@ pub use handle::Handle;
 
 mod input;
 pub use input::{ConsolidateInput, FinalizeBlockId};
-
-mod operations;

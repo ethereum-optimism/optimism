@@ -3,7 +3,6 @@
 use super::{
     BuildTaskError, EngineTaskError, EngineTaskErrorSeverity, SealTaskError, SynchronizeTaskError,
 };
-use crate::engine::operations::BuildAndSealError;
 use thiserror::Error;
 
 /// An error consolidating the safe head.
@@ -24,15 +23,6 @@ pub enum ConsolidateTaskError {
     /// The consolidation forkchoice update call to the engine api failed.
     #[error(transparent)]
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
-}
-
-impl From<BuildAndSealError> for ConsolidateTaskError {
-    fn from(err: BuildAndSealError) -> Self {
-        match err {
-            BuildAndSealError::Build(e) => Self::BuildTaskFailed(e),
-            BuildAndSealError::Seal(e) => Self::SealTaskFailed(e),
-        }
-    }
 }
 
 impl EngineTaskError for ConsolidateTaskError {

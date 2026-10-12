@@ -1,22 +1,35 @@
 //! Engine construction and execution.
 
 use super::{
-    ActorError, Capacity, ConsolidateInput, EngineTaskError, EngineTaskErrorSeverity,
-    FinalizeBlockId, Handle,
+    ActorError, BuildTaskError, Capacity, ConsolidateInput, ConsolidateTaskError, EngineBuildError,
+    EngineResetError, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError,
+    Handle, InsertTaskError, SealTaskError, SynchronizeTaskError,
     handle::{BuildRequest, Message, SealRequest},
-    operations::Engine,
 };
 use crate::EngineDerivationClient;
+use alloy_eips::BlockId;
+use alloy_rpc_types_engine::{
+    ExecutionPayload, ExecutionPayloadInputV2, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId,
+    PayloadStatusEnum,
+};
 use kona_derive::{ResetSignal, Signal};
-use kona_engine::{EngineClient, EngineState, ImportedBlockSink};
+use kona_engine::{
+    AttributesMatch, EngineClient, EngineForkchoiceVersion, EngineGetPayloadVersion, EngineState,
+    EngineSyncStateUpdate, ImportedBlockSink, Metrics, find_starting_forkchoice,
+};
 use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use op_alloy_consensus::OpBlock;
+use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
     sync::{mpsc, oneshot, watch},
     time::{self, Duration, Instant},
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Constructs the handle and task.
 #[derive(Debug)]
@@ -52,10 +65,7 @@ impl Builder {
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx } = self;
-        async move {
-            let engine = Engine::new(client, rollup, block_sink, EngineState::default(), state_tx);
-            Actor::new(derivation_client, engine, messages_rx).run().await
-        }
+        Actor::new(derivation_client, client, rollup, block_sink, state_tx, messages_rx).run()
     }
 }
 
@@ -66,8 +76,8 @@ const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 /// How long an operation may keep failing temporarily before it is abandoned and the engine reset.
 const TASK_RETRY_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// An engine operation in progress, boxed so the actor's future stays `Send`.
-type Operation<'a, E> = Pin<Box<dyn Future<Output = Result<(), E>> + Send + 'a>>;
+/// One attempt at an operation, boxed so the actor's future stays `Send`.
+type Attempt<'a, E> = Pin<Box<dyn Future<Output = Result<(), E>> + Send + 'a>>;
 
 /// Exponentially increasing delays between retries of one piece of work.
 #[derive(Debug)]
@@ -89,8 +99,8 @@ impl Backoff {
     }
 }
 
-/// Executes the operations sent to the execution layer's Engine API, one request at a time in the
-/// order they arrive.
+/// Performs the operations sent to the execution layer's Engine API, one request at a time in the
+/// order they arrive, and publishes the engine state after each request and before replying.
 ///
 /// Builds and seals reply to their caller, which decides whether to retry. Other operations retry
 /// temporary failures in place with backoff, so later requests wait in the handle's bounded queue.
@@ -107,8 +117,16 @@ where
     el_sync_complete: bool,
     /// The last safe head update sent.
     last_safe_head_sent: L2BlockInfo,
-    /// Performs Engine API operations and publishes the engine state.
-    engine: Engine,
+    /// The Engine API client.
+    client: Arc<EngineClient>,
+    /// The rollup configuration.
+    config: Arc<RollupConfig>,
+    /// Where to hand every block the engine makes canonical.
+    block_sink: Arc<dyn ImportedBlockSink>,
+    /// The state of the engine. Operations update it, and it is published after every request.
+    state: EngineState,
+    /// Publishes the state to handles.
+    state_tx: watch::Sender<EngineState>,
     /// Receives messages from handles.
     messages_rx: mpsc::Receiver<Message>,
 }
@@ -117,30 +135,67 @@ impl<DerivationClient> Actor<DerivationClient>
 where
     DerivationClient: EngineDerivationClient + 'static,
 {
+    /// Creates the actor, starting from the state that `state_tx` holds.
     fn new(
         derivation_client: DerivationClient,
-        engine: Engine,
+        client: Arc<EngineClient>,
+        config: Arc<RollupConfig>,
+        block_sink: Arc<dyn ImportedBlockSink>,
+        state_tx: watch::Sender<EngineState>,
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
+        let state = *state_tx.borrow();
         Self {
             derivation_client,
             el_sync_complete: false,
             last_safe_head_sent: L2BlockInfo::default(),
-            engine,
+            client,
+            config,
+            block_sink,
+            state,
+            state_tx,
             messages_rx,
         }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
-            match self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)? {
-                Message::Build(request) => self.handle_build(*request).await,
-                Message::Seal(request) => self.handle_seal(*request).await,
-                Message::Consolidate(input) => self.handle_consolidate(input).await?,
-                Message::Finalize(block_id) => self.handle_finalize(*block_id).await?,
-                Message::InsertUnsafeBlock(payload) => self.handle_insert(*payload).await?,
-                Message::Reset(result_tx) => self.handle_reset(result_tx).await?,
-            }
+            let result = match self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)? {
+                Message::Build(request) => {
+                    self.handle_build(*request).await;
+                    Ok(())
+                }
+                Message::Seal(request) => {
+                    self.handle_seal(*request).await;
+                    Ok(())
+                }
+                Message::Consolidate(input) => {
+                    self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
+                        Box::pin(actor.handle_consolidate(input.clone()))
+                    })
+                    .await
+                }
+                Message::Finalize(block_id) => {
+                    self.retry(Metrics::FINALIZE_TASK_LABEL, |actor| {
+                        Box::pin(actor.handle_finalize(*block_id))
+                    })
+                    .await
+                }
+                Message::InsertUnsafeBlock(payload) => {
+                    self.retry(Metrics::INSERT_TASK_LABEL, |actor| {
+                        Box::pin(actor.handle_insert((*payload).clone()))
+                    })
+                    .await
+                }
+                Message::Reset(result_tx) => {
+                    warn!(target: "engine", "Received reset request");
+                    self.reset(Some(result_tx)).await
+                }
+            };
+            // Publish the state even if the request failed: it can update the state before a
+            // later step fails.
+            self.publish_state();
+            result?;
             self.sync_derivation().await?;
         }
     }
@@ -149,42 +204,237 @@ where
     /// retry.
     async fn handle_build(&self, request: BuildRequest) {
         let BuildRequest { attributes, result_tx } = request;
+        let result = record(Metrics::BUILD_TASK_LABEL, self.start_build(attributes).await);
         // A caller that stopped waiting does not cancel the build.
-        let _ = result_tx.send(self.engine.build(attributes).await);
+        let _ = result_tx.send(result);
     }
 
-    /// Seals a build and replies with the payload or failure; the caller decides whether to retry.
+    /// Seals a build, makes it the unsafe head, and replies with the payload or failure; the caller
+    /// decides whether to retry.
+    ///
+    /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head moved since
+    /// the build started.
     async fn handle_seal(&mut self, request: SealRequest) {
         let SealRequest { payload_id, attributes, result_tx } = request;
+
+        let unsafe_head = self.state.sync_state.unsafe_head().block_info;
+        let parent = attributes.parent.block_info;
+        let result = if unsafe_head.id() == parent.id() {
+            self.seal_payload(payload_id, attributes, false).await
+        } else {
+            info!(
+                target: "engine",
+                unsafe_block_info = ?unsafe_head,
+                parent_block_info = ?parent,
+                "Seal attributes parent does not match unsafe head, returning rebuild error"
+            );
+            Err(SealTaskError::UnsafeHeadChangedSinceBuild)
+        };
+
+        // The sequencer builds the next block on the unsafe head as soon as it gets the reply.
+        self.publish_state();
         // A caller that stopped waiting does not cancel the seal.
-        let _ = result_tx.send(self.engine.seal(payload_id, attributes).await);
+        let _ = result_tx.send(record(Metrics::SEAL_TASK_LABEL, result));
     }
 
-    async fn handle_consolidate(&mut self, input: ConsolidateInput) -> Result<(), ActorError> {
-        self.retry(|engine| Box::pin(engine.consolidate(input.clone()))).await
-    }
-
-    async fn handle_finalize(&mut self, block_id: FinalizeBlockId) -> Result<(), ActorError> {
-        self.retry(|engine| Box::pin(engine.finalize(block_id))).await
-    }
-
+    /// Inserts an unsafe payload received from gossip or the admin API.
+    ///
+    /// A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped: retrying
+    /// returns the same verdict.
     async fn handle_insert(
         &mut self,
         payload: OpExecutionPayloadEnvelope,
-    ) -> Result<(), ActorError> {
-        self.retry(|engine| Box::pin(engine.insert_unsafe(payload.clone()))).await
+    ) -> Result<(), InsertTaskError> {
+        match self.insert_payload(payload, false).await {
+            Err(InsertTaskError::UnexpectedPayloadStatus(
+                status @ (PayloadStatusEnum::Invalid { .. } | PayloadStatusEnum::Accepted),
+            )) => {
+                warn!(target: "engine", %status, "Dropping rejected unsafe payload");
+                Ok(())
+            }
+            result => result.map(|_| ()),
+        }
     }
 
-    async fn handle_reset(&mut self, result_tx: oneshot::Sender<()>) -> Result<(), ActorError> {
-        warn!(target: "engine", "Received reset request");
-        self.reset(Some(result_tx)).await
+    /// Advances the safe head to the input, reorging the unsafe chain to it if necessary.
+    ///
+    /// Behavior depends on how the safe head is provided:
+    ///
+    /// - `Attributes`: The safe head is advanced through the normal derivation flow, where the
+    ///   derivation and engine actors coordinate both safe and unsafe heads. In this case, we
+    ///   consolidate as long as the unsafe head has not fallen behind.
+    ///
+    /// - `BlockInfo`: The safe head is injected externally by the derivation actor while delegating
+    ///   derivation, and is not coordinated with the engine actor's safe and unsafe heads. If the
+    ///   injected safe head is ahead of the engine actor's unsafe head, we reconcile the unsafe
+    ///   chain up to the safe head instead of consolidating.
+    async fn handle_consolidate(
+        &mut self,
+        input: ConsolidateInput,
+    ) -> Result<(), ConsolidateTaskError> {
+        let (safe_head_number, block_num) = match &input {
+            ConsolidateInput::Attributes(attributes) => {
+                (self.state.sync_state.safe_head().block_info.number, attributes.block_number())
+            }
+            ConsolidateInput::BlockInfo(info) => (info.block_info.number, info.block_info.number),
+        };
+        if safe_head_number >= self.state.sync_state.unsafe_head().block_info.number {
+            return self.reconcile_unsafe_to_safe(&input).await;
+        }
+
+        // Fetch the unsafe L2 block
+        let block = match self.client.l2_block_by_label(block_num.into()).await {
+            Ok(Some(block)) => block,
+            Ok(None) => {
+                warn!(target: "engine", "Received `None` block for {}", block_num);
+                return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
+            }
+            Err(_) => {
+                warn!(target: "engine", "Failed to fetch unsafe l2 block for consolidation");
+                return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
+            }
+        };
+        let block_hash = block.header.hash;
+
+        let is_consistent = match &input {
+            ConsolidateInput::Attributes(attributes) => {
+                AttributesMatch::check(&self.config, attributes, &block).is_match()
+            }
+            ConsolidateInput::BlockInfo(info) => block_hash == info.block_info.hash,
+        };
+        if !is_consistent {
+            debug!(
+                target: "engine",
+                input = ?input,
+                block_hash = %block_hash,
+                "ConsolidateInput mismatch! Initiating reorg",
+            );
+            return self.reconcile_unsafe_to_safe(&input).await;
+        }
+
+        trace!(
+            target: "engine",
+            input = ?input,
+            block_hash = %block_hash,
+            "Consolidating engine state",
+        );
+        let consensus_block =
+            block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
+        let block_info = match L2BlockInfo::from_block_and_genesis(
+            &consensus_block,
+            &self.config.genesis,
+        ) {
+            Ok(block_info) => block_info,
+            Err(e) => {
+                // Build the block instead, since its block info cannot be constructed.
+                warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, proceeding to build");
+                debug!(
+                    target: "engine",
+                    input = ?input,
+                    block_hash = %block_hash,
+                    "ConsolidateInput mismatch! Initiating reorg",
+                );
+                return self.reconcile_unsafe_to_safe(&input).await;
+            }
+        };
+
+        // The next attributes built are this block's child, and ask for its config.
+        self.block_sink.block_imported(consensus_block, block_info);
+
+        let update = EngineSyncStateUpdate {
+            safe_head: Some(block_info),
+            local_safe_head: Some(block_info),
+            ..Default::default()
+        };
+        match &input {
+            // Only issue a forkchoice update if the attributes are the last in the span batch.
+            // This is an optimization to avoid sending a FCU call for every block in the span
+            // batch.
+            ConsolidateInput::Attributes(attributes) if attributes.is_last_in_span => {
+                self.synchronize(update)
+                    .await
+                    .inspect_err(|e| warn!(target: "engine", ?e, "Consolidation failed"))?;
+            }
+            // Apply a transient update to the safe head.
+            _ => self.state.sync_state = self.state.sync_state.apply_update(update),
+        }
+
+        info!(
+            target: "engine",
+            hash = %block_info.block_info.hash,
+            number = block_info.block_info.number,
+            "Updated safe head via L1 consolidation"
+        );
+
+        Ok(())
+    }
+
+    /// Fetches the [`L2BlockInfo`] identified by `block_id`, makes it the finalized head, and
+    /// dispatches a forkchoice update to finalize the block.
+    async fn handle_finalize(
+        &mut self,
+        block_id: FinalizeBlockId,
+    ) -> Result<(), FinalizeTaskError> {
+        let block_number = block_id.number();
+
+        // Sanity check that the block that is being finalized is at least safe.
+        if self.state.sync_state.safe_head().block_info.number < block_number {
+            return Err(FinalizeTaskError::BlockNotSafe);
+        }
+
+        // Look up by hash when the caller pinned a specific hash (delegated polling supplies
+        // `(number, hash)`); otherwise look up by number. Finalization is irreversible, so a stale
+        // hash must produce a hard error, not silently finalize whatever the engine has at the
+        // same height.
+        let lookup: BlockId = match block_id {
+            FinalizeBlockId::ByHash(id) => id.hash.into(),
+            FinalizeBlockId::ByNumber(n) => n.into(),
+        };
+
+        let block = self
+            .client
+            .get_l2_block(lookup)
+            .full()
+            .await
+            .map_err(FinalizeTaskError::TransportError)?
+            .ok_or(FinalizeTaskError::BlockNotFound(block_number))?
+            .into_consensus();
+        let block_info = L2BlockInfo::from_block_and_genesis(&block, &self.client.cfg().genesis)
+            .map_err(FinalizeTaskError::FromBlock)?;
+
+        // For ByHash, also assert the returned block's height matches the caller's claim. The
+        // engine should never serve a block at a different height for a given hash, but a height
+        // mismatch indicates either an upstream protocol bug or a misuse of the API and must
+        // never lead to silent finalization.
+        if let FinalizeBlockId::ByHash(id) = block_id &&
+            block_info.block_info.number != id.number
+        {
+            return Err(FinalizeTaskError::BlockNotFound(id.number));
+        }
+
+        // Dispatch a forkchoice update.
+        self.synchronize(EngineSyncStateUpdate {
+            finalized_head: Some(block_info),
+            ..Default::default()
+        })
+        .await?;
+
+        info!(
+            target: "engine",
+            hash = %block_info.block_info.hash,
+            number = block_info.block_info.number,
+            "Updated finalized head"
+        );
+
+        Ok(())
     }
 
     /// Performs an operation, retrying temporary failures with backoff, and acts on its other
     /// failures.
     async fn retry<E>(
         &mut self,
-        mut operation: impl for<'a> FnMut(&'a mut Engine) -> Operation<'a, E> + Send,
+        label: &'static str,
+        mut attempt: impl for<'a> FnMut(&'a mut Self) -> Attempt<'a, E> + Send,
     ) -> Result<(), ActorError>
     where
         E: EngineTaskError + std::fmt::Debug + Send,
@@ -192,7 +442,7 @@ where
     {
         let deadline = Instant::now() + TASK_RETRY_TIMEOUT;
         let mut backoff = Backoff::default();
-        while let Err(err) = operation(&mut self.engine).await {
+        while let Err(err) = record(label, attempt(self).await) {
             match err.severity() {
                 EngineTaskErrorSeverity::Temporary if Instant::now() < deadline => {
                     trace!(target: "engine", ?err, "Temporary error performing engine operation");
@@ -216,6 +466,8 @@ where
                     // completes the operation. At the same time, the channel and any remaining
                     // buffered batches are flushed.
                     warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
+                    // Derivation continues from the deposits-only block, so publish it first.
+                    self.publish_state();
                     self.derivation_client.send_signal(Signal::FlushChannel).await.map_err(|err| {
                         error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
                         ActorError::ChannelClosed
@@ -228,6 +480,14 @@ where
         Ok(())
     }
 
+    /// Publishes the state to handles.
+    ///
+    /// The actor publishes after every request, and before any reply or derivation signal whose
+    /// recipient reads the state.
+    fn publish_state(&self) {
+        self.state_tx.send_replace(self.state);
+    }
+
     /// Sends derivation the safe head if it changed, and reports a completed EL sync.
     ///
     /// An EL sync that completes without a finalized head resets the engine to find one. After a
@@ -235,8 +495,8 @@ where
     async fn sync_derivation(&mut self) -> Result<(), ActorError> {
         self.send_derivation_actor_safe_head_if_updated().await?;
 
-        if !self.el_sync_complete && self.engine.state().el_sync_finished {
-            if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
+        if !self.el_sync_complete && self.state.el_sync_finished {
+            if self.state.sync_state.finalized_head() == L2BlockInfo::default() {
                 return self.reset(None).await;
             }
             self.mark_el_sync_complete_and_notify_derivation_actor().await?;
@@ -245,15 +505,27 @@ where
         Ok(())
     }
 
-    /// Resets the engine and propagates the reset to the derivation actor, then replies to the
-    /// caller, if any.
+    /// Resets the engine to a sync starting point found with [`find_starting_forkchoice`], and
+    /// reorgs the execution layer to it. Then publishes the state, replies to the caller, if any,
+    /// and propagates the reset to the derivation actor.
     ///
     /// Temporary failures are retried until the reset succeeds: losing it would leave derivation
     /// waiting for a reset signal.
     async fn reset(&mut self, result_tx: Option<oneshot::Sender<()>>) -> Result<(), ActorError> {
         let mut backoff = Backoff::default();
         let l2_safe_head = loop {
-            match self.engine.reset().await {
+            let attempt = async {
+                let start = find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
+                self.synchronize(EngineSyncStateUpdate {
+                    unsafe_head: Some(start.un_safe),
+                    local_safe_head: Some(start.safe),
+                    safe_head: Some(start.safe),
+                    finalized_head: Some(start.finalized),
+                })
+                .await?;
+                Ok::<_, EngineResetError>(start.safe)
+            };
+            match attempt.await {
                 Ok(l2_safe_head) => break l2_safe_head,
                 Err(err) if err.is_temporary() => {
                     warn!(target: "engine", ?err, "Reset dependency unavailable; retrying reset");
@@ -262,6 +534,10 @@ where
                 Err(err) => return Err(err.into()),
             }
         };
+        metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
+
+        // The caller reads the reset's heads as soon as it gets the reply.
+        self.publish_state();
 
         // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
         // Release the caller before awaiting delivery to that same queue. It transitions
@@ -282,7 +558,7 @@ where
 
         self.send_derivation_actor_safe_head_if_updated().await?;
 
-        if !self.el_sync_complete && self.engine.state().el_sync_finished {
+        if !self.el_sync_complete && self.state.el_sync_finished {
             self.mark_el_sync_complete_and_notify_derivation_actor().await?;
         }
 
@@ -295,7 +571,7 @@ where
         self.el_sync_complete = true;
 
         self.derivation_client
-            .notify_sync_completed(self.engine.state().sync_state.safe_head())
+            .notify_sync_completed(self.state.sync_state.safe_head())
             .await
             .map(|_| Ok(()))
             .map_err(|e| {
@@ -306,7 +582,7 @@ where
 
     /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), ActorError> {
-        let engine_safe_head = self.engine.state().sync_state.safe_head();
+        let engine_safe_head = self.state.sync_state.safe_head();
         if engine_safe_head == self.last_safe_head_sent {
             info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
             // This was already sent, so do not send it.
@@ -323,255 +599,497 @@ where
 
         Ok(())
     }
+
+    /// Applies a sync state update and sends the resulting forkchoice to the execution layer with
+    /// `engine_forkchoiceUpdated`, without payload attributes.
+    ///
+    /// Inserting, consolidating, and finalizing blocks, and resetting, all use this to move the
+    /// forkchoice. Starting a build sends its own forkchoice update with payload attributes
+    /// instead.
+    async fn synchronize(
+        &mut self,
+        update: EngineSyncStateUpdate,
+    ) -> Result<(), SynchronizeTaskError> {
+        // Apply the sync state update to the engine state.
+        let new_sync_state = self.state.sync_state.apply_update(update);
+
+        // Check if a forkchoice update is not needed, return early.
+        // A forkchoice update is not needed if...
+        // 1. The engine state is not default (initial forkchoice state has been emitted), and
+        // 2. The new sync state is the same as the current sync state (no changes to the sync
+        //    state).
+        //
+        // NOTE:
+        // We shouldn't retry the forkchoice update there. Since the `sync_state` is only updated
+        // here (except during consolidation, when the block is not the last in the batch) - the
+        // engine would get stuck retrying the forkchoice update.
+        if self.state.sync_state != Default::default() && self.state.sync_state == new_sync_state {
+            debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
+            return Ok(());
+        }
+
+        // Check if the head is behind the finalized head.
+        if new_sync_state.unsafe_head().block_info.number <
+            new_sync_state.finalized_head().block_info.number
+        {
+            return Err(SynchronizeTaskError::FinalizedAheadOfUnsafe(
+                new_sync_state.unsafe_head().block_info.number,
+                new_sync_state.finalized_head().block_info.number,
+            ));
+        }
+
+        // Send the forkchoice update through the input.
+        let forkchoice = new_sync_state.create_forkchoice_state();
+
+        // Handle the forkchoice update result.
+        // NOTE: it doesn't matter which version we use here, because we're not sending any
+        // payload attributes. The forkchoice updated call is version agnostic if no payload
+        // attributes are provided.
+        let response = self.client.fork_choice_updated_v3(forkchoice, None).await;
+
+        let valid_response = response.map_err(|e| {
+            // Fatal forkchoice update error.
+            let error = e
+                .as_error_resp()
+                .and_then(|e| {
+                    (e.code == INVALID_FORK_CHOICE_STATE_ERROR as i64)
+                        .then_some(SynchronizeTaskError::InvalidForkchoiceState)
+                })
+                .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(e));
+
+            debug!(target: "engine", error = ?error, "Unexpected forkchoice update error");
+
+            error
+        })?;
+
+        match &valid_response.payload_status.status {
+            PayloadStatusEnum::Valid => {
+                if !self.state.el_sync_finished {
+                    info!(
+                        target: "engine",
+                        "Finished execution layer sync."
+                    );
+                    self.state.el_sync_finished = true;
+                }
+            }
+            PayloadStatusEnum::Syncing => {
+                // If we're not building a new payload, we're driving EL sync.
+                debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+            }
+            status => {
+                // Other codes are not expected.
+                return Err(SynchronizeTaskError::UnexpectedPayloadStatus(status.clone()));
+            }
+        }
+
+        // Apply the new sync state to the engine state.
+        self.state.sync_state = new_sync_state;
+
+        debug!(
+            target: "engine",
+            forkchoice = ?forkchoice,
+            response = ?valid_response,
+            "Forkchoice updated"
+        );
+
+        Ok(())
+    }
+
+    /// Starts building a block by sending `engine_forkchoiceUpdated` with the payload attributes,
+    /// and returns the [`PayloadId`] to seal it with.
+    ///
+    /// The forkchoice advertises the attributes' parent as the unsafe head to build on. A
+    /// `SYNCING` execution layer cannot start the build, which may be retried later.
+    async fn start_build(
+        &self,
+        attributes_envelope: OpAttributesWithParent,
+    ) -> Result<PayloadId, BuildTaskError> {
+        debug!(
+            target: "engine_builder",
+            txs = attributes_envelope.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            is_deposits = attributes_envelope.is_deposits_only(),
+            "Starting new build job"
+        );
+
+        // Sanity check if the head is behind the finalized head. If it is, this is a critical
+        // error.
+        if self.state.sync_state.unsafe_head().block_info.number <
+            self.state.sync_state.finalized_head().block_info.number
+        {
+            return Err(BuildTaskError::EngineBuildError(
+                EngineBuildError::FinalizedAheadOfUnsafe(
+                    self.state.sync_state.unsafe_head().block_info.number,
+                    self.state.sync_state.finalized_head().block_info.number,
+                ),
+            ));
+        }
+
+        // When inserting a payload, we advertise the parent's unsafe head as the current unsafe
+        // head to build on top of.
+        let new_forkchoice = self
+            .state
+            .sync_state
+            .apply_update(EngineSyncStateUpdate {
+                unsafe_head: Some(attributes_envelope.parent),
+                ..Default::default()
+            })
+            .create_forkchoice_state();
+
+        let forkchoice_version = EngineForkchoiceVersion::from_cfg(
+            &self.config,
+            attributes_envelope.attributes.payload_attributes.timestamp,
+        );
+        let update = match forkchoice_version {
+            EngineForkchoiceVersion::V3 => {
+                self.client
+                    .fork_choice_updated_v3(new_forkchoice, Some(attributes_envelope.attributes))
+                    .await
+            }
+            EngineForkchoiceVersion::V2 => {
+                self.client
+                    .fork_choice_updated_v2(new_forkchoice, Some(attributes_envelope.attributes))
+                    .await
+            }
+        }
+        .map_err(|e| {
+            error!(target: "engine_builder", "Forkchoice update failed: {}", e);
+            BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
+        })?;
+
+        match update.payload_status.status {
+            PayloadStatusEnum::Valid => {}
+            PayloadStatusEnum::Invalid { validation_error } => {
+                error!(target: "engine_builder", "Forkchoice update failed: {}", validation_error);
+                return Err(BuildTaskError::EngineBuildError(EngineBuildError::InvalidPayload(
+                    validation_error,
+                )));
+            }
+            PayloadStatusEnum::Syncing => {
+                warn!(target: "engine_builder", "Forkchoice update failed temporarily: EL is syncing");
+                return Err(BuildTaskError::EngineBuildError(EngineBuildError::EngineSyncing));
+            }
+            status @ PayloadStatusEnum::Accepted => {
+                // Other codes are never returned by `engine_forkchoiceUpdate`
+                return Err(BuildTaskError::EngineBuildError(
+                    EngineBuildError::UnexpectedPayloadStatus(status),
+                ));
+            }
+        }
+
+        debug!(
+            target: "engine_builder",
+            unsafe_hash = new_forkchoice.head_block_hash.to_string(),
+            safe_hash = new_forkchoice.safe_block_hash.to_string(),
+            finalized_hash = new_forkchoice.finalized_block_hash.to_string(),
+            "Forkchoice update with attributes successful"
+        );
+
+        // Fetch the payload ID from the FCU. If no payload ID was returned, something went wrong -
+        // the block building job on the EL should have been initiated.
+        let payload_id = update
+            .payload_id
+            .ok_or(BuildTaskError::EngineBuildError(EngineBuildError::MissingPayloadId))?;
+
+        info!(
+            target: "engine_builder",
+            "block build started"
+        );
+
+        Ok(payload_id)
+    }
+
+    /// Inserts a payload with `engine_newPayload` and makes it the unsafe head.
+    ///
+    /// A payload derived from a safe block (`is_payload_safe`) also becomes the safe head.
+    async fn insert_payload(
+        &mut self,
+        payload: OpExecutionPayloadEnvelope,
+        is_payload_safe: bool,
+    ) -> Result<L2BlockInfo, InsertTaskError> {
+        // Insert the new payload.
+        // Form the new unsafe block ref from the execution payload.
+        let response = match payload.clone() {
+            OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
+            OpExecutionPayloadEnvelope::V2(payload) => {
+                let payload_input = ExecutionPayloadInputV2 {
+                    execution_payload: payload.payload_inner,
+                    withdrawals: Some(payload.withdrawals),
+                };
+                self.client.new_payload_v2(payload_input).await
+            }
+            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+                self.client.new_payload_v3(payload, parent_beacon_block_root).await
+            }
+            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+                self.client.new_payload_v4(payload, parent_beacon_block_root).await
+            }
+        };
+
+        // Check the `engine_newPayload` response.
+        let response = match response {
+            Ok(resp) => resp,
+            Err(e) => {
+                warn!(target: "engine", "Failed to insert new payload: {e}");
+                return Err(InsertTaskError::InsertFailed(e));
+            }
+        };
+        if !matches!(response.status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
+            return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
+        }
+
+        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
+        let new_unsafe_ref = L2BlockInfo::from_block_and_genesis(&block, &self.config.genesis)
+            .map_err(InsertTaskError::L2BlockInfoConstruction)?;
+
+        // Send a FCU to canonicalize the imported block.
+        self.synchronize(EngineSyncStateUpdate {
+            unsafe_head: Some(new_unsafe_ref),
+            local_safe_head: is_payload_safe.then_some(new_unsafe_ref),
+            safe_head: is_payload_safe.then_some(new_unsafe_ref),
+            ..Default::default()
+        })
+        .await?;
+
+        // The block is now canonical, so anything reading the L2 chain locally can rely on it.
+        self.block_sink.block_imported(block, new_unsafe_ref);
+
+        info!(
+            target: "engine",
+            hash = %new_unsafe_ref.block_info.hash,
+            number = new_unsafe_ref.block_info.number,
+            "Inserted new unsafe block"
+        );
+
+        Ok(new_unsafe_ref)
+    }
+
+    /// Seals the payload built from `attributes` and imports it, returning the sealed payload.
+    ///
+    /// Retrieves the built payload using `engine_getPayload`, then imports it with
+    /// `engine_newPayload` and a forkchoice update. After Holocene, a payload the execution layer
+    /// rejects is replaced by a deposits-only block, and the seal fails with
+    /// [`SealTaskError::HoloceneInvalidFlush`] to flush the derivation pipeline.
+    /// `is_attributes_derived` says whether the attributes were derived or created by the
+    /// sequencer.
+    async fn seal_payload(
+        &mut self,
+        payload_id: PayloadId,
+        attributes: OpAttributesWithParent,
+        is_attributes_derived: bool,
+    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+        debug!(
+            target: "engine",
+            txs = attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            is_deposits = attributes.is_deposits_only(),
+            "Starting new seal job"
+        );
+
+        // Fetch the payload just built from the EL and import it into the engine.
+        let payload = self.fetch_payload(payload_id, &attributes).await?;
+
+        let new_block_ref = match self.insert_payload(payload.clone(), is_attributes_derived).await
+        {
+            Ok(new_block_ref) => {
+                info!(target: "engine", "Successfully imported payload");
+                new_block_ref
+            }
+            Err(InsertTaskError::UnexpectedPayloadStatus(e)) if attributes.is_deposits_only() => {
+                error!(target: "engine", error = ?e, "Critical: Deposit-only payload import failed");
+                return Err(SealTaskError::DepositOnlyPayloadFailed);
+            }
+            Err(InsertTaskError::UnexpectedPayloadStatus(e))
+                if self
+                    .config
+                    .is_holocene_active(attributes.attributes().payload_attributes.timestamp) =>
+            {
+                warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
+
+                // HOLOCENE: Re-attempt payload import with deposits only
+                // First build the deposits-only payload, then seal it
+                let deposits_only_attrs = attributes.as_deposits_only();
+
+                return match self.build_and_seal(deposits_only_attrs, is_attributes_derived).await {
+                    Ok(()) => {
+                        info!(target: "engine", "Successfully imported deposits-only payload");
+                        Err(SealTaskError::HoloceneInvalidFlush)
+                    }
+                    Err(_) => Err(SealTaskError::DepositOnlyPayloadReattemptFailed),
+                };
+            }
+            Err(e) => {
+                error!(target: "engine", "Payload import failed: {e}");
+                return Err(Box::new(e).into());
+            }
+        };
+
+        info!(
+            target: "engine",
+            l2_number = new_block_ref.block_info.number,
+            l2_time = new_block_ref.block_info.timestamp,
+            "Built and imported new {} block",
+            if is_attributes_derived { "safe" } else { "unsafe" },
+        );
+
+        Ok(payload)
+    }
+
+    /// Fetches the built payload from the EL, returning the execution envelope.
+    ///
+    /// ## Engine Method Selection
+    /// The method used to fetch the payload from the EL is determined by the payload timestamp. The
+    /// method used to import the payload into the engine is determined by the payload version.
+    ///
+    /// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
+    /// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
+    /// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
+    /// - `engine_getPayloadV5` is used for payloads with a timestamp after the Karst fork.
+    async fn fetch_payload(
+        &self,
+        payload_id: PayloadId,
+        payload_attrs: &OpAttributesWithParent,
+    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+        let payload_timestamp = payload_attrs.attributes().payload_attributes.timestamp;
+
+        debug!(
+            target: "engine",
+            payload_id = payload_id.to_string(),
+            l2_time = payload_timestamp,
+            "Sealing payload"
+        );
+
+        let get_payload_version =
+            EngineGetPayloadVersion::from_cfg(&self.config, payload_timestamp);
+        let payload_envelope = match get_payload_version {
+            EngineGetPayloadVersion::V5 => {
+                // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
+                let payload = self.client.get_payload_v5(payload_id).await.map_err(|e| {
+                    error!(target: "engine", "Payload fetch failed: {e}");
+                    SealTaskError::GetPayloadFailed(e)
+                })?;
+
+                OpExecutionPayloadEnvelope::V4 {
+                    parent_beacon_block_root: payload.parent_beacon_block_root,
+                    payload: payload.execution_payload,
+                }
+            }
+            EngineGetPayloadVersion::V4 => {
+                let payload = self.client.get_payload_v4(payload_id).await.map_err(|e| {
+                    error!(target: "engine", "Payload fetch failed: {e}");
+                    SealTaskError::GetPayloadFailed(e)
+                })?;
+
+                OpExecutionPayloadEnvelope::V4 {
+                    parent_beacon_block_root: payload.parent_beacon_block_root,
+                    payload: payload.execution_payload,
+                }
+            }
+            EngineGetPayloadVersion::V3 => {
+                let payload = self.client.get_payload_v3(payload_id).await.map_err(|e| {
+                    error!(target: "engine", "Payload fetch failed: {e}");
+                    SealTaskError::GetPayloadFailed(e)
+                })?;
+
+                OpExecutionPayloadEnvelope::V3 {
+                    parent_beacon_block_root: payload.parent_beacon_block_root,
+                    payload: payload.execution_payload,
+                }
+            }
+            EngineGetPayloadVersion::V2 => {
+                let payload = self.client.get_payload_v2(payload_id).await.map_err(|e| {
+                    error!(target: "engine", "Payload fetch failed: {e}");
+                    SealTaskError::GetPayloadFailed(e)
+                })?;
+
+                match payload.execution_payload.into_payload() {
+                    ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
+                    ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
+                    _ => unreachable!("the response should be a V1 or V2 payload"),
+                }
+            }
+        };
+
+        Ok(payload_envelope)
+    }
+
+    /// Builds and seals a payload in sequence, so no other request can advance the unsafe head
+    /// between them.
+    ///
+    /// Unlike a seal request, this does not check that the attributes' parent is the unsafe head:
+    /// a derivation-driven reorg legitimately seals a payload whose parent differs from it.
+    /// Consolidation uses this to build derived attributes that do not match the unsafe chain, and
+    /// sealing uses it for the Holocene deposits-only fallback.
+    ///
+    /// `is_attributes_derived` says whether the attributes were derived or created by the
+    /// sequencer.
+    async fn build_and_seal(
+        &mut self,
+        attributes: OpAttributesWithParent,
+        is_attributes_derived: bool,
+    ) -> Result<(), ConsolidateTaskError> {
+        let payload_id = self.start_build(attributes.clone()).await?;
+
+        // Sealing can fall back to building and sealing a deposits-only block, so box the
+        // recursive call.
+        Box::pin(self.seal_payload(payload_id, attributes, is_attributes_derived)).await?;
+
+        Ok(())
+    }
+
+    /// Makes the unsafe chain agree with a safe head that does not match it.
+    ///
+    /// Derived attributes are built and sealed on their parent. A delegated safe block becomes
+    /// the unsafe and safe head.
+    async fn reconcile_unsafe_to_safe(
+        &mut self,
+        input: &ConsolidateInput,
+    ) -> Result<(), ConsolidateTaskError> {
+        let safe_l2 = match input {
+            ConsolidateInput::Attributes(attributes) => {
+                return self.build_and_seal((**attributes).clone(), true).await;
+            }
+            ConsolidateInput::BlockInfo(safe_l2) => safe_l2,
+        };
+
+        warn!(
+            target: "engine",
+            safe_l2 = %safe_l2,
+            "Apply safe head"
+        );
+
+        // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
+        // self-consistent head state. This is required to correctly handle reorgs (where unsafe
+        // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
+        // lags behind the safe head.
+        self.synchronize(EngineSyncStateUpdate {
+            unsafe_head: Some(*safe_l2),
+            safe_head: Some(*safe_l2),
+            local_safe_head: Some(*safe_l2),
+            ..Default::default()
+        })
+        .await
+        .inspect_err(|e| warn!(target: "engine", ?e, "Apply safe head failed"))?;
+
+        info!(
+            target: "engine",
+            hash = %safe_l2.block_info.hash,
+            number = safe_l2.block_info.number,
+            "Updated safe head via follow safe"
+        );
+
+        Ok(())
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
-    use alloy_primitives::B256;
-    use alloy_rpc_types_engine::{
-        ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
-    };
-    use kona_engine::{
-        NoopBlockSink,
-        test_utils::{
-            RpcMock, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
-            test_engine_client,
-        },
-    };
-    use kona_protocol::BlockInfo;
-    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-
-    #[test]
-    fn construction_and_build_do_not_require_a_runtime() {
-        let config = Arc::new(RollupConfig::default());
-        let (client, _, _) = test_engine_client(config.clone());
-        let builder = Builder::new(Capacity::try_from(1).unwrap());
-        let handle = builder.handle();
-        let (derivation_tx, _derivation_rx) = mpsc::channel(1);
-        let task = builder.build(
-            Arc::new(client),
-            config,
-            QueuedEngineDerivationClient::new(derivation_tx),
-            Arc::new(NoopBlockSink),
-        );
-        assert_eq!(*handle.state().borrow(), EngineState::default());
-        drop(task);
-    }
-
-    type L2Block = <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse;
-
-    /// Returns a rollup configuration whose genesis is the default L2 block.
-    fn config() -> Arc<RollupConfig> {
-        let mut config = RollupConfig::default();
-        config.genesis.l2.hash = L2Block::default().header.inner.hash_slow();
-        Arc::new(config)
-    }
-
-    /// Expects the requests of a reset that finds the default L2 block as every head.
-    fn expect_reset(l1: &RpcMock, l2: &RpcMock, read_delay: Duration) {
-        for _ in 0..3 {
-            l2.expect_with_delay("eth_getBlockByNumber", L2Block::default(), read_delay);
+/// Records the outcome of one attempt at an operation, and returns it.
+fn record<T, E: EngineTaskError>(label: &'static str, result: Result<T, E>) -> Result<T, E> {
+    match &result {
+        Ok(_) => {
+            metrics::counter!(Metrics::ENGINE_TASK_SUCCESS, "type" => label).increment(1);
         }
-        l1.expect(
-            "eth_getBlockByHash",
-            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-        );
-        l2.expect(
-            "engine_forkchoiceUpdatedV3",
-            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
-        );
-    }
-
-    /// Spawns an actor with the initial engine state and returns its handle and task.
-    fn spawn(
-        client: EngineClient,
-        config: Arc<RollupConfig>,
-        derivation_tx: mpsc::Sender<DerivationActorRequest>,
-        state: EngineState,
-    ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
-        let (messages, messages_rx) = mpsc::channel(8);
-        let (state_tx, state_rx) = watch::channel(state);
-        let engine =
-            Engine::new(Arc::new(client), config, Arc::new(NoopBlockSink), state, state_tx);
-        let actor =
-            Actor::new(QueuedEngineDerivationClient::new(derivation_tx), engine, messages_rx);
-        (Handle::new(messages, state_rx), tokio::spawn(actor.run()))
-    }
-
-    /// Returns an unsafe payload that the default configuration accepts as a block at genesis.
-    fn unsafe_payload() -> (OpExecutionPayloadEnvelope, B256) {
-        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
-            &alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default(),
-        ));
-        let block: op_alloy_consensus::OpBlock = payload.clone().try_into_block().unwrap();
-        (payload, block.header.hash_slow())
-    }
-
-    /// Both L1 and L2 outages during a reset must retain the original request and finish it
-    /// after recovery, retrying without another request.
-    #[rstest::rstest]
-    #[case(true, Duration::ZERO)]
-    #[case(false, Duration::ZERO)]
-    #[case(false, Duration::from_secs(4))]
-    #[tokio::test(start_paused = true)]
-    async fn reset_recovers_and_completes_original_request(
-        #[case] l1_failure: bool,
-        #[case] read_delay: Duration,
-    ) {
-        let config = config();
-        let (client, l1, l2) = test_engine_client(config.clone());
-        // The first attempt fails; the recovery is scripted up front.
-        if l1_failure {
-            for tag in ["finalized", "safe", "latest"] {
-                l2.expect_params(
-                    "eth_getBlockByNumber",
-                    serde_json::json!([tag, true]),
-                    L2Block::default(),
-                );
-            }
-            l1.expect_error("eth_getBlockByHash");
-        } else {
-            l2.expect_error("eth_getBlockByNumber");
+        Err(err) => {
+            metrics::counter!(Metrics::ENGINE_TASK_FAILURE, label => err.severity().to_string())
+                .increment(1);
         }
-        expect_reset(&l1, &l2, read_delay);
-        let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
-        // Derivation waits for the reset reply and cannot drain its full queue until then.
-        derivation_tx
-            .send(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::default()))
-            .await
-            .unwrap();
-        let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
-
-        let started = Instant::now();
-        time::timeout(Duration::from_secs(20), handle.reset()).await.unwrap().unwrap();
-        assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
-        // The reset's heads are published before the reply.
-        assert_eq!(
-            handle.state().borrow().sync_state.unsafe_head().block_info.hash,
-            config.genesis.l2.hash
-        );
-        assert!(matches!(
-            derivation_rx.recv().await.unwrap(),
-            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
-        ));
-        assert!(matches!(
-            derivation_rx.recv().await.unwrap(),
-            DerivationActorRequest::ProcessEngineSignalRequest(_)
-        ));
-        assert!(matches!(
-            derivation_rx.recv().await.unwrap(),
-            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
-        ));
-        assert!(matches!(
-            derivation_rx.recv().await.unwrap(),
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
-        ));
-        actor.abort();
-        l1.assert_finished();
-        l2.assert_finished();
     }
-
-    /// An operation that fails temporarily is retried after a backoff without another request.
-    #[tokio::test(start_paused = true)]
-    async fn temporary_failure_is_retried_until_the_operation_succeeds() {
-        let (payload, hash) = unsafe_payload();
-        let mut config = RollupConfig::default();
-        config.genesis.l2.hash = hash;
-        let config = Arc::new(config);
-        let (client, l1, l2) = test_engine_client(config.clone());
-        let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
-        l2.expect_error("engine_newPayloadV1");
-        l2.expect("engine_newPayloadV1", valid());
-        l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
-        let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-        // A finalized head keeps the completed EL sync from triggering a reset.
-        let finalized = L2BlockInfo {
-            block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
-            ..Default::default()
-        };
-        let state = TestEngineStateBuilder::new().with_finalized_head(finalized).build();
-        let (handle, actor) = spawn(client, config, derivation_tx, state);
-
-        let started = Instant::now();
-        handle.insert_unsafe_block(payload).await.unwrap();
-        let mut state = handle.state();
-        time::timeout(
-            Duration::from_secs(10),
-            state.wait_for(|state| state.sync_state.unsafe_head().block_info.hash == hash),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
-        assert!(matches!(
-            derivation_rx.recv().await.unwrap(),
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
-        ));
-        actor.abort();
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
-    /// Build and seal callers that stop waiting for their replies do not stop the engine.
-    #[tokio::test(start_paused = true)]
-    async fn abandoned_replies_do_not_stop_the_engine() {
-        let mut config = RollupConfig::default();
-        config.hardforks.ecotone_time = Some(0);
-        let config = Arc::new(config);
-        let (client, l1, l2) = test_engine_client(config.clone());
-        let started = || {
-            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid))
-                .with_payload_id(PayloadId::new([1; 8]))
-        };
-        l2.expect_with_delay("engine_forkchoiceUpdatedV3", started(), Duration::from_secs(1));
-        l2.expect("engine_forkchoiceUpdatedV3", started());
-        let (derivation_tx, _derivation_rx) = mpsc::channel(8);
-        let (handle, actor) = spawn(client, config, derivation_tx, EngineState::default());
-        let wait = Duration::from_millis(100);
-
-        // Abandon a build while the engine performs it, and a seal queued behind it. The seal's
-        // parent is not the unsafe head, so it fails without a request to the execution layer.
-        let build = handle.start_build(TestAttributesBuilder::new().build());
-        assert!(time::timeout(wait, build).await.is_err());
-        let stale = TestAttributesBuilder::new().with_parent(test_block_info(1)).build();
-        assert!(time::timeout(wait, handle.seal(PayloadId::new([1; 8]), stale)).await.is_err());
-
-        // The engine still answers later requests.
-        let payload_id = handle.start_build(TestAttributesBuilder::new().build()).await.unwrap();
-        assert_eq!(payload_id, PayloadId::new([1; 8]));
-        actor.abort();
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
-    /// An operation that keeps failing temporarily is abandoned after [`TASK_RETRY_TIMEOUT`], and
-    /// the engine is reset so derivation starts over from the execution layer's heads.
-    #[tokio::test(start_paused = true)]
-    async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
-        let config = config();
-        let (client, l1, l2) = test_engine_client(config.clone());
-        // Fail every attempt made before the timeout, and the first one after it.
-        let mut attempt_at = Duration::ZERO;
-        let mut delay = INITIAL_RETRY_DELAY;
-        l2.expect_error("engine_newPayloadV1");
-        while attempt_at < TASK_RETRY_TIMEOUT {
-            attempt_at += delay;
-            delay = (delay * 2).min(MAX_RETRY_DELAY);
-            l2.expect_error("engine_newPayloadV1");
-        }
-        expect_reset(&l1, &l2, Duration::ZERO);
-        let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-        let (handle, actor) = spawn(client, config, derivation_tx, EngineState::default());
-
-        let started = Instant::now();
-        handle.insert_unsafe_block(unsafe_payload().0).await.unwrap();
-        let signal = time::timeout(TASK_RETRY_TIMEOUT * 2, derivation_rx.recv()).await.unwrap();
-        assert!(matches!(signal, Some(DerivationActorRequest::ProcessEngineSignalRequest(_))));
-        assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
-        actor.abort();
-        l1.assert_finished();
-        l2.assert_finished();
-    }
+    result
 }
