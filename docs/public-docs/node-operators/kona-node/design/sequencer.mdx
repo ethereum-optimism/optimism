@@ -59,12 +59,12 @@ pub struct SequencerConfig {
 
 ## Programmatic Configuration
 
-### Using the RollupNodeBuilder
+### Using the RollupNodeConfig
 
-To configure a Kona node programmatically for sequencer mode, set `NodeMode::Sequencer` on the `EngineConfig` and pass a `SequencerConfig` to the `RollupNodeBuilder`:
+To configure a Kona node programmatically for sequencer mode, set `NodeMode::Sequencer` on the `EngineConfig` and put a `SequencerConfig` in the `RollupNodeConfig`:
 
 ```rust
-use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
+use kona_node_service::{NodeMode, RollupNodeConfig, SequencerConfig};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
@@ -77,15 +77,18 @@ let sequencer_config = SequencerConfig {
 // engine_config carries `mode: NodeMode::Sequencer` along with the
 // L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
-RollupNodeBuilder::new(
-    rollup_config,
-    l1_config_builder,
+RollupNodeConfig {
+    version,
+    config: rollup_config,
+    l1_client,
     l2_trust_rpc,
     engine_config,
     p2p_config,
     rpc_config,
-)
-.with_sequencer_config(sequencer_config)
+    sequencer_config,
+    derivation_delegate_config: None,
+    dependency_set: None,
+}
 .build()
 .start()
 .await?;

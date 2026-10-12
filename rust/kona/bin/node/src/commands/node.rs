@@ -12,7 +12,7 @@ use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_engine::EngineClient;
-use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
+use kona_node_service::{EngineConfig, L1ClientConfig, NodeMode, RollupNodeConfig};
 use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
 use strum::IntoEnumIterator;
@@ -264,7 +264,7 @@ impl NodeCommand {
             "Hardfork schedule"
         );
 
-        let l1_config = L1ConfigBuilder {
+        let l1_client = L1ClientConfig {
             chain_config: self.chain.l1_config(cfg.l1_chain_id)?,
             trust_rpc: self.l1_rpc_args.l1_trust_rpc,
             beacon: self.l1_rpc_args.l1_beacon.clone(),
@@ -291,18 +291,18 @@ impl NodeCommand {
 
         let dependency_set = self.chain.dependency_set(&cfg)?;
 
-        RollupNodeBuilder::new(
-            crate::version::version().to_owned(),
-            cfg,
-            l1_config,
-            self.l2_client_args.l2_trust_rpc,
+        RollupNodeConfig {
+            version: crate::version::version().to_owned(),
+            config: cfg,
+            l1_client,
+            l2_trust_rpc: self.l2_client_args.l2_trust_rpc,
             engine_config,
             p2p_config,
             rpc_config,
-        )
-        .with_sequencer_config(self.sequencer_flags.config())
-        .with_derivation_delegate_config(self.derivation_delegate_args.config())
-        .with_dependency_set(dependency_set)
+            sequencer_config: self.sequencer_flags.config(),
+            derivation_delegate_config: self.derivation_delegate_args.config(),
+            dependency_set,
+        }
         .build()
         .start()
         .await

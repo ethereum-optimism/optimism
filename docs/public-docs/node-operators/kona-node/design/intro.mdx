@@ -5,7 +5,7 @@ diataxis: explanation
 
 The entry-point for the `kona-node` is the [`RollupNode`][node] service,
 which encapsulates the core wiring for the node. A `RollupNode` is
-constructed through the [`RollupNodeBuilder`][builder], and its
+built from a [`RollupNodeConfig`][builder], and its
 [`start` method][start] handles connecting the different components
 of the node and running its actors in spawned tasks.
 
