@@ -20,8 +20,9 @@ pub enum ProofsStorageVersion {
 fn parse_proofs_storage_version(value: &str) -> Result<ProofsStorageVersion, String> {
     match value {
         "v2" => Ok(ProofsStorageVersion::V2),
-        _ => Err("only `v2` is supported; drop this flag or pass `v2`, then initialize v2 proofs \
-                  data with `op-reth proofs init`"
+        _ => Err("only `v2` is supported and existing v1 proofs data is ignored; drop this flag \
+                  or pass `v2`, delete any v1 proofs database (or use a fresh \
+                  `--proofs-history.storage-path`), then run `op-reth proofs init`"
             .to_string()),
     }
 }

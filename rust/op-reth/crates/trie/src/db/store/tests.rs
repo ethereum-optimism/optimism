@@ -2300,16 +2300,6 @@ fn prepend_block_overflows_history_shard_after_filling_sentinel() {
 
 // ========================== Legacy v1 table tests ==========================
 
-// Table names from the removed v1 schema, retained only as on-disk compatibility fixtures.
-const LEGACY_V1_TABLES: &[&str] = &[
-    "AccountTrieHistory",
-    "StorageTrieHistory",
-    "HashedAccountHistory",
-    "HashedStorageHistory",
-    "ProofWindow",
-    "BlockChangeSet",
-];
-
 /// Creates every [`LEGACY_V1_TABLES`] entry in the proofs database at `path` with the flags
 /// older releases used, inserting one entry into `populated` if given.
 fn create_legacy_tables(path: &Path, populated: Option<&str>) {
@@ -2350,6 +2340,15 @@ fn test_new_preserves_empty_legacy_v1_tables() {
     for table in LEGACY_V1_TABLES {
         assert!(table_exists(&storage, table), "{table} was dropped");
     }
+    assert_eq!(LegacyV1Usage::read(&storage.env).unwrap(), LegacyV1Usage::default());
+}
+
+#[test]
+fn test_legacy_v1_usage_without_legacy_tables() {
+    let dir = TempDir::new().unwrap();
+    let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+
+    assert_eq!(LegacyV1Usage::read(&storage.env).unwrap(), LegacyV1Usage::default());
 }
 
 #[test]
@@ -2369,6 +2368,10 @@ fn test_new_preserves_populated_legacy_v1_tables_without_v2_data() {
                 );
             }
             drop(tx);
+            let usage = LegacyV1Usage::read(&storage.env).unwrap();
+            assert_eq!(usage.entries, 1);
+            assert!(usage.size_bytes > 0, "{populated} reported no pages");
+            assert!(!usage.has_v2_data);
             let provider = storage.provider_ro().unwrap();
             assert_eq!(provider.tx.entries::<V2ProofWindow>().unwrap(), 0);
             assert!(matches!(
@@ -2403,10 +2406,10 @@ fn test_new_preserves_populated_legacy_v1_tables_with_v2_data(completed: bool) {
         // Repeated opens must keep both the v2 state and the unused v1 data.
         for _ in 0..2 {
             let storage = MdbxProofsStorage::new(dir.path()).unwrap();
-            let tx = storage.env.begin_ro_txn().unwrap();
-            let table = tx.open_db(Some(populated)).unwrap();
-            assert_eq!(tx.db_stat(table.dbi()).unwrap().entries(), 1);
-            drop(tx);
+            let usage = LegacyV1Usage::read(&storage.env).unwrap();
+            assert_eq!(usage.entries, 1);
+            assert!(usage.size_bytes > 0, "{populated} reported no pages");
+            assert!(usage.has_v2_data);
             for &table in LEGACY_V1_TABLES {
                 assert!(table_exists(&storage, table), "{table} was dropped");
             }

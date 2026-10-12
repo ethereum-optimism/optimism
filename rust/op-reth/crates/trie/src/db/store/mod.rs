@@ -32,19 +32,34 @@ mod snapshot_tests;
 #[cfg(test)]
 mod tests;
 
-use super::Tables;
+use super::{Tables, V2ProofWindow};
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsBackfillStore, OpProofsStore},
 };
 use reth_db::{
     Database, DatabaseEnv, DatabaseError,
-    mdbx::{DatabaseArguments, init_db_for},
+    mdbx::{self, DatabaseArguments, init_db_for},
+    transaction::DbTx,
 };
 use std::{path::Path, sync::Arc};
+use tracing::warn;
 
 /// Maximum number of block indices per shard in history bitmap tables.
 pub(super) const NUM_OF_INDICES_IN_SHARD: usize = 2_000;
+
+/// Tables of the removed v1 proofs storage.
+///
+/// Older releases created these in every proofs database, so they may still exist on disk. They
+/// are never read or deleted.
+const LEGACY_V1_TABLES: &[&str] = &[
+    "AccountTrieHistory",
+    "StorageTrieHistory",
+    "HashedAccountHistory",
+    "HashedStorageHistory",
+    "ProofWindow",
+    "BlockChangeSet",
+];
 
 /// MDBX implementation of [`OpProofsStore`].
 ///
@@ -61,8 +76,82 @@ impl MdbxProofsStorage {
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
         let env = init_db_for::<_, Tables>(path, DatabaseArguments::default())
             .map_err(|e| DatabaseError::Other(format!("Failed to open database: {e}")))?;
+        match LegacyV1Usage::read(&env) {
+            Ok(usage) => usage.warn(path),
+            Err(error) => {
+                warn!(target: "trie::db", %error, "Failed to check proofs storage for legacy v1 data")
+            }
+        }
         Ok(Self { env })
     }
+}
+
+/// Size of the [`LEGACY_V1_TABLES`] in a proofs database.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct LegacyV1Usage {
+    /// Total number of entries across the legacy tables.
+    entries: usize,
+    /// Total size of the legacy tables, in bytes.
+    size_bytes: usize,
+    /// Whether the v2 proof window has data, including an in-progress initialization anchor.
+    has_v2_data: bool,
+}
+
+impl LegacyV1Usage {
+    /// Reads the legacy table usage from `env` in a single read transaction.
+    fn read(env: &DatabaseEnv) -> Result<Self, DatabaseError> {
+        env.view(|tx| {
+            let mut usage =
+                Self { has_v2_data: tx.entries::<V2ProofWindow>()? > 0, ..Default::default() };
+            for &name in LEGACY_V1_TABLES {
+                let table = match tx.inner().open_db(Some(name)) {
+                    Ok(table) => table,
+                    Err(mdbx::Error::NotFound) => continue,
+                    Err(e) => return Err(DatabaseError::Open(e.into())),
+                };
+                let stat =
+                    tx.inner().db_stat(table.dbi()).map_err(|e| DatabaseError::Stats(e.into()))?;
+                usage.entries += stat.entries();
+                usage.size_bytes += table_size_bytes(&stat);
+            }
+            Ok(usage)
+        })?
+    }
+
+    /// Logs a warning if the legacy tables hold data.
+    ///
+    /// v1 data is ignored, but it still occupies disk space and is not covered by the table-size
+    /// metrics.
+    fn warn(&self, path: &Path) {
+        let Self { entries, size_bytes, has_v2_data } = *self;
+        if entries == 0 {
+            return;
+        }
+        if has_v2_data {
+            warn!(
+                target: "trie::db",
+                path = %path.display(),
+                entries,
+                size_bytes,
+                "Proofs storage holds unused legacy v1 data, which still occupies disk space"
+            );
+        } else {
+            warn!(
+                target: "trie::db",
+                path = %path.display(),
+                entries,
+                size_bytes,
+                "Proofs storage only holds legacy v1 data, which is ignored and still occupies \
+                 disk space. To reclaim it, delete the proofs storage directory (or use a fresh \
+                 --proofs-history.storage-path) before running `op-reth proofs init`"
+            );
+        }
+    }
+}
+
+/// Returns the on-disk size of a table, in bytes, from its MDBX stats.
+const fn table_size_bytes(stat: &mdbx::Stat) -> usize {
+    stat.page_size() as usize * (stat.leaf_pages() + stat.branch_pages() + stat.overflow_pages())
 }
 
 impl OpProofsStore for MdbxProofsStorage {
