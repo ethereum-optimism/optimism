@@ -8,12 +8,13 @@
 
 //! ## Architecture
 //!
-//! The engine operates as a task-driven system where operations are queued and executed atomically:
+//! The engine operates as a task-driven system where operations are executed atomically, one at a
+//! time:
 //!
 //! ```text
 //! ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-//! │   Engine    │◄───┤  Task Queue  │◄───┤  Engine     │
-//! │   Client    │    │   (Priority) │    │  Tasks      │
+//! │   Engine    │◄───┤    Engine    │◄───┤  Engine     │
+//! │   Client    │    │  (executor)  │    │  Tasks      │
 //! └─────────────┘    └──────────────┘    └─────────────┘
 //!        │                   │                   │
 //!        ▼                   ▼                   ▼
@@ -25,7 +26,7 @@
 //!
 //! ## Module Organization
 //!
-//! - **Task Queue** - Core engine task queue and execution logic via [`Engine`]
+//! - **Task Execution** - Engine task execution and state publication via [`Engine`]
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
 //! - **State** - Engine state management and synchronization via [`EngineState`]
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],

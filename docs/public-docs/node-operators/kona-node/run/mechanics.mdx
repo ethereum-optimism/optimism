@@ -52,7 +52,7 @@ Additionally, an RPC server exposes essential methods, including the
 The `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
-   When starting, the node initially has an empty engine task queue.
+   When starting, the engine has no work to do.
    Once an unsafe block is received from P2P gossip, an `InsertTask`
    is executed. That task inserts the payload and sends a forkchoice
    update through the engine api. Since the engine state is lazily

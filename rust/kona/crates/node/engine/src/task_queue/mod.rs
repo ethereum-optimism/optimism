@@ -1,4 +1,4 @@
-//! The [`Engine`] task queue and the [`EngineTask`]s it can execute.
+//! The [`Engine`] and the [`EngineTask`]s it executes.
 
 mod core;
 pub use core::{Engine, EngineResetError};

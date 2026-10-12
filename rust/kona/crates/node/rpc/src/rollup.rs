@@ -133,7 +133,7 @@ pub struct RollupRpc<L2> {
     pub version: String,
     /// The rollup configuration.
     pub config: Arc<RollupConfig>,
-    /// The engine state published by the engine task queue.
+    /// The engine state published by the engine actor.
     pub engine_state: watch::Receiver<EngineState>,
     /// The read-only L2 output query provider.
     l2: L2,

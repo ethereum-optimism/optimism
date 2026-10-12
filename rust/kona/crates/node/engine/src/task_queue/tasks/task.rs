@@ -10,15 +10,14 @@ use crate::{
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use derive_more::Display;
-use std::cmp::Ordering;
 use thiserror::Error;
 
 /// The severity of an engine task error.
 ///
-/// This is used to determine how to handle the error when draining the engine task queue.
+/// This determines how the engine actor handles the error.
 #[derive(Debug, PartialEq, Eq, Display, Clone, Copy)]
 pub enum EngineTaskErrorSeverity {
-    /// The error is temporary and the task is retried.
+    /// The error is temporary, and retrying the task may succeed.
     #[display("temporary")]
     Temporary,
     /// The error is critical and is propagated to the engine actor.
@@ -34,8 +33,8 @@ pub enum EngineTaskErrorSeverity {
 
 /// The interface for an engine task error.
 ///
-/// An engine task error should have an associated severity level to specify how to handle the error
-/// when draining the engine task queue.
+/// An engine task error should have an associated severity level to specify how to handle the
+/// error.
 pub trait EngineTaskError {
     /// The severity of the error.
     fn severity(&self) -> EngineTaskErrorSeverity;
@@ -86,7 +85,7 @@ impl EngineTaskError for EngineTaskErrors {
     }
 }
 
-/// Tasks that may be inserted into and executed by the [`Engine`].
+/// Tasks executed by the [`Engine`].
 ///
 /// [`Engine`]: crate::Engine
 #[derive(Debug, Clone)]
@@ -152,67 +151,6 @@ impl EngineTask {
     }
 }
 
-impl PartialEq for EngineTask {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Insert(_), Self::Insert(_)) |
-                (Self::Build(_), Self::Build(_)) |
-                (Self::Seal(_), Self::Seal(_)) |
-                (Self::Consolidate(_), Self::Consolidate(_)) |
-                (Self::Finalize(_), Self::Finalize(_))
-        )
-    }
-}
-
-impl Eq for EngineTask {}
-
-impl PartialOrd for EngineTask {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for EngineTask {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // Order (descending): BuildBlock -> InsertUnsafe -> Consolidate -> Finalize
-        //
-        // https://specs.optimism.io/protocol/derivation.html#forkchoice-synchronization
-        //
-        // - Block building jobs are prioritized above all other tasks, to give priority to the
-        //   sequencer. BuildTask handles forkchoice updates automatically.
-        // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
-        //   gossip is imported promptly.
-        // - Consolidate tasks are prioritized over Finalize tasks, as they advance the safe chain
-        //   via derivation.
-        // - Finalize tasks have the lowest priority, as they only update finalized status.
-        match (self, other) {
-            // Same variant cases
-            (Self::Insert(_), Self::Insert(_)) |
-            (Self::Consolidate(_), Self::Consolidate(_)) |
-            (Self::Build(_), Self::Build(_)) |
-            (Self::Seal(_), Self::Seal(_)) |
-            (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
-
-            // SealBlock tasks are prioritized over all others
-            (Self::Seal(_), _) => Ordering::Greater,
-            (_, Self::Seal(_)) => Ordering::Less,
-
-            // BuildBlock tasks are prioritized over InsertUnsafe and Consolidate tasks
-            (Self::Build(_), _) => Ordering::Greater,
-            (_, Self::Build(_)) => Ordering::Less,
-
-            // InsertUnsafe tasks are prioritized over Consolidate and Finalize tasks
-            (Self::Insert(_), _) => Ordering::Greater,
-            (_, Self::Insert(_)) => Ordering::Less,
-
-            // Consolidate tasks are prioritized over Finalize tasks
-            (Self::Consolidate(_), _) => Ordering::Greater,
-            (_, Self::Consolidate(_)) => Ordering::Less,
-        }
-    }
-}
-
 #[async_trait]
 impl EngineTaskExt for EngineTask {
     type Output = ();
@@ -220,8 +158,7 @@ impl EngineTaskExt for EngineTask {
     type Error = EngineTaskErrors;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
-        // The queue retains failed work. Its owner schedules the next attempt so a dependency
-        // outage cannot monopolize the actor or turn into a tight retry loop.
+        // A failed task returns its error. The caller decides whether and when to retry it.
         if let Err(e) = self.execute_inner(state).await {
             metrics::counter!(crate::Metrics::ENGINE_TASK_FAILURE, self.task_metrics_label() => e.severity().to_string()).increment(1);
             return Err(e);

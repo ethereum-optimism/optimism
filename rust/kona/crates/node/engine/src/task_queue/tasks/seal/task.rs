@@ -248,8 +248,8 @@ impl SealTask {
     ///
     /// This allows the original caller to handle errors, removing that burden from the engine,
     /// which may not know the caller's intent or retry preferences. If the original caller did not
-    /// provide a mechanism to get notified of updates, handle the error in the default manner in
-    /// the task queue logic.
+    /// provide a mechanism to get notified of updates, the error is returned to the engine's
+    /// caller to handle in the default manner.
     async fn send_channel_result_or_get_error(
         &self,
         res: Result<OpExecutionPayloadEnvelope, SealTaskError>,

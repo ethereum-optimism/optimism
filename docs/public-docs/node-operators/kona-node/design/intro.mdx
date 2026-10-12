@@ -36,7 +36,8 @@ The [`RollupNode`][node] builds and starts the following actors.
 - **Engine Actor**: Brokers the connection to the execution
   layer client (or "execution engine"). The engine actor
   turns messages from other actors into engine "tasks"
-  that are executed in priority order against the EL client.
+  that are executed one at a time, in arrival order, against
+  the EL client.
   Read-only engine queries are served directly by `RollupRpc`.
   The [engine][engine] docs expand on this.
 - **L1 Actors**: Poll head, safe, and finalized blocks and

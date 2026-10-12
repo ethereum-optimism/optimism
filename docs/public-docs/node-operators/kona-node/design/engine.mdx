@@ -3,13 +3,13 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through a sophisticated task queue system.
+The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through engine tasks executed one at a time.
 
 ## Architecture Overview
 
 The execution engine is built around several key components:
 
-- **Engine Task Queue**: A priority-ordered queue that manages Engine API operations
+- **Engine Tasks**: Engine API operations executed one at a time against the engine state
 - **Trait Abstractions**: Extensible interfaces for tasks, errors, and state management  
 - **Engine Client**: HTTP client for communicating with the execution layer
 - **Actor Integration**: Service layer integration through the engine actor
@@ -54,19 +54,11 @@ pub enum EngineTaskErrorSeverity {
 
 This allows tasks to signal different recovery strategies based on the error type.
 
-## Task Queue System
+## Task Execution
 
-The engine uses a priority-based task queue (a binary heap ordered by the `EngineTask` `Ord` implementation) where tasks are ordered according to OP Stack synchronization requirements. Tasks use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
+The `Engine` executes one task at a time, giving it exclusive access to the `EngineState`, and publishes the state after every task and reset, whether or not it succeeds. A failed task returns its error, and the caller decides whether to retry it; the engine actor retries temporary errors as described under [Communication Channels](#communication-channels). Tasks run in the order the caller executes them; there is no priority ordering. Tasks use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
 
-### Task Priority (Highest to Lowest)
-
-1. **Seal** - Seals blocks that have finished building (sequencer mode)
-2. **Build** - Builds new blocks (sequencer mode)
-3. **Insert** - Inserts unsafe blocks from gossip
-4. **Consolidate** - Advances safe chain via derivation
-5. **Finalize** - Finalizes L2 blocks
-
-Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
+Forkchoice updates are not a standalone task: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
 
 ### Task Types
 
@@ -160,6 +152,8 @@ pub struct ConsolidateTask {
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
     pub input: ConsolidateInput,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
 
@@ -233,39 +227,35 @@ let client = EngineClientBuilder {
 let state = EngineState::default();
 let (state_sender, state_receiver) = watch::channel(state);
 
-// Create engine with task queue
-let engine = Engine::new(state, state_sender);
+// Create the engine, which publishes its state to `state_receiver`.
+let mut engine = Engine::new(state, state_sender);
 ```
 
-### Adding Tasks
+### Executing Tasks
 
 ```rust
-// Add a consolidate task
 let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
     client.clone(),
     rollup_config.clone(),
     input,
+    block_sink,
 )));
 
-engine.enqueue(task);
-```
-
-### Draining the Queue
-
-```rust
-// Process all pending tasks
-match engine.drain().await {
-    Ok(()) => info!("Tasks completed successfully"),
+match engine.execute(&task).await {
+    Ok(()) => info!("Task completed"),
     Err(e) => match e.severity() {
+        EngineTaskErrorSeverity::Temporary => {
+            // Retry the task after a delay
+        },
         EngineTaskErrorSeverity::Reset => {
-            // Request derivation reset
+            // Reset the engine and derivation
+        },
+        EngineTaskErrorSeverity::Flush => {
+            // Flush derivation; the task is complete
         },
         EngineTaskErrorSeverity::Critical => {
-            // Handle critical error
+            // Stop
         },
-        _ => {
-            // Handle other error types
-        }
     }
 }
 ```
@@ -276,7 +266,7 @@ The engine provides robust error handling through:
 
 ### Severity-Based Recovery
 
-- **Temporary errors**: Automatically retried
+- **Temporary errors**: Retried by the engine actor
 - **Critical errors**: Propagated to the actor
 - **Reset errors**: Trigger derivation pipeline reset
 - **Flush errors**: Trigger derivation pipeline flush

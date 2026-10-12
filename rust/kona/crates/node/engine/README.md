@@ -4,11 +4,11 @@ An extensible implementation of the [OP Stack][op-stack] rollup node engine clie
 
 ## Overview
 
-The `kona-engine` crate provides a task-based engine client for interacting with Ethereum execution layers. It implements the Engine API specification and manages the execution layer state through a priority-driven task queue system.
+The `kona-engine` crate provides a task-based engine client for interacting with Ethereum execution layers. It implements the Engine API specification and manages the execution layer state by executing engine tasks one at a time.
 
 ## Key Components
 
-- **[`Engine`](crate::Engine)** - Main task queue processor that executes engine operations atomically
+- **[`Engine`](crate::Engine)** - Executes engine tasks atomically and publishes the engine state
 - **[`EngineClient`](crate::EngineClient)** - HTTP client for Engine API communication with JWT authentication
 - **[`EngineState`](crate::EngineState)** - Tracks the current state of the execution layer
 - **Task Types** - Specialized tasks for different engine operations:
@@ -24,7 +24,7 @@ The engine implements a task-driven architecture where forkchoice synchronizatio
 
 - **Automatic Forkchoice Handling**: The [`BuildTask`] automatically performs forkchoice updates during block building, eliminating the need for explicit forkchoice management in user code.
 - **Internal Synchronization**: [`SynchronizeTask`] handles internal execution layer synchronization and is primarily used by other tasks rather than directly by users.
-- **Priority-Based Execution**: Tasks are executed in priority order to ensure optimal sequencer performance and block processing efficiency.
+- **Sequential Execution**: Tasks execute one at a time, in the order the caller submits them, with exclusive access to the engine state.
 
 ## Engine API Compatibility
 
