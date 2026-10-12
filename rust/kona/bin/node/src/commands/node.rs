@@ -242,7 +242,6 @@ impl NodeCommand {
             trust_rpc: self.l1_rpc_args.l1_trust_rpc,
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
-            slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
         };
 
         let engine_config = EngineConfig {

@@ -25,17 +25,6 @@ pub struct L1ClientArgs {
     /// URL of the L1 beacon API.
     #[arg(long, visible_alias = "l1.beacon", env = "KONA_NODE_L1_BEACON")]
     pub l1_beacon: Url,
-    /// Duration in seconds of an L1 slot.
-    ///
-    /// This is an optional argument that can be used to use a fixed slot duration for l1 blocks
-    /// and bypass the initial beacon spec fetch. This is useful for testing purposes when the
-    /// l1-beacon spec endpoint is not available (with anvil for example).
-    #[arg(
-        long,
-        visible_alias = "l1.slot-duration-override",
-        env = "KONA_NODE_L1_SLOT_DURATION_OVERRIDE"
-    )]
-    pub l1_slot_duration_override: Option<u64>,
 }
 
 /// L2 client arguments.

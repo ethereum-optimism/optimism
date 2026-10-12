@@ -49,9 +49,6 @@ pub struct L1ClientConfig {
     pub beacon: Url,
     /// The L1 RPC URL.
     pub rpc_url: Url,
-    /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
-    /// duration if the l1-beacon's slot configuration is not available.
-    pub slot_duration_override: Option<u64>,
 }
 
 /// The configuration of a [`RollupNode`], which [`Self::build`] assembles the node from.
@@ -93,10 +90,7 @@ impl RollupNodeConfig {
     /// - The L1 HTTP client cannot be initialized.
     /// - The derivation delegate client cannot be created from its configuration.
     pub fn build(self) -> RollupNode {
-        let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_client.beacon.to_string());
-        if let Some(l1_slot_duration) = self.l1_client.slot_duration_override {
-            l1_beacon = l1_beacon.with_l1_slot_duration_override(l1_slot_duration);
-        }
+        let l1_beacon = OnlineBeaconClient::new_http(self.l1_client.beacon.to_string());
 
         let l1_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
