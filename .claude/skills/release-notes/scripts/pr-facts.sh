@@ -96,8 +96,7 @@ build_pkgmap() {
 }
 
 # The shipping units, from the monorepo's own list. `shared` is infrastructure every
-# component links, not an artifact. Empty for a component release-paths does not know,
-# such as op-program.
+# component links, not an artifact. Empty for a component release-paths does not know.
 artifacts_of() {
     (cd "$root" && just release-paths "$1" 2>/dev/null) |
         awk -F'\t' '$1 != "shared" && $1 != "" { print $1 }' | awk '!seen[$0]++'

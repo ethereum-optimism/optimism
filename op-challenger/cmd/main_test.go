@@ -629,7 +629,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Required", func(t *testing.T) {
 				if gameType == gameTypes.PermissionedGameType {
-					// The permissioned game never reaches step() so does not run op-program.
+					// The permissioned game never reaches step() so does not run the cannon server.
 					configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-server"))
 				} else {
 					verifyArgsInvalid(t, "flag cannon-server is required", addRequiredArgsExcept(gameType, "--cannon-server"))
