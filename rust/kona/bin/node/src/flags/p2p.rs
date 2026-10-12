@@ -4,7 +4,7 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use crate::flags::{GlobalArgs, SignerArgs};
+use crate::flags::SignerArgs;
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
@@ -220,13 +220,6 @@ pub struct P2PArgs {
     )]
     pub topic_scoring: bool,
 
-    /// An optional unsafe block signer address.
-    ///
-    /// By default, this is fetched from the chain config in the superchain-registry using the
-    /// specified L2 chain ID.
-    #[arg(long = "p2p.unsafe.block.signer", env = "KONA_NODE_P2P_UNSAFE_BLOCK_SIGNER")]
-    pub unsafe_block_signer: Option<alloy_primitives::Address>,
-
     /// An optional flag to remove random peers from discovery to rotate the peer set.
     ///
     /// This is the number of seconds to wait before removing a peer from the discovery
@@ -313,45 +306,26 @@ impl P2PArgs {
         None
     }
 
-    /// Returns the unsafe block signer from the CLI arguments.
-    pub async fn unsafe_block_signer(
-        &self,
-        args: &GlobalArgs,
+    /// Reads the unsafe block signer from the rollup's `SystemConfig` at the L1 head.
+    async fn unsafe_block_signer(
         rollup_config: &RollupConfig,
-        l1_eth_rpc: Option<Url>,
-    ) -> anyhow::Result<alloy_primitives::Address> {
-        if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-            let latest_block_num = provider.latest_block_number().await?;
-            let block_info = provider.block_info_by_number(latest_block_num).await?;
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
-                rollup_config.l1_system_config_address,
-                block_info.hash,
-            )
-            .await?);
-        }
-
-        // Otherwise use the genesis signer or the configured unsafe block signer.
-        args.genesis_signer().or_else(|_| {
-            self.unsafe_block_signer
-                .ok_or_else(|| anyhow::anyhow!("Unsafe block signer not provided"))
-        })
+        l1_eth_rpc: Url,
+    ) -> Result<alloy_primitives::Address> {
+        let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
+        let latest_block_num = provider.latest_block_number().await?;
+        let block_info = provider.block_info_by_number(latest_block_num).await?;
+        Ok(kona_providers_alloy::unsafe_block_signer(
+            &provider.inner,
+            rollup_config.l1_system_config_address,
+            block_info.hash,
+        )
+        .await?)
     }
 
     /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
     ///
-    /// ## Parameters
-    ///
-    /// - [`GlobalArgs`]: required to fetch the genesis unsafe block signer.
-    ///
-    /// Errors if the genesis unsafe block signer isn't available for the specified L2 Chain ID.
-    pub async fn config(
-        self,
-        config: &RollupConfig,
-        args: &GlobalArgs,
-        l1_rpc: Option<Url>,
-    ) -> anyhow::Result<NetworkConfig> {
+    /// Reads the unsafe block signer from L1 through `l1_rpc`, and errors if it cannot.
+    pub async fn config(self, config: &RollupConfig, l1_rpc: Url) -> Result<NetworkConfig> {
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
@@ -411,7 +385,7 @@ impl P2PArgs {
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
+        let unsafe_block_signer = Self::unsafe_block_signer(config, l1_rpc).await?;
 
         let bootstore = self.bootstore_file(config);
 

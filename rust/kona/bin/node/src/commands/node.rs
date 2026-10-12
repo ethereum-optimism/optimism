@@ -296,11 +296,8 @@ impl NodeCommand {
         let jwt_secret = self.validate_jwt().await?;
 
         self.p2p_flags.check_ports()?;
-        let p2p_config = self
-            .p2p_flags
-            .clone()
-            .config(&cfg, args, Some(self.l1_rpc_args.l1_eth_rpc.clone()))
-            .await?;
+        let p2p_config =
+            self.p2p_flags.clone().config(&cfg, self.l1_rpc_args.l1_eth_rpc.clone()).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
         let engine_config = EngineConfig {
