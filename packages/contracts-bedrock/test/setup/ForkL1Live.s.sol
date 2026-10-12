@@ -451,6 +451,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         // Current upgrade.
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+        PastUpgrades.adoptCurrentOPCM(systemConfig, address(opcmV2));
         _doUpgradeV2(opcmV2, upgrader);
 
         console.log("ForkL1Live: Saving newly deployed contracts");
