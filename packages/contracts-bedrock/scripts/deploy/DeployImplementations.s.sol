@@ -877,7 +877,9 @@ contract DeployImplementations is Script {
             _contracts: impls,
             _superchainConfig: ISuperchainConfig(address(_input.superchainConfigProxy)),
             _opChainProxyAdminOwner: address(0),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: _input.minProofMaturityDelaySeconds,
+            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
@@ -885,7 +887,9 @@ contract DeployImplementations is Script {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            _input.minDisputeGameFinalityDelaySeconds,
+            _input.maxDisputeGameFinalityDelaySeconds
         );
     }
 }

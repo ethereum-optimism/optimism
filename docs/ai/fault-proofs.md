@@ -6,6 +6,10 @@ See [go-dev.md](go-dev.md) for Go workflow, [rust-dev.md](rust-dev.md) for the R
 kona-client workflow, and [contract-dev.md](contract-dev.md) for the Solidity dispute game
 contracts.
 
+kona-client is the only fault proof program. op-program was deleted in
+ethereum-optimism/optimism#21271 and is not supported. Do not compare against op-program or
+ask for op-program changes.
+
 ## Scope
 
 - `cannon/` — MIPS32 VM that executes kona-client in single-step mode.

@@ -2,20 +2,31 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"math/big"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func sampleReport() claimsReport {
 	return claimsReport{
-		Status:        "In Progress",
-		L2StartBlock:  100,
-		L2BlockNumber: 200,
-		SplitDepth:    30,
-		MaxDepth:      73,
-		ClaimCount:    3,
+		Status:                "In Progress",
+		L2StartSequenceNumber: 100,
+		L2EndSequenceNumber:   200,
+		SplitDepth:            30,
+		MaxDepth:              73,
+		ClaimCount:            3,
 		Claims: []claimRecord{
 			{
 				Index: 0, Move: "Attack", ParentIndex: -1, Depth: 0, TraceIndex: "1073741823",
@@ -84,7 +95,7 @@ func TestRenderText(t *testing.T) {
 	require.NoError(t, renderText(&buf, sampleReport(), false))
 	out := buf.String()
 
-	require.Contains(t, out, "Status: In Progress • L2 Blocks: 100 to 200 (Unchallenged)")
+	require.Contains(t, out, "Status: In Progress • L2 Sequence: 100 to 200 • Block Num Challenge: none")
 	require.Contains(t, out, "Idx Move")
 	require.Contains(t, out, "fa2c59..c571a7") // terminal (short) value in non-verbose
 	require.Contains(t, out, "0.08000000")     // 8-decimal bond preserved
@@ -95,4 +106,60 @@ func TestRenderText(t *testing.T) {
 	var vbuf bytes.Buffer
 	require.NoError(t, renderText(&vbuf, sampleReport(), true))
 	require.Contains(t, vbuf.String(), "0xfa2c59a941e54c1d5a8f86f750f75f1aaee9a751d0582513f10c972566c571a7") // full value in verbose
+}
+
+func TestBuildZKGameReport(t *testing.T) {
+	gameAddr := common.Address{0xaa}
+	challenger := common.Address{0xc1}
+	prover := common.Address{0xd2}
+	rootClaim := common.Hash{0xee}
+	deadline := time.Unix(1700001000, 0)
+	resolvedAt := time.Unix(1700002000, 0)
+
+	setup := func(t *testing.T, proposalStatus contracts.ProposalStatus, status gameTypes.GameStatus) contracts.ZKDisputeGameContract {
+		stubRPC := batchingTest.NewAbiBasedRpc(t, gameAddr, snapshots.LoadZKDisputeGameABI())
+		stubRPC.SetResponse(gameAddr, "claimData", rpcblock.Latest, nil, []interface{}{
+			uint32(3), uint8(proposalStatus), challenger, prover, uint64(deadline.Unix()), rootClaim,
+		})
+		stubRPC.SetResponse(gameAddr, "startingSequenceNumber", rpcblock.Latest, nil, []interface{}{big.NewInt(100)})
+		stubRPC.SetResponse(gameAddr, "l2SequenceNumber", rpcblock.Latest, nil, []interface{}{big.NewInt(200)})
+		stubRPC.SetResponse(gameAddr, "status", rpcblock.Latest, nil, []interface{}{uint8(status)})
+		stubRPC.SetResponse(gameAddr, "resolvedAt", rpcblock.Latest, nil, []interface{}{uint64(resolvedAt.Unix())})
+		contract, err := contracts.NewZKDisputeGameContract(metrics.NoopContractMetrics, gameAddr, batching.NewMultiCaller(stubRPC, batching.DefaultBatchSize))
+		require.NoError(t, err)
+		return contract
+	}
+
+	t.Run("InProgress", func(t *testing.T) {
+		report, err := buildZKGameReport(context.Background(), setup(t, contracts.ProposalStatusChallengedAndValidProofProvided, gameTypes.GameStatusInProgress))
+		require.NoError(t, err)
+		require.Equal(t, zkGameReport{
+			Status:                     "In Progress",
+			ProposalStatus:             "ChallengedAndValidProofProvided",
+			ParentIndex:                3,
+			RootClaim:                  rootClaim.Hex(),
+			StartingSuperRootTimestamp: 100,
+			ProposalSuperRootTimestamp: 200,
+			Challenger:                 challenger.Hex(),
+			Prover:                     prover.Hex(),
+			Deadline:                   deadline.Format(time.RFC3339),
+		}, report)
+	})
+
+	t.Run("Resolved", func(t *testing.T) {
+		report, err := buildZKGameReport(context.Background(), setup(t, contracts.ProposalStatusResolved, gameTypes.GameStatusDefenderWon))
+		require.NoError(t, err)
+		require.Equal(t, zkGameReport{
+			Status:                     "Defender Won",
+			ResolutionTime:             resolvedAt.Format(time.RFC3339),
+			ProposalStatus:             "Resolved",
+			ParentIndex:                3,
+			RootClaim:                  rootClaim.Hex(),
+			StartingSuperRootTimestamp: 100,
+			ProposalSuperRootTimestamp: 200,
+			Challenger:                 challenger.Hex(),
+			Prover:                     prover.Hex(),
+			Deadline:                   deadline.Format(time.RFC3339),
+		}, report)
+	})
 }

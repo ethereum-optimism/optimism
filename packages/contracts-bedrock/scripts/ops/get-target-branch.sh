@@ -7,7 +7,9 @@ resolve_pr_target_branch() {
   local url
   local curl_args=(-fsSL)
 
-  if [ -n "${GH_TOKEN:-}" ]; then
+  if [ -n "${REPO_GITHUB_TOKEN:-}" ]; then
+    curl_args+=(-H "Authorization: Bearer ${REPO_GITHUB_TOKEN}")
+  elif [ -n "${GH_TOKEN:-}" ]; then
     curl_args+=(-H "Authorization: Bearer ${GH_TOKEN}")
   elif [ -n "${GITHUB_TOKEN:-}" ]; then
     curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
