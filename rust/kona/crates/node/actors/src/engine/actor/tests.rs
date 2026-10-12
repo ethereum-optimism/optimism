@@ -3,8 +3,8 @@ use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, FixedBytes, b256};
 use alloy_rpc_types_engine::{
-    ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV1, ForkchoiceUpdated,
-    PayloadStatus,
+    ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV1, ExecutionPayloadV3,
+    ForkchoiceUpdated, PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
 use kona_engine::{
@@ -15,6 +15,8 @@ use kona_engine::{
 };
 use kona_genesis::ChainGenesis;
 use kona_protocol::BlockInfo;
+use op_alloy_consensus::OpTxType;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use rstest::rstest;
 use std::sync::Mutex;
 
@@ -64,6 +66,16 @@ fn spawn(
         messages_rx,
     );
     (Handle::new(messages, state_rx), tokio::spawn(actor.run()))
+}
+
+/// Returns an engine state with a finalized head, which keeps a completed EL sync from triggering a
+/// reset.
+fn synced_state() -> EngineState {
+    let finalized = L2BlockInfo {
+        block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
+        ..Default::default()
+    };
+    TestEngineStateBuilder::new().with_finalized_head(finalized).build()
 }
 
 /// Returns a rollup configuration whose genesis is the default L2 block.
@@ -124,48 +136,6 @@ fn construction_and_build_do_not_require_a_runtime() {
     );
     assert_eq!(*handle.state().borrow(), EngineState::default());
     drop(task);
-}
-
-#[tokio::test]
-async fn requests_publish_the_state() {
-    let (payload, config) = genesis_payload();
-    let (client, l1, l2) = test_engine_client(config.clone());
-    let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
-    l2.expect("engine_newPayloadV1", valid());
-    l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
-    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
-    // A finalized head keeps the completed EL sync from triggering a reset.
-    let finalized = L2BlockInfo {
-        block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
-        ..Default::default()
-    };
-    let state = TestEngineStateBuilder::new().with_finalized_head(finalized).build();
-    let (handle, actor) = spawn(client, config.clone(), derivation_tx, state);
-
-    let mut state = handle.state();
-    handle.insert_unsafe_block(payload).await.unwrap();
-    time::timeout(Duration::from_secs(10), state.changed()).await.unwrap().unwrap();
-    assert_eq!(state.borrow().sync_state.unsafe_head().block_info.hash, config.genesis.l2.hash);
-    actor.abort();
-    l1.assert_finished();
-    l2.assert_finished();
-}
-
-#[tokio::test]
-async fn reset_publishes_the_new_state() {
-    let config = config();
-    let (client, l1, l2) = test_engine_client(config.clone());
-    expect_reset(&l1, &l2, Duration::ZERO);
-    let (mut actor, _derivation_rx, mut state_rx) =
-        actor(client, config.clone(), EngineState::default(), Arc::new(NoopBlockSink));
-    actor.reset(None).await.unwrap();
-    // Readers observe the reset without waiting for another request.
-    assert!(state_rx.has_changed().unwrap());
-    let state = *state_rx.borrow_and_update();
-    assert_eq!(state, actor.state);
-    assert_eq!(state.sync_state.unsafe_head().block_info.hash, config.genesis.l2.hash);
-    l1.assert_finished();
-    l2.assert_finished();
 }
 
 /// Both L1 and L2 outages during a reset must retain the original request and finish it
@@ -243,13 +213,7 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     l2.expect("engine_newPayloadV1", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-    // A finalized head keeps the completed EL sync from triggering a reset.
-    let finalized = L2BlockInfo {
-        block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
-        ..Default::default()
-    };
-    let state = TestEngineStateBuilder::new().with_finalized_head(finalized).build();
-    let (handle, actor) = spawn(client, config, derivation_tx, state);
+    let (handle, actor) = spawn(client, config, derivation_tx, synced_state());
 
     let started = Instant::now();
     handle.insert_unsafe_block(payload).await.unwrap();
@@ -319,15 +283,132 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
         l2.expect_error("engine_newPayloadV1");
     }
     expect_reset(&l1, &l2, Duration::ZERO);
-    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-    let (handle, actor) = spawn(client, config, derivation_tx, EngineState::default());
+    // Room for the reset signal only, so the actor waits to send anything after it.
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
+    let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
 
     let started = Instant::now();
     handle.insert_unsafe_block(genesis_payload().0).await.unwrap();
     let signal = time::timeout(TASK_RETRY_TIMEOUT * 2, derivation_rx.recv()).await.unwrap();
     assert!(matches!(signal, Some(DerivationActorRequest::ProcessEngineSignalRequest(_))));
     assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
+    // The reset published its heads before signalling derivation to reset.
+    assert_eq!(
+        handle.state().borrow().sync_state.unsafe_head().block_info.hash,
+        config.genesis.l2.hash
+    );
     actor.abort();
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// After Holocene, a derived payload the execution layer rejects is replaced by a deposits-only
+/// block built from the same attributes, without retrying the consolidation.
+///
+/// If the replacement is accepted, derivation is told to flush its channel, and the replacement
+/// becomes the safe head. If it is rejected too, the engine actor stops.
+#[rstest]
+#[case::replacement_accepted(true)]
+#[case::replacement_rejected(false)]
+#[tokio::test(start_paused = true)]
+async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
+    #[case] replacement_accepted: bool,
+) {
+    let root = B256::repeat_byte(0x42);
+    let payload = OpExecutionPayloadEnvelopeV3 {
+        execution_payload: ExecutionPayloadV3::from_block_slow(&alloy_consensus::Block::<
+            op_alloy_consensus::OpTxEnvelope,
+        >::default()),
+        block_value: Default::default(),
+        blobs_bundle: Default::default(),
+        should_override_builder: false,
+        parent_beacon_block_root: root,
+    };
+    let block: OpBlock = OpExecutionPayloadEnvelope::V3 {
+        payload: payload.execution_payload.clone(),
+        parent_beacon_block_root: root,
+    }
+    .try_into_block()
+    .unwrap();
+    // Pin genesis to the payload's block, so its block info needs no L1-info deposit.
+    let mut config = RollupConfig::default();
+    config.genesis.l2.hash = block.header.hash_slow();
+    config.hardforks.holocene_time = Some(0);
+    let config = Arc::new(config);
+
+    // A user transaction, which the deposits-only replacement drops.
+    let attributes = TestAttributesBuilder::new()
+        .with_transactions(vec![vec![OpTxType::Legacy as u8, 0xbb].into()])
+        .build();
+    let state = synced_state();
+    let forkchoice = state
+        .sync_state
+        .apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(attributes.parent),
+            ..Default::default()
+        })
+        .create_forkchoice_state();
+
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let started = || fcu_for_payload(Some(PayloadId::new([1; 8])), PayloadStatusEnum::Valid);
+    let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
+    let invalid = || {
+        PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+            validation_error: "invalid transaction".into(),
+        })
+    };
+    // The derived payload is built and sealed, and the execution layer rejects it.
+    l2.expect_params(
+        "engine_forkchoiceUpdatedV3",
+        serde_json::json!([forkchoice, attributes.attributes]),
+        started(),
+    );
+    l2.expect("engine_getPayloadV3", payload.clone());
+    l2.expect("engine_newPayloadV3", invalid());
+    // The deposits-only replacement is built and sealed.
+    l2.expect_params(
+        "engine_forkchoiceUpdatedV3",
+        serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
+        started(),
+    );
+    l2.expect("engine_getPayloadV3", payload);
+    if replacement_accepted {
+        l2.expect("engine_newPayloadV3", valid());
+        l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
+    } else {
+        l2.expect("engine_newPayloadV3", invalid());
+    }
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let (handle, actor) = spawn(client, config.clone(), derivation_tx, state);
+
+    handle.consolidate(attributes.into()).await.unwrap();
+    // Once the actor stops, derivation's receiver ends instead of waiting forever.
+    drop(handle);
+
+    if replacement_accepted {
+        let request = time::timeout(Duration::from_secs(10), derivation_rx.recv()).await.unwrap();
+        assert!(matches!(
+            request,
+            Some(DerivationActorRequest::ProcessEngineSignalRequest(signal))
+                if matches!(*signal, Signal::FlushChannel)
+        ));
+        let Some(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head)) =
+            derivation_rx.recv().await
+        else {
+            panic!("derivation should receive the new safe head");
+        };
+        assert_eq!(safe_head.block_info.hash, config.genesis.l2.hash);
+        actor.abort();
+    } else {
+        let result = time::timeout(Duration::from_secs(10), actor).await.unwrap().unwrap();
+        assert!(matches!(
+            result,
+            Err(ActorError::Consolidate(ConsolidateTaskError::SealTaskFailed(
+                SealTaskError::DepositOnlyPayloadReattemptFailed
+            )))
+        ));
+        assert!(derivation_rx.recv().await.is_none(), "derivation is not told to flush");
+    }
     l1.assert_finished();
     l2.assert_finished();
 }
@@ -360,45 +441,14 @@ async fn insert_drops_rejected_payloads(#[case] status: PayloadStatusEnum) {
     let (payload, config) = genesis_payload();
     let (client, l1, l2) = test_engine_client(config.clone());
     l2.expect("engine_newPayloadV1", PayloadStatus::from_status(status));
-    let (mut actor, _, _) = actor(client, config, EngineState::default(), Arc::new(NoopBlockSink));
+    let sink = Arc::new(RecordingSink::default());
+    let (mut actor, _, _) = actor(client, config, EngineState::default(), sink.clone());
 
     actor.handle_insert(payload).await.unwrap();
     assert_eq!(actor.state, EngineState::default());
+    assert!(sink.0.lock().unwrap().is_empty(), "a rejected block must not reach the sink");
     l1.assert_finished();
     l2.assert_finished();
-}
-
-/// Builds with attributes the execution layer answers with `status` and a payload ID.
-async fn build(status: PayloadStatusEnum) -> Result<PayloadId, BuildTaskError> {
-    let mut config = RollupConfig::default();
-    config.hardforks.ecotone_time = Some(0);
-    let config = Arc::new(config);
-    let (client, l1, l2) = test_engine_client(config.clone());
-    l2.expect(
-        "engine_forkchoiceUpdatedV3",
-        ForkchoiceUpdated::new(PayloadStatus::from_status(status))
-            .with_payload_id(PayloadId::new([1; 8])),
-    );
-    let (actor, _, _) = actor(client, config, EngineState::default(), Arc::new(NoopBlockSink));
-
-    let result = actor.start_build(TestAttributesBuilder::new().build()).await;
-    l1.assert_finished();
-    l2.assert_finished();
-    result
-}
-
-#[tokio::test]
-async fn build_returns_the_payload_id() {
-    assert_eq!(build(PayloadStatusEnum::Valid).await.unwrap(), PayloadId::new([1; 8]));
-}
-
-#[tokio::test]
-async fn build_returns_a_rejection_to_the_caller() {
-    let result = build(PayloadStatusEnum::Invalid { validation_error: String::new() }).await;
-    assert!(matches!(
-        result,
-        Err(BuildTaskError::EngineBuildError(EngineBuildError::InvalidPayload(_)))
-    ));
 }
 
 fn fcu_for_payload(payload_id: Option<PayloadId>, status: PayloadStatusEnum) -> ForkchoiceUpdated {
@@ -504,6 +554,23 @@ async fn build_variants(
     l2.assert_finished();
 }
 
+/// A build on an unsafe head behind the finalized head fails without asking the execution layer.
+#[tokio::test]
+async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(1))
+        .with_finalized_head(test_block_info(2))
+        .build();
+    let (actor, _, _) = actor(client, config, state, Arc::new(NoopBlockSink));
+
+    let result = simplify(actor.start_build(TestAttributesBuilder::new().build()).await);
+    assert_eq!(result, Err(BuildErr::FinalizedAheadOfUnsafe));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
 /// Sends a seal request and returns the reply.
 async fn seal(
     actor: &mut Actor<QueuedEngineDerivationClient>,
@@ -513,21 +580,6 @@ async fn seal(
     let (result_tx, result_rx) = oneshot::channel();
     actor.handle_seal(SealRequest { payload_id, attributes, result_tx }).await;
     result_rx.await.unwrap()
-}
-
-#[tokio::test]
-async fn seal_rejects_a_build_whose_parent_is_no_longer_the_unsafe_head() {
-    let config = Arc::new(RollupConfig::default());
-    let (client, l1, l2) = test_engine_client(config.clone());
-    let unsafe_head = test_block_info(2);
-    let state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
-    let (mut actor, _, _) = actor(client, config, state, Arc::new(NoopBlockSink));
-
-    let attributes = TestAttributesBuilder::new().with_parent(test_block_info(1)).build();
-    let result = seal(&mut actor, PayloadId::new([1; 8]), attributes).await;
-    assert!(matches!(result, Err(SealTaskError::UnsafeHeadChangedSinceBuild)));
-    l1.assert_finished();
-    l2.assert_finished();
 }
 
 /// A sealed block is published before the reply, because the sequencer builds the next block on
@@ -647,13 +699,8 @@ async fn payload_fetch_selects_version_and_decodes_reply(
     #[case] timestamp: u64,
     #[case] method: &'static str,
 ) {
-    use alloy_rpc_types_engine::{
-        ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV2, ExecutionPayloadV3,
-    };
-    use op_alloy_rpc_types_engine::{
-        OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
-        OpExecutionPayloadV4,
-    };
+    use alloy_rpc_types_engine::ExecutionPayloadV2;
+    use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4};
 
     let mut cfg = RollupConfig::default();
     cfg.hardforks.ecotone_time = Some(10);

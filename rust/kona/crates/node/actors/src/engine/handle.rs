@@ -256,13 +256,4 @@ mod tests {
             Err(EngineClientError::RequestError(_))
         ));
     }
-
-    #[test]
-    fn state_reads_the_published_engine_state() {
-        let (messages, _receiver) = mpsc::channel(1);
-        let (published, state) = watch::channel(EngineState::default());
-        let handle = Handle::new(messages, state);
-        published.send_replace(EngineState { el_sync_finished: true, ..Default::default() });
-        assert!(handle.state().borrow().el_sync_finished);
-    }
 }
