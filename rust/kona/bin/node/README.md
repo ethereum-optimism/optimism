@@ -22,7 +22,6 @@ kona-node [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 
 - **`node`** (alias: `n`) - Runs the consensus node for OP Stack rollup validation
 - **`registry`** (aliases: `r`, `scr`) - Lists OP Stack chains available in the superchain-registry
-- **`bootstore`** (aliases: `b`, `boot`, `store`) - Utility tool to interact with local bootstores
 - **`info`** - Get information about OP Stack chains
 
 ### Running the Consensus Node
