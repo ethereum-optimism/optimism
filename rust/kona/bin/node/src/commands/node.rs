@@ -49,18 +49,20 @@ pub(super) enum JwtValidationError {
 /// # Examples
 ///
 /// ```bash
-/// # Run as validator with default settings
-/// kona node --l1-eth-rpc http://localhost:8545 \
-///           --l1-beacon http://localhost:5052 \
-///           --l2-engine-rpc http://localhost:8551
+/// # Run as validator on OP Mainnet with default settings
+/// kona-node node --chain optimism \
+///                --l1-eth-rpc http://localhost:8545 \
+///                --l1-beacon http://localhost:5052 \
+///                --l2-engine-rpc http://localhost:8551
 ///
-/// # Run as sequencer with custom JWT secret
-/// kona node --mode sequencer \
-///           --l1-eth-rpc http://localhost:8545 \
-///           --l1-beacon http://localhost:5052 \
-///           --l2-engine-rpc http://localhost:8551 \
-///           --l2-engine-jwt-secret /path/to/jwt.hex \
-///           --p2p.sequencer.key.path /path/to/p2p-sequencer.key
+/// # Run as sequencer for a custom chain with a custom JWT secret
+/// kona-node node --mode sequencer \
+///                --l2-config-file /path/to/rollup.json \
+///                --l1-eth-rpc http://localhost:8545 \
+///                --l1-beacon http://localhost:5052 \
+///                --l2-engine-rpc http://localhost:8551 \
+///                --l2-engine-jwt-secret /path/to/jwt.hex \
+///                --p2p.sequencer.key.path /path/to/p2p-sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
@@ -379,6 +381,8 @@ mod tests {
 
     const fn default_flags() -> &'static [&'static str] {
         &[
+            "--chain",
+            "10",
             "--l1-eth-rpc",
             "http://localhost:8545",
             "--l1-beacon",

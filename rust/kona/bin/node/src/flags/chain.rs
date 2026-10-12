@@ -2,7 +2,7 @@
 
 use crate::flags::OverrideArgs;
 use anyhow::{Result, bail};
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
@@ -11,20 +11,20 @@ use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
 use tracing::debug;
 
 /// Flags that select the chain the node follows and load its configuration.
-#[derive(Parser, Debug, Clone, PartialEq, Eq)]
+///
+/// The rollup config comes from exactly one of `--chain`, which looks it up in the superchain
+/// registry, and `--l2-config-file`.
+#[derive(Parser, Debug, Default, Clone, PartialEq, Eq)]
+#[command(group(
+    ArgGroup::new("rollup_config").required(true).args(["l2_chain_id", "l2_config_file"])
+))]
 pub struct ChainArgs {
-    /// The L2 chain ID to use.
-    #[arg(
-        long = "chain",
-        alias = "l2-chain-id",
-        short = 'c',
-        default_value = "10",
-        env = "KONA_NODE_L2_CHAIN_ID",
-        help = "The L2 chain ID to use"
-    )]
-    pub l2_chain_id: alloy_chains::Chain,
-    /// Path to a custom L2 rollup configuration file
-    /// (overrides the default rollup configuration from the registry)
+    /// The L2 chain to load the rollup config for from the superchain registry, by chain ID or
+    /// name.
+    #[arg(long = "chain", alias = "l2-chain-id", short = 'c', env = "KONA_NODE_L2_CHAIN_ID")]
+    pub l2_chain_id: Option<alloy_chains::Chain>,
+    /// Path to an L2 rollup configuration file, for a chain that is not in the superchain
+    /// registry.
     #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
     pub l2_config_file: Option<PathBuf>,
     /// Path to a custom L1 chain configuration or genesis file
@@ -43,32 +43,28 @@ pub struct ChainArgs {
     pub overrides: OverrideArgs,
 }
 
-impl Default for ChainArgs {
-    fn default() -> Self {
-        // Construct default values using the clap parser.
-        // This works since none of the cli flags are required.
-        Self::parse_from::<[_; 0], &str>([])
-    }
-}
-
 impl ChainArgs {
     /// Get the L2 rollup config, either from a file or the superchain registry, with the
     /// hardfork overrides applied.
     pub fn rollup_config(&self) -> Result<RollupConfig> {
-        let cfg = match &self.l2_config_file {
-            Some(path) => {
+        let cfg = match (&self.l2_config_file, &self.l2_chain_id) {
+            (Some(path), None) => {
                 debug!("Loading l2 config from file: {:?}", path);
                 let file = File::open(path)
                     .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
                 from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))?
             }
-            None => {
+            (None, Some(chain)) => {
                 debug!("Loading l2 config from superchain registry");
-                let Some(cfg) = scr_rollup_config_by_alloy_ident(&self.l2_chain_id) else {
-                    bail!("Failed to find l2 config for chain ID {}", self.l2_chain_id);
+                let Some(cfg) = scr_rollup_config_by_alloy_ident(chain) else {
+                    bail!(
+                        "Chain {chain} is not in the superchain registry; \
+                         pass its rollup config with --l2-config-file instead"
+                    );
                 };
                 cfg.clone()
             }
+            _ => bail!("Exactly one of --chain and --l2-config-file must be set"),
         };
         Ok(self.overrides.apply(cfg))
     }
@@ -147,7 +143,7 @@ mod tests {
     #[case::string_base("base", 8453)]
     fn test_l2_chain_id_parse_valid(#[case] value: &str, #[case] expected_id: u64) {
         let args = ChainArgs::try_parse_from(["test", "--l2-chain-id", value]).unwrap();
-        assert_eq!(args.l2_chain_id.id(), expected_id);
+        assert_eq!(args.l2_chain_id.unwrap().id(), expected_id);
     }
 
     #[rstest]
@@ -163,7 +159,7 @@ mod tests {
     #[case::string("optimism", 10)]
     fn test_l2_chain_id_short_flag(#[case] value: &str, #[case] expected_id: u64) {
         let args = ChainArgs::try_parse_from(["test", "-c", value]).unwrap();
-        assert_eq!(args.l2_chain_id.id(), expected_id);
+        assert_eq!(args.l2_chain_id.unwrap().id(), expected_id);
     }
 
     #[rstest]
@@ -174,17 +170,41 @@ mod tests {
             std::env::set_var("KONA_NODE_L2_CHAIN_ID", env_value);
         }
         let args = ChainArgs::try_parse_from(["test"]).unwrap();
-        assert_eq!(args.l2_chain_id.id(), expected_id);
+        assert_eq!(args.l2_chain_id.unwrap().id(), expected_id);
         unsafe {
             std::env::remove_var("KONA_NODE_L2_CHAIN_ID");
         }
     }
 
     #[test]
-    fn test_l2_chain_id_default() {
-        // Test that the default value is chain ID 10 (Optimism)
+    fn test_l2_config_file_env_var() {
+        unsafe {
+            std::env::set_var("KONA_NODE_ROLLUP_CONFIG", "rollup.json");
+        }
         let args = ChainArgs::try_parse_from(["test"]).unwrap();
-        assert_eq!(args.l2_chain_id.id(), 10);
+        assert_eq!(args.l2_config_file, Some(PathBuf::from("rollup.json")));
+        assert_eq!(args.l2_chain_id, None);
+
+        // A chain from the command line conflicts with a rollup config file from the environment.
+        let err = ChainArgs::try_parse_from(["test", "--chain", "10"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+        unsafe {
+            std::env::remove_var("KONA_NODE_ROLLUP_CONFIG");
+        }
+    }
+
+    #[test]
+    fn test_rollup_config_source_required() {
+        let err = ChainArgs::try_parse_from(["test"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+
+    #[test]
+    fn test_rollup_config_sources_conflict() {
+        let err =
+            ChainArgs::try_parse_from(["test", "--chain", "10", "--l2-config-file", "rollup.json"])
+                .unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
     }
 
     #[test]
@@ -194,7 +214,8 @@ mod tests {
         let path = file.path().to_str().unwrap();
 
         for args in [
-            ChainArgs::try_parse_from(["test", "--karst-override", "123"]).unwrap(),
+            ChainArgs::try_parse_from(["test", "--karst-override", "123", "--chain", "10"])
+                .unwrap(),
             ChainArgs::try_parse_from([
                 "test",
                 "--karst-override",

@@ -71,6 +71,7 @@ kona-node node \
 
 Many configuration options can be set via environment variables:
 
+- `KONA_NODE_L2_CHAIN_ID` - L2 chain to load from the superchain registry (or set `KONA_NODE_ROLLUP_CONFIG` to a rollup config file)
 - `KONA_NODE_L1_ETH_RPC` - L1 execution client RPC URL
 - `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: true)
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
@@ -83,6 +84,7 @@ Many configuration options can be set via environment variables:
 Example using environment variables:
 
 ```bash
+export KONA_NODE_L2_CHAIN_ID="optimism"
 export KONA_NODE_L1_ETH_RPC="https://your-l1-rpc"
 export KONA_NODE_L1_BEACON="https://your-l1-beacon-api"
 export KONA_NODE_L2_ENGINE_RPC="http://localhost:8551"

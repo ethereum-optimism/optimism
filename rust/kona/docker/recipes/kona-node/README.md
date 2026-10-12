@@ -74,7 +74,8 @@ network parameters. Specifically:
     - `--chain` must specify the desired chain.
     - `--rollup.sequencer-http` must specify the sequencer endpoint.
 1. `kona-node`
-    - `--chain` must specify the chain ID of the desired chain.
+    - `--chain` must specify the chain ID of the desired chain. For a chain that is not in the superchain registry,
+      replace `--chain` with `--l2-config-file` and the path to its rollup config.
 
 ### Adjusting log filters
 

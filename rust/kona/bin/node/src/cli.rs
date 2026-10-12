@@ -147,7 +147,7 @@ mod tests {
     #[case::node_subcommand_long("node")]
     #[case::node_subcommand_short("n")]
     fn test_parse_cli(#[case] subcommand: &str) {
-        try_parse(subcommand, &[]).unwrap();
+        try_parse(subcommand, &["--chain", "10"]).unwrap();
     }
 
     #[test]
@@ -164,7 +164,7 @@ mod tests {
         ];
         let Commands::Node(node) = try_parse("node", &flags).unwrap().subcommand;
         assert_eq!(node.log_args.level, 4);
-        assert_eq!(node.chain.l2_chain_id.id(), 8453);
+        assert_eq!(node.chain.l2_chain_id.unwrap().id(), 8453);
         assert_eq!(node.chain.overrides.karst_override, Some(123));
         assert!(node.metrics.enabled);
 
