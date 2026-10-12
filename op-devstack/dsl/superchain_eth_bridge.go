@@ -21,7 +21,6 @@ type ETHSend struct {
 	// BlockTime is the timestamp of the block the send is in.
 	BlockTime uint64
 
-	from      common.Address
 	recipient common.Address
 	amount    eth.ETH
 	bridge    bindings.SuperchainETHBridge
@@ -51,7 +50,6 @@ func SendETH(sender *EOA, recipient common.Address, destination eth.ChainID, amo
 		Message:    msg,
 		Receipt:    rcpt,
 		BlockTime:  block.Time,
-		from:       sender.Address(),
 		recipient:  recipient,
 		amount:     amount,
 		bridge: bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sender.el.stackEL().EthClient()),
@@ -61,9 +59,9 @@ func SendETH(sender *EOA, recipient common.Address, destination eth.ChainID, amo
 }
 
 // RefundCall is the source chain's SuperchainETHBridge.refundETH call that returns this send's ETH
-// to its sender once its message has expired.
+// to its sender once its message has expired. Only the sender can make it.
 func (s *ETHSend) RefundCall() bindings.TypedCall[any] {
-	return s.bridge.RefundETH(s.Message.Destination, s.Message.Nonce, s.from, s.recipient, s.amount.ToBig())
+	return s.bridge.RefundETH(s.Message.Destination, s.Message.Nonce, s.recipient, s.amount.ToBig())
 }
 
 // Refunded reports whether the source chain's SuperchainETHBridge has refunded this send.

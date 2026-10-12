@@ -7,6 +7,7 @@ interface ISuperchainETHBridge is ISemver {
     error Unauthorized();
     error InvalidCrossDomainSender();
     error ZeroAddress();
+    error SuperchainETHBridge_SenderIsMessenger();
     error SuperchainETHBridge_MessageNotExpired();
     error SuperchainETHBridge_AlreadyRefunded();
 
@@ -19,7 +20,7 @@ interface ISuperchainETHBridge is ISemver {
     function sendETH(address _to, uint256 _chainId) external payable returns (bytes32 msgHash_);
     function relayETH(address _from, address _to, uint256 _amount) external;
     function refunded(bytes32) external view returns (bool);
-    function refundETH(uint256 _destination, uint256 _nonce, address _from, address _to, uint256 _amount) external;
+    function refundETH(uint256 _destination, uint256 _nonce, address _to, uint256 _amount) external;
 
     function __constructor__() external;
 }
