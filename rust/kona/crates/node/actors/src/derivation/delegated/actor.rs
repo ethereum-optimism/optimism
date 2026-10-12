@@ -201,7 +201,7 @@ where
         self.status.send_replace(DerivationStatus { current_l1: Some(sync_status.current_l1) });
 
         self.engine_client
-            .send_safe_l2_signal(sync_status.safe_l2.into())
+            .send_delegated_safe_head(sync_status.safe_l2)
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 
@@ -303,7 +303,7 @@ mod tests {
         provider.insert_block(0, BlockInfo::default());
         provider.insert_block(current.number, current);
         let mut engine = MockDerivationEngineClient::new();
-        engine.expect_send_safe_l2_signal().times(1).returning(|_| Ok(()));
+        engine.expect_send_delegated_safe_head().times(1).returning(|_| Ok(()));
         engine.expect_send_finalized_l2_block().times(1).returning(|_| Ok(()));
         let (tx, rx) = mpsc::channel(1);
         let mut actor = DelegateDerivationActor::new(engine, rx, delegate, provider);

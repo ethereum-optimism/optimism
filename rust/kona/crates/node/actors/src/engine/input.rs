@@ -1,28 +1,6 @@
-//! The inputs to engine operations.
+//! Identifier for the L2 block to finalize.
 
 use alloy_eips::BlockNumHash;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-
-/// Input for consolidation - either derived attributes or safe L2 block
-#[derive(Debug, Clone)]
-pub enum ConsolidateInput {
-    /// Consolidate based on derived attributes.
-    Attributes(Box<OpAttributesWithParent>),
-    /// Derivation Delegation: consolidate based on safe L2 block info.
-    BlockInfo(L2BlockInfo),
-}
-
-impl From<L2BlockInfo> for ConsolidateInput {
-    fn from(v: L2BlockInfo) -> Self {
-        Self::BlockInfo(v)
-    }
-}
-
-impl From<OpAttributesWithParent> for ConsolidateInput {
-    fn from(v: OpAttributesWithParent) -> Self {
-        Self::Attributes(Box::new(v))
-    }
-}
 
 /// Identifies the L2 block to finalize.
 ///

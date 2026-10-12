@@ -4,9 +4,7 @@ use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_node_actors::{
     DerivationEngineClient, EngineClientError, EngineClientResult, NetworkEngineClient,
-    SequencerEngineClient, engine,
-    engine::{ConsolidateInput, FinalizeBlockId},
-    sequencer, signer,
+    SequencerEngineClient, engine, engine::FinalizeBlockId, sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -65,9 +63,17 @@ impl DerivationEngineClient for Engine {
         self.0.finalize(block_id).await
     }
 
-    async fn send_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
-        trace!(target: "derivation", ?signal, "Sending safe L2 signal info to engine.");
-        self.0.consolidate(signal).await
+    async fn send_derived_attributes(
+        &self,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<()> {
+        trace!(target: "derivation", ?attributes, "Sending derived attributes to engine.");
+        self.0.consolidate(attributes).await
+    }
+
+    async fn send_delegated_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
+        trace!(target: "derivation", ?safe_head, "Sending delegated safe head to engine.");
+        self.0.follow_safe_head(safe_head).await
     }
 }
 

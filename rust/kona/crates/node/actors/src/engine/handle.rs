@@ -1,8 +1,8 @@
-use super::{BuildTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError};
+use super::{BuildTaskError, FinalizeBlockId, SealTaskError};
 use crate::{EngineClientError, EngineClientResult};
 use alloy_rpc_types_engine::PayloadId;
 use kona_engine::EngineState;
-use kona_protocol::OpAttributesWithParent;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -11,8 +11,10 @@ use tokio::sync::{mpsc, oneshot, watch};
 pub(super) enum Message {
     /// Start building a block.
     Build(Box<BuildRequest>),
-    /// Process derived attributes or delegated safe block information.
-    Consolidate(ConsolidateInput),
+    /// Consolidate the safe head with attributes derived from L1.
+    Consolidate(Box<OpAttributesWithParent>),
+    /// Follow a safe head supplied by the derivation delegate.
+    FollowSafeHead(Box<L2BlockInfo>),
     /// Finalize an L2 block.
     Finalize(Box<FinalizeBlockId>),
     /// Insert an unsafe L2 block.
@@ -97,11 +99,18 @@ impl Handle {
         Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 
-    /// Queues derived attributes or delegated safe block information for consolidation.
+    /// Queues attributes derived from L1 to consolidate the safe head with.
     ///
-    /// Success means the input was queued, not that it was processed.
-    pub async fn consolidate(&self, input: ConsolidateInput) -> EngineClientResult<()> {
-        self.send(Message::Consolidate(input)).await
+    /// Success means the attributes were queued, not that they were processed.
+    pub async fn consolidate(&self, attributes: OpAttributesWithParent) -> EngineClientResult<()> {
+        self.send(Message::Consolidate(Box::new(attributes))).await
+    }
+
+    /// Queues a safe head supplied by the derivation delegate, for the engine to follow.
+    ///
+    /// Success means the safe head was queued, not that it was processed.
+    pub async fn follow_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
+        self.send(Message::FollowSafeHead(Box::new(safe_head))).await
     }
 
     /// Queues finalization of an L2 block.
@@ -212,11 +221,16 @@ mod tests {
     #[tokio::test]
     async fn queued_requests_send_their_message() {
         let (handle, mut receiver) = handle();
-        let head = L2BlockInfo::default();
-        handle.consolidate(head.into()).await.unwrap();
+        handle.consolidate(attributes()).await.unwrap();
         assert!(matches!(
             receiver.recv().await.unwrap(),
-            Message::Consolidate(ConsolidateInput::BlockInfo(block)) if block == head
+            Message::Consolidate(consolidated) if *consolidated == attributes()
+        ));
+        let head = L2BlockInfo::default();
+        handle.follow_safe_head(head).await.unwrap();
+        assert!(matches!(
+            receiver.recv().await.unwrap(),
+            Message::FollowSafeHead(block) if *block == head
         ));
         let block_id = FinalizeBlockId::ByNumber(1);
         handle.finalize(block_id).await.unwrap();

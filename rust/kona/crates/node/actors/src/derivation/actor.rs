@@ -264,7 +264,7 @@ where
 
         // Send payload attributes out for processing.
         self.engine_client
-            .send_safe_l2_signal(payload_attributes.into())
+            .send_derived_attributes(payload_attributes)
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 

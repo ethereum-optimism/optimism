@@ -44,7 +44,8 @@ Each operation updates the execution layer's forkchoice state with `engine_forkc
 - **`insert_unsafe_block`** inserts an unsafe payload, received from gossip or the admin API, with `engine_newPayload`, then makes it the unsafe head. A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped.
 - **`start_build`** starts building a block from payload attributes in sequencer mode, and returns the payload ID. Its failures are returned to the caller instead of being retried by the actor; the sequencer retries a failed build on its next block-time tick.
 - **`seal`** retrieves a started block with the version-specific `engine_getPayload` call, inserts it, and makes it the unsafe head. It fails if the unsafe head moved since the build started.
-- **`consolidate`** advances the safe chain through derivation. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the actor builds and seals the attributes, reorging the unsafe chain. With derivation delegated, the actor follows the delegated safe block instead.
+- **`consolidate`** advances the safe chain with attributes derived from L1. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the actor builds and seals the attributes, reorging the unsafe chain.
+- **`follow_safe_head`** follows a safe head supplied by the derivation delegate when derivation is delegated. If the unsafe block at that height matches it, that block becomes safe; otherwise it becomes the unsafe and safe head.
 - **`finalize`** finalizes an L2 block identified by number or hash.
 - **`reset`** finds a plausible sync starting point and reorgs the execution layer to it.
 
@@ -110,7 +111,7 @@ tokio::spawn(actor);
 
 ### Performing Operations
 
-`engine::Handle` has one method per operation: `insert_unsafe_block`, `start_build`, `seal`, `consolidate`, `finalize`, and `reset`. Builds and seals reply with the operation's result; the sequencer classifies a failed build by its error.
+`engine::Handle` has one method per operation: `insert_unsafe_block`, `start_build`, `seal`, `consolidate`, `follow_safe_head`, `finalize`, and `reset`. Builds and seals reply with the operation's result; the sequencer classifies a failed build by its error.
 
 ```rust
 let payload_id = handle.start_build(attributes.clone()).await?;

@@ -381,7 +381,7 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
     let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
     let (handle, actor) = spawn(client, config.clone(), derivation_tx, state);
 
-    handle.consolidate(attributes.into()).await.unwrap();
+    handle.consolidate(attributes).await.unwrap();
     // Once the actor stops, derivation's receiver ends instead of waiting forever.
     drop(handle);
 
@@ -679,9 +679,9 @@ async fn unsafe_head_check_variants(
 
 #[tokio::test]
 async fn consolidated_blocks_are_handed_to_the_block_sink() {
-    // Consolidation reads the unsafe block in full to compare it against the derived
-    // attributes; the next attributes built ask for this same block's system config, so it
-    // must reach the sink rather than being dropped.
+    // Consolidation reads the unsafe block in full to compare it against the safe head; the next
+    // attributes built ask for this same block's system config, so it must reach the sink rather
+    // than being dropped. Derived attributes and delegated safe heads share this step.
     let header = RpcHeader::new(alloy_consensus::Header::default());
     let block_hash = header.hash;
     let block: RpcBlock<op_alloy_rpc_types::Transaction> =
@@ -701,14 +701,56 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
         block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
         ..Default::default()
     };
-    // The unsafe head is ahead of the safe block, so it is consolidated rather than reconciled.
+    // The unsafe head is ahead of the safe block, so it is consolidated rather than applied.
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(1)).build();
     let sink = Arc::new(RecordingSink::default());
     let (mut actor, _, _) = actor(client, cfg, state, sink.clone());
 
-    actor.handle_consolidate(ConsolidateInput::BlockInfo(safe_l2)).await.unwrap();
+    actor.handle_follow_safe_head(safe_l2).await.unwrap();
 
     assert_eq!(sink.0.lock().unwrap().as_slice(), &[(block_hash, 0)]);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A delegated safe head that the unsafe chain does not hold becomes the unsafe and safe head, with
+/// a forkchoice update.
+#[rstest]
+#[case::not_behind_the_unsafe_head(false)]
+#[case::mismatching_the_unsafe_block(true)]
+#[tokio::test]
+async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
+    #[case] unsafe_head_ahead: bool,
+) {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let safe_head = test_block_info(1);
+    let unsafe_head = if unsafe_head_ahead { test_block_info(2) } else { safe_head };
+    if unsafe_head_ahead {
+        // The unsafe block at the safe head's height is a different block.
+        let block: RpcBlock<op_alloy_rpc_types::Transaction> = RpcBlock::new(
+            RpcHeader::new(alloy_consensus::Header::default()),
+            BlockTransactions::Full(vec![]),
+        );
+        assert_ne!(block.header.hash, safe_head.block_info.hash);
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x1", true]), block);
+    }
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
+    let genesis = test_block_info(0);
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(unsafe_head)
+        .with_safe_head(genesis)
+        .with_finalized_head(genesis)
+        .build();
+    let (mut actor, _, _) = actor(client, config, state, Arc::new(NoopBlockSink));
+
+    actor.handle_follow_safe_head(safe_head).await.unwrap();
+
+    assert_eq!(actor.state.sync_state.unsafe_head(), safe_head);
+    assert_eq!(actor.state.sync_state.safe_head(), safe_head);
     l1.assert_finished();
     l2.assert_finished();
 }

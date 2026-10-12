@@ -166,11 +166,11 @@ The derivation actor produces `OpAttributesWithParent` that are sent to the engi
 ```rust
 // Send payload attributes out for processing.
 self.engine_client
-    .send_safe_l2_signal(payload_attributes.into())
+    .send_derived_attributes(payload_attributes)
     .await
 ```
 
-The engine actor executes these attributes and updates the L2 safe head, which triggers the next derivation cycle.
+The engine actor executes these attributes and updates the L2 safe head, which triggers the next derivation cycle. When derivation is delegated, the delegated derivation actor sends the delegate's safe head with `send_delegated_safe_head` instead.
 
 ### With the L1 Actors
 

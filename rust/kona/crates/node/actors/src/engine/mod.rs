@@ -21,4 +21,4 @@ pub use crate::capacity::{Capacity, InvalidCapacity};
 pub use handle::Handle;
 
 mod input;
-pub use input::{ConsolidateInput, FinalizeBlockId};
+pub use input::FinalizeBlockId;
