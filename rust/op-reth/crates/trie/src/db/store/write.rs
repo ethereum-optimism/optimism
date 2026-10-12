@@ -937,6 +937,10 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
         &self,
         range: &std::ops::RangeInclusive<u64>,
     ) -> OpProofsStorageResult<()> {
+        debug_assert!(
+            self.get_proof_window_inner().is_ok_and(|window| *range.end() == window.latest.number),
+            "unwind range {range:?} must end at the proof window's latest block"
+        );
         let acct_trie_keys = self.unwind_and_collect_account_trie(range)?;
         let stor_trie_keys = self.unwind_and_collect_storage_trie(range)?;
         let acct_keys = self.unwind_and_collect_hashed_accounts(range)?;

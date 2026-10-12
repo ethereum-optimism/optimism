@@ -535,6 +535,9 @@ mod history_shard_unwind_regressions {
         )
         .expect("seed affected storage key");
         let provider = MdbxProofsProvider::new(tx);
+        // The entry point requires the range to end at the proof window's latest block.
+        provider.set_earliest_block_number_inner(0, B256::ZERO).expect("seed window start");
+        provider.set_latest_block_number_inner(10, B256::ZERO).expect("seed window end");
         provider
             .unwind_changesets_and_history(&(first_removed_block..=10))
             .expect("unwind seeded storage history");
