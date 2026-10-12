@@ -239,7 +239,6 @@ impl NodeCommand {
 
         let l1_client = L1ClientConfig {
             chain_config: self.chain.l1_config(cfg.l1_chain_id)?,
-            trust_rpc: self.l1_rpc_args.l1_trust_rpc,
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
         };
@@ -255,7 +254,6 @@ impl NodeCommand {
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
             l1_client,
-            l2_trust_rpc: self.l2_client_args.l2_trust_rpc,
             engine_config,
             p2p_config: self.p2p_flags.clone().config(&cfg)?,
             rpc_config: self.rpc_flags.clone().into(),

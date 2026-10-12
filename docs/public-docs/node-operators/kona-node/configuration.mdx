@@ -22,10 +22,8 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 |------|-----|-------------|----------|---------|
 | `--mode <validator/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | No | `validator` |
 | `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
-| `--l1-trust-rpc <true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `true` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
-| `--l2-trust-rpc <true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | Yes | - |
 
 ## Chain Arguments
@@ -122,9 +120,12 @@ Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and cal
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.
 
-## RPC Trust Flags
+## RPC Response Verification
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
+`kona-node` does not trust the L1 RPC: every L1 header and block it fetches by hash is checked
+to hash to the hash it asked for, so an RPC cannot serve different block contents under a
+requested hash. It trusts the L2 execution client given by `--l2-engine-rpc`, which should be
+the node's own, authenticated with the JWT secret. Neither behavior is configurable.
 
 ## Default Behavior
 

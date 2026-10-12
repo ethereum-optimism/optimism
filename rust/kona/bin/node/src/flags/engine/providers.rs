@@ -4,24 +4,12 @@ use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
-const DEFAULT_L2_TRUST_RPC: bool = true;
-const DEFAULT_L1_TRUST_RPC: bool = true;
-
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
 pub struct L1ClientArgs {
     /// URL of the L1 execution client RPC API.
     #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
     pub l1_eth_rpc: Url,
-    /// Whether to trust the L1 RPC.
-    /// If false, block hash verification is performed for all retrieved blocks.
-    #[arg(
-        long,
-        visible_alias = "l1.trust-rpc",
-        env = "KONA_NODE_L1_TRUST_RPC",
-        default_value_t = DEFAULT_L1_TRUST_RPC
-    )]
-    pub l1_trust_rpc: bool,
     /// URL of the L1 beacon API.
     #[arg(long, visible_alias = "l1.beacon", env = "KONA_NODE_L1_BEACON")]
     pub l1_beacon: Url,
@@ -38,14 +26,6 @@ pub struct L2ClientArgs {
     /// the process's command line.
     #[arg(long, visible_alias = "l2.jwt-secret", env = "KONA_NODE_L2_ENGINE_AUTH")]
     pub l2_engine_jwt_secret: PathBuf,
-    /// If false, block hash verification is performed for all retrieved blocks.
-    #[arg(
-        long,
-        visible_alias = "l2.trust-rpc",
-        env = "KONA_NODE_L2_TRUST_RPC",
-        default_value_t = DEFAULT_L2_TRUST_RPC
-    )]
-    pub l2_trust_rpc: bool,
 }
 
 impl L2ClientArgs {

@@ -93,32 +93,6 @@ By default, the recipe is configured for **OP Sepolia**. To sync a different OP 
    - Update `op-reth --rollup.sequencer-http` endpoint
    - Update `kona-node --chain` parameter, or replace it with `--l2-config-file` for a chain that is not in the superchain registry
 
-### RPC Trust Configuration
-
-By default, `kona-node` trusts RPC providers (both L1 and L2). When using public or untrusted RPC endpoints, you should disable trust to enable block hash verification:
-
-```bash
-# In cfg.env or as environment variables:
-KONA_NODE_L1_TRUST_RPC=false
-KONA_NODE_L2_TRUST_RPC=false
-```
-
-Or modify the docker-compose.yaml command:
-```yaml
-kona-node:
-  command: |
-    node
-    --chain op-sepolia
-    --l1-eth-rpc ${L1_PROVIDER_RPC}
-    --l1-beacon ${L1_BEACON_API}
-    --l1-trust-rpc false  # Add this for untrusted L1 RPCs
-    --l2-engine-rpc ws://op-reth:8551
-    --l2-engine-jwt-secret /root/jwt/jwt.hex
-    --l2-trust-rpc false  # Add this for untrusted L2 RPCs
-```
-
-See [configure RPC trust](/node-operators/kona-node/run/rpc-trust) for more details on RPC trust settings.
-
 ### Port Configuration
 
 All host ports can be customized via environment variables in `cfg.env`:

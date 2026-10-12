@@ -101,11 +101,10 @@ That's it! Your node should connect to P2P and start syncing
 quickly.
 
 <Note>
-By default, `kona-node` trusts its RPC providers and doesn't perform
-additional verification, which is suitable for local nodes. When
-pointing the node at public RPC endpoints, follow
-[configure RPC trust](/node-operators/kona-node/run/rpc-trust) to enable
-block hash verification.
+`kona-node` checks that every L1 header and block it fetches by hash
+hashes to the requested hash, so it does not trust the L1 RPC. It does
+trust the L2 execution client, which should be your own. See
+[RPC response verification](/node-operators/kona-node/configuration#rpc-response-verification).
 </Note>
 
 

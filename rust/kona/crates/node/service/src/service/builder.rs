@@ -43,8 +43,6 @@ impl Default for DerivationDelegateConfig {
 pub struct L1ClientConfig {
     /// The L1 chain configuration.
     pub chain_config: L1ChainConfig,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
     /// The L1 beacon API.
     pub beacon: Url,
     /// The L1 RPC URL.
@@ -60,8 +58,6 @@ pub struct RollupNodeConfig {
     pub config: RollupConfig,
     /// How to reach the L1 chain.
     pub l1_client: L1ClientConfig,
-    /// Whether to trust the L2 RPC.
-    pub l2_trust_rpc: bool,
     /// Engine builder configuration.
     pub engine_config: EngineConfig,
     /// The [`NetworkConfig`].
@@ -100,7 +96,6 @@ impl RollupNodeConfig {
             RpcClient::new_http_with_client(l1_client, self.l1_client.rpc_url.clone());
         let l1_config = L1Config {
             chain_config: Arc::new(self.l1_client.chain_config),
-            trust_rpc: self.l1_client.trust_rpc,
             beacon_client: l1_beacon,
             engine_provider: RootProvider::new(l1_rpc_client),
         };
@@ -139,7 +134,6 @@ impl RollupNodeConfig {
             l1_config,
             l2_provider,
             l2_block_buffer,
-            l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
             p2p_config,
