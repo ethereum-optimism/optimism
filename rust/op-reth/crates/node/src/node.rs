@@ -397,10 +397,19 @@ impl OpNode {
 }
 
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
+///
+/// Fails if the engine config enables state masking, which op-reth does not support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
 ) -> eyre::Result<(), ErrReport> {
+    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
+    // callers that build a `NodeConfig` without that CLI.
+    eyre::ensure!(
+        builder.config().engine.num_state_masking_blocks() == 0,
+        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
+    );
+
     let builder = if node.args.proofs_history {
         // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
         // [`ProofsHistoryStorageArgs::resolve_storage_path`].
