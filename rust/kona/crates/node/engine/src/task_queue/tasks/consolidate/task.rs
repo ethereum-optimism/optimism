@@ -431,7 +431,7 @@ mod tests {
             .expect_err("the mock never completes a seal")
     }
 
-    // SDM-H1: -38003 triggers deposits-only recovery.
+    // An FCU rejection with -38003 (invalid payload attributes) triggers deposits-only recovery.
     #[tokio::test]
     async fn attributes_rejected_at_fcu_are_replaced_with_deposits_only() {
         let deposit = alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]);

@@ -15,9 +15,9 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// SDM-H1: a batched block whose 0x7D fails verification must be replaced by a deposits-only
-// block, as the fault-proof program does. op-reth used to fail such a build only at getPayload,
-// which stalled the safe head.
+// A batched block whose 0x7D fails verification must be replaced by a deposits-only block, as the
+// fault-proof program does. op-reth used to fail such a build only at getPayload, which stalled the
+// safe head.
 func TestSDMInvalidPostExecIsReplacedWithDepositsOnly(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := newFixedPolicySDMRethSystem(t)

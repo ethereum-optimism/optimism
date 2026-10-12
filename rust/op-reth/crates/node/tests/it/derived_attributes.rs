@@ -1,4 +1,4 @@
-//! SDM-H1: derived (`noTxPool`) attributes with invalid `PostExec` data must be rejected at
+//! Derived (`noTxPool`) attributes with invalid `PostExec` data must be rejected at
 //! `engine_forkchoiceUpdated`, so the rollup node can recover with a deposits-only block.
 
 use alloy_consensus::{Sealable, SignableTransaction, TxEip1559};
@@ -40,7 +40,7 @@ fn assert_invalid_attributes(result: Result<ForkchoiceUpdated, ClientError>, cas
     }
 }
 
-// SDM-H1: reject malformed PostExec attributes at FCU, not later at getPayload.
+// Malformed PostExec attributes must fail at FCU, not later at getPayload.
 #[tokio::test(flavor = "multi_thread")]
 async fn derived_attributes_with_invalid_post_exec_are_rejected_at_fcu() -> eyre::Result<()> {
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_sepolia().lagoon_activated().build());
