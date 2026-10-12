@@ -10,6 +10,7 @@ use std::sync::Arc;
 pub mod backfill;
 pub mod init;
 pub mod prune;
+pub mod repair_history;
 pub mod snapshot;
 pub mod unwind;
 
@@ -38,6 +39,7 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> Command<C> {
             Subcommands::Init(cmd) => cmd.execute::<N>(runtime).await,
             Subcommands::Backfill(cmd) => cmd.execute::<N>(runtime).await,
             Subcommands::Prune(cmd) => cmd.execute::<N>(runtime).await,
+            Subcommands::RepairHistory(cmd) => cmd.execute::<N>(runtime).await,
             Subcommands::Snapshot(cmd) => cmd.execute::<N>(runtime).await,
             Subcommands::Unwind(cmd) => cmd.execute::<N>(runtime).await,
         }
@@ -51,6 +53,7 @@ impl<C: ChainSpecParser> Command<C> {
             Subcommands::Init(cmd) => cmd.chain_spec(),
             Subcommands::Backfill(cmd) => cmd.chain_spec(),
             Subcommands::Prune(cmd) => cmd.chain_spec(),
+            Subcommands::RepairHistory(cmd) => cmd.chain_spec(),
             Subcommands::Snapshot(cmd) => cmd.chain_spec(),
             Subcommands::Unwind(cmd) => cmd.chain_spec(),
         }
@@ -69,6 +72,9 @@ pub enum Subcommands<C: ChainSpecParser> {
     /// Prune old proof history to reclaim space
     #[command(name = "prune")]
     Prune(prune::PruneCommand<C>),
+    /// Repair history shard keys left stale by unwinds before the unwind fix
+    #[command(name = "repair-history")]
+    RepairHistory(repair_history::RepairHistoryCommand<C>),
     /// Build or drop the trie-state snapshot
     #[command(name = "snapshot")]
     Snapshot(snapshot::SnapshotCommand<C>),
