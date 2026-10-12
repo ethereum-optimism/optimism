@@ -3,7 +3,7 @@ use alloy_rpc_types_engine::PayloadId;
 use kona_engine::{BuildTaskError, ConsolidateInput, EngineState, FinalizeBlockId, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 
 /// Work executed by the engine actor.
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub(super) enum Message {
     /// Insert an unsafe L2 block.
     InsertUnsafeBlock(Box<OpExecutionPayloadEnvelope>),
     /// Reset the forkchoice and signal derivation to reset, replying once the reset succeeds.
-    Reset(mpsc::Sender<EngineClientResult<()>>),
+    Reset(oneshot::Sender<()>),
     /// Seal a block.
     Seal(Box<SealRequest>),
 }
@@ -67,9 +67,9 @@ impl Handle {
     ///
     /// Waits until the reset succeeds. The engine retains the reset across temporary failures.
     pub async fn reset(&self) -> EngineClientResult<()> {
-        let (result_tx, mut result_rx) = mpsc::channel(1);
+        let (result_tx, result_rx) = oneshot::channel();
         self.send(Message::Reset(result_tx)).await?;
-        result_rx.recv().await.ok_or_else(response_closed)?
+        result_rx.await.map_err(|_| response_closed())
     }
 
     /// Starts building a block and returns the payload ID to seal it with.
@@ -167,7 +167,7 @@ mod tests {
             result = &mut reset => panic!("reset returned before the actor replied: {result:?}"),
             _ = ready(()) => {}
         }
-        reply.send(Ok(())).await.unwrap();
+        reply.send(()).unwrap();
         reset.await.unwrap();
 
         let payload_id = PayloadId::new([1; 8]);

@@ -133,6 +133,16 @@ impl Engine {
         Ok(start.safe)
     }
 
+    /// Executes a task against the engine state, then publishes the state.
+    ///
+    /// The state is published even if the task fails: a task can update it before a later step
+    /// fails.
+    pub async fn execute(&mut self, task: &EngineTask) -> Result<(), EngineTaskErrors> {
+        let result = task.execute(&mut self.state).await;
+        self.state_sender.send_replace(self.state);
+        result
+    }
+
     /// Clears the task queue.
     pub fn clear(&mut self) {
         self.tasks.clear();
