@@ -7,7 +7,6 @@ use crate::{
         SequencerArgs,
     },
 };
-use alloy_rpc_types_engine::JwtSecret;
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
@@ -212,20 +211,18 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
-        let jwt_secret = self.l2_client_args.jwt_secret()?;
-
+    /// Validates the engine's JWT secret by exchanging capabilities with the engine, which fails
+    /// if the engine was given a different secret. Retries other failures, such as an engine
+    /// that is not up yet.
+    async fn validate_jwt(engine_config: &EngineConfig) -> anyhow::Result<()> {
         let engine =
-            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+            EngineClient::rpc_client(engine_config.l2_url.clone(), engine_config.l2_jwt_secret);
 
         let exchange = || async {
             match engine.exchange_capabilities(vec![]).await {
                 Ok(_) => {
                     debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
+                    Ok(())
                 }
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
@@ -249,20 +246,13 @@ impl NodeCommand {
             .await
     }
 
-    /// Run the Node subcommand.
-    pub async fn run(self) -> anyhow::Result<()> {
+    /// Resolves the flags into the node's configuration.
+    ///
+    /// This reads the configuration and key files the flags name, and creates a P2P key file the
+    /// flags name if it does not exist yet, but does no network I/O: [`Self::run`] checks the
+    /// engine and the P2P ports, and the node reads its chain state from L1 when it starts.
+    pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
         let cfg = self.chain.rollup_config()?;
-
-        info!(
-            target: "rollup_node",
-            chain_id = cfg.l2_chain_id.id(),
-            "Starting rollup node services"
-        );
-        info!(
-            target: "rollup_node",
-            hardforks = %cfg.hardforks,
-            "Hardfork schedule"
-        );
 
         let l1_client = L1ClientConfig {
             chain_config: self.chain.l1_config(cfg.l1_chain_id)?,
@@ -272,41 +262,51 @@ impl NodeCommand {
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
         };
 
-        // If metrics are enabled, initialize the global cli metrics.
-        self.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
-
-        let jwt_secret = self.validate_jwt().await?;
-
-        self.p2p_flags.check_ports()?;
-        let p2p_config = self.p2p_flags.clone().config(&cfg)?;
-        let rpc_config = self.rpc_flags.clone().into();
-
         let engine_config = EngineConfig {
             config: Arc::new(cfg.clone()),
             l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: jwt_secret,
+            l2_jwt_secret: self.l2_client_args.jwt_secret()?,
             l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             mode: self.node_mode,
         };
 
-        let dependency_set = self.chain.dependency_set(&cfg)?;
-
-        RollupNodeConfig {
+        Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
-            config: cfg,
             l1_client,
             l2_trust_rpc: self.l2_client_args.l2_trust_rpc,
             engine_config,
-            p2p_config,
-            rpc_config,
+            p2p_config: self.p2p_flags.clone().config(&cfg)?,
+            rpc_config: self.rpc_flags.clone().into(),
             sequencer_config: self.sequencer_flags.config(),
-            derivation_delegate_config: self.derivation_delegate_args.config(),
-            dependency_set,
-        }
-        .build()
-        .start()
-        .await
-        .map_err(|e| {
+            derivation_delegate_config: self.derivation_delegate_args.clone().config(),
+            dependency_set: self.chain.dependency_set(&cfg)?,
+            config: cfg,
+        })
+    }
+
+    /// Run the Node subcommand.
+    pub async fn run(self) -> anyhow::Result<()> {
+        let config = self.config()?;
+
+        info!(
+            target: "rollup_node",
+            chain_id = config.config.l2_chain_id.id(),
+            "Starting rollup node services"
+        );
+        info!(
+            target: "rollup_node",
+            hardforks = %config.config.hardforks,
+            "Hardfork schedule"
+        );
+
+        // If metrics are enabled, initialize the global cli metrics.
+        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.config));
+
+        // Check the host and the engine before starting the node.
+        self.p2p_flags.check_ports()?;
+        Self::validate_jwt(&config.engine_config).await?;
+
+        config.build().start().await.map_err(|e| {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
             anyhow::anyhow!("{e}")
         })?;
@@ -318,7 +318,11 @@ impl NodeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_chains::Chain;
+    use alloy_rpc_types_engine::JwtSecret;
     use anyhow::anyhow;
+    use kona_genesis::RollupConfig;
+    use kona_peers::BootStoreFile;
 
     #[derive(Debug)]
     struct MockError {
@@ -380,6 +384,83 @@ mod tests {
         ])
         .unwrap_err();
         assert!(err.to_string().contains("--l2-engine-rpc"));
+    }
+
+    /// Required flags whose URLs nothing listens on, so that any network I/O fails.
+    const UNREACHABLE_FLAGS: [&str; 8] = [
+        "--l1-eth-rpc",
+        "http://127.0.0.1:1",
+        "--l1-beacon",
+        "http://127.0.0.1:2",
+        "--l2-engine-rpc",
+        "http://127.0.0.1:3",
+        "--l2-engine-jwt-encoded",
+        "0xabababababababababababababababababababababababababababababababab",
+    ];
+
+    fn parse_node(args: &[&str]) -> NodeCommand {
+        NodeCommand::try_parse_from(
+            std::iter::once("node").chain(UNREACHABLE_FLAGS).chain(args.iter().copied()),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_config_for_a_registry_chain() {
+        let command = parse_node(&[
+            "--chain",
+            "optimism",
+            "--mode",
+            "sequencer",
+            "--conductor.rpc",
+            "http://127.0.0.1:4",
+        ]);
+
+        let config = command.config().unwrap();
+
+        assert_eq!(config.config.l2_chain_id.id(), 10);
+        assert_eq!(config.l1_client.chain_config.chain_id, 1);
+        assert_eq!(config.l1_client.rpc_url.as_str(), "http://127.0.0.1:1/");
+        assert_eq!(config.l1_client.beacon.as_str(), "http://127.0.0.1:2/");
+        assert_eq!(config.engine_config.l2_url.as_str(), "http://127.0.0.1:3/");
+        assert_eq!(
+            config.engine_config.l2_jwt_secret,
+            JwtSecret::from_hex(UNREACHABLE_FLAGS[7]).unwrap()
+        );
+        assert_eq!(config.engine_config.mode, NodeMode::Sequencer);
+        assert_eq!(
+            config.sequencer_config.conductor_rpc_url,
+            Some("http://127.0.0.1:4".parse().unwrap())
+        );
+        assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 10 }));
+    }
+
+    #[test]
+    fn test_config_from_rollup_and_l1_config_files() {
+        let rollup = RollupConfig {
+            l2_chain_id: Chain::from_id(901),
+            l1_chain_id: 900,
+            ..Default::default()
+        };
+        let mut rollup_file = tempfile::NamedTempFile::new().unwrap();
+        serde_json::to_writer(&mut rollup_file, &rollup).unwrap();
+        let mut l1_file = tempfile::NamedTempFile::new().unwrap();
+        serde_json::to_writer(&mut l1_file, &serde_json::json!({"chainId": 900})).unwrap();
+
+        let command = parse_node(&[
+            "--l2-config-file",
+            rollup_file.path().to_str().unwrap(),
+            "--l1-config-file",
+            l1_file.path().to_str().unwrap(),
+        ]);
+
+        let config = command.config().unwrap();
+
+        assert_eq!(config.config.l2_chain_id.id(), 901);
+        assert_eq!(config.engine_config.config.l2_chain_id.id(), 901);
+        assert_eq!(config.l1_client.chain_config.chain_id, 900);
+        assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
+        assert!(config.dependency_set.is_none());
     }
 
     #[test]
