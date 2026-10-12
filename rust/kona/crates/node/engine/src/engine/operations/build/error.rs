@@ -1,6 +1,6 @@
 //! Error types for starting a build.
 
-use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+use crate::{EngineTaskError, engine::operations::severity::EngineTaskErrorSeverity};
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};
 use thiserror::Error;

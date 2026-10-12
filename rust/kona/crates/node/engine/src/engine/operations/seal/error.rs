@@ -1,6 +1,8 @@
 //! Error types for sealing a block.
 
-use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+use crate::{
+    EngineTaskError, InsertTaskError, engine::operations::severity::EngineTaskErrorSeverity,
+};
 use alloy_transport::{RpcError, TransportErrorKind};
 use thiserror::Error;
 

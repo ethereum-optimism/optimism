@@ -1,7 +1,7 @@
 //! Error types for inserting a payload.
 
 use crate::{
-    EngineTaskError, SynchronizeTaskError, task_queue::tasks::task::EngineTaskErrorSeverity,
+    EngineTaskError, SynchronizeTaskError, engine::operations::severity::EngineTaskErrorSeverity,
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};

@@ -2,7 +2,7 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, ImportedBlockSink, SynchronizeTask,
-    state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    engine::build_and_seal, state::EngineSyncStateUpdate,
 };
 use alloy_rpc_types_eth::Block;
 use kona_genesis::RollupConfig;

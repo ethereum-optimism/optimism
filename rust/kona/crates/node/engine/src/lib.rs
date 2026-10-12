@@ -37,12 +37,12 @@
 #[macro_use]
 extern crate tracing;
 
-mod task_queue;
-pub(crate) use task_queue::{
+mod engine;
+pub(crate) use engine::{
     BuildSealCoupling, BuildTask, ConsolidateTask, FinalizeTask, InsertTask, SealTask,
     SynchronizeTask,
 };
-pub use task_queue::{
+pub use engine::{
     BuildTaskError, ConsolidateInput, ConsolidateTaskError, Engine, EngineBuildError,
     EngineResetError, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError,
     InsertTaskError, SealTaskError, SynchronizeTaskError,

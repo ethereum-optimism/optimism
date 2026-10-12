@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 /// Error type for build and seal operations.
 #[derive(Debug, thiserror::Error)]
-pub(in crate::task_queue) enum BuildAndSealError {
+pub(in crate::engine) enum BuildAndSealError {
     /// An error occurred during the build phase.
     #[error(transparent)]
     Build(#[from] BuildTaskError),
@@ -34,7 +34,7 @@ pub(in crate::task_queue) enum BuildAndSealError {
 /// * `attributes` - The payload attributes to build
 /// * `is_attributes_derived` - Whether the attributes were derived or created by the sequencer
 /// * `block_sink` - Where to hand the built block once the engine has canonicalized it
-pub(in crate::task_queue) async fn build_and_seal(
+pub(in crate::engine) async fn build_and_seal(
     state: &mut EngineState,
     engine: Arc<EngineClient>,
     cfg: Arc<RollupConfig>,

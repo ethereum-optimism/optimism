@@ -1,8 +1,8 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, state::EngineSyncStateUpdate,
-    task_queue::tasks::build::error::EngineBuildError,
+    EngineClient, EngineForkchoiceVersion, EngineState,
+    engine::operations::build::error::EngineBuildError, state::EngineSyncStateUpdate,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use derive_more::Constructor;

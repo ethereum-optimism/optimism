@@ -1,7 +1,7 @@
 //! Error types for finalization.
 
 use crate::{
-    EngineTaskError, SynchronizeTaskError, task_queue::tasks::task::EngineTaskErrorSeverity,
+    EngineTaskError, SynchronizeTaskError, engine::operations::severity::EngineTaskErrorSeverity,
 };
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_protocol::FromBlockError;

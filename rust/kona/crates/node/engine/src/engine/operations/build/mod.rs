@@ -1,10 +1,10 @@
 //! Task and its associated types for building and importing a new block.
 
-mod task;
-pub(crate) use task::BuildTask;
+mod operation;
+pub(crate) use operation::BuildTask;
 
 mod error;
 pub use error::{BuildTaskError, EngineBuildError};
 
 #[cfg(test)]
-mod task_test;
+mod tests;

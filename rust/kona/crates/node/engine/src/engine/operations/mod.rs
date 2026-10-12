@@ -1,7 +1,7 @@
-//! Tasks to update the engine state.
+//! The operations the engine performs.
 
-mod task;
-pub use task::{EngineTaskError, EngineTaskErrorSeverity};
+mod severity;
+pub use severity::{EngineTaskError, EngineTaskErrorSeverity};
 
 mod synchronize;
 pub(crate) use synchronize::SynchronizeTask;

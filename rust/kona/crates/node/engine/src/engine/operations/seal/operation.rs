@@ -3,7 +3,7 @@ use super::SealTaskError;
 use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, ImportedBlockSink, InsertTask,
     InsertTaskError::{self},
-    task_queue::build_and_seal,
+    engine::build_and_seal,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use derive_more::Constructor;

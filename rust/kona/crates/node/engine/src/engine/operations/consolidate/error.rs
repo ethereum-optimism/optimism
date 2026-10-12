@@ -2,7 +2,7 @@
 
 use crate::{
     BuildTaskError, EngineTaskError, SealTaskError, SynchronizeTaskError,
-    task_queue::tasks::{BuildAndSealError, task::EngineTaskErrorSeverity},
+    engine::operations::{BuildAndSealError, severity::EngineTaskErrorSeverity},
 };
 use thiserror::Error;
 

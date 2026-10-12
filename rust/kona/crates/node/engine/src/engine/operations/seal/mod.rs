@@ -1,10 +1,10 @@
 //! Task and its associated types for importing a block that has been started.
 
-mod task;
-pub(crate) use task::{BuildSealCoupling, SealTask};
+mod operation;
+pub(crate) use operation::{BuildSealCoupling, SealTask};
 
 mod error;
 pub use error::SealTaskError;
 
 #[cfg(test)]
-mod task_test;
+mod tests;
