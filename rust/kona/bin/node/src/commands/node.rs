@@ -276,9 +276,11 @@ impl NodeCommand {
             chain_id = cfg.l2_chain_id.id(),
             "Starting rollup node services"
         );
-        for hf in cfg.hardforks.to_string().lines() {
-            info!(target: "rollup_node", "{hf}");
-        }
+        info!(
+            target: "rollup_node",
+            hardforks = %cfg.hardforks,
+            "Hardfork schedule"
+        );
 
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
