@@ -49,7 +49,6 @@ alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 # op-alloy
 op-alloy-provider.workspace = true
 op-alloy-network.workspace = true
-op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 
 # general
 url.workspace = true
@@ -61,7 +60,6 @@ tabled.workspace = true
 libp2p.workspace = true
 derive_more.workspace = true
 anyhow.workspace = true
-futures.workspace = true
 metrics.workspace = true
 reqwest.workspace = true
 tracing.workspace = true
@@ -69,7 +67,6 @@ thiserror.workspace = true
 tokio-stream.workspace = true
 tokio-util.workspace = true
 serde_json = { workspace = true, features = ["std"] }
-jsonrpsee = { workspace = true, features = ["server"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }

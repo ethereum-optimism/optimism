@@ -1,7 +1,7 @@
 //! Contains the node CLI.
 
 use crate::{
-    commands::{BootstoreCommand, InfoCommand, NetCommand, NodeCommand, RegistryCommand},
+    commands::{BootstoreCommand, InfoCommand, NodeCommand, RegistryCommand},
     flags::{GlobalArgs, init_unified_metrics},
     version,
 };
@@ -17,9 +17,6 @@ pub enum Commands {
     /// Runs the consensus node.
     #[command(alias = "n")]
     Node(NodeCommand),
-    /// Runs the networking stack for the node.
-    #[command(alias = "p2p", alias = "network")]
-    Net(NetCommand),
     /// Lists the OP Stack chains available in the superchain-registry.
     #[command(alias = "r", alias = "scr")]
     Registry(RegistryCommand),
@@ -55,7 +52,6 @@ impl Cli {
         // Initialize telemetry - allow subcommands to customize the filter.
         match self.subcommand {
             Commands::Node(ref node) => node.init_logs(&self.global)?,
-            Commands::Net(ref net) => net.init_logs(&self.global)?,
             Commands::Registry(ref registry) => registry.init_logs(&self.global)?,
             Commands::Bootstore(ref bootstore) => bootstore.init_logs(&self.global)?,
             Commands::Info(ref info) => info.init_logs(&self.global)?,
@@ -75,7 +71,6 @@ impl Cli {
         // Run the subcommand.
         match self.subcommand {
             Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
-            Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
             Commands::Info(info) => info.run(&self.global),
@@ -169,9 +164,6 @@ mod tests {
     #[rstest]
     #[case::node_subcommand_long(Commands::Node(Default::default()), "node")]
     #[case::node_subcommand_short(Commands::Node(Default::default()), "n")]
-    #[case::net_subcommand_extra_long(Commands::Net(Default::default()), "network")]
-    #[case::net_subcommand_long(Commands::Net(Default::default()), "net")]
-    #[case::net_subcommand_short(Commands::Net(Default::default()), "p2p")]
     #[case::registry_subcommand_short(Commands::Registry(Default::default()), "r")]
     #[case::registry_subcommand_long(Commands::Registry(Default::default()), "scr")]
     #[case::bootstore_subcommand_short(Commands::Bootstore(Default::default()), "b")]
