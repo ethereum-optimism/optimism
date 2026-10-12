@@ -1,15 +1,14 @@
-//! Contains error types for the [`crate::SynchronizeTask`].
+//! Error types for starting a build.
 
 use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
-use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};
 use thiserror::Error;
-use tokio::sync::mpsc;
 
 /// An error that occurs during payload building within the engine.
 ///
 /// This error type is specific to the block building process and represents failures
-/// that can occur during the automatic forkchoice update phase of [`BuildTask`].
+/// that can occur during the forkchoice update that starts a build.
 /// Unlike [`BuildTaskError`], which handles higher-level build orchestration errors,
 /// `EngineBuildError` focuses on low-level engine API communication failures.
 ///
@@ -18,8 +17,6 @@ use tokio::sync::mpsc;
 /// - **State Validation**: Errors related to inconsistent chain state
 /// - **Engine Communication**: RPC failures during forkchoice updates
 /// - **Payload Validation**: Invalid payload status responses from the execution layer
-///
-/// [`BuildTask`]: crate::BuildTask
 #[derive(Debug, Error)]
 pub enum EngineBuildError {
     /// The finalized head is ahead of the unsafe head.
@@ -42,15 +39,14 @@ pub enum EngineBuildError {
     EngineSyncing,
 }
 
-/// An error that occurs when running the [`crate::BuildTask`].
+/// An error from [`Engine::build`], or from building a block during consolidation.
+///
+/// [`Engine::build`]: crate::Engine::build
 #[derive(Debug, Error)]
 pub enum BuildTaskError {
     /// An error occurred when building the payload attributes in the engine.
     #[error("An error occurred when building the payload attributes to the engine.")]
     EngineBuildError(EngineBuildError),
-    /// Error sending the build result to the caller.
-    #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<Result<PayloadId, Self>>>),
 }
 
 impl EngineTaskError for BuildTaskError {
@@ -66,7 +62,6 @@ impl EngineTaskError for BuildTaskError {
                 EngineBuildError::MissingPayloadId |
                 EngineBuildError::EngineSyncing,
             ) => EngineTaskErrorSeverity::Temporary,
-            Self::MpscSend(_) => EngineTaskErrorSeverity::Critical,
         }
     }
 }

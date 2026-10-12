@@ -1,11 +1,10 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
+    EngineClient, EngineState, ImportedBlockSink, InsertTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
-use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_consensus::OpBlock;
@@ -15,7 +14,7 @@ use std::sync::Arc;
 
 /// The task to insert a payload into the execution engine.
 #[derive(Debug, Clone)]
-pub struct InsertTask {
+pub(crate) struct InsertTask {
     /// The engine client.
     client: Arc<EngineClient>,
     /// The rollup config.
@@ -31,7 +30,7 @@ pub struct InsertTask {
 
 impl InsertTask {
     /// Creates a new insert task.
-    pub const fn new(
+    pub(crate) const fn new(
         client: Arc<EngineClient>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
@@ -45,15 +44,12 @@ impl InsertTask {
     const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
         matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
     }
-}
 
-#[async_trait]
-impl EngineTaskExt for InsertTask {
-    type Output = L2BlockInfo;
-
-    type Error = InsertTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
+    /// Executes the task against the engine state.
+    pub(crate) async fn execute(
+        &self,
+        state: &mut EngineState,
+    ) -> Result<L2BlockInfo, InsertTaskError> {
         // Insert the new payload.
         // Form the new unsafe block ref from the execution payload.
         let payload = self.payload.clone();
@@ -94,7 +90,6 @@ impl EngineTaskExt for InsertTask {
         // Send a FCU to canonicalize the imported block.
         SynchronizeTask::new(
             Arc::clone(&self.client),
-            self.rollup_config.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(new_unsafe_ref),
                 local_safe_head: self.is_payload_safe.then_some(new_unsafe_ref),

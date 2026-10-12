@@ -53,9 +53,9 @@ The `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
    When starting, the engine has no work to do.
-   Once an unsafe block is received from P2P gossip, an `InsertTask`
-   is executed. That task inserts the payload and sends a forkchoice
-   update through the engine api. Since the engine state is lazily
+   Once an unsafe block is received from P2P gossip, the engine
+   inserts the payload and sends a forkchoice update through the
+   engine api. Since the engine state is lazily
    initialized (the safe and finalized heads are zero), the forkchoice
    update kicks off EL sync on the execution layer (EL) client (such
    as op-reth or op-geth). EL sync instructs the execution client to
@@ -69,7 +69,7 @@ The `kona-node` syncs the L2 chain in two main phases:
    to consensus layer (CL) sync. In this phase, `kona-node` begins
    deriving new L2 payload attributes from the L1 chain, following
    the rollup derivation process. `OpAttributesWithParent` values
-   derived this way are executed as an engine task which submits
+   derived this way are consolidated by the engine, which submits
    the payloads to the execution engine for validation and execution.
 
 <Note>

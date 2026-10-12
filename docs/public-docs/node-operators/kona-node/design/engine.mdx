@@ -3,37 +3,18 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through engine tasks executed one at a time.
+The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time.
 
 ## Architecture Overview
 
 The execution engine is built around several key components:
 
-- **Engine Tasks**: Engine API operations executed one at a time against the engine state
-- **Trait Abstractions**: Extensible interfaces for tasks, errors, and state management  
+- **Engine Operations**: Engine API operations performed one at a time against the engine state
+- **Error Severities**: Each operation's errors say how the caller should recover
 - **Engine Client**: HTTP client for communicating with the execution layer
 - **Actor Integration**: Service layer integration through the engine actor
 
-## Core Trait Abstractions
-
-### EngineTaskExt
-
-The `EngineTaskExt` trait defines the interface for all engine tasks:
-
-```rust
-#[async_trait]
-pub trait EngineTaskExt {
-    type Output;
-    type Error: EngineTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
-}
-```
-
-This trait enables:
-- **Atomic operations** over the `EngineState`
-- **Extensible task implementation** for custom operations
-- **Async execution** with proper error handling
+## Error Severity
 
 ### EngineTaskError
 
@@ -52,127 +33,22 @@ pub enum EngineTaskErrorSeverity {
 }
 ```
 
-This allows tasks to signal different recovery strategies based on the error type.
+This allows operations to signal different recovery strategies based on the error type.
 
-## Task Execution
+## Operations
 
-The `Engine` performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every operation, whether or not it succeeds. A failed operation returns its error, and the caller decides whether to retry it; the engine actor retries temporary errors as described under [Communication Channels](#communication-channels). Tasks run in the order the caller executes them; there is no priority ordering. Tasks use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
+The `Engine` performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every operation, whether or not it succeeds. A failed operation returns its error, and the caller decides whether to retry it; the engine actor retries temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order the caller performs them; there is no priority ordering. They use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
 
-Forkchoice updates are not a standalone task: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
+Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
-### Task Types
+- **`insert_unsafe`** inserts an unsafe payload, received from gossip or the admin API, with `engine_newPayload`, then makes it the unsafe head. A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped.
+- **`build`** starts building a block from payload attributes in sequencer mode, and returns the payload ID. Its failures are returned to the caller instead of being retried by the engine; the sequencer retries a failed build on its next block-time tick.
+- **`seal`** retrieves a started block with the version-specific `engine_getPayload` call, inserts it, and makes it the unsafe head. It fails if the unsafe head moved since the build started.
+- **`consolidate`** advances the safe chain through derivation. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the engine builds and seals the attributes, reorging the unsafe chain. With derivation delegated, the engine follows the delegated safe block instead.
+- **`finalize`** finalizes an L2 block identified by number or hash.
+- **`reset`** finds a plausible sync starting point and reorgs the execution layer to it.
 
-#### SynchronizeTask
-
-Updates the execution layer's forkchoice state. It is invoked by the other tasks rather than queued directly:
-
-```rust
-pub struct SynchronizeTask {
-    /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The rollup config.
-    pub rollup: Arc<RollupConfig>,
-    /// The sync state update to apply to the engine state.
-    pub state_update: EngineSyncStateUpdate,
-}
-```
-
-Handles:
-- Forkchoice synchronization via `engine_forkchoiceUpdated`
-- EL sync status management
-
-#### BuildTask
-
-Starts building a new block in sequencer mode, producing a payload ID:
-
-```rust
-pub struct BuildTask {
-    /// The engine API client.
-    pub engine: Arc<EngineClient>,
-    /// The RollupConfig.
-    pub cfg: Arc<RollupConfig>,
-    /// The OpAttributesWithParent to instruct the execution layer to build.
-    pub attributes: OpAttributesWithParent,
-    /// The optional sender through which the caller receives the PayloadId
-    /// or the reason the build failed.
-    pub result_tx: Option<mpsc::Sender<Result<PayloadId, BuildTaskError>>>,
-}
-```
-
-Handles payload building initiation with `engine_forkchoiceUpdated`. A build with a result sender reports failures to its caller instead of being retried by the engine; the sequencer retries a failed build on its next block-time tick.
-
-#### SealTask
-
-Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
-
-```rust
-pub struct SealTask {
-    /// The engine API client.
-    pub engine: Arc<EngineClient>,
-    /// The RollupConfig.
-    pub cfg: Arc<RollupConfig>,
-    /// The PayloadId being sealed.
-    pub payload_id: PayloadId,
-    /// The OpAttributesWithParent to instruct the execution layer to build.
-    pub attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
-    /// An optional sender for the built OpExecutionPayloadEnvelope or the
-    /// SealTaskError that occurred during processing.
-    pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
-}
-```
-
-#### InsertTask
-
-Inserts payloads (for example unsafe blocks received from gossip) into the execution engine:
-
-```rust
-pub struct InsertTask {
-    /// The engine client.
-    client: Arc<EngineClient>,
-    /// The rollup config.
-    rollup_config: Arc<RollupConfig>,
-    /// The network payload envelope.
-    envelope: OpExecutionPayloadEnvelope,
-    /// If the payload is safe this is true.
-    is_payload_safe: bool,
-}
-```
-
-#### ConsolidateTask
-
-Advances the safe chain through derivation:
-
-```rust
-pub struct ConsolidateTask {
-    /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The RollupConfig.
-    pub cfg: Arc<RollupConfig>,
-    /// The input for consolidation (either attributes or block info).
-    pub input: ConsolidateInput,
-    /// Where to hand the decoded block once the engine has canonicalized it.
-    pub block_sink: Arc<dyn ImportedBlockSink>,
-}
-```
-
-If consolidation fails, the task reverts to payload attribute processing via the `BuildTask`.
-
-#### FinalizeTask
-
-Finalizes L2 blocks:
-
-```rust
-pub struct FinalizeTask {
-    /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The rollup config.
-    pub cfg: Arc<RollupConfig>,
-    /// Identifier of the L2 block to finalize.
-    pub block_id: FinalizeBlockId,
-}
-```
+After Holocene, a sealed payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the error asks the caller to flush derivation.
 
 ## Engine State Management
 
@@ -272,11 +148,11 @@ The engine provides robust error handling through:
 - **Reset errors**: Trigger derivation pipeline reset
 - **Flush errors**: Trigger derivation pipeline flush
 
-A verdict from the execution layer is not a temporary error, because retrying returns the same verdict. An unsafe payload that `engine_newPayload` reports as `INVALID` or `ACCEPTED` is dropped. A forkchoice update reported as `INVALID` or `ACCEPTED` is a reset error: a task that the engine handles itself resets the engine, while build and seal tasks with a caller report it to the caller.
+A verdict from the execution layer is not a temporary error, because retrying returns the same verdict. An unsafe payload that `engine_newPayload` reports as `INVALID` or `ACCEPTED` is dropped. A forkchoice update reported as `INVALID` or `ACCEPTED` is a reset error: the engine actor resets the engine for the operations it retries itself, while `build` and `seal` return the error to their caller.
 
 ### State Consistency
 
-Tasks operate atomically on the `EngineState`, ensuring consistency even during error conditions.
+Operations run atomically on the `EngineState`, ensuring consistency even during error conditions.
 
 ## Version Support
 
@@ -298,11 +174,4 @@ The engine always includes metrics instrumentation for:
 
 ## Extensibility
 
-The trait-based architecture allows for:
-
-- **Custom task implementations** via `EngineTaskExt`
-- **Custom error handling** via `EngineTaskError`
-- **Custom state management** extensions
-- **Testing and mocking** support
-
-This modular design ensures the engine can adapt to future OP Stack protocol changes while maintaining backward compatibility.
+Each operation's error type implements `EngineTaskError`, so callers can decide how to recover from any operation's failure by its severity. Tests run the operations against mock RPC transports through the same `EngineClient`.

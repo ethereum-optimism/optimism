@@ -1,7 +1,7 @@
 //! Task and its associated types for finalizing an L2 block.
 
 mod task;
-pub use task::FinalizeTask;
+pub(crate) use task::FinalizeTask;
 
 mod error;
 pub use error::FinalizeTaskError;

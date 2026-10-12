@@ -594,7 +594,6 @@ const fn is_build_task_err_fatal(err: &BuildTaskError) -> bool {
             EngineBuildError::MissingPayloadId |
             EngineBuildError::EngineSyncing => false,
         },
-        BuildTaskError::MpscSend(_) => true,
     }
 }
 
@@ -623,7 +622,6 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::UnsafeHeadChangedSinceBuild => false,
         SealTaskError::DepositOnlyPayloadFailed |
         SealTaskError::DepositOnlyPayloadReattemptFailed |
-        SealTaskError::MpscSend(_) |
         SealTaskError::ClockWentBackwards => true,
     }
 }

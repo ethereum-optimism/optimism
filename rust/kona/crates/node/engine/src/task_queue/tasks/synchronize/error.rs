@@ -1,11 +1,11 @@
-//! Contains error types for the [`crate::SynchronizeTask`].
+//! Error types for forkchoice updates.
 
 use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};
 use thiserror::Error;
 
-/// An error that occurs when running the [`crate::SynchronizeTask`].
+/// An error from a forkchoice update, which most engine operations perform.
 #[derive(Debug, Error)]
 pub enum SynchronizeTaskError {
     /// The forkchoice update call to the engine api failed.

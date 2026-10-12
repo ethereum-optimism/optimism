@@ -1,26 +1,21 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
-    state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
+    EngineClient, EngineForkchoiceVersion, EngineState, state::EngineSyncStateUpdate,
+    task_queue::tasks::build::error::EngineBuildError,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
-use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
 /// Task for building new blocks with automatic forkchoice synchronization.
 ///
 /// The [`BuildTask`] only performs the `engine_forkchoiceUpdated` call within the block building
 /// workflow. It makes this call with the provided attributes to initiate block building on the
-/// execution layer and returns the new [`PayloadId`]. When run as an [`EngineTask`], the result is
-/// sent through the configured sender instead.
-///
-/// [`EngineTask`]: crate::EngineTask
+/// execution layer and returns the new [`PayloadId`].
 ///
 /// ## Error Handling
 ///
@@ -29,16 +24,13 @@ use tokio::sync::mpsc;
 ///
 /// [`EngineBuildError`]: crate::EngineBuildError
 #[derive(Debug, Clone, Constructor)]
-pub struct BuildTask {
+pub(crate) struct BuildTask {
     /// The engine API client.
-    pub engine: Arc<EngineClient>,
+    pub(crate) engine: Arc<EngineClient>,
     /// The [`RollupConfig`].
-    pub cfg: Arc<RollupConfig>,
+    pub(crate) cfg: Arc<RollupConfig>,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
-    pub attributes: OpAttributesWithParent,
-    /// The optional sender through which the caller receives the [`PayloadId`] or the reason the
-    /// build failed. A caller that receives failures decides whether to retry them.
-    pub result_tx: Option<mpsc::Sender<Result<PayloadId, BuildTaskError>>>,
+    pub(crate) attributes: OpAttributesWithParent,
 }
 
 impl BuildTask {
@@ -151,15 +143,9 @@ impl BuildTask {
             .payload_id
             .ok_or(BuildTaskError::EngineBuildError(EngineBuildError::MissingPayloadId))
     }
-}
 
-#[async_trait]
-impl EngineTaskExt for BuildTask {
-    type Output = PayloadId;
-
-    type Error = BuildTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<PayloadId, BuildTaskError> {
+    /// Executes the task against the engine state.
+    pub(crate) async fn execute(&self, state: &EngineState) -> Result<PayloadId, BuildTaskError> {
         debug!(
             target: "engine_builder",
             txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),

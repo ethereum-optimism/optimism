@@ -1,5 +1,5 @@
 use crate::{
-    EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
+    FinalizeBlockId, FinalizeTask, FinalizeTaskError,
     test_utils::{TestEngineStateBuilder, test_engine_client},
 };
 use alloy_eips::BlockNumHash;
@@ -45,7 +45,6 @@ async fn finalize_task_by_hash_errors_when_engine_lacks_hash() {
 
     let task = FinalizeTask::new(
         Arc::new(engine_client),
-        cfg,
         FinalizeBlockId::ByHash(BlockNumHash { number: N, hash: hash_b }),
     );
 

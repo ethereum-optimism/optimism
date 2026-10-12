@@ -1,13 +1,12 @@
 //! The [`Engine`] performs Engine API operations against the engine state and publishes the
 //! state.
 
-use super::EngineTaskExt;
 use crate::{
     BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
-    ConsolidateTaskError, EngineClient, EngineState, EngineSyncStateUpdate, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, ImportedBlockSink, InsertTask, InsertTaskError, Metrics, SealTask,
-    SealTaskError, SyncStartError, SynchronizeTask, SynchronizeTaskError, find_starting_forkchoice,
+    ConsolidateTaskError, EngineClient, EngineState, EngineSyncStateUpdate, EngineTaskError,
+    EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, FinalizeTaskError, ImportedBlockSink,
+    InsertTask, InsertTaskError, Metrics, SealTask, SealTaskError, SyncStartError, SynchronizeTask,
+    SynchronizeTaskError, find_starting_forkchoice,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use kona_genesis::RollupConfig;
@@ -68,7 +67,6 @@ impl Engine {
         // One attempt. The caller retries transient failures.
         let synchronize = SynchronizeTask::new(
             Arc::clone(&self.client),
-            Arc::clone(&self.config),
             EngineSyncStateUpdate {
                 unsafe_head: Some(start.un_safe),
                 local_safe_head: Some(start.safe),
@@ -117,9 +115,8 @@ impl Engine {
         &mut self,
         attributes: OpAttributesWithParent,
     ) -> Result<PayloadId, BuildTaskError> {
-        let task =
-            BuildTask::new(Arc::clone(&self.client), Arc::clone(&self.config), attributes, None);
-        let result = task.execute(&mut self.state).await;
+        let task = BuildTask::new(Arc::clone(&self.client), Arc::clone(&self.config), attributes);
+        let result = task.execute(&self.state).await;
         self.finish(Metrics::BUILD_TASK_LABEL, result)
     }
 
@@ -139,7 +136,6 @@ impl Engine {
             attributes,
             false,
             BuildSealCoupling::Detached,
-            None,
             Arc::clone(&self.block_sink),
         );
         let result = task.seal(&mut self.state).await;
@@ -164,7 +160,7 @@ impl Engine {
 
     /// Finalizes an L2 block.
     pub async fn finalize(&mut self, block_id: FinalizeBlockId) -> Result<(), FinalizeTaskError> {
-        let task = FinalizeTask::new(Arc::clone(&self.client), Arc::clone(&self.config), block_id);
+        let task = FinalizeTask::new(Arc::clone(&self.client), block_id);
         let result = task.execute(&mut self.state).await;
         self.finish(Metrics::FINALIZE_TASK_LABEL, result)
     }
@@ -188,16 +184,6 @@ impl Engine {
                     .increment(1);
             }
         }
-        result
-    }
-
-    /// Executes a task against the engine state, then publishes the state.
-    ///
-    /// The state is published even if the task fails: a task can update it before a later step
-    /// fails.
-    pub async fn execute(&mut self, task: &EngineTask) -> Result<(), EngineTaskErrors> {
-        let result = task.execute(&mut self.state).await;
-        self.state_sender.send_replace(self.state);
         result
     }
 }
@@ -311,6 +297,43 @@ mod tests {
         assert_eq!(
             state_rx.borrow().sync_state.unsafe_head().block_info.hash,
             config.genesis.l2.hash
+        );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Records the blocks the engine hands over after a successful import.
+    #[derive(Debug, Default)]
+    struct RecordingSink(std::sync::Mutex<Vec<(alloy_primitives::B256, u64)>>);
+
+    impl ImportedBlockSink for RecordingSink {
+        fn block_imported(&self, block: op_alloy_consensus::OpBlock, info: L2BlockInfo) {
+            self.0.lock().unwrap().push((info.block_info.hash, block.header.number));
+        }
+    }
+
+    #[tokio::test]
+    async fn inserted_blocks_are_handed_to_the_block_sink() {
+        let (payload, config) = genesis_payload();
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
+        l2.expect("engine_newPayloadV1", valid());
+        l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
+        let sink = Arc::new(RecordingSink::default());
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let mut engine = Engine::new(
+            Arc::new(client),
+            config.clone(),
+            sink.clone(),
+            EngineState::default(),
+            state_tx,
+        );
+
+        engine.insert_unsafe(payload).await.unwrap();
+        assert_eq!(
+            sink.0.lock().unwrap().as_slice(),
+            &[(config.genesis.l2.hash, 0)],
+            "a successfully imported block must reach the sink"
         );
         l1.assert_finished();
         l2.assert_finished();

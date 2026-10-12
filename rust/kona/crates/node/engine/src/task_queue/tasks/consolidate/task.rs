@@ -1,11 +1,10 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask, state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    ConsolidateTaskError, EngineClient, EngineState, ImportedBlockSink, SynchronizeTask,
+    state::EngineSyncStateUpdate, task_queue::build_and_seal,
 };
 use alloy_rpc_types_eth::Block;
-use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
@@ -64,20 +63,20 @@ impl ConsolidateInput {
 /// The [`ConsolidateTask`] attempts to consolidate the engine state
 /// using the specified payload attributes or block info.
 #[derive(Debug, Clone)]
-pub struct ConsolidateTask {
+pub(crate) struct ConsolidateTask {
     /// The engine client.
-    pub client: Arc<EngineClient>,
+    pub(crate) client: Arc<EngineClient>,
     /// The [`RollupConfig`].
-    pub cfg: Arc<RollupConfig>,
+    pub(crate) cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
-    pub input: ConsolidateInput,
+    pub(crate) input: ConsolidateInput,
     /// Where to hand the decoded block once the engine has canonicalized it.
-    pub block_sink: Arc<dyn ImportedBlockSink>,
+    pub(crate) block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl ConsolidateTask {
     /// Creates a new [`ConsolidateTask`] with the specified input
-    pub const fn new(
+    pub(crate) const fn new(
         client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
@@ -123,7 +122,6 @@ impl ConsolidateTask {
         // lags behind the safe head.
         SynchronizeTask::new(
             Arc::clone(&self.client),
-            self.cfg.clone(),
             EngineSyncStateUpdate {
                 unsafe_head: Some(*safe_l2),
                 safe_head: Some(*safe_l2),
@@ -164,7 +162,10 @@ impl ConsolidateTask {
     }
 
     /// Attempts consolidation on the engine state.
-    pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+    pub(crate) async fn consolidate(
+        &self,
+        state: &mut EngineState,
+    ) -> Result<(), ConsolidateTaskError> {
         // Fetch the unsafe L2 block
         let block_num = self.input.l2_block_number();
         let block = match self.client.l2_block_by_label(block_num.into()).await {
@@ -219,7 +220,6 @@ impl ConsolidateTask {
 
                     SynchronizeTask::new(
                         Arc::clone(&self.client),
-                        self.cfg.clone(),
                         EngineSyncStateUpdate {
                             safe_head: Some(block_info),
                             local_safe_head: Some(block_info),
@@ -259,25 +259,23 @@ impl ConsolidateTask {
         // or when L2BlockInfo construction fails in Attributes branch
         self.reconcile_unsafe_to_safe(state).await
     }
-}
 
-#[async_trait]
-impl EngineTaskExt for ConsolidateTask {
-    type Output = ();
-
-    type Error = ConsolidateTaskError;
-
-    // Behavior depends on how the safe head is provided:
-    //
-    // - `Attributes`: The safe head is advanced through the normal derivation flow, where the
-    //   DerivationActor and EngineActor coordinate both safe and unsafe heads. In this case, we
-    //   consolidate as long as the unsafe head has not fallen behind.
-    //
-    // - `BlockInfo`: The safe head is injected externally by the DerivationActor while delegating
-    //   derivation, and is not coordinated with the EngineActor's safe/unsafe heads. If the
-    //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
-    //   up to the safe head instead of consolidating.
-    async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+    /// Executes the task against the engine state.
+    ///
+    /// Behavior depends on how the safe head is provided:
+    ///
+    /// - `Attributes`: The safe head is advanced through the normal derivation flow, where the
+    ///   derivation and engine actors coordinate both safe and unsafe heads. In this case, we
+    ///   consolidate as long as the unsafe head has not fallen behind.
+    ///
+    /// - `BlockInfo`: The safe head is injected externally by the derivation actor while delegating
+    ///   derivation, and is not coordinated with the engine actor's safe and unsafe heads. If the
+    ///   injected safe head is ahead of the engine actor's unsafe head, we reconcile the unsafe
+    ///   chain up to the safe head instead of consolidating.
+    pub(crate) async fn execute(
+        &self,
+        state: &mut EngineState,
+    ) -> Result<(), ConsolidateTaskError> {
         let safe_head_number = match &self.input {
             ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
             ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,

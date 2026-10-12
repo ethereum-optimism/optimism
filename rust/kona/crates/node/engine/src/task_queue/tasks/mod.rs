@@ -1,27 +1,31 @@
 //! Tasks to update the engine state.
 
 mod task;
-pub use task::{
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt,
-};
+pub use task::{EngineTaskError, EngineTaskErrorSeverity};
 
 mod synchronize;
-pub use synchronize::{SynchronizeTask, SynchronizeTaskError};
+pub(crate) use synchronize::SynchronizeTask;
+pub use synchronize::SynchronizeTaskError;
 
 mod insert;
-pub use insert::{InsertTask, InsertTaskError};
+pub(crate) use insert::InsertTask;
+pub use insert::InsertTaskError;
 
 mod build;
-pub use build::{BuildTask, BuildTaskError, EngineBuildError};
+pub(crate) use build::BuildTask;
+pub use build::{BuildTaskError, EngineBuildError};
 
 mod seal;
-pub use seal::{BuildSealCoupling, SealTask, SealTaskError};
+pub use seal::SealTaskError;
+pub(crate) use seal::{BuildSealCoupling, SealTask};
 
 mod consolidate;
-pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
+pub(crate) use consolidate::ConsolidateTask;
+pub use consolidate::{ConsolidateInput, ConsolidateTaskError};
 
 mod finalize;
-pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
+pub(crate) use finalize::FinalizeTask;
+pub use finalize::{FinalizeBlockId, FinalizeTaskError};
 
 mod util;
 pub(super) use util::{BuildAndSealError, build_and_seal};

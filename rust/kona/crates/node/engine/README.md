@@ -4,27 +4,26 @@ An extensible implementation of the [OP Stack][op-stack] rollup node engine clie
 
 ## Overview
 
-The `kona-engine` crate provides a task-based engine client for interacting with Ethereum execution layers. It implements the Engine API specification and manages the execution layer state by executing engine tasks one at a time.
+The `kona-engine` crate provides an engine client for interacting with Ethereum execution layers. It implements the Engine API specification and manages the execution layer state by performing engine operations one at a time.
 
 ## Key Components
 
-- **[`Engine`](crate::Engine)** - Executes engine tasks atomically and publishes the engine state
+- **[`Engine`](crate::Engine)** - Performs engine operations atomically and publishes the engine state:
+  - [`insert_unsafe`](crate::Engine::insert_unsafe) - Insert an unsafe payload from gossip or the admin API
+  - [`build`](crate::Engine::build) and [`seal`](crate::Engine::seal) - Build a block and make it the unsafe head
+  - [`consolidate`](crate::Engine::consolidate) - Advance the safe chain, reorging the unsafe chain if needed
+  - [`finalize`](crate::Engine::finalize) - Finalize a safe block on L1 confirmation
+  - [`reset`](crate::Engine::reset) - Find a sync starting point and reorg the execution layer to it
 - **[`EngineClient`](crate::EngineClient)** - HTTP client for Engine API communication with JWT authentication
 - **[`EngineState`](crate::EngineState)** - Tracks the current state of the execution layer
-- **Task Types** - Specialized tasks for different engine operations:
-  - [`InsertTask`](crate::InsertTask) - Insert new payloads into the execution engine
-  - [`BuildTask`](crate::BuildTask) - Build new payloads with automatic forkchoice synchronization
-  - [`ConsolidateTask`](crate::ConsolidateTask) - Consolidate unsafe payloads to advance the safe chain
-  - [`FinalizeTask`](crate::FinalizeTask) - Finalize safe payloads on L1 confirmation
-  - [`SynchronizeTask`](crate::SynchronizeTask) - Internal task for execution layer forkchoice synchronization
+- **Error types** - One per operation, each with an [`EngineTaskErrorSeverity`](crate::EngineTaskErrorSeverity) that tells the caller how to recover
 
 ## Architecture
 
-The engine implements a task-driven architecture where forkchoice synchronization is handled automatically:
+The engine handles forkchoice synchronization automatically:
 
-- **Automatic Forkchoice Handling**: The [`BuildTask`] automatically performs forkchoice updates during block building, eliminating the need for explicit forkchoice management in user code.
-- **Internal Synchronization**: [`SynchronizeTask`] handles internal execution layer synchronization and is primarily used by other tasks rather than directly by users.
-- **Sequential Execution**: Tasks execute one at a time, in the order the caller submits them, with exclusive access to the engine state.
+- **Automatic Forkchoice Handling**: Each operation performs the forkchoice updates it needs, eliminating the need for explicit forkchoice management in user code.
+- **Sequential Execution**: Operations run one at a time, in the order the caller performs them, with exclusive access to the engine state.
 
 ## Engine API Compatibility
 

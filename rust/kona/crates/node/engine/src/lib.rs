@@ -8,13 +8,12 @@
 
 //! ## Architecture
 //!
-//! The engine operates as a task-driven system where operations are executed atomically, one at a
-//! time:
+//! The engine performs operations atomically, one at a time:
 //!
 //! ```text
 //! ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
 //! │   Engine    │◄───┤    Engine    │◄───┤  Engine     │
-//! │   Client    │    │  (executor)  │    │  Tasks      │
+//! │   Client    │    │              │    │  Operations │
 //! └─────────────┘    └──────────────┘    └─────────────┘
 //!        │                   │                   │
 //!        ▼                   ▼                   ▼
@@ -26,7 +25,7 @@
 //!
 //! ## Module Organization
 //!
-//! - **Task Execution** - Engine task execution and state publication via [`Engine`]
+//! - **Operations** - Engine operations and state publication via [`Engine`]
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
 //! - **State** - Engine state management and synchronization via [`EngineState`]
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
@@ -39,12 +38,14 @@
 extern crate tracing;
 
 mod task_queue;
+pub(crate) use task_queue::{
+    BuildSealCoupling, BuildTask, ConsolidateTask, FinalizeTask, InsertTask, SealTask,
+    SynchronizeTask,
+};
 pub use task_queue::{
-    BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
-    ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SynchronizeTask,
-    SynchronizeTaskError,
+    BuildTaskError, ConsolidateInput, ConsolidateTaskError, Engine, EngineBuildError,
+    EngineResetError, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError,
+    InsertTaskError, SealTaskError, SynchronizeTaskError,
 };
 
 mod attributes;

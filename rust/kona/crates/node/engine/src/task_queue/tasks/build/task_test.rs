@@ -1,6 +1,5 @@
 use crate::{
-    BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion, EngineTask,
-    EngineTaskExt,
+    BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
@@ -11,7 +10,6 @@ use kona_genesis::RollupConfig;
 use rstest::rstest;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::mpsc;
 
 fn fcu_for_payload(payload_id: Option<PayloadId>, status: PayloadStatusEnum) -> ForkchoiceUpdated {
     ForkchoiceUpdated {
@@ -34,8 +32,6 @@ enum TestErr {
     MissingPayloadId,
     #[error("UnexpectedPayloadStatus.")]
     Unexpected,
-    #[error("MpscSend.")]
-    MpscSend,
 }
 
 // Wraps real errors, ignoring details so we can easily match on results.
@@ -52,7 +48,6 @@ fn simplify(result: Result<PayloadId, BuildTaskError>) -> Result<PayloadId, Test
             EngineBuildError::MissingPayloadId => Err(TestErr::MissingPayloadId),
             EngineBuildError::UnexpectedPayloadStatus(_) => Err(TestErr::Unexpected),
         },
-        Err(BuildTaskError::MpscSend(_)) => Err(TestErr::MpscSend),
     }
 }
 
@@ -71,7 +66,6 @@ async fn test_execute_variants(
     #[case] payload_id_present: bool,
     // NB: none = success
     #[case] expected_err: Option<TestErr>,
-    #[values(true, false)] with_channel: bool,
     #[values(EngineForkchoiceVersion::V2, EngineForkchoiceVersion::V3)]
     fcu_version: EngineForkchoiceVersion,
 ) {
@@ -106,29 +100,15 @@ async fn test_execute_variants(
         .with_timestamp(attributes_timestamp)
         .build();
 
-    let (tx, mut rx) = mpsc::channel(1);
+    let task = BuildTask::new(Arc::new(engine_client.clone()), cfg, attributes.clone());
 
-    let task = BuildTask::new(
-        Arc::new(engine_client.clone()),
-        cfg,
-        attributes.clone(),
-        with_channel.then_some(tx),
-    );
-
-    let mut state = TestEngineStateBuilder::new()
+    let state = TestEngineStateBuilder::new()
         .with_unsafe_head(unsafe_block)
         .with_safe_head(parent_block)
         .with_finalized_head(parent_block)
         .build();
 
-    // Execute: a task with a channel reports its result there and succeeds; otherwise the result
-    // is returned.
-    let result = if with_channel {
-        EngineTask::Build(Box::new(task)).execute(&mut state).await.unwrap();
-        simplify(rx.recv().await.expect("the build result is sent to the caller"))
-    } else {
-        simplify(task.execute(&mut state).await)
-    };
+    let result = simplify(task.execute(&state).await);
 
     if expected_err.is_some() {
         assert_eq!(expected_err, result.err());

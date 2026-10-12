@@ -1,12 +1,12 @@
-//! Contains error types for the [`crate::SynchronizeTask`].
+//! Error types for sealing a block.
 
 use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_transport::{RpcError, TransportErrorKind};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
-use tokio::sync::mpsc;
 
-/// An error that occurs when running the [`crate::SealTask`].
+/// An error from [`Engine::seal`], or from sealing a block during consolidation.
+///
+/// [`Engine::seal`]: crate::Engine::seal
 #[derive(Debug, Error)]
 pub enum SealTaskError {
     /// Impossible to insert the payload into the engine.
@@ -25,9 +25,6 @@ pub enum SealTaskError {
     /// be flushed post-holocene.
     #[error("Invalid payload, must flush post-holocene")]
     HoloceneInvalidFlush,
-    /// Error sending the built payload envelope.
-    #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<Result<OpExecutionPayloadEnvelope, Self>>>),
     /// The clock went backwards.
     #[error("The clock went backwards")]
     ClockWentBackwards,
@@ -49,7 +46,6 @@ impl EngineTaskError for SealTaskError {
             Self::HoloceneInvalidFlush => EngineTaskErrorSeverity::Flush,
             Self::DepositOnlyPayloadReattemptFailed |
             Self::DepositOnlyPayloadFailed |
-            Self::MpscSend(_) |
             Self::ClockWentBackwards |
             Self::UnsafeHeadChangedSinceBuild => EngineTaskErrorSeverity::Critical,
         }

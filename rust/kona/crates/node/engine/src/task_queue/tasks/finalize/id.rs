@@ -1,4 +1,4 @@
-//! Identifier for the L2 block that a [`crate::FinalizeTask`] should finalize.
+//! Identifier for the L2 block to finalize.
 
 use alloy_eips::BlockNumHash;
 
@@ -11,7 +11,7 @@ use alloy_eips::BlockNumHash;
 ///   `L2Finalizer`). The number is sufficient because there is only one chain to consult.
 /// - [`FinalizeBlockId::ByHash`] is used when an upstream supplies `(number, hash)` and the engine
 ///   must finalize the specific block identified by hash. If the engine does not have that hash,
-///   the task must error rather than silently finalize the engine's canonical block at the same
+///   finalization must error rather than silently finalize the engine's canonical block at the same
 ///   height.
 ///
 /// EL finalization is irreversible, so finalizing the wrong block is unrecoverable. Forcing every

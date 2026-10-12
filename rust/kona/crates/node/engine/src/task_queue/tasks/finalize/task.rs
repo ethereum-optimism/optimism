@@ -1,35 +1,27 @@
 //! A task for finalizing an L2 block.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, FinalizeBlockId, FinalizeTaskError, SynchronizeTask,
+    EngineClient, EngineState, FinalizeBlockId, FinalizeTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
 use alloy_eips::BlockId;
-use async_trait::async_trait;
 use derive_more::Constructor;
-use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use std::sync::Arc;
 
 /// The [`FinalizeTask`] fetches the [`L2BlockInfo`] identified by `block_id`, updates the
 /// [`EngineState`], and dispatches a forkchoice update to finalize the block.
 #[derive(Debug, Clone, Constructor)]
-pub struct FinalizeTask {
+pub(crate) struct FinalizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The rollup config.
-    pub cfg: Arc<RollupConfig>,
+    pub(crate) client: Arc<EngineClient>,
     /// Identifier of the L2 block to finalize.
-    pub block_id: FinalizeBlockId,
+    pub(crate) block_id: FinalizeBlockId,
 }
 
-#[async_trait]
-impl EngineTaskExt for FinalizeTask {
-    type Output = ();
-
-    type Error = FinalizeTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
+impl FinalizeTask {
+    /// Executes the task against the engine state.
+    pub(crate) async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
         let block_number = self.block_id.number();
 
         // Sanity check that the block that is being finalized is at least safe.
@@ -70,7 +62,6 @@ impl EngineTaskExt for FinalizeTask {
         // Dispatch a forkchoice update.
         SynchronizeTask::new(
             self.client.clone(),
-            self.cfg.clone(),
             EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
         )
         .execute(state)

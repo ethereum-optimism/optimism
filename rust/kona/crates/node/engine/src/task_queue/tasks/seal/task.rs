@@ -1,29 +1,26 @@
 //! A task for importing a block that has already been started.
 use super::SealTaskError;
 use crate::{
-    EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    InsertTask,
+    EngineClient, EngineGetPayloadVersion, EngineState, ImportedBlockSink, InsertTask,
     InsertTaskError::{self},
     task_queue::build_and_seal,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
-use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
 /// How a [`SealTask`] is coupled to the build that produced its payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BuildSealCoupling {
-    /// Build and seal run inside the same engine task, so no other task can advance the unsafe
-    /// head between them. The unsafe-head staleness check is skipped: a derivation-driven reorg
-    /// legitimately seals a payload whose parent differs from the current unsafe head.
+pub(crate) enum BuildSealCoupling {
+    /// Build and seal run inside the same engine operation, so no other operation can advance the
+    /// unsafe head between them. The unsafe-head staleness check is skipped: a derivation-driven
+    /// reorg legitimately seals a payload whose parent differs from the current unsafe head.
     Atomic,
-    /// The seal is enqueued as a task separate from its build, so another task may advance the
+    /// The seal is a separate operation from its build, so another operation may advance the
     /// unsafe head in between, invalidating the built payload as stale.
     Detached,
 }
@@ -42,26 +39,21 @@ pub enum BuildSealCoupling {
 /// [`InsertTask`]: crate::InsertTask
 /// [`InsertTaskError`]: crate::InsertTaskError
 #[derive(Debug, Clone, Constructor)]
-#[allow(clippy::too_many_arguments)] // the derived constructor takes one field each
-pub struct SealTask {
+pub(crate) struct SealTask {
     /// The engine API client.
-    pub engine: Arc<EngineClient>,
+    pub(crate) engine: Arc<EngineClient>,
     /// The [`RollupConfig`].
-    pub cfg: Arc<RollupConfig>,
+    pub(crate) cfg: Arc<RollupConfig>,
     /// The [`PayloadId`] being sealed.
-    pub payload_id: PayloadId,
+    pub(crate) payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
-    pub attributes: OpAttributesWithParent,
+    pub(crate) attributes: OpAttributesWithParent,
     /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
+    pub(crate) is_attributes_derived: bool,
     /// How this seal is coupled to the build that produced `payload_id`.
-    pub coupling: BuildSealCoupling,
-    /// An optional sender to convey success/failure result of the built
-    /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
-    /// or the [`SealTaskError`] that occurred during processing.
-    pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+    pub(crate) coupling: BuildSealCoupling,
     /// Where to hand the decoded block once the engine has canonicalized it.
-    pub block_sink: Arc<dyn ImportedBlockSink>,
+    pub(crate) block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl SealTask {
@@ -255,7 +247,6 @@ impl SealTask {
     /// This function handles:
     /// 1. Fetching the execution payload from the EL
     /// 2. Importing the payload into the engine with Holocene fallback support
-    /// 3. Sending the payload to the optional channel
     async fn seal_and_canonicalize_block(
         &self,
         state: &mut EngineState,
@@ -277,41 +268,5 @@ impl SealTask {
         );
 
         Ok(new_payload)
-    }
-
-    /// Sends the provided result via the `result_tx` sender if one exists, returning the
-    /// appropriate error if it does not.
-    ///
-    /// This allows the original caller to handle errors, removing that burden from the engine,
-    /// which may not know the caller's intent or retry preferences. If the original caller did not
-    /// provide a mechanism to get notified of updates, the error is returned to the engine's
-    /// caller to handle in the default manner.
-    async fn send_channel_result_or_get_error(
-        &self,
-        res: Result<OpExecutionPayloadEnvelope, SealTaskError>,
-    ) -> Result<(), SealTaskError> {
-        // NB: If a response channel was provided, that channel will receive success/failure info,
-        // and this task will always succeed. If not, task failure will be relayed to the caller.
-        if let Some(tx) = &self.result_tx {
-            tx.send(res).await.map_err(|e| SealTaskError::MpscSend(Box::new(e)))?;
-        } else {
-            res?;
-        }
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl EngineTaskExt for SealTask {
-    type Output = ();
-
-    type Error = SealTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
-        let res = self.seal(state).await;
-        self.send_channel_result_or_get_error(res).await?;
-
-        Ok(())
     }
 }

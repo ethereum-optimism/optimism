@@ -1,6 +1,6 @@
 //! Utility functions for task execution.
 
-use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
+use super::{BuildSealCoupling, BuildTask, BuildTaskError, SealTask, SealTaskError};
 use crate::{EngineClient, EngineState, ImportedBlockSink};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
@@ -43,27 +43,23 @@ pub(in crate::task_queue) async fn build_and_seal(
     block_sink: Arc<dyn ImportedBlockSink>,
 ) -> Result<(), BuildAndSealError> {
     // Execute the build task
-    let payload_id = BuildTask::new(
-        engine.clone(),
-        cfg.clone(),
-        attributes.clone(),
-        None, // Build task doesn't send the payload yet
-    )
-    .execute(state)
-    .await?;
+    let payload_id =
+        BuildTask::new(engine.clone(), cfg.clone(), attributes.clone()).execute(state).await?;
 
-    // Execute the seal task with the payload ID from the build.
-    SealTask::new(
-        engine,
-        cfg,
-        payload_id,
-        attributes,
-        is_attributes_derived,
-        BuildSealCoupling::Atomic,
-        None,
-        block_sink,
+    // Execute the seal task with the payload ID from the build. Sealing can fall back to building
+    // and sealing a deposits-only block, so box the recursive call.
+    Box::pin(
+        SealTask::new(
+            engine,
+            cfg,
+            payload_id,
+            attributes,
+            is_attributes_derived,
+            BuildSealCoupling::Atomic,
+            block_sink,
+        )
+        .seal(state),
     )
-    .execute(state)
     .await?;
 
     Ok(())

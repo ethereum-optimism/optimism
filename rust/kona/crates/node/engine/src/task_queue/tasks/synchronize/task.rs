@@ -1,12 +1,8 @@
 //! A task for the `engine_forkchoiceUpdated` method, with no attributes.
 
-use crate::{
-    EngineClient, EngineState, EngineTaskExt, SynchronizeTaskError, state::EngineSyncStateUpdate,
-};
+use crate::{EngineClient, EngineState, SynchronizeTaskError, state::EngineSyncStateUpdate};
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
-use async_trait::async_trait;
 use derive_more::Constructor;
-use kona_genesis::RollupConfig;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
 
@@ -14,8 +10,8 @@ use std::sync::Arc;
 ///
 /// The [`SynchronizeTask`] performs `engine_forkchoiceUpdated` calls to synchronize
 /// the execution layer's forkchoice state with the rollup node's view. This task
-/// operates without payload attributes and is primarily used internally by other
-/// engine tasks rather than being directly enqueued by users.
+/// operates without payload attributes and is used internally by the other engine
+/// operations.
 ///
 /// ## Usage Patterns
 ///
@@ -35,13 +31,11 @@ use std::sync::Arc;
 /// [`FinalizeTask`]: crate::FinalizeTask
 /// [`BuildTask`]: crate::BuildTask
 #[derive(Debug, Clone, Constructor)]
-pub struct SynchronizeTask {
+pub(crate) struct SynchronizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The rollup config.
-    pub rollup: Arc<RollupConfig>,
+    pub(crate) client: Arc<EngineClient>,
     /// The sync state update to apply to the engine state.
-    pub state_update: EngineSyncStateUpdate,
+    pub(crate) state_update: EngineSyncStateUpdate,
 }
 
 impl SynchronizeTask {
@@ -75,14 +69,12 @@ impl SynchronizeTask {
             }
         }
     }
-}
 
-#[async_trait]
-impl EngineTaskExt for SynchronizeTask {
-    type Output = ();
-    type Error = SynchronizeTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
+    /// Executes the task against the engine state.
+    pub(crate) async fn execute(
+        &self,
+        state: &mut EngineState,
+    ) -> Result<(), SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
         let new_sync_state = state.sync_state.apply_update(self.state_update);
 

@@ -1,6 +1,6 @@
 use crate::{
     BuildSealCoupling::{self, Atomic, Detached},
-    EngineTaskExt, SealTask, SealTaskError,
+    SealTask, SealTaskError,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
@@ -9,9 +9,8 @@ use alloy_rpc_types_engine::PayloadId;
 use kona_genesis::RollupConfig;
 use rstest::rstest;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
-/// The two paths the unsafe-head check can steer `execute` into: aborting the seal as stale, or
+/// The two paths the unsafe-head check can steer `seal` into: aborting the seal as stale, or
 /// proceeding to the payload fetch — whose injected RPC failure surfaces as
 /// [`SealTaskError::GetPayloadFailed`].
 #[derive(Debug, PartialEq, Eq)]
@@ -38,7 +37,6 @@ async fn unsafe_head_check_variants(
     #[case] coupling: BuildSealCoupling,
     #[case] unsafe_head_at_parent: bool,
     #[case] expected: SealOutcome,
-    #[values(true, false)] with_channel: bool,
 ) {
     let parent_block = test_block_info(10);
     let unsafe_head = if unsafe_head_at_parent { parent_block } else { test_block_info(15) };
@@ -46,7 +44,6 @@ async fn unsafe_head_check_variants(
     let attributes = TestAttributesBuilder::new().with_parent(parent_block).build();
     let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
 
-    let (tx, mut rx) = mpsc::channel(1);
     let cfg = Arc::new(RollupConfig::default());
     let (client, l1, l2) = test_engine_client(cfg.clone());
     if unsafe_head_at_parent || coupling == Atomic {
@@ -59,20 +56,11 @@ async fn unsafe_head_check_variants(
         attributes,
         false,
         coupling,
-        with_channel.then_some(tx),
         Arc::new(crate::NoopBlockSink),
     );
 
-    let result = task.execute(&mut state).await;
-
-    if with_channel {
-        // With a result channel, the task itself succeeds and the error is relayed to the caller.
-        result.expect("task with a result channel should succeed");
-        let relayed = rx.recv().await.expect("channel should receive the seal result");
-        assert_eq!(classify(&relayed.expect_err("seal should fail against the mock")), expected);
-    } else {
-        assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
-    }
+    let result = task.seal(&mut state).await;
+    assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
     l1.assert_finished();
     l2.assert_finished();
 }
@@ -160,7 +148,6 @@ async fn payload_fetch_selects_version_and_decodes_reply(
         attributes.clone(),
         false,
         Detached,
-        None,
         Arc::new(crate::NoopBlockSink),
     );
     let actual = task.seal_payload(&cfg, &client, id, attributes).await.unwrap();
