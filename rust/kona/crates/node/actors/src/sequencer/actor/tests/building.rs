@@ -1,9 +1,10 @@
 use super::{super::UnsealedPayloadHandle, test_actor, test_actor_with_config};
 use crate::{
-    MockOriginSelector, MockSequencerEngineClient,
+    EngineClientError, MockOriginSelector, MockSequencerEngineClient,
     sequencer::{ActorError, MockSigner, handle::Message},
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
+use kona_engine::{BuildTaskError, EngineBuildError};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rstest::rstest;
@@ -56,6 +57,48 @@ async fn build_handles_payload_attributes_errors(
     } else {
         assert!(result.is_ok());
     }
+}
+
+/// The engine reports build failures instead of retrying them. Rejected builds are retried after a
+/// block time rather than immediately, and only critical failures stop the sequencer.
+#[rstest]
+#[case::invalid(EngineBuildError::InvalidPayload(String::new()), false)]
+#[case::syncing(EngineBuildError::EngineSyncing, false)]
+#[case::critical(EngineBuildError::FinalizedAheadOfUnsafe(1, 2), true)]
+#[tokio::test(start_paused = true)]
+async fn build_handles_start_build_errors(#[case] error: EngineBuildError, #[case] fatal: bool) {
+    let mut client = MockSequencerEngineClient::new();
+    client.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
+    client.expect_start_build_block().times(1).return_once(move |_| {
+        Err(EngineClientError::StartBuildError(BuildTaskError::EngineBuildError(error)))
+    });
+    let mut origin_selector = MockOriginSelector::new();
+    origin_selector.expect_next_l1_origin().times(1).return_once(|_| Ok(BlockInfo::default()));
+
+    let mut actor = test_actor();
+    actor.engine_client = client;
+    actor.origin_selector = origin_selector;
+    actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
+    actor.signer.expect_has_capacity().return_const(true);
+    // Consume the interval's immediate first tick, then build partway through the period so the
+    // ticker's own next tick and a reset one fall at different times.
+    actor.build_ticker.tick().await;
+    let block_time = Duration::from_secs(actor.rollup_config.block_time);
+    time::advance(block_time / 2).await;
+
+    let result = actor.build().await;
+    if fatal {
+        assert!(matches!(
+            result,
+            Err(ActorError::EngineError(EngineClientError::StartBuildError(_)))
+        ));
+        return;
+    }
+    result.unwrap();
+    assert!(actor.next_payload_to_seal.is_none());
+    // The retry waits a full block time from the failure, not the remainder of the period.
+    assert!(time::timeout(block_time * 3 / 4, actor.build_ticker.tick()).await.is_err());
+    time::timeout(block_time / 2, actor.build_ticker.tick()).await.unwrap();
 }
 
 #[tokio::test]

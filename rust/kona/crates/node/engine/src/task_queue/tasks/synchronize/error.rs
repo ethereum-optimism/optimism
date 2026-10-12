@@ -26,10 +26,27 @@ impl EngineTaskError for SynchronizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::FinalizedAheadOfUnsafe(_, _) => EngineTaskErrorSeverity::Critical,
-            Self::ForkchoiceUpdateFailed(_) | Self::UnexpectedPayloadStatus(_) => {
-                EngineTaskErrorSeverity::Temporary
+            Self::ForkchoiceUpdateFailed(_) => EngineTaskErrorSeverity::Temporary,
+            // The execution layer rejected the forkchoice (INVALID or ACCEPTED). Retrying returns
+            // the same verdict, so rediscover the forkchoice from the execution layer instead.
+            Self::InvalidForkchoiceState | Self::UnexpectedPayloadStatus(_) => {
+                EngineTaskErrorSeverity::Reset
             }
-            Self::InvalidForkchoiceState => EngineTaskErrorSeverity::Reset,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[rstest::rstest]
+    #[case::invalid(PayloadStatusEnum::Invalid { validation_error: String::new() })]
+    #[case::accepted(PayloadStatusEnum::Accepted)]
+    fn rejected_forkchoice_requires_a_reset(#[case] status: PayloadStatusEnum) {
+        assert_eq!(
+            SynchronizeTaskError::UnexpectedPayloadStatus(status).severity(),
+            EngineTaskErrorSeverity::Reset
+        );
     }
 }

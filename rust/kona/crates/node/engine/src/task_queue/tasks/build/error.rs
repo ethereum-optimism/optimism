@@ -48,9 +48,9 @@ pub enum BuildTaskError {
     /// An error occurred when building the payload attributes in the engine.
     #[error("An error occurred when building the payload attributes to the engine.")]
     EngineBuildError(EngineBuildError),
-    /// Error sending the built payload envelope.
+    /// Error sending the build result to the caller.
     #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<PayloadId>>),
+    MpscSend(#[from] Box<mpsc::error::SendError<Result<PayloadId, Self>>>),
 }
 
 impl EngineTaskError for BuildTaskError {

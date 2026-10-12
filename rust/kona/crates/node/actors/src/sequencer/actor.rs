@@ -19,7 +19,9 @@ use crate::{
 };
 use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
+use kona_engine::{
+    BuildTaskError, EngineBuildError, InsertTaskError, SealTaskError, SynchronizeTaskError,
+};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -540,6 +542,18 @@ where
                 }
                 self.next_payload_to_seal = None;
             }
+            Err(ActorError::EngineError(EngineClientError::StartBuildError(err))) => {
+                if is_build_task_err_fatal(&err) {
+                    error!(target: "sequencer", err=?err, "Critical build task error occurred");
+                    return Err(ActorError::EngineError(EngineClientError::StartBuildError(err)));
+                }
+                warn!(target: "sequencer", err=?err, "Failed to start building a block");
+                self.next_payload_to_seal = None;
+                // Wait a block time instead of retrying immediately: the engine may keep rejecting
+                // the build until its state changes.
+                self.build_ticker.reset();
+                return Ok(());
+            }
             Err(other_err) => {
                 error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
                 return Err(other_err);
@@ -564,6 +578,23 @@ where
             self.build_ticker.reset_immediately();
         }
         Ok(())
+    }
+}
+
+// Determines whether the provided [`BuildTaskError`] is fatal for the sequencer.
+//
+// Matches exhaustively for the same reason as `is_seal_task_err_fatal`.
+const fn is_build_task_err_fatal(err: &BuildTaskError) -> bool {
+    match err {
+        BuildTaskError::EngineBuildError(build_error) => match build_error {
+            EngineBuildError::FinalizedAheadOfUnsafe(_, _) => true,
+            EngineBuildError::AttributesInsertionFailed(_) |
+            EngineBuildError::InvalidPayload(_) |
+            EngineBuildError::UnexpectedPayloadStatus(_) |
+            EngineBuildError::MissingPayloadId |
+            EngineBuildError::EngineSyncing => false,
+        },
+        BuildTaskError::MpscSend(_) => true,
     }
 }
 

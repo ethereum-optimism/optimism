@@ -1,6 +1,6 @@
 use crate::{EngineClientError, EngineClientResult};
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{ConsolidateInput, EngineState, FinalizeBlockId, SealTaskError};
+use kona_engine::{BuildTaskError, ConsolidateInput, EngineState, FinalizeBlockId, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::{mpsc, watch};
@@ -27,8 +27,8 @@ pub(super) enum Message {
 pub(super) struct BuildRequest {
     /// The attributes to build the block from.
     pub(super) attributes: OpAttributesWithParent,
-    /// Receives the payload ID once the build starts.
-    pub(super) result_tx: mpsc::Sender<PayloadId>,
+    /// Receives the payload ID once the build starts, or the reason it could not start.
+    pub(super) result_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
 }
 
 /// A request to seal and canonicalize a block.
@@ -73,13 +73,15 @@ impl Handle {
     }
 
     /// Starts building a block and returns the payload ID to seal it with.
+    ///
+    /// The engine does not retry a build that fails to start; the error is returned instead.
     pub async fn start_build(
         &self,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
         self.send(Message::Build(Box::new(BuildRequest { attributes, result_tx }))).await?;
-        result_rx.recv().await.ok_or_else(response_closed)
+        Ok(result_rx.recv().await.ok_or_else(response_closed)??)
     }
 
     /// Seals and canonicalizes a block started with [`Self::start_build`].
@@ -133,6 +135,7 @@ fn response_closed() -> EngineClientError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kona_engine::EngineBuildError;
     use kona_protocol::L2BlockInfo;
     use std::future::ready;
 
@@ -172,9 +175,26 @@ mod tests {
             let Message::Build(request) = receiver.recv().await.unwrap() else {
                 panic!("expected build");
             };
-            request.result_tx.send(payload_id).await.unwrap();
+            request.result_tx.send(Ok(payload_id)).await.unwrap();
         });
         assert_eq!(result.unwrap(), payload_id);
+
+        let (result, ()) = tokio::join!(handle.start_build(attributes()), async {
+            let Message::Build(request) = receiver.recv().await.unwrap() else {
+                panic!("expected build");
+            };
+            request
+                .result_tx
+                .send(Err(BuildTaskError::EngineBuildError(EngineBuildError::EngineSyncing)))
+                .await
+                .unwrap();
+        });
+        assert!(matches!(
+            result,
+            Err(EngineClientError::StartBuildError(BuildTaskError::EngineBuildError(
+                EngineBuildError::EngineSyncing
+            )))
+        ));
 
         let (result, ()) = tokio::join!(handle.seal(payload_id, attributes()), async {
             let Message::Seal(request) = receiver.recv().await.unwrap() else {

@@ -17,7 +17,10 @@ use tokio::sync::mpsc;
 ///
 /// The [`BuildTask`] only performs the `engine_forkchoiceUpdated` call within the block building
 /// workflow. It makes this call with the provided attributes to initiate block building on the
-/// execution layer and, if successful, sends the new [`PayloadId`] via the configured sender.
+/// execution layer and returns the new [`PayloadId`]. When run as an [`EngineTask`], the result is
+/// sent through the configured sender instead.
+///
+/// [`EngineTask`]: crate::EngineTask
 ///
 /// ## Error Handling
 ///
@@ -33,9 +36,9 @@ pub struct BuildTask {
     pub cfg: Arc<RollupConfig>,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// The optional sender through which [`PayloadId`] will be sent after the
-    /// block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    /// The optional sender through which the caller receives the [`PayloadId`] or the reason the
+    /// build failed. A caller that receives failures decides whether to retry them.
+    pub result_tx: Option<mpsc::Sender<Result<PayloadId, BuildTaskError>>>,
 }
 
 impl BuildTask {
@@ -72,8 +75,7 @@ impl BuildTask {
     /// the payload attributes to build.
     ///
     /// ### Success (`VALID`)
-    /// If the build is successful, the [`PayloadId`] is returned for sealing and the successful
-    /// forkchoice update identifier is relayed via the stored `payload_id_tx` sender.
+    /// If the build is successful, the [`PayloadId`] is returned for sealing.
     ///
     /// ### Failure (`INVALID`)
     /// If the forkchoice update fails, the [`BuildTaskError`].
@@ -173,11 +175,6 @@ impl EngineTaskExt for BuildTask {
             target: "engine_builder",
             "block build started"
         );
-
-        // If a channel was provided, send the payload ID to it.
-        if let Some(tx) = &self.payload_id_tx {
-            tx.send(payload_id).await.map_err(Box::new)?;
-        }
 
         Ok(payload_id)
     }

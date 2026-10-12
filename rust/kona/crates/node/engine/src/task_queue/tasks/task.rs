@@ -110,12 +110,13 @@ impl EngineTask {
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
             Self::Insert(task) => match task.execute(state).await {
-                // INVALID is terminal for an externally sourced unsafe payload. Drop it so the
-                // queue can process competing or subsequent payloads instead of retrying forever.
+                // INVALID and ACCEPTED are terminal for an externally sourced unsafe payload:
+                // retrying returns the same verdict. Drop it so the engine can process competing
+                // or subsequent payloads instead of retrying forever.
                 Err(InsertTaskError::UnexpectedPayloadStatus(
-                    status @ PayloadStatusEnum::Invalid { .. },
+                    status @ (PayloadStatusEnum::Invalid { .. } | PayloadStatusEnum::Accepted),
                 )) => {
-                    warn!(target: "engine", %status, "Dropping invalid unsafe payload");
+                    warn!(target: "engine", %status, "Dropping rejected unsafe payload");
                 }
                 Err(err) => return Err(err.into()),
                 Ok(_) => {}
@@ -124,7 +125,16 @@ impl EngineTask {
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
             Self::Build(task) => {
-                task.execute(state).await?;
+                let result = task.execute(state).await;
+                // A caller that receives the result handles failures itself, so the task succeeds.
+                match &task.result_tx {
+                    Some(tx) => {
+                        tx.send(result).await.map_err(|e| BuildTaskError::MpscSend(Box::new(e)))?
+                    }
+                    None => {
+                        result?;
+                    }
+                }
             }
         };
 
@@ -295,16 +305,14 @@ mod tests {
         l2.assert_finished();
     }
 
+    #[rstest::rstest]
+    #[case::invalid(PayloadStatusEnum::Invalid { validation_error: "invalid transaction".into() })]
+    #[case::accepted(PayloadStatusEnum::Accepted)]
     #[tokio::test]
-    async fn invalid_unsafe_payload_completes_without_retry() {
+    async fn rejected_unsafe_payload_completes_without_retry(#[case] status: PayloadStatusEnum) {
         let config = Arc::new(RollupConfig::default());
         let (client, l1, l2) = test_engine_client(config.clone());
-        l2.expect(
-            "engine_newPayloadV1",
-            PayloadStatus::from_status(PayloadStatusEnum::Invalid {
-                validation_error: "invalid transaction".into(),
-            }),
-        );
+        l2.expect("engine_newPayloadV1", PayloadStatus::from_status(status));
         let client = Arc::new(client);
         let mut payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
         payload.transactions = vec![Bytes::from_static(&[0xff])];
@@ -318,7 +326,7 @@ mod tests {
 
         tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))
             .await
-            .expect("invalid unsafe payload task should not retry")
+            .expect("rejected unsafe payload task should not retry")
             .unwrap();
         l1.assert_finished();
         l2.assert_finished();

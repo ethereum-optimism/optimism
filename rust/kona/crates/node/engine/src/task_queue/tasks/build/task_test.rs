@@ -1,5 +1,5 @@
 use crate::{
-    BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion, EngineState,
+    BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion, EngineTask,
     EngineTaskExt,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
@@ -39,8 +39,8 @@ enum TestErr {
 }
 
 // Wraps real errors, ignoring details so we can easily match on results.
-async fn wrapped_execute(task: &BuildTask, state: &mut EngineState) -> Result<PayloadId, TestErr> {
-    match task.execute(state).await {
+fn simplify(result: Result<PayloadId, BuildTaskError>) -> Result<PayloadId, TestErr> {
+    match result {
         Ok(payload_id) => Ok(payload_id),
         Err(BuildTaskError::EngineBuildError(e)) => match e {
             EngineBuildError::AttributesInsertionFailed(_) => {
@@ -121,8 +121,14 @@ async fn test_execute_variants(
         .with_finalized_head(parent_block)
         .build();
 
-    // Execute: Call execute
-    let result = wrapped_execute(&task, &mut state).await;
+    // Execute: a task with a channel reports its result there and succeeds; otherwise the result
+    // is returned.
+    let result = if with_channel {
+        EngineTask::Build(Box::new(task)).execute(&mut state).await.unwrap();
+        simplify(rx.recv().await.expect("the build result is sent to the caller"))
+    } else {
+        simplify(task.execute(&mut state).await)
+    };
 
     if expected_err.is_some() {
         assert_eq!(expected_err, result.err());
@@ -130,17 +136,6 @@ async fn test_execute_variants(
         assert!(result.is_ok());
         assert!(payload_id.is_some(), "Payload id none when it should be some.");
         assert_eq!(result.unwrap(), payload_id.unwrap(), "Should return the correct payload ID");
-
-        // test channel payload send
-        if task.payload_id_tx.is_some() {
-            let res = rx.recv().await;
-            assert!(res.is_some(), "channel result is None");
-            assert_eq!(
-                res.unwrap(),
-                payload_id.unwrap(),
-                "channel should have received correct payload id"
-            );
-        }
     }
     l1.assert_finished();
     l2.assert_finished();
