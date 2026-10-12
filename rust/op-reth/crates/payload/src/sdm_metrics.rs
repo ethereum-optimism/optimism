@@ -58,3 +58,27 @@ pub(crate) fn record_operator_opt_in(enabled: bool) {
 const fn gauge_value(flag: bool) -> f64 {
     if flag { 1.0 } else { 0.0 }
 }
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
+    use metrics_util::layers::{Layer, Prefix, PrefixLayer};
+
+    pub(crate) const FAILURES: &str = "reth_op_sdm_post_exec_validation_failure_total";
+    pub(crate) const RESULTS: &str = "reth_op_sdm_post_exec_validation_total";
+
+    /// A recorder private to one test, prefixed like the node's recorder stack so the rendered
+    /// series names are the ones operators query.
+    pub(crate) fn recorder() -> (Prefix<PrometheusRecorder>, PrometheusHandle) {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+        (PrefixLayer::new("reth").layer(recorder), handle)
+    }
+
+    /// Reads one exactly-labeled series out of the exposition. `None` distinguishes a series
+    /// that was never registered from one reporting 0.
+    pub(crate) fn series(exposition: &str, metric: &str, label: &str, value: &str) -> Option<f64> {
+        let series = format!("{metric}{{{label}=\"{value}\"}} ");
+        exposition.lines().find_map(|line| line.strip_prefix(series.as_str())?.trim().parse().ok())
+    }
+}

@@ -17,7 +17,6 @@ use alloy_rpc_types_engine::{
 };
 use op_alloy_consensus::{
     EIP1559ParamError, decode_2718_canonical, encode_holocene_extra_data, encode_jovian_extra_data,
-    validate_post_exec_entry_count,
 };
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
@@ -316,14 +315,15 @@ impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'static>
     /// Creates a new payload builder from RPC attributes with a pre-computed payload ID.
     ///
     /// This is used when the payload ID has already been computed (e.g., by the payload service)
-    /// and we just need to decode the transaction bytes.
+    /// and we just need to decode the transaction bytes. A post-exec transaction that fails
+    /// structural validation is logged and counted before the decode.
     pub fn from_rpc_attrs(
         parent: B256,
         id: PayloadId,
         attributes: OpPayloadAttributes,
     ) -> Result<Self, alloy_rlp::Error> {
         let encoded_transactions = attributes.transactions.unwrap_or_default();
-        validate_post_exec_entry_count(&encoded_transactions)
+        reth_optimism_evm::validate_post_exec_attributes(&encoded_transactions, parent)
             .map_err(|error| alloy_rlp::Error::Custom(error.as_reason()))?;
         let transactions = encoded_transactions
             .into_iter()
@@ -682,9 +682,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::OpPayloadAttributes;
+    use crate::{
+        OpPayloadAttributes,
+        sdm_metrics::test_support::{FAILURES, RESULTS, recorder, series},
+    };
     use alloy_primitives::{FixedBytes, address, b256, bytes};
     use alloy_rpc_types_engine::PayloadAttributes;
+    use op_alloy_consensus::PostExecPayloadValidationError;
     use reth_optimism_primitives::OpTransactionSigned;
     use reth_payload_primitives::EngineApiMessageVersion;
     use std::str::FromStr;
@@ -841,22 +845,7 @@ mod tests {
         let mut tagged = vec![0x00];
         tagged.extend_from_slice(&legacy);
 
-        let attrs = OpPayloadAttributes {
-            payload_attributes: PayloadAttributes {
-                timestamp: 1,
-                prev_randao: B256::ZERO,
-                suggested_fee_recipient: Address::ZERO,
-                withdrawals: Some(vec![]),
-                parent_beacon_block_root: Some(B256::ZERO),
-                slot_number: None,
-                target_gas_limit: None,
-            },
-            transactions: Some(vec![tagged.into()]),
-            no_tx_pool: Some(true),
-            gas_limit: Some(30_000_000),
-            eip_1559_params: None,
-            min_base_fee: None,
-        };
+        let attrs = attrs_with_transactions(vec![tagged.into()]);
         OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(B256::ZERO, attrs.clone(), 3)
             .unwrap_err();
         OpPayloadBuilderAttributes::<OpTransactionSigned>::from_rpc_attrs(
@@ -865,5 +854,80 @@ mod tests {
             attrs,
         )
         .unwrap_err();
+    }
+
+    /// Derived-block attributes (`no_tx_pool`) carrying exactly `transactions`.
+    fn attrs_with_transactions(transactions: Vec<Bytes>) -> OpPayloadAttributes {
+        OpPayloadAttributes {
+            payload_attributes: PayloadAttributes {
+                parent_beacon_block_root: Some(B256::ZERO),
+                prev_randao: B256::ZERO,
+                slot_number: None,
+                suggested_fee_recipient: Address::ZERO,
+                target_gas_limit: None,
+                timestamp: 1,
+                withdrawals: Some(vec![]),
+            },
+            eip_1559_params: None,
+            gas_limit: Some(30_000_000),
+            min_base_fee: None,
+            no_tx_pool: Some(true),
+            transactions: Some(transactions),
+        }
+    }
+
+    /// Attributes whose only transaction is a post-exec tx carrying `entries` refund entries.
+    fn attrs_with_post_exec(entries: usize) -> OpPayloadAttributes {
+        use alloy_eips::eip2718::Encodable2718;
+        use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+        let tx = build_post_exec_tx(
+            1,
+            (0..entries).map(|index| SDMGasEntry { index: index as u64, gas_refund: 1 }).collect(),
+        )
+        .encoded_2718();
+        attrs_with_transactions(vec![tx.into()])
+    }
+
+    /// Converts `attrs` against a recorder private to the test, returning the result alongside
+    /// the rendered exposition.
+    fn convert(
+        attrs: OpPayloadAttributes,
+    ) -> (Result<OpPayloadBuilderAttributes<OpTransactionSigned>, alloy_rlp::Error>, String) {
+        use reth_metrics::metrics::with_local_recorder;
+        let (recorder, handle) = recorder();
+        let result = with_local_recorder(&recorder, || {
+            OpPayloadBuilderAttributes::from_rpc_attrs(B256::ZERO, PayloadId::new([0; 8]), attrs)
+        });
+        (result, handle.render())
+    }
+
+    /// A post-exec rejection on the attributes path must reach the same counters as the Engine
+    /// API preflight: the failed rule and a failed validation.
+    #[test]
+    fn rejected_attributes_count_the_failure() {
+        let (result, exposition) = convert(attrs_with_post_exec(2));
+
+        assert!(result.is_err(), "two refund entries with no preceding transactions must reject");
+        assert_eq!(
+            series(&exposition, FAILURES, "reason", "too_many_gas_refund_entries"),
+            Some(1.0),
+            "{exposition}"
+        );
+        assert_eq!(series(&exposition, RESULTS, "result", "fail"), Some(1.0), "{exposition}");
+    }
+
+    /// Accepted attributes count nothing at this stage: like the Engine API preflight, a pass is
+    /// not yet a validated post-exec transaction — the import path counts that.
+    #[test]
+    fn accepted_attributes_count_nothing() {
+        let (result, exposition) = convert(attrs_with_post_exec(0));
+
+        assert!(result.is_ok(), "a post-exec transaction with no entries is structurally valid");
+        for reason in PostExecPayloadValidationError::ALL_REASONS {
+            let failures = series(&exposition, FAILURES, "reason", reason).unwrap_or(0.0);
+            assert_eq!(failures, 0.0, "{reason}: {exposition}");
+        }
+        let fail = series(&exposition, RESULTS, "result", "fail").unwrap_or(0.0);
+        assert_eq!(fail, 0.0, "the attributes path must not count a pass: {exposition}");
     }
 }

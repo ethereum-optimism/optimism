@@ -4,7 +4,11 @@
 //! dashboard can show SDM validation activity rather than inferring it from generic block
 //! validation.
 //!
-//! Recorded from the execution-context builders and the Engine API payload preflight. Beyond
+//! Recorded from the execution-context builders, the Engine API payload preflight, and the
+//! payload-builder attributes preflight. Attributes count once per conversion into builder
+//! attributes: a builder that re-converts on every build attempt counts attempts, so a
+//! persistent rejection keeps the series moving for as long as the attempts continue, and a
+//! replay of attributes through the debug RPC namespace counts like an engine delivery. Beyond
 //! live import, several paths re-execute stored canonical blocks that already passed this check:
 //! RPC replays, the proofs ExEx's periodic re-execution, and pipeline or backfill sync.
 //! Re-execution cannot inflate the failure counters, but every pass recounts `ok` — on a
@@ -88,9 +92,9 @@ pub(crate) fn report_post_exec_validation_ok() {
     result_counter(RESULT_OK).increment(1);
 }
 
-/// Logs a block rejected for its post-exec transaction and, with `std`, counts it under the
-/// failed rule and as a failed validation.
-pub(crate) fn report_post_exec_validation_failure(
+/// Logs a block rejected for its post-exec transaction, whether imported or being built, and
+/// with `std` counts it under the failed rule and as a failed validation.
+pub fn report_post_exec_validation_failure(
     block_number: u64,
     error: PostExecPayloadValidationError,
 ) {
@@ -101,11 +105,34 @@ pub(crate) fn report_post_exec_validation_failure(
         %error,
         "block rejected: post-exec transaction failed structural validation"
     );
+    count_post_exec_failure(reason);
+}
+
+/// Counts one failed validation under its rule; a no-op without `std`.
+fn count_post_exec_failure(reason: &'static str) {
     #[cfg(feature = "std")]
     {
         failure_counter(reason).increment(1);
         result_counter(RESULT_FAIL).increment(1);
     }
+    #[cfg(not(feature = "std"))]
+    let _ = reason;
+}
+
+/// Logs payload-builder attributes rejected for their post-exec transaction and counts the
+/// rejection like [`report_post_exec_validation_failure`], attributed to the parent block hash.
+pub(crate) fn report_post_exec_attributes_rejection(
+    parent_hash: alloy_primitives::B256,
+    error: PostExecPayloadValidationError,
+) {
+    let reason = error.as_reason();
+    tracing::warn!(
+        %parent_hash,
+        reason,
+        %error,
+        "payload attributes rejected: post-exec transaction failed structural validation"
+    );
+    count_post_exec_failure(reason);
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -244,13 +271,29 @@ mod tests {
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
     }
 
-    /// Drives the Engine API preflight helper with raw encoded transactions against a recorder
-    /// private to the test, returning the result alongside the rendered exposition.
-    fn preflight(transactions: Vec<alloy_primitives::Bytes>) -> (Result<(), ()>, String) {
+    /// The two encoded-transaction preflights, which share one set of counters.
+    #[derive(Clone, Copy, Debug)]
+    enum Preflight {
+        EngineApi,
+        Attributes,
+    }
+
+    /// Drives one preflight with raw encoded transactions against a recorder private to the
+    /// test, returning the result alongside the rendered exposition.
+    fn preflight(
+        entry: Preflight,
+        transactions: Vec<alloy_primitives::Bytes>,
+    ) -> (Result<(), ()>, String) {
         let (recorder, handle) = recorder();
         let result = with_local_recorder(&recorder, || {
             super::register_sdm_metrics_at_zero();
-            crate::preflight_post_exec_payload(&transactions, BLOCK)
+            match entry {
+                Preflight::EngineApi => crate::preflight_post_exec_payload(&transactions, BLOCK),
+                Preflight::Attributes => crate::validate_post_exec_attributes(
+                    &transactions,
+                    alloy_primitives::B256::ZERO,
+                ),
+            }
         });
         (result.map_err(drop), handle.render())
     }
@@ -287,13 +330,14 @@ mod tests {
     #[case::too_many_entries(vec![filler(), encoded_post_exec(2)], "too_many_gas_refund_entries")]
     #[case::malformed(vec![bare_post_exec()], "malformed_post_exec_payload")]
     #[case::unsupported_version(vec![filler(), versioned_post_exec(2)], "unsupported_post_exec_payload_version")]
-    fn rejected_payload_counts_on_the_engine_api_path(
+    fn rejected_transactions_count_at_every_preflight(
+        #[values(Preflight::EngineApi, Preflight::Attributes)] entry: Preflight,
         #[case] transactions: Vec<alloy_primitives::Bytes>,
         #[case] reason: &str,
     ) {
-        let (result, exposition) = preflight(transactions);
+        let (result, exposition) = preflight(entry, transactions);
 
-        assert!(result.is_err(), "preflight rejects");
+        assert!(result.is_err(), "{entry:?} preflight rejects");
         assert_failures(&exposition, Some(reason));
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
     }
@@ -323,17 +367,18 @@ mod tests {
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
     }
 
-    /// The preflight does not count `ok`: a pass is not yet a validated post-exec transaction —
+    /// A preflight does not count `ok`: a pass is not yet a validated post-exec transaction —
     /// the parse on the decoded transactions counts that.
     #[rstest]
     #[case::with_post_exec(vec![filler(), encoded_post_exec(1)])]
     #[case::without_post_exec(vec![filler()])]
-    fn accepted_payload_counts_nothing_at_preflight(
+    fn accepted_transactions_count_nothing_at_any_preflight(
+        #[values(Preflight::EngineApi, Preflight::Attributes)] entry: Preflight,
         #[case] transactions: Vec<alloy_primitives::Bytes>,
     ) {
-        let (result, exposition) = preflight(transactions);
+        let (result, exposition) = preflight(entry, transactions);
 
-        assert!(result.is_ok(), "preflight passes");
+        assert!(result.is_ok(), "{entry:?} preflight passes");
         assert_failures(&exposition, None);
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 0.0);
     }

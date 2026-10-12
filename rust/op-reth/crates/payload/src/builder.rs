@@ -380,6 +380,9 @@ where
 
 /// Converts `BuildArguments` from [`OpPayloadAttrs`](crate::payload::OpPayloadAttrs) to
 /// [`OpPayloadBuilderAttributes`], decoding the RPC transaction bytes into typed transactions.
+///
+/// Runs once per build attempt, so a post-exec transaction the conversion rejects is logged and
+/// counted per attempt rather than once per attributes set.
 fn convert_build_args<N: OpPayloadPrimitives>(
     args: BuildArguments<crate::payload::OpPayloadAttrs, OpBuiltPayload<N>>,
 ) -> Result<
@@ -884,7 +887,7 @@ where
     ///
     /// Returns `Ok(None)` when no such tx is present; errors if the embedded payload is
     /// structurally invalid (present before SDM activation, duplicated, not last, or anchored
-    /// to the wrong block number).
+    /// to the wrong block number), logging and counting the rejection under its failed rule.
     fn parse_embedded_post_exec(
         &self,
     ) -> Result<Option<ParsedPostExecPayload>, PayloadBuilderError> {
@@ -898,6 +901,9 @@ where
             next_block_number,
             sdm_active,
         )
+        .inspect_err(|error| {
+            reth_optimism_evm::report_post_exec_validation_failure(next_block_number, *error);
+        })
         .map_err(PayloadBuilderError::other)
     }
 
