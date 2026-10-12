@@ -1,6 +1,9 @@
 //! Historical proofs RPC server implementation.
 
-use crate::{metrics::EthApiExtMetrics, state::OpStateProviderFactory};
+use crate::{
+    metrics::EthApiExtMetrics,
+    state::{OpStateProviderFactory, ensure_within_proofs_window},
+};
 use alloy_eips::BlockId;
 use alloy_primitives::Address;
 use alloy_rpc_types_eth::EIP1186AccountProofResponse;
@@ -61,13 +64,18 @@ where
     /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
     ///
     /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
-    /// behavior.
+    /// behavior. Upstream's `ensure_within_proof_window` bounds the distance from the tip by
+    /// `max_proof_window`; a proofs-history node instead serves its proofs storage window, so it
+    /// checks that window up front, before taking the permit, as upstream does with its own.
     async fn get_proof_inner(
         &self,
         address: Address,
         keys: Vec<JsonStorageKey>,
         block_id: BlockId,
     ) -> Result<EIP1186AccountProofResponse, Eth::Error> {
+        ensure_within_proofs_window(&self.eth_api, &self.preimage_store, block_id)
+            .map_err(Eth::Error::from_eth_err)?;
+
         let permit = self
             .eth_api
             .acquire_owned_tracing()
