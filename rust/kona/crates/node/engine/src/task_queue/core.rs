@@ -124,7 +124,9 @@ impl Engine {
                 finalized_head: Some(start.finalized),
             },
         );
-        synchronize.execute(&mut self.state).await?;
+        let result = synchronize.execute(&mut self.state).await;
+        self.state_sender.send_replace(self.state);
+        result?;
 
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
@@ -147,8 +149,10 @@ impl Engine {
                 self.active = self.tasks.pop().map(|queued| queued.task);
             }
             let Some(task) = &self.active else { break };
-            task.execute(&mut self.state).await?;
+            let result = task.execute(&mut self.state).await;
+            // Publish even on failure: a task can update the state before a later step fails.
             self.state_sender.send_replace(self.state);
+            result?;
             self.active = None;
         }
 
@@ -186,6 +190,37 @@ mod recovery_tests {
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
     };
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+
+    #[tokio::test]
+    async fn reset_publishes_the_new_state() {
+        let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        let mut config = RollupConfig::default();
+        config.genesis.l2.hash = block.header.inner.hash_slow();
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+        for _ in 0..3 {
+            l2.expect("eth_getBlockByNumber", &block);
+        }
+        l1.expect(
+            "eth_getBlockByHash",
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        let (state_tx, mut state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let mut engine = Engine::new(EngineState::default(), state_tx);
+        engine.reset(Arc::new(client), config.clone()).await.unwrap();
+        // Readers observe the reset without waiting for a task to drain.
+        assert!(state_rx.has_changed().unwrap());
+        let state = *state_rx.borrow_and_update();
+        assert_eq!(state, *engine.state());
+        assert_eq!(state.sync_state.unsafe_head().block_info.hash, config.genesis.l2.hash);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
 
     #[tokio::test]
     async fn temporary_failure_returns_with_task_retained_for_recovery() {
