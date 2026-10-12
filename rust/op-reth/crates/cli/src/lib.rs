@@ -80,7 +80,8 @@ pub struct Cli<
 }
 
 /// Upstream reth CLI arguments that op-reth does not support, as
-/// `(subcommand, argument id, error shown when used)` entries.
+/// `(subcommand, argument id, error shown when used)` entries. The subcommand is matched by name
+/// at any nesting level; [`ANY_SUBCOMMAND`] matches every subcommand.
 ///
 /// These arguments live in upstream arg structs that op-reth reuses, so they cannot be removed at
 /// the type level. They are hidden from all help output and rejected with a hard error after
@@ -91,11 +92,54 @@ const DENIED_ARGS: &[(&str, &str, &str)] = &[
     ("node", "max_bals", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "cache_computed_bals", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "prewarm_bals", BAL_ARGS_UNSUPPORTED_HELP),
-    ("node", "balstore_cache_size", BAL_ARGS_UNSUPPORTED_HELP),
+    // Part of the database args, which most subcommands take.
+    (ANY_SUBCOMMAND, "balstore_cache_size", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "bal_parallel_execution_disabled", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "bal_parallel_state_root_disabled", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "disable_bal_batch_io", BAL_ARGS_UNSUPPORTED_HELP),
 ];
+
+/// `DENIED_ARGS` subcommand wildcard.
+const ANY_SUBCOMMAND: &str = "*";
+
+/// Returns the `DENIED_ARGS` entries that apply to the subcommand named `subcommand`.
+fn denied_args_for(
+    subcommand: &str,
+) -> impl Iterator<Item = &'static (&'static str, &'static str, &'static str)> {
+    DENIED_ARGS.iter().filter(move |(sub, _, _)| *sub == ANY_SUBCOMMAND || *sub == subcommand)
+}
+
+/// Hides `DENIED_ARGS` and the state masking flag on `cmd` and all of its nested subcommands.
+fn hide_denied_args(cmd: clap::Command) -> clap::Command {
+    let name = cmd.get_name().to_string();
+    // `mut_subcommand`/`mut_arg` move the modified entry to the end of help output, so use the
+    // order-preserving `mut_subcommands`/`mut_args` instead.
+    cmd.mut_args(|arg| {
+        let id = arg.get_id().as_str();
+        if (name == "node" && id == STATE_MASKING_ARG) ||
+            denied_args_for(&name).any(|(_, arg_id, _)| *arg_id == id)
+        {
+            arg.hide(true)
+        } else {
+            arg
+        }
+    })
+    .mut_subcommands(hide_denied_args)
+}
+
+/// Returns the error of the first `DENIED_ARGS` entry set on the command line anywhere in the
+/// selected subcommand chain.
+fn find_denied_arg(matches: &clap::ArgMatches) -> Option<&'static str> {
+    let (name, sub) = matches.subcommand()?;
+    denied_args_for(name)
+        .find(|(_, id, _)| {
+            // `value_source` panics on ids the subcommand doesn't define, so check that first.
+            sub.try_get_raw(id).is_ok() &&
+                sub.value_source(id) == Some(clap::parser::ValueSource::CommandLine)
+        })
+        .map(|(_, _, help)| *help)
+        .or_else(|| find_denied_arg(sub))
+}
 
 /// Startup error for `--minimal`, which configures pruning (including block-body pruning) that
 /// op-node derivation cannot tolerate.
@@ -143,21 +187,7 @@ where
         // caller initialized them first, the post-parse check still rejects a nonzero value.
         let _ = DefaultEngineValues::default().with_num_state_masking_blocks(0).try_init();
 
-        // `mut_subcommand`/`mut_arg` move the modified entry to the end of help output, so use
-        // the order-preserving `mut_subcommands`/`mut_args` instead.
-        <Self as clap::CommandFactory>::command().mut_subcommands(|sc| {
-            let name = sc.get_name().to_string();
-            sc.mut_args(|arg| {
-                let id = arg.get_id().as_str();
-                if (name == "node" && id == STATE_MASKING_ARG) ||
-                    DENIED_ARGS.iter().any(|(sub, arg_id, _)| *sub == name && *arg_id == id)
-                {
-                    arg.hide(true)
-                } else {
-                    arg
-                }
-            })
-        })
+        <Self as clap::CommandFactory>::command().mut_subcommands(hide_denied_args)
     }
 
     /// Parses the CLI from the process arguments, hiding `DENIED_ARGS` from help output and
@@ -181,12 +211,8 @@ where
         let mut cmd = Self::command_with_denied_args_hidden();
         let mut matches = cmd.try_get_matches_from_mut(itr)?;
         // Clap still accepts hidden arguments, so denied ones are rejected post-parse.
-        for (subcommand, arg_id, help) in DENIED_ARGS {
-            if let Some(sub) = matches.subcommand_matches(subcommand) &&
-                sub.value_source(arg_id) == Some(clap::parser::ValueSource::CommandLine)
-            {
-                return Err(cmd.error(clap::error::ErrorKind::ValueValidation, *help));
-            }
+        if let Some(help) = find_denied_arg(&matches) {
+            return Err(cmd.error(clap::error::ErrorKind::ValueValidation, help));
         }
         // Checks the effective value, so a nonzero value from the environment or from engine
         // defaults initialized elsewhere is rejected too.
@@ -274,6 +300,41 @@ mod test {
             .to_string();
         assert!(!help.contains("--minimal"), "--minimal must be hidden from node help:\n{help}");
         assert!(help.contains("--full"), "other pruning args must stay visible:\n{help}");
+    }
+
+    #[test]
+    fn deny_bal_args_on_every_subcommand() {
+        for args in [
+            &["op-reth", "node", "--engine.disable-bal-parallel-execution"][..],
+            &["op-reth", "node", "--rpc-cache.max-bals", "10"],
+            &["op-reth", "node", "--db.balstore-cache-size", "10"],
+            &["op-reth", "prune", "--db.balstore-cache-size", "10"],
+            &["op-reth", "db", "--db.balstore-cache-size", "10", "stats"],
+            &["op-reth", "stage", "drop", "--db.balstore-cache-size", "10", "headers"],
+        ] {
+            let err = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from(args)
+                .unwrap_err();
+            assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation, "{args:?}");
+            let msg = err.to_string();
+            assert!(msg.contains("Block access list options are not supported"), "{args:?}: {msg}");
+        }
+    }
+
+    #[test]
+    fn deny_bal_args_hidden_from_nested_help() {
+        let mut cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+        for path in [&["prune"][..], &["db"], &["stage", "drop"], &["proofs", "snapshot", "init"]] {
+            let mut sub = &mut cmd;
+            for name in path {
+                sub = sub.find_subcommand_mut(name).expect("subcommand");
+            }
+            let help = sub.render_long_help().to_string();
+            assert!(
+                !help.contains("--db.balstore-cache-size"),
+                "--db.balstore-cache-size must be hidden from {path:?} help:\n{help}"
+            );
+            assert!(help.contains("--datadir"), "other args must stay visible in {path:?} help");
+        }
     }
 
     #[test]
