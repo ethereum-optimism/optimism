@@ -97,6 +97,17 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   # Expect: no output (identical).
   ```
 
+* **Confirm the same finality delay and `DelayedWETH` delay across both chains.** `migrate` reverts with `OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch` or `OPContractsManagerMigrator_WithdrawalDelayMismatch` otherwise.
+
+  ```bash
+  cast call <oldASR_chainA> 'disputeGameFinalityDelaySeconds()(uint256)' --rpc-url $L1_RPC
+  cast call <oldASR_chainB> 'disputeGameFinalityDelaySeconds()(uint256)' --rpc-url $L1_RPC
+  for SC in <SystemConfig_chainA> <SystemConfig_chainB>; do
+      cast call "$(cast call $SC 'delayedWETH()(address)' --rpc-url $L1_RPC)" 'delay()(uint256)' --rpc-url $L1_RPC
+  done
+  # Expect: the two finality delays match, and the two DelayedWETH delays match.
+  ```
+
 * **Confirm `Features.INTEROP` is disabled and `Features.ETH_LOCKBOX` is enabled on both chains.** `migrate()` is the only thing that sets `INTEROP` on L1, so a chain that already has it on is already in an interop set; `_validateChainSystemConfigs` reverts with `OPContractsManagerMigrator_ChainAlreadyMigrated` when INTEROP is already on, so **do not** enable `INTEROP` yourself via `SystemConfig.setFeature`, doing so permanently blocks the migration. `ETH_LOCKBOX` flips on automatically during the prerequisite `OPCMv2.upgrade()`; if either `ETH_LOCKBOX` check below returns `false`, run that prerequisite upgrade first. `Features` constants are short-string `bytes32` values, so feed them through `cast format-bytes32-string`.
 
   ```bash
@@ -499,7 +510,7 @@ Run these checks once the new proposer is stable.
 * **Confirm the shared `op-challenger` is defending super-root games.** The challenger does not break metrics down by game type, so verify by way of the startup log (every configured trace type, including `super-cannon-kona` and `super-permissioned`, must be listed as registered) and by ongoing logs (no scheduler or game-poll errors as super games appear on the shared factory). The aggregate `op_challenger_tracked_games{status="in_progress"}` becomes non-zero as super games are created and remains non-zero while games are in progress.
 * **Confirm the shared `op-dispute-mon` reports super-root games.** On the shared instance, `op_dispute_mon_games{game_type="super-cannon-kona"}` and `op_dispute_mon_games{game_type="super-permissioned"}` are non-zero once games are created. `op_dispute_mon_failed_games` stays near zero; a non-zero value typically points at missing `--supernode-rpc` or supernode unavailability.
 * **Confirm new pre-migration games cannot be created.** Optionally call `DisputeGameFactory.create` with one of the cleared game types on either per-chain factory and confirm it reverts.
-* **Watch for the first super-game finalization.** The first anchor update typically lands roughly seven days after the first super-root game is created (game duration plus `DISPUTE_GAME_FINALITY_DELAY_SECONDS`). Do not block the rollout on this—schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting anchor.
+* **Watch for the first super-game finalization.** The first anchor update typically lands roughly seven days after the first super-root game is created (game duration plus `disputeGameFinalityDelaySeconds()`). Do not block the rollout on this—schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting anchor.
 
 ## Tear Down After the Drain
 

@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import DeployConfigSchema from '/snippets/generated/deploy-config-schema.mdx';
+import { Unreleased } from "/snippets/unreleased.mdx"
 
 This page is the reference for the values in the `DeployConfig` — the flat JSON
 configuration that sets the L1 contract parameters and the L2 genesis state when
@@ -218,9 +219,14 @@ system; new chains use [fault proofs](#fault-proofs) instead.
 You should understand the implications of running a fault-proof chain before
 setting `useFaultProofs`; see the
 [fault proofs explainer](/op-stack/fault-proofs/explainer).
-`proofMaturityDelaySeconds` and `disputeGameFinalityDelaySeconds` should not
-be 0. `faultGameMaxDepth` should be conservatively set so that there is always
-enough room for a full Cannon trace.
+`proofMaturityDelaySeconds`, `disputeGameFinalityDelaySeconds` and
+`faultGameWithdrawalDelay` should not be 0. `faultGameMaxDepth` should be
+conservatively set so that there is always enough room for a full Cannon trace.
+
+<Unreleased component="op-deployer" />
+
+With `op-deployer`, the three delays are set per chain and must fall within
+the implementations' bounds.
 
 ### Alt-DA guidance
 
