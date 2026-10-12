@@ -50,6 +50,19 @@
       ],
       "runner_profile": "large"
     },
+    "kona-zkvm-canary": {
+      "config": "melange/kona-zkvm-canary.yaml",
+      "source": {
+        "repository": "ethereum-optimism/optimism",
+        "path": "."
+      },
+      "source_submodules": "recursive",
+      "use_gha_cache": true,
+      "cache_key_files": [
+        "rust/Cargo.lock"
+      ],
+      "runner_profile": "large"
+    },
     "multicannon": {
       "config": "melange/multicannon.yaml"
     },
@@ -308,7 +321,7 @@
     "kona-zkvm-canary": {
       "type": "rust",
       "needs_melange": [
-        "op-stack-rust"
+        "kona-zkvm-canary"
       ],
       "paths": [
         "rust/**"
