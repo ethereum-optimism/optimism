@@ -413,14 +413,7 @@ impl P2PArgs {
 
         let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
 
-        let bootstore = if self.disable_bootstore {
-            None
-        } else {
-            Some(self.bootstore.map_or_else(
-                || BootStoreFile::Default { chain_id: args.l2_chain_id.into() },
-                BootStoreFile::Custom,
-            ))
-        };
+        let bootstore = self.bootstore_file(config);
 
         let bootnodes = self
             .bootnodes
@@ -449,8 +442,22 @@ impl P2PArgs {
             },
             bootnodes,
             rollup_config: config.clone(),
-            gossip_signer: self.signer.config(args)?,
+            gossip_signer: self.signer.config()?,
         })
+    }
+
+    /// Returns the bootstore file to use for the rollup's L2 chain, or `None` if the bootstore is
+    /// disabled.
+    fn bootstore_file(&self, config: &RollupConfig) -> Option<BootStoreFile> {
+        if self.disable_bootstore {
+            return None;
+        }
+        let chain_id = config.l2_chain_id.id();
+        Some(
+            self.bootstore
+                .clone()
+                .map_or(BootStoreFile::Default { chain_id }, BootStoreFile::Custom),
+        )
     }
 
     /// Returns the [`Keypair`] from the cli inputs.
@@ -536,6 +543,27 @@ mod tests {
     fn test_p2p_args() {
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p, P2PArgs::default());
+    }
+
+    #[test]
+    fn test_p2p_args_bootstore_file() {
+        let config =
+            RollupConfig { l2_chain_id: alloy_chains::Chain::from_id(8453), ..Default::default() };
+
+        let args = MockCommand::parse_from(["test"]);
+        assert_eq!(
+            args.p2p.bootstore_file(&config),
+            Some(BootStoreFile::Default { chain_id: 8453 })
+        );
+
+        let args = MockCommand::parse_from(["test", "--p2p.bootstore", "/tmp/bootstore.json"]);
+        assert_eq!(
+            args.p2p.bootstore_file(&config),
+            Some(BootStoreFile::Custom(PathBuf::from("/tmp/bootstore.json")))
+        );
+
+        let args = MockCommand::parse_from(["test", "--p2p.no-bootstore"]);
+        assert_eq!(args.p2p.bootstore_file(&config), None);
     }
 
     #[test]

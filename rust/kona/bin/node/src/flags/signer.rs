@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use alloy_primitives::{Address, B256};
-use alloy_signer::{Signer, k256::ecdsa};
+use alloy_signer::k256::ecdsa;
 use alloy_signer_local::PrivateKeySigner;
 use clap::Parser;
 use kona_cli::SecretKeyLoader;
@@ -9,8 +9,6 @@ use kona_sources::{BlockSigner, ClientCert, RemoteSigner};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::str::FromStr;
 use url::Url;
-
-use crate::flags::GlobalArgs;
 
 /// Signer CLI Flags
 #[derive(Debug, Clone, Parser, Default, PartialEq, Eq)]
@@ -110,7 +108,7 @@ pub enum SignerArgsParseError {
 
 impl SignerArgs {
     /// Creates a [`BlockSigner`] from the [`SignerArgs`].
-    pub fn config(self, args: &GlobalArgs) -> Result<Option<BlockSigner>, SignerArgsParseError> {
+    pub fn config(self) -> Result<Option<BlockSigner>, SignerArgsParseError> {
         // First, resolve the sequencer key from either raw input or file
         let sequencer_key = self.resolve_sequencer_key()?;
 
@@ -118,9 +116,7 @@ impl SignerArgs {
         let gossip_signer: Option<BlockSigner> = match (sequencer_key, self.config_remote()?) {
             (Some(_), Some(_)) => return Err(SignerArgsParseError::LocalAndRemoteSigner),
             (Some(key), None) => {
-                let signer: BlockSigner = PrivateKeySigner::from_bytes(&key)?
-                    .with_chain_id(Some(args.l2_chain_id.into()))
-                    .into();
+                let signer: BlockSigner = PrivateKeySigner::from_bytes(&key)?.into();
                 Some(signer)
             }
             (None, Some(signer)) => Some(signer.into()),
