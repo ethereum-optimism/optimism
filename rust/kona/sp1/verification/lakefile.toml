@@ -1,0 +1,13 @@
+name = "KonaSp1"
+defaultTargets = ["KonaSp1"]
+
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas"
+rev = "73b7cf9f7442c5aba550c224bd7fd212d39ba32f"
+subDir = "backends/lean"
+
+[[lean_lib]]
+name = "KonaSp1"
+# Aeneas names anonymous Rust items `__N`, which the Mathlib name linter rejects.
+leanOptions = { weak.linter.style.nameCheck = false }
