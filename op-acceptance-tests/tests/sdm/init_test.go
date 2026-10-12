@@ -37,11 +37,11 @@ func newExcessiveRefundSDMRethSystem(t devtest.T, target string) *sdmtest.RethSy
 // unsafe block. That is the only path on which the verifier's EL rebuilds a derived PostExec block
 // locally.
 func newSDMRethSystemWithIsolatedVerifier(t devtest.T) *sdmtest.RethSystem {
-	// kona-node gates derivation behind EL-sync completion, and a verifier only marks EL-sync
-	// complete after its first engine forkchoiceUpdated — which is bootstrapped by an unsafe
+	// kona-node gates derivation behind EL-sync completion, and a verifier can only check that
+	// the EL is synced after its first engine forkchoiceUpdated — which is bootstrapped by an unsafe
 	// payload received over L2 P2P. With P2P fully isolated, that bootstrap never happens: the
-	// derivation actor stays in AwaitingELSyncCompletion, the EL gets no engine calls, and the
-	// safe head never leaves genesis. kona-node has no L1-only bootstrap of the force-build path
+	// engine refuses derivation's starting reset while the EL may be syncing, the EL gets no
+	// engine calls, and the safe head never leaves genesis. kona-node has no L1-only bootstrap of the force-build path
 	// today, so this test cannot pass under kona-node and is op-node-only for now.
 	if sysgo.ResolveMixedL2CLKind() == sysgo.MixedL2CLKona {
 		t.Skip("isolated-verifier force-build path is not supported by kona-node (no L1-only EL-sync bootstrap); op-node only")

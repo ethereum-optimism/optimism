@@ -25,11 +25,6 @@ pub(crate) use finalizer::L2Finalizer;
 
 mod handle;
 
-mod state_machine;
-pub use state_machine::{
-    DerivationState, DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
-};
-
 mod status;
 pub use status::DerivationStatus;
 

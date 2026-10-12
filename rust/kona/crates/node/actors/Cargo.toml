@@ -48,7 +48,7 @@ tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 strum = { workspace = true, features = ["derive"] }
-derive_more = { workspace = true, features = ["debug", "display", "eq"] }
+derive_more = { workspace = true, features = ["display", "from_str"] }
 jsonrpsee = { workspace = true, features = ["server", "client-core"] }
 tokio = { workspace = true, features = ["macros"] }
 tokio-stream = { workspace = true, features = ["sync"] }

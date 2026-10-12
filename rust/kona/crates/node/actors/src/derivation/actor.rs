@@ -1,8 +1,7 @@
 //! The derivation actor, which derives payload attributes from L1.
 
 use super::{
-    ActorError, Builder, DerivationEngineClient, DerivationState, DerivationStateMachine,
-    DerivationStateUpdate, DerivationStatus, L2Finalizer, reset_engine,
+    ActorError, Builder, DerivationEngineClient, DerivationStatus, L2Finalizer, reset_engine,
 };
 use crate::{
     Metrics,
@@ -12,8 +11,8 @@ use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
     SignalReceiver, StepResult,
 };
-use kona_protocol::{BlockInfo, OpAttributesWithParent};
-use std::future::Future;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use std::future::{self, Future};
 use tokio::sync::watch;
 
 impl Builder {
@@ -43,7 +42,8 @@ impl Builder {
 /// engine's safe head with each before deriving more.
 ///
 /// It starts by resetting the engine once the execution layer is synced, and follows every later
-/// engine reset through the reset count in the engine's state.
+/// engine reset through the reset count in the engine's state. It derives one set of attributes at
+/// a time, so engine resets and L1 updates are handled between them.
 #[derive(Debug)]
 struct Actor<DerivationEngineClient_, PipelineSignalReceiver>
 where
@@ -54,6 +54,11 @@ where
     engine_state: watch::Receiver<EngineState>,
     /// The engine's reset count when derivation last reset onto the engine's safe head.
     engine_resets: u64,
+    /// The engine's safe head, which derivation derives the next attributes on.
+    safe_head: L2BlockInfo,
+    /// Whether the pipeline may have attributes to derive. New L1 data and resets set it, and it
+    /// is cleared when the pipeline runs out of data.
+    deriving: bool,
     /// The latest published L1 head.
     head: watch::Receiver<BlockInfo>,
     /// The latest published finalized L1 head.
@@ -66,8 +71,6 @@ where
 
     /// The derivation pipeline.
     pipeline: PipelineSignalReceiver,
-    /// The state machine controlling when derivation can occur.
-    derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     finalizer: L2Finalizer,
 }
@@ -95,47 +98,98 @@ where
             pipeline,
             engine_state,
             engine_resets: 0,
+            safe_head: L2BlockInfo::default(),
+            deriving: false,
             head,
             finalized,
             engine_client,
-            derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
         }
     }
 
-    fn publish_status(&self) {
-        let current_l1 = self.pipeline.origin();
-        self.status.send_if_modified(|state| {
-            std::mem::replace(&mut state.current_l1, current_l1) != current_l1
-        });
+    async fn run(mut self) -> Result<(), ActorError> {
+        self.start().await?;
+        loop {
+            self.step().await?;
+        }
     }
 
-    /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    async fn signal(&mut self, signal: Signal) {
-        if matches!(signal, Signal::Reset(_)) {
-            // Clear the finalization queue on reset.
-            self.finalizer.clear();
-        }
+    /// Resets the engine once the execution layer is synced, and the pipeline onto its safe head.
+    async fn start(&mut self) -> Result<(), ActorError> {
+        let state = reset_engine(&self.engine_client).await?;
+        info!(target: "derivation", safe_head = ?state.safe_head(), "Starting derivation from the engine's safe head");
+        self.reset_onto(state).await;
+        Ok(())
+    }
 
-        let result = self.pipeline.signal(signal).await;
-        self.publish_status();
-        match result {
-            Ok(_) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
-            Err(e) => {
-                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+    /// Handles an engine reset, the finalized L1 head, or the L1 head, in that order, or else
+    /// derives the next attributes if there may be any.
+    ///
+    /// An L1 head is only read while derivation is idle, so one that arrives while deriving
+    /// resumes derivation after the pipeline runs out of data.
+    async fn step(&mut self) -> Result<(), ActorError> {
+        tokio::select! {
+            biased;
+            result = self.engine_state.changed() => {
+                result.map_err(|_| ActorError::EngineStateClosed)?;
+                let state = *self.engine_state.borrow_and_update();
+                self.follow_reset(state).await;
+                Ok(())
             }
+            result = self.finalized.changed() => {
+                result.map_err(|_| ActorError::L1ReceiveFailed)?;
+                let finalized = *self.finalized.borrow_and_update();
+                self.finalize(finalized).await
+            }
+            result = self.head.changed(), if !self.deriving => {
+                result.map_err(|_| ActorError::L1ReceiveFailed)?;
+                let head = *self.head.borrow_and_update();
+                info!(target: "derivation", l1_head = ?head, "Processing l1 head update");
+                self.deriving = true;
+                Ok(())
+            }
+            () = future::ready(()), if self.deriving => self.derive_next().await,
         }
     }
 
-    /// Attempts to step the derivation pipeline forward as much as possible in order to produce the
-    /// next safe payload.
-    async fn produce_next_attributes(&mut self) -> Result<OpAttributesWithParent, ActorError> {
+    /// Derives the next attributes and consolidates the engine's safe head with them, or stops
+    /// deriving if the pipeline has run out of data.
+    async fn derive_next(&mut self) -> Result<(), ActorError> {
+        let Some(attributes) = self.produce_next_attributes().await? else {
+            info!(target: "derivation", "Yielding derivation until more data is available.");
+            self.deriving = false;
+            return Ok(());
+        };
+        trace!(target: "derivation", ?attributes, "Produced payload attributes.");
+        self.finalizer.enqueue_for_finalization(&attributes);
+
+        let Consolidation { state, flush } = self.engine_client.consolidate(attributes).await?;
+        // The engine may have reset before or while consolidating, so the attributes may be stale.
+        if self.follow_reset(state).await {
+            return Ok(());
+        }
+        if flush {
+            // A deposits-only block replaced the derived one.
+            warn!(target: "derivation", "Flushing the channel of a rejected block");
+            self.signal(Signal::FlushChannel).await;
+        }
+        self.safe_head = state.safe_head();
+        Ok(())
+    }
+
+    /// Steps the pipeline until it produces attributes, and returns them, or `None` once it runs
+    /// out of data.
+    ///
+    /// A pipeline that asks for a reset resets the engine, then the pipeline onto the engine's new
+    /// safe head, and keeps stepping.
+    async fn produce_next_attributes(
+        &mut self,
+    ) -> Result<Option<OpAttributesWithParent>, ActorError> {
         // As we start the safe head at the disputed block's parent, we step the pipeline until the
         // first attributes are produced. All batches at and before the safe head will be
         // dropped, so the first payload will always be the disputed one.
         loop {
-            let result =
-                self.pipeline.step(self.derivation_state_machine.last_confirmed_safe_head()).await;
+            let result = self.pipeline.step(self.safe_head).await;
             self.publish_status();
             match result {
                 StepResult::PreparedAttributes => { /* continue; attributes will be sent off. */ }
@@ -159,7 +213,7 @@ where
                                 target: "derivation",
                                 "Exhausted data source for now; Yielding until the chain has extended."
                             );
-                            return Err(ActorError::Yield);
+                            return Ok(None);
                         }
                         PipelineErrorKind::Reset(e) => {
                             warn!(target: "derivation", "Derivation pipeline is being reset: {e}");
@@ -167,9 +221,7 @@ where
                             if matches!(e, ResetError::HoloceneActivation) {
                                 self.pipeline
                                     .signal(Signal::Activation(ActivationSignal {
-                                        l2_safe_head: self
-                                            .derivation_state_machine
-                                            .last_confirmed_safe_head(),
+                                        l2_safe_head: self.safe_head,
                                     }))
                                     .await?;
                                 self.publish_status();
@@ -182,10 +234,8 @@ where
 
                                     metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
                                 }
-                                self.derivation_state_machine
-                                    .update(&DerivationStateUpdate::SignalNeeded)?;
                                 let state = reset_engine(&self.engine_client).await?;
-                                self.reset_onto(state).await?;
+                                self.reset_onto(state).await;
                                 continue;
                             }
                         }
@@ -200,148 +250,60 @@ where
 
             // If there are any new attributes, send them to the execution actor.
             if let Some(attrs) = self.pipeline.next() {
-                return Ok(attrs);
+                return Ok(Some(attrs));
             }
         }
     }
 
     /// Resets the pipeline onto the safe head of the engine after a reset, ready to derive from it.
-    async fn reset_onto(&mut self, state: EngineState) -> Result<(), ActorError> {
+    async fn reset_onto(&mut self, state: EngineState) {
         self.engine_resets = state.resets();
-        let safe_head = state.safe_head();
-        self.signal(Signal::Reset(ResetSignal { l2_safe_head: safe_head })).await;
-        self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
-        self.derivation_state_machine
-            .update(&DerivationStateUpdate::NewAttributesConfirmed(Box::new(safe_head)))?;
-        Ok(())
+        self.safe_head = state.safe_head();
+        // Blocks derived before the reset may no longer be canonical.
+        self.finalizer.clear();
+        self.signal(Signal::Reset(ResetSignal { l2_safe_head: self.safe_head })).await;
+        self.deriving = true;
     }
 
-    /// Returns the engine's latest published state if the engine reset since derivation last reset
-    /// onto it.
-    fn engine_reset(&mut self) -> Option<EngineState> {
-        let state = *self.engine_state.borrow_and_update();
-        (state.resets() > self.engine_resets).then_some(state)
+    /// Resets onto the engine's state if the engine reset since derivation last reset onto it, and
+    /// returns whether it did.
+    async fn follow_reset(&mut self, state: EngineState) -> bool {
+        if state.resets() <= self.engine_resets {
+            return false;
+        }
+        warn!(target: "derivation", ?state, "The engine reset; resetting derivation onto it");
+        self.reset_onto(state).await;
+        true
     }
 
-    async fn process_finalized_l1_block(&mut self, block: BlockInfo) -> Result<(), ActorError> {
-        if let Some(l2_block_number) = self.finalizer.try_finalize_next(block) {
+    /// Signals the pipeline, logging a failure.
+    async fn signal(&mut self, signal: Signal) {
+        let result = self.pipeline.signal(signal).await;
+        self.publish_status();
+        match result {
+            Ok(_) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
+            Err(e) => {
+                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+            }
+        }
+    }
+
+    fn publish_status(&self) {
+        let current_l1 = self.pipeline.origin();
+        self.status.send_if_modified(|state| {
+            std::mem::replace(&mut state.current_l1, current_l1) != current_l1
+        });
+    }
+
+    /// Finalizes the highest derived L2 block whose L1 origin the finalized L1 head covers.
+    async fn finalize(&mut self, finalized: BlockInfo) -> Result<(), ActorError> {
+        if let Some(l2_block_number) = self.finalizer.try_finalize_next(finalized) {
             // Finalize by number against the engine's canonical chain.
             self.engine_client
                 .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
                 .await?;
         }
         Ok(())
-    }
-
-    async fn process_l1_head(&mut self, head: BlockInfo) -> Result<(), ActorError> {
-        info!(target: "derivation", l1_head = ?head, "Processing l1 head update");
-        self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
-        self.attempt_derivation().await
-    }
-
-    /// Derives payload attributes and consolidates the engine's safe head with each, until the
-    /// pipeline runs out of data.
-    async fn attempt_derivation(&mut self) -> Result<(), ActorError> {
-        while self.derivation_state_machine.current_state() == DerivationState::Deriving {
-            // Another actor may have reset the engine since the last consolidation.
-            if let Some(state) = self.engine_reset() {
-                warn!(target: "derivation", ?state, "The engine reset; resetting derivation onto it");
-                self.derivation_state_machine.update(&DerivationStateUpdate::SignalNeeded)?;
-                self.reset_onto(state).await?;
-            }
-
-            // Advance the pipeline as much as possible, new data may be available or there still
-            // may be payloads in the attributes queue.
-            let payload_attributes = match self.produce_next_attributes().await {
-                Ok(attrs) => attrs,
-                Err(ActorError::Yield) => {
-                    info!(target: "derivation", "Yielding derivation until more data is available.");
-                    self.derivation_state_machine.update(&DerivationStateUpdate::MoreDataNeeded)?;
-                    return Ok(());
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            };
-            trace!(target: "derivation", ?payload_attributes, "Produced payload attributes.");
-
-            self.derivation_state_machine.update(&DerivationStateUpdate::NewAttributesDerived(
-                Box::new(payload_attributes.clone()),
-            ))?;
-
-            // Enqueue the payload attributes for finalization tracking.
-            self.finalizer.enqueue_for_finalization(&payload_attributes);
-
-            let Consolidation { state, flush } =
-                self.engine_client.consolidate(payload_attributes).await?;
-            if state.resets() > self.engine_resets {
-                // The engine reset before or while consolidating, so the attributes may be stale.
-                warn!(target: "derivation", ?state, "The engine reset; resetting derivation onto it");
-                self.reset_onto(state).await?;
-                continue;
-            }
-            if flush {
-                // A deposits-only block replaced the derived one.
-                warn!(target: "derivation", "Flushing the channel of a rejected block");
-                self.signal(Signal::FlushChannel).await;
-                self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
-            }
-            self.derivation_state_machine.update(
-                &DerivationStateUpdate::NewAttributesConfirmed(Box::new(state.safe_head())),
-            )?;
-        }
-        Ok(())
-    }
-}
-
-impl<DerivationEngineClient_, PipelineSignalReceiver>
-    Actor<DerivationEngineClient_, PipelineSignalReceiver>
-where
-    DerivationEngineClient_: DerivationEngineClient + 'static,
-    PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync + 'static,
-{
-    async fn run(mut self) -> Result<(), ActorError> {
-        self.start().await?;
-        loop {
-            self.step().await?;
-        }
-    }
-
-    /// Resets the engine once the execution layer is synced, and derives from its safe head.
-    async fn start(&mut self) -> Result<(), ActorError> {
-        let state = reset_engine(&self.engine_client).await?;
-        self.engine_resets = state.resets();
-        let safe_head = state.safe_head();
-        info!(target: "derivation", ?safe_head, "Starting derivation from the engine's safe head");
-        self.signal(Signal::Reset(ResetSignal { l2_safe_head: safe_head })).await;
-        self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
-        self.derivation_state_machine
-            .update(&DerivationStateUpdate::ELSyncCompleted(Box::new(safe_head)))?;
-        self.attempt_derivation().await
-    }
-
-    /// Handles the next L1 head, finalized L1 block, or engine state.
-    async fn step(&mut self) -> Result<(), ActorError> {
-        tokio::select! {
-            result = self.engine_state.changed() => {
-                result.map_err(|_| ActorError::EngineStateClosed)?;
-                if let Some(state) = self.engine_reset() {
-                    warn!(target: "derivation", ?state, "The engine reset; resetting derivation onto it");
-                    self.reset_onto(state).await?;
-                }
-                self.attempt_derivation().await
-            }
-            result = self.head.changed() => {
-                result.map_err(|_| ActorError::L1ReceiveFailed)?;
-                let head = *self.head.borrow_and_update();
-                self.process_l1_head(head).await
-            }
-            result = self.finalized.changed() => {
-                result.map_err(|_| ActorError::L1ReceiveFailed)?;
-                let finalized = *self.finalized.borrow_and_update();
-                self.process_finalized_l1_block(finalized).await
-            }
-        }
     }
 }
 
@@ -470,6 +432,17 @@ mod tests {
         (actor, Publishers { engine_state, heads, finalized })
     }
 
+    /// Steps the actor until the pipeline runs out of data.
+    async fn derive(actor: &mut Actor<MockDerivationEngineClient, TestPipeline>) {
+        for _ in 0..100 {
+            if !actor.deriving {
+                return;
+            }
+            actor.step().await.unwrap();
+        }
+        panic!("derivation did not run out of data");
+    }
+
     /// Returns a safe head whose L1 origin is the given L1 block.
     fn safe_head(l1_origin: BlockInfo) -> L2BlockInfo {
         L2BlockInfo { l1_origin: l1_origin.id(), ..Default::default() }
@@ -527,12 +500,13 @@ mod tests {
         let (mut actor, _publishers) = actor(engine, TestPipeline::new(None), BlockInfo::default());
 
         actor.start().await.unwrap();
+        derive(&mut actor).await;
 
         assert!(matches!(actor.pipeline.signals[..], [Signal::Reset(_)]));
         assert_eq!(actor.status.borrow().current_l1, Some(origin));
-        assert_eq!(actor.derivation_state_machine.last_confirmed_safe_head(), safe_head(origin));
+        assert_eq!(actor.safe_head, safe_head(origin));
         assert_eq!(actor.engine_resets, 1);
-        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+        assert!(!actor.deriving);
     }
 
     /// A pipeline-driven reset resets the engine, asking again while the execution layer syncs,
@@ -562,14 +536,12 @@ mod tests {
         let (mut actor, _publishers) = actor(engine, pipeline, BlockInfo::default());
 
         actor.start().await.unwrap();
+        derive(&mut actor).await;
 
         assert!(matches!(actor.pipeline.signals[..], [Signal::Reset(_), Signal::Reset(_)]));
-        assert_eq!(
-            actor.derivation_state_machine.last_confirmed_safe_head(),
-            safe_head(reset_origin)
-        );
+        assert_eq!(actor.safe_head, safe_head(reset_origin));
         assert_eq!(actor.engine_resets, 2);
-        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+        assert!(!actor.deriving);
     }
 
     /// Derivation acts on the engine's reply to a consolidation: it flushes the channel of a
@@ -598,6 +570,7 @@ mod tests {
         let (mut actor, _publishers) = actor(engine, pipeline, BlockInfo::default());
 
         actor.start().await.unwrap();
+        derive(&mut actor).await;
 
         // The first signal is the reset that started derivation.
         let signals = &actor.pipeline.signals[1..];
@@ -608,9 +581,9 @@ mod tests {
                 matches!(signals, [Signal::Reset(reset)] if reset.l2_safe_head == new_safe_head)
             ),
         }
-        assert_eq!(actor.derivation_state_machine.last_confirmed_safe_head(), new_safe_head);
+        assert_eq!(actor.safe_head, new_safe_head);
         assert_eq!(actor.engine_resets, resets);
-        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+        assert!(!actor.deriving);
     }
 
     /// When another actor resets the engine, derivation resets its pipeline onto the engine's
@@ -623,10 +596,12 @@ mod tests {
         let (mut actor, publishers) =
             actor(engine, TestPipeline::new(Some(BlockInfo::default())), BlockInfo::default());
         actor.start().await.unwrap();
+        derive(&mut actor).await;
 
         publishers.engine_state.send_replace(engine_state(L2BlockInfo::default(), 1));
         actor.step().await.unwrap();
         assert_eq!(actor.pipeline.signals.len(), 1);
+        assert!(!actor.deriving);
 
         let reset_origin = BlockInfo { number: 4, ..Default::default() };
         for resets in [2, 3] {
@@ -636,12 +611,12 @@ mod tests {
                 actor.pipeline.signals[(resets - 1) as usize..],
                 [Signal::Reset(reset)] if reset.l2_safe_head == safe_head(reset_origin)
             ));
+            // Derivation resumes from the engine's safe head.
+            assert!(actor.deriving);
+            derive(&mut actor).await;
         }
         assert_eq!(actor.status.borrow().current_l1, Some(reset_origin));
-        assert_eq!(
-            actor.derivation_state_machine.last_confirmed_safe_head(),
-            safe_head(reset_origin)
-        );
+        assert_eq!(actor.safe_head, safe_head(reset_origin));
     }
 
     /// A reset another actor makes while derivation consolidates is followed before deriving the
@@ -663,12 +638,55 @@ mod tests {
         actor.engine_state = engine_state_rx;
 
         actor.start().await.unwrap();
+        derive(&mut actor).await;
 
         assert!(matches!(
             actor.pipeline.signals[..],
             [Signal::Reset(_), Signal::Reset(reset)] if reset.l2_safe_head == safe_head(reset_origin)
         ));
         assert_eq!(actor.engine_resets, 2);
+    }
+
+    /// Derivation handles a finalized L1 head between consolidations, rather than once the pipeline
+    /// runs out of data.
+    #[tokio::test]
+    async fn finalizes_between_consolidations() {
+        let block = |number| L2BlockInfo {
+            block_info: BlockInfo { number, ..Default::default() },
+            ..Default::default()
+        };
+        let consolidated = move |attributes: OpAttributesWithParent| {
+            Ok(Consolidation {
+                state: engine_state(block(attributes.block_number()), 1),
+                flush: false,
+            })
+        };
+        let mut engine = MockDerivationEngineClient::new();
+        let mut sequence = mockall::Sequence::new();
+        engine
+            .expect_reset()
+            .once()
+            .in_sequence(&mut sequence)
+            .returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
+        engine.expect_consolidate().once().in_sequence(&mut sequence).returning(consolidated);
+        engine
+            .expect_send_finalized_l2_block()
+            .withf(|id| matches!(id, FinalizeBlockId::ByNumber(1)))
+            .once()
+            .in_sequence(&mut sequence)
+            .returning(|_| Ok(()));
+        engine.expect_consolidate().once().in_sequence(&mut sequence).returning(consolidated);
+        let mut pipeline = TestPipeline::new(Some(BlockInfo::default()));
+        pipeline.prepared.push_back(attributes(block(0)));
+        pipeline.prepared.push_back(attributes(block(1)));
+        let (mut actor, publishers) = actor(engine, pipeline, BlockInfo::default());
+
+        actor.start().await.unwrap();
+        actor.step().await.unwrap();
+        publishers.finalized.send_replace(BlockInfo { number: 1, ..Default::default() });
+        derive(&mut actor).await;
+
+        assert_eq!(actor.safe_head, block(2));
     }
 
     #[tokio::test]
@@ -678,25 +696,67 @@ mod tests {
         let (mut actor, publishers) =
             actor(engine, TestPipeline::new(Some(BlockInfo::default())), BlockInfo::default());
         actor.start().await.unwrap();
-        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+        derive(&mut actor).await;
+        assert!(!actor.deriving);
         for (number, hash) in [(7, 1), (7, 2), (6, 3)] {
             let block = BlockInfo { number, hash: B256::repeat_byte(hash), ..Default::default() };
             actor.pipeline.advance_to = Some(block);
             publishers.heads.send_replace(block);
             actor.step().await.unwrap();
+            derive(&mut actor).await;
             assert_eq!(actor.status.borrow().current_l1, Some(block));
-            assert_eq!(
-                actor.derivation_state_machine.current_state(),
-                DerivationState::AwaitingL1Data
-            );
         }
         publishers.heads.send_replace(BlockInfo { number: 8, ..Default::default() });
         let latest = BlockInfo { number: 9, ..Default::default() };
         publishers.heads.send_replace(latest);
         actor.pipeline.advance_to = Some(latest);
         actor.step().await.unwrap();
+        derive(&mut actor).await;
         assert_eq!(actor.status.borrow().current_l1, Some(latest));
         assert!(!actor.head.has_changed().unwrap());
+    }
+
+    /// An L1 head that arrives while deriving is left for after the pipeline runs out of data, when
+    /// it resumes derivation.
+    #[tokio::test(start_paused = true)]
+    async fn head_during_derivation_resumes_it_afterwards() {
+        let mut engine = MockDerivationEngineClient::new();
+        engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
+        engine.expect_consolidate().once().returning(|_| {
+            Ok(Consolidation { state: engine_state(L2BlockInfo::default(), 1), flush: false })
+        });
+        let mut pipeline = TestPipeline::new(Some(BlockInfo::default()));
+        pipeline.prepared.push_back(attributes(L2BlockInfo::default()));
+        let (mut actor, publishers) = actor(engine, pipeline, BlockInfo::default());
+        actor.start().await.unwrap();
+
+        publishers.heads.send_replace(BlockInfo { number: 1, ..Default::default() });
+        derive(&mut actor).await;
+        tokio::time::timeout(tokio::time::Duration::from_secs(1), actor.step())
+            .await
+            .expect("the L1 head was left for afterwards")
+            .unwrap();
+
+        assert!(actor.deriving);
+    }
+
+    /// A reset drops the blocks awaiting finalization, which may no longer be canonical.
+    #[tokio::test]
+    async fn reset_drops_blocks_awaiting_finalization() {
+        let mut engine = MockDerivationEngineClient::new();
+        engine.expect_reset().once().returning(|| Ok(engine_state(L2BlockInfo::default(), 1)));
+        engine.expect_send_finalized_l2_block().never();
+        let (mut actor, publishers) =
+            actor(engine, TestPipeline::new(Some(BlockInfo::default())), BlockInfo::default());
+        actor.start().await.unwrap();
+        derive(&mut actor).await;
+        actor.finalizer.enqueue_for_finalization(&attributes(L2BlockInfo::default()));
+
+        publishers.engine_state.send_replace(engine_state(L2BlockInfo::default(), 2));
+        actor.step().await.unwrap();
+        derive(&mut actor).await;
+        publishers.finalized.send_replace(BlockInfo { number: 1, ..Default::default() });
+        actor.step().await.unwrap();
     }
 
     #[tokio::test]

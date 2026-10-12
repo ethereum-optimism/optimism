@@ -13,7 +13,6 @@ The derivation subsystem in kona-node is built around the derivation actor in `k
 
 - **Derivation actor**: The main actor responsible for running the derivation pipeline, built with `derivation::Builder` and reached through `derivation::Handle`
 - **OnlinePipeline**: A concrete implementation of the derivation pipeline using online providers
-- **DerivationStateMachine**: Manages when derivation is allowed to occur and tracks the confirmed safe head
 - **L2Finalizer**: Tracks derived L2 blocks awaiting finalization
 - **Signal System**: Handles pipeline resets, hardfork activations, and error conditions
 
@@ -67,11 +66,14 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 
 ### Main Processing Loop
 
-The derivation actor runs a continuous loop that handles various events:
+The derivation actor runs a continuous loop. Each iteration handles one event, in this order of priority:
 
 1. **Engine state**: Resets derivation when the engine's reset count moves
-2. **L1 head updates**: Triggers derivation when new L1 blocks are available  
-3. **Finalized L1 updates**: Finalizes derived L2 blocks whose L1 origin became final
+2. **Finalized L1 updates**: Finalizes derived L2 blocks whose L1 origin became final
+3. **L1 head updates**: While derivation is idle, marks that the pipeline may have new attributes to derive
+4. **Derivation**: While the pipeline may have attributes, derives the next set and consolidates the engine's safe head with it
+
+Derivation handles one set of attributes per iteration, so engine resets and finalized L1 updates are handled between sets of attributes, rather than after the pipeline runs out of data. It stops when the pipeline runs out of data, and resumes on the next L1 head update or reset. An L1 head update that arrives while deriving is read once derivation stops, so it resumes derivation.
 
 ### Stepping Logic
 
@@ -80,12 +82,12 @@ The core derivation logic is implemented in `produce_next_attributes()`:
 ```rust
 async fn produce_next_attributes(
     &mut self,
-) -> Result<OpAttributesWithParent, ActorError>
+) -> Result<Option<OpAttributesWithParent>, ActorError>
 ```
 
-This method continuously steps the pipeline until payload attributes are produced:
+This method continuously steps the pipeline until payload attributes are produced, or returns `None` once the pipeline runs out of data:
 
-1. **Step the pipeline** with the last confirmed L2 safe head from the derivation state machine
+1. **Step the pipeline** with the engine's safe head from the latest consolidation or reset
 2. **Handle step results**:
    - `PreparedAttributes`: Attributes are ready to be consumed
    - `AdvancedOrigin`: Pipeline advanced to next L1 block
@@ -98,7 +100,7 @@ The derivation actor handles three categories of pipeline errors:
 
 #### Temporary Errors
 - `PipelineError::NotEnoughData`: Continue stepping, more data may become available
-- `PipelineError::Eof`: Yield and wait for more L1 data
+- `PipelineError::Eof`: Stop deriving until more L1 data arrives
 
 #### Reset Errors  
 - `ResetError::HoloceneActivation`: Send an `ActivationSignal` to the pipeline and keep stepping
