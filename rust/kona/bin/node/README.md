@@ -20,7 +20,7 @@ kona-node <SUBCOMMAND> [OPTIONS]
 
 ### Available Subcommands
 
-- **`node`** (alias: `n`) - Runs the consensus node for OP Stack rollup validation
+- **`node`** - Runs the consensus node for OP Stack rollup validation
 
 ### Running the Consensus Node
 
