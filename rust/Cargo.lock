@@ -7156,11 +7156,8 @@ dependencies = [
 name = "kona-cli"
 version = "0.3.2"
 dependencies = [
- "alloy-chains",
  "alloy-primitives",
  "clap",
- "kona-genesis",
- "kona-registry",
  "libc",
  "libp2p",
  "metrics-exporter-prometheus",
