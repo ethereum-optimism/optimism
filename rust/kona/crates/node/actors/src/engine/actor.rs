@@ -110,8 +110,6 @@ where
 {
     /// The client used to send messages to the derivation actor.
     derivation_client: DerivationClient,
-    /// Whether the EL sync is complete. This should only ever go from false to true.
-    el_sync_complete: bool,
     /// The last safe head update sent.
     last_safe_head_sent: L2BlockInfo,
     /// The Engine API client.
@@ -132,7 +130,8 @@ impl<DerivationClient> Actor<DerivationClient>
 where
     DerivationClient: EngineDerivationClient + 'static,
 {
-    /// Creates the actor, starting from the state that `state_tx` holds.
+    /// Creates the actor, starting from the state that `state_tx` holds, which must not have
+    /// finished EL sync yet.
     fn new(
         derivation_client: DerivationClient,
         client: Arc<EngineClient>,
@@ -142,9 +141,13 @@ where
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let state = *state_tx.borrow();
+        // Derivation learns that EL sync finished only when this actor sees it happen.
+        debug_assert!(
+            !state.el_sync_finished,
+            "the engine actor must start before EL sync finishes"
+        );
         Self {
             derivation_client,
-            el_sync_complete: false,
             last_safe_head_sent: L2BlockInfo::default(),
             client,
             config,
@@ -157,7 +160,9 @@ where
 
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
-            let result = match self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)? {
+            let message = self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)?;
+            let was_el_synced = self.state.el_sync_finished;
+            let result = match message {
                 Message::Build(request) => {
                     self.handle_build(*request).await;
                     Ok(())
@@ -199,7 +204,7 @@ where
             // later step fails.
             self.publish_state();
             result?;
-            self.sync_derivation().await?;
+            self.sync_derivation(was_el_synced).await?;
         }
     }
 
@@ -461,18 +466,20 @@ where
         self.state_tx.send_replace(self.state);
     }
 
-    /// Sends derivation the safe head if it changed, and reports a completed EL sync.
+    /// Sends derivation the safe head if it changed, and tells it when the execution layer
+    /// finished syncing during the last request (`was_el_synced` is whether it had before).
     ///
-    /// An EL sync that completes without a finalized head resets the engine to find one. After a
-    /// reset, which reports both itself, this does nothing.
-    async fn sync_derivation(&mut self) -> Result<(), ActorError> {
+    /// An EL sync that finishes without a finalized head first resets the engine to find one.
+    async fn sync_derivation(&mut self, was_el_synced: bool) -> Result<(), ActorError> {
+        let el_sync_just_finished = !was_el_synced && self.state.el_sync_finished;
+        if el_sync_just_finished && self.state.finalized_head() == L2BlockInfo::default() {
+            self.reset(None).await?;
+        }
+
         self.send_derivation_actor_safe_head_if_updated().await?;
 
-        if !self.el_sync_complete && self.state.el_sync_finished {
-            if self.state.finalized_head() == L2BlockInfo::default() {
-                return self.reset(None).await;
-            }
-            self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+        if el_sync_just_finished {
+            self.notify_el_sync_completed().await?;
         }
 
         Ok(())
@@ -480,7 +487,9 @@ where
 
     /// Resets the engine to a sync starting point found with [`find_starting_forkchoice`], and
     /// reorgs the execution layer to it. Then publishes the state, replies to the caller, if any,
-    /// and propagates the reset to the derivation actor.
+    /// and signals the derivation actor to reset. Callers must follow it with
+    /// [`Self::sync_derivation`], which sends derivation the new safe head and, if the reset
+    /// finished EL sync, the sync completion.
     ///
     /// Temporary failures are retried until the reset succeeds: losing it would leave derivation
     /// waiting for a reset signal.
@@ -529,28 +538,16 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
-
-        if !self.el_sync_complete && self.state.el_sync_finished {
-            self.mark_el_sync_complete_and_notify_derivation_actor().await?;
-        }
-
         Ok(())
     }
 
-    async fn mark_el_sync_complete_and_notify_derivation_actor(
-        &mut self,
-    ) -> Result<(), ActorError> {
-        self.el_sync_complete = true;
-
-        self.derivation_client
-            .notify_sync_completed(self.state.safe_head())
-            .await
-            .map(|_| Ok(()))
-            .map_err(|e| {
+    /// Tells derivation that the execution layer finished syncing, with the safe head to start
+    /// from.
+    async fn notify_el_sync_completed(&self) -> Result<(), ActorError> {
+        self.derivation_client.notify_sync_completed(self.state.safe_head()).await.map_err(|e| {
             error!(target: "engine", ?e, "Failed to notify sync completed");
             ActorError::ChannelClosed
-        })?
+        })
     }
 
     /// Attempts to send the derivation actor the safe head if updated.

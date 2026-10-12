@@ -19,8 +19,8 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use rstest::rstest;
 use std::sync::Mutex;
 
-/// Builds engine states for tests, defaulting every head to the unsafe head and the execution
-/// layer to synced.
+/// Builds engine states for tests, defaulting every head to the unsafe head. The execution layer
+/// has not finished syncing, as when the engine starts.
 struct TestEngineStateBuilder {
     unsafe_head: L2BlockInfo,
     safe_head: Option<L2BlockInfo>,
@@ -49,14 +49,12 @@ impl TestEngineStateBuilder {
     }
 
     fn build(self) -> EngineState {
-        let mut state = EngineState::default().apply_update(HeadsUpdate {
+        EngineState::default().apply_update(HeadsUpdate {
             unsafe_head: Some(self.unsafe_head),
             local_safe_head: Some(self.unsafe_head),
             safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
-        });
-        state.el_sync_finished = true;
-        state
+        })
     }
 }
 
@@ -146,7 +144,7 @@ fn spawn(
 
 /// Returns an engine state with a finalized head, which keeps a completed EL sync from triggering a
 /// reset.
-fn synced_state() -> EngineState {
+fn state_with_finalized_head() -> EngineState {
     let finalized = L2BlockInfo {
         block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
         ..Default::default()
@@ -263,6 +261,58 @@ async fn reset_recovers_and_completes_original_request(
     l2.assert_finished();
 }
 
+/// When the execution layer finishes syncing without a finalized head, the engine resets to find
+/// one, then tells derivation the new safe head and that the sync completed.
+#[tokio::test(start_paused = true)]
+async fn el_sync_without_a_finalized_head_resets_before_derivation_starts() {
+    let config = config();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    // Following a safe head sends the first forkchoice update, which finishes EL sync.
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
+    expect_reset(&l1, &l2, Duration::ZERO);
+    // A later safe head, after the sync completed.
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
+
+    handle.follow_safe_head(test_block_info(0)).await.unwrap();
+
+    let wait = Duration::from_secs(10);
+    assert!(matches!(
+        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
+        Some(DerivationRequest::Signal(Signal::Reset(_)))
+    ));
+    assert!(matches!(
+        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
+        Some(DerivationRequest::SafeHead(safe_head))
+            if safe_head.block_info.hash == config.genesis.l2.hash
+    ));
+    assert!(matches!(
+        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
+        Some(DerivationRequest::SyncCompleted(safe_head))
+            if safe_head.block_info.hash == config.genesis.l2.hash
+    ));
+
+    // Later requests send the new safe head, but never the sync completion again.
+    let later = test_block_info(1);
+    handle.follow_safe_head(later).await.unwrap();
+    assert!(matches!(
+        time::timeout(wait, derivation_rx.recv()).await.unwrap(),
+        Some(DerivationRequest::SafeHead(safe_head)) if safe_head == later
+    ));
+    time::sleep(Duration::from_secs(1)).await;
+    assert!(derivation_rx.try_recv().is_err());
+    actor.abort();
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
 /// An operation that fails temporarily is retried after a backoff without another request.
 #[tokio::test(start_paused = true)]
 async fn temporary_failure_is_retried_until_the_operation_succeeds() {
@@ -274,7 +324,7 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     l2.expect("engine_newPayloadV1", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
-    let (handle, actor) = spawn(client, config, derivation_tx, synced_state());
+    let (handle, actor) = spawn(client, config, derivation_tx, state_with_finalized_head());
 
     let started = Instant::now();
     handle.insert_unsafe_block(payload).await.unwrap();
@@ -352,6 +402,13 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
     // The reset published its heads before signalling derivation to reset.
     assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
+    // The reset finished EL sync, so derivation then gets the safe head and the sync completion.
+    assert!(matches!(
+        derivation_rx.recv().await,
+        Some(DerivationRequest::SafeHead(safe_head))
+            if safe_head.block_info.hash == config.genesis.l2.hash
+    ));
+    assert!(matches!(derivation_rx.recv().await, Some(DerivationRequest::SyncCompleted(_))));
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -395,7 +452,7 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
     let attributes = TestAttributesBuilder::new()
         .with_transactions(vec![vec![OpTxType::Legacy as u8, 0xbb].into()])
         .build();
-    let state = synced_state();
+    let state = state_with_finalized_head();
     let forkchoice = state
         .apply_update(HeadsUpdate { unsafe_head: Some(attributes.parent), ..Default::default() })
         .create_forkchoice_state();
