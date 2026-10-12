@@ -47,7 +47,7 @@ where
 
 /// Resolves `block_id` to a canonical block number inside the proofs storage window.
 ///
-/// UPSTREAM-MIRROR(copy): reth@rev:a280002
+/// UPSTREAM-MIRROR(copy): reth@rev:2f40498
 /// `reth_rpc_eth_api::helpers::state::EthState::ensure_within_proof_window`
 ///
 /// Stands in for upstream's check in the historical `eth_getProof` path. Both resolve the block
