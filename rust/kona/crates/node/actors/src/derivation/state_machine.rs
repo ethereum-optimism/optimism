@@ -4,16 +4,16 @@ use thiserror::Error;
 use tracing::info;
 
 /// The possible states of the [`DerivationStateMachine`] implemented by the
-/// [`crate::DerivationActor`].
+/// derivation actor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DerivationState {
-    /// The [`crate::DerivationActor`] is waiting for notification that the EL sync has completed
+    /// The derivation actor is waiting for notification that the EL sync has completed
     /// before it can start derivation.
     AwaitingELSyncCompletion,
-    /// The [`crate::DerivationActor`] is idle awaiting data.
+    /// The derivation actor is idle awaiting data.
     AwaitingL1Data,
     /// [`kona_protocol::OpAttributesWithParent`] were sent to the engine actor, and the
-    /// [`crate::DerivationActor`] is waiting for confirmation that they were processed into a safe
+    /// derivation actor is waiting for confirmation that they were processed into a safe
     /// head.
     AwaitingSafeHeadConfirmation,
     /// A reorg or some other inconsistency was detected, necessitating a [`kona_derive::Signal`]
@@ -22,12 +22,12 @@ pub enum DerivationState {
     /// After receiving a [`kona_derive::Signal`], we need an update of L1 data or a new engine
     /// safe head to start deriving again. This represents the state waiting for one of the two.
     AwaitingUpdateAfterSignal,
-    /// The [`crate::DerivationActor`] is actively attempting derivation.
+    /// The derivation actor is actively attempting derivation.
     Deriving,
 }
 
 /// The possible updates of the [`DerivationStateMachine`] implemented by the
-/// [`crate::DerivationActor`].
+/// derivation actor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DerivationStateUpdate {
     /// The initial EL sync has completed along with the current safe head, allowing derivation to
@@ -139,7 +139,7 @@ fn transition(
     }
 }
 
-/// The state machine that controls the state of the [`crate::DerivationActor`].
+/// The state machine that controls the state of the derivation actor.
 /// This machine enforces the following conditions:
 ///
 /// ## General prerequisites:

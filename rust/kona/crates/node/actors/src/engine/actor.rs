@@ -108,7 +108,7 @@ struct Actor<DerivationClient>
 where
     DerivationClient: EngineDerivationClient,
 {
-    /// The client used to send messages to the [`crate::DerivationActor`].
+    /// The client used to send messages to the derivation actor.
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
@@ -553,7 +553,7 @@ where
         })?
     }
 
-    /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
+    /// Attempts to send the derivation actor the safe head if updated.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), ActorError> {
         let engine_safe_head = self.state.safe_head();
         if engine_safe_head == self.last_safe_head_sent {

@@ -4,7 +4,7 @@ mod actor;
 pub use actor::Builder;
 
 mod client;
-pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
+pub use client::EngineDerivationClient;
 
 mod config;
 pub use config::EngineConfig;

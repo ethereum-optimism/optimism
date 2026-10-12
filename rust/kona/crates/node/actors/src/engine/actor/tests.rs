@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
+use crate::derivation::{DerivationClientError, DerivationClientResult};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, FixedBytes, b256};
 use alloy_rpc_types_engine::{
@@ -7,6 +7,7 @@ use alloy_rpc_types_engine::{
     ForkchoiceUpdated, PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+use async_trait::async_trait;
 use kona_engine::{
     NoopBlockSink,
     test_utils::{RpcMock, TestAttributesBuilder, test_block_info, test_engine_client},
@@ -59,6 +60,46 @@ impl TestEngineStateBuilder {
     }
 }
 
+/// A request the engine actor sent derivation, as [`QueuedDerivation`] records it.
+#[derive(Debug)]
+enum DerivationRequest {
+    SyncCompleted(L2BlockInfo),
+    SafeHead(L2BlockInfo),
+    Signal(Signal),
+}
+
+/// Queues the engine actor's derivation requests in a bounded channel, as the derivation actor's
+/// handle does.
+#[derive(Debug)]
+struct QueuedDerivation(mpsc::Sender<DerivationRequest>);
+
+impl QueuedDerivation {
+    async fn send(&self, request: DerivationRequest) -> DerivationClientResult<()> {
+        self.0
+            .send(request)
+            .await
+            .map_err(|_| DerivationClientError::RequestError("request channel closed.".to_string()))
+    }
+}
+
+#[async_trait]
+impl EngineDerivationClient for QueuedDerivation {
+    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()> {
+        self.send(DerivationRequest::SyncCompleted(safe_head)).await
+    }
+
+    async fn send_new_engine_safe_head(
+        &self,
+        safe_head: L2BlockInfo,
+    ) -> DerivationClientResult<()> {
+        self.send(DerivationRequest::SafeHead(safe_head)).await
+    }
+
+    async fn send_signal(&self, signal: Signal) -> DerivationClientResult<()> {
+        self.send(DerivationRequest::Signal(signal)).await
+    }
+}
+
 type L2Block = <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse;
 
 /// Returns an actor that is not running, for calling its methods directly, with the receivers of
@@ -68,16 +109,12 @@ fn actor(
     config: Arc<RollupConfig>,
     state: EngineState,
     block_sink: Arc<dyn ImportedBlockSink>,
-) -> (
-    Actor<QueuedEngineDerivationClient>,
-    mpsc::Receiver<DerivationActorRequest>,
-    watch::Receiver<EngineState>,
-) {
+) -> (Actor<QueuedDerivation>, mpsc::Receiver<DerivationRequest>, watch::Receiver<EngineState>) {
     let (derivation_tx, derivation_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
     let (_, messages_rx) = mpsc::channel(1);
     let actor = Actor::new(
-        QueuedEngineDerivationClient::new(derivation_tx),
+        QueuedDerivation(derivation_tx),
         Arc::new(client),
         config,
         block_sink,
@@ -91,13 +128,13 @@ fn actor(
 fn spawn(
     client: EngineClient,
     config: Arc<RollupConfig>,
-    derivation_tx: mpsc::Sender<DerivationActorRequest>,
+    derivation_tx: mpsc::Sender<DerivationRequest>,
     state: EngineState,
 ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
     let actor = Actor::new(
-        QueuedEngineDerivationClient::new(derivation_tx),
+        QueuedDerivation(derivation_tx),
         Arc::new(client),
         config,
         Arc::new(NoopBlockSink),
@@ -170,7 +207,7 @@ fn construction_and_build_do_not_require_a_runtime() {
     let task = builder.build(
         Arc::new(client),
         config,
-        QueuedEngineDerivationClient::new(derivation_tx),
+        QueuedDerivation(derivation_tx),
         Arc::new(NoopBlockSink),
     );
     assert_eq!(*handle.state().borrow(), EngineState::default());
@@ -206,10 +243,7 @@ async fn reset_recovers_and_completes_original_request(
     expect_reset(&l1, &l2, read_delay);
     let (derivation_tx, mut derivation_rx) = mpsc::channel(1);
     // Derivation waits for the reset reply and cannot drain its full queue until then.
-    derivation_tx
-        .send(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::default()))
-        .await
-        .unwrap();
+    derivation_tx.send(DerivationRequest::SafeHead(L2BlockInfo::default())).await.unwrap();
     let (handle, actor) = spawn(client, config.clone(), derivation_tx, EngineState::default());
 
     let started = Instant::now();
@@ -217,21 +251,12 @@ async fn reset_recovers_and_completes_original_request(
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
     // The reset's heads are published before the reply.
     assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
+    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::SafeHead(_)));
+    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::Signal(_)));
+    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::SafeHead(_)));
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
-    ));
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSignalRequest(_)
-    ));
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
-    ));
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
+        DerivationRequest::SyncCompleted(safe_head) if safe_head.block_info.hash == config.genesis.l2.hash
     ));
     actor.abort();
     l1.assert_finished();
@@ -262,10 +287,7 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     .unwrap()
     .unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
-    ));
+    assert!(matches!(derivation_rx.recv().await.unwrap(), DerivationRequest::SyncCompleted(_)));
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -326,7 +348,7 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     let started = Instant::now();
     handle.insert_unsafe_block(genesis_payload().0).await.unwrap();
     let signal = time::timeout(TASK_RETRY_TIMEOUT * 2, derivation_rx.recv()).await.unwrap();
-    assert!(matches!(signal, Some(DerivationActorRequest::ProcessEngineSignalRequest(_))));
+    assert!(matches!(signal, Some(DerivationRequest::Signal(_))));
     assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
     // The reset published its heads before signalling derivation to reset.
     assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
@@ -418,12 +440,10 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
         let request = time::timeout(Duration::from_secs(10), derivation_rx.recv()).await.unwrap();
         assert!(matches!(
             request,
-            Some(DerivationActorRequest::ProcessEngineSignalRequest(signal))
-                if matches!(*signal, Signal::FlushChannel)
+            Some(DerivationRequest::Signal(signal))
+                if matches!(signal, Signal::FlushChannel)
         ));
-        let Some(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head)) =
-            derivation_rx.recv().await
-        else {
+        let Some(DerivationRequest::SafeHead(safe_head)) = derivation_rx.recv().await else {
             panic!("derivation should receive the new safe head");
         };
         assert_eq!(safe_head.block_info.hash, config.genesis.l2.hash);
@@ -591,7 +611,7 @@ async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
 
 /// Sends a seal request and returns the reply.
 async fn seal(
-    actor: &mut Actor<QueuedEngineDerivationClient>,
+    actor: &mut Actor<QueuedDerivation>,
     payload_id: PayloadId,
     attributes: OpAttributesWithParent,
 ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {

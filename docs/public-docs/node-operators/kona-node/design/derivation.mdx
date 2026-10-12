@@ -7,11 +7,11 @@ The derivation system in kona-node is responsible for transforming L1 data into 
 
 ## Overview
 
-The derivation subsystem in kona-node is built around the **DerivationActor**, which manages the derivation pipeline lifecycle and coordinates with other node components. The actor uses the trait-abstracted [`kona-derive`][kd] pipeline to continuously process L1 data and produce L2 payload attributes.
+The derivation subsystem in kona-node is built around the derivation actor in `kona_node_actors::derivation`, which manages the derivation pipeline lifecycle and coordinates with other node components. The actor uses the trait-abstracted [`kona-derive`][kd] pipeline to continuously process L1 data and produce L2 payload attributes.
 
 ### Key Components
 
-- **DerivationActor**: The main actor responsible for running the derivation pipeline
+- **Derivation actor**: The main actor responsible for running the derivation pipeline, built with `derivation::Builder` and reached through `derivation::Handle`
 - **OnlinePipeline**: A concrete implementation of the derivation pipeline using online providers
 - **DerivationStateMachine**: Manages when derivation is allowed to occur and tracks the confirmed safe head
 - **L2Finalizer**: Tracks derived L2 blocks awaiting finalization
@@ -19,35 +19,14 @@ The derivation subsystem in kona-node is built around the **DerivationActor**, w
 
 ## Architecture
 
-### DerivationActor
+### Builder, Handle, and Actor
 
-The `DerivationActor` is a [`NodeActor`][na] that runs as part of the node service. It receives requests from other actors over a single inbound channel and steps the derivation pipeline forward to produce new payload attributes.
+`derivation::Builder::new` creates the actor's bounded request queue and its `DerivationStatus` publisher before any dependencies exist, so the node can give the engine actor a `derivation::Handle` before building either actor. The builder then builds one of two actors, each returning its lifetime future:
 
-```rust
-pub struct DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
-where
-    DerivationEngineClient_: DerivationEngineClient,
-    PipelineSignalReceiver: Pipeline + SignalReceiver,
-{
-    /// The channel on which all inbound requests are received by the actor.
-    inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-    /// L1 observations published by the polling actors.
-    head: watch::Receiver<BlockInfo>,
-    finalized: watch::Receiver<BlockInfo>,
-    /// The Engine client used to interact with the engine.
-    engine_client: DerivationEngineClient_,
-    /// The derivation pipeline.
-    pipeline: PipelineSignalReceiver,
-    /// The state machine controlling when derivation can occur.
-    derivation_state_machine: DerivationStateMachine,
-    /// The L2Finalizer tracks derived L2 blocks awaiting finalization.
-    finalizer: L2Finalizer,
-    /// Progress published to RPC readers.
-    status: watch::Sender<DerivationStatus>,
-}
-```
+- `Builder::build` takes the engine client, the derivation pipeline, and the L1 head and finalized block receivers, and derives payload attributes from L1.
+- `Builder::build_delegated` takes the engine client, the derivation delegate, and an L1 provider, and follows the delegate's safe head instead.
 
-Inbound requests are expressed as the `DerivationActorRequest` enum: engine safe head updates, engine sync completion, and pipeline signals from the engine (for example flush or reset). L1 head and finalized block updates arrive directly through watch receivers.
+The handle queues the engine actor's requests: `notify_el_sync_completed` once the execution layer finishes syncing, `send_safe_head` when the engine's safe head changes, and `send_signal` for pipeline signals such as a flush or a reset. These share one queue, so the actor handles them in the order the engine sent them. `Handle::status` subscribes to the published `DerivationStatus`. L1 head and finalized block updates arrive directly through watch receivers.
 
 The actor publishes `DerivationStatus` through a watch channel after pipeline steps and signals. Its `current_l1` is the pipeline's current origin, so observing a newer L1 head does not advance this field until derivation processes it. Resets can move the published origin backwards. In delegated mode, the actor publishes the delegate's current L1 block only after validating the reported L1 information against the canonical chain.
 
@@ -90,10 +69,9 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 
 The derivation actor runs a continuous loop that handles various events:
 
-1. **Shutdown signals**: Graceful shutdown when cancellation token is triggered
+1. **Engine requests**: EL sync completion, safe head updates, and pipeline signals, in the order the engine sent them
 2. **L1 head updates**: Triggers derivation when new L1 blocks are available  
-3. **Safe head updates**: Triggers derivation when the L2 safe head advances
-4. **Pipeline signals**: Handles resets, hardfork activations, and channel flushes
+3. **Finalized L1 updates**: Finalizes derived L2 blocks whose L1 origin became final
 
 ### Stepping Logic
 
@@ -102,7 +80,7 @@ The core derivation logic is implemented in `produce_next_attributes()`:
 ```rust
 async fn produce_next_attributes(
     &mut self,
-) -> Result<OpAttributesWithParent, DerivationError>
+) -> Result<OpAttributesWithParent, ActorError>
 ```
 
 This method continuously steps the pipeline until payload attributes are produced:
@@ -174,7 +152,7 @@ The engine actor executes these attributes and updates the L2 safe head, which t
 
 ### With the L1 Actors
 
-The derivation actor subscribes directly to the head and finalized L1 block receivers published by the L1 polling actors. Head changes indicate when new L1 data is available for processing; finalized changes drive the `L2Finalizer`. These receivers retain the latest observation while derivation is busy, including reorgs. Initial snapshots do not trigger processing. Engine signals and safe-head updates still arrive on the inbound request channel.
+The derivation actor subscribes directly to the head and finalized L1 block receivers published by the L1 polling actors. Head changes indicate when new L1 data is available for processing; finalized changes drive the `L2Finalizer`. These receivers retain the latest observation while derivation is busy, including reorgs. Initial snapshots do not trigger processing. The engine actor's requests (EL sync completion, safe-head updates, and pipeline signals) still arrive in order on the derivation handle's queue.
 
 ### With RPC Layer
 
@@ -198,5 +176,4 @@ For more details on the underlying derivation pipeline implementation, see:
 - The [derivation pipeline specification](https://specs.optimism.io/protocol/derivation.html)
 
 [kd]: https://crates.io/crates/kona-derive
-[na]: /node-operators/kona-node/design/intro#actors
 [rc]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.RollupConfig.html

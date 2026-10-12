@@ -1,11 +1,9 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineConfig,
+    ConductorClient, DelayedL1OriginSelectorProvider, DerivationDelegateClient, EngineConfig,
     L1OriginSelector, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
-    NodeMode, QueuedEngineDerivationClient, RpcActor, SequencerConfig,
-    service::BufferImportedBlocks, signer,
+    NodeMode, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
@@ -20,7 +18,7 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{DerivationStatus, engine, l1, l1_signer_updater, sequencer};
+use kona_node_actors::{derivation, engine, l1, l1_signer_updater, sequencer};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -34,7 +32,7 @@ use kona_rpc::{
 use kona_sources::BlockSignerHandler;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{convert::Infallible, sync::Arc, time::Duration};
+use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -93,38 +91,8 @@ pub struct RollupNode {
     pub(crate) dependency_set: Option<Arc<DependencySet>>,
 }
 
-/// A RollupNode-level derivation actor wrapper.
-///
-/// This type selects the concrete derivation actor implementation
-/// based on `RollupNode` configuration.
-///
-/// It is not intended to be generic or reusable outside the
-/// `RollupNode` wiring logic.
-enum ConfiguredDerivationActor {
-    Delegate(
-        Box<
-            DelegateDerivationActor<adapters::Engine, DerivationDelegateClient, AlloyChainProvider>,
-        >,
-    ),
-    Normal(Box<DerivationActor<adapters::Engine, OnlinePipeline>>),
-}
-
-#[async_trait::async_trait]
-impl NodeActor for ConfiguredDerivationActor
-where
-    DelegateDerivationActor<adapters::Engine, DerivationDelegateClient, AlloyChainProvider>:
-        NodeActor<Error = DerivationError>,
-    DerivationActor<adapters::Engine, OnlinePipeline>: NodeActor<Error = DerivationError>,
-{
-    type Error = DerivationError;
-
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        match self {
-            Self::Delegate(a) => a.step().await,
-            Self::Normal(a) => a.step().await,
-        }
-    }
-}
+/// The lifetime future of whichever derivation actor the node is configured to run.
+type DerivationTask = Pin<Box<dyn Future<Output = Result<(), derivation::ActorError>> + Send>>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -203,53 +171,37 @@ impl RollupNode {
         &self,
         builder: engine::Builder,
         client: Arc<EngineClient>,
-        derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
+        derivation: derivation::Handle,
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
             self.config.clone(),
-            QueuedEngineDerivationClient::new(derivation_actor_request_tx),
+            adapters::Derivation(derivation),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )
     }
 
-    /// Selects between the standard and delegate derivation actor implementations and constructs
-    /// the chosen one.
-    async fn build_derivation_actor(
+    /// Selects between the standard and delegate derivation actors and builds the chosen one.
+    async fn build_derivation(
         &self,
+        builder: derivation::Builder,
         engine: engine::Handle,
-        derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         head: watch::Receiver<BlockInfo>,
         finalized: watch::Receiver<BlockInfo>,
-    ) -> Result<(ConfiguredDerivationActor, watch::Receiver<DerivationStatus>), String> {
+    ) -> Result<DerivationTask, String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             );
-            let actor = DelegateDerivationActor::new(
-                adapters::Engine(engine),
-                derivation_actor_request_rx,
-                provider,
-                l1_provider,
-            );
-            let status = actor.state_receiver();
-            Ok((ConfiguredDerivationActor::Delegate(Box::new(actor)), status))
+            Ok(Box::pin(builder.build_delegated(adapters::Engine(engine), provider, l1_provider)))
         } else {
             let pipeline = self
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            let actor = DerivationActor::<_, OnlinePipeline>::new(
-                adapters::Engine(engine),
-                derivation_actor_request_rx,
-                pipeline,
-                head,
-                finalized,
-            );
-            let status = actor.state_receiver();
-            Ok((ConfiguredDerivationActor::Normal(Box::new(actor)), status))
+            Ok(Box::pin(builder.build(adapters::Engine(engine), pipeline, head, finalized)))
         }
     }
 
@@ -311,7 +263,7 @@ impl RollupNode {
         head_l1: watch::Receiver<BlockInfo>,
         safe_l1: watch::Receiver<BlockInfo>,
         finalized_l1: watch::Receiver<BlockInfo>,
-        derivation_status: watch::Receiver<DerivationStatus>,
+        derivation_status: watch::Receiver<derivation::DerivationStatus>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -414,8 +366,10 @@ impl RollupNode {
             l1_signer_updater::Builder::new(self.p2p_config.unsafe_block_signer);
         let signer_rx = signer_updater_builder.handle();
         // actor request channels
-        let (derivation_actor_request_tx, derivation_actor_request_rx) =
-            mpsc::channel::<DerivationActorRequest>(1024);
+        let derivation_builder = derivation::Builder::new(
+            derivation::Capacity::try_from(1024).map_err(|error| error.to_string())?,
+        );
+        let derivation = derivation_builder.handle();
         let engine_builder = engine::Builder::new(
             engine::Capacity::try_from(1024).map_err(|error| error.to_string())?,
         );
@@ -443,16 +397,10 @@ impl RollupNode {
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
         let l2_query_client = engine_client.as_ref().clone();
-        let engine_actor =
-            self.build_engine(engine_builder, engine_client, derivation_actor_request_tx);
+        let engine_actor = self.build_engine(engine_builder, engine_client, derivation.clone());
 
-        let (derivation, derivation_status) = self
-            .build_derivation_actor(
-                engine.clone(),
-                derivation_actor_request_rx,
-                head.clone(),
-                finalized.clone(),
-            )
+        let derivation_actor = self
+            .build_derivation(derivation_builder, engine.clone(), head.clone(), finalized.clone())
             .await?;
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
@@ -528,7 +476,7 @@ impl RollupNode {
                 head,
                 safe,
                 finalized,
-                derivation_status,
+                derivation.status(),
             )
             .await?;
 
@@ -550,7 +498,7 @@ impl RollupNode {
             signer_updater.await;
             Ok::<(), Infallible>(())
         });
-        supervisor.spawn("derivation", run_node_actor(derivation));
+        supervisor.spawn("derivation", derivation_actor);
         supervisor.spawn("engine", engine_actor);
         supervisor.wait().await
     }

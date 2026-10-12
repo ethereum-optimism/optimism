@@ -23,8 +23,8 @@ pub enum DerivationDelegateClientError {
 
 /// Polls sync status from an external OP Stack CL node acting as the derivation delegate.
 ///
-/// Abstracted as a trait so [`DelegateDerivationActor`](super::DelegateDerivationActor) can be
-/// constructed with a mock in tests instead of a live HTTP client.
+/// Abstracted as a trait so the delegated derivation actor can be built with a mock in tests
+/// instead of a live HTTP client.
 #[async_trait]
 pub trait DerivationDelegateProvider: Send + Sync {
     /// Fetches the current sync status from the derivation delegate.

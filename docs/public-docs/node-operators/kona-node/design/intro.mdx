@@ -9,12 +9,14 @@ constructed through the [`RollupNodeBuilder`][builder], and its
 [`start` method][start] handles connecting the different components
 of the node and running its actors in spawned tasks.
 
-The `RollupNode` abstracts individual actors through the
+Most actors are built with a builder that hands out the actor's handle
+before its dependencies exist, and expose a lifetime future that the
+service spawns. The network and RPC actors still implement the
 [`NodeActor` trait][actor], a minimal interface with a single `step`
-method that the service drives in a loop until the actor reports a
-fatal error or the node shuts down.
+method that the service drives in a loop. The node stops when any actor
+reports a fatal error or the node shuts down.
 
-Kona provides implementations for all `NodeActor`s required to run a
+Kona provides implementations for all actors required to run a
 `RollupNode`. Actors are defined in the [actors][actors] module of the
 `kona-node-service` crate, and the `RollupNode` wiring lives in the
 [service][service] module.

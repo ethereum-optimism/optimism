@@ -1,12 +1,14 @@
 use crate::{
-    DerivationActorRequest, DerivationEngineClient, DerivationStatus, NodeActor,
-    derivation::{DerivationDelegateProvider, DerivationError},
+    derivation::{
+        ActorError, Builder, DerivationDelegateProvider, DerivationEngineClient, DerivationStatus,
+        Message,
+    },
     engine::FinalizeBlockId,
 };
 use alloy_primitives::BlockHash;
-use async_trait::async_trait;
 use kona_derive::ChainProvider;
 use kona_protocol::{L2BlockInfo, SyncStatus};
+use std::future::Future;
 use thiserror::Error;
 use tokio::{
     select,
@@ -14,24 +16,49 @@ use tokio::{
     time,
 };
 
-/// The [`NodeActor`] for the delegate derivation sub-routine.
-///
-/// This actor is responsible for receiving messages from [`NodeActor`]s and polls
-/// an external derivation delegation provider for derivation state. It validates
-/// the canonicality of the L1 information associated with delegated derivation
-/// results against the canonical L1 chain before forwarding updates.
-///
-/// Once validated, the actor sends the derived safe and finalized L2 info
-/// to the [`NodeActor`] responsible for the execution sub-routine.
+impl Builder {
+    /// Supplies the dependencies of the derivation actor that follows an external derivation
+    /// delegate, and produces its lifetime future without spawning it.
+    ///
+    /// Runtime work begins when the future is polled. Dropping the future stops the actor.
+    pub fn build_delegated<DerivationEngineClient_, DelegateProvider, L1Provider>(
+        self,
+        engine_client: DerivationEngineClient_,
+        derivation_delegate_provider: DelegateProvider,
+        l1_provider: L1Provider,
+    ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
+    where
+        DerivationEngineClient_: DerivationEngineClient + 'static,
+        DelegateProvider: DerivationDelegateProvider + 'static,
+        L1Provider: ChainProvider + Send + 'static,
+    {
+        let Self { handle: _, messages_rx, status_tx } = self;
+        async move {
+            Actor::new(
+                engine_client,
+                messages_rx,
+                status_tx,
+                derivation_delegate_provider,
+                l1_provider,
+            )
+            .run()
+            .await
+        }
+    }
+}
+
+/// Polls an external derivation delegate for its sync status, validates the status's L1 blocks
+/// against the canonical L1 chain, and sends the validated safe and finalized L2 heads to the
+/// engine actor.
 #[derive(Debug)]
-pub struct DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+struct Actor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient,
     DelegateProvider: DerivationDelegateProvider,
     L1Provider: ChainProvider,
 {
-    /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
-    inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+    /// Receives messages from handles.
+    inbound_request_rx: mpsc::Receiver<Message>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
@@ -52,23 +79,23 @@ where
 }
 
 impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+    Actor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
     DelegateProvider: DerivationDelegateProvider + 'static,
-    L1Provider: ChainProvider + 'static,
+    L1Provider: ChainProvider + Send + 'static,
 {
-    /// Creates a new instance of the [`DelegateDerivationActor`].
-    pub fn new(
+    /// Creates the actor. Its poll timer needs a Tokio runtime.
+    fn new(
         engine_client: DerivationEngineClient_,
-        inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        inbound_request_rx: mpsc::Receiver<Message>,
+        status: watch::Sender<DerivationStatus>,
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
     ) -> Self {
         let mut delegated_derivation_ticker =
             time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
         delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-        let (status, _) = watch::channel(DerivationStatus::default());
         Self {
             status,
             inbound_request_rx,
@@ -81,23 +108,14 @@ where
         }
     }
 
-    /// Subscribes to the actor’s validated derivation progress.
-    pub fn state_receiver(&self) -> watch::Receiver<DerivationStatus> {
-        self.status.subscribe()
+    async fn run(mut self) -> Result<(), ActorError> {
+        loop {
+            self.step().await?;
+        }
     }
-}
 
-#[async_trait]
-impl<DerivationEngineClient_, DelegateProvider, L1Provider> NodeActor
-    for DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
-where
-    DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
-    L1Provider: ChainProvider + Send + 'static,
-{
-    type Error = DerivationError;
-
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    /// Handles the next message, or polls the delegate once EL sync has completed.
+    async fn step(&mut self) -> Result<(), ActorError> {
         select! {
             biased;
 
@@ -105,11 +123,11 @@ where
                 let request = req.ok_or_else(|| {
                     error!(
                         target: "derivation",
-                        "DerivationActor inbound request receiver closed unexpectedly",
+                        "Derivation request receiver closed unexpectedly",
                     );
-                    DerivationError::RequestReceiveFailed
+                    ActorError::RequestReceiveFailed
                 })?;
-                self.handle_derivation_delegation_actor_request(request).await
+                self.handle_message(request).await
             }
             _ = self.delegated_derivation_ticker.tick(),
             if self.has_engine_sync_completed => {
@@ -120,7 +138,7 @@ where
 }
 
 impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+    Actor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
     DelegateProvider: DerivationDelegateProvider + 'static,
@@ -182,7 +200,7 @@ where
     }
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
-    async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), DerivationError> {
+    async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), ActorError> {
         let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
             Ok(status) => status,
             Err(_) => {
@@ -200,10 +218,7 @@ where
 
         self.status.send_replace(DerivationStatus { current_l1: Some(sync_status.current_l1) });
 
-        self.engine_client
-            .send_delegated_safe_head(sync_status.safe_l2)
-            .await
-            .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+        self.engine_client.send_delegated_safe_head(sync_status.safe_l2).await?;
 
         // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
         // finalizes the specific block we were asked to, not whatever it happens to have at the
@@ -212,8 +227,7 @@ where
             .send_finalized_l2_block(FinalizeBlockId::ByHash(
                 sync_status.finalized_l2.block_info.id(),
             ))
-            .await
-            .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+            .await?;
 
         debug!(
             target: "derivation",
@@ -225,22 +239,19 @@ where
         Ok(())
     }
 
-    async fn handle_derivation_delegation_actor_request(
-        &mut self,
-        request_type: DerivationActorRequest,
-    ) -> Result<(), DerivationError> {
-        match request_type {
-            DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
+    async fn handle_message(&mut self, message: Message) -> Result<(), ActorError> {
+        match message {
+            Message::SafeHead(safe_head) => {
                 debug!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
                 self.engine_l2_safe_head = *safe_head;
             }
-            DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
+            Message::ElSyncCompleted(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
                 self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
-            DerivationActorRequest::ProcessEngineSignalRequest(_) => {
-                debug!(target: "derivation", "Ignoring request while derivation delegation: {:?}", request_type);
+            Message::Signal(signal) => {
+                debug!(target: "derivation", ?signal, "Ignoring signal while delegating derivation");
             }
         }
         Ok(())
@@ -264,6 +275,7 @@ mod tests {
     use crate::derivation::{
         DerivationDelegateClientError, engine_client::MockDerivationEngineClient,
     };
+    use async_trait::async_trait;
     use kona_derive::test_utils::TestChainProvider;
     use kona_protocol::BlockInfo;
     use std::{collections::VecDeque, sync::Mutex};
@@ -275,6 +287,18 @@ mod tests {
         async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
             Ok(self.0.lock().unwrap().pop_front().unwrap())
         }
+    }
+
+    /// Building needs no runtime: the actor creates its poll timer when it starts running.
+    #[test]
+    fn build_delegated_does_not_require_a_runtime() {
+        let builder = Builder::new(crate::derivation::Capacity::try_from(1).unwrap());
+        let task = builder.build_delegated(
+            MockDerivationEngineClient::new(),
+            TestDelegate(Mutex::new(VecDeque::new())),
+            TestChainProvider::default(),
+        );
+        drop(task);
     }
 
     #[tokio::test(start_paused = true)]
@@ -306,11 +330,9 @@ mod tests {
         engine.expect_send_delegated_safe_head().times(1).returning(|_| Ok(()));
         engine.expect_send_finalized_l2_block().times(1).returning(|_| Ok(()));
         let (tx, rx) = mpsc::channel(1);
-        let mut actor = DelegateDerivationActor::new(engine, rx, delegate, provider);
-        let progress = actor.state_receiver();
-        tx.send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
-            .await
-            .unwrap();
+        let (status, progress) = watch::channel(DerivationStatus::default());
+        let mut actor = Actor::new(engine, rx, status, delegate, provider);
+        tx.send(Message::ElSyncCompleted(Box::default())).await.unwrap();
         actor.step().await.unwrap();
         actor.step().await.unwrap();
         assert_eq!(progress.borrow().current_l1, None);

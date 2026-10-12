@@ -95,12 +95,12 @@ mod tests {
     use alloy_rpc_types_engine::{
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
     };
-    use kona_derive::test_utils::TestAttributesBuilder;
+    use kona_derive::{Signal, test_utils::TestAttributesBuilder};
     use kona_engine::{NoopBlockSink, test_utils::test_engine_client};
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
-        DerivationActorRequest, EngineClientResult, L1OriginSelectorError, OriginSelector,
-        QueuedEngineDerivationClient, SequencerEngineClient,
+        DerivationClientResult, EngineClientResult, EngineDerivationClient, L1OriginSelectorError,
+        OriginSelector, SequencerEngineClient,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -148,12 +148,28 @@ mod tests {
         engine::Builder::new(engine::Capacity::try_from(1).unwrap()).handle()
     }
 
+    /// Accepts and discards everything the engine actor sends derivation.
+    #[derive(Debug)]
+    struct IgnoredDerivation;
+
+    #[async_trait]
+    impl EngineDerivationClient for IgnoredDerivation {
+        async fn notify_sync_completed(&self, _: L2BlockInfo) -> DerivationClientResult<()> {
+            Ok(())
+        }
+
+        async fn send_new_engine_safe_head(&self, _: L2BlockInfo) -> DerivationClientResult<()> {
+            Ok(())
+        }
+
+        async fn send_signal(&self, _: Signal) -> DerivationClientResult<()> {
+            Ok(())
+        }
+    }
+
     /// Returns an engine whose execution and L1 clients complete one reset.
-    fn resetting_engine() -> (
-        engine::Handle,
-        impl Future<Output = Result<(), engine::ActorError>> + Send + 'static,
-        mpsc::Receiver<DerivationActorRequest>,
-    ) {
+    fn resetting_engine()
+    -> (engine::Handle, impl Future<Output = Result<(), engine::ActorError>> + Send + 'static) {
         let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
             Default::default();
         let mut config = RollupConfig::default();
@@ -173,14 +189,9 @@ mod tests {
         );
         let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
         let handle = builder.handle();
-        let (derivation_tx, derivation_rx) = mpsc::channel(8);
-        let task = builder.build(
-            Arc::new(client),
-            config,
-            QueuedEngineDerivationClient::new(derivation_tx),
-            Arc::new(NoopBlockSink),
-        );
-        (handle, task, derivation_rx)
+        let task =
+            builder.build(Arc::new(client), config, IgnoredDerivation, Arc::new(NoopBlockSink));
+        (handle, task)
     }
 
     #[derive(Debug)]
@@ -306,7 +317,7 @@ mod tests {
                 _ = ready(()) => {}
             }
             let sequencer = is_sequencer.then_some(handle);
-            let (engine, engine_task, _derivation) = resetting_engine();
+            let (engine, engine_task) = resetting_engine();
             let rpc = AdminRpc::new(sequencer, false, engine, mpsc::channel(1).0).into_rpc();
             let reset =
                 rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);

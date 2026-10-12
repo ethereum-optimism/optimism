@@ -16,15 +16,14 @@ pub use service::{
 
 pub use kona_node_actors::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider,
-    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
-    DerivationClientResult, DerivationDelegateClientError, DerivationDelegateProvider,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
+    DerivationClientError, DerivationClientResult, DerivationDelegateClientError,
+    DerivationDelegateProvider, DerivationEngineClient, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, EngineClientError, EngineClientResult,
     EngineConfig, EngineDerivationClient, L1OriginSelector, L1OriginSelectorError,
     L1OriginSelectorProvider, NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError,
     NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    NodeActor, OriginSelector, QueuedEngineDerivationClient, RpcActor, RpcActorError,
-    SequencerConfig, SequencerEngineClient, engine, l1, l1_signer_updater, sequencer, signer,
+    NodeActor, OriginSelector, RpcActor, RpcActorError, SequencerConfig, SequencerEngineClient,
+    derivation, engine, l1, l1_signer_updater, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

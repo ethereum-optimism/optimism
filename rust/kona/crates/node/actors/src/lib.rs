@@ -14,19 +14,15 @@ use async_trait::async_trait;
 mod capacity;
 
 pub mod engine;
-pub use engine::{
-    EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient,
-    QueuedEngineDerivationClient,
-};
+pub use engine::{EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient};
 
 mod rpc;
 pub use rpc::{RpcActor, RpcActorError};
 
-mod derivation;
+pub mod derivation;
 pub use derivation::{
-    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
-    DerivationClientResult, DerivationDelegateClientError, DerivationDelegateProvider,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
+    DerivationClientError, DerivationClientResult, DerivationDelegateClientError,
+    DerivationDelegateProvider, DerivationEngineClient, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate,
 };
 

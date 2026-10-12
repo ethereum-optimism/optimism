@@ -2,9 +2,11 @@
 
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
+use kona_derive::Signal;
 use kona_node_actors::{
-    DerivationEngineClient, EngineClientError, EngineClientResult, NetworkEngineClient,
-    SequencerEngineClient, engine, engine::FinalizeBlockId, sequencer, signer,
+    DerivationClientResult, DerivationEngineClient, EngineClientError, EngineClientResult,
+    EngineDerivationClient, NetworkEngineClient, SequencerEngineClient, derivation, engine,
+    engine::FinalizeBlockId, sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -98,6 +100,30 @@ impl sequencer::Signer for Signer {
 
     fn has_capacity(&self) -> bool {
         self.0.has_capacity()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Derivation(pub(super) derivation::Handle);
+
+#[async_trait]
+impl EngineDerivationClient for Derivation {
+    async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()> {
+        info!(target: "engine", "Sending sync completed to derivation actor");
+        self.0.notify_el_sync_completed(safe_head).await
+    }
+
+    async fn send_new_engine_safe_head(
+        &self,
+        safe_head: L2BlockInfo,
+    ) -> DerivationClientResult<()> {
+        info!(target: "engine", safe_head = ?safe_head, "Sending new safe head to derivation actor");
+        self.0.send_safe_head(safe_head).await
+    }
+
+    async fn send_signal(&self, signal: Signal) -> DerivationClientResult<()> {
+        info!(target: "engine", signal = ?signal, "Sending signal to derivation actor");
+        self.0.send_signal(signal).await
     }
 }
 
