@@ -8,10 +8,9 @@ use crate::{
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use kona_cli::cli_styles;
-use strum::Display;
 
 /// Subcommands for the CLI.
-#[derive(Debug, Clone, Subcommand, Display)]
+#[derive(Debug, Clone, Subcommand)]
 pub enum Commands {
     /// Runs the consensus node.
     #[command(alias = "n")]
@@ -90,10 +89,11 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    /// Parses the CLI with `global_args` before a `node` subcommand that has its required flags.
-    fn try_parse_node(global_args: &[&str]) -> Result<Cli, clap::Error> {
+    /// Parses the CLI with `global_args` before the `node` subcommand, invoked as `subcommand`,
+    /// with its required flags.
+    fn try_parse(global_args: &[&str], subcommand: &str) -> Result<Cli, clap::Error> {
         let node_args = [
-            "node",
+            subcommand,
             "--l1-eth-rpc",
             "http://localhost:8545",
             "--l1-beacon",
@@ -148,12 +148,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case::node_subcommand_long(Commands::Node(Default::default()), "node")]
-    #[case::node_subcommand_short(Commands::Node(Default::default()), "n")]
-    fn test_parse_cli(#[case] subcommand: Commands, #[case] subcommand_alias: &str) {
-        let args = vec!["kona-node", subcommand_alias, "--help"];
-        let cli = Cli::parse_from(args);
-        assert_eq!(cli.subcommand.to_string(), subcommand.to_string());
+    #[case::node_subcommand_long("node")]
+    #[case::node_subcommand_short("n")]
+    fn test_parse_cli(#[case] subcommand: &str) {
+        try_parse(&[], subcommand).unwrap();
     }
 
     #[rstest]
@@ -170,7 +168,7 @@ mod tests {
         #[case] value: &str,
         #[case] expected_id: u64,
     ) {
-        let cli = try_parse_node(&[flag, value]).unwrap();
+        let cli = try_parse(&[flag, value], "node").unwrap();
         assert_eq!(cli.global.l2_chain_id.id(), expected_id);
     }
 
@@ -178,14 +176,14 @@ mod tests {
     #[case::invalid_string("invalid_chain")]
     #[case::empty_string("")]
     fn test_cli_l2_chain_id_invalid(#[case] invalid_value: &str) {
-        let result = try_parse_node(&["--l2-chain-id", invalid_value]);
+        let result = try_parse(&["--l2-chain-id", invalid_value], "node");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_cli_l2_chain_id_default() {
         // Test that the default chain ID is 10 (Optimism)
-        let cli = try_parse_node(&[]).unwrap();
+        let cli = try_parse(&[], "node").unwrap();
         assert_eq!(cli.global.l2_chain_id.id(), 10);
     }
 }
