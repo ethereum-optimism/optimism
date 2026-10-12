@@ -15,7 +15,7 @@ cargo install kona-node
 ### Basic Command Structure
 
 ```bash
-kona-node [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
+kona-node <SUBCOMMAND> [OPTIONS]
 ```
 
 ### Available Subcommands
@@ -27,11 +27,10 @@ kona-node [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 The primary use case is running the consensus node with the `node` subcommand:
 
 ```bash
-kona-node \
+kona-node node \
   --chain 11155420 \
   --metrics.enabled \
   --metrics.port 9002 \
-  node \
   --l1 <L1_PROVIDER_RPC> \
   --l1-beacon <L1_BEACON_API> \
   --l2 <L2_ENGINE_RPC> \
@@ -53,11 +52,10 @@ export L1_PROVIDER_RPC="https://your-l1-rpc-endpoint"
 export L1_BEACON_API="https://your-l1-beacon-api-endpoint"
 
 # Run the node
-kona-node \
+kona-node node \
   --chain 11155420 \
   --metrics.enabled \
   --metrics.port 9002 \
-  node \
   --l1 $L1_PROVIDER_RPC \
   --l1-beacon $L1_BEACON_API \
   --l2 http://localhost:8551 \

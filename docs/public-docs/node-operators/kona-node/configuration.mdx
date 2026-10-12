@@ -30,7 +30,7 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
 | `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
 
-## Global Arguments
+## Chain Arguments
 
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
@@ -42,21 +42,21 @@ The `--l2-chain-id` flag supports flexible chain identification using the `alloy
 
 **Numeric Chain IDs:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
-kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
-kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+kona-node node --l2-chain-id 10 [args...]      # Optimism mainnet
+kona-node node --l2-chain-id 8453 [args...]    # Base mainnet
+kona-node node --l2-chain-id 1 [args...]       # Ethereum mainnet
 ```
 
 **String Chain Names:**
 ```bash
-kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id base node [args...]
-kona-node --l2-chain-id mainnet node [args...]
+kona-node node --l2-chain-id optimism [args...]
+kona-node node --l2-chain-id base [args...]
+kona-node node --l2-chain-id mainnet [args...]
 ```
 
 **Short Flag and Environment Variable:**
 ```bash
-kona-node -c optimism node [args...]
+kona-node node -c optimism [args...]
 export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 ```
 

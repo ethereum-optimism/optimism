@@ -3,28 +3,18 @@
 use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
-        DerivationDelegateArgs, GlobalArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
+        ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
         SequencerArgs,
     },
 };
 use alloy_rpc_types_engine::JwtSecret;
-use anyhow::{Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
-use kona_cli::{LogConfig, MetricsArgs};
+use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_engine::EngineClient;
-use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
-use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_provider::ext::engine::OpEngineApi;
-use serde_json::{Value, from_reader, from_value};
-use std::{
-    fs::File,
-    io::{Read, Write},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{fs::File, io::Write, sync::Arc};
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -102,21 +92,9 @@ pub struct NodeCommand {
     #[clap(flatten)]
     pub derivation_delegate_args: DerivationDelegateArgs,
 
-    /// Path to a custom L2 rollup configuration file
-    /// (overrides the default rollup configuration from the registry)
-    #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
-    pub l2_config_file: Option<PathBuf>,
-    /// Path to a custom L1 chain configuration or genesis file
-    /// (overrides the default L1 configuration from the registry)
-    #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
-    pub l1_config_file: Option<PathBuf>,
-    /// Path to a JSON file describing the interop dependency set for this
-    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Lagoon hardfork; the inner
-    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
-    /// silent state-divergence bug into a startup crash.
-    #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
-    pub interop_dependency_set: Option<PathBuf>,
+    /// Chain CLI arguments.
+    #[command(flatten)]
+    pub chain: ChainArgs,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -126,6 +104,12 @@ pub struct NodeCommand {
     /// SEQUENCER CLI arguments.
     #[command(flatten)]
     pub sequencer_flags: SequencerArgs,
+    /// Logging CLI arguments.
+    #[command(flatten)]
+    pub log_args: LogArgs,
+    /// Metrics CLI arguments.
+    #[command(flatten)]
+    pub metrics: MetricsArgs,
 }
 
 impl Default for NodeCommand {
@@ -134,31 +118,31 @@ impl Default for NodeCommand {
             l1_rpc_args: L1ClientArgs::default(),
             l2_client_args: L2ClientArgs::default(),
             derivation_delegate_args: DerivationDelegateArgs::default(),
-            l2_config_file: None,
-            l1_config_file: None,
-            interop_dependency_set: None,
+            chain: ChainArgs::default(),
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
             sequencer_flags: SequencerArgs::default(),
+            log_args: LogArgs::default(),
+            metrics: MetricsArgs::default(),
         }
     }
 }
 
 impl NodeCommand {
-    /// Initializes the logging system based on global arguments.
-    pub fn init_logs(&self, args: &GlobalArgs) -> anyhow::Result<()> {
+    /// Initializes the logging system based on the logging arguments.
+    pub fn init_logs(&self) -> anyhow::Result<()> {
         // Filter out discovery warnings since they're very very noisy.
         let filter = tracing_subscriber::EnvFilter::from_default_env()
             .add_directive("discv5=error".parse()?);
 
-        LogConfig::new(args.log_args.clone()).init_tracing_subscriber(Some(filter))?;
+        LogConfig::new(self.log_args.clone()).init_tracing_subscriber(Some(filter))?;
         Ok(())
     }
 
     /// Initializes CLI metrics for the Node subcommand.
-    pub fn init_cli_metrics(&self, args: &MetricsArgs) -> anyhow::Result<()> {
-        if !args.enabled {
+    pub fn init_cli_metrics(&self) -> anyhow::Result<()> {
+        if !self.metrics.enabled {
             debug!("CLI metrics are disabled");
             return Ok(());
         }
@@ -268,8 +252,8 @@ impl NodeCommand {
     }
 
     /// Run the Node subcommand.
-    pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
-        let cfg = self.get_l2_config(args)?;
+    pub async fn run(self) -> anyhow::Result<()> {
+        let cfg = self.chain.rollup_config()?;
 
         info!(
             target: "rollup_node",
@@ -283,7 +267,7 @@ impl NodeCommand {
         );
 
         let l1_config = L1ConfigBuilder {
-            chain_config: self.get_l1_config(cfg.l1_chain_id)?,
+            chain_config: self.chain.l1_config(cfg.l1_chain_id)?,
             trust_rpc: self.l1_rpc_args.l1_trust_rpc,
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
@@ -291,7 +275,7 @@ impl NodeCommand {
         };
 
         // If metrics are enabled, initialize the global cli metrics.
-        args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
+        self.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
         let jwt_secret = self.validate_jwt().await?;
 
@@ -308,7 +292,7 @@ impl NodeCommand {
             mode: self.node_mode,
         };
 
-        let dependency_set = self.load_dependency_set(&cfg)?;
+        let dependency_set = self.chain.dependency_set(&cfg)?;
 
         RollupNodeBuilder::new(
             crate::version::version().to_owned(),
@@ -333,87 +317,8 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
-    ///
-    /// Enforces the invariant that when the rollup config schedules the
-    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
-    /// Errors rather than panicking so the operator sees a clear message.
-    fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
-        match &self.interop_dependency_set {
-            Some(path) => {
-                let file = File::open(path).map_err(|e| {
-                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
-                })?;
-                let dep_set: DependencySet = from_reader(file).map_err(|e| {
-                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
-                })?;
-                Ok(Some(Arc::new(dep_set)))
-            }
-            None if cfg.hardforks.lagoon_time.is_some() => bail!(
-                "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
-                 --interop.dependency-set was not provided. Supply the dependency-set \
-                 JSON file matching op-node's --interop.dependency-set to avoid silent \
-                 state divergence on Lagoon activation.",
-                cfg.hardforks.lagoon_time,
-            ),
-            None => Ok(None),
-        }
-    }
-
-    /// Parses an L1 chain config from either a direct config or a genesis document.
-    fn parse_l1_config(reader: impl Read) -> serde_json::Result<L1ChainConfig> {
-        let mut value: Value = from_reader(reader)?;
-        if let Value::Object(object) = &mut value &&
-            let Some(config) = object.remove("config")
-        {
-            return from_value(config);
-        }
-        from_value(value)
-    }
-
-    /// Get the L1 config, either from a file or the known chains.
-    pub fn get_l1_config(&self, l1_chain_id: u64) -> Result<L1ChainConfig> {
-        match &self.l1_config_file {
-            Some(path) => {
-                debug!("Loading l1 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l1 config file: {e}"))?;
-                Self::parse_l1_config(file)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
-            }
-            None => {
-                debug!("Loading l1 config from known chains");
-                let cfg = L1Config::get_l1_genesis(l1_chain_id).map_err(|e| {
-                    anyhow::anyhow!("Failed to find l1 config for chain ID {l1_chain_id}: {e}")
-                })?;
-                Ok(cfg.into())
-            }
-        }
-    }
-
-    /// Get the L2 rollup config, either from a file or the superchain registry, with the
-    /// hardfork overrides applied.
-    pub fn get_l2_config(&self, args: &GlobalArgs) -> Result<RollupConfig> {
-        let cfg = match &self.l2_config_file {
-            Some(path) => {
-                debug!("Loading l2 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))?
-            }
-            None => {
-                debug!("Loading l2 config from superchain registry");
-                let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
-                    bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
-                };
-                cfg.clone()
-            }
-        };
-        Ok(args.apply_overrides(cfg))
-    }
-
     /// Returns the L2 JWT secret for the engine API
-    /// using the provided [`PathBuf`]. If the file is not found,
+    /// using the provided [`PathBuf`](std::path::PathBuf). If the file is not found,
     /// it will return the default JWT secret.
     pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
         if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
@@ -515,39 +420,6 @@ mod tests {
         ])
         .unwrap_err();
         assert!(err.to_string().contains("--l2-engine-rpc"));
-    }
-
-    #[test]
-    fn test_get_l1_config_from_direct_and_genesis_files() {
-        let documents = [
-            serde_json::json!({"chainId": 123}),
-            serde_json::json!({"config": {"chainId": 123}, "alloc": {}}),
-        ];
-
-        for document in documents {
-            let mut file = tempfile::NamedTempFile::new().unwrap();
-            serde_json::to_writer(&mut file, &document).unwrap();
-
-            let command =
-                NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
-            assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
-        }
-    }
-
-    #[test]
-    fn test_get_l2_config_applies_overrides() {
-        let args = GlobalArgs::try_parse_from(["test", "--karst-override", "123"]).unwrap();
-
-        let mut file = tempfile::NamedTempFile::new().unwrap();
-        serde_json::to_writer(&mut file, &RollupConfig::default()).unwrap();
-        let commands = [
-            NodeCommand::default(),
-            NodeCommand { l2_config_file: Some(file.path().into()), ..Default::default() },
-        ];
-
-        for command in commands {
-            assert_eq!(command.get_l2_config(&args).unwrap().hardforks.karst_time, Some(123));
-        }
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! CLI Flags
 
-mod globals;
-pub use globals::GlobalArgs;
+mod chain;
+pub use chain::ChainArgs;
 
 mod p2p;
 pub use p2p::P2PArgs;
