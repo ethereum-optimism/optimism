@@ -1,7 +1,6 @@
-//! Task and its associated types for finalizing an L2 block.
+//! The operation and its associated types for finalizing an L2 block.
 
 mod operation;
-pub(crate) use operation::FinalizeTask;
 
 mod error;
 pub use error::FinalizeTaskError;

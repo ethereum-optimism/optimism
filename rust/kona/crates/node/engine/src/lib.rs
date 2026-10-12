@@ -38,10 +38,6 @@
 extern crate tracing;
 
 mod engine;
-pub(crate) use engine::{
-    BuildSealCoupling, BuildTask, ConsolidateTask, FinalizeTask, InsertTask, SealTask,
-    SynchronizeTask,
-};
 pub use engine::{
     BuildTaskError, ConsolidateInput, ConsolidateTaskError, Engine, EngineBuildError,
     EngineResetError, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError,

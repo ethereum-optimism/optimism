@@ -1,10 +1,8 @@
-//! Utility functions for task execution.
+//! Building and sealing a block in one operation.
 
-use super::{BuildSealCoupling, BuildTask, BuildTaskError, SealTask, SealTaskError};
-use crate::{EngineClient, EngineState, ImportedBlockSink};
-use kona_genesis::RollupConfig;
+use super::{BuildSealCoupling, BuildTaskError, SealTaskError};
+use crate::Engine;
 use kona_protocol::OpAttributesWithParent;
-use std::sync::Arc;
 
 /// Error type for build and seal operations.
 #[derive(Debug, thiserror::Error)]
@@ -17,50 +15,32 @@ pub(in crate::engine) enum BuildAndSealError {
     Seal(#[from] SealTaskError),
 }
 
-/// Builds and seals a payload in sequence.
-///
-/// This is a utility function that:
-/// 1. Creates and executes a [`BuildTask`] to initiate block building
-/// 2. Creates and executes a [`SealTask`] to seal the block, referencing the initiated payload
-///
-/// This pattern is commonly used for Holocene deposits-only fallback and other scenarios
-/// where a build-then-seal workflow is needed.
-///
-/// # Arguments
-///
-/// * `state` - Mutable reference to the engine state
-/// * `engine` - The engine client
-/// * `cfg` - The rollup configuration
-/// * `attributes` - The payload attributes to build
-/// * `is_attributes_derived` - Whether the attributes were derived or created by the sequencer
-/// * `block_sink` - Where to hand the built block once the engine has canonicalized it
-pub(in crate::engine) async fn build_and_seal(
-    state: &mut EngineState,
-    engine: Arc<EngineClient>,
-    cfg: Arc<RollupConfig>,
-    attributes: OpAttributesWithParent,
-    is_attributes_derived: bool,
-    block_sink: Arc<dyn ImportedBlockSink>,
-) -> Result<(), BuildAndSealError> {
-    // Execute the build task
-    let payload_id =
-        BuildTask::new(engine.clone(), cfg.clone(), attributes.clone()).execute(state).await?;
+impl Engine {
+    /// Builds and seals a payload in sequence, so no other operation can advance the unsafe head
+    /// between them.
+    ///
+    /// Consolidation uses this to build derived attributes that do not match the unsafe chain, and
+    /// sealing uses it for the Holocene deposits-only fallback.
+    ///
+    /// `is_attributes_derived` says whether the attributes were derived or created by the
+    /// sequencer.
+    pub(in crate::engine) async fn build_and_seal(
+        &mut self,
+        attributes: OpAttributesWithParent,
+        is_attributes_derived: bool,
+    ) -> Result<(), BuildAndSealError> {
+        let payload_id = self.start_build(attributes.clone()).await?;
 
-    // Execute the seal task with the payload ID from the build. Sealing can fall back to building
-    // and sealing a deposits-only block, so box the recursive call.
-    Box::pin(
-        SealTask::new(
-            engine,
-            cfg,
+        // Sealing can fall back to building and sealing a deposits-only block, so box the
+        // recursive call.
+        Box::pin(self.seal_block(
             payload_id,
             attributes,
             is_attributes_derived,
             BuildSealCoupling::Atomic,
-            block_sink,
-        )
-        .seal(state),
-    )
-    .await?;
+        ))
+        .await?;
 
-    Ok(())
+        Ok(())
+    }
 }

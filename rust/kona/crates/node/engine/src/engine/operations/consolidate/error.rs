@@ -17,10 +17,10 @@ pub enum ConsolidateTaskError {
     /// Failed to fetch the unsafe L2 block.
     #[error("Failed to fetch the unsafe L2 block")]
     FailedToFetchUnsafeL2Block,
-    /// The build task failed.
+    /// Building the block failed.
     #[error(transparent)]
     BuildTaskFailed(#[from] BuildTaskError),
-    /// The seal task failed.
+    /// Sealing the block failed.
     #[error(transparent)]
     SealTaskFailed(#[from] SealTaskError),
     /// The consolidation forkchoice update call to the engine api failed.

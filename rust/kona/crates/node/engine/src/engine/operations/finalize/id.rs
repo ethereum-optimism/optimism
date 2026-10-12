@@ -20,8 +20,8 @@ use alloy_eips::BlockNumHash;
 pub enum FinalizeBlockId {
     /// Finalize whatever block the engine has at the given L2 block number.
     ByNumber(u64),
-    /// Finalize the block matching the given `(number, hash)` pair. The task fails if the engine
-    /// does not have that hash.
+    /// Finalize the block matching the given `(number, hash)` pair. Finalization fails if the
+    /// engine does not have that hash.
     ByHash(BlockNumHash),
 }
 

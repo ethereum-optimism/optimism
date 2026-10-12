@@ -1,70 +1,19 @@
-//! A task for building a new block and importing it.
+//! Starting to build a new block.
+
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState,
-    engine::operations::build::error::EngineBuildError, state::EngineSyncStateUpdate,
+    Engine, EngineForkchoiceVersion, engine::operations::build::error::EngineBuildError,
+    state::EngineSyncStateUpdate,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
-use derive_more::Constructor;
-use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_provider::ext::engine::OpEngineApi;
-use std::sync::Arc;
 
-/// Task for building new blocks with automatic forkchoice synchronization.
-///
-/// The [`BuildTask`] only performs the `engine_forkchoiceUpdated` call within the block building
-/// workflow. It makes this call with the provided attributes to initiate block building on the
-/// execution layer and returns the new [`PayloadId`].
-///
-/// ## Error Handling
-///
-/// The task uses [`EngineBuildError`] for build-specific failures during the forkchoice update
-/// phase.
-///
-/// [`EngineBuildError`]: crate::EngineBuildError
-#[derive(Debug, Clone, Constructor)]
-pub(crate) struct BuildTask {
-    /// The engine API client.
-    pub(crate) engine: Arc<EngineClient>,
-    /// The [`RollupConfig`].
-    pub(crate) cfg: Arc<RollupConfig>,
-    /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
-    pub(crate) attributes: OpAttributesWithParent,
-}
-
-impl BuildTask {
-    /// Validates the provided [`PayloadStatusEnum`] according to the rules listed below.
+impl Engine {
+    /// Starts building a block by sending `engine_forkchoiceUpdated` with the payload attributes,
+    /// and returns the [`PayloadId`] to seal it with.
     ///
-    /// ## Observed [`PayloadStatusEnum`] Variants
-    /// - `VALID`: Returns Ok(()) - forkchoice update was successful
-    /// - `INVALID`: Returns error with validation details
-    /// - `SYNCING`: Returns temporary error - EL is syncing
-    /// - Other: Returns error for unexpected status codes
-    fn validate_forkchoice_status(status: PayloadStatusEnum) -> Result<(), BuildTaskError> {
-        match status {
-            PayloadStatusEnum::Valid => Ok(()),
-            PayloadStatusEnum::Invalid { validation_error } => {
-                error!(target: "engine_builder", "Forkchoice update failed: {}", validation_error);
-                Err(BuildTaskError::EngineBuildError(EngineBuildError::InvalidPayload(
-                    validation_error,
-                )))
-            }
-            PayloadStatusEnum::Syncing => {
-                warn!(target: "engine_builder", "Forkchoice update failed temporarily: EL is syncing");
-                Err(BuildTaskError::EngineBuildError(EngineBuildError::EngineSyncing))
-            }
-            PayloadStatusEnum::Accepted => {
-                // Other codes are never returned by `engine_forkchoiceUpdate`
-                Err(BuildTaskError::EngineBuildError(EngineBuildError::UnexpectedPayloadStatus(
-                    status,
-                )))
-            }
-        }
-    }
-
-    /// Starts the block building process by sending an initial `engine_forkchoiceUpdate` call with
-    /// the payload attributes to build.
+    /// The forkchoice advertises the attributes' parent as the unsafe head to build on.
     ///
     /// ### Success (`VALID`)
     /// If the build is successful, the [`PayloadId`] is returned for sealing.
@@ -73,32 +22,36 @@ impl BuildTask {
     /// If the forkchoice update fails, the [`BuildTaskError`].
     ///
     /// ### Syncing (`SYNCING`)
-    /// If the EL is syncing, the payload attributes are buffered and the function returns early.
-    /// This is a temporary state, and the function should be called again later.
-    ///
-    /// Note: This is `pub(super)` to allow testing via the `tests` submodule.
-    pub(super) async fn start_build(
+    /// If the EL is syncing, the build cannot start. This is a temporary state, and the build
+    /// may be retried later.
+    pub(in crate::engine) async fn start_build(
         &self,
-        state: &EngineState,
-        engine_client: &EngineClient,
         attributes_envelope: OpAttributesWithParent,
     ) -> Result<PayloadId, BuildTaskError> {
+        debug!(
+            target: "engine_builder",
+            txs = attributes_envelope.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            is_deposits = attributes_envelope.is_deposits_only(),
+            "Starting new build job"
+        );
+
         // Sanity check if the head is behind the finalized head. If it is, this is a critical
         // error.
-        if state.sync_state.unsafe_head().block_info.number <
-            state.sync_state.finalized_head().block_info.number
+        if self.state.sync_state.unsafe_head().block_info.number <
+            self.state.sync_state.finalized_head().block_info.number
         {
             return Err(BuildTaskError::EngineBuildError(
                 EngineBuildError::FinalizedAheadOfUnsafe(
-                    state.sync_state.unsafe_head().block_info.number,
-                    state.sync_state.finalized_head().block_info.number,
+                    self.state.sync_state.unsafe_head().block_info.number,
+                    self.state.sync_state.finalized_head().block_info.number,
                 ),
             ));
         }
 
         // When inserting a payload, we advertise the parent's unsafe head as the current unsafe
         // head to build on top of.
-        let new_forkchoice = state
+        let new_forkchoice = self
+            .state
             .sync_state
             .apply_update(EngineSyncStateUpdate {
                 unsafe_head: Some(attributes_envelope.parent),
@@ -107,17 +60,17 @@ impl BuildTask {
             .create_forkchoice_state();
 
         let forkchoice_version = EngineForkchoiceVersion::from_cfg(
-            &self.cfg,
+            &self.config,
             attributes_envelope.attributes.payload_attributes.timestamp,
         );
         let update = match forkchoice_version {
             EngineForkchoiceVersion::V3 => {
-                engine_client
+                self.client
                     .fork_choice_updated_v3(new_forkchoice, Some(attributes_envelope.attributes))
                     .await
             }
             EngineForkchoiceVersion::V2 => {
-                engine_client
+                self.client
                     .fork_choice_updated_v2(new_forkchoice, Some(attributes_envelope.attributes))
                     .await
             }
@@ -127,7 +80,7 @@ impl BuildTask {
             BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
         })?;
 
-        Self::validate_forkchoice_status(update.payload_status.status)?;
+        validate_forkchoice_status(update.payload_status.status)?;
 
         debug!(
             target: "engine_builder",
@@ -139,23 +92,9 @@ impl BuildTask {
 
         // Fetch the payload ID from the FCU. If no payload ID was returned, something went wrong -
         // the block building job on the EL should have been initiated.
-        update
+        let payload_id = update
             .payload_id
-            .ok_or(BuildTaskError::EngineBuildError(EngineBuildError::MissingPayloadId))
-    }
-
-    /// Executes the task against the engine state.
-    pub(crate) async fn execute(&self, state: &EngineState) -> Result<PayloadId, BuildTaskError> {
-        debug!(
-            target: "engine_builder",
-            txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
-            is_deposits = self.attributes.is_deposits_only(),
-            "Starting new build job"
-        );
-
-        // Start the build by sending an FCU call with the current forkchoice and the input
-        // payload attributes.
-        let payload_id = self.start_build(state, &self.engine, self.attributes.clone()).await?;
+            .ok_or(BuildTaskError::EngineBuildError(EngineBuildError::MissingPayloadId))?;
 
         info!(
             target: "engine_builder",
@@ -163,5 +102,32 @@ impl BuildTask {
         );
 
         Ok(payload_id)
+    }
+}
+
+/// Validates the provided [`PayloadStatusEnum`] according to the rules listed below.
+///
+/// ## Observed [`PayloadStatusEnum`] Variants
+/// - `VALID`: Returns Ok(()) - forkchoice update was successful
+/// - `INVALID`: Returns error with validation details
+/// - `SYNCING`: Returns temporary error - EL is syncing
+/// - Other: Returns error for unexpected status codes
+fn validate_forkchoice_status(status: PayloadStatusEnum) -> Result<(), BuildTaskError> {
+    match status {
+        PayloadStatusEnum::Valid => Ok(()),
+        PayloadStatusEnum::Invalid { validation_error } => {
+            error!(target: "engine_builder", "Forkchoice update failed: {}", validation_error);
+            Err(BuildTaskError::EngineBuildError(EngineBuildError::InvalidPayload(
+                validation_error,
+            )))
+        }
+        PayloadStatusEnum::Syncing => {
+            warn!(target: "engine_builder", "Forkchoice update failed temporarily: EL is syncing");
+            Err(BuildTaskError::EngineBuildError(EngineBuildError::EngineSyncing))
+        }
+        PayloadStatusEnum::Accepted => {
+            // Other codes are never returned by `engine_forkchoiceUpdate`
+            Err(BuildTaskError::EngineBuildError(EngineBuildError::UnexpectedPayloadStatus(status)))
+        }
     }
 }

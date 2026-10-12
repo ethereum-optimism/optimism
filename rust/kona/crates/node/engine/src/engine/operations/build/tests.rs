@@ -1,5 +1,5 @@
 use crate::{
-    BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion,
+    BuildTaskError, Engine, EngineBuildError, EngineForkchoiceVersion,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
@@ -100,15 +100,14 @@ async fn test_execute_variants(
         .with_timestamp(attributes_timestamp)
         .build();
 
-    let task = BuildTask::new(Arc::new(engine_client.clone()), cfg, attributes.clone());
-
     let state = TestEngineStateBuilder::new()
         .with_unsafe_head(unsafe_block)
         .with_safe_head(parent_block)
         .with_finalized_head(parent_block)
         .build();
 
-    let result = simplify(task.execute(&state).await);
+    let engine = Engine::for_test(engine_client, cfg, state);
+    let result = simplify(engine.start_build(attributes).await);
 
     if expected_err.is_some() {
         assert_eq!(expected_err, result.err());

@@ -1,82 +1,22 @@
-//! A task for the `engine_forkchoiceUpdated` method, with no attributes.
+//! Forkchoice updates without payload attributes.
 
-use crate::{EngineClient, EngineState, SynchronizeTaskError, state::EngineSyncStateUpdate};
+use crate::{Engine, SynchronizeTaskError, state::EngineSyncStateUpdate};
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
-use derive_more::Constructor;
 use op_alloy_provider::ext::engine::OpEngineApi;
-use std::sync::Arc;
 
-/// Internal task for execution layer forkchoice synchronization.
-///
-/// The [`SynchronizeTask`] performs `engine_forkchoiceUpdated` calls to synchronize
-/// the execution layer's forkchoice state with the rollup node's view. This task
-/// operates without payload attributes and is used internally by the other engine
-/// operations.
-///
-/// ## Usage Patterns
-///
-/// - **Internal Synchronization**: Called by [`InsertTask`], [`ConsolidateTask`], and
-///   [`FinalizeTask`]
-/// - **Engine Reset**: Used during engine resets to establish initial forkchoice state
-/// - **Safe Head Updates**: Synchronizes safe and finalized head changes
-///
-/// ## Automatic Integration
-///
-/// Unlike the legacy `ForkchoiceTask`, forkchoice updates during block building are now
-/// explicitly handled within [`BuildTask`], eliminating the need for explicit
-/// forkchoice management in most user scenarios.
-///
-/// [`InsertTask`]: crate::InsertTask
-/// [`ConsolidateTask`]: crate::ConsolidateTask  
-/// [`FinalizeTask`]: crate::FinalizeTask
-/// [`BuildTask`]: crate::BuildTask
-#[derive(Debug, Clone, Constructor)]
-pub(crate) struct SynchronizeTask {
-    /// The engine client.
-    pub(crate) client: Arc<EngineClient>,
-    /// The sync state update to apply to the engine state.
-    pub(crate) state_update: EngineSyncStateUpdate,
-}
-
-impl SynchronizeTask {
-    /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
-    /// necessary.
-    fn check_forkchoice_updated_status(
-        &self,
-        state: &mut EngineState,
-        status: &PayloadStatusEnum,
-    ) -> Result<(), SynchronizeTaskError> {
-        match status {
-            PayloadStatusEnum::Valid => {
-                if !state.el_sync_finished {
-                    info!(
-                        target: "engine",
-                        "Finished execution layer sync."
-                    );
-                    state.el_sync_finished = true;
-                }
-
-                Ok(())
-            }
-            PayloadStatusEnum::Syncing => {
-                // If we're not building a new payload, we're driving EL sync.
-                debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
-                Ok(())
-            }
-            s => {
-                // Other codes are not expected.
-                Err(SynchronizeTaskError::UnexpectedPayloadStatus(s.clone()))
-            }
-        }
-    }
-
-    /// Executes the task against the engine state.
-    pub(crate) async fn execute(
-        &self,
-        state: &mut EngineState,
+impl Engine {
+    /// Applies a sync state update and sends the resulting forkchoice to the execution layer with
+    /// `engine_forkchoiceUpdated`, without payload attributes.
+    ///
+    /// The other operations use this to move the forkchoice: inserting, consolidating, and
+    /// finalizing blocks, and resetting. Starting a build sends its own forkchoice update with
+    /// payload attributes instead.
+    pub(in crate::engine) async fn synchronize(
+        &mut self,
+        update: EngineSyncStateUpdate,
     ) -> Result<(), SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
-        let new_sync_state = state.sync_state.apply_update(self.state_update);
+        let new_sync_state = self.state.sync_state.apply_update(update);
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
@@ -85,10 +25,10 @@ impl SynchronizeTask {
         //    state).
         //
         // NOTE:
-        // We shouldn't retry the synchronize task there. Since the `sync_state` is only updated
-        // inside the `SynchronizeTask` (except inside the ConsolidateTask, when the block is not
-        // the last in the batch) - the engine will get stuck retrying the `SynchronizeTask`
-        if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+        // We shouldn't retry the forkchoice update there. Since the `sync_state` is only updated
+        // here (except during consolidation, when the block is not the last in the batch) - the
+        // engine would get stuck retrying the forkchoice update.
+        if self.state.sync_state != Default::default() && self.state.sync_state == new_sync_state {
             debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
             return Ok(());
         }
@@ -127,10 +67,10 @@ impl SynchronizeTask {
             error
         })?;
 
-        self.check_forkchoice_updated_status(state, &valid_response.payload_status.status)?;
+        self.check_forkchoice_updated_status(&valid_response.payload_status.status)?;
 
         // Apply the new sync state to the engine state.
-        state.sync_state = new_sync_state;
+        self.state.sync_state = new_sync_state;
 
         debug!(
             target: "engine",
@@ -140,5 +80,35 @@ impl SynchronizeTask {
         );
 
         Ok(())
+    }
+
+    /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
+    /// necessary.
+    fn check_forkchoice_updated_status(
+        &mut self,
+        status: &PayloadStatusEnum,
+    ) -> Result<(), SynchronizeTaskError> {
+        match status {
+            PayloadStatusEnum::Valid => {
+                if !self.state.el_sync_finished {
+                    info!(
+                        target: "engine",
+                        "Finished execution layer sync."
+                    );
+                    self.state.el_sync_finished = true;
+                }
+
+                Ok(())
+            }
+            PayloadStatusEnum::Syncing => {
+                // If we're not building a new payload, we're driving EL sync.
+                debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+                Ok(())
+            }
+            s => {
+                // Other codes are not expected.
+                Err(SynchronizeTaskError::UnexpectedPayloadStatus(s.clone()))
+            }
+        }
     }
 }

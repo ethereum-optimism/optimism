@@ -1,6 +1,6 @@
+use super::BuildSealCoupling::{self, Atomic, Detached};
 use crate::{
-    BuildSealCoupling::{self, Atomic, Detached},
-    SealTask, SealTaskError,
+    Engine, SealTaskError,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
@@ -42,24 +42,16 @@ async fn unsafe_head_check_variants(
     let unsafe_head = if unsafe_head_at_parent { parent_block } else { test_block_info(15) };
 
     let attributes = TestAttributesBuilder::new().with_parent(parent_block).build();
-    let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+    let state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
 
     let cfg = Arc::new(RollupConfig::default());
     let (client, l1, l2) = test_engine_client(cfg.clone());
     if unsafe_head_at_parent || coupling == Atomic {
         l2.expect_error("engine_getPayloadV2");
     }
-    let task = SealTask::new(
-        Arc::new(client),
-        cfg,
-        PayloadId::new([1u8; 8]),
-        attributes,
-        false,
-        coupling,
-        Arc::new(crate::NoopBlockSink),
-    );
+    let mut engine = Engine::for_test(client, cfg, state);
 
-    let result = task.seal(&mut state).await;
+    let result = engine.seal_block(PayloadId::new([1u8; 8]), attributes, false, coupling).await;
     assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
     l1.assert_finished();
     l2.assert_finished();
@@ -140,17 +132,8 @@ async fn payload_fetch_selects_version_and_decodes_reply(
         OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
     };
     let attributes = TestAttributesBuilder::new().with_timestamp(timestamp).build();
-    let client = Arc::new(client);
-    let task = SealTask::new(
-        client.clone(),
-        cfg.clone(),
-        id,
-        attributes.clone(),
-        false,
-        Detached,
-        Arc::new(crate::NoopBlockSink),
-    );
-    let actual = task.seal_payload(&cfg, &client, id, attributes).await.unwrap();
+    let engine = Engine::for_test(client, cfg, Default::default());
+    let actual = engine.fetch_payload(id, &attributes).await.unwrap();
     assert_eq!(actual, expected);
     l1.assert_finished();
     l2.assert_finished();

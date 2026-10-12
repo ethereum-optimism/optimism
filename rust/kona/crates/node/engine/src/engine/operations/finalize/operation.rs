@@ -1,31 +1,20 @@
-//! A task for finalizing an L2 block.
+//! Finalizing an L2 block.
 
-use crate::{
-    EngineClient, EngineState, FinalizeBlockId, FinalizeTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
-};
+use crate::{Engine, FinalizeBlockId, FinalizeTaskError, state::EngineSyncStateUpdate};
 use alloy_eips::BlockId;
-use derive_more::Constructor;
 use kona_protocol::L2BlockInfo;
-use std::sync::Arc;
 
-/// The [`FinalizeTask`] fetches the [`L2BlockInfo`] identified by `block_id`, updates the
-/// [`EngineState`], and dispatches a forkchoice update to finalize the block.
-#[derive(Debug, Clone, Constructor)]
-pub(crate) struct FinalizeTask {
-    /// The engine client.
-    pub(crate) client: Arc<EngineClient>,
-    /// Identifier of the L2 block to finalize.
-    pub(crate) block_id: FinalizeBlockId,
-}
-
-impl FinalizeTask {
-    /// Executes the task against the engine state.
-    pub(crate) async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
-        let block_number = self.block_id.number();
+impl Engine {
+    /// Fetches the [`L2BlockInfo`] identified by `block_id`, makes it the finalized head, and
+    /// dispatches a forkchoice update to finalize the block.
+    pub(in crate::engine) async fn finalize_block(
+        &mut self,
+        block_id: FinalizeBlockId,
+    ) -> Result<(), FinalizeTaskError> {
+        let block_number = block_id.number();
 
         // Sanity check that the block that is being finalized is at least safe.
-        if state.sync_state.safe_head().block_info.number < block_number {
+        if self.state.sync_state.safe_head().block_info.number < block_number {
             return Err(FinalizeTaskError::BlockNotSafe);
         }
 
@@ -33,7 +22,7 @@ impl FinalizeTask {
         // `(number, hash)`); otherwise look up by number. Finalization is irreversible, so a stale
         // hash must produce a hard error, not silently finalize whatever the engine has at the
         // same height.
-        let lookup: BlockId = match self.block_id {
+        let lookup: BlockId = match block_id {
             FinalizeBlockId::ByHash(id) => id.hash.into(),
             FinalizeBlockId::ByNumber(n) => n.into(),
         };
@@ -53,18 +42,17 @@ impl FinalizeTask {
         // engine should never serve a block at a different height for a given hash, but a height
         // mismatch indicates either an upstream protocol bug or a misuse of the API and must
         // never lead to silent finalization.
-        if let FinalizeBlockId::ByHash(id) = self.block_id &&
+        if let FinalizeBlockId::ByHash(id) = block_id &&
             block_info.block_info.number != id.number
         {
             return Err(FinalizeTaskError::BlockNotFound(id.number));
         }
 
         // Dispatch a forkchoice update.
-        SynchronizeTask::new(
-            self.client.clone(),
-            EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
-        )
-        .execute(state)
+        self.synchronize(EngineSyncStateUpdate {
+            finalized_head: Some(block_info),
+            ..Default::default()
+        })
         .await?;
 
         info!(

@@ -1,14 +1,10 @@
-//! A task to consolidate the engine state.
+//! Consolidating the safe head.
 
-use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, ImportedBlockSink, SynchronizeTask,
-    engine::build_and_seal, state::EngineSyncStateUpdate,
-};
+use crate::{ConsolidateTaskError, Engine, state::EngineSyncStateUpdate};
 use alloy_rpc_types_eth::Block;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
-use std::sync::Arc;
 
 /// Input for consolidation - either derived attributes or safe L2 block
 #[derive(Debug, Clone)]
@@ -60,54 +56,12 @@ impl ConsolidateInput {
     }
 }
 
-/// The [`ConsolidateTask`] attempts to consolidate the engine state
-/// using the specified payload attributes or block info.
-#[derive(Debug, Clone)]
-pub(crate) struct ConsolidateTask {
-    /// The engine client.
-    pub(crate) client: Arc<EngineClient>,
-    /// The [`RollupConfig`].
-    pub(crate) cfg: Arc<RollupConfig>,
-    /// The input for consolidation (either attributes or block info).
-    pub(crate) input: ConsolidateInput,
-    /// Where to hand the decoded block once the engine has canonicalized it.
-    pub(crate) block_sink: Arc<dyn ImportedBlockSink>,
-}
-
-impl ConsolidateTask {
-    /// Creates a new [`ConsolidateTask`] with the specified input
-    pub(crate) const fn new(
-        client: Arc<EngineClient>,
-        cfg: Arc<RollupConfig>,
-        input: ConsolidateInput,
-        block_sink: Arc<dyn ImportedBlockSink>,
-    ) -> Self {
-        Self { client, cfg, input, block_sink }
-    }
-
-    /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
-    async fn execute_build_and_seal_tasks(
-        &self,
-        state: &mut EngineState,
-        attributes: &OpAttributesWithParent,
-    ) -> Result<(), ConsolidateTaskError> {
-        build_and_seal(
-            state,
-            self.client.clone(),
-            self.cfg.clone(),
-            attributes.clone(),
-            true,
-            self.block_sink.clone(),
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    /// This provides symmetric fallback behavior to with `build_and_seal`.
+impl Engine {
+    /// Makes a delegated safe block the unsafe and safe head.
+    ///
+    /// This provides symmetric fallback behavior to `build_and_seal` for derived attributes.
     async fn reconcile_to_safe_head(
-        &self,
-        state: &mut EngineState,
+        &mut self,
         safe_l2: &L2BlockInfo,
     ) -> Result<(), ConsolidateTaskError> {
         warn!(
@@ -120,16 +74,12 @@ impl ConsolidateTask {
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the safe head.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            EngineSyncStateUpdate {
-                unsafe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                local_safe_head: Some(*safe_l2),
-                ..Default::default()
-            },
-        )
-        .execute(state)
+        self.synchronize(EngineSyncStateUpdate {
+            unsafe_head: Some(*safe_l2),
+            safe_head: Some(*safe_l2),
+            local_safe_head: Some(*safe_l2),
+            ..Default::default()
+        })
         .await
         .map_err(|e| {
             warn!(target: "engine", ?e, "Apply safe head failed");
@@ -148,26 +98,26 @@ impl ConsolidateTask {
 
     /// Handles the fallback case when the block doesn't match the input or does not exist.
     async fn reconcile_unsafe_to_safe(
-        &self,
-        state: &mut EngineState,
+        &mut self,
+        input: &ConsolidateInput,
     ) -> Result<(), ConsolidateTaskError> {
-        match &self.input {
+        match input {
             ConsolidateInput::Attributes(attributes) => {
-                self.execute_build_and_seal_tasks(state, attributes).await
+                self.build_and_seal((**attributes).clone(), true).await?;
+                Ok(())
             }
-            ConsolidateInput::BlockInfo(safe_l2) => {
-                self.reconcile_to_safe_head(state, safe_l2).await
-            }
+            ConsolidateInput::BlockInfo(safe_l2) => self.reconcile_to_safe_head(safe_l2).await,
         }
     }
 
-    /// Attempts consolidation on the engine state.
-    pub(crate) async fn consolidate(
-        &self,
-        state: &mut EngineState,
+    /// Consolidates the unsafe block at the input's height if it matches the input, and otherwise
+    /// reconciles the unsafe chain to the input.
+    pub(super) async fn consolidate_with_unsafe_block(
+        &mut self,
+        input: &ConsolidateInput,
     ) -> Result<(), ConsolidateTaskError> {
         // Fetch the unsafe L2 block
-        let block_num = self.input.l2_block_number();
+        let block_num = input.l2_block_number();
         let block = match self.client.l2_block_by_label(block_num.into()).await {
             Ok(Some(block)) => block,
             Ok(None) => {
@@ -181,29 +131,30 @@ impl ConsolidateTask {
         };
         let block_hash = block.header.hash;
 
-        if self.input.is_consistent_with_block(&self.cfg, &block) {
+        if input.is_consistent_with_block(&self.config, &block) {
             trace!(
                 target: "engine",
-                input = ?self.input,
+                input = ?input,
                 block_hash = %block_hash,
                 "Consolidating engine state",
             );
             let consensus_block =
                 block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
-            match L2BlockInfo::from_block_and_genesis(&consensus_block, &self.cfg.genesis) {
+            match L2BlockInfo::from_block_and_genesis(&consensus_block, &self.config.genesis) {
                 // Only issue a forkchoice update if the attributes are the last in the span
                 // batch. This is an optimization to avoid sending a FCU
                 // call for every block in the span batch.
-                Ok(block_info) if !self.input.is_attributes_last_in_span() => {
+                Ok(block_info) if !input.is_attributes_last_in_span() => {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
                     // Apply a transient update to the safe head.
-                    state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
-                        local_safe_head: Some(block_info),
-                        ..Default::default()
-                    });
+                    self.state.sync_state =
+                        self.state.sync_state.apply_update(EngineSyncStateUpdate {
+                            safe_head: Some(block_info),
+                            local_safe_head: Some(block_info),
+                            ..Default::default()
+                        });
 
                     info!(
                         target: "engine",
@@ -218,15 +169,11 @@ impl ConsolidateTask {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    SynchronizeTask::new(
-                        Arc::clone(&self.client),
-                        EngineSyncStateUpdate {
-                            safe_head: Some(block_info),
-                            local_safe_head: Some(block_info),
-                            ..Default::default()
-                        },
-                    )
-                    .execute(state)
+                    self.synchronize(EngineSyncStateUpdate {
+                        safe_head: Some(block_info),
+                        local_safe_head: Some(block_info),
+                        ..Default::default()
+                    })
                     .await
                     .map_err(|e| {
                         warn!(target: "engine", ?e, "Consolidation failed");
@@ -244,23 +191,23 @@ impl ConsolidateTask {
                 }
                 Err(e) => {
                     // Continue on to build the block since we failed to construct the block info.
-                    warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, proceeding to build task");
+                    warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, proceeding to build");
                 }
             }
         }
 
         debug!(
             target: "engine",
-            input = ?self.input,
+            input = ?input,
             block_hash = %block_hash,
             "ConsolidateInput mismatch! Initiating reorg",
         );
         // Handle mismatch case - called when consistency check fails
         // or when L2BlockInfo construction fails in Attributes branch
-        self.reconcile_unsafe_to_safe(state).await
+        self.reconcile_unsafe_to_safe(input).await
     }
 
-    /// Executes the task against the engine state.
+    /// Advances the safe head to the input, reorging the unsafe chain to it if necessary.
     ///
     /// Behavior depends on how the safe head is provided:
     ///
@@ -272,18 +219,20 @@ impl ConsolidateTask {
     ///   derivation, and is not coordinated with the engine actor's safe and unsafe heads. If the
     ///   injected safe head is ahead of the engine actor's unsafe head, we reconcile the unsafe
     ///   chain up to the safe head instead of consolidating.
-    pub(crate) async fn execute(
-        &self,
-        state: &mut EngineState,
+    pub(in crate::engine) async fn consolidate_input(
+        &mut self,
+        input: &ConsolidateInput,
     ) -> Result<(), ConsolidateTaskError> {
-        let safe_head_number = match &self.input {
-            ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
+        let safe_head_number = match input {
+            ConsolidateInput::Attributes { .. } => {
+                self.state.sync_state.safe_head().block_info.number
+            }
             ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
         };
-        if safe_head_number < state.sync_state.unsafe_head().block_info.number {
-            self.consolidate(state).await
+        if safe_head_number < self.state.sync_state.unsafe_head().block_info.number {
+            self.consolidate_with_unsafe_block(input).await
         } else {
-            self.reconcile_unsafe_to_safe(state).await
+            self.reconcile_unsafe_to_safe(input).await
         }
     }
 }
@@ -291,12 +240,13 @@ impl ConsolidateTask {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ImportedBlockSink, test_utils::test_engine_client};
+    use crate::{EngineState, ImportedBlockSink, test_utils::test_engine_client};
     use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use kona_genesis::ChainGenesis;
     use kona_protocol::BlockInfo;
+    use std::sync::Arc;
 
     /// Records the blocks the engine hands over after consolidating.
     #[derive(Debug, Default)]
@@ -328,17 +278,20 @@ mod tests {
         });
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
-        let client = Arc::new(client);
-
         let safe_l2 = L2BlockInfo {
             block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
             ..Default::default()
         };
         let sink = Arc::new(RecordingSink::default());
-        let task =
-            ConsolidateTask::new(client, cfg, ConsolidateInput::BlockInfo(safe_l2), sink.clone());
+        let mut engine = Engine::new(
+            Arc::new(client),
+            cfg,
+            sink.clone(),
+            EngineState::default(),
+            tokio::sync::watch::channel(EngineState::default()).0,
+        );
 
-        task.consolidate(&mut EngineState::default()).await.unwrap();
+        engine.consolidate_with_unsafe_block(&ConsolidateInput::BlockInfo(safe_l2)).await.unwrap();
 
         assert_eq!(sink.0.lock().unwrap().as_slice(), &[block_hash]);
         l1.assert_finished();

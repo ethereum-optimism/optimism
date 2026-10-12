@@ -1,21 +1,17 @@
-//! A task for importing a block that has already been started.
+//! Sealing a block that has been started, and making it canonical.
 use super::SealTaskError;
 use crate::{
-    EngineClient, EngineGetPayloadVersion, EngineState, ImportedBlockSink, InsertTask,
+    Engine, EngineGetPayloadVersion,
     InsertTaskError::{self},
-    engine::build_and_seal,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
-use derive_more::Constructor;
-use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::sync::Arc;
 
-/// How a [`SealTask`] is coupled to the build that produced its payload.
+/// How a seal is coupled to the build that produced its payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum BuildSealCoupling {
+pub(in crate::engine) enum BuildSealCoupling {
     /// Build and seal run inside the same engine operation, so no other operation can advance the
     /// unsafe head between them. The unsafe-head staleness check is skipped: a derivation-driven
     /// reorg legitimately seals a payload whose parent differs from the current unsafe head.
@@ -25,57 +21,32 @@ pub(crate) enum BuildSealCoupling {
     Detached,
 }
 
-/// Task for block sealing and canonicalization.
-///
-/// The [`SealTask`] handles the following parts of the block building workflow:
-///
-/// 1. **Payload Construction**: Retrieves the built payload using `engine_getPayload`
-/// 2. **Block Import**: Imports the payload using [`InsertTask`] for canonicalization
-///
-/// ## Error Handling
-///
-/// The task delegates to [`InsertTaskError`] for payload import failures.
-///
-/// [`InsertTask`]: crate::InsertTask
-/// [`InsertTaskError`]: crate::InsertTaskError
-#[derive(Debug, Clone, Constructor)]
-pub(crate) struct SealTask {
-    /// The engine API client.
-    pub(crate) engine: Arc<EngineClient>,
-    /// The [`RollupConfig`].
-    pub(crate) cfg: Arc<RollupConfig>,
-    /// The [`PayloadId`] being sealed.
-    pub(crate) payload_id: PayloadId,
-    /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
-    pub(crate) attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub(crate) is_attributes_derived: bool,
-    /// How this seal is coupled to the build that produced `payload_id`.
-    pub(crate) coupling: BuildSealCoupling,
-    /// Where to hand the decoded block once the engine has canonicalized it.
-    pub(crate) block_sink: Arc<dyn ImportedBlockSink>,
-}
-
-impl SealTask {
-    /// Seals the payload and imports it, returning the sealed payload.
+impl Engine {
+    /// Seals the payload built from `attributes` and imports it, returning the sealed payload.
     ///
-    /// A detached seal fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe
-    /// head moved since the build started.
-    pub(crate) async fn seal(
-        &self,
-        state: &mut EngineState,
+    /// Retrieves the built payload using `engine_getPayload`, then imports it with
+    /// `engine_newPayload` and a forkchoice update. A detached seal fails with
+    /// [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head moved since the build
+    /// started. `is_attributes_derived` says whether the attributes were derived or created by the
+    /// sequencer.
+    pub(in crate::engine) async fn seal_block(
+        &mut self,
+        payload_id: PayloadId,
+        attributes: OpAttributesWithParent,
+        is_attributes_derived: bool,
+        coupling: BuildSealCoupling,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         debug!(
             target: "engine",
-            txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
-            is_deposits = self.attributes.is_deposits_only(),
+            txs = attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            is_deposits = attributes.is_deposits_only(),
             "Starting new seal job"
         );
 
-        let unsafe_block_info = state.sync_state.unsafe_head().block_info;
-        let parent_block_info = self.attributes.parent.block_info;
+        let unsafe_block_info = self.state.sync_state.unsafe_head().block_info;
+        let parent_block_info = attributes.parent.block_info;
 
-        let build_is_stale = self.coupling == BuildSealCoupling::Detached &&
+        let build_is_stale = coupling == BuildSealCoupling::Detached &&
             (unsafe_block_info.hash != parent_block_info.hash ||
                 unsafe_block_info.number != parent_block_info.number);
 
@@ -89,11 +60,11 @@ impl SealTask {
             Err(SealTaskError::UnsafeHeadChangedSinceBuild)
         } else {
             // Seal the block and import it into the engine.
-            self.seal_and_canonicalize_block(state).await
+            self.seal_and_canonicalize_block(payload_id, attributes, is_attributes_derived).await
         }
     }
 
-    /// Seals the execution payload in the EL, returning the execution envelope.
+    /// Fetches the built payload from the EL, returning the execution envelope.
     ///
     /// ## Engine Method Selection
     /// The method used to fetch the payload from the EL is determined by the payload timestamp. The
@@ -102,12 +73,11 @@ impl SealTask {
     /// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
     /// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
     /// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
-    pub(super) async fn seal_payload(
+    /// - `engine_getPayloadV5` is used for payloads with a timestamp after the Karst fork.
+    pub(super) async fn fetch_payload(
         &self,
-        cfg: &RollupConfig,
-        engine: &EngineClient,
         payload_id: PayloadId,
-        payload_attrs: OpAttributesWithParent,
+        payload_attrs: &OpAttributesWithParent,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         let payload_timestamp = payload_attrs.attributes().payload_attributes.timestamp;
 
@@ -118,11 +88,12 @@ impl SealTask {
             "Sealing payload"
         );
 
-        let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
+        let get_payload_version =
+            EngineGetPayloadVersion::from_cfg(&self.config, payload_timestamp);
         let payload_envelope = match get_payload_version {
             EngineGetPayloadVersion::V5 => {
                 // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-                let payload = engine.get_payload_v5(payload_id).await.map_err(|e| {
+                let payload = self.client.get_payload_v5(payload_id).await.map_err(|e| {
                     error!(target: "engine", "Payload fetch failed: {e}");
                     SealTaskError::GetPayloadFailed(e)
                 })?;
@@ -133,7 +104,7 @@ impl SealTask {
                 }
             }
             EngineGetPayloadVersion::V4 => {
-                let payload = engine.get_payload_v4(payload_id).await.map_err(|e| {
+                let payload = self.client.get_payload_v4(payload_id).await.map_err(|e| {
                     error!(target: "engine", "Payload fetch failed: {e}");
                     SealTaskError::GetPayloadFailed(e)
                 })?;
@@ -144,7 +115,7 @@ impl SealTask {
                 }
             }
             EngineGetPayloadVersion::V3 => {
-                let payload = engine.get_payload_v3(payload_id).await.map_err(|e| {
+                let payload = self.client.get_payload_v3(payload_id).await.map_err(|e| {
                     error!(target: "engine", "Payload fetch failed: {e}");
                     SealTaskError::GetPayloadFailed(e)
                 })?;
@@ -155,7 +126,7 @@ impl SealTask {
                 }
             }
             EngineGetPayloadVersion::V2 => {
-                let payload = engine.get_payload_v2(payload_id).await.map_err(|e| {
+                let payload = self.client.get_payload_v2(payload_id).await.map_err(|e| {
                     error!(target: "engine", "Payload fetch failed: {e}");
                     SealTaskError::GetPayloadFailed(e)
                 })?;
@@ -171,57 +142,38 @@ impl SealTask {
         Ok(payload_envelope)
     }
 
-    /// Inserts a payload into the engine with Holocene fallback support.
+    /// Inserts a sealed payload into the engine with Holocene fallback support.
     ///
     /// This function handles:
-    /// 1. Executing the `InsertTask` to import the payload
+    /// 1. Inserting the payload
     /// 2. Handling deposits-only payload failures
     /// 3. Holocene fallback via `build_and_seal` if needed
     ///
     /// Returns the inserted block information, or an error if insertion fails.
-    async fn insert_payload(
-        &self,
-        state: &mut EngineState,
+    async fn import_sealed_payload(
+        &mut self,
         payload: OpExecutionPayloadEnvelope,
+        attributes: &OpAttributesWithParent,
+        is_attributes_derived: bool,
     ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
-        let new_block_ref = match InsertTask::new(
-            Arc::clone(&self.engine),
-            self.cfg.clone(),
-            payload,
-            self.is_attributes_derived,
-            Arc::clone(&self.block_sink),
-        )
-        .execute(state)
-        .await
-        {
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.attributes.is_deposits_only() =>
-            {
+        let new_block_ref = match self.insert(payload, is_attributes_derived).await {
+            Err(InsertTaskError::UnexpectedPayloadStatus(e)) if attributes.is_deposits_only() => {
                 error!(target: "engine", error = ?e, "Critical: Deposit-only payload import failed");
                 return Err(SealTaskError::DepositOnlyPayloadFailed);
             }
             Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.cfg.is_holocene_active(
-                    self.attributes.attributes().payload_attributes.timestamp,
-                ) =>
+                if self
+                    .config
+                    .is_holocene_active(attributes.attributes().payload_attributes.timestamp) =>
             {
                 warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
 
                 // HOLOCENE: Re-attempt payload import with deposits only
                 // First build the deposits-only payload, then seal it
-                let deposits_only_attrs = self.attributes.as_deposits_only();
+                let deposits_only_attrs = attributes.as_deposits_only();
 
-                return match build_and_seal(
-                    state,
-                    self.engine.clone(),
-                    self.cfg.clone(),
-                    deposits_only_attrs.clone(),
-                    self.is_attributes_derived,
-                    self.block_sink.clone(),
-                )
-                .await
-                {
+                return match self.build_and_seal(deposits_only_attrs, is_attributes_derived).await {
                     Ok(_) => {
                         info!(target: "engine", "Successfully imported deposits-only payload");
                         Err(SealTaskError::HoloceneInvalidFlush)
@@ -248,23 +200,25 @@ impl SealTask {
     /// 1. Fetching the execution payload from the EL
     /// 2. Importing the payload into the engine with Holocene fallback support
     async fn seal_and_canonicalize_block(
-        &self,
-        state: &mut EngineState,
+        &mut self,
+        payload_id: PayloadId,
+        attributes: OpAttributesWithParent,
+        is_attributes_derived: bool,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         // Fetch the payload just inserted from the EL and import it into the engine.
-        let new_payload = self
-            .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
-            .await?;
+        let new_payload = self.fetch_payload(payload_id, &attributes).await?;
 
         // Insert the payload into the engine and reuse its decoded block information.
-        let new_block_ref = self.insert_payload(state, new_payload.clone()).await?;
+        let new_block_ref = self
+            .import_sealed_payload(new_payload.clone(), &attributes, is_attributes_derived)
+            .await?;
 
         info!(
             target: "engine",
             l2_number = new_block_ref.block_info.number,
             l2_time = new_block_ref.block_info.timestamp,
             "Built and imported new {} block",
-            if self.is_attributes_derived { "safe" } else { "unsafe" },
+            if is_attributes_derived { "safe" } else { "unsafe" },
         );
 
         Ok(new_payload)

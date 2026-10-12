@@ -1,11 +1,11 @@
 //! The [`Engine`] performs Engine API operations against the engine state and publishes the
 //! state.
 
+use super::BuildSealCoupling;
 use crate::{
-    BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
-    ConsolidateTaskError, EngineClient, EngineState, EngineSyncStateUpdate, EngineTaskError,
-    EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, FinalizeTaskError, ImportedBlockSink,
-    InsertTask, InsertTaskError, Metrics, SealTask, SealTaskError, SyncStartError, SynchronizeTask,
+    BuildTaskError, ConsolidateInput, ConsolidateTaskError, EngineClient, EngineState,
+    EngineSyncStateUpdate, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTaskError, ImportedBlockSink, InsertTaskError, Metrics, SealTaskError, SyncStartError,
     SynchronizeTaskError, find_starting_forkchoice,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
@@ -25,13 +25,13 @@ use tokio::sync::watch::Sender;
 #[derive(Debug)]
 pub struct Engine {
     /// The Engine API client.
-    client: Arc<EngineClient>,
+    pub(super) client: Arc<EngineClient>,
     /// The rollup configuration.
-    config: Arc<RollupConfig>,
+    pub(super) config: Arc<RollupConfig>,
     /// Where to hand every block the engine canonicalizes.
-    block_sink: Arc<dyn ImportedBlockSink>,
-    /// The state of the engine.
-    state: EngineState,
+    pub(super) block_sink: Arc<dyn ImportedBlockSink>,
+    /// The state of the engine. Operations update it; only the public methods publish it.
+    pub(super) state: EngineState,
     /// Publishes the state to readers.
     state_sender: Sender<EngineState>,
 }
@@ -65,16 +65,14 @@ impl Engine {
         let start = find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
 
         // One attempt. The caller retries transient failures.
-        let synchronize = SynchronizeTask::new(
-            Arc::clone(&self.client),
-            EngineSyncStateUpdate {
+        let result = self
+            .synchronize(EngineSyncStateUpdate {
                 unsafe_head: Some(start.un_safe),
                 local_safe_head: Some(start.safe),
                 safe_head: Some(start.safe),
                 finalized_head: Some(start.finalized),
-            },
-        );
-        let result = synchronize.execute(&mut self.state).await;
+            })
+            .await;
         self.state_sender.send_replace(self.state);
         result?;
 
@@ -91,14 +89,7 @@ impl Engine {
         &mut self,
         payload: OpExecutionPayloadEnvelope,
     ) -> Result<(), InsertTaskError> {
-        let task = InsertTask::new(
-            Arc::clone(&self.client),
-            Arc::clone(&self.config),
-            payload,
-            false,
-            Arc::clone(&self.block_sink),
-        );
-        let result = match task.execute(&mut self.state).await {
+        let result = match self.insert(payload, false).await {
             Err(InsertTaskError::UnexpectedPayloadStatus(
                 status @ (PayloadStatusEnum::Invalid { .. } | PayloadStatusEnum::Accepted),
             )) => {
@@ -115,8 +106,7 @@ impl Engine {
         &mut self,
         attributes: OpAttributesWithParent,
     ) -> Result<PayloadId, BuildTaskError> {
-        let task = BuildTask::new(Arc::clone(&self.client), Arc::clone(&self.config), attributes);
-        let result = task.execute(&self.state).await;
+        let result = self.start_build(attributes).await;
         self.finish(Metrics::BUILD_TASK_LABEL, result)
     }
 
@@ -129,16 +119,8 @@ impl Engine {
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-        let task = SealTask::new(
-            Arc::clone(&self.client),
-            Arc::clone(&self.config),
-            payload_id,
-            attributes,
-            false,
-            BuildSealCoupling::Detached,
-            Arc::clone(&self.block_sink),
-        );
-        let result = task.seal(&mut self.state).await;
+        let result =
+            self.seal_block(payload_id, attributes, false, BuildSealCoupling::Detached).await;
         self.finish(Metrics::SEAL_TASK_LABEL, result)
     }
 
@@ -148,20 +130,13 @@ impl Engine {
         &mut self,
         input: ConsolidateInput,
     ) -> Result<(), ConsolidateTaskError> {
-        let task = ConsolidateTask::new(
-            Arc::clone(&self.client),
-            Arc::clone(&self.config),
-            input,
-            Arc::clone(&self.block_sink),
-        );
-        let result = task.execute(&mut self.state).await;
+        let result = self.consolidate_input(&input).await;
         self.finish(Metrics::CONSOLIDATE_TASK_LABEL, result)
     }
 
     /// Finalizes an L2 block.
     pub async fn finalize(&mut self, block_id: FinalizeBlockId) -> Result<(), FinalizeTaskError> {
-        let task = FinalizeTask::new(Arc::clone(&self.client), block_id);
-        let result = task.execute(&mut self.state).await;
+        let result = self.finalize_block(block_id).await;
         self.finish(Metrics::FINALIZE_TASK_LABEL, result)
     }
 
@@ -185,6 +160,25 @@ impl Engine {
             }
         }
         result
+    }
+}
+
+#[cfg(test)]
+impl Engine {
+    /// Returns an engine with the initial state, a block sink that discards blocks, and no state
+    /// readers.
+    pub(crate) fn for_test(
+        client: EngineClient,
+        config: Arc<RollupConfig>,
+        initial_state: EngineState,
+    ) -> Self {
+        Self::new(
+            Arc::new(client),
+            config,
+            Arc::new(crate::NoopBlockSink),
+            initial_state,
+            tokio::sync::watch::channel(initial_state).0,
+        )
     }
 }
 
@@ -255,7 +249,7 @@ mod tests {
         let (state_tx, mut state_rx) = tokio::sync::watch::channel(EngineState::default());
         let mut engine = engine(client, config.clone(), EngineState::default(), state_tx);
         engine.reset().await.unwrap();
-        // Readers observe the reset without waiting for a task to drain.
+        // Readers observe the reset without waiting for another operation.
         assert!(state_rx.has_changed().unwrap());
         let state = *state_rx.borrow_and_update();
         assert_eq!(state, *engine.state());

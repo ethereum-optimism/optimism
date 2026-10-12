@@ -1,7 +1,7 @@
-//! Task and its associated types for importing a block that has been started.
+//! The operation and its associated types for importing a block that has been started.
 
 mod operation;
-pub(crate) use operation::{BuildSealCoupling, SealTask};
+pub(in crate::engine) use operation::BuildSealCoupling;
 
 mod error;
 pub use error::SealTaskError;
