@@ -3,8 +3,6 @@ use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
-const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
-
 const DEFAULT_L2_TRUST_RPC: bool = true;
 const DEFAULT_L1_TRUST_RPC: bool = true;
 
@@ -64,14 +62,6 @@ pub struct L2ClientArgs {
     /// This MUST be a valid hex-encoded JWT secret of 64 digits.
     #[arg(long, visible_alias = "l2.jwt-secret-encoded", env = "KONA_NODE_L2_ENGINE_AUTH_ENCODED")]
     pub l2_engine_jwt_encoded: Option<JwtSecret>,
-    /// Timeout for http calls in milliseconds.
-    #[arg(
-        long,
-        visible_alias = "l2.timeout",
-        env = "KONA_NODE_L2_ENGINE_TIMEOUT",
-        default_value_t = DEFAULT_L2_ENGINE_TIMEOUT
-    )]
-    pub l2_engine_timeout: u64,
     /// If false, block hash verification is performed for all retrieved blocks.
     #[arg(
         long,
@@ -88,7 +78,6 @@ impl Default for L2ClientArgs {
             l2_engine_rpc: Url::parse("http://localhost:8551").unwrap(),
             l2_engine_jwt_secret: None,
             l2_engine_jwt_encoded: None,
-            l2_engine_timeout: DEFAULT_L2_ENGINE_TIMEOUT,
             l2_trust_rpc: DEFAULT_L2_TRUST_RPC,
         }
     }

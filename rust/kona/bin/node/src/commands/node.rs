@@ -179,8 +179,6 @@ impl NodeCommand {
                         .advertise_udp_port
                         .map_or_else(|| "auto".to_string(), |p| p.to_string())
                 ),
-                (CliMetrics::P2P_PEERS_LO, self.p2p_flags.peers_lo.to_string()),
-                (CliMetrics::P2P_PEERS_HI, self.p2p_flags.peers_hi.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D, self.p2p_flags.gossip_mesh_d.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D_LO, self.p2p_flags.gossip_mesh_dlo.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D_HI, self.p2p_flags.gossip_mesh_dhi.to_string()),

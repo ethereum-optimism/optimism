@@ -20,7 +20,6 @@ use kona_providers_alloy::AlloyChainProvider;
 use libp2p::identity::Keypair;
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
-    num::ParseIntError,
     path::PathBuf,
     str::FromStr,
 };
@@ -56,9 +55,6 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
-    /// Disable Discv5 (node discovery).
-    #[arg(long = "p2p.no-discovery", default_value = "false", env = "KONA_NODE_P2P_NO_DISCOVERY")]
-    pub no_discovery: bool,
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after
     /// restarting, maintaining the previous advertised identity.
@@ -98,22 +94,6 @@ pub struct P2PArgs {
     /// UDP port to bind Discv5 to. Same as TCP port if left 0.
     #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
     pub listen_udp_port: u16,
-    /// Low-tide peer count. The node actively searches for new peer connections if below this
-    /// amount.
-    #[arg(long = "p2p.peers.lo", default_value = "20", env = "KONA_NODE_P2P_PEERS_LO")]
-    pub peers_lo: u32,
-    /// High-tide peer count. The node starts pruning peer connections slowly after reaching this
-    /// number.
-    #[arg(long = "p2p.peers.hi", default_value = "30", env = "KONA_NODE_P2P_PEERS_HI")]
-    pub peers_hi: u32,
-    /// Grace period to keep a newly connected peer around, if it is not misbehaving.
-    #[arg(
-        long = "p2p.peers.grace",
-        default_value = "30",
-        env = "KONA_NODE_P2P_PEERS_GRACE",
-        value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::from_secs(arg.parse()?))}
-    )]
-    pub peers_grace: Duration,
     /// Configure `GossipSub` topic stable mesh target count.
     /// Aka: The desired outbound degree (numbers of peers to gossip to).
     #[arg(long = "p2p.gossip.mesh.d", default_value = "8", env = "KONA_NODE_P2P_GOSSIP_MESH_D")]
@@ -546,12 +526,6 @@ mod tests {
         assert_eq!(args.p2p.discovery_randomize, Some(10));
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p.discovery_randomize, None);
-    }
-
-    #[test]
-    fn test_p2p_args_no_discovery() {
-        let args = MockCommand::parse_from(["test", "--p2p.no-discovery"]);
-        assert!(args.p2p.no_discovery);
     }
 
     #[test]

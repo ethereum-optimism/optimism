@@ -58,10 +58,8 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Max L2 blocks between safe and unsafe heads |
 | `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
 | `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
-| `--conductor.rpc.timeout` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | `1` | Conductor RPC timeout (seconds) |
 
 The full flag catalogue, including the standard node arguments shared with validator mode, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 
@@ -85,7 +83,6 @@ kona-node node \
   --mode=Sequencer \
   --rpc.enable-admin \
   --conductor.rpc=http://conductor:8080 \
-  --conductor.rpc.timeout=5 \
   --sequencer.l1-confs=6 \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
