@@ -7,7 +7,6 @@ use alloy_transport::TransportResult;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_network::Optimism;
-use std::fmt::Display;
 
 /// An unsafe, safe, and finalized [`L2BlockInfo`] returned by the
 /// [`crate::find_starting_forkchoice`] function.
@@ -19,21 +18,6 @@ pub struct L2ForkchoiceState {
     pub safe: L2BlockInfo,
     /// The finalized L2 block.
     pub finalized: L2BlockInfo,
-}
-
-impl Display for L2ForkchoiceState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "FINALIZED: {} (#{}) | SAFE: {} (#{}) | UNSAFE: {} (#{})",
-            self.finalized.block_info.hash,
-            self.finalized.block_info.number,
-            self.safe.block_info.hash,
-            self.safe.block_info.number,
-            self.un_safe.block_info.hash,
-            self.un_safe.block_info.number,
-        )
-    }
 }
 
 impl L2ForkchoiceState {
