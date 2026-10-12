@@ -21,7 +21,7 @@ kona-node node \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
-  --l2.jwt-secret=./jwt.hex \
+  --l2-engine-jwt-secret=./jwt.hex \
   --p2p.sequencer.key.path=./p2p-sequencer.key \
   --l2-config-file=./rollup.json
 ```
@@ -50,7 +50,7 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 | **L1 RPC** | `--l1-eth-rpc` | `KONA_NODE_L1_ETH_RPC` | L1 execution client RPC URL |
 | **L1 Beacon** | `--l1-beacon` | `KONA_NODE_L1_BEACON` | L1 beacon API URL |
 | **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
-| **JWT Secret** | `--l2.jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
+| **JWT Secret** | `--l2-engine-jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
 | **Rollup Config** | `--l2-config-file` or `--chain` | `KONA_NODE_ROLLUP_CONFIG` or `KONA_NODE_L2_CHAIN_ID` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
 | **Block Signer** | `--p2p.sequencer.key.path`, `--p2p.sequencer.key`, or `--p2p.signer.endpoint` with `--p2p.signer.address` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH`, `KONA_NODE_P2P_SEQUENCER_KEY`, `KONA_NODE_P2P_SIGNER_ENDPOINT`, `KONA_NODE_P2P_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
 

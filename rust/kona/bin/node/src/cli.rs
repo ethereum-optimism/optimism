@@ -88,8 +88,8 @@ mod tests {
         "http://localhost:5052",
         "--l2-engine-rpc",
         "http://localhost:8551",
-        "--l2-engine-jwt-encoded",
-        "0xabababababababababababababababababababababababababababababababab",
+        "--l2-engine-jwt-secret",
+        "/path/to/jwt.hex",
     ];
 
     /// Parses `kona-node node` with the node's required flags followed by `args`.

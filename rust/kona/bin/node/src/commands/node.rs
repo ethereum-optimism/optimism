@@ -52,9 +52,10 @@ pub(super) enum JwtValidationError {
 /// kona-node node --chain optimism \
 ///                --l1-eth-rpc http://localhost:8545 \
 ///                --l1-beacon http://localhost:5052 \
-///                --l2-engine-rpc http://localhost:8551
+///                --l2-engine-rpc http://localhost:8551 \
+///                --l2-engine-jwt-secret /path/to/jwt.hex
 ///
-/// # Run as sequencer for a custom chain with a custom JWT secret
+/// # Run as sequencer for a custom chain
 /// kona-node node --mode sequencer \
 ///                --l2-config-file /path/to/rollup.json \
 ///                --l1-eth-rpc http://localhost:8545 \
@@ -111,23 +112,6 @@ pub struct NodeCommand {
     /// Metrics CLI arguments.
     #[command(flatten)]
     pub metrics: MetricsArgs,
-}
-
-impl Default for NodeCommand {
-    fn default() -> Self {
-        Self {
-            l1_rpc_args: L1ClientArgs::default(),
-            l2_client_args: L2ClientArgs::default(),
-            derivation_delegate_args: DerivationDelegateArgs::default(),
-            chain: ChainArgs::default(),
-            node_mode: NodeMode::Validator,
-            p2p_flags: P2PArgs::default(),
-            rpc_flags: RpcArgs::default(),
-            sequencer_flags: SequencerArgs::default(),
-            log_args: LogArgs::default(),
-            metrics: MetricsArgs::default(),
-        }
-    }
 }
 
 impl NodeCommand {
@@ -227,8 +211,7 @@ impl NodeCommand {
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
                         error!(
-                            "Engine API JWT secret differs from the one given by \
-                             --l2-engine-jwt-secret or --l2-engine-jwt-encoded"
+                            "Engine API JWT secret differs from the one in --l2-engine-jwt-secret"
                         );
                         return Err(JwtValidationError::InvalidSignature.into());
                     }
@@ -347,8 +330,8 @@ mod tests {
             "http://localhost:5052",
             "--l2-engine-rpc",
             "http://localhost:8551",
-            "--l2-engine-jwt-encoded",
-            "0xabababababababababababababababababababababababababababababababab",
+            "--l2-engine-jwt-secret",
+            "/path/to/jwt.hex",
         ]
     }
 
@@ -387,27 +370,36 @@ mod tests {
     }
 
     /// Required flags whose URLs nothing listens on, so that any network I/O fails.
-    const UNREACHABLE_FLAGS: [&str; 8] = [
+    const UNREACHABLE_FLAGS: [&str; 6] = [
         "--l1-eth-rpc",
         "http://127.0.0.1:1",
         "--l1-beacon",
         "http://127.0.0.1:2",
         "--l2-engine-rpc",
         "http://127.0.0.1:3",
-        "--l2-engine-jwt-encoded",
-        "0xabababababababababababababababababababababababababababababababab",
     ];
 
-    fn parse_node(args: &[&str]) -> NodeCommand {
-        NodeCommand::try_parse_from(
-            std::iter::once("node").chain(UNREACHABLE_FLAGS).chain(args.iter().copied()),
+    const JWT_HEX: &str = "0xabababababababababababababababababababababababababababababababab";
+
+    /// Parses the node command with [`UNREACHABLE_FLAGS`], a JWT secret file holding [`JWT_HEX`]
+    /// and `args`. The returned file must outlive the command's use of it.
+    fn parse_node(args: &[&str]) -> (NodeCommand, tempfile::NamedTempFile) {
+        let mut jwt = tempfile::NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut jwt, JWT_HEX.as_bytes()).unwrap();
+        let jwt_path = jwt.path().to_str().unwrap().to_owned();
+        let command = NodeCommand::try_parse_from(
+            std::iter::once("node")
+                .chain(UNREACHABLE_FLAGS)
+                .chain(["--l2-engine-jwt-secret", &jwt_path])
+                .chain(args.iter().copied()),
         )
-        .unwrap()
+        .unwrap();
+        (command, jwt)
     }
 
     #[test]
     fn test_config_for_a_registry_chain() {
-        let command = parse_node(&[
+        let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
             "--mode",
@@ -423,10 +415,7 @@ mod tests {
         assert_eq!(config.l1_client.rpc_url.as_str(), "http://127.0.0.1:1/");
         assert_eq!(config.l1_client.beacon.as_str(), "http://127.0.0.1:2/");
         assert_eq!(config.engine_config.l2_url.as_str(), "http://127.0.0.1:3/");
-        assert_eq!(
-            config.engine_config.l2_jwt_secret,
-            JwtSecret::from_hex(UNREACHABLE_FLAGS[7]).unwrap()
-        );
+        assert_eq!(config.engine_config.l2_jwt_secret, JwtSecret::from_hex(JWT_HEX).unwrap());
         assert_eq!(config.engine_config.mode, NodeMode::Sequencer);
         assert_eq!(
             config.sequencer_config.conductor_rpc_url,
@@ -447,7 +436,7 @@ mod tests {
         let mut l1_file = tempfile::NamedTempFile::new().unwrap();
         serde_json::to_writer(&mut l1_file, &serde_json::json!({"chainId": 900})).unwrap();
 
-        let command = parse_node(&[
+        let (command, _jwt) = parse_node(&[
             "--l2-config-file",
             rollup_file.path().to_str().unwrap(),
             "--l1-config-file",

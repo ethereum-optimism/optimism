@@ -1,6 +1,5 @@
 use alloy_rpc_types_engine::JwtSecret;
-use anyhow::{Result, anyhow, bail};
-use clap::ArgGroup;
+use anyhow::{Result, anyhow};
 use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
@@ -39,39 +38,17 @@ pub struct L1ClientArgs {
     pub l1_slot_duration_override: Option<u64>,
 }
 
-impl Default for L1ClientArgs {
-    fn default() -> Self {
-        Self {
-            l1_eth_rpc: Url::parse("http://localhost:8545").unwrap(),
-            l1_trust_rpc: DEFAULT_L1_TRUST_RPC,
-            l1_beacon: Url::parse("http://localhost:5052").unwrap(),
-            l1_slot_duration_override: None,
-        }
-    }
-}
-
 /// L2 client arguments.
-///
-/// The engine API's JWT secret comes from exactly one of `--l2-engine-jwt-secret` and
-/// `--l2-engine-jwt-encoded`.
 #[derive(Clone, Debug, clap::Args)]
-#[command(group(
-    ArgGroup::new("l2_engine_jwt")
-        .required(true)
-        .args(["l2_engine_jwt_secret", "l2_engine_jwt_encoded"])
-))]
 pub struct L2ClientArgs {
     /// URI of the engine API endpoint of an L2 execution client.
     #[arg(long, visible_alias = "l2", env = "KONA_NODE_L2_ENGINE_RPC")]
     pub l2_engine_rpc: Url,
-    /// JWT secret for the auth-rpc endpoint of the execution client.
-    /// This MUST be a valid path to a file containing the hex-encoded JWT secret.
+    /// Path to a file containing the hex-encoded JWT secret for the execution client's
+    /// authenticated engine API. The secret is only accepted from a file, so that it stays out of
+    /// the process's command line.
     #[arg(long, visible_alias = "l2.jwt-secret", env = "KONA_NODE_L2_ENGINE_AUTH")]
-    pub l2_engine_jwt_secret: Option<PathBuf>,
-    /// Hex encoded JWT secret to use for the authenticated engine-API RPC server.
-    /// This MUST be a valid hex-encoded JWT secret of 64 digits.
-    #[arg(long, visible_alias = "l2.jwt-secret-encoded", env = "KONA_NODE_L2_ENGINE_AUTH_ENCODED")]
-    pub l2_engine_jwt_encoded: Option<JwtSecret>,
+    pub l2_engine_jwt_secret: PathBuf,
     /// If false, block hash verification is performed for all retrieved blocks.
     #[arg(
         long,
@@ -82,33 +59,14 @@ pub struct L2ClientArgs {
     pub l2_trust_rpc: bool,
 }
 
-impl Default for L2ClientArgs {
-    fn default() -> Self {
-        Self {
-            l2_engine_rpc: Url::parse("http://localhost:8551").unwrap(),
-            l2_engine_jwt_secret: None,
-            l2_engine_jwt_encoded: None,
-            l2_trust_rpc: DEFAULT_L2_TRUST_RPC,
-        }
-    }
-}
-
 impl L2ClientArgs {
-    /// Returns the engine API's JWT secret, read from the `--l2-engine-jwt-secret` file or taken
-    /// from `--l2-engine-jwt-encoded`.
+    /// Returns the engine API's JWT secret, read from the `--l2-engine-jwt-secret` file.
     pub fn jwt_secret(&self) -> Result<JwtSecret> {
-        match (&self.l2_engine_jwt_secret, self.l2_engine_jwt_encoded) {
-            (Some(path), None) => {
-                let hex = std::fs::read_to_string(path)
-                    .map_err(|e| anyhow!("Failed to read the JWT secret file {path:?}: {e}"))?;
-                JwtSecret::from_hex(hex)
-                    .map_err(|e| anyhow!("Failed to parse the JWT secret in {path:?}: {e}"))
-            }
-            (None, Some(secret)) => Ok(secret),
-            _ => bail!(
-                "Exactly one of --l2-engine-jwt-secret and --l2-engine-jwt-encoded must be set"
-            ),
-        }
+        let path = &self.l2_engine_jwt_secret;
+        let hex = std::fs::read_to_string(path)
+            .map_err(|e| anyhow!("Failed to read the JWT secret file {path:?}: {e}"))?;
+        JwtSecret::from_hex(hex)
+            .map_err(|e| anyhow!("Failed to parse the JWT secret in {path:?}: {e}"))
     }
 }
 
@@ -149,12 +107,6 @@ mod tests {
     }
 
     #[test]
-    fn jwt_secret_from_encoded_flag() {
-        let args = parse(&["--l2-engine-jwt-encoded", JWT_HEX]).unwrap();
-        assert_eq!(args.jwt_secret().unwrap(), JwtSecret::from_hex(JWT_HEX).unwrap());
-    }
-
-    #[test]
     fn jwt_secret_from_file() {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         writeln!(file, "{JWT_HEX}").unwrap();
@@ -170,14 +122,14 @@ mod tests {
     }
 
     #[test]
-    fn jwt_secret_source_required() {
+    fn jwt_secret_file_required() {
         assert_eq!(parse(&[]).unwrap_err().kind(), ErrorKind::MissingRequiredArgument);
     }
 
     #[test]
-    fn jwt_secret_sources_conflict() {
-        let err = parse(&["--l2-engine-jwt-encoded", JWT_HEX, "--l2-engine-jwt-secret", "jwt.hex"])
+    fn jwt_secret_not_accepted_on_the_command_line() {
+        let err = parse(&["--l2-engine-jwt-secret", "jwt.hex", "--l2-engine-jwt-encoded", JWT_HEX])
             .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ArgumentConflict);
+        assert_eq!(err.kind(), ErrorKind::UnknownArgument);
     }
 }

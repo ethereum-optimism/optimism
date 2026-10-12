@@ -69,8 +69,8 @@ op-reth node \
     --authrpc.jwtsecret /path/to/jwt.hex
 ```
 
-Kona has a `generate-jwt` justfile target that can be used to
-create the `jwt.hex` file. Run `just generate-jwt`.
+Create the `jwt.hex` file with a random 32-byte secret, for example
+with `openssl rand -hex 32 > jwt.hex`.
 
 
 <Info>
