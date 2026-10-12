@@ -351,14 +351,13 @@ mod tests {
         vec::Vec,
     };
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
-    use alloy_eips::Encodable2718;
     use alloy_primitives::{B256, Sealable, U256, keccak256};
     use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
     use async_trait::async_trait;
     use kona_genesis::{ChainDependency, RollupConfig};
     use kona_interop::{
         ChainBuilder, DependencySet, ExecutingMessageBuilder, MESSAGE_EXPIRY_WINDOW, MessageGraph,
-        MessageGraphError, SuperRoot,
+        MessageGraphError, SuperRoot, SuperchainBuilder,
     };
     use kona_preimage::{
         HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
@@ -525,7 +524,7 @@ mod tests {
         }
     }
 
-    /// Regression test for ethereum-optimism/proofs-team#16.
+    /// A stale block number with a recent timestamp is rejected without reading chain A's history.
     ///
     /// Chain B's head executes a message whose identifier pairs chain A's recent timestamp with
     /// block number `1`. The verdict must come from the identifier alone: resolving block `1`
@@ -539,30 +538,30 @@ mod tests {
         const HEAD: u64 = 1_000;
         const STALE_TS: u64 = (HEAD - 1) * BLOCK_TIME;
 
-        let mut preimages = BTreeMap::new();
-        let mut save = |hash: B256, preimage: Vec<u8>| {
-            preimages.insert(<[u8; 32]>::from(PreimageKey::new_keccak256(*hash)), preimage);
-        };
-        save(EMPTY_ROOT_HASH, vec![EMPTY_STRING_CODE]);
+        let mut client = MockCommsClient { preimages: BTreeMap::new(), reads: Default::default() };
+        client
+            .preimages
+            .insert(PreimageKey::new_keccak256(*EMPTY_ROOT_HASH).into(), vec![EMPTY_STRING_CODE]);
 
         // Chain A: a linear history `0..=HEAD` without EIP-2935, so resolving an old block by
         // number can only walk parent hashes back from the head.
         let mut history = BTreeSet::new();
-        let mut parent_hash = B256::ZERO;
-        let mut head_a = Header::default();
-        for number in 0..=HEAD {
-            head_a = Header {
-                number,
-                timestamp: number * BLOCK_TIME,
-                parent_hash,
-                receipts_root: EMPTY_ROOT_HASH,
-                ..Default::default()
-            };
-            parent_hash = head_a.hash_slow();
-            save(parent_hash, alloy_rlp::encode(&head_a));
-            if number < HEAD {
-                history.insert(PreimageKey::new_keccak256(*parent_hash));
-            }
+        let mut head_a = insert_test_header(
+            &mut client,
+            Header { receipts_root: EMPTY_ROOT_HASH, ..Default::default() },
+        );
+        for number in 1..=HEAD {
+            history.insert(PreimageKey::new_keccak256(*head_a.hash()));
+            head_a = insert_test_header(
+                &mut client,
+                Header {
+                    number,
+                    timestamp: number * BLOCK_TIME,
+                    parent_hash: head_a.hash(),
+                    receipts_root: EMPTY_ROOT_HASH,
+                    ..Default::default()
+                },
+            );
         }
 
         // Chain B: the head executes the stale-numbered message.
@@ -574,32 +573,27 @@ mod tests {
                 .with_origin_block_number(1)
                 .with_origin_timestamp(STALE_TS),
         );
-        let mut receipts_trie =
-            kona_mpt::ordered_trie_with_encoder(&chain_b.receipts, |r, out| r.encode_2718(out));
-        let receipts_root = receipts_trie.root();
-        for node in receipts_trie.take_proof_nodes().into_inner().into_values() {
-            save(keccak256(&node), node.to_vec());
-        }
-        let head_b = Header {
-            number: HEAD,
-            timestamp: HEAD * BLOCK_TIME,
-            receipts_root,
-            ..Default::default()
-        };
-        save(head_b.hash_slow(), alloy_rlp::encode(&head_b));
+        let receipts_root = insert_test_receipts(&mut client, &chain_b.receipts);
+        let head_b = insert_test_header(
+            &mut client,
+            Header {
+                number: HEAD,
+                timestamp: HEAD * BLOCK_TIME,
+                receipts_root,
+                ..Default::default()
+            },
+        );
 
         let mut rollup_config = RollupConfig { block_time: BLOCK_TIME, ..Default::default() };
         rollup_config.hardforks.lagoon_time = Some(0);
         let cfgs: HashMap<u64, RollupConfig> =
             [(CHAIN_A, rollup_config.clone()), (CHAIN_B, rollup_config)].into_iter().collect();
-        let heads: HashMap<_, _> =
-            [(CHAIN_A, head_a.seal_slow()), (CHAIN_B, head_b.seal_slow())].into_iter().collect();
+        let heads: HashMap<_, _> = [(CHAIN_A, head_a), (CHAIN_B, head_b)].into_iter().collect();
         let dep_set = DependencySet {
             dependencies: [(CHAIN_A, ChainDependency {}), (CHAIN_B, ChainDependency {})].into(),
             override_message_expiry_window: None,
         };
 
-        let client = MockCommsClient { preimages, reads: Default::default() };
         let provider = OracleInteropProvider::new(
             Arc::new(client.clone()),
             boot_info(cfgs.clone()),
@@ -857,10 +851,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_message_graph_revalidates_cached_source_after_replacement() {
         use alloy_consensus::{Receipt, ReceiptWithBloom};
-        use kona_genesis::ChainDependency;
-        use kona_interop::{
-            ExecutingMessageBuilder, MessageGraph, MessageGraphError, SuperchainBuilder,
-        };
 
         let mut superchain = SuperchainBuilder::new();
         for chain in [1, 2] {

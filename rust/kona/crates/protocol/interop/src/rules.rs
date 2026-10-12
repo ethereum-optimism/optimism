@@ -133,17 +133,18 @@ impl<'a> MessageRules<'a> {
         block_number: U256,
     ) -> Result<(), MessageGraphError<E>> {
         let block_time = initiating_config.block_time;
-        // Block number at this timestamp; None if pre-genesis, between blocks, or block time is 0.
-        let grid_block = initiating_timestamp
-            .checked_sub(initiating_config.genesis.l2_time)
-            .filter(|elapsed| block_time != 0 && elapsed.is_multiple_of(block_time))
-            .map(|_| initiating_config.block_number_from_timestamp(initiating_timestamp));
-        (grid_block.map(U256::from) == Some(block_number)).then_some(()).ok_or(
-            MessageGraphError::InvalidMessageBlockNumber {
+        let on_grid = block_time != 0 &&
+            initiating_timestamp
+                .checked_sub(initiating_config.genesis.l2_time)
+                .is_some_and(|elapsed| elapsed.is_multiple_of(block_time));
+        (on_grid &&
+            U256::from(initiating_config.block_number_from_timestamp(initiating_timestamp)) ==
+                block_number)
+            .then_some(())
+            .ok_or(MessageGraphError::InvalidMessageBlockNumber {
                 block_number,
                 timestamp: initiating_timestamp,
-            },
-        )
+            })
     }
 
     /// Same-timestamp cycle check over a whole set of executing messages: runs the crate-private

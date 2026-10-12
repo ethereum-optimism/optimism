@@ -1158,6 +1158,47 @@ mod test {
         );
     }
 
+    /// The identifier's block number is checked against the initiating chain's block time, not
+    /// the executing chain's: timestamp `3` is off chain B's 2-second grid but is chain A's block
+    /// 3.
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_initiating_chain_block_time() {
+        let mut superchain = SuperchainBuilder::new();
+        superchain
+            .chain(CHAIN_A_ID)
+            .with_number(3)
+            .with_timestamp(3)
+            .with_block_time(1)
+            .with_lagoon_activation_time(0)
+            .add_initiating_message(MOCK_MESSAGE.into());
+        superchain
+            .chain(CHAIN_B_ID)
+            .with_number(2)
+            .with_timestamp(4)
+            .with_block_time(2)
+            .with_lagoon_activation_time(0)
+            .add_executing_message(
+                ExecutingMessageBuilder::default()
+                    .with_message_hash(keccak256(MOCK_MESSAGE))
+                    .with_origin_chain_id(CHAIN_A_ID)
+                    .with_origin_block_number(3)
+                    .with_origin_timestamp(3),
+            );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        graph.resolve().await.unwrap();
+    }
+
     #[tokio::test]
     async fn test_derive_and_resolve_graph_message_expired_custom_window() {
         let mut superchain = default_superchain();
