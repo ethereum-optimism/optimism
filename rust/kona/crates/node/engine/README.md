@@ -16,13 +16,11 @@ The `kona-engine` crate provides the building blocks a rollup node uses to drive
 
 ## Engine API Compatibility
 
-The crate supports multiple Engine API versions with automatic version selection based on the rollup configuration:
+The [`EngineClient`](crate::EngineClient) supports multiple Engine API versions:
 
-- **Engine Forkchoice Updated**: V2, V3
-- **Engine New Payload**: V2, V3, V4
-- **Engine Get Payload**: V2, V3, V4
-
-Version selection follows Optimism hardfork activation times (Bedrock, Canyon, Delta, Ecotone, Isthmus).
+- **Engine Forkchoice Updated**: V2 and V3, selected by the payload attributes' timestamp (V3 from Ecotone; V3 without attributes)
+- **Engine Get Payload**: V2 to V5, selected by the payload's timestamp (V3 from Ecotone, V4 from Isthmus, V5 from Karst)
+- **Engine New Payload**: V1 to V4, selected by the payload envelope's version
 
 ## Metrics
 
