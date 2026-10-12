@@ -47,6 +47,14 @@ where
 
 /// Resolves `block_id` to a canonical block number inside the proofs storage window.
 ///
+/// UPSTREAM-MIRROR(copy): reth@rev:a280002
+/// `reth_rpc_eth_api::helpers::state::EthState::ensure_within_proof_window`
+///
+/// Stands in for upstream's check in the historical `eth_getProof` path. Both resolve the block
+/// and reject an unknown one with `HeaderNotFound`. Upstream then bounds the distance from the tip
+/// by `max_proof_window`; this instead requires a canonical block inside the proofs storage
+/// window. On a bump, diff upstream's body for new conditions that should also apply here.
+///
 /// Callers that serve a proof check this before taking a proof permit, so out-of-window requests
 /// are rejected without holding a permit or a blocking-task slot.
 /// [`OpStateProviderFactory::state_provider`] checks the window again in the transaction it
