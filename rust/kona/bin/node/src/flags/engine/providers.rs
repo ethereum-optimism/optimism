@@ -1,4 +1,6 @@
 use alloy_rpc_types_engine::JwtSecret;
+use anyhow::{Result, anyhow, bail};
+use clap::ArgGroup;
 use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
@@ -49,7 +51,15 @@ impl Default for L1ClientArgs {
 }
 
 /// L2 client arguments.
+///
+/// The engine API's JWT secret comes from exactly one of `--l2-engine-jwt-secret` and
+/// `--l2-engine-jwt-encoded`.
 #[derive(Clone, Debug, clap::Args)]
+#[command(group(
+    ArgGroup::new("l2_engine_jwt")
+        .required(true)
+        .args(["l2_engine_jwt_secret", "l2_engine_jwt_encoded"])
+))]
 pub struct L2ClientArgs {
     /// URI of the engine API endpoint of an L2 execution client.
     #[arg(long, visible_alias = "l2", env = "KONA_NODE_L2_ENGINE_RPC")]
@@ -83,6 +93,25 @@ impl Default for L2ClientArgs {
     }
 }
 
+impl L2ClientArgs {
+    /// Returns the engine API's JWT secret, read from the `--l2-engine-jwt-secret` file or taken
+    /// from `--l2-engine-jwt-encoded`.
+    pub fn jwt_secret(&self) -> Result<JwtSecret> {
+        match (&self.l2_engine_jwt_secret, self.l2_engine_jwt_encoded) {
+            (Some(path), None) => {
+                let hex = std::fs::read_to_string(path)
+                    .map_err(|e| anyhow!("Failed to read the JWT secret file {path:?}: {e}"))?;
+                JwtSecret::from_hex(hex)
+                    .map_err(|e| anyhow!("Failed to parse the JWT secret in {path:?}: {e}"))
+            }
+            (None, Some(secret)) => Ok(secret),
+            _ => bail!(
+                "Exactly one of --l2-engine-jwt-secret and --l2-engine-jwt-encoded must be set"
+            ),
+        }
+    }
+}
+
 /// L2 derivation delegate connection arguments.
 #[derive(Clone, Debug, Default, clap::Args)]
 pub struct DerivationDelegateArgs {
@@ -95,5 +124,60 @@ impl DerivationDelegateArgs {
     /// Builds the derivation delegate configuration if an L2 CL URL was provided.
     pub fn config(self) -> Option<DerivationDelegateConfig> {
         self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{Parser, error::ErrorKind};
+    use std::io::Write;
+
+    const JWT_HEX: &str = "0xabababababababababababababababababababababababababababababababab";
+
+    #[derive(Parser, Debug)]
+    struct TestCli {
+        #[command(flatten)]
+        l2: L2ClientArgs,
+    }
+
+    fn parse(args: &[&str]) -> Result<L2ClientArgs, clap::Error> {
+        TestCli::try_parse_from(
+            ["test", "--l2-engine-rpc", "http://localhost:8551"].iter().chain(args),
+        )
+        .map(|cli| cli.l2)
+    }
+
+    #[test]
+    fn jwt_secret_from_encoded_flag() {
+        let args = parse(&["--l2-engine-jwt-encoded", JWT_HEX]).unwrap();
+        assert_eq!(args.jwt_secret().unwrap(), JwtSecret::from_hex(JWT_HEX).unwrap());
+    }
+
+    #[test]
+    fn jwt_secret_from_file() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        writeln!(file, "{JWT_HEX}").unwrap();
+
+        let args = parse(&["--l2-engine-jwt-secret", file.path().to_str().unwrap()]).unwrap();
+        assert_eq!(args.jwt_secret().unwrap(), JwtSecret::from_hex(JWT_HEX).unwrap());
+    }
+
+    #[test]
+    fn jwt_secret_errors_on_a_missing_file() {
+        let args = parse(&["--l2-engine-jwt-secret", "/nonexistent/jwt.hex"]).unwrap();
+        assert!(args.jwt_secret().is_err());
+    }
+
+    #[test]
+    fn jwt_secret_source_required() {
+        assert_eq!(parse(&[]).unwrap_err().kind(), ErrorKind::MissingRequiredArgument);
+    }
+
+    #[test]
+    fn jwt_secret_sources_conflict() {
+        let err = parse(&["--l2-engine-jwt-encoded", JWT_HEX, "--l2-engine-jwt-secret", "jwt.hex"])
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ArgumentConflict);
     }
 }

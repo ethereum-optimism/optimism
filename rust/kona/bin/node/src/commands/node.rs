@@ -14,7 +14,7 @@ use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_engine::EngineClient;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use op_alloy_provider::ext::engine::OpEngineApi;
-use std::{fs::File, io::Write, sync::Arc};
+use std::sync::Arc;
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -216,7 +216,7 @@ impl NodeCommand {
     /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
     /// that the jwt token passed as a cli arg is correct.
     pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
-        let jwt_secret = self.l2_jwt_secret()?;
+        let jwt_secret = self.l2_client_args.jwt_secret()?;
 
         let engine =
             EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
@@ -230,10 +230,8 @@ impl NodeCommand {
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
                         error!(
-                            "Engine API JWT secret differs from the one specified by --l2.jwt-secret/--l2.jwt-secret-encoded"
-                        );
-                        error!(
-                            "Ensure that the JWT secret file specified is correct (by default it is `jwt.hex` in the current directory)"
+                            "Engine API JWT secret differs from the one given by \
+                             --l2-engine-jwt-secret or --l2-engine-jwt-encoded"
                         );
                         return Err(JwtValidationError::InvalidSignature.into());
                     }
@@ -316,47 +314,6 @@ impl NodeCommand {
 
         Ok(())
     }
-
-    /// Returns the L2 JWT secret for the engine API
-    /// using the provided [`PathBuf`](std::path::PathBuf). If the file is not found,
-    /// it will return the default JWT secret.
-    pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
-        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
-            let Ok(secret) = std::fs::read_to_string(path)
-        {
-            return JwtSecret::from_hex(secret)
-                .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
-        }
-
-        if let Some(secret) = &self.l2_client_args.l2_engine_jwt_encoded {
-            return Ok(*secret);
-        }
-
-        Self::default_jwt_secret("l2_jwt.hex")
-    }
-
-    /// Uses the current directory to attempt to read
-    /// the JWT secret from a file named `file_name`.
-    /// If the file is not found, it will create a new random JWT secret and write it to the file.
-    pub fn default_jwt_secret(file_name: &str) -> anyhow::Result<JwtSecret> {
-        let cur_dir = std::env::current_dir()
-            .map_err(|e| anyhow::anyhow!("Failed to get current directory: {e}"))?;
-        std::fs::read_to_string(cur_dir.join(file_name)).map_or_else(
-            |_| {
-                let secret = JwtSecret::random();
-
-                if let Ok(mut file) = File::create(file_name) &&
-                    let Err(e) = file
-                        .write_all(alloy_primitives::hex::encode(secret.as_bytes()).as_bytes())
-                {
-                    return Err(anyhow::anyhow!("Failed to write JWT secret to file: {e}"));
-                }
-
-                Ok(secret)
-            },
-            |content| Ok(JwtSecret::from_hex(content)?),
-        )
-    }
 }
 
 #[cfg(test)]
@@ -387,6 +344,8 @@ mod tests {
             "http://localhost:5052",
             "--l2-engine-rpc",
             "http://localhost:8551",
+            "--l2-engine-jwt-encoded",
+            "0xabababababababababababababababababababababababababababababababab",
         ]
     }
 

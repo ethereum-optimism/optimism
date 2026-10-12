@@ -88,6 +88,7 @@ export KONA_NODE_L2_CHAIN_ID="optimism"
 export KONA_NODE_L1_ETH_RPC="https://your-l1-rpc"
 export KONA_NODE_L1_BEACON="https://your-l1-beacon-api"
 export KONA_NODE_L2_ENGINE_RPC="http://localhost:8551"
+export KONA_NODE_L2_ENGINE_AUTH="/path/to/jwt.hex"
 export RUST_LOG="kona_node=info,kona_derive=debug"
 
 kona-node node --port 5060

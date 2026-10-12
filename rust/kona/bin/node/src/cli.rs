@@ -81,13 +81,15 @@ mod tests {
     use super::*;
 
     /// The node subcommand's required flags.
-    const REQUIRED_NODE_FLAGS: [&str; 6] = [
+    const REQUIRED_NODE_FLAGS: [&str; 8] = [
         "--l1-eth-rpc",
         "http://localhost:8545",
         "--l1-beacon",
         "http://localhost:5052",
         "--l2-engine-rpc",
         "http://localhost:8551",
+        "--l2-engine-jwt-encoded",
+        "0xabababababababababababababababababababababababababababababababab",
     ];
 
     /// Parses `kona-node node` with the node's required flags followed by `args`.

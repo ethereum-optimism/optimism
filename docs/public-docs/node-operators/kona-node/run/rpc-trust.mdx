@@ -29,6 +29,7 @@ kona-node node \
   --l1-beacon http://localhost:5052 \
   --l1-eth-rpc http://localhost:8545 \
   --l2-engine-rpc http://localhost:8551 \
+  --l2-engine-jwt-secret /path/to/jwt.hex \
   # trust-rpc defaults to true, no need to specify
 ```
 
@@ -40,6 +41,7 @@ kona-node node \
   --l1-eth-rpc https://public-eth-rpc.com \
   --l1-trust-rpc false \
   --l2-engine-rpc https://public-l2-rpc.com \
+  --l2-engine-jwt-secret /path/to/jwt.hex \
   --l2-trust-rpc false
 ```
 
@@ -51,6 +53,7 @@ kona-node node \
   --l1-eth-rpc https://public-eth-rpc.com \
   --l1-trust-rpc false \
   --l2-engine-rpc http://localhost:8551 \
+  --l2-engine-jwt-secret /path/to/jwt.hex \
   # L2 trust-rpc defaults to true for local engine
 ```
 
