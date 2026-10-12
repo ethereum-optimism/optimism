@@ -47,7 +47,7 @@ impl SequencerEngineClient for Engine {
     }
 
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {
-        Ok(self.0.state().borrow().sync_state.unsafe_head())
+        Ok(self.0.state().borrow().unsafe_head())
     }
 }
 

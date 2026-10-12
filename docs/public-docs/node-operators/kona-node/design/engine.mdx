@@ -3,7 +3,7 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It is built on the Engine API client, engine state, and version selection from the `kona-engine` crate.
+The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It is built on the Engine API client and version selection from the `kona-engine` crate.
 
 ## Architecture Overview
 
@@ -53,18 +53,20 @@ After Holocene, a sealed payload that the execution layer does not accept as val
 
 ## Engine State Management
 
-The `EngineState` tracks the current state of the execution engine:
+The `EngineState` in `kona_node_actors::engine` tracks the engine's view of the L2 chain:
 
 ```rust
 pub struct EngineState {
-    /// The sync state of the engine.
-    pub sync_state: EngineSyncState,
-    /// Whether or not the EL has finished syncing.
+    unsafe_head: L2BlockInfo,
+    local_safe_head: L2BlockInfo,
+    safe_head: L2BlockInfo,
+    finalized_head: L2BlockInfo,
+    /// Whether the execution layer has finished syncing.
     pub el_sync_finished: bool,
 }
 ```
 
-The unsafe, safe, and finalized heads live in the nested `EngineSyncState`. State updates are communicated through watch channels, enabling reactive programming patterns across the system.
+The heads are read through accessors such as `EngineState::safe_head`, and change only through `EngineState::apply_update`, which also records each head's block number in the `kona_node_block_labels` gauge. The engine actor publishes the state through a watch channel, which `Handle::state` subscribes to.
 
 ## Integration with kona-node
 

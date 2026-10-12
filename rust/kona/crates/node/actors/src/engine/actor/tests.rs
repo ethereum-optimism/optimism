@@ -18,78 +18,44 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use rstest::rstest;
 use std::sync::Mutex;
 
-/// Builder for creating test `EngineState` instances with sensible defaults
-#[derive(Debug)]
+/// Builds engine states for tests, defaulting every head to the unsafe head and the execution
+/// layer to synced.
 struct TestEngineStateBuilder {
     unsafe_head: L2BlockInfo,
-    local_safe_head: Option<L2BlockInfo>,
     safe_head: Option<L2BlockInfo>,
     finalized_head: Option<L2BlockInfo>,
-    el_sync_finished: bool,
 }
 
 impl TestEngineStateBuilder {
-    /// Creates a new builder with default values.
-    /// Default: all heads set to genesis block (block 0)
+    /// Starts with every head at the default block.
     fn new() -> Self {
-        let genesis = L2BlockInfo {
-            block_info: BlockInfo {
-                number: 0,
-                hash: b256!("0000000000000000000000000000000000000000000000000000000000000000"),
-                parent_hash: B256::ZERO,
-                timestamp: 0,
-            },
-            l1_origin: BlockNumHash::default(),
-            seq_num: 0,
-        };
-
-        Self {
-            unsafe_head: genesis,
-            local_safe_head: None,
-            safe_head: None,
-            finalized_head: None,
-            el_sync_finished: true,
-        }
+        Self { unsafe_head: L2BlockInfo::default(), safe_head: None, finalized_head: None }
     }
 
-    /// Sets the unsafe head
     const fn with_unsafe_head(mut self, block: L2BlockInfo) -> Self {
         self.unsafe_head = block;
         self
     }
 
-    /// Sets the safe head
     const fn with_safe_head(mut self, block: L2BlockInfo) -> Self {
         self.safe_head = Some(block);
         self
     }
 
-    /// Sets the finalized head
     const fn with_finalized_head(mut self, block: L2BlockInfo) -> Self {
         self.finalized_head = Some(block);
         self
     }
 
-    /// Builds the `EngineState`
     fn build(self) -> EngineState {
-        let mut state = EngineState::default();
-
-        // Set unsafe head (required)
-        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+        let mut state = EngineState::default().apply_update(HeadsUpdate {
             unsafe_head: Some(self.unsafe_head),
-            local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
+            local_safe_head: Some(self.unsafe_head),
             safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });
-
-        state.el_sync_finished = self.el_sync_finished;
+        state.el_sync_finished = true;
         state
-    }
-}
-
-impl Default for TestEngineStateBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -250,10 +216,7 @@ async fn reset_recovers_and_completes_original_request(
     time::timeout(Duration::from_secs(20), handle.reset()).await.unwrap().unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
     // The reset's heads are published before the reply.
-    assert_eq!(
-        handle.state().borrow().sync_state.unsafe_head().block_info.hash,
-        config.genesis.l2.hash
-    );
+    assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
@@ -293,7 +256,7 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     let mut state = handle.state();
     time::timeout(
         Duration::from_secs(10),
-        state.wait_for(|state| state.sync_state.unsafe_head().block_info.hash == hash),
+        state.wait_for(|state| state.unsafe_head().block_info.hash == hash),
     )
     .await
     .unwrap()
@@ -366,10 +329,7 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     assert!(matches!(signal, Some(DerivationActorRequest::ProcessEngineSignalRequest(_))));
     assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
     // The reset published its heads before signalling derivation to reset.
-    assert_eq!(
-        handle.state().borrow().sync_state.unsafe_head().block_info.hash,
-        config.genesis.l2.hash
-    );
+    assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -415,11 +375,7 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
         .build();
     let state = synced_state();
     let forkchoice = state
-        .sync_state
-        .apply_update(EngineSyncStateUpdate {
-            unsafe_head: Some(attributes.parent),
-            ..Default::default()
-        })
+        .apply_update(HeadsUpdate { unsafe_head: Some(attributes.parent), ..Default::default() })
         .create_forkchoice_state();
 
     let (client, l1, l2) = test_engine_client(config.clone());
@@ -674,7 +630,7 @@ async fn seal_publishes_the_new_unsafe_head_before_replying() {
     result_rx.try_recv().unwrap().unwrap();
     // The seal handler published the new unsafe head itself, before replying.
     assert!(state_rx.has_changed().unwrap());
-    assert_eq!(state_rx.borrow().sync_state.unsafe_head().block_info.hash, config.genesis.l2.hash);
+    assert_eq!(state_rx.borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
     l1.assert_finished();
     l2.assert_finished();
 }
@@ -822,8 +778,8 @@ async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
 
     actor.handle_follow_safe_head(safe_head).await.unwrap();
 
-    assert_eq!(actor.state.sync_state.unsafe_head(), safe_head);
-    assert_eq!(actor.state.sync_state.safe_head(), safe_head);
+    assert_eq!(actor.state.unsafe_head(), safe_head);
+    assert_eq!(actor.state.safe_head(), safe_head);
     l1.assert_finished();
     l2.assert_finished();
 }

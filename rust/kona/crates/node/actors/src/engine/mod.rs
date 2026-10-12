@@ -24,4 +24,4 @@ mod input;
 pub use input::FinalizeBlockId;
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
+pub use state::{EngineState, HeadsUpdate};

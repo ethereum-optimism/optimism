@@ -20,9 +20,7 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{
-    DerivationStatus, engine, engine::EngineState, l1, l1_signer_updater, sequencer,
-};
+use kona_node_actors::{DerivationStatus, engine, l1, l1_signer_updater, sequencer};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -307,7 +305,7 @@ impl RollupNode {
     async fn build_rpc_actor(
         &self,
         l2_query_client: EngineClient,
-        engine_state: watch::Receiver<EngineState>,
+        engine_state: watch::Receiver<engine::EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
         head_l1: watch::Receiver<BlockInfo>,

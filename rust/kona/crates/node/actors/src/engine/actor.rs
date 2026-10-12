@@ -2,8 +2,8 @@
 
 use super::{
     ActorError, BuildTaskError, Capacity, ConsolidateTaskError, EngineBuildError, EngineResetError,
-    EngineState, EngineSyncStateUpdate, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
-    FinalizeTaskError, Handle, InsertTaskError, SealTaskError, SynchronizeTaskError,
+    EngineState, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTaskError,
+    Handle, HeadsUpdate, InsertTaskError, SealTaskError, SynchronizeTaskError,
     handle::{BuildRequest, Message, SealRequest},
 };
 use crate::EngineDerivationClient;
@@ -220,7 +220,7 @@ where
     async fn handle_seal(&mut self, request: SealRequest) {
         let SealRequest { payload_id, attributes, result_tx } = request;
 
-        let unsafe_head = self.state.sync_state.unsafe_head().block_info;
+        let unsafe_head = self.state.unsafe_head().block_info;
         let parent = attributes.parent.block_info;
         let result = if unsafe_head.id() == parent.id() {
             self.seal_payload(payload_id, attributes, false).await
@@ -268,9 +268,7 @@ where
         &mut self,
         attributes: OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        if self.state.sync_state.safe_head().block_info.number <
-            self.state.sync_state.unsafe_head().block_info.number
-        {
+        if self.state.safe_head().block_info.number < self.state.unsafe_head().block_info.number {
             let block = self.fetch_unsafe_block(attributes.block_number()).await?;
             let matches = AttributesMatch::check(&self.config, &attributes, &block).is_match();
             if !matches {
@@ -302,7 +300,7 @@ where
         &mut self,
         safe_head: L2BlockInfo,
     ) -> Result<(), ConsolidateTaskError> {
-        if safe_head.block_info.number < self.state.sync_state.unsafe_head().block_info.number {
+        if safe_head.block_info.number < self.state.unsafe_head().block_info.number {
             let block = self.fetch_unsafe_block(safe_head.block_info.number).await?;
             let matches = block.header.hash == safe_head.block_info.hash;
             if !matches {
@@ -328,7 +326,7 @@ where
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the safe head.
-        self.synchronize(EngineSyncStateUpdate {
+        self.synchronize(HeadsUpdate {
             unsafe_head: Some(safe_head),
             safe_head: Some(safe_head),
             local_safe_head: Some(safe_head),
@@ -356,7 +354,7 @@ where
         let block_number = block_id.number();
 
         // Sanity check that the block that is being finalized is at least safe.
-        if self.state.sync_state.safe_head().block_info.number < block_number {
+        if self.state.safe_head().block_info.number < block_number {
             return Err(FinalizeTaskError::BlockNotSafe);
         }
 
@@ -391,11 +389,8 @@ where
         }
 
         // Dispatch a forkchoice update.
-        self.synchronize(EngineSyncStateUpdate {
-            finalized_head: Some(block_info),
-            ..Default::default()
-        })
-        .await?;
+        self.synchronize(HeadsUpdate { finalized_head: Some(block_info), ..Default::default() })
+            .await?;
 
         info!(
             target: "engine",
@@ -474,7 +469,7 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.state.el_sync_finished {
-            if self.state.sync_state.finalized_head() == L2BlockInfo::default() {
+            if self.state.finalized_head() == L2BlockInfo::default() {
                 return self.reset(None).await;
             }
             self.mark_el_sync_complete_and_notify_derivation_actor().await?;
@@ -494,7 +489,7 @@ where
         let l2_safe_head = loop {
             let attempt = async {
                 let start = find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
-                self.synchronize(EngineSyncStateUpdate {
+                self.synchronize(HeadsUpdate {
                     unsafe_head: Some(start.un_safe),
                     local_safe_head: Some(start.safe),
                     safe_head: Some(start.safe),
@@ -549,18 +544,18 @@ where
         self.el_sync_complete = true;
 
         self.derivation_client
-            .notify_sync_completed(self.state.sync_state.safe_head())
+            .notify_sync_completed(self.state.safe_head())
             .await
             .map(|_| Ok(()))
             .map_err(|e| {
-                error!(target: "engine", ?e, "Failed to notify sync completed");
-                ActorError::ChannelClosed
-            })?
+            error!(target: "engine", ?e, "Failed to notify sync completed");
+            ActorError::ChannelClosed
+        })?
     }
 
     /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), ActorError> {
-        let engine_safe_head = self.state.sync_state.safe_head();
+        let engine_safe_head = self.state.safe_head();
         if engine_safe_head == self.last_safe_head_sent {
             info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
             // This was already sent, so do not send it.
@@ -578,46 +573,41 @@ where
         Ok(())
     }
 
-    /// Applies a sync state update and sends the resulting forkchoice to the execution layer with
+    /// Applies a heads update and sends the resulting forkchoice to the execution layer with
     /// `engine_forkchoiceUpdated`, without payload attributes.
     ///
     /// Inserting, consolidating, and finalizing blocks, and resetting, all use this to move the
     /// forkchoice. Starting a build sends its own forkchoice update with payload attributes
     /// instead.
-    async fn synchronize(
-        &mut self,
-        update: EngineSyncStateUpdate,
-    ) -> Result<(), SynchronizeTaskError> {
-        // Apply the sync state update to the engine state.
-        let new_sync_state = self.state.sync_state.apply_update(update);
+    async fn synchronize(&mut self, update: HeadsUpdate) -> Result<(), SynchronizeTaskError> {
+        // Apply the update to the engine state's heads.
+        let mut new_state = self.state.apply_update(update);
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
-        // 1. The engine state is not default (initial forkchoice state has been emitted), and
-        // 2. The new sync state is the same as the current sync state (no changes to the sync
-        //    state).
+        // 1. Some head is set (initial forkchoice state has been emitted), and
+        // 2. The update changes no head.
         //
         // NOTE:
-        // We shouldn't retry the forkchoice update there. Since the `sync_state` is only updated
+        // We shouldn't retry the forkchoice update there. Since the heads are only updated
         // here (except during consolidation, when the block is not the last in the batch) - the
         // engine would get stuck retrying the forkchoice update.
-        if self.state.sync_state != Default::default() && self.state.sync_state == new_sync_state {
-            debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
+        if self.state.has_heads() && self.state == new_state {
+            debug!(target: "engine", ?new_state, "No forkchoice update needed");
             return Ok(());
         }
 
         // Check if the head is behind the finalized head.
-        if new_sync_state.unsafe_head().block_info.number <
-            new_sync_state.finalized_head().block_info.number
+        if new_state.unsafe_head().block_info.number < new_state.finalized_head().block_info.number
         {
             return Err(SynchronizeTaskError::FinalizedAheadOfUnsafe(
-                new_sync_state.unsafe_head().block_info.number,
-                new_sync_state.finalized_head().block_info.number,
+                new_state.unsafe_head().block_info.number,
+                new_state.finalized_head().block_info.number,
             ));
         }
 
         // Send the forkchoice update through the input.
-        let forkchoice = new_sync_state.create_forkchoice_state();
+        let forkchoice = new_state.create_forkchoice_state();
 
         // Handle the forkchoice update result.
         let response = self.client.forkchoice_updated(forkchoice, None).await;
@@ -639,12 +629,12 @@ where
 
         match &valid_response.payload_status.status {
             PayloadStatusEnum::Valid => {
-                if !self.state.el_sync_finished {
+                if !new_state.el_sync_finished {
                     info!(
                         target: "engine",
                         "Finished execution layer sync."
                     );
-                    self.state.el_sync_finished = true;
+                    new_state.el_sync_finished = true;
                 }
             }
             PayloadStatusEnum::Syncing => {
@@ -657,8 +647,8 @@ where
             }
         }
 
-        // Apply the new sync state to the engine state.
-        self.state.sync_state = new_sync_state;
+        // Commit the new state.
+        self.state = new_state;
 
         debug!(
             target: "engine",
@@ -688,13 +678,13 @@ where
 
         // Sanity check if the head is behind the finalized head. If it is, this is a critical
         // error.
-        if self.state.sync_state.unsafe_head().block_info.number <
-            self.state.sync_state.finalized_head().block_info.number
+        if self.state.unsafe_head().block_info.number <
+            self.state.finalized_head().block_info.number
         {
             return Err(BuildTaskError::EngineBuildError(
                 EngineBuildError::FinalizedAheadOfUnsafe(
-                    self.state.sync_state.unsafe_head().block_info.number,
-                    self.state.sync_state.finalized_head().block_info.number,
+                    self.state.unsafe_head().block_info.number,
+                    self.state.finalized_head().block_info.number,
                 ),
             ));
         }
@@ -703,8 +693,7 @@ where
         // head to build on top of.
         let new_forkchoice = self
             .state
-            .sync_state
-            .apply_update(EngineSyncStateUpdate {
+            .apply_update(HeadsUpdate {
                 unsafe_head: Some(attributes_envelope.parent),
                 ..Default::default()
             })
@@ -785,7 +774,7 @@ where
             .map_err(InsertTaskError::L2BlockInfoConstruction)?;
 
         // Send a FCU to canonicalize the imported block.
-        self.synchronize(EngineSyncStateUpdate {
+        self.synchronize(HeadsUpdate {
             unsafe_head: Some(new_unsafe_ref),
             local_safe_head: is_payload_safe.then_some(new_unsafe_ref),
             safe_head: is_payload_safe.then_some(new_unsafe_ref),
@@ -958,7 +947,7 @@ where
         // The next attributes built are this block's child, and ask for its config.
         self.block_sink.block_imported(consensus_block, block_info);
 
-        let update = EngineSyncStateUpdate {
+        let update = HeadsUpdate {
             safe_head: Some(block_info),
             local_safe_head: Some(block_info),
             ..Default::default()
@@ -969,7 +958,7 @@ where
                 .inspect_err(|e| warn!(target: "engine", ?e, "Consolidation failed"))?;
         } else {
             // Apply a transient update to the safe head.
-            self.state.sync_state = self.state.sync_state.apply_update(update);
+            self.state = self.state.apply_update(update);
         }
 
         info!(

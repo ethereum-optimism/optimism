@@ -4,7 +4,8 @@ use alloy_rpc_types_engine::ForkchoiceState;
 use kona_engine::Metrics;
 use kona_protocol::L2BlockInfo;
 
-/// The synchronization state of the execution layer across different safety levels.
+/// The engine's view of the L2 chain: its heads at each safety level, and whether the execution
+/// layer has finished syncing.
 ///
 /// Tracks block progression through various stages of verification and finalization,
 /// from initial unsafe blocks received via P2P to fully finalized blocks derived from
@@ -21,7 +22,7 @@ use kona_protocol::L2BlockInfo;
 ///
 /// See the [OP Stack specifications](https://specs.optimism.io) for detailed safety definitions.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct EngineSyncState {
+pub struct EngineState {
     /// Most recent block found on the P2P network (lowest safety level).
     unsafe_head: L2BlockInfo,
     /// Derived from L1 data as a completed span-batch, but not yet cross-verified.
@@ -30,9 +31,11 @@ pub struct EngineSyncState {
     safe_head: L2BlockInfo,
     /// Derived from finalized L1 data with only finalized dependencies (highest safety level).
     finalized_head: L2BlockInfo,
+    /// Whether the execution layer has finished syncing.
+    pub el_sync_finished: bool,
 }
 
-impl EngineSyncState {
+impl EngineState {
     /// Returns the current unsafe head.
     pub const fn unsafe_head(&self) -> L2BlockInfo {
         self.unsafe_head
@@ -68,25 +71,31 @@ impl EngineSyncState {
         }
     }
 
-    /// Applies the update to the provided sync state, using the current state values if the update
-    /// is not specified. Returns the new sync state.
-    pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
-        if let Some(unsafe_head) = sync_state_update.unsafe_head {
+    /// Returns whether any head is set, as it is once the initial forkchoice state is sent.
+    pub fn has_heads(&self) -> bool {
+        Self { el_sync_finished: false, ..*self } != Self::default()
+    }
+
+    /// Applies the update to the heads, keeping each head the update does not specify. Returns the
+    /// new state.
+    #[must_use]
+    pub fn apply_update(self, update: HeadsUpdate) -> Self {
+        if let Some(unsafe_head) = update.unsafe_head {
             Self::update_block_label_metric(
                 Metrics::UNSAFE_BLOCK_LABEL,
                 unsafe_head.block_info.number,
             );
         }
-        if let Some(local_safe_head) = sync_state_update.local_safe_head {
+        if let Some(local_safe_head) = update.local_safe_head {
             Self::update_block_label_metric(
                 Metrics::LOCAL_SAFE_BLOCK_LABEL,
                 local_safe_head.block_info.number,
             );
         }
-        if let Some(safe_head) = sync_state_update.safe_head {
+        if let Some(safe_head) = update.safe_head {
             Self::update_block_label_metric(Metrics::SAFE_BLOCK_LABEL, safe_head.block_info.number);
         }
-        if let Some(finalized_head) = sync_state_update.finalized_head {
+        if let Some(finalized_head) = update.finalized_head {
             Self::update_block_label_metric(
                 Metrics::FINALIZED_BLOCK_LABEL,
                 finalized_head.block_info.number,
@@ -94,10 +103,11 @@ impl EngineSyncState {
         }
 
         Self {
-            unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
-            local_safe_head: sync_state_update.local_safe_head.unwrap_or(self.local_safe_head),
-            safe_head: sync_state_update.safe_head.unwrap_or(self.safe_head),
-            finalized_head: sync_state_update.finalized_head.unwrap_or(self.finalized_head),
+            unsafe_head: update.unsafe_head.unwrap_or(self.unsafe_head),
+            local_safe_head: update.local_safe_head.unwrap_or(self.local_safe_head),
+            safe_head: update.safe_head.unwrap_or(self.safe_head),
+            finalized_head: update.finalized_head.unwrap_or(self.finalized_head),
+            el_sync_finished: self.el_sync_finished,
         }
     }
 
@@ -108,9 +118,9 @@ impl EngineSyncState {
     }
 }
 
-/// Specifies how to update the sync state of the engine.
+/// Specifies how to update the heads of the [`EngineState`].
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct EngineSyncStateUpdate {
+pub struct HeadsUpdate {
     /// Most recent block found on the p2p network
     pub unsafe_head: Option<L2BlockInfo>,
     /// Derived from L1, and known to be a completed span-batch,
@@ -123,16 +133,6 @@ pub struct EngineSyncStateUpdate {
     pub finalized_head: Option<L2BlockInfo>,
 }
 
-/// The chain state viewed by the engine controller.
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct EngineState {
-    /// The sync state of the engine.
-    pub sync_state: EngineSyncState,
-
-    /// Whether or not the EL has finished syncing.
-    pub el_sync_finished: bool,
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -143,15 +143,13 @@ mod test {
     impl EngineState {
         /// Set the unsafe head.
         pub fn set_unsafe_head(&mut self, unsafe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
-                unsafe_head: Some(unsafe_head),
-                ..Default::default()
-            });
+            *self = self
+                .apply_update(HeadsUpdate { unsafe_head: Some(unsafe_head), ..Default::default() });
         }
 
         /// Set the local safe head.
         pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            *self = self.apply_update(HeadsUpdate {
                 local_safe_head: Some(local_safe_head),
                 ..Default::default()
             });
@@ -159,15 +157,13 @@ mod test {
 
         /// Set the safe head.
         pub fn set_safe_head(&mut self, safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
-                safe_head: Some(safe_head),
-                ..Default::default()
-            });
+            *self =
+                self.apply_update(HeadsUpdate { safe_head: Some(safe_head), ..Default::default() });
         }
 
         /// Set the finalized head.
         pub fn set_finalized_head(&mut self, finalized_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            *self = self.apply_update(HeadsUpdate {
                 finalized_head: Some(finalized_head),
                 ..Default::default()
             });

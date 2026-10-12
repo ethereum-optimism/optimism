@@ -194,10 +194,10 @@ impl<L2> RollupRpc<L2> {
             head_l1,
             safe_l1,
             finalized_l1,
-            unsafe_l2: l2_sync_status.sync_state.unsafe_head(),
-            local_safe_l2: l2_sync_status.sync_state.local_safe_head(),
-            safe_l2: l2_sync_status.sync_state.safe_head(),
-            finalized_l2: l2_sync_status.sync_state.finalized_head(),
+            unsafe_l2: l2_sync_status.unsafe_head(),
+            local_safe_l2: l2_sync_status.local_safe_head(),
+            safe_l2: l2_sync_status.safe_head(),
+            finalized_l2: l2_sync_status.finalized_head(),
         })
     }
 }
@@ -234,7 +234,7 @@ mod tests {
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
     use kona_engine::test_utils::{RpcMock, test_engine_client};
-    use kona_node_actors::engine::{EngineSyncState, EngineSyncStateUpdate};
+    use kona_node_actors::engine::HeadsUpdate;
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use op_alloy_rpc_types::Transaction;
     use serde_json::json;
@@ -369,15 +369,12 @@ mod tests {
             block_info: BlockInfo { number: 17, ..Default::default() },
             ..Default::default()
         };
-        state_tx.send_replace(EngineState {
-            sync_state: EngineSyncState::default().apply_update(EngineSyncStateUpdate {
-                unsafe_head: Some(head),
-                local_safe_head: Some(head),
-                safe_head: Some(head),
-                finalized_head: Some(head),
-            }),
-            ..Default::default()
-        });
+        state_tx.send_replace(EngineState::default().apply_update(HeadsUpdate {
+            unsafe_head: Some(head),
+            local_safe_head: Some(head),
+            safe_head: Some(head),
+            finalized_head: Some(head),
+        }));
         let head_l1 = BlockInfo { number: 42, ..Default::default() };
         let safe_l1 = BlockInfo { number: 40, ..Default::default() };
         let finalized_l1 = BlockInfo { number: 38, ..Default::default() };
