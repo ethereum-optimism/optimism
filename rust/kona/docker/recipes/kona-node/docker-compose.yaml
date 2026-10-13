@@ -79,9 +79,9 @@ services:
       --chain optimism-sepolia
       --metrics.enabled
       --metrics.port 9002
-      --l1 $L1_PROVIDER_RPC
+      --l1-eth-rpc $L1_PROVIDER_RPC
       --l1-beacon $L1_BEACON_API
-      --l2 http://op-reth:8551
+      --l2-engine-rpc http://op-reth:8551
       --l2-engine-jwt-secret /root/jwt/jwt.hex
       --rpc.port 5060
       --p2p.listen.tcp 9223

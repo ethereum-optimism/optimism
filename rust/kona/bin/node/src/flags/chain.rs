@@ -23,15 +23,15 @@ use tracing::debug;
 pub struct ChainArgs {
     /// The L2 chain to load the rollup config for from the superchain registry, by chain ID or
     /// name.
-    #[arg(long = "chain", alias = "l2-chain-id", short = 'c', env = "KONA_NODE_L2_CHAIN_ID")]
+    #[arg(long = "chain", short = 'c', env = "KONA_NODE_L2_CHAIN_ID")]
     pub l2_chain_id: Option<alloy_chains::Chain>,
     /// Path to an L2 rollup configuration file, for a chain that is not in the superchain
     /// registry.
-    #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
+    #[arg(long, env = "KONA_NODE_ROLLUP_CONFIG")]
     pub l2_config_file: Option<PathBuf>,
     /// Path to a custom L1 chain configuration or genesis file
     /// (overrides the default L1 configuration from the registry)
-    #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
+    #[arg(long, env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
     /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
@@ -168,7 +168,7 @@ mod tests {
     #[case::string_mainnet("mainnet", 1)]
     #[case::string_base("base", 8453)]
     fn test_l2_chain_id_parse_valid(#[case] value: &str, #[case] expected_id: u64) {
-        let args = ChainArgs::try_parse_from(["test", "--l2-chain-id", value]).unwrap();
+        let args = ChainArgs::try_parse_from(["test", "--chain", value]).unwrap();
         assert_eq!(args.l2_chain_id.unwrap().id(), expected_id);
     }
 
@@ -176,7 +176,7 @@ mod tests {
     #[case::invalid_string("invalid_chain")]
     #[case::empty_string("")]
     fn test_l2_chain_id_parse_invalid(#[case] invalid_value: &str) {
-        let result = ChainArgs::try_parse_from(["test", "--l2-chain-id", invalid_value]);
+        let result = ChainArgs::try_parse_from(["test", "--chain", invalid_value]);
         assert!(result.is_err());
     }
 

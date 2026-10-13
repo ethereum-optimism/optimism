@@ -31,9 +31,9 @@ kona-node node \
   --chain 11155420 \
   --metrics.enabled \
   --metrics.port 9002 \
-  --l1 <L1_PROVIDER_RPC> \
+  --l1-eth-rpc <L1_PROVIDER_RPC> \
   --l1-beacon <L1_BEACON_API> \
-  --l2 <L2_ENGINE_RPC> \
+  --l2-engine-rpc <L2_ENGINE_RPC> \
   --l2-engine-jwt-secret /path/to/jwt.hex \
   --rpc.port 5060 \
   --p2p.listen.tcp 9223 \
@@ -56,9 +56,9 @@ kona-node node \
   --chain 11155420 \
   --metrics.enabled \
   --metrics.port 9002 \
-  --l1 $L1_PROVIDER_RPC \
+  --l1-eth-rpc $L1_PROVIDER_RPC \
   --l1-beacon $L1_BEACON_API \
-  --l2 http://localhost:8551 \
+  --l2-engine-rpc http://localhost:8551 \
   --l2-engine-jwt-secret ./jwt.hex \
   --rpc.port 5060 \
   --p2p.listen.tcp 9223 \

@@ -8,10 +8,10 @@ use url::Url;
 #[command(next_help_heading = "L1")]
 pub struct L1ClientArgs {
     /// URL of the L1 execution client RPC API.
-    #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
+    #[arg(long, env = "KONA_NODE_L1_ETH_RPC")]
     pub l1_eth_rpc: Url,
     /// URL of the L1 beacon API.
-    #[arg(long, visible_alias = "l1.beacon", env = "KONA_NODE_L1_BEACON")]
+    #[arg(long, env = "KONA_NODE_L1_BEACON")]
     pub l1_beacon: Url,
 }
 
@@ -20,12 +20,12 @@ pub struct L1ClientArgs {
 #[command(next_help_heading = "L2 Engine")]
 pub struct L2ClientArgs {
     /// URI of the engine API endpoint of an L2 execution client.
-    #[arg(long, visible_alias = "l2", env = "KONA_NODE_L2_ENGINE_RPC")]
+    #[arg(long, env = "KONA_NODE_L2_ENGINE_RPC")]
     pub l2_engine_rpc: Url,
     /// Path to a file containing the hex-encoded JWT secret for the execution client's
     /// authenticated engine API. The secret is only accepted from a file, so that it stays out of
     /// the process's command line.
-    #[arg(long, visible_alias = "l2.jwt-secret", env = "KONA_NODE_L2_ENGINE_AUTH")]
+    #[arg(long, env = "KONA_NODE_L2_ENGINE_AUTH")]
     pub l2_engine_jwt_secret: PathBuf,
 }
 
@@ -45,7 +45,7 @@ impl L2ClientArgs {
 #[command(next_help_heading = "Derivation Delegate")]
 pub struct DerivationDelegateArgs {
     /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus`.
-    #[arg(long, visible_alias = "l2.follow.source", env = "KONA_NODE_L2_FOLLOW_SOURCE")]
+    #[arg(long, env = "KONA_NODE_L2_FOLLOW_SOURCE")]
     pub l2_follow_source: Option<Url>,
 }
 
