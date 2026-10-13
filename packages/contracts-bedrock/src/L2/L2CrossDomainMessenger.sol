@@ -42,6 +42,9 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     /// @notice See `GasConstants.L1_RELAY_GAS_CHECK_BUFFER`.
     uint64 internal constant REMOTE_RELAY_GAS_CHECK_BUFFER = GasConstants.L1_RELAY_GAS_CHECK_BUFFER;
 
+    // Public getters kept for ABI compatibility. They report the remote budgets that `baseGas` uses;
+    // this contract reads the `LOCAL_` and `REMOTE_` constants directly.
+
     /// @inheritdoc CrossDomainMessenger
     uint64 public constant override RELAY_CONSTANT_OVERHEAD = REMOTE_RELAY_CONSTANT_OVERHEAD;
 
