@@ -227,6 +227,12 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ForwardReason {
+    PreBedrock,
+    UnknownHash,
+}
+
 #[derive(Debug)]
 struct HistoricalRpcInner<P> {
     /// Provider used to determine if a block is pre-bedrock
@@ -243,29 +249,37 @@ where
 {
     /// Checks if a request should be forwarded to the historical endpoint (synchronous check).
     fn should_forward_request(&self, req: &Request<'_>) -> bool {
+        self.forward_reason(req).is_some()
+    }
+
+    /// Distinguishes known historical requests from best-effort lookups for unknown hashes.
+    fn forward_reason(&self, req: &Request<'_>) -> Option<ForwardReason> {
         match req.method_name() {
             "debug_traceTransaction" |
             "eth_getTransactionByHash" |
             "eth_getTransactionReceipt" |
-            "eth_getRawTransactionByHash" => self.should_forward_transaction(req),
-            method => self.should_forward_block_request(method, req),
+            "eth_getRawTransactionByHash" => self.transaction_forward_reason(req),
+            method => self.block_forward_reason(method, req),
         }
     }
 
     /// Checks if a request should be forwarded to the historical endpoint and returns
     /// the response if it was forwarded.
     async fn maybe_forward_request(&self, req: &Request<'_>) -> Option<MethodResponse> {
-        if self.should_forward_request(req) {
-            return self.forward_to_historical(req).await;
+        let reason = self.forward_reason(req)?;
+        let response = self.forward_to_historical(req).await?;
+        // Unknown hashes may be pending or absent; a failed history lookup still allows local RPC.
+        if !response.is_success() && matches!(reason, ForwardReason::UnknownHash) {
+            return None;
         }
-        None
+        Some(response)
     }
 
     /// Determines if a transaction request should be forwarded
-    fn should_forward_transaction(&self, req: &Request<'_>) -> bool {
+    fn transaction_forward_reason(&self, req: &Request<'_>) -> Option<ForwardReason> {
         parse_transaction_hash_from_params(&req.params())
             .ok()
-            .map(|tx_hash| {
+            .and_then(|tx_hash| {
                 // Check if we can find the transaction locally and get its metadata
                 match self.provider.transaction_by_hash_with_meta(tx_hash) {
                     Ok(Some((_, meta))) => {
@@ -280,7 +294,7 @@ where
                                 "transaction found in pre-bedrock block, forwarding to historical endpoint"
                             );
                         }
-                        is_pre_bedrock
+                        is_pre_bedrock.then_some(ForwardReason::PreBedrock)
                     }
                     _ => {
                         // Transaction not found locally, optimistically forward to historical endpoint
@@ -289,22 +303,21 @@ where
                             ?tx_hash,
                             "transaction not found locally, forwarding to historical endpoint"
                         );
-                        true
+                        Some(ForwardReason::UnknownHash)
                     }
                 }
             })
-            .unwrap_or(false)
     }
 
     /// Determines if a block-based request should be forwarded
-    fn should_forward_block_request(&self, method: &str, req: &Request<'_>) -> bool {
+    fn block_forward_reason(&self, method: &str, req: &Request<'_>) -> Option<ForwardReason> {
         let maybe_block_id = extract_block_id_for_method(method, &req.params());
 
-        maybe_block_id.map(|block_id| self.is_pre_bedrock(block_id)).unwrap_or(false)
+        maybe_block_id.and_then(|block_id| self.block_id_forward_reason(block_id))
     }
 
-    /// Checks if a block ID refers to a pre-bedrock block
-    fn is_pre_bedrock(&self, block_id: BlockId) -> bool {
+    /// Determines whether a block is historical or its hash is unknown locally.
+    fn block_id_forward_reason(&self, block_id: BlockId) -> Option<ForwardReason> {
         match self.provider.block_number_for_id(block_id) {
             Ok(Some(num)) => {
                 debug!(
@@ -314,15 +327,15 @@ where
                     bedrock=self.bedrock_block,
                     "found block number"
                 );
-                num < self.bedrock_block
+                (num < self.bedrock_block).then_some(ForwardReason::PreBedrock)
             }
             Ok(None) if block_id.is_hash() => {
                 debug!(
                     target: "rpc::historical",
                     ?block_id,
-                    "block hash not found locally, assuming pre-bedrock"
+                    "block hash not found locally, querying historical endpoint"
                 );
-                true
+                Some(ForwardReason::UnknownHash)
             }
             _ => {
                 debug!(
@@ -330,7 +343,7 @@ where
                     ?block_id,
                     "could not determine block number; not forwarding"
                 );
-                false
+                None
             }
         }
     }
@@ -353,8 +366,7 @@ where
         {
             Ok(raw) => raw,
             // l2geth doesn't serve `eth_getBlockReceipts`; stitch the response from per-tx
-            // receipts instead. Any other error keeps the existing fall-through-to-local
-            // behavior for all methods.
+            // receipts instead.
             Err(err)
                 if req.method_name() == "eth_getBlockReceipts" && is_method_not_found(&err) =>
             {
@@ -369,9 +381,24 @@ where
                     target: "rpc::historical",
                     method = %req.method_name(),
                     %err,
-                    "historical endpoint request failed; falling back to local handling"
+                    "historical endpoint request failed"
                 );
-                return None;
+                let error = match err {
+                    Error::TransportError(alloy_transport::TransportError::ErrorResp(error)) => {
+                        jsonrpsee_types::ErrorObject::owned(
+                            i32::try_from(error.code)
+                                .unwrap_or(jsonrpsee_types::error::INTERNAL_ERROR_CODE),
+                            error.message,
+                            error.data,
+                        )
+                    }
+                    _ => jsonrpsee_types::ErrorObject::owned(
+                        jsonrpsee_types::error::INTERNAL_ERROR_CODE,
+                        "historical RPC request failed",
+                        None::<()>,
+                    ),
+                };
+                return Some(MethodResponse::error(req.id.clone(), error));
             }
         };
 
@@ -663,9 +690,65 @@ mod tests {
     fn warns_during<F: Future<Output = ()>>(fut: F) -> usize {
         let warns = Arc::new(AtomicUsize::new(0));
         tracing::subscriber::with_default(WarnCounter { warns: warns.clone() }, || {
-            tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(fut)
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(fut)
         });
         warns.load(Ordering::SeqCst)
+    }
+
+    /// Failed unknown-hash lookups use local RPC; known history keeps the remote error.
+    #[tokio::test]
+    async fn history_failure_falls_back_only_for_unknown_hashes() {
+        let hash = B256::from([0x11; 32]);
+        for (method, params, known_history) in [
+            ("eth_getTransactionByHash", json!([hash]), false),
+            ("eth_getRawTransactionByHash", json!([hash]), false),
+            ("eth_getTransactionReceipt", json!([hash]), false),
+            ("debug_traceTransaction", json!([hash]), false),
+            ("eth_getBlockByHash", json!([hash, false]), false),
+            ("eth_getBlockReceipts", json!([hash]), false),
+            ("eth_getBlockByNumber", json!(["0x64", false]), true),
+            ("eth_getBlockReceipts", json!(["0x64"]), true),
+        ] {
+            for local in [serde_json::Value::Null, json!("0xbeef")] {
+                let asserter = Asserter::new();
+                asserter.push_failure(ErrorPayload {
+                    code: -32077,
+                    message: "history unavailable".into(),
+                    data: Some(serde_json::value::to_raw_value(&json!("0xbeef")).unwrap()),
+                });
+                let middleware = jsonrpsee_core::middleware::RpcServiceBuilder::new()
+                    .layer(HistoricalRpc { inner: Arc::new(mocked_historical(asserter)) });
+                let server = jsonrpsee::server::Server::builder()
+                    .set_rpc_middleware(middleware)
+                    .build("127.0.0.1:0")
+                    .await
+                    .unwrap();
+                let client =
+                    HistoricalRpcClient::new(&format!("http://{}", server.local_addr().unwrap()))
+                        .unwrap();
+                let mut module = jsonrpsee::RpcModule::new(local.clone());
+                module.register_method(method, |_, local, _| local.clone()).unwrap();
+                let handle = server.start(module);
+                let response = client.request::<_, serde_json::Value>(method, params.clone()).await;
+                if known_history {
+                    let Error::TransportError(error) = response.unwrap_err() else {
+                        panic!("expected RPC error")
+                    };
+                    let error = error.as_error_resp().unwrap();
+                    assert_eq!(error.code, -32077);
+                    assert_eq!(error.message, "history unavailable");
+                    assert_eq!(error.data.as_ref().unwrap().get(), r#""0xbeef""#);
+                } else {
+                    assert_eq!(response.unwrap(), local);
+                }
+                handle.stop().unwrap();
+                handle.stopped().await;
+            }
+        }
     }
 
     #[test]
@@ -937,16 +1020,16 @@ mod tests {
         );
     }
 
-    /// Tests that method-not-found errors for methods other than `eth_getBlockReceipts` keep the
-    /// existing fall-through-to-local behavior.
+    /// Historical method errors must not fall through to incomplete local data.
     #[tokio::test]
-    async fn method_not_found_falls_through_for_other_methods() {
+    async fn method_not_found_is_returned_for_other_methods() {
         let asserter = Asserter::new();
         asserter.push_failure(method_not_found_payload());
 
         let historical = mocked_historical(asserter);
         let req = owned_request("eth_getHeaderByNumber", r#"["0x64"]"#);
-        assert!(historical.forward_to_historical(&req).await.is_none());
+        let response = historical.forward_to_historical(&req).await.unwrap();
+        assert_eq!(response.as_error_code(), Some(jsonrpsee_types::error::METHOD_NOT_FOUND_CODE));
     }
 
     /// Tests that the stitched happy path emits no warnings: the method-not-found probe answer
@@ -986,17 +1069,19 @@ mod tests {
         assert_eq!(warns, 1, "expected exactly one warning for a stitch failure");
     }
 
-    /// Tests that a real forwarding failure still warns once when falling back to local
-    /// handling.
+    /// A transport failure returns a generic RPC error and logs the cause once.
     #[test]
-    fn forward_failure_fall_through_warns_once() {
+    fn forward_failure_returns_error_and_warns_once() {
         let warns = warns_during(async {
-            let asserter = Asserter::new();
-            asserter.push_failure_msg("boom");
-
-            let historical = mocked_historical(asserter);
+            let historical = HistoricalRpcInner {
+                provider: NoopProvider::default(),
+                client: HistoricalRpcClient::new("http://127.0.0.1:0").unwrap(),
+                bedrock_block: 105235063,
+            };
             let req = owned_request("eth_getHeaderByNumber", r#"["0x64"]"#);
-            assert!(historical.forward_to_historical(&req).await.is_none());
+            let response = historical.forward_to_historical(&req).await.unwrap();
+            assert_eq!(response.as_error_code(), Some(jsonrpsee_types::error::INTERNAL_ERROR_CODE));
+            assert_eq!(error_message_of(&response), "historical RPC request failed");
         });
         assert_eq!(warns, 1, "expected exactly one warning for a forwarding failure");
     }
