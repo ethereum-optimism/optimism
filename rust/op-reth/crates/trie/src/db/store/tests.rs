@@ -2341,6 +2341,7 @@ fn test_new_preserves_empty_legacy_v1_tables() {
         assert!(table_exists(&storage, table), "{table} was dropped");
     }
     assert_eq!(LegacyV1Usage::read(&storage.env).unwrap(), LegacyV1Usage::default());
+    assert!(!storage.holds_only_legacy_v1_data().unwrap());
 }
 
 #[test]
@@ -2372,6 +2373,7 @@ fn test_new_preserves_populated_legacy_v1_tables_without_v2_data() {
             assert_eq!(usage.entries, 1);
             assert!(usage.size_bytes > 0, "{populated} reported no pages");
             assert!(!usage.has_v2_data);
+            assert!(storage.holds_only_legacy_v1_data().unwrap());
             let provider = storage.provider_ro().unwrap();
             assert_eq!(provider.tx.entries::<V2ProofWindow>().unwrap(), 0);
             assert!(matches!(
@@ -2410,6 +2412,7 @@ fn test_new_preserves_populated_legacy_v1_tables_with_v2_data(completed: bool) {
             assert_eq!(usage.entries, 1);
             assert!(usage.size_bytes > 0, "{populated} reported no pages");
             assert!(usage.has_v2_data);
+            assert!(!storage.holds_only_legacy_v1_data().unwrap());
             for &table in LEGACY_V1_TABLES {
                 assert!(table_exists(&storage, table), "{table} was dropped");
             }

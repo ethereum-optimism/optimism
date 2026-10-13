@@ -84,6 +84,14 @@ impl MdbxProofsStorage {
         }
         Ok(Self { env })
     }
+
+    /// Returns whether the database holds legacy v1 data but no v2 data.
+    ///
+    /// Such a database must be deleted before running `op-reth proofs init`, or the v1 data stays
+    /// on disk forever.
+    pub fn holds_only_legacy_v1_data(&self) -> Result<bool, DatabaseError> {
+        Ok(LegacyV1Usage::read(&self.env)?.holds_only_legacy_v1_data())
+    }
 }
 
 /// Size of the [`LEGACY_V1_TABLES`] in a proofs database.
@@ -116,6 +124,11 @@ impl LegacyV1Usage {
             }
             Ok(usage)
         })?
+    }
+
+    /// Returns whether the legacy tables hold data while the v2 tables do not.
+    const fn holds_only_legacy_v1_data(&self) -> bool {
+        self.entries > 0 && !self.has_v2_data
     }
 
     /// Logs a warning if the legacy tables hold data.
