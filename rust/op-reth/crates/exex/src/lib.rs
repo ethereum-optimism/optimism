@@ -285,8 +285,8 @@ where
                 earliest.number,
             ));
         }
-        // The stored blocks form a single chain, so if none of them is canonical, the earliest
-        // is not either.
+        // The stored blocks form a single chain, so the canonical ones are a prefix of the window
+        // that starts at the earliest block.
         if provider.block_hash(earliest.number)? != Some(earliest.hash) {
             return Err(eyre::eyre!(
                 "Proofs storage (blocks {}..={}, tip {}) shares no block with reth's canonical \
@@ -300,17 +300,31 @@ where
 
         // The storage records block hashes only for the window bounds. Blocks in between are
         // matched by their state root instead, which pins the state proofs are served from.
-        let highest_candidate = best_block.min(latest.number - 1);
-        let mut common = earliest;
-        for number in (earliest.number + 1..=highest_candidate).rev() {
+        let canonical_match = |number: u64| -> eyre::Result<Option<NumHash>> {
             let header = provider
                 .sealed_header(number)?
                 .ok_or_else(|| eyre::eyre!("canonical header {number} not found"))?;
             let state_root =
                 StateRoot::overlay_root(&storage_provider, number, HashedPostState::default())?;
-            if state_root == header.state_root() {
-                common = NumHash::new(number, header.hash());
-                break;
+            Ok((state_root == header.state_root()).then(|| NumHash::new(number, header.hash())))
+        };
+
+        // A storage ahead of reth on reth's chain matches at the first probe. Otherwise, binary
+        // search the canonical prefix for its end, keeping `common` canonical and `mismatch` not.
+        let highest_candidate = best_block.min(latest.number - 1);
+        let mut common = earliest;
+        if highest_candidate > earliest.number {
+            if let Some(found) = canonical_match(highest_candidate)? {
+                common = found;
+            } else {
+                let mut mismatch = highest_candidate;
+                while mismatch - common.number > 1 {
+                    let mid = common.number + (mismatch - common.number) / 2;
+                    match canonical_match(mid)? {
+                        Some(found) => common = found,
+                        None => mismatch = mid,
+                    }
+                }
             }
         }
         drop(storage_provider);
