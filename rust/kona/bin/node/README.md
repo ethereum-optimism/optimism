@@ -76,7 +76,6 @@ Many configuration options can be set via environment variables:
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
 - `KONA_NODE_L2_ENGINE_RPC` - L2 engine API URL
 - `KONA_NODE_L2_ENGINE_AUTH` - Path to L2 engine JWT secret file
-- `KONA_NODE_MODE` - Node operation mode (default: validator)
 - `RUST_LOG` - Logging configuration
 
 Example using environment variables:

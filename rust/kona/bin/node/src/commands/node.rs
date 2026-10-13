@@ -10,22 +10,21 @@ use crate::{
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_node_service::{
-    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
+    RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
-use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
 /// Command-line interface for running a Kona rollup node.
 ///
 /// The `NodeCommand` struct defines all the configuration options needed to start and run
-/// a rollup node in the Kona ecosystem. It supports multiple node modes including validator
-/// and sequencer modes, and provides comprehensive networking and RPC configuration options.
+/// a rollup node in the Kona ecosystem, including its networking and RPC configuration options.
 ///
-/// # Node Modes
+/// # Sequencing
 ///
-/// The node can operate in different modes:
-/// - **Validator**: Validates L2 blocks and participates in consensus
-/// - **Sequencer**: Sequences transactions and produces L2 blocks
+/// A node given a block signer (`--p2p.sequencer.key`, `--p2p.sequencer.key.path`, or
+/// `--p2p.signer.endpoint` with `--p2p.signer.address`) can sequence. Its sequencer starts
+/// stopped; start it with `admin_startSequencer`, which `--rpc.enable-admin` serves. A node
+/// without a block signer follows the chain only.
 ///
 /// # Configuration Sources
 ///
@@ -37,16 +36,15 @@ use tracing::{debug, error, info};
 /// # Examples
 ///
 /// ```bash
-/// # Run as validator on OP Mainnet with default settings
+/// # Follow OP Mainnet with default settings
 /// kona-node node --chain optimism \
 ///                --l1-eth-rpc http://localhost:8545 \
 ///                --l1-beacon http://localhost:5052 \
 ///                --l2-engine-rpc http://localhost:8551 \
 ///                --l2-engine-jwt-secret /path/to/jwt.hex
 ///
-/// # Run as sequencer for a custom chain
-/// kona-node node --mode sequencer \
-///                --l2-config-file /path/to/rollup.json \
+/// # Run a node that can sequence a custom chain
+/// kona-node node --l2-config-file /path/to/rollup.json \
 ///                --l1-eth-rpc http://localhost:8545 \
 ///                --l1-beacon http://localhost:5052 \
 ///                --l2-engine-rpc http://localhost:8551 \
@@ -56,21 +54,6 @@ use tracing::{debug, error, info};
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
 pub struct NodeCommand {
-    /// The mode to run the node in.
-    #[arg(
-        long = "mode",
-        default_value_t = NodeMode::Validator,
-        env = "KONA_NODE_MODE",
-        help = format!(
-            "The mode to run the node in. Supported modes are: {}",
-            NodeMode::iter()
-                .map(|mode| format!("\"{}\"", mode.to_string()))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    )]
-    pub node_mode: NodeMode,
-
     /// L1 RPC CLI arguments.
     #[clap(flatten)]
     pub l1_rpc_args: L1ClientArgs,
@@ -169,12 +152,12 @@ impl NodeCommand {
     /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
         let chain = self.chain.chain_spec()?;
+        let block_signer = self.p2p_flags.signer.clone().config()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
-            mode: self.node_mode,
             p2p_config: self.p2p_flags.clone().config(&chain.rollup_config)?,
             rpc_config: self.rpc_flags.clone().into(),
-            sequencer_config: self.sequencer_flags.config(),
+            sequencer: self.sequencer_flags.config(block_signer)?,
             chain,
         })
     }
@@ -254,7 +237,7 @@ mod tests {
         let args = NodeCommand::parse_from(
             std::iter::once(&"node").chain(default_flags().iter()).copied(),
         );
-        assert_eq!(args.node_mode, NodeMode::Validator);
+        assert_eq!(args.sequencer_flags, SequencerArgs::default());
     }
 
     #[test]
@@ -295,6 +278,9 @@ mod tests {
 
     const JWT_HEX: &str = "0xabababababababababababababababababababababababababababababababab";
 
+    const SEQUENCER_KEY: &str =
+        "0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be";
+
     /// Parses the node command with [`UNREACHABLE_FLAGS`], a JWT secret file holding [`JWT_HEX`]
     /// and `args`. The returned file must outlive the command's use of it.
     fn parse_node(args: &[&str]) -> (NodeCommand, tempfile::NamedTempFile) {
@@ -316,8 +302,8 @@ mod tests {
         let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
-            "--mode",
-            "sequencer",
+            "--p2p.sequencer.key",
+            SEQUENCER_KEY,
             "--conductor.rpc",
             "http://127.0.0.1:4",
         ]);
@@ -327,17 +313,32 @@ mod tests {
 
         assert_eq!(config.chain.rollup_config.l2_chain_id.id(), 10);
         assert_eq!(config.chain.l1_config.chain_id, 1);
-        assert_eq!(config.mode, NodeMode::Sequencer);
         assert_eq!(endpoints.l1_rpc.as_str(), "http://127.0.0.1:1/");
         assert_eq!(endpoints.l1_beacon.as_str(), "http://127.0.0.1:2/");
         assert_eq!(endpoints.l2_engine.as_str(), "http://127.0.0.1:3/");
         assert_eq!(endpoints.l2_jwt_secret, JwtSecret::from_hex(JWT_HEX).unwrap());
         assert_eq!(endpoints.derivation_delegate, None);
-        assert_eq!(
-            config.sequencer_config.conductor_rpc_url,
-            Some("http://127.0.0.1:4".parse().unwrap())
-        );
+        let sequencer = config.sequencer.unwrap();
+        assert_eq!(sequencer.conductor_rpc_url, Some("http://127.0.0.1:4".parse().unwrap()));
+        assert_eq!(sequencer.l1_conf_delay, 4);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 10 }));
+    }
+
+    #[test]
+    fn test_config_without_a_block_signer_cannot_sequence() {
+        let (command, _jwt) = parse_node(&["--chain", "optimism", "--sequencer.l1-confs", "2"]);
+
+        assert!(command.config().unwrap().sequencer.is_none());
+    }
+
+    #[test]
+    fn test_conductor_requires_a_block_signer() {
+        let (command, _jwt) =
+            parse_node(&["--chain", "optimism", "--conductor.rpc", "http://127.0.0.1:4"]);
+
+        let error = command.config().unwrap_err();
+
+        assert!(error.is::<crate::flags::ConductorWithoutSignerError>(), "{error:?}");
     }
 
     #[test]

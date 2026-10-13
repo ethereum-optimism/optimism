@@ -63,9 +63,6 @@ pub trait NodeActor: Send + 'static {
     async fn step(&mut self) -> Result<(), Self::Error>;
 }
 
-mod mode;
-pub use mode::NodeMode;
-
 mod metrics;
 pub use metrics::Metrics;
 

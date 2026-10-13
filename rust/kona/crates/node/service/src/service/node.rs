@@ -2,7 +2,7 @@
 use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
     ChainSpec, ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkConfig,
-    NodeActor, NodeMode, RollupNodeClients, RollupNodeConfig, RpcActor, SequencerConfig,
+    NodeActor, RollupNodeClients, RollupNodeConfig, RpcActor, SequencerConfig,
     service::BufferImportedBlocks, signer,
 };
 use backon::ExponentialBuilder;
@@ -26,7 +26,7 @@ use kona_providers_alloy::{
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
-    RollupNodeApiServer, RollupRpc, RpcBuilder,
+    RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminApiServer, SequencerAdminRpc,
 };
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 
@@ -53,14 +53,12 @@ pub struct RollupNode {
     /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
     /// config.
     pub(crate) engine_client: Arc<EngineClient>,
-    /// The mode of operation for the node.
-    pub(crate) mode: NodeMode,
     /// The RPC server's configuration.
     pub(crate) rpc_builder: RpcBuilder,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
-    /// The [`SequencerConfig`] for the node.
-    pub(crate) sequencer_config: SequencerConfig,
+    /// The [`SequencerConfig`] of a node that can sequence.
+    pub(crate) sequencer: Option<SequencerConfig>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
@@ -94,18 +92,16 @@ impl RollupNode {
             chain: config.chain,
             clients,
             engine_client,
-            mode: config.mode,
             rpc_builder: config.rpc_config,
             p2p_config: config.p2p_config,
-            sequencer_config: config.sequencer_config,
+            sequencer: config.sequencer,
             l2_block_buffer,
         }
     }
 
     /// Starts the rollup node service.
     ///
-    /// The rollup node, in validator mode, listens to two sources of information to sync the L2
-    /// chain:
+    /// The rollup node listens to two sources of information to sync the L2 chain:
     ///
     /// 1. The data availability layer, with a watcher that listens for new updates. L2 inputs (L2
     ///    transaction batches + deposits) are then derived from the DA layer.
@@ -117,10 +113,10 @@ impl RollupNode {
     /// and finalizes `safe` blocks that it has derived when L1 finalized block updates are
     /// received.
     ///
-    /// In sequencer mode, the node is responsible for producing unsafe L2 blocks and sending them
-    /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
-    /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
-    /// received.
+    /// A node configured with a [`SequencerConfig`] can also produce unsafe L2 blocks and send
+    /// them to the network over p2p gossip. Its sequencer starts stopped: the operator starts it
+    /// with `admin_startSequencer`. A node without one does not serve the sequencer's admin
+    /// methods.
     ///
     /// ## Shutdown
     ///
@@ -171,15 +167,15 @@ impl RollupNode {
                 .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
         );
         let engine = engine_builder.handle();
-        let sequencer_builder = if self.mode.is_sequencer() {
-            Some(sequencer::Builder::new(
-                sequencer::Capacity::try_from(1024)
-                    .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
-            ))
-        } else {
-            None
-        };
-        let sequencer_handle = sequencer_builder.as_ref().map(sequencer::Builder::handle);
+        let sequencer_capacity = sequencer::Capacity::try_from(1024)
+            .map_err(|error| RollupNodeError::Startup(error.to_string()))?;
+        let sequencer = self
+            .sequencer
+            .as_ref()
+            .map(|config| (config, sequencer::Builder::new(sequencer_capacity)));
+        let sequencer_admin_rpc = sequencer.as_ref().map(|(config, builder)| {
+            SequencerAdminRpc::new(builder.handle(), config.conductor_rpc_url.is_some())
+        });
         let discovery_builder = discovery::Builder::new(
             discovery::Capacity::try_from(1024)
                 .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
@@ -262,26 +258,13 @@ impl RollupNode {
             };
 
         // ─── block signer ───────────────────────────────────────────────────────────────────
-        // Start the block signer before the network, so a misconfigured or unreachable remote
-        // signer fails before the node binds its p2p ports. A sequencer must have one: its blocks
-        // are gossiped only once signed.
-        let block_signer = if self.mode.is_sequencer() {
-            let Some(signer) = self.p2p_config.gossip_signer.clone() else {
-                return Err(RollupNodeError::Startup(
-                    "Sequencer mode requires a block signer: set --p2p.sequencer.key, \
-                     --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
-                        .into(),
-                ));
-            };
-            let signer = signer.start().await.map_err(|e| {
+        // Start the sequencer's block signer before the network, so a misconfigured or
+        // unreachable remote signer fails before the node binds its p2p ports.
+        let block_signer = match &self.sequencer {
+            Some(config) => Some(config.signer.clone().start().await.map_err(|e| {
                 RollupNodeError::Startup(format!("Failed to start block signer: {e}"))
-            })?;
-            Some(signer)
-        } else {
-            if self.p2p_config.gossip_signer.is_some() {
-                warn!(target: "rollup_node", "Ignoring the configured block signer: only a sequencer signs blocks");
-            }
-            None
+            })?),
+            None => None,
         };
 
         // ─── network ────────────────────────────────────────────────────────────────────────
@@ -340,11 +323,11 @@ impl RollupNode {
         );
 
         // ─── sequencer ──────────────────────────────────────────────────────────────────────
-        let sequencer_actor = sequencer_builder.map(|builder| {
+        let sequencer_actor = sequencer.map(|(config, builder)| {
             let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
                 self.clients.l1.clone(),
                 head.clone(),
-                self.sequencer_config.l1_conf_delay,
+                config.l1_conf_delay,
             );
             let origin_selector =
                 L1OriginSelector::new(self.chain.rollup_config.clone(), delayed_l1_provider);
@@ -370,7 +353,7 @@ impl RollupNode {
                 adapters::Engine::new(engine.clone()),
                 origin_selector,
                 self.chain.rollup_config.clone(),
-                self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
+                config.conductor_rpc_url.clone().map(ConductorClient::new_http),
                 adapters::Signer(signer_handle),
             )
         });
@@ -384,15 +367,26 @@ impl RollupNode {
             RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
         })?;
         // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-        if self.rpc_builder.enable_admin() {
-            let admin_rpc = AdminRpc::new(
-                sequencer_handle,
-                self.sequencer_config.conductor_rpc_url.is_some(),
-                engine.clone(),
+        if self.sequencer.is_some() && !self.rpc_builder.enable_admin() {
+            warn!(
+                target: "rollup_node",
+                "The admin API is disabled, so the sequencer cannot be started: enable it with \
+                 --rpc.enable-admin"
             );
-            modules.merge(admin_rpc.into_rpc()).map_err(|e| {
+        }
+        if self.rpc_builder.enable_admin() {
+            modules.merge(AdminRpc::new(engine.clone()).into_rpc()).map_err(|e| {
                 RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
             })?;
+            // A node that cannot sequence does not serve the sequencer's methods, so calls to
+            // them fail with "method not found".
+            if let Some(sequencer_admin_rpc) = sequencer_admin_rpc {
+                modules.merge(sequencer_admin_rpc.into_rpc()).map_err(|e| {
+                    RollupNodeError::Startup(format!(
+                        "Failed to register sequencer admin module: {e:?}"
+                    ))
+                })?;
+            }
         }
         modules
             .merge(

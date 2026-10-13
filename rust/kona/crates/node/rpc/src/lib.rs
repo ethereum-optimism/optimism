@@ -10,7 +10,7 @@
 extern crate tracing;
 
 mod admin;
-pub use admin::AdminRpc;
+pub use admin::{AdminRpc, SequencerAdminRpc};
 
 mod config;
 pub use config::RpcBuilder;
@@ -21,7 +21,7 @@ pub use p2p::P2pRpc;
 mod jsonrpsee;
 pub use jsonrpsee::{
     AdminApiServer, HealthzApiServer, MinerApiExtServer, OpAdminApiServer, OpP2PApiServer,
-    RollupNodeApiServer,
+    RollupNodeApiServer, SequencerAdminApiServer,
 };
 
 #[cfg(feature = "client")]

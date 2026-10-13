@@ -1,22 +1,25 @@
 ---
 title: "Run a Sequencer Node"
-description: "Run kona-node in sequencer mode from the command line, including required arguments, sequencer-specific flags, and example configurations."
+description: "Run kona-node as a sequencer from the command line, including required arguments, sequencer-specific flags, and example configurations."
 diataxis: how-to
 ---
 
-This guide shows how to run `kona-node` in **sequencer mode** from the command line. For how sequencer mode works internally and how to configure it programmatically through the Node SDK, see the [sequencer mode design](/node-operators/kona-node/design/sequencer) page.
+import { Unreleased } from "/snippets/unreleased.mdx"
+
+<Unreleased component="kona-node" />
+
+This guide shows how to run `kona-node` as a **sequencer** from the command line. A node given a block signer can sequence; a node without one follows the chain only. For how sequencing works internally and how to configure it programmatically through the Node SDK, see the [sequencer design](/node-operators/kona-node/design/sequencer) page.
 
 <Info>
-Sequencer mode is an advanced configuration primarily used by rollup operators. Most users will run nodes in the default validator mode.
+Sequencing is an advanced configuration primarily used by rollup operators. Most users will run nodes without a block signer, which follow the chain only.
 </Info>
 
 ## Basic Sequencer Setup
 
-To run a Kona node in sequencer mode:
+To run a Kona node that can sequence, give it a block signer:
 
 ```bash
 kona-node node \
-  --mode=Sequencer \
   --rpc.enable-admin \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
@@ -26,7 +29,7 @@ kona-node node \
   --l2-config-file=./rollup.json
 ```
 
-Sequencers start stopped after every restart. Once the node is running, start block production through the admin API:
+Sequencers start stopped after every restart, and the sequencer's admin methods are served only by a node with a block signer. Once the node is running, start block production through the admin API:
 
 ```bash
 curl http://localhost:9545 \
@@ -41,12 +44,11 @@ A conductor can issue the start request for managed sequencers. The admin API mu
 <Warning>
 **Required Configuration**
 
-Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` flag and a block signer. Missing any required argument will prevent the node from starting.
+A sequencer requires all standard node arguments plus a block signer. Missing any required argument will prevent the node from starting, and a node without a block signer cannot sequence.
 </Warning>
 
 | Argument | Flag | Environment Variable | Description |
 |----------|------|---------------------|-------------|
-| **Mode** | `--mode` | `KONA_NODE_MODE` | Must be set to `Sequencer` |
 | **L1 RPC** | `--l1-eth-rpc` | `KONA_NODE_L1_ETH_RPC` | L1 execution client RPC URL |
 | **L1 Beacon** | `--l1-beacon` | `KONA_NODE_L1_BEACON` | L1 beacon API URL |
 | **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
@@ -58,17 +60,16 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
-| `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Ignored without a block signer |
+| `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint. Requires a block signer |
 
-The full flag catalogue, including the standard node arguments shared with validator mode, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
+The full flag catalogue, including the standard node arguments every node takes, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 
 ## Example Configurations
 
 ### Basic Sequencer
 ```bash
 kona-node node \
-  --mode=Sequencer \
   --rpc.enable-admin \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
@@ -81,7 +82,6 @@ kona-node node \
 ### Sequencer with Conductor
 ```bash
 kona-node node \
-  --mode=Sequencer \
   --rpc.enable-admin \
   --conductor.rpc=http://conductor:8080 \
   --sequencer.l1-confs=6 \

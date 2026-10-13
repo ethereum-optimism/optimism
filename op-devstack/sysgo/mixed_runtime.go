@@ -601,10 +601,7 @@ func startMixedKonaNode(
 		envVars = append(envVars,
 			"KONA_NODE_P2P_SEQUENCER_KEY_PATH="+tempSeqKeyPath,
 			"KONA_NODE_SEQUENCER_L1_CONFS=2",
-			"KONA_NODE_MODE=Sequencer",
 		)
-	} else {
-		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 	envVars = append(envVars, extraEnv...)
 

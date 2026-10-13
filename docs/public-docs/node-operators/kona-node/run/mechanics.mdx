@@ -100,7 +100,7 @@ aborts the remaining actors when one exits or the node shuts down.
 The [`RollupNode` service][node] builds and spawns a fixed set of
 actors covering derivation, the execution engine and its read-only
 engine RPC, L1 polling and signer updates, P2P networking, the node's RPC server,
-and, in sequencer mode, block building.
+and, on a node that can sequence, block building.
 
 The [Node Design section](/node-operators/kona-node/design/intro) is
 the canonical description of that actor set and of what each actor

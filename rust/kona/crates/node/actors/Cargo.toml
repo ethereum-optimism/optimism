@@ -50,8 +50,7 @@ rand = { workspace = true, features = ["thread_rng"] }
 tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
-strum = { workspace = true, features = ["derive"] }
-derive_more = { workspace = true, features = ["display", "from_str"] }
+derive_more = { workspace = true, features = ["display"] }
 jsonrpsee = { workspace = true, features = ["server", "client-core"] }
 tokio = { workspace = true, features = ["macros"] }
 tokio-stream = { workspace = true, features = ["sync"] }

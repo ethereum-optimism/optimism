@@ -11,7 +11,7 @@ extern crate tracing;
 
 mod service;
 pub use service::{
-    ChainSpec, ListenProtocol, NodeMode, RollupNode, RollupNodeClients, RollupNodeClientsError,
+    ChainSpec, ListenProtocol, RollupNode, RollupNodeClients, RollupNodeClientsError,
     RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
 

@@ -11,9 +11,13 @@ use std::str::FromStr;
 use url::Url;
 
 /// Signer CLI Flags
+///
+/// A node given a block signer, a local key or a remote signer, can sequence: it runs the
+/// sequencer, stopped until `admin_startSequencer`, and signs the blocks it builds for gossip.
 #[derive(Debug, Clone, Parser, Default, PartialEq, Eq)]
 pub struct SignerArgs {
     /// An optional flag to specify a local private key for the sequencer to sign unsafe blocks.
+    /// Giving a block signer makes the node able to sequence.
     #[arg(
         long = "p2p.sequencer.key",
         env = "KONA_NODE_P2P_SEQUENCER_KEY",

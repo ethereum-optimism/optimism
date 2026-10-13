@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import KonaNodePorts from "/snippets/kona-node-ports.mdx"
+import { Unreleased } from "/snippets/unreleased.mdx"
 
 This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
 
@@ -20,7 +21,6 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--mode <validator/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | No | `validator` |
 | `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
@@ -85,7 +85,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
-| `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A sequencer needs this, `--p2p.sequencer.key.path`, or a remote signer | - |
+| `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A node given this, `--p2p.sequencer.key.path`, or a remote signer can sequence | - |
 | `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
 | `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
 | `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
@@ -103,12 +103,14 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 
 ## Sequencer Arguments
 
-Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production.
+<Unreleased component="kona-node" />
+
+A node given a block signer (`--p2p.sequencer.key`, `--p2p.sequencer.key.path`, or `--p2p.signer.endpoint` with `--p2p.signer.address`) can sequence. Its sequencer starts stopped: enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production. A node without a block signer does not serve the sequencer's admin methods.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
-| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
+| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer. Ignored without a block signer | `4` |
+| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration. Requires a block signer | - |
 
 ## Interop Arguments
 

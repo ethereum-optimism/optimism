@@ -16,7 +16,7 @@ mod metrics;
 pub use metrics::init_unified_metrics;
 
 mod sequencer;
-pub use sequencer::SequencerArgs;
+pub use sequencer::{ConductorWithoutSignerError, SequencerArgs};
 
 mod signer;
 pub use signer::{SignerArgs, SignerArgsParseError};

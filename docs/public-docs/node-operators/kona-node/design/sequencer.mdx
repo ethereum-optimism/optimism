@@ -1,16 +1,18 @@
 ---
-title: "Sequencer Mode"
-description: "Understand how the kona-node sequencer actor builds L2 blocks, and the trait abstractions and programmatic configuration behind sequencer mode."
+title: "Sequencer"
+description: "Understand how the kona-node sequencer actor builds L2 blocks, and the trait abstractions and programmatic configuration behind sequencing."
 diataxis: explanation
 ---
 
-The Kona node can operate in **sequencer mode** to build and produce new L2 blocks. In this mode, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+import { Unreleased } from "/snippets/unreleased.mdx"
 
-This page explains the design of sequencer mode and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
+A Kona node given a block signer can **sequence**: build and produce new L2 blocks. When sequencing, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+
+This page explains the design of the sequencer and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
 
 ## Overview
 
-When running in sequencer mode, the Kona node:
+When sequencing, the Kona node:
 
 - **Builds L2 blocks** by collecting transactions from the mempool and constructing new blocks
 - **Selects L1 origins** for new L2 blocks based on finalized L1 data
@@ -22,18 +24,11 @@ The sequencer uses the same core derivation pipeline as validator nodes but oper
 
 ## Core Components
 
-### `NodeMode`
+### Sequencing capability
 
-The node's operational mode is expressed by the `NodeMode` enum, the `mode` of the node's `RollupNodeConfig`:
+<Unreleased component="kona-node" />
 
-```rust
-pub enum NodeMode {
-    /// Validator mode.
-    Validator,
-    /// Sequencer mode.
-    Sequencer,
-}
-```
+Whether a node can sequence is the `sequencer` of its `RollupNodeConfig`, an `Option<SequencerConfig>`. A node with a `SequencerConfig` runs the sequencer actor and the block signer, and serves the sequencer's admin RPC methods (`admin_startSequencer`, `admin_stopSequencer`, `admin_sequencerActive`, `admin_conductorEnabled` and `admin_overrideLeader`) when the admin API is enabled. A node without one follows the chain only, and calls to those methods fail with "method not found".
 
 ### `SequencerActor`
 
@@ -50,6 +45,8 @@ Sequencers start stopped. Enable the admin API and issue `admin_startSequencer` 
 
 ```rust
 pub struct SequencerConfig {
+    /// Signs the sequencer's blocks for gossip.
+    pub signer: BlockSigner,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
     /// The confirmation delay for the sequencer.
@@ -61,32 +58,32 @@ pub struct SequencerConfig {
 
 ### Using the RollupNodeConfig
 
-To configure a Kona node programmatically for sequencer mode, set the `RollupNodeConfig`'s `mode` to `NodeMode::Sequencer` and give it a `SequencerConfig`:
+<Unreleased component="kona-node" />
+
+To configure a Kona node programmatically to sequence, give its `RollupNodeConfig` a `SequencerConfig`:
 
 ```rust
 use kona_node_service::{
-    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig,
+    RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig,
 };
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
+    signer,                             // A `BlockSigner`: a local key or a remote op-signer
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
     ),
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
-// A sequencer needs a block signer: `p2p_config.gossip_signer` must be
-// `Some`, or `start` fails.
 // `chain` is a `ChainSpec`: the rollup config, the L1 chain config and the
 // interop dependency set.
 let config = RollupNodeConfig {
     version,
     chain,
-    mode: NodeMode::Sequencer,
     p2p_config,
     rpc_config,
-    sequencer_config,
+    sequencer: Some(sequencer_config),
 };
 // Where the L1 and L2 endpoints are. Pass your own `RollupNodeClients`
 // to `RollupNode::new` instead to connect to them differently.
@@ -103,10 +100,11 @@ RollupNode::new(config, clients).start().await?;
 
 ### Configuration Options
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
-| `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
+| Field | Description | CLI default |
+|-------|-------------|-------------|
+| `signer` | Signs the blocks the sequencer gossips | - |
+| `conductor_rpc_url` | Conductor service endpoint for leader election | - |
+| `l1_conf_delay` | Confirmation delay for L1 origin selection | `4` |
 
 ## Next Steps
 
