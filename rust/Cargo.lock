@@ -7989,6 +7989,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-bls12-381-check"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "ark-bls12-381 0.6.0",
+ "ark-ec 0.6.0",
+ "ark-ff 0.6.0",
+ "ark-serialize 0.6.0",
+ "kona-sp1-client-utils",
+ "kona-sp1-elfs",
+ "op-revm",
+ "revm",
+ "rkyv",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sp1-sdk",
+ "tokio",
+]
+
+[[package]]
 name = "kona-sp1-build-info"
 version = "0.0.1"
 
@@ -8021,6 +8043,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sp1_bls12_381",
  "spin 0.10.0",
  "tracing",
 ]
@@ -17714,8 +17737,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f23e41cd36168cc2e51e5d3e35ff0c34b204d945769a65591a76286d04b51e43"
 dependencies = [
  "cfg-if",
+ "digest 0.10.7",
  "ff 0.13.1",
  "group 0.13.0",
+ "hex",
  "pairing",
  "rand_core 0.6.4",
  "sp1-lib",
