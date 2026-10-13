@@ -26,7 +26,6 @@ pub struct LogArgs {
     /// If set, no logs are printed to stdout.
     #[arg(
         long = "logs.stdout.quiet",
-        short = 'q',
         global = true,
         default_value = "false",
         env = "KONA_STDOUT_LOG_QUIET"

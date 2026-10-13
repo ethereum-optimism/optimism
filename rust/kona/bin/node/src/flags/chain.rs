@@ -23,7 +23,7 @@ use tracing::debug;
 pub struct ChainArgs {
     /// The L2 chain to load the rollup config for from the superchain registry, by chain ID or
     /// name.
-    #[arg(long = "chain", short = 'c', env = "KONA_NODE_L2_CHAIN_ID")]
+    #[arg(long = "chain", env = "KONA_NODE_L2_CHAIN_ID")]
     pub l2_chain_id: Option<alloy_chains::Chain>,
     /// Path to an L2 rollup configuration file, for a chain that is not in the superchain
     /// registry.
@@ -178,14 +178,6 @@ mod tests {
     fn test_l2_chain_id_parse_invalid(#[case] invalid_value: &str) {
         let result = ChainArgs::try_parse_from(["test", "--chain", invalid_value]);
         assert!(result.is_err());
-    }
-
-    #[rstest]
-    #[case::numeric("10", 10)]
-    #[case::string("optimism", 10)]
-    fn test_l2_chain_id_short_flag(#[case] value: &str, #[case] expected_id: u64) {
-        let args = ChainArgs::try_parse_from(["test", "-c", value]).unwrap();
-        assert_eq!(args.l2_chain_id.unwrap().id(), expected_id);
     }
 
     #[rstest]
