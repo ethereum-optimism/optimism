@@ -65,8 +65,9 @@ where
     ///
     /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
     /// behavior. Upstream's `ensure_within_proof_window` bounds the distance from the tip by
-    /// `max_proof_window`; a proofs-history node instead serves its proofs storage window, so it
-    /// checks that window up front, before taking the permit, as upstream does with its own.
+    /// `max_proof_window`; a proofs-history node instead serves its proofs storage window. Unlike
+    /// upstream, which takes the permit first and then checks its window, this checks the window
+    /// before taking the permit, so out-of-window requests never wait for one.
     async fn get_proof_inner(
         &self,
         address: Address,
