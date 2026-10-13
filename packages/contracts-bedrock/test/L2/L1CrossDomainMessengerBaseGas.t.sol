@@ -8,6 +8,7 @@ import { GasBurner } from "test/mocks/GasBurner.sol";
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import "src/libraries/GasConstants.sol" as GasConstants;
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title L1CrossDomainMessenger_BaseGas_Test
@@ -167,14 +168,15 @@ contract L1CrossDomainMessenger_BaseGas_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.baseGas(_message, _minGasLimit), expected);
     }
 
-    /// @notice Tests the relay constant values and that the legacy relay getters return the L2 relay constants.
+    /// @notice Tests that the relay constants are the L1 (local) and L2 (remote) `GasConstants` values, and
+    ///         that the legacy relay getters return the remote ones.
     function test_baseGas_relayConstants_succeeds() external view {
-        assertEq(l1CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), 135_000);
-        assertEq(l1CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), 5_000);
-        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), 200_000);
-        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD(), 40_000);
-        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS(), 40_000);
-        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER(), 5_000);
+        assertEq(l1CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), GasConstants.L1_RELAY_RESERVED_GAS);
+        assertEq(l1CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), GasConstants.L1_RELAY_GAS_CHECK_BUFFER);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), GasConstants.L2_RELAY_CONSTANT_OVERHEAD);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD(), GasConstants.L2_RELAY_CALL_OVERHEAD);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS(), GasConstants.L2_RELAY_RESERVED_GAS);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER(), GasConstants.L2_RELAY_GAS_CHECK_BUFFER);
         assertEq(
             l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
         );

@@ -9,7 +9,7 @@
   },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
     "initCodeHash": "0x0845a166eddd236b42490a86c8b5860b32f444978378c10b7a60a18b26ad1647",
-    "sourceCodeHash": "0x6c61b836f55b190c48e73ec75152a6f8756d691253628dbd4e5cd5fb85e45428"
+    "sourceCodeHash": "0x2157c71f90e6cd32df0b96c52f4b366e93dc2a3489273fa332fc9a75eab2aec8"
   },
   "src/L1/L1ERC721Bridge.sol:L1ERC721Bridge": {
     "initCodeHash": "0x8754f400a5110749e26f9820e0532b86f0122a6b8ceb10028fd997d39b023ff7",
@@ -77,7 +77,7 @@
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x84f1cf82df1932338c7ced015c863d1aae529a15484a4dd23dbc653d64111755",
-    "sourceCodeHash": "0x1129e29eee046e2fe9f901cc7d42dff7940491fd33a4b80c841d86b3a47b35c2"
+    "sourceCodeHash": "0xc14051af20a0f060395fa003b1e82158b75851398265b6820ef298bcd5b0baa6"
   },
   "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
     "initCodeHash": "0xf202ae6709feac15ebc57f24ce60cb784431c3051cd5846902ca05bca0fe291d",
