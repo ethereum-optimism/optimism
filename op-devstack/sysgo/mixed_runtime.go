@@ -571,11 +571,11 @@ func startMixedKonaNode(
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "info"),
-		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
+		propagateEnvVarOrDefault("KONA_LOGS_LEVEL", "info"),
+		propagateEnvVarOrDefault("KONA_LOGS_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
-		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP", "0"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP", "0"),
 	}
 
 	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop

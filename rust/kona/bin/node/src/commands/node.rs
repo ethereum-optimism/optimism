@@ -30,7 +30,7 @@ use tracing::{debug, error, info};
 ///
 /// Configuration can be provided through:
 /// - Command-line arguments
-/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_LOG_` and `KONA_METRICS_` for the
+/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_LOGS_` and `KONA_METRICS_` for the
 ///   logging and metrics flags)
 /// - Configuration files (for rollup config)
 ///

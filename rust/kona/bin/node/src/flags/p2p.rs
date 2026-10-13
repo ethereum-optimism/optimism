@@ -73,11 +73,11 @@ pub struct P2PArgs {
     pub advertise_ip: Option<IpAddr>,
     /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
     /// if set to zero.
-    #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT")]
+    #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP")]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer.
     /// Same as `p2p.listen.udp` if set to zero.
-    #[arg(long = "p2p.advertise.udp", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT")]
+    #[arg(long = "p2p.advertise.udp", env = "KONA_NODE_P2P_ADVERTISE_UDP")]
     pub advertise_udp_port: Option<u16>,
 
     /// IP address or DNS hostname to bind LibP2P/Discv5 to.
@@ -86,10 +86,10 @@ pub struct P2PArgs {
     #[arg(long = "p2p.listen.ip", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_IP", value_parser = resolve_host)]
     pub listen_ip: IpAddr,
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
-    #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP_PORT")]
+    #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP")]
     pub listen_tcp_port: u16,
     /// UDP port to bind Discv5 to. Same as TCP port if left 0.
-    #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
+    #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP")]
     pub listen_udp_port: u16,
     /// Configure `GossipSub` topic stable mesh target count.
     /// Aka: The desired outbound degree (numbers of peers to gossip to).
@@ -97,7 +97,7 @@ pub struct P2PArgs {
     pub gossip_mesh_d: usize,
     /// Configure `GossipSub` topic stable mesh low watermark.
     /// Aka: The lower bound of outbound degree.
-    #[arg(long = "p2p.gossip.mesh.lo", default_value = "6", env = "KONA_NODE_P2P_GOSSIP_MESH_DLO")]
+    #[arg(long = "p2p.gossip.mesh.lo", default_value = "6", env = "KONA_NODE_P2P_GOSSIP_MESH_LO")]
     pub gossip_mesh_dlo: usize,
     /// Configure `GossipSub` topic stable mesh high watermark.
     /// Aka: The upper bound of outbound degree (additional peers will not receive gossip).
@@ -121,7 +121,7 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.gossip.mesh.floodpublish",
         default_value = "false",
-        env = "KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH"
+        env = "KONA_NODE_P2P_GOSSIP_MESH_FLOODPUBLISH"
     )]
     pub gossip_flood_publish: bool,
     /// Sets the peer scoring strategy for the P2P stack.

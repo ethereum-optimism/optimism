@@ -75,16 +75,16 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
-| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
-| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
+| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP` | TCP port to advertise | `0` |
+| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP` | UDP port to advertise | `0` |
 | `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
-| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
-| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
+| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP` | TCP port to bind LibP2P to | `9222` |
+| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP` | UDP port to bind Discv5 to | `9223` |
 | `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
-| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLO` | GossipSub mesh low watermark | `6` |
+| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_LO` | GossipSub mesh low watermark | `6` |
 | `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
 | `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target | `6` |
-| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH` | Publish to all known peers | `false` |
+| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_MESH_FLOODPUBLISH` | Publish to all known peers | `false` |
 | `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
 | `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |

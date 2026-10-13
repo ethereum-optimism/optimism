@@ -18,8 +18,8 @@
 |-----------------|--------------|------------------------------------------|
 | RPC HTTP        | 9545         | `--rpc.port` / `KONA_NODE_RPC_PORT`  |
 | RPC WebSocket   | 9545         | (same as HTTP, available by default) |
-| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
-| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP` |
+| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP` |
 
 `kona-node` does not run a supervisor RPC server: the binary has no `--supervisor.*`
 flag group. Its interop dependency set, `--chain.dependency-set`

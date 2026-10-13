@@ -58,7 +58,7 @@ func runOracleServer(t require.TestingT, logger log.Logger, component string, ar
 	}
 	cmd := exec.CommandContext(contextualT.Ctx(), exePath, args[1:]...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "KONA_LOG_STDOUT_FORMAT=json", "NO_COLOR=1")
+	cmd.Env = append(os.Environ(), "KONA_LOGS_STDOUT_FORMAT=json", "NO_COLOR=1")
 
 	logOut := logpipe.ToLoggerWithMinLevel(logger.New("component", component, "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(logger.New("component", component, "src", "stderr"), log.LevelWarn)

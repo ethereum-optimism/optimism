@@ -169,4 +169,32 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
     }
+
+    #[test]
+    fn node_flags_read_the_environment_variables_named_after_them() {
+        use clap::{Args, CommandFactory};
+
+        // kona-cli's shared flags follow its own rule, which it tests.
+        let shared = kona_cli::MetricsArgs::augment_args(kona_cli::LogArgs::augment_args(
+            clap::Command::new("shared"),
+        ));
+        let shared: Vec<_> = shared.get_arguments().filter_map(|arg| arg.get_long()).collect();
+
+        let cli = Cli::command();
+        let node = cli.find_subcommand("node").unwrap();
+        let mismatches: Vec<_> = node
+            .get_arguments()
+            .filter_map(|arg| {
+                let long = arg.get_long()?;
+                if long == "help" || shared.contains(&long) {
+                    return None;
+                }
+                let expected = kona_cli::env_var_for_flag("KONA_NODE_", long);
+                let actual = arg.get_env().map(|env| env.to_string_lossy().into_owned());
+                (actual.as_deref() != Some(expected.as_str()))
+                    .then(|| format!("--{long}: {actual:?}, expected {expected}"))
+            })
+            .collect();
+        assert!(mismatches.is_empty(), "{mismatches:#?}");
+    }
 }

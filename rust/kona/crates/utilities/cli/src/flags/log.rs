@@ -13,14 +13,14 @@ use crate::{LogFormat, LogRotation};
 #[command(next_help_heading = "Logging")]
 pub struct LogArgs {
     /// The most detailed level to log, for both stdout and file logging.
-    #[arg(long = "logs.level", global = true, default_value = "info", env = "KONA_LOG_LEVEL")]
+    #[arg(long = "logs.level", global = true, default_value = "info", env = "KONA_LOGS_LEVEL")]
     pub level: LogLevel,
     /// If set, no logs are printed to stdout.
     #[arg(
         long = "logs.stdout.quiet",
         global = true,
         default_value = "false",
-        env = "KONA_STDOUT_LOG_QUIET"
+        env = "KONA_LOGS_STDOUT_QUIET"
     )]
     pub stdout_quiet: bool,
     /// The format of the logs printed to stdout. One of: full, json, pretty, compact, logfmt.
@@ -30,11 +30,11 @@ pub struct LogArgs {
     /// pretty: The logs are printed in a pretty, human readable format.
     /// compact: The logs are printed in a compact format.
     /// logfmt: The logs are printed in logfmt key=value format.
-    #[arg(long = "logs.stdout.format", default_value = "full", env = "KONA_LOG_STDOUT_FORMAT")]
+    #[arg(long = "logs.stdout.format", default_value = "full", env = "KONA_LOGS_STDOUT_FORMAT")]
     pub stdout_format: LogFormat,
     /// The directory to store the log files.
     /// If not set, no logs are printed to files.
-    #[arg(long = "logs.file.directory", env = "KONA_LOG_FILE_DIRECTORY")]
+    #[arg(long = "logs.file.directory", env = "KONA_LOGS_FILE_DIRECTORY")]
     pub file_directory: Option<PathBuf>,
     /// The format of the logs printed to log files. One of: full, json, pretty, compact, logfmt.
     ///
@@ -43,11 +43,11 @@ pub struct LogArgs {
     /// pretty: The logs are printed in a pretty, human readable format.
     /// compact: The logs are printed in a compact format.
     /// logfmt: The logs are printed in logfmt key=value format.
-    #[arg(long = "logs.file.format", default_value = "full", env = "KONA_LOG_FILE_FORMAT")]
+    #[arg(long = "logs.file.format", default_value = "full", env = "KONA_LOGS_FILE_FORMAT")]
     pub file_format: LogFormat,
     /// The rotation of the log files. One of: hourly, daily, weekly, monthly, never.
     /// If set, new log files will be created every interval.
-    #[arg(long = "logs.file.rotation", default_value = "never", env = "KONA_LOG_FILE_ROTATION")]
+    #[arg(long = "logs.file.rotation", default_value = "never", env = "KONA_LOGS_FILE_ROTATION")]
     pub file_rotation: LogRotation,
 }
 
