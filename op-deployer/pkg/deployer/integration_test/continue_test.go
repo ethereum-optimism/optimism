@@ -596,12 +596,11 @@ func newContinuationEnvWithIntentMutator(
 	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(workdir, st))
 	require.NoError(t, deployer.Prepare(ctx, deployer.PrepareConfig{
-		Workdir:           workdir,
-		Logger:            lgr,
-		PrivateKey:        privateKey,
-		L1RPCUrl:          l1RPC,
-		CacheDir:          cacheDir,
-		GenesisTimeOffset: standard.MinGenesisTimeOffsetSeconds,
+		Workdir:    workdir,
+		Logger:     lgr,
+		PrivateKey: privateKey,
+		L1RPCUrl:   l1RPC,
+		CacheDir:   cacheDir,
 	}))
 
 	prepared, err := pipeline.ReadState(workdir)

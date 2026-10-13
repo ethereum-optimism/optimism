@@ -32,8 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const pcdGenesisTimeOffset = standard.MinGenesisTimeOffsetSeconds
-
 type pcdChainArtifacts struct {
 	chainID     common.Hash
 	genesisPath string
@@ -198,7 +196,6 @@ func (f *pcdJourneyFixture) runPrepare() *state.State {
 	f.runner.ExpectSuccessWithNetwork(f.t, []string{
 		"prepare",
 		"--workdir", f.workdir,
-		"--genesis-time-offset", strconv.FormatUint(pcdGenesisTimeOffset, 10),
 	}, nil)
 	st, err := pipeline.ReadState(f.workdir)
 	require.NoError(f.t, err)
