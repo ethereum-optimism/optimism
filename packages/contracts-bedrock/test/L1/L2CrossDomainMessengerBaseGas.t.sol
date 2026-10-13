@@ -149,13 +149,9 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
     }
 
     /// @notice Tests that `baseGas` budgets the relay with the L1 relay constants.
-    function testFuzz_baseGas_usesRemoteRelayConstants_succeeds(
-        bytes calldata _message,
-        uint32 _minGasLimit
-    )
-        external
-        view
-    {
+    function testFuzz_baseGas_usesRemoteRelayConstants_succeeds(bytes calldata _message, uint32 _minGasLimit) external {
+        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
+
         uint64 executionGas = l2CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
             + l2CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD() + l2CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS()
             + l2CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
@@ -174,7 +170,9 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
     }
 
     /// @notice Tests the relay constant values and that the legacy relay getters return the L1 relay constants.
-    function test_baseGas_relayConstants_succeeds() external view {
+    function test_baseGas_relayConstants_succeeds() external {
+        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
+
         assertEq(l2CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), 40_000);
         assertEq(l2CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), 5_000);
         assertEq(l2CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), 200_000);
