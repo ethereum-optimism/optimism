@@ -64,7 +64,13 @@ op-deployer bootstrap implementations \
 
 <Unreleased component="op-deployer" />
 
-To deploy implementations with non-standard withdrawal delay bounds, pass `--min-proof-maturity-delay-seconds`, `--max-proof-maturity-delay-seconds`, `--min-dispute-game-finality-delay-seconds`, `--max-dispute-game-finality-delay-seconds`, `--min-withdrawal-delay-seconds` and `--max-withdrawal-delay-seconds`.
+The implementations fix the bounds each chain's withdrawal delays must fall within. To deploy with non-standard bounds, pass these flags:
+
+| Flags | Contract | Delay | Default bounds |
+| ----- | -------- | ----- | -------------- |
+| `--min-proof-maturity-delay-seconds`, `--max-proof-maturity-delay-seconds` | `OptimismPortal2` | Time between proving a withdrawal and finalizing it | 1 day to 7 days |
+| `--min-dispute-game-finality-delay-seconds`, `--max-dispute-game-finality-delay-seconds` | `AnchorStateRegistry` | Time after a game resolves before its result is final | 12 hours to 3.5 days |
+| `--min-withdrawal-delay-seconds`, `--max-withdrawal-delay-seconds` | `DelayedWETH` | Time between unlocking a bond and withdrawing it | 12 hours to 7 days |
 
 ### Output
 
