@@ -39,6 +39,8 @@ type InteropMonitorService struct {
 	collector *MetricCollector
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
+	extensions []Extension
+
 	// messageExpiryWindow (seconds) is sourced from the dependency set and passed to updaters.
 	messageExpiryWindow uint64
 
@@ -51,9 +53,9 @@ type InteropMonitorService struct {
 	stopped atomic.Bool
 }
 
-func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) (*InteropMonitorService, error) {
+func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...Option) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
-	if err := ms.initFromCLIConfig(ctx, version, cfg, log); err != nil {
+	if err := ms.initFromCLIConfig(ctx, version, cfg, log, applyOptions(opts)); err != nil {
 		return nil, errors.Join(err, ms.Start(ctx))
 	}
 	return &ms, nil
@@ -66,15 +68,16 @@ func InteropMonitorServiceFromClients(
 	cfg *CLIConfig,
 	clients map[eth.ChainID]*sources.EthClient,
 	log log.Logger,
+	opts ...Option,
 ) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
-	if err := ms.initFromClients(ctx, version, cfg, clients, log); err != nil {
+	if err := ms.initFromClients(ctx, version, cfg, clients, log, applyOptions(opts)); err != nil {
 		return nil, errors.Join(err, ms.Start(ctx))
 	}
 	return &ms, nil
 }
 
-func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) error {
+func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, o options) error {
 	// Initialize all clients
 	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
 	if err != nil {
@@ -102,7 +105,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		}
 	}
 
-	return ms.initFromClients(ctx, version, cfg, clients, log)
+	return ms.initFromClients(ctx, version, cfg, clients, log, o)
 }
 
 // initFromClients initializes the service with pre-created clients
@@ -112,6 +115,7 @@ func (ms *InteropMonitorService) initFromClients(
 	cfg *CLIConfig,
 	clients map[eth.ChainID]*sources.EthClient,
 	log log.Logger,
+	o options,
 ) error {
 	ms.Version = version
 	ms.Log = log
@@ -136,9 +140,14 @@ func (ms *InteropMonitorService) initFromClients(
 		return fmt.Errorf("failed to init updaters: %w", err)
 	}
 
+	observers, err := ms.initExtensions(ctx, clients, o.extensions)
+	if err != nil {
+		return fmt.Errorf("failed to init extensions: %w", err)
+	}
+
 	// Initialize all finders
 	ms.finders = make(map[eth.ChainID]Finder)
-	if err := ms.initFinders(clients); err != nil {
+	if err := ms.initFinders(clients, observers); err != nil {
 		return fmt.Errorf("failed to init finders: %w", err)
 	}
 
@@ -237,10 +246,35 @@ func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.E
 	return nil
 }
 
+// initExtensions builds the extensions and returns those that observe blocks.
+func (ms *InteropMonitorService) initExtensions(ctx context.Context, clients map[eth.ChainID]*sources.EthClient, factories []ExtensionFactory) ([]BlockObserver, error) {
+	env := ExtensionEnv{
+		Log:                 ms.Log,
+		Clients:             clients,
+		MessageExpiryWindow: ms.messageExpiryWindow,
+	}
+	if m, ok := ms.Metrics.(opmetrics.RegistryMetricer); ok {
+		env.Registry = m.Registry()
+	}
+	var observers []BlockObserver
+	for _, factory := range factories {
+		ext, err := factory(ctx, env)
+		if err != nil {
+			return nil, err
+		}
+		ms.extensions = append(ms.extensions, ext)
+		if o, ok := ext.(BlockObserver); ok {
+			observers = append(observers, o)
+		}
+	}
+	return observers, nil
+}
+
 // initFinders initializes the finders for the given clients
-func (ms *InteropMonitorService) initFinders(clients map[eth.ChainID]*sources.EthClient) error {
+func (ms *InteropMonitorService) initFinders(clients map[eth.ChainID]*sources.EthClient, observers []BlockObserver) error {
+	filter := observingJobFilter(BlockReceiptsToJobs, observers)
 	for chainID, ethClient := range clients {
-		finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.RouteNewJob, ms.SetExpiry, 1000, ms.Log)
+		finder := NewFinder(chainID, ethClient, filter, ms.RouteNewJob, ms.SetExpiry, 1000, ms.Log)
 		ms.finders[chainID] = finder
 	}
 	return nil
@@ -335,6 +369,11 @@ func (ms *InteropMonitorService) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start updater: %w", err)
 		}
 	}
+	for _, ext := range ms.extensions {
+		if err := ext.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start extension: %w", err)
+		}
+	}
 	for _, finder := range ms.finders {
 		if err := finder.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start finder: %w", err)
@@ -364,6 +403,14 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		if err := finder.Stop(); err != nil {
 			ms.Log.Error("failed to stop finder", "error", err)
 			result = errors.Join(result, fmt.Errorf("failed to stop finder: %w", err))
+		}
+	}
+
+	ms.Log.Info("stopping extensions")
+	for _, ext := range ms.extensions {
+		if err := ext.Stop(); err != nil {
+			ms.Log.Error("failed to stop extension", "error", err)
+			result = errors.Join(result, fmt.Errorf("failed to stop extension: %w", err))
 		}
 	}
 

@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
-func Main(version string) cliapp.LifecycleAction {
+func Main(version string, opts ...Option) cliapp.LifecycleAction {
 	return func(cliCtx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		if err := flags.CheckRequired(cliCtx); err != nil {
 			return nil, err
@@ -24,9 +24,10 @@ func Main(version string) cliapp.LifecycleAction {
 
 		l := logcli.NewLogger(logcli.AppOut(cliCtx), cfg.LogConfig)
 		logcli.SetGlobalLogHandler(l.Handler())
-		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
+		o := applyOptions(opts)
+		opservice.ValidateEnvVars(flags.EnvVarPrefix, append(flags.Flags, o.extraFlags...), l)
 
-		service, err := InteropMonitorServiceFromCLIConfig(cliCtx.Context, version, cfg, l)
+		service, err := InteropMonitorServiceFromCLIConfig(cliCtx.Context, version, cfg, l, opts...)
 		if err != nil {
 			return nil, err
 		}
