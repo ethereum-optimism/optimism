@@ -226,6 +226,7 @@ Apply these checks to any changed deposit behavior.
 
 - `depositNonce` and `depositReceiptVersion` presence is fork-gated, and the version must be `1`.
 - The consensus receipt encoding and the receipt hash must match the fork rule.
+- The deposit receipt RLP carries the status, `cumulativeGasUsed`, the bloom, the logs, `depositNonce` and `depositReceiptVersion`. The Go receipt struct also holds the L1 fee fields, which never reach it. A client difference in those fields misses the receipts root but is still a cross-client divergence.
 - `cumulativeGasUsed` reflects metered gas after Regolith.
 
 ### Decoding and dispatch
@@ -286,8 +287,5 @@ Apply the shared dismissal checks first.
 These deposit cases extend them:
 
 - The portal already bounds the value, so the L2 path cannot reach it.
-- The field is an L1 fee field, such as `L1GasPrice` or `L1Fee`. The Go receipt struct holds these beside the consensus fields, but the deposit receipt RLP never carries them.
 - The difference appears only before the fork that activates the rule.
 - A later guard rejects the input before the suspected operation.
-
-An RPC-only difference is still a finding when a client derives a consensus value from the same code.
