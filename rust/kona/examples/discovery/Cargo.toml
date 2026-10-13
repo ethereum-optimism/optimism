@@ -10,6 +10,7 @@ anyhow.workspace = true
 tracing.workspace = true
 kona-cli.workspace = true
 kona-disc.workspace = true
+kona-node-actors.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }

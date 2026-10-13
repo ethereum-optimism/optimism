@@ -2,15 +2,20 @@
 
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
+use discv5::Enr;
 use kona_node_actors::{
-    EngineClientError, EngineClientResult, NetworkEngineClient, SequencerEngineClient, derivation,
-    engine,
+    EngineClientError, EngineClientResult, SequencerEngineClient, derivation, discovery, engine,
     engine::{Consolidation, EngineState, FinalizeBlockId},
-    finality, sequencer, signer,
+    finality, network, sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio::sync::watch;
+use std::{collections::HashSet, time::Duration};
+use tokio::sync::{
+    mpsc::error::{SendError, TrySendError},
+    watch,
+};
 
 /// Adapts the engine handle to the traits of the actors that use the engine.
 #[derive(Debug, Clone)]
@@ -112,10 +117,43 @@ impl finality::Engine for Engine {
 }
 
 #[async_trait]
-impl NetworkEngineClient for Engine {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+impl network::Engine for Engine {
+    async fn insert_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> EngineClientResult<()> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
         self.handle.insert_unsafe_block(block).await
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Discovery(pub(super) discovery::Handle);
+
+#[async_trait]
+impl network::Discovery for Discovery {
+    type Error = discovery::HandleError;
+
+    async fn ban(&self, addrs: HashSet<Multiaddr>, duration: Duration) -> Result<(), Self::Error> {
+        self.0.ban(addrs, duration).await
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Network(pub(super) network::Handle);
+
+impl discovery::Network for Network {
+    fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
+        self.0.dial(enr)
+    }
+}
+
+#[async_trait]
+impl signer::Network for Network {
+    type Error = SendError<signer::Payload>;
+
+    async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
+        self.0.publish(payload).await
     }
 }
 

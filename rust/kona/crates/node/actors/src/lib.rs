@@ -22,6 +22,8 @@ pub use rpc::{RpcActor, RpcActorError};
 pub mod derivation;
 pub use derivation::{DerivationDelegateClientError, DerivationDelegateProvider};
 
+pub mod discovery;
+
 pub mod finality;
 
 pub mod l1_signer_updater;
@@ -30,11 +32,8 @@ pub mod l1;
 
 pub mod signer;
 
-mod network;
-pub use network::{
-    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-};
+pub mod network;
+pub use network::NetworkConfig;
 
 pub mod sequencer;
 

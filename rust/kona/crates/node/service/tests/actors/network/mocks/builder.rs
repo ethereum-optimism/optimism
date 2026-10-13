@@ -1,4 +1,8 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    collections::HashSet,
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use alloy_chains::Chain;
 use alloy_signer::k256;
@@ -11,7 +15,7 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, signer,
+    EngineClientError, EngineClientResult, NetworkConfig, discovery, network, signer,
 };
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
@@ -19,7 +23,13 @@ use kona_sources::BlockSignerHandler;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{
+    mpsc::{
+        self,
+        error::{SendError, TrySendError},
+    },
+    watch,
+};
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -90,36 +100,40 @@ impl TestNetworkBuilder {
         gossip_multiaddr.push(Protocol::Tcp(0));
 
         // Create a new network actor. No external connections
-        let builder = NetworkBuilder::new(
-            // Create a new rollup config. We don't need to specify any of the fields.
-            self.rollup_config(),
-            self.unsafe_block_signer,
-            gossip_multiaddr,
+        let config = NetworkConfig {
             keypair,
-            LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
-        )
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
-
-        let handler = builder.build().expect("build network").start().await.expect("start network");
+            bootnodes: bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into(),
+            ..NetworkConfig::new(
+                // Create a new rollup config. We don't need to specify any of the fields.
+                self.rollup_config(),
+                LocalNode::new(local_node_key, node_addr, 0, 0),
+                gossip_multiaddr,
+            )
+        };
+        let (gossip, discovery_driver) =
+            config.start(watch::channel(self.unsafe_block_signer).1).await.expect("start network");
+        let discovery_builder =
+            discovery::Builder::new(discovery::Capacity::try_from(1024).unwrap());
+        let discovery = discovery_builder.handle();
+        let network_builder =
+            network::Builder::new(network::Capacity::try_from(1024).unwrap(), gossip);
+        let network = network_builder.handle();
+        let discovery_actor = discovery_builder.build(discovery_driver, Network(network.clone()));
+        tokio::spawn(async move {
+            if let Err(err) = discovery_actor.await {
+                error!(target: "net", ?err, "Discovery actor failed");
+            }
+        });
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let signer_builder = signer::Builder::new(signer::Capacity::try_from(256).unwrap());
         let signer_handle = signer_builder.handle();
-        let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
-        let discovery = handler.discovery.clone();
-        let mut actor = NetworkActor::new(
-            ForwardingNetworkEngineClient { blocks_tx },
-            handler,
-            gossip_command_rx,
-            admin_rpc_rx,
-            signed_payload_rx,
-        );
+        let network_actor = network_builder
+            .build(ForwardingEngine { blocks_tx }, BanningDiscovery(discovery.clone()));
 
-        let p2p_rpc = P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc = P2pRpc::new(network.state(), network.clone(), discovery, self.chain_id);
 
         // Every test network can sign: payloads sent to `signer_handle` are signed with this
         // node's key and then gossiped.
@@ -127,7 +141,7 @@ impl TestNetworkBuilder {
             BlockSignerHandler::Local(block_signer),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
-            signed_payload_tx,
+            Network(network),
         );
         tokio::spawn(async move {
             if let Err(err) = signer.await {
@@ -135,32 +149,60 @@ impl TestNetworkBuilder {
             }
         });
 
-        let handle = tokio::spawn(async move {
-            loop {
-                actor.step().await?;
-            }
-            // Unreachable: the loop above only exits via Err.
-            #[allow(unreachable_code)]
-            Ok(())
-        });
+        let handle = tokio::spawn(network_actor);
 
-        TestNetwork { p2p_rpc, admin_rpc_tx, signer: signer_handle, blocks_rx, handle }
+        TestNetwork { p2p_rpc, signer: signer_handle, blocks_rx, handle }
     }
 }
 
+/// Passes the peers discovery finds and the payloads the signer signs to the network actor.
+#[derive(Debug, Clone)]
+struct Network(network::Handle);
+
+impl discovery::Network for Network {
+    fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
+        self.0.dial(enr)
+    }
+}
+
+#[async_trait]
+impl signer::Network for Network {
+    type Error = SendError<signer::Payload>;
+
+    async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
+        self.0.publish(payload).await
+    }
+}
+
+/// Passes the network actor's bans to the discovery actor.
 #[derive(Debug)]
-struct ForwardingNetworkEngineClient {
+struct BanningDiscovery(discovery::Handle);
+
+#[async_trait]
+impl network::Discovery for BanningDiscovery {
+    type Error = discovery::HandleError;
+
+    async fn ban(&self, addrs: HashSet<Multiaddr>, duration: Duration) -> Result<(), Self::Error> {
+        self.0.ban(addrs, duration).await
+    }
+}
+
+/// Passes the blocks the network actor receives to the test, and stops once the test drops the
+/// receiver.
+#[derive(Debug)]
+struct ForwardingEngine {
     blocks_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
 #[async_trait]
-impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .blocks_tx
+impl network::Engine for ForwardingEngine {
+    async fn insert_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> EngineClientResult<()> {
+        self.blocks_tx
             .send(block)
             .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-        Ok(())
+            .map_err(|_| EngineClientError::RequestError("the test engine stopped".to_string()))
     }
 }

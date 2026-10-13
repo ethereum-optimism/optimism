@@ -2,11 +2,15 @@
 
 use alloy_primitives::Address;
 use alloy_signer::Signature;
+use async_trait::async_trait;
 use kona_sources::{BlockSignerError, BlockSignerHandler};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::future::Future;
+use std::{fmt::Debug, future::Future};
 use thiserror::Error;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{
+    mpsc::{self, error::SendError},
+    watch,
+};
 
 pub use crate::capacity::{Capacity, InvalidCapacity};
 
@@ -59,16 +63,37 @@ impl Builder {
     ///
     /// The caller must retain a handle to keep the input channel open.
     /// Dropping the future stops the actor.
-    pub fn build(
+    pub fn build<Network_: Network>(
         self,
         signer: BlockSignerHandler,
         chain_id: u64,
         unsafe_block_signer: watch::Receiver<Address>,
-        signed: mpsc::Sender<Payload>,
+        network: Network_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let actor =
-            Actor { signer, chain_id, unsafe_block_signer, payloads: self.payloads, signed };
+            Actor { signer, chain_id, unsafe_block_signer, payloads: self.payloads, network };
         actor.run()
+    }
+}
+
+/// The network that publishes the payloads the signer signs.
+#[async_trait]
+pub trait Network: Debug + Send + Sync + 'static {
+    /// An error queuing a payload.
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Queues a signed payload to publish, waiting for room in the queue.
+    ///
+    /// Success means the payload was queued, not that it was published.
+    async fn publish(&self, payload: Payload) -> Result<(), Self::Error>;
+}
+
+#[async_trait]
+impl Network for mpsc::Sender<Payload> {
+    type Error = SendError<Payload>;
+
+    async fn publish(&self, payload: Payload) -> Result<(), Self::Error> {
+        self.send(payload).await
     }
 }
 
@@ -82,14 +107,15 @@ pub struct Payload {
 }
 
 /// Signs each payload the sequencer produces, in order, and passes it to the
-/// [`NetworkActor`](crate::NetworkActor) to gossip.
+/// [network actor](crate::network) to gossip.
 ///
 /// The signer retries its own transient failures, such as a remote signer that is unreachable or
 /// does not answer in time, until it succeeds, so no payload is skipped or reordered. While a
 /// payload waits, the sequencer's payload queue fills, and then the sequencer stops building blocks
-/// until it drains, while still answering admin queries. Any error the signer returns is fatal.
+/// until it drains, while still answering admin queries. The signer likewise waits for room in the
+/// network's queue. Any error the signer returns is fatal.
 #[derive(Debug)]
-struct Actor {
+struct Actor<Network_> {
     /// Signs the payloads.
     signer: BlockSignerHandler,
     /// The L2 chain ID the signatures commit to.
@@ -98,8 +124,8 @@ struct Actor {
     unsafe_block_signer: watch::Receiver<Address>,
     /// Payloads from the sequencer, in the order they were built.
     payloads: mpsc::Receiver<OpExecutionPayloadEnvelope>,
-    /// Signed payloads for the network actor, in the same order.
-    signed: mpsc::Sender<Payload>,
+    /// Publishes the signed payloads, in the same order.
+    network: Network_,
 }
 
 /// A fatal error from the signer actor.
@@ -113,7 +139,7 @@ pub enum ActorError {
     Signing(#[from] BlockSignerError),
 }
 
-impl Actor {
+impl<Network_: Network> Actor<Network_> {
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
             let payload = self.payloads.recv().await.ok_or(ActorError::ChannelClosed)?;
@@ -123,8 +149,8 @@ impl Actor {
             let sender = *self.unsafe_block_signer.borrow();
             let signature =
                 self.signer.sign_block(payload.payload_hash(), self.chain_id, sender).await?;
-            self.signed
-                .send(Payload { payload, signature })
+            self.network
+                .publish(Payload { payload, signature })
                 .await
                 .map_err(|_| ActorError::ChannelClosed)?;
         }

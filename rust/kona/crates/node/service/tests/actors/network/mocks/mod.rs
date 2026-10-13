@@ -5,7 +5,7 @@ use std::{str::FromStr, time::Duration};
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use kona_gossip::{PeerDump, PeerInfo};
-use kona_node_service::NetworkActorError;
+use kona_node_service::network;
 use kona_rpc::{OpP2PApiServer, P2pRpc};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -14,12 +14,9 @@ pub(crate) mod builder;
 
 pub(crate) struct TestNetwork {
     pub(super) p2p_rpc: P2pRpc,
-    #[allow(dead_code)]
-    pub(super) admin_rpc_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
     pub(super) signer: kona_node_service::signer::Handle,
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
-    #[allow(dead_code)]
-    handle: JoinHandle<Result<(), NetworkActorError>>,
+    pub(super) handle: JoinHandle<Result<(), network::ActorError>>,
 }
 
 #[derive(Debug, thiserror::Error)]

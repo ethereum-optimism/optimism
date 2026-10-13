@@ -1,12 +1,15 @@
 //! Configuration for the `Network`.
 
-use kona_disc::LocalNode;
+use super::StartError;
+use alloy_primitives::Address;
+use kona_disc::{Discv5Builder, Discv5Driver, LocalNode};
 use kona_genesis::RollupConfig;
-use kona_gossip::GaterConfig;
+use kona_gossip::{ConnectionGater, GaterConfig, GossipDriver, GossipDriverBuilder};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
-use libp2p::{Multiaddr, identity::Keypair};
-use tokio::time::Duration;
+use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
+use std::net::{IpAddr, SocketAddr};
+use tokio::{sync::watch, time::Duration};
 
 /// Configuration for kona's P2P stack.
 #[derive(Debug, Clone)]
@@ -89,13 +92,70 @@ impl NetworkConfig {
             bootnodes: Default::default(),
             bootstore: Default::default(),
             gater_config: Default::default(),
-            gossip_config: Default::default(),
+            gossip_config: kona_gossip::default_config(),
             scoring: Default::default(),
             topic_scoring: Default::default(),
             monitor_peers: Default::default(),
             gossip_signer: Default::default(),
         }
     }
+
+    /// Builds the gossip and discovery drivers, and starts the gossip swarm listening.
+    ///
+    /// Gossiped blocks must be signed by the current value of `unsafe_block_signer`. When
+    /// [`Self::enr_update`] is set, discovery advertises the address the swarm listens on, so the
+    /// listen port may be `0`. Discovery is built but not started.
+    pub async fn start(
+        self,
+        unsafe_block_signer: watch::Receiver<Address>,
+    ) -> Result<(GossipDriver<ConnectionGater>, Discv5Driver), StartError> {
+        let initial_signer = *unsafe_block_signer.borrow();
+        let mut gossip = GossipDriverBuilder::new(
+            self.rollup_config.clone(),
+            initial_signer,
+            self.gossip_address,
+            self.keypair,
+        )
+        .with_unsafe_block_signer_receiver(unsafe_block_signer)
+        .with_config(self.gossip_config)
+        .with_peer_scoring(self.scoring)
+        .with_peer_monitoring(self.monitor_peers)
+        .with_topic_scoring(self.topic_scoring)
+        .with_gater_config(self.gater_config)
+        .build()?;
+        let discovery = Discv5Builder::new(
+            self.discovery_address,
+            self.rollup_config.l2_chain_id.id(),
+            self.discovery_config,
+        )
+        .with_interval(self.discovery_interval)
+        .with_discovery_randomize(self.discovery_randomize)
+        .with_bootstore_file(self.bootstore)
+        .with_bootnodes(self.bootnodes)
+        .build()?;
+
+        let listen_addr = gossip.start().await?;
+        if self.enr_update {
+            let socket =
+                tcp_socket(&listen_addr).ok_or(StartError::InvalidListenAddr(listen_addr))?;
+            discovery.disc.update_local_enr_socket(socket, true);
+        }
+        Ok((gossip, discovery))
+    }
+}
+
+/// Returns the IP address and TCP port of `addr`.
+fn tcp_socket(addr: &Multiaddr) -> Option<SocketAddr> {
+    let ip = addr.iter().find_map(|protocol| match protocol {
+        Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
+        Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
+        _ => None,
+    })?;
+    let port = addr.iter().find_map(|protocol| match protocol {
+        Protocol::Tcp(port) => Some(port),
+        _ => None,
+    })?;
+    Some(SocketAddr::new(ip, port))
 }
 
 #[cfg(test)]
@@ -125,5 +185,63 @@ mod tests {
         );
         let config = NetworkConfig::new(RollupConfig::default(), local_node, Multiaddr::empty());
         assert_eq!(config.discovery_config.auto_nat_listen_duration, None);
+    }
+
+    /// A config for OP Mainnet whose gossip listens on a free loopback port and whose discovery
+    /// advertises `tcp_port`.
+    fn loopback(tcp_port: u16, enr_update: bool) -> NetworkConfig {
+        let local_node = LocalNode::new(
+            enr::k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap(),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            tcp_port,
+            0,
+        );
+        let rollup_config = RollupConfig {
+            l2_chain_id: alloy_chains::Chain::optimism_mainnet(),
+            ..Default::default()
+        };
+        NetworkConfig {
+            enr_update,
+            ..NetworkConfig::new(rollup_config, local_node, "/ip4/127.0.0.1/tcp/0".parse().unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn start_listens_on_the_block_topics_and_advertises_the_listen_port() {
+        let (gossip, discovery) =
+            loopback(9098, true).start(watch::channel(Address::ZERO).1).await.unwrap();
+
+        let port = tcp_socket(&gossip.addr).unwrap().port();
+        assert_ne!(port, 0);
+        assert_eq!(discovery.disc.local_enr().tcp4(), Some(port));
+        assert_eq!(discovery.chain_id, 10);
+        let handler = &gossip.handler;
+        let topics = [
+            &handler.blocks_v1_topic,
+            &handler.blocks_v2_topic,
+            &handler.blocks_v3_topic,
+            &handler.blocks_v4_topic,
+        ];
+        for (version, topic) in topics.into_iter().enumerate() {
+            let expected =
+                libp2p::gossipsub::IdentTopic::new(format!("/optimism/10/{version}/blocks"));
+            assert_eq!(topic.hash(), expected.hash());
+        }
+    }
+
+    #[tokio::test]
+    async fn start_keeps_the_configured_enr_without_enr_update() {
+        let (_gossip, discovery) =
+            loopback(9098, false).start(watch::channel(Address::ZERO).1).await.unwrap();
+        assert_eq!(discovery.disc.local_enr().tcp4(), Some(9098));
+    }
+
+    #[test]
+    fn tcp_socket_needs_an_ip_and_a_tcp_port() {
+        let socket = |addr: &str| tcp_socket(&addr.parse().unwrap());
+        assert_eq!(socket("/ip4/127.0.0.1/tcp/9000"), Some("127.0.0.1:9000".parse().unwrap()));
+        assert_eq!(socket("/ip6/::1/tcp/9000"), Some("[::1]:9000".parse().unwrap()));
+        assert_eq!(socket("/ip4/127.0.0.1/udp/9000"), None);
+        assert_eq!(socket("/dns4/localhost/tcp/9000"), None);
     }
 }

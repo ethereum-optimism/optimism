@@ -88,8 +88,6 @@ pub struct Discv5Builder {
     bootnodes: BootNodes,
     /// The interval to store the bootnodes to disk.
     store_interval: Option<Duration>,
-    /// Whether or not to forward the initial set of valid ENRs to the gossip layer.
-    forward: bool,
 }
 
 impl Discv5Builder {
@@ -104,7 +102,6 @@ impl Discv5Builder {
             bootstore: None,
             bootnodes: BootNodes::default(),
             store_interval: None,
-            forward: true,
         }
     }
 
@@ -156,12 +153,6 @@ impl Discv5Builder {
         self
     }
 
-    /// Disables forwarding of the initial set of valid ENRs to the gossip layer.
-    pub const fn disable_forward(mut self) -> Self {
-        self.forward = false;
-        self
-    }
-
     /// Builds a [`Discv5Driver`].
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
@@ -180,7 +171,6 @@ impl Discv5Builder {
             Discv5Driver::new(disc, interval, chain_id, self.bootstore, self.bootnodes)
                 .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
         driver.store_interval = self.store_interval.unwrap_or(Duration::from_secs(60));
-        driver.forward = self.forward;
         driver.remove_interval = self.randomize;
         Ok(driver)
     }

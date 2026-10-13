@@ -9,7 +9,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::sync::{Mutex, watch};
+use tokio::sync::Mutex;
 
 /// Gossip data sampled by the network actor after processing events and commands.
 #[derive(Debug)]
@@ -94,24 +94,5 @@ impl<G: ConnectionGate> GossipDriver<G> {
             protected_peers: self.connection_gate.list_protected_peers(),
             pings: Arc::clone(&self.ping),
         }
-    }
-}
-
-/// A cloneable read-only view of the network actor's published gossip state.
-#[derive(Debug, Clone)]
-pub struct GossipQueryHandle {
-    state: watch::Receiver<Arc<GossipState>>,
-}
-
-impl GossipQueryHandle {
-    /// Wraps the receiver of the network actor's published state.
-    pub const fn new(state: watch::Receiver<Arc<GossipState>>) -> Self {
-        Self { state }
-    }
-
-    /// Returns the latest snapshot, or an error if the network actor has exited.
-    pub fn snapshot(&self) -> Result<Arc<GossipState>, watch::error::RecvError> {
-        self.state.has_changed()?;
-        Ok(Arc::clone(&self.state.borrow()))
     }
 }

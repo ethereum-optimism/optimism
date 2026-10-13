@@ -19,31 +19,37 @@
 
 use async_trait::async_trait;
 use clap::Parser;
+use discv5::Enr;
 use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
-use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient, NodeActor,
-};
+use kona_node_service::{EngineClientResult, NetworkConfig, discovery, network};
 use kona_registry::ROLLUP_CONFIGS;
-use libp2p::{Multiaddr, identity::Keypair};
+use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{
+    collections::HashSet,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     time::Duration,
 };
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{
+    mpsc::{self, error::TrySendError},
+    watch,
+};
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug)]
-struct ForwardingNetworkEngineClient {
+struct ForwardingEngine {
     block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
 #[async_trait]
-impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+impl network::Engine for ForwardingEngine {
+    async fn insert_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> EngineClientResult<()> {
         let _ = self
             .block_tx
             .send(block)
@@ -51,6 +57,29 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
             .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
 
         Ok(())
+    }
+}
+
+/// Passes the peers discovery finds to the network actor.
+#[derive(Debug)]
+struct DialingNetwork(network::Handle);
+
+impl discovery::Network for DialingNetwork {
+    fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
+        self.0.dial(enr)
+    }
+}
+
+/// Passes the network actor's bans to the discovery actor.
+#[derive(Debug)]
+struct BanningDiscovery(discovery::Handle);
+
+#[async_trait]
+impl network::Discovery for BanningDiscovery {
+    type Error = discovery::HandleError;
+
+    async fn ban(&self, addrs: HashSet<Multiaddr>, duration: Duration) -> Result<(), Self::Error> {
+        self.0.ban(addrs, duration).await
     }
 }
 
@@ -105,67 +134,37 @@ impl GossipCommand {
             LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
-        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        // This example only consumes inbound gossip blocks; the other channels exist solely to
-        // satisfy NetworkActor::new and are held to keep them open.
-        let _unused_senders = (gossip_command_tx, admin_rpc_tx, gossip_payload_tx);
 
         let network_config = NetworkConfig {
-            discovery_address: disc_addr,
-            gossip_address: gossip_addr,
-            discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
-                ip: disc_ip,
-                port: self.disc_port,
-            })
-            .build(),
             discovery_interval: Duration::from_secs(self.interval),
-            discovery_randomize: None,
-            keypair: Keypair::generate_secp256k1(),
-            gossip_config: Default::default(),
-            scoring: Default::default(),
-            topic_scoring: Default::default(),
-            monitor_peers: Default::default(),
-            bootstore: None,
-            gater_config: Default::default(),
-            bootnodes: Default::default(),
-            rollup_config: rollup_config.clone(),
-            gossip_signer: None,
-            enr_update: true,
+            ..NetworkConfig::new(rollup_config.clone(), disc_addr, gossip_addr)
         };
-        let network_builder = NetworkBuilder::from_config(network_config, watch::channel(signer).1);
-
-        let handler = network_builder.build()?.start().await?;
-
-        let mut network = NetworkActor::new(
-            ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
-            handler,
-            gossip_command_rx,
-            admin_rpc_rx,
-            gossip_payload_rx,
-        );
-
+        let (gossip, discovery_driver) = network_config.start(watch::channel(signer).1).await?;
+        let discovery_builder = discovery::Builder::new(discovery::Capacity::try_from(1024)?);
+        let discovery = discovery_builder.handle();
+        let network_builder = network::Builder::new(network::Capacity::try_from(1024)?, gossip);
+        let discovery_actor =
+            discovery_builder.build(discovery_driver, DialingNetwork(network_builder.handle()));
         tokio::spawn(async move {
-            loop {
-                if let Err(e) = network.step().await {
-                    error!(target: "gossip", "Network actor error: {e:?}");
-                    return;
-                }
+            if let Err(e) = discovery_actor.await {
+                error!(target: "gossip", "Discovery actor error: {e:?}");
+            }
+        });
+
+        let network_actor = network_builder
+            .build(ForwardingEngine { block_tx: unsafe_blocks_tx }, BanningDiscovery(discovery));
+        tokio::spawn(async move {
+            if let Err(e) = network_actor.await {
+                error!(target: "gossip", "Network actor error: {e:?}");
             }
         });
 
         tracing::info!(target: "gossip", "Gossip driver started, receiving blocks.");
-        loop {
-            match unsafe_blocks_rx.recv().await {
-                Some(block) => {
-                    tracing::info!(target: "gossip", "Received unsafe block: {:?}", block);
-                }
-                None => {
-                    tracing::warn!(target: "gossip", "unsafe block gossip channel closed");
-                }
-            }
+        while let Some(block) = unsafe_blocks_rx.recv().await {
+            tracing::info!(target: "gossip", "Received unsafe block: {:?}", block);
         }
+        tracing::warn!(target: "gossip", "unsafe block gossip channel closed");
+        Ok(())
     }
 }
 

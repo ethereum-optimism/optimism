@@ -1,11 +1,10 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
-    ChainSpec, ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkActor,
-    NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RollupNodeClients,
-    RollupNodeConfig, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
+    ChainSpec, ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkConfig,
+    NodeActor, NodeMode, RollupNodeClients, RollupNodeConfig, RpcActor, SequencerConfig,
+    service::BufferImportedBlocks, signer,
 };
-use alloy_primitives::Address;
 use backon::ExponentialBuilder;
 use jsonrpsee::{
     RpcModule,
@@ -16,7 +15,9 @@ use jsonrpsee::{
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::EngineClient;
-use kona_node_actors::{derivation, engine, finality, l1, l1_signer_updater, sequencer};
+use kona_node_actors::{
+    derivation, discovery, engine, finality, l1, l1_signer_updater, network, sequencer,
+};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBlobProvider,
@@ -28,9 +29,8 @@ use kona_rpc::{
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
 use kona_sources::BlockSignerHandler;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -107,12 +107,6 @@ impl RollupNode {
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
         self.mode
-    }
-
-    /// Creates a network builder for the node whose gossip validation follows
-    /// `unsafe_block_signer`.
-    fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
-        NetworkBuilder::from_config(self.p2p_config.clone(), unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -420,10 +414,11 @@ impl RollupNode {
             None
         };
         let sequencer_handle = sequencer_builder.as_ref().map(sequencer::Builder::handle);
-        // Network actor inbound channels
-        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_payload_tx, admin_payload_rx) =
-            mpsc::channel::<OpExecutionPayloadEnvelope>(1024);
+        let discovery_builder = discovery::Builder::new(
+            discovery::Capacity::try_from(1024)
+                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
+        );
+        let discovery = discovery_builder.handle();
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let signer_builder = signer::Builder::new(
@@ -431,7 +426,6 @@ impl RollupNode {
                 .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
         );
         let signer_handle = signer_builder.handle();
-        let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<signer::Payload>(16);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let engine_client = self.engine_client.clone();
@@ -446,36 +440,39 @@ impl RollupNode {
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
-        let signer_actor =
-            self.build_signer().await.map_err(RollupNodeError::Startup)?.map(|signer| {
-                signer_builder.build(
-                    signer,
-                    self.chain.rollup_config.l2_chain_id.id(),
-                    signer_rx.clone(),
-                    signed_payload_tx,
-                )
-            });
+        let block_signer = self.build_signer().await.map_err(RollupNodeError::Startup)?;
 
-        // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
-        // stays sync.
-        let handler: NetworkHandler = self
-            .network_builder(signer_rx)
-            .build()
-            .map_err(|e| RollupNodeError::Startup(format!("Failed to build network: {e:?}")))?
-            .start()
+        let (gossip, discovery_driver) = self
+            .p2p_config
+            .clone()
+            .start(signer_rx.clone())
             .await
-            .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e:?}")))?;
-
-        let discovery = handler.discovery.clone();
-        let network = NetworkActor::new(
-            adapters::Engine::new(engine.clone()),
-            handler,
-            gossip_command_rx,
-            admin_payload_rx,
-            signed_payload_rx,
+            .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e}")))?;
+        let network_builder = network::Builder::new(
+            network::Capacity::try_from(1024)
+                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
+            gossip,
         );
+        let network = network_builder.handle();
+        let discovery_actor =
+            discovery_builder.build(discovery_driver, adapters::Network(network.clone()));
+        let network_actor = network_builder
+            .build(adapters::Engine::new(engine.clone()), adapters::Discovery(discovery.clone()));
+        let signer_actor = block_signer.map(|signer| {
+            signer_builder.build(
+                signer,
+                self.chain.rollup_config.l2_chain_id.id(),
+                signer_rx,
+                adapters::Network(network.clone()),
+            )
+        });
 
-        let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc = P2pRpc::new(
+            network.state(),
+            network,
+            discovery,
+            self.chain.rollup_config.l2_chain_id.id(),
+        );
 
         let signer_updater = signer_updater_builder.build(
             self.clients.l1.clone(),
@@ -507,7 +504,6 @@ impl RollupNode {
             sequencer_handle,
             self.sequencer_config.conductor_rpc_url.is_some(),
             engine,
-            admin_payload_tx,
         );
         let rpc = self
             .build_rpc_actor(
@@ -531,7 +527,8 @@ impl RollupNode {
         if let Some(signer) = signer_actor {
             supervisor.spawn("signer", signer);
         }
-        supervisor.spawn("network", run_node_actor(network));
+        supervisor.spawn("network", network_actor);
+        supervisor.spawn("discovery", discovery_actor);
         supervisor.spawn("l1_head", l1_head);
         supervisor.spawn("l1_safe", l1_safe);
         supervisor.spawn("l1_finalized", l1_finalized);

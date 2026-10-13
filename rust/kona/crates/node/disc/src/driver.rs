@@ -2,30 +2,16 @@
 
 use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
-use discv5::{Config, Discv5, Enr};
-use enr::NodeId;
-use kona_peers::{BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, enr_to_multiaddr};
-use tokio::{
-    sync::mpsc::channel,
-    time::{Duration, sleep},
-};
+use discv5::{Config, Discv5};
+use kona_peers::{BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation};
+use tokio::time::Duration;
 
-use crate::{Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
+use crate::{Discv5Builder, LocalNode};
 
-/// The [`Discv5Driver`] drives the discovery service.
+/// A [`Discv5`] discovery service and its settings, ready to be started.
 ///
-/// Calling [`Discv5Driver::start`] spawns a new [`Discv5`]
-/// discovery service in a new tokio task and returns a
-/// [`Discv5Handler`].
-///
-/// Channels are used to communicate between the [`Discv5Handler`]
-/// and the spawned task containing the [`Discv5`] service.
-///
-/// Since some requested operations are asynchronous, this pattern of message
-/// passing is used as opposed to wrapping the [`Discv5`] in an `Arc<Mutex<>>`.
-/// If an `Arc<Mutex<>>` were used, a lock held across the operation's future
-/// would be needed since some asynchronous operations require a mutable
-/// reference to the [`Discv5`] service.
+/// [`Self::init`] starts the service and [`Self::bootstrap_peers`] fills its table. A caller
+/// then runs the service's event loop.
 #[derive(Debug)]
 pub struct Discv5Driver {
     /// The [`Discv5`] discovery service.
@@ -39,8 +25,6 @@ pub struct Discv5Driver {
     pub chain_id: u64,
     /// The interval to discovery random nodes.
     pub interval: Duration,
-    /// Whether to forward ENRs to the enr receiver on startup.
-    pub forward: bool,
     /// The interval at which to store the ENRs in the bootstore.
     /// This is set to 60 seconds by default.
     pub store_interval: Duration,
@@ -72,15 +56,14 @@ impl Discv5Driver {
             chain_id,
             bootnodes,
             interval,
-            forward: true,
             remove_interval: None,
             store_interval: Duration::from_secs(60),
             bootstore,
         })
     }
 
-    /// Starts the inner [`Discv5`] service.
-    async fn init(self) -> Result<Self, discv5::Error> {
+    /// Starts the inner [`Discv5`] service, retrying with backoff.
+    pub async fn init(self) -> Result<Self, discv5::Error> {
         let (s, res) = {
             |mut v: Self| async {
                 let res = v.disc.start().await;
@@ -96,8 +79,8 @@ impl Discv5Driver {
         res.map(|_| s)
     }
 
-    /// Bootstraps the [`Discv5`] table with bootnodes.
-    async fn bootstrap_peers(
+    /// Bootstraps the [`Discv5`] table with bootnodes, and returns the bootstore with them added.
+    pub async fn bootstrap_peers(
         bootstore: Option<BootStoreFile>,
         bootnodes: BootNodes,
         chain_id: u64,
@@ -144,235 +127,6 @@ impl Discv5Driver {
 
         store
     }
-
-    /// Spawns a new [`Discv5`] discovery service in a new tokio task.
-    ///
-    /// Returns a [`Discv5Handler`] to communicate with the spawned task.
-    /// Dropping the ENR receiver stops the service.
-    pub fn start(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
-        let chain_id = self.chain_id;
-        let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
-        let (enr_sender, enr_recv) = channel::<Enr>(1024);
-
-        let receiver_closed = enr_sender.clone();
-        let task = async move {
-            let remove = self.remove_interval.is_some();
-            let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
-            let mut removal_interval = tokio::time::interval(remove_dur);
-            let mut interval = tokio::time::interval(self.interval);
-            let mut store_interval = tokio::time::interval(self.store_interval);
-
-            // Step 1: Start the discovery service.
-            let Ok(s) = self.init().await else {
-                error!(target: "discovery", "Failed to start discovery service");
-                return;
-            };
-            self = s;
-            trace!(target: "discovery", "Discv5 Initialized");
-
-            // Step 2: Bootstrap the discovery table with bootnodes.
-            let mut store =
-                Self::bootstrap_peers(self.bootstore, self.bootnodes, chain_id, &self.disc).await;
-
-            let enrs = self.disc.table_entries_enr();
-            info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
-
-            // Step 3: Forward ENRs in the bootstore to the enr receiver.
-            if self.forward {
-                for enr in store.valid_peers_with_chain_id(self.chain_id) {
-                    if let Err(e) = enr_sender.send(enr.clone()).await {
-                        debug!(target: "discovery", "Failed to forward enr: {:?}", e);
-                    }
-                }
-            }
-
-            // Continuously attempt to start the event stream with a retry limit.
-            let mut retries = 0;
-            let max_retries = 10; // Maximum number of retries before giving up.
-            let mut event_stream = loop {
-                if retries >= max_retries {
-                    error!(target: "discovery", "Exceeded maximum retries for event stream startup. Aborting...");
-                    return; // Exit the task if the retry limit is reached.
-                }
-                match self.disc.event_stream().await {
-                    Ok(event_stream) => {
-                        break event_stream;
-                    }
-                    Err(e) => {
-                        warn!(target: "discovery", "Failed to start event stream: {:?}", e);
-                        retries += 1;
-                        sleep(Duration::from_secs(2)).await;
-                        info!(target: "discovery", "Retrying event stream startup... (Attempt {}/{})", retries, max_retries);
-                    }
-                }
-            };
-
-            // Step 4: Run the core driver loop.
-            loop {
-                tokio::select! {
-                    msg = req_recv.recv() => {
-                        match msg {
-                            Some(msg) => match msg {
-                                HandlerRequest::Metrics(tx) => {
-                                    let metrics = Discv5::metrics();
-                                    if let Err(e) = tx.send(metrics) {
-                                        warn!(target: "discovery", "Failed to send metrics: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::PeerCount(tx) => {
-                                    let peers = self.disc.connected_peers();
-                                    if let Err(e) = tx.send(peers) {
-                                        warn!(target: "discovery", "Failed to send peer count: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::LocalEnr(tx) => {
-                                    let enr = self.disc.local_enr().clone();
-                                    if let Err(e) = tx.send(enr.clone()) {
-                                        warn!(target: "discovery", "Failed to send local enr: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::AddEnr(enr) => {
-                                    let _ = self.disc.add_enr(enr);
-                                }
-                                HandlerRequest::RequestEnr{out, addr} => {
-                                    let enr = self.disc.request_enr(addr).await;
-                                    if let Err(e) = out.send(enr) {
-                                        warn!(target: "discovery", "Failed to send request enr: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::TableEnrs(tx) => {
-                                    let enrs = self.disc.table_entries_enr();
-                                    if let Err(e) = tx.send(enrs) {
-                                        warn!(target: "discovery", "Failed to send table enrs: {:?}", e);
-                                    }
-                                },
-                                HandlerRequest::TableInfos(tx) => {
-                                    let infos = self.disc.table_entries();
-                                    if let Err(e) = tx.send(infos) {
-                                        warn!(target: "discovery", "Failed to send table infos: {:?}", e);
-                                    }
-                                },
-                                HandlerRequest::BanAddrs{addrs_to_ban, ban_duration} => {
-                                    let enrs = self.disc.table_entries_enr();
-
-                                    for enr in enrs {
-                                        let Some(multi_addr) = enr_to_multiaddr(&enr) else {
-                                            continue;
-                                        };
-
-                                        if addrs_to_ban.contains(&multi_addr) {
-                                            self.disc.ban_node(&enr.node_id(), Some(ban_duration));
-                                        }
-                                    }
-                                },
-                            }
-                            None => {
-                                trace!(target: "discovery", "Request channel closed");
-                                return;
-                            }
-                        }
-                    }
-                    event = event_stream.recv() => {
-                        let Some(event) = event else {
-                            trace!(target: "discovery", "Received `None` event");
-                            continue;
-                        };
-                        match event {
-                            discv5::Event::Discovered(enr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                tokio::spawn(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            discv5::Event::SessionEstablished(enr, addr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Session established with valid ENR, forwarding to swarm. Address: {:?}, ENR: {:?}", addr, enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "session_established").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                tokio::spawn(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            discv5::Event::UnverifiableEnr { enr, .. } if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                tokio::spawn(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ = interval.tick() => {
-                        let id = NodeId::random();
-                        trace!(target: "discovery", "Finding random node: {}", id);
-                        metrics::gauge!(crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node").increment(1);
-                        let fut = self.disc.find_node(id);
-                        let enr_sender = enr_sender.clone();
-                        tokio::spawn(async move {
-                            match fut.await {
-                                Ok(nodes) => {
-                                    let enrs = nodes.into_iter().filter(|node| EnrValidation::validate(node, chain_id).is_valid());
-                                    for enr in enrs {
-                                        _ = enr_sender.send(enr).await;
-                                    }
-                                }
-                                Err(err) => {
-                                    info!(target: "discovery", "Failed to find node: {:?}", err);
-                                }
-                            }
-                        });
-                    }
-                    _ = store_interval.tick() => {
-                        let start = std::time::Instant::now();
-                        let enrs = self.disc.table_entries_enr();
-                        store.merge(enrs);
-
-                        if let Err(e) = store.sync() {
-                            warn!(target: "discovery", "Failed to sync bootstore: {:?}", e);
-                        }
-
-                        let elapsed = start.elapsed();
-                        debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
-                        metrics::histogram!(crate::Metrics::ENR_STORE_TIME, "store_time" => "store_time").record(elapsed.as_secs_f64());
-                        metrics::gauge!(crate::Metrics::DISCOVERY_PEER_COUNT).set(self.disc.connected_peers() as f64);
-                    }
-                    _ = removal_interval.tick() => {
-                        if remove {
-                            let enrs = self.disc.table_entries_enr();
-                            if enrs.len() > 20 {
-                                let mut rng = rand::rng();
-                                let index = rand::Rng::random_range(&mut rng, 0..enrs.len());
-                                let enr = enrs[index].clone();
-                                debug!(target: "removal", "Removing random ENR: {:?}", enr);
-                                self.disc.remove_node(&enr.node_id());
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        tokio::spawn(async move {
-            tokio::select! {
-                biased;
-                _ = receiver_closed.closed() => {},
-                _ = task => {},
-            }
-        });
-
-        (Discv5Handler::new(chain_id, req_sender), enr_recv)
-    }
 }
 
 #[cfg(test)]
@@ -385,51 +139,6 @@ mod tests {
     use tempfile::tempdir;
 
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
-    fn local_driver() -> Discv5Driver {
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
-        Discv5Driver::builder(
-            LocalNode::new(secret_key, ip, 0, 0),
-            0,
-            ConfigBuilder::new(SocketAddr::new(ip, 0).into()).build(),
-        )
-        .with_bootnodes(BootNodes(vec![]))
-        .with_bootstore_file(None)
-        .build()
-        .unwrap()
-    }
-
-    async fn wait_until_started(handle: &Discv5Handler) {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        handle.sender.send(HandlerRequest::PeerCount(tx)).await.unwrap();
-        assert_eq!(tokio::time::timeout(Duration::from_secs(5), rx).await.unwrap().unwrap(), 0);
-    }
-
-    #[tokio::test]
-    async fn dropping_enr_receiver_stops_unpolled_driver() {
-        let (handle, enrs) = local_driver().start();
-        drop(enrs);
-        tokio::time::timeout(Duration::from_secs(5), handle.sender.closed()).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn dropping_enr_receiver_stops_running_driver() {
-        let (handle, enrs) = local_driver().start();
-        wait_until_started(&handle).await;
-        drop(enrs);
-        tokio::time::timeout(Duration::from_secs(5), handle.sender.closed()).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn dropping_request_handles_stops_running_driver() {
-        let (handle, mut enrs) = local_driver().start();
-        wait_until_started(&handle).await;
-        drop(handle);
-        assert!(tokio::time::timeout(Duration::from_secs(5), enrs.recv()).await.unwrap().is_none());
-    }
 
     #[tokio::test]
     async fn test_online_discv5_driver() {
@@ -445,8 +154,8 @@ mod tests {
         )
         .build()
         .expect("Failed to build discovery service");
-        let (handle, _enrs) = discovery.start();
-        assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
+        let discovery = discovery.init().await.expect("Failed to initialize discovery service");
+        assert_eq!(discovery.chain_id, OP_SEPOLIA_CHAIN_ID);
     }
 
     #[tokio::test]

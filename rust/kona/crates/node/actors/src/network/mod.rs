@@ -1,22 +1,29 @@
-//! Network Actor
+//! Network actor and handle.
+//!
+//! The network actor runs the libp2p gossip swarm. It publishes the sequencer's signed blocks,
+//! passes the blocks it receives to the [`Engine`], dials the peers discovery finds, disconnects
+//! peers whose score falls below the ban threshold, and makes the changes the P2P RPC asks for
+//! through its [`Handle`].
+//!
+//! [`NetworkConfig::start`] starts the swarm listening. [`Builder::new`] takes the listening gossip
+//! driver and publishes its state, and its handle can then be given to discovery and the RPC before
+//! [`Builder::build`] supplies the remaining dependencies.
 
 mod actor;
-pub use actor::{NetworkActor, NetworkActorError};
-
-mod builder;
-pub use builder::NetworkBuilder;
+pub use actor::{ActorError, Builder};
 
 mod config;
 pub use config::NetworkConfig;
 
-mod driver;
-pub use driver::{NetworkDriver, NetworkDriverError};
+mod discovery;
+pub use discovery::Discovery;
 
-mod engine_client;
-pub use engine_client::NetworkEngineClient;
+mod engine;
+pub use engine::Engine;
 
 mod error;
-pub use error::NetworkBuilderError;
+pub use error::StartError;
 
-mod handler;
-pub use handler::NetworkHandler;
+mod handle;
+pub use crate::capacity::{Capacity, InvalidCapacity};
+pub use handle::{Handle, HandleError};

@@ -21,7 +21,7 @@ based on their P2P gossip is policy - it is up to the user to
 ultimately choose a configuration best for them.
 
 To understand how the P2P is hooked up to the `kona-node`, jump
-to the [P2P Actor](#p2p-actor) section below. Otherwise, read
+to the [P2P Actors](#p2p-actors) section below. Otherwise, read
 on to learn more about the details of the P2P stack.
 
 
@@ -39,14 +39,12 @@ components either as modules or distinct crates.
 
 #### Discovery
 
-Kona's discovery layer is encapsulated in a "driver" called
-the [`Discv5Driver`][driver]. When started, the driver spawns a
-new thread to handle [`discv5::Discv5`][discv5-service] events
-from its event stream as well as metrics requests from the
-`kona-node`. A "handler" is returned by the consumed
-[`Discv5Driver`][driver] which allows other components of
-the `kona-node` to communicate through channels to the
-spawned [`discv5::Discv5`][discv5-service] service.
+Kona's discovery layer is a [`discv5::Discv5`][discv5-service]
+service, which the [`Discv5Driver`][driver] holds with its
+settings, starts, and bootstraps from the bootnodes and the
+stored bootstore. The [discovery actor](#p2p-actors) then runs
+the service: it handles its events, runs its lookups, and
+answers queries from the rest of the `kona-node`.
 
 When peers are discovered by kona's discovery service, their
 "ENR"s need to be validated to ensure those peers are
@@ -58,7 +56,7 @@ libp2p) which establishes and manages the connection to the
 node.
 
 There are also a few more notable functions of Kona's discovery
-driver.
+actor.
 
 - Every X seconds it attempts to discover random ENRs. This is
   configurable using `Discv5Builder::with_interval`
@@ -152,9 +150,34 @@ As of writing these docs, block validation follows a few rules.
 TODO
 
 
-### P2P Actor
+### P2P Actors
 
-TODO
+Two actors run the P2P stack, built from one `NetworkConfig`.
+`NetworkConfig::start` builds the gossip and discovery drivers
+and starts the swarm listening. When the advertised address is
+not static, it points discovery's advertised TCP address at the
+address the swarm listens on.
+
+- The **network actor** owns the `GossipDriver`. It polls the
+  swarm, passes each valid block it receives to the engine
+  actor, publishes the blocks the signer actor signs, dials the
+  peers the discovery actor finds, and disconnects peers whose
+  score falls below the ban threshold. `network::Builder::new`
+  takes the listening gossip driver and publishes its state, so
+  `network::Handle` is ready before the actor is built. The P2P
+  RPC reads the published gossip state and makes changes, such
+  as blocking a peer, through the handle; each change returns
+  once the state that follows it is published.
+- The **discovery actor** owns the `discv5` service. It passes
+  every valid peer it finds to the network actor, dropping the
+  peer if the network's queue is full, and keeps the bootstore
+  on disk up to date. The P2P RPC queries it, and the network
+  actor asks it to ban the addresses of the peers it
+  disconnects, through `discovery::Handle`.
+
+The node stops when either actor stops: when discovery cannot
+start or its event stream ends, when the swarm's event stream
+ends, or when the engine stops taking blocks.
 
 
 [validation]: https://specs.optimism.io/protocol/rollup-node-p2p.html#block-validation
