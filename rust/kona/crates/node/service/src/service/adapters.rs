@@ -72,6 +72,18 @@ impl derivation::Engine for Engine {
         self.0.consolidate(attributes).await
     }
 
+    fn state(&self) -> EngineState {
+        *self.0.state().borrow()
+    }
+
+    async fn reset_after(&self, resets: u64) -> EngineClientResult<EngineState> {
+        let mut state = self.0.state();
+        let state = state.wait_for(|state| state.resets() > resets).await.map_err(|_| {
+            EngineClientError::RequestError("engine state channel closed".to_string())
+        })?;
+        Ok(*state)
+    }
+
     async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
         self.0.finalize(block_id).await
@@ -121,6 +133,10 @@ mod tests {
         drop(builder);
         assert!(matches!(
             derivation::Engine::finalize(&engine, FinalizeBlockId::ByNumber(1)).await,
+            Err(EngineClientError::RequestError(_))
+        ));
+        assert!(matches!(
+            derivation::Engine::reset_after(&engine, 0).await,
             Err(EngineClientError::RequestError(_))
         ));
     }

@@ -210,7 +210,10 @@ enum DerivationDelegationError {
 mod tests {
     use super::*;
     use crate::{
-        derivation::{DerivationDelegateClientError, engine::MockEngine},
+        derivation::{
+            DerivationDelegateClientError,
+            engine::{Request, TestEngine},
+        },
         engine::EngineState,
     };
     use async_trait::async_trait;
@@ -232,7 +235,7 @@ mod tests {
     fn build_delegated_does_not_require_a_runtime() {
         let builder = Builder::new();
         let task = builder.build_delegated(
-            MockEngine::new(),
+            TestEngine::new([]),
             TestDelegate(Mutex::new(VecDeque::new())),
             TestChainProvider::default(),
         );
@@ -263,17 +266,9 @@ mod tests {
         let mut provider = TestChainProvider::default();
         provider.insert_block(0, BlockInfo::default());
         provider.insert_block(current.number, current);
-        let mut engine = MockEngine::new();
-        let mut sequence = mockall::Sequence::new();
-        engine
-            .expect_reset()
-            .once()
-            .in_sequence(&mut sequence)
-            .returning(|| Ok(EngineState::default()));
-        engine.expect_follow_safe_head().once().in_sequence(&mut sequence).returning(|_| Ok(()));
-        engine.expect_finalize().once().returning(|_| Ok(()));
+        let engine = TestEngine::new([Ok(EngineState::default())]);
         let (status, mut progress) = watch::channel(DerivationStatus::default());
-        let actor = tokio::spawn(Actor::new(engine, status, delegate, provider).run());
+        let actor = tokio::spawn(Actor::new(engine.clone(), status, delegate, provider).run());
 
         time::timeout(
             time::Duration::from_secs(10),
@@ -283,6 +278,10 @@ mod tests {
         .unwrap()
         .unwrap();
         actor.abort();
+        assert!(matches!(
+            engine.requests()[..],
+            [Request::Reset, Request::FollowSafeHead(_), Request::Finalize(_)]
+        ));
     }
 
     #[tokio::test(start_paused = true)]
@@ -299,16 +298,19 @@ mod tests {
         let mut provider = TestChainProvider::default();
         provider.insert_block(0, BlockInfo::default());
         provider.insert_block(current.number, current);
-        let mut engine = MockEngine::new();
-        engine.expect_follow_safe_head().times(1).returning(|_| Ok(()));
-        engine.expect_finalize().times(1).returning(|_| Ok(()));
+        let engine = TestEngine::new([]);
         let (status, progress) = watch::channel(DerivationStatus::default());
-        let mut actor = Actor::new(engine, status, delegate, provider);
+        let mut actor = Actor::new(engine.clone(), status, delegate, provider);
         actor.fetch_and_apply_delegate_safe_head().await.unwrap();
         assert_eq!(progress.borrow().current_l1, None);
         actor.fetch_and_apply_delegate_safe_head().await.unwrap();
         assert_eq!(progress.borrow().current_l1, Some(current));
         actor.fetch_and_apply_delegate_safe_head().await.unwrap();
         assert_eq!(progress.borrow().current_l1, Some(current));
+        // Only the validated progress reaches the engine.
+        assert!(matches!(
+            engine.requests()[..],
+            [Request::FollowSafeHead(_), Request::Finalize(_)]
+        ));
     }
 }

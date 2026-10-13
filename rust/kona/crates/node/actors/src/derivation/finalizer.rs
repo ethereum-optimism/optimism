@@ -38,11 +38,6 @@ impl L2Finalizer {
             .or_insert_with(|| attributes.block_number());
     }
 
-    /// Clears the finalization queue.
-    pub(crate) fn clear(&mut self) {
-        self.awaiting_finalization.clear();
-    }
-
     /// Attempts to find L2 blocks that can be finalized based on the new finalized L1 block.
     ///
     /// Returns `Some(l2_block_number)` if there is an L2 block that can be finalized,

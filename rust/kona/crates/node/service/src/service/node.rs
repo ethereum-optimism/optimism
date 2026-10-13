@@ -199,14 +199,7 @@ impl RollupNode {
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            let engine_state = engine.state();
-            Ok(Box::pin(builder.build(
-                adapters::Engine(engine),
-                engine_state,
-                pipeline,
-                head,
-                finalized,
-            )))
+            Ok(Box::pin(builder.build(adapters::Engine(engine), pipeline, head, finalized)))
         }
     }
 
