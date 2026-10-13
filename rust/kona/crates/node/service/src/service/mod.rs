@@ -8,15 +8,18 @@ mod adapters;
 mod block_sink;
 pub(crate) use block_sink::BufferImportedBlocks;
 
-mod builder;
-pub use builder::{DerivationDelegateConfig, L1ClientConfig, RollupNodeConfig};
+mod clients;
+pub use clients::{RollupNodeClients, RollupNodeClientsError};
+
+mod config;
+pub use config::{DerivationDelegateConfig, L1ClientConfig, RollupNodeConfig};
 
 mod middleware;
 
 pub use kona_node_actors::NodeMode;
 
 mod node;
-pub use node::{L1Config, RollupNode};
+pub use node::RollupNode;
 
 mod supervisor;
 use supervisor::Supervisor;

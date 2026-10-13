@@ -40,8 +40,8 @@ The derivation pipeline is constructed by the `RollupNode` service when it wires
 ```rust
 OnlinePipeline::new_polled(
     self.config.clone(),
-    self.l1_config.chain_config.clone(),
-    OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+    self.l1_chain_config.clone(),
+    OnlineBlobProvider::init(self.clients.l1_beacon.clone()).await,
     l1_derivation_provider,
     l2_derivation_provider,
     self.dependency_set.clone(),

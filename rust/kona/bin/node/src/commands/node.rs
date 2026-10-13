@@ -11,7 +11,9 @@ use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_engine::EngineClient;
-use kona_node_service::{EngineConfig, L1ClientConfig, NodeMode, RollupNodeConfig};
+use kona_node_service::{
+    EngineConfig, L1ClientConfig, NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig,
+};
 use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
 use strum::IntoEnumIterator;
@@ -284,7 +286,8 @@ impl NodeCommand {
         self.p2p_flags.check_ports()?;
         Self::validate_jwt(&config.engine_config).await?;
 
-        config.build().start().await.map_err(|e| {
+        let clients = RollupNodeClients::connect(&config)?;
+        RollupNode::new(config, clients).start().await.map_err(|e| {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
             anyhow::anyhow!("{e}")
         })?;

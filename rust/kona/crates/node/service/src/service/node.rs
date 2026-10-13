@@ -1,12 +1,11 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DerivationDelegateClient, L1OriginSelector,
-    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RpcActor,
-    SequencerConfig, service::BufferImportedBlocks, signer,
+    ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkActor,
+    NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RollupNodeClients,
+    RollupNodeConfig, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_primitives::Address;
-use alloy_provider::RootProvider;
 use jsonrpsee::{
     RpcModule,
     server::{
@@ -21,8 +20,8 @@ use kona_interop::DependencySet;
 use kona_node_actors::{derivation, engine, l1, l1_signer_updater, sequencer};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
-    AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
-    OnlineBlobProvider, OnlinePipeline,
+    AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBlobProvider,
+    OnlinePipeline,
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
@@ -30,7 +29,6 @@ use kona_rpc::{
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
 use kona_sources::BlockSignerHandler;
-use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
@@ -41,20 +39,9 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
 /// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
 /// arriving, and on a sequencer the two builders ask about different heads.
-pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
+const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
-
-/// The configuration for the L1 chain.
-#[derive(Debug, Clone)]
-pub struct L1Config {
-    /// The L1 chain configuration.
-    pub chain_config: Arc<L1ChainConfig>,
-    /// The L1 beacon client.
-    pub beacon_client: OnlineBeaconClient,
-    /// The L1 engine provider.
-    pub engine_provider: RootProvider,
-}
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
 /// Stack configuration of components.
@@ -64,11 +51,12 @@ pub struct RollupNode {
     pub(crate) version: String,
     /// The rollup configuration.
     pub(crate) config: Arc<RollupConfig>,
-    /// The L1 configuration.
-    pub(crate) l1_config: L1Config,
-    /// The L2 EL provider.
-    pub(crate) l2_provider: RootProvider<Optimism>,
-    /// The client for the L2 execution layer's Engine API.
+    /// The L1 chain configuration.
+    pub(crate) l1_chain_config: Arc<L1ChainConfig>,
+    /// The clients the node talks to the L1 and L2 chains with.
+    pub(crate) clients: RollupNodeClients,
+    /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
+    /// config.
     pub(crate) engine_client: Arc<EngineClient>,
     /// The mode of operation for the node.
     pub(crate) mode: NodeMode,
@@ -78,8 +66,6 @@ pub struct RollupNode {
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
     pub(crate) sequencer_config: SequencerConfig,
-    /// Optional derivation delegate provider.
-    pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
@@ -93,6 +79,33 @@ pub struct RollupNode {
 type DerivationTask = Pin<Box<dyn Future<Output = Result<(), derivation::ActorError>> + Send>>;
 
 impl RollupNode {
+    /// Creates the node from its configuration and the clients it talks to the L1 and L2 chains
+    /// with, usually [`RollupNodeClients::connect`]ed from the same configuration.
+    pub fn new(config: RollupNodeConfig, clients: RollupNodeClients) -> Self {
+        // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
+        // lookups are keyed by hash, so a reorged-out block is never returned regardless.
+        let l2_block_buffer =
+            BufferedL2Provider::new(config.rollup_config.clone(), IMPORTED_BLOCK_BUFFER_SIZE, 0);
+        let engine_client = Arc::new(EngineClient::new(
+            clients.l1.clone(),
+            clients.engine.clone(),
+            config.rollup_config.clone(),
+        ));
+        Self {
+            version: config.version,
+            config: config.rollup_config,
+            l1_chain_config: config.l1_client.chain_config,
+            clients,
+            engine_client,
+            mode: config.engine_config.mode,
+            rpc_builder: config.rpc_config,
+            p2p_config: config.p2p_config,
+            sequencer_config: config.sequencer_config,
+            l2_block_buffer,
+            dependency_set: config.dependency_set,
+        }
+    }
+
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
         self.mode
@@ -113,14 +126,12 @@ impl RollupNode {
     fn create_attributes_builder(
         &self,
     ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
-        let l1_derivation_provider = AlloyChainProvider::new(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-        );
+        let l1_derivation_provider =
+            AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
-                self.l2_provider.clone(),
+                self.clients.l2.clone(),
                 self.config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             ),
@@ -128,7 +139,7 @@ impl RollupNode {
 
         StatefulAttributesBuilder::new(
             self.config.clone(),
-            self.l1_config.chain_config.clone(),
+            self.l1_chain_config.clone(),
             l2_derivation_provider,
             l1_derivation_provider,
             self.dependency_set.clone(),
@@ -137,14 +148,12 @@ impl RollupNode {
 
     async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
         // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider = AlloyChainProvider::new(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-        );
+        let l1_derivation_provider =
+            AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
-                self.l2_provider.clone(),
+                self.clients.l2.clone(),
                 self.config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             ),
@@ -152,8 +161,8 @@ impl RollupNode {
 
         Ok(OnlinePipeline::new_polled(
             self.config.clone(),
-            self.l1_config.chain_config.clone(),
-            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
+            self.l1_chain_config.clone(),
+            OnlineBlobProvider::init(self.clients.l1_beacon.clone()).await?,
             l1_derivation_provider,
             l2_derivation_provider,
             self.dependency_set.clone(),
@@ -181,12 +190,10 @@ impl RollupNode {
         head: watch::Receiver<BlockInfo>,
         finalized: watch::Receiver<BlockInfo>,
     ) -> Result<DerivationTask, String> {
-        if let Some(provider) = self.derivation_delegate_provider.clone() {
+        if let Some(provider) = self.clients.derivation_delegate.clone() {
             // L1 Provider for sanity checking Derivation Delegation
-            let l1_provider = AlloyChainProvider::new(
-                self.l1_config.engine_provider.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-            );
+            let l1_provider =
+                AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
             Ok(Box::pin(builder.build_delegated(adapters::Engine(engine), provider, l1_provider)))
         } else {
             let pipeline = self
@@ -226,7 +233,7 @@ impl RollupNode {
         builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
-            self.l1_config.engine_provider.clone(),
+            self.clients.l1.clone(),
             l1_head,
             self.sequencer_config.l1_conf_delay,
         );
@@ -355,7 +362,7 @@ impl RollupNode {
         let safe = safe_builder.handle();
         let finalized = finalized_builder.handle();
         let initial_signer = l1_signer_updater::signer_at_l1_head(
-            &self.l1_config.engine_provider,
+            &self.clients.l1,
             self.config.l1_system_config_address,
         )
         .await
@@ -431,22 +438,22 @@ impl RollupNode {
         let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
 
         let signer_updater = signer_updater_builder.build(
-            self.l1_config.engine_provider.clone(),
+            self.clients.l1.clone(),
             self.config.l1_system_config_address,
             head.clone(),
         );
         let l1_head = head_builder.build(
-            self.l1_config.engine_provider.clone(),
+            self.clients.l1.clone(),
             l1::Tag::Head,
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
         );
         let l1_safe = safe_builder.build(
-            self.l1_config.engine_provider.clone(),
+            self.clients.l1.clone(),
             l1::Tag::Safe,
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
         );
         let l1_finalized = finalized_builder.build(
-            self.l1_config.engine_provider.clone(),
+            self.clients.l1.clone(),
             l1::Tag::Finalized,
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         );

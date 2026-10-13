@@ -11,7 +11,8 @@ extern crate tracing;
 
 mod service;
 pub use service::{
-    DerivationDelegateConfig, L1ClientConfig, L1Config, NodeMode, RollupNode, RollupNodeConfig,
+    DerivationDelegateConfig, L1ClientConfig, NodeMode, RollupNode, RollupNodeClients,
+    RollupNodeClientsError, RollupNodeConfig,
 };
 
 pub use kona_node_actors::{

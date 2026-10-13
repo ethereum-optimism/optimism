@@ -5,9 +5,11 @@ diataxis: explanation
 
 The entry-point for the `kona-node` is the [`RollupNode`][node] service,
 which encapsulates the core wiring for the node. A `RollupNode` is
-built from a [`RollupNodeConfig`][builder], and its
-[`start` method][start] handles connecting the different components
-of the node and running its actors in spawned tasks.
+created from a [`RollupNodeConfig`][config], plain data saying what the
+node does, and a [`RollupNodeClients`][clients], the clients it talks to
+L1 and L2 with, which `RollupNodeClients::connect` builds from the
+config. Its [`start` method][start] handles connecting the different
+components of the node and running its actors in spawned tasks.
 
 Most actors are built with a builder that hands out the actor's handle
 before its dependencies exist, and expose a lifetime future that the
@@ -77,4 +79,5 @@ The [`RollupNode`][node] builds and starts the following actors.
 [actor]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/actors/mod.rs
 [start]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
 [node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
-[builder]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/builder.rs
+[config]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/config.rs
+[clients]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/clients.rs
