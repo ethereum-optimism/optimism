@@ -10,7 +10,6 @@ use jsonrpsee::{
 };
 use kona_node_actors::{engine, sequencer::Handle};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
-use tokio::sync::mpsc;
 
 /// The admin RPC server.
 #[derive(Debug)]
@@ -18,7 +17,6 @@ pub struct AdminRpc {
     sequencer: Option<Handle>,
     conductor_enabled: bool,
     engine: engine::Handle,
-    unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
 impl AdminRpc {
@@ -27,9 +25,8 @@ impl AdminRpc {
         sequencer: Option<Handle>,
         conductor_enabled: bool,
         engine: engine::Handle,
-        unsafe_payloads: mpsc::Sender<OpExecutionPayloadEnvelope>,
     ) -> Self {
-        Self { sequencer, conductor_enabled, engine, unsafe_payloads }
+        Self { sequencer, conductor_enabled, engine }
     }
 
     fn sequencer(&self) -> RpcResult<&Handle> {
@@ -54,8 +51,8 @@ impl AdminApiServer for AdminRpc {
             };
             ErrorObject::owned(ErrorCode::InvalidParams.code(), message, None::<()>)
         })?;
-        self.unsafe_payloads
-            .send(payload)
+        self.engine
+            .insert_unsafe_block(payload)
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
@@ -232,7 +229,7 @@ mod tests {
             result = handle.start() => panic!("command completed before startup: {result:?}"),
             _ = ready(()) => {}
         }
-        let rpc = AdminRpc::new(Some(handle), true, idle_engine(), mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(handle), true, idle_engine());
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(rpc.admin_conductor_enabled().await.unwrap());
 
@@ -246,8 +243,7 @@ mod tests {
 
     #[tokio::test]
     async fn sequencer_methods_are_unavailable_on_validators() {
-        let (tx, _) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, false, idle_engine(), tx);
+        let rpc = AdminRpc::new(None, false, idle_engine());
         for result in [
             rpc.admin_sequencer_active().await.map(|_| ()),
             rpc.admin_conductor_enabled().await.map(|_| ()),
@@ -263,7 +259,7 @@ mod tests {
     async fn commands_return_actor_results_and_map_failures() {
         let (handle, task) = sequencer(false);
         let task = tokio::spawn(task);
-        let rpc = AdminRpc::new(Some(handle), false, idle_engine(), mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(handle), false, idle_engine());
         assert_eq!(rpc.admin_stop_sequencer().await.unwrap(), B256::repeat_byte(42));
         assert_eq!(
             rpc.admin_override_leader().await.unwrap_err().code(),
@@ -283,7 +279,7 @@ mod tests {
     #[tokio::test]
     async fn reads_initial_state_before_build() {
         let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
-        let rpc = AdminRpc::new(Some(builder.handle()), false, idle_engine(), mpsc::channel(1).0);
+        let rpc = AdminRpc::new(Some(builder.handle()), false, idle_engine());
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(!rpc.admin_conductor_enabled().await.unwrap());
     }
@@ -301,7 +297,7 @@ mod tests {
             }
             let sequencer = is_sequencer.then_some(handle);
             let (engine, engine_task) = resetting_engine();
-            let rpc = AdminRpc::new(sequencer, false, engine, mpsc::channel(1).0).into_rpc();
+            let rpc = AdminRpc::new(sequencer, false, engine).into_rpc();
             let reset =
                 rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);
             tokio::pin!(reset);
@@ -316,7 +312,7 @@ mod tests {
     #[tokio::test]
     async fn maps_closed_engine_channels() {
         let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
-        let rpc = AdminRpc::new(None, false, builder.handle(), mpsc::channel(1).0);
+        let rpc = AdminRpc::new(None, false, builder.handle());
         // The engine stops with the reset queued.
         let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
             drop(builder);
@@ -329,9 +325,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validates_payloads_before_forwarding_on_validators() {
-        let (tx, mut rx) = mpsc::channel(1);
-        let rpc = AdminRpc::new(None, false, idle_engine(), tx);
+    async fn validates_payloads_before_queueing_them_on_the_engine() {
+        // The engine never runs, so its one-slot queue fills with the first queued payload.
+        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let rpc = AdminRpc::new(None, false, builder.handle());
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),
             fee_recipient: Default::default(),
@@ -354,16 +351,21 @@ mod tests {
             .unwrap_err();
         assert_eq!(error.code(), ErrorCode::InvalidParams.code());
         assert!(error.message().starts_with("payload has bad block hash:"));
-        assert!(matches!(rx.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
+        // The rejected payload left the queue empty, so a valid one is queued at once.
         payload.block_hash = payload.clone().into_block_raw().unwrap().header.hash_slow();
         let envelope = OpExecutionPayloadEnvelope::V1(payload);
         rpc.admin_post_unsafe_payload(envelope.clone()).await.unwrap();
-        assert_eq!(rx.recv().await.unwrap(), envelope);
-        drop(rx);
-        assert_eq!(
-            rpc.admin_post_unsafe_payload(envelope).await.unwrap_err().code(),
-            ErrorCode::InternalError.code()
-        );
+
+        // The next payload waits for room behind the first, and fails once the engine stops.
+        let post = rpc.admin_post_unsafe_payload(envelope);
+        tokio::pin!(post);
+        tokio::select! {
+            biased;
+            result = &mut post => panic!("a full engine queue accepted a payload: {result:?}"),
+            _ = ready(()) => {}
+        }
+        drop(builder);
+        assert_eq!(post.await.unwrap_err().code(), ErrorCode::InternalError.code());
     }
 }

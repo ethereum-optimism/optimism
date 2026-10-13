@@ -106,11 +106,10 @@ impl GossipCommand {
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         // This example only consumes inbound gossip blocks; the other channels exist solely to
         // satisfy NetworkActor::new and are held to keep them open.
-        let _unused_senders = (gossip_command_tx, admin_rpc_tx, gossip_payload_tx);
+        let _unused_senders = (gossip_command_tx, gossip_payload_tx);
 
         let network_config = NetworkConfig {
             discovery_address: disc_addr,
@@ -142,7 +141,6 @@ impl GossipCommand {
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
             handler,
             gossip_command_rx,
-            admin_rpc_rx,
             gossip_payload_rx,
         );
 

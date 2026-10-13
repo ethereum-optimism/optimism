@@ -78,23 +78,3 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-/// Admin payloads go to the engine without being signed or gossiped.
-#[tokio::test(flavor = "multi_thread")]
-async fn admin_payload_is_forwarded_to_engine() -> anyhow::Result<()> {
-    use kona_node_service::engine;
-    use kona_rpc::{AdminApiServer, AdminRpc};
-    use std::time::Duration;
-
-    let mut network = TestNetworkBuilder::new().build(vec![]).await;
-    let engine = engine::Builder::new(engine::Capacity::try_from(1)?).handle();
-    let rpc = AdminRpc::new(None, false, engine, network.admin_rpc_tx.clone());
-    let envelope =
-        SEED_GENERATOR_BUILDER.next_generator().random_valid_payload(PayloadVersion::V1)?;
-    rpc.admin_post_unsafe_payload(envelope.clone()).await?;
-    let forwarded = tokio::time::timeout(Duration::from_secs(10), network.blocks_rx.recv())
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("No block received"))?;
-    assert_eq!(forwarded, envelope);
-    Ok(())
-}

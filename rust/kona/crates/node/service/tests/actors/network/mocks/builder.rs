@@ -105,7 +105,6 @@ impl TestNetworkBuilder {
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let signer_builder = signer::Builder::new(signer::Capacity::try_from(256).unwrap());
         let signer_handle = signer_builder.handle();
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
@@ -115,7 +114,6 @@ impl TestNetworkBuilder {
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
             gossip_command_rx,
-            admin_rpc_rx,
             signed_payload_rx,
         );
 
@@ -144,7 +142,7 @@ impl TestNetworkBuilder {
             Ok(())
         });
 
-        TestNetwork { p2p_rpc, admin_rpc_tx, signer: signer_handle, blocks_rx, handle }
+        TestNetwork { p2p_rpc, signer: signer_handle, blocks_rx, handle }
     }
 }
 

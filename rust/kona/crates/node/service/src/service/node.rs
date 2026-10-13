@@ -31,7 +31,6 @@ use kona_rpc::{
 };
 use kona_sources::BlockSignerHandler;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 
@@ -384,8 +383,6 @@ impl RollupNode {
         let sequencer_handle = sequencer_builder.as_ref().map(sequencer::Builder::handle);
         // Network actor inbound channels
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_payload_tx, admin_payload_rx) =
-            mpsc::channel::<OpExecutionPayloadEnvelope>(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let signer_builder = signer::Builder::new(
@@ -429,7 +426,6 @@ impl RollupNode {
             adapters::Engine(engine.clone()),
             handler,
             gossip_command_rx,
-            admin_payload_rx,
             signed_payload_rx,
         );
 
@@ -465,7 +461,6 @@ impl RollupNode {
             sequencer_handle,
             self.sequencer_config.conductor_rpc_url.is_some(),
             engine,
-            admin_payload_tx,
         );
         let rpc = self
             .build_rpc_actor(
