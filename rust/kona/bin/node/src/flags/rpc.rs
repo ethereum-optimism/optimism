@@ -12,9 +12,6 @@ use std::{
 /// RPC CLI Arguments
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 pub struct RpcArgs {
-    /// Whether to disable the rpc server.
-    #[arg(long = "rpc.disabled", default_value = "false", env = "KONA_NODE_RPC_DISABLED")]
-    pub rpc_disabled: bool,
     /// RPC listening address.
     ///
     /// Defaults to `0.0.0.0`: the node is released as a Docker image, where binding `127.0.0.1`
@@ -43,16 +40,13 @@ impl Default for RpcArgs {
     }
 }
 
-impl From<RpcArgs> for Option<RpcBuilder> {
+impl From<RpcArgs> for RpcBuilder {
     fn from(args: RpcArgs) -> Self {
-        if args.rpc_disabled {
-            return None;
-        }
-        Some(RpcBuilder {
+        Self {
             socket: SocketAddr::new(args.listen_addr, args.listen_port),
             enable_admin: args.enable_admin,
             admin_persistence: args.admin_persistence,
-        })
+        }
     }
 }
 
@@ -63,12 +57,11 @@ mod tests {
     use std::net::Ipv4Addr;
 
     #[rstest]
-    #[case::disable_rpc(&["--rpc.disabled"], |args: &mut RpcArgs| { args.rpc_disabled = true; })]
-    #[case::disable_rpc(&["--rpc.addr", "1.1.1.1"], |args: &mut RpcArgs| { args.listen_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)); })]
-    #[case::disable_rpc(&["--port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
-    #[case::disable_rpc_alias(&["--rpc.port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
-    #[case::disable_rpc(&["--rpc.enable-admin"], |args: &mut RpcArgs| { args.enable_admin = true; })]
-    #[case::disable_rpc(&["--rpc.admin-state", "/"], |args: &mut RpcArgs| { args.admin_persistence = Some(PathBuf::from("/")); })]
+    #[case::listen_addr(&["--rpc.addr", "1.1.1.1"], |args: &mut RpcArgs| { args.listen_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)); })]
+    #[case::listen_port(&["--port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
+    #[case::listen_port_alias(&["--rpc.port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
+    #[case::enable_admin(&["--rpc.enable-admin"], |args: &mut RpcArgs| { args.enable_admin = true; })]
+    #[case::admin_state(&["--rpc.admin-state", "/"], |args: &mut RpcArgs| { args.admin_persistence = Some(PathBuf::from("/")); })]
     fn test_parse_rpc_args(#[case] args: &[&str], #[case] mutate: impl Fn(&mut RpcArgs)) {
         let args = [&["kona-node"], args].concat();
         let cli = RpcArgs::parse_from(args);

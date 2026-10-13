@@ -4,6 +4,7 @@ use crate::{NetworkConfig, NodeMode, RollupNodeConfig, RollupNodeEndpoints, Sequ
 use alloy_rpc_types_engine::JwtSecret;
 use kona_disc::LocalNode;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_rpc::RpcBuilder;
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{
     net::{IpAddr, Ipv4Addr},
@@ -41,7 +42,11 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
         l1_chain_config: Arc::new(L1ChainConfig::default()),
         mode: NodeMode::Validator,
         p2p_config,
-        rpc_config: None,
+        rpc_config: RpcBuilder {
+            socket: (Ipv4Addr::LOCALHOST, 0).into(),
+            enable_admin: false,
+            admin_persistence: None,
+        },
         sequencer_config: SequencerConfig::default(),
         dependency_set: None,
     }

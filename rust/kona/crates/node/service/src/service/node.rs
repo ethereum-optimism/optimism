@@ -61,8 +61,8 @@ pub struct RollupNode {
     pub(crate) engine_client: Arc<EngineClient>,
     /// The mode of operation for the node.
     pub(crate) mode: NodeMode,
-    /// The [`RpcBuilder`] for the node.
-    pub(crate) rpc_builder: Option<RpcBuilder>,
+    /// The RPC server's configuration.
+    pub(crate) rpc_builder: RpcBuilder,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
@@ -120,7 +120,7 @@ impl RollupNode {
     }
 
     /// Returns an rpc builder for the node.
-    fn rpc_builder(&self) -> Option<RpcBuilder> {
+    fn rpc_builder(&self) -> RpcBuilder {
         self.rpc_builder.clone()
     }
 
@@ -253,7 +253,7 @@ impl RollupNode {
     }
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
-    /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    /// configured [`RpcActor`].
     #[allow(clippy::too_many_arguments)]
     async fn build_rpc_actor(
         &self,
@@ -265,10 +265,8 @@ impl RollupNode {
         safe_l1: watch::Receiver<BlockInfo>,
         finalized_l1: watch::Receiver<BlockInfo>,
         derivation_status: watch::Receiver<derivation::DerivationStatus>,
-    ) -> Result<Option<RpcActor>, String> {
-        let Some(config) = self.rpc_builder() else {
-            return Ok(None);
-        };
+    ) -> Result<RpcActor, String> {
+        let config = self.rpc_builder();
 
         let mut modules = RpcModule::new(());
         modules
@@ -324,7 +322,7 @@ impl RollupNode {
             error!(target: "rpc", "Failed to get local address for RPC server");
         }
 
-        Ok(Some(RpcActor::new(server.start(modules))))
+        Ok(RpcActor::new(server.start(modules)))
     }
 
     /// Starts the rollup node service.
@@ -508,9 +506,7 @@ impl RollupNode {
             .map_err(RollupNodeError::Startup)?;
 
         let mut supervisor = Supervisor::new();
-        if let Some(rpc) = rpc {
-            supervisor.spawn("rpc", run_node_actor(rpc));
-        }
+        supervisor.spawn("rpc", run_node_actor(rpc));
         if let Some(sequencer) = sequencer_actor {
             supervisor.spawn("sequencer", sequencer);
         }

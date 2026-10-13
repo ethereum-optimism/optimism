@@ -22,8 +22,8 @@ pub struct RollupNodeConfig {
     pub mode: NodeMode,
     /// The [`NetworkConfig`].
     pub p2p_config: NetworkConfig,
-    /// An RPC Configuration.
-    pub rpc_config: Option<RpcBuilder>,
+    /// The RPC server's configuration.
+    pub rpc_config: RpcBuilder,
     /// The [`SequencerConfig`], used when the node runs in sequencer mode.
     pub sequencer_config: SequencerConfig,
     /// The interop dependency set for this chain.
