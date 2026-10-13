@@ -23,12 +23,14 @@ use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor, discovery,
+    network,
 };
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{
+    collections::HashSet,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     time::Duration,
 };
@@ -51,6 +53,23 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
             .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
 
         Ok(())
+    }
+}
+
+/// Passes the network actor's bans to the discovery actor.
+#[derive(Debug)]
+struct BanningDiscovery(discovery::Handle);
+
+#[async_trait]
+impl network::Discovery for BanningDiscovery {
+    type Error = discovery::HandleError;
+
+    async fn ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), Self::Error> {
+        self.0.ban(addrs, duration).await
     }
 }
 
@@ -115,13 +134,21 @@ impl GossipCommand {
             discovery_interval: Duration::from_secs(self.interval),
             ..NetworkConfig::new(rollup_config.clone(), disc_addr, gossip_addr)
         };
-        let (gossip, discovery) = network_config.start(watch::channel(signer).1).await?;
-        let (discovery, enrs) = discovery.start();
+        let (gossip, discovery_driver) = network_config.start(watch::channel(signer).1).await?;
+        let discovery_builder = discovery::Builder::new(discovery::Capacity::try_from(1024)?);
+        let discovery = discovery_builder.handle();
+        let (enrs_tx, enrs) = mpsc::channel(1024);
+        let discovery_actor = discovery_builder.build(discovery_driver, enrs_tx);
+        tokio::spawn(async move {
+            if let Err(e) = discovery_actor.await {
+                error!(target: "gossip", "Discovery actor error: {e:?}");
+            }
+        });
 
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
             gossip,
-            discovery,
+            BanningDiscovery(discovery),
             enrs,
             gossip_command_rx,
             gossip_payload_rx,

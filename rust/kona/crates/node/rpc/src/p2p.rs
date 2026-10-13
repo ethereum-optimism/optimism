@@ -14,11 +14,11 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_disc::Discv5Handler;
 use kona_gossip::{
     Connectedness, Direction, GossipCommand, GossipCommandSender, GossipQueryHandle, GossipScores,
     GossipState, PeerCount, PeerDump, PeerInfo, PeerScores, PeerStats,
 };
+use kona_node_actors::discovery;
 use kona_peers::OpStackEnr;
 use libp2p::{PeerId, multiaddr::Protocol};
 use std::{net::IpAddr, str::FromStr, sync::Arc, time::Duration};
@@ -29,8 +29,9 @@ use crate::OpP2PApiServer;
 #[derive(Debug, Clone)]
 pub struct P2pRpc {
     gossip: GossipQueryHandle,
-    discovery: Discv5Handler,
+    discovery: discovery::Handle,
     commands: GossipCommandSender,
+    chain_id: u64,
 }
 
 #[async_trait]
@@ -38,7 +39,7 @@ impl OpP2PApiServer for P2pRpc {
     async fn opp2p_self(&self) -> RpcResult<PeerInfo> {
         let gossip = self.gossip_snapshot()?;
         let peer_id = gossip.local_peer_id;
-        let chain_id = self.discovery.chain_id;
+        let chain_id = self.chain_id;
         let enr = self
             .discovery
             .local_enr()
@@ -389,13 +390,15 @@ impl OpP2PApiServer for P2pRpc {
 }
 
 impl P2pRpc {
-    /// Constructs an RPC server from read handles and a network command sender.
+    /// Constructs an RPC server from read handles and a network command sender, for the L2 chain
+    /// with ID `chain_id`.
     pub const fn new(
         gossip: GossipQueryHandle,
-        discovery: Discv5Handler,
+        discovery: discovery::Handle,
         commands: GossipCommandSender,
+        chain_id: u64,
     ) -> Self {
-        Self { gossip, discovery, commands }
+        Self { gossip, discovery, commands, chain_id }
     }
 
     async fn apply_command(&self, command: GossipCommand) -> RpcResult<()> {
@@ -416,21 +419,49 @@ impl P2pRpc {
 mod tests {
     use super::*;
     use alloy_primitives::Address;
-    use kona_disc::{Discv5Handler, HandlerRequest};
+    use kona_disc::{Discv5Builder, LocalNode};
     use kona_genesis::RollupConfig;
     use kona_gossip::{ConnectionGater, GossipCommandReceiver, GossipDriver, GossipQueryHandle};
     use libp2p::{StreamProtocol, identify::Info, identity::Keypair};
+    use std::net::Ipv4Addr;
     use tokio::sync::{mpsc, watch};
 
     struct Fixture {
         rpc: P2pRpc,
         state_tx: watch::Sender<Arc<GossipState>>,
         commands_rx: GossipCommandReceiver,
-        discovery_rx: mpsc::Receiver<HandlerRequest>,
         driver: GossipDriver<ConnectionGater>,
     }
 
-    fn fixture() -> Fixture {
+    /// Returns a handle to a discovery actor with an empty routing table, on a free loopback
+    /// port, or to a stopped one.
+    fn discovery(running: bool) -> discovery::Handle {
+        let builder = discovery::Builder::new(discovery::Capacity::try_from(8).unwrap());
+        let handle = builder.handle();
+        if running {
+            let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+            let enr::CombinedKey::Secp256k1(key) = enr::CombinedKey::generate_secp256k1() else {
+                unreachable!()
+            };
+            // A chain without built-in bootnodes, so discovery stays off the internet.
+            let driver = Discv5Builder::new(
+                LocalNode::new(key, ip, 0, 0),
+                0,
+                discv5::ConfigBuilder::new(discv5::ListenConfig::from_ip(ip, 0)).build(),
+            )
+            .build()
+            .unwrap();
+            let (peers, peers_rx) = mpsc::channel(8);
+            let task = builder.build(driver, peers);
+            tokio::spawn(async move {
+                let _peers_rx = peers_rx;
+                task.await
+            });
+        }
+        handle
+    }
+
+    fn fixture(discovery_running: bool) -> Fixture {
         let driver = GossipDriver::<ConnectionGater>::builder(
             RollupConfig::default(),
             Address::ZERO,
@@ -441,18 +472,18 @@ mod tests {
         .unwrap();
         let (state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
         let (commands_tx, commands_rx) = mpsc::channel(8);
-        let (discovery_tx, discovery_rx) = mpsc::channel(8);
         let rpc = P2pRpc::new(
             GossipQueryHandle::new(state_rx),
-            Discv5Handler::new(10, discovery_tx),
+            discovery(discovery_running),
             commands_tx,
+            10,
         );
-        Fixture { rpc, state_tx, commands_rx, discovery_rx, driver }
+        Fixture { rpc, state_tx, commands_rx, driver }
     }
 
     #[tokio::test]
     async fn queries_assemble_peer_data_without_sending_network_requests() {
-        let mut fixture = fixture();
+        let mut fixture = fixture(true);
         let connected_key = Keypair::generate_secp256k1();
         let disconnected_key = Keypair::generate_secp256k1();
         let connected = connected_key.public().to_peer_id();
@@ -482,14 +513,7 @@ mod tests {
         fixture.state_tx.send_replace(Arc::new(state));
 
         for connected_only in [false, true] {
-            let (dump, ()) = tokio::join!(fixture.rpc.opp2p_peers(connected_only), async {
-                let Some(HandlerRequest::TableInfos(out)) = fixture.discovery_rx.recv().await
-                else {
-                    panic!("expected a direct discovery table query");
-                };
-                out.send(vec![]).unwrap();
-            });
-            let dump = dump.unwrap();
+            let dump = fixture.rpc.opp2p_peers(connected_only).await.unwrap();
             assert_eq!(dump.total_connected, 1);
             assert_eq!(dump.peers.len(), if connected_only { 1 } else { 2 });
             let info = &dump.peers[&connected.to_string()];
@@ -520,7 +544,7 @@ mod tests {
 
     #[tokio::test]
     async fn queries_observe_updates_and_fail_after_the_publisher_exits() {
-        let fixture = fixture();
+        let fixture = fixture(false);
         let clone = fixture.rpc.clone();
         assert!(clone.opp2p_list_blocked_peers().await.unwrap().is_empty());
         let mut state = fixture.driver.snapshot();
@@ -541,11 +565,10 @@ mod tests {
 
     #[tokio::test]
     async fn discovery_failure_preserves_optional_peer_count_and_errors_for_stats() {
-        let mut fixture = fixture();
+        let fixture = fixture(false);
         let mut state = fixture.driver.snapshot();
         state.connected_peers.insert(Keypair::generate_secp256k1().public().to_peer_id());
         fixture.state_tx.send_replace(Arc::new(state));
-        fixture.discovery_rx.close();
         let count = fixture.rpc.opp2p_peer_count().await.unwrap();
         assert_eq!(count.connected_discovery, None);
         assert_eq!(count.connected_gossip, 1);

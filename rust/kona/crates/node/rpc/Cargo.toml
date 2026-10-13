@@ -19,7 +19,6 @@ workspace = true
 kona-node-actors.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 kona-gossip.workspace = true
-kona-disc.workspace = true
 kona-peers.workspace = true
 kona-engine.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
@@ -64,6 +63,8 @@ op-alloy-rpc-jsonrpsee.workspace = true
 alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 
 [dev-dependencies]
+kona-disc.workspace = true
+discv5.workspace = true
 kona-derive = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
 op-alloy-rpc-types.workspace = true

@@ -1,6 +1,6 @@
+use super::Discovery;
 use async_trait::async_trait;
 use discv5::Enr;
-use kona_disc::{Discv5Handler, HandlerRequest};
 use kona_gossip::{
     ConnectionGate, ConnectionGater, GossipCommandReceiver, GossipDriver, GossipQueryHandle,
     GossipState, PEER_SCORE_INSPECT_FREQUENCY,
@@ -23,11 +23,11 @@ use crate::{NetworkEngineClient, NodeActor, signer};
 /// - *discovery*: Peer discovery over UDP using discv5.
 /// - *gossip*: Block gossip over TCP using libp2p.
 #[derive(Debug)]
-pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
+pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient, Discovery_: Discovery> {
     /// The gossip driver, whose swarm is listening.
     gossip: GossipDriver<ConnectionGater>,
-    /// Sends requests to the discovery service.
-    discovery: Discv5Handler,
+    /// Bans the addresses of disconnected peers in discovery.
+    discovery: Discovery_,
     /// Peers found by discovery, to dial.
     enrs: mpsc::Receiver<Enr>,
     /// Paces the peer score checks that ban peers below the threshold.
@@ -46,7 +46,9 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     unsafe_block_rx: UnboundedReceiver<OpExecutionPayloadEnvelope>,
 }
 
-impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient_> {
+impl<NetworkEngineClient_: NetworkEngineClient, Discovery_: Discovery>
+    NetworkActor<NetworkEngineClient_, Discovery_>
+{
     /// Constructs a new [`NetworkActor`].
     ///
     /// The `gossip` swarm must already be listening, as
@@ -55,7 +57,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     pub fn new(
         engine_client: NetworkEngineClient_,
         gossip: GossipDriver<ConnectionGater>,
-        discovery: Discv5Handler,
+        discovery: Discovery_,
         enrs: mpsc::Receiver<Enr>,
         gossip_command_rx: GossipCommandReceiver,
         publish_rx: mpsc::Receiver<signer::Payload>,
@@ -131,16 +133,8 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
             .flatten()
             .collect::<HashSet<_>>();
 
-        if let Err(send_err) = self
-            .discovery
-            .sender
-            .send(HandlerRequest::BanAddrs {
-                addrs_to_ban: addrs_to_ban.into(),
-                ban_duration: ban_peers.ban_duration,
-            })
-            .await
-        {
-            warn!(err = ?send_err, "Impossible to send a request to the discovery handler. The channel connection is dropped.");
+        if let Err(err) = self.discovery.ban(addrs_to_ban, ban_peers.ban_duration).await {
+            warn!(?err, "Failed to ask discovery to ban the addresses of low-scoring peers");
         }
     }
 }
@@ -154,8 +148,8 @@ pub enum NetworkActorError {
 }
 
 #[async_trait]
-impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
-    for NetworkActor<NetworkEngineClient_>
+impl<NetworkEngineClient_: NetworkEngineClient + 'static, Discovery_: Discovery + 'static> NodeActor
+    for NetworkActor<NetworkEngineClient_, Discovery_>
 {
     type Error = NetworkActorError;
 

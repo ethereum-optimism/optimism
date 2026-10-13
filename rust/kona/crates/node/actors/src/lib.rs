@@ -22,6 +22,8 @@ pub use rpc::{RpcActor, RpcActorError};
 pub mod derivation;
 pub use derivation::{DerivationDelegateClientError, DerivationDelegateProvider};
 
+pub mod discovery;
+
 pub mod l1_signer_updater;
 
 pub mod l1;

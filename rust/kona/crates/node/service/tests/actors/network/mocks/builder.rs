@@ -1,4 +1,8 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    collections::HashSet,
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use alloy_chains::Chain;
 use alloy_signer::k256;
@@ -11,7 +15,8 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor, signer,
+    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor, discovery,
+    network, signer,
 };
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
@@ -101,9 +106,18 @@ impl TestNetworkBuilder {
                 gossip_multiaddr,
             )
         };
-        let (gossip, discovery) =
+        let (gossip, discovery_driver) =
             config.start(watch::channel(self.unsafe_block_signer).1).await.expect("start network");
-        let (discovery, enrs) = discovery.start();
+        let discovery_builder =
+            discovery::Builder::new(discovery::Capacity::try_from(1024).unwrap());
+        let discovery = discovery_builder.handle();
+        let (enrs_tx, enrs) = mpsc::channel(1024);
+        let discovery_actor = discovery_builder.build(discovery_driver, enrs_tx);
+        tokio::spawn(async move {
+            if let Err(err) = discovery_actor.await {
+                error!(target: "net", ?err, "Discovery actor failed");
+            }
+        });
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
@@ -114,13 +128,14 @@ impl TestNetworkBuilder {
         let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
             gossip,
-            discovery.clone(),
+            BanningDiscovery(discovery.clone()),
             enrs,
             gossip_command_rx,
             signed_payload_rx,
         );
 
-        let p2p_rpc = P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc =
+            P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx, self.chain_id);
 
         // Every test network can sign: payloads sent to `signer_handle` are signed with this
         // node's key and then gossiped.
@@ -146,6 +161,23 @@ impl TestNetworkBuilder {
         });
 
         TestNetwork { p2p_rpc, signer: signer_handle, blocks_rx, handle }
+    }
+}
+
+/// Passes the network actor's bans to the discovery actor.
+#[derive(Debug)]
+struct BanningDiscovery(discovery::Handle);
+
+#[async_trait]
+impl network::Discovery for BanningDiscovery {
+    type Error = discovery::HandleError;
+
+    async fn ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), Self::Error> {
+        self.0.ban(addrs, duration).await
     }
 }
 

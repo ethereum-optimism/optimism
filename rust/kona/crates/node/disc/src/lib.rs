@@ -12,10 +12,12 @@
 //!
 //! ## Key Components
 //!
-//! - [`Discv5Driver`]: Main service driver that manages the discovery process
+//! - [`Discv5Driver`]: A discovery service and its settings, which starts the service and
+//!   bootstraps its table
 //! - [`Discv5Builder`]: Builder pattern for configuring discovery service parameters
-//! - [`Discv5Handler`]: Handle for interacting with the discovery service
 //! - [`LocalNode`]: Represents the local node's discovery information
+//!
+//! The node's discovery actor, in `kona-node-actors`, runs the service's event loop.
 //!
 //! ## Discovery Process
 //!
@@ -66,9 +68,6 @@ pub use error::Discv5BuilderError;
 
 mod driver;
 pub use driver::Discv5Driver;
-
-mod handler;
-pub use handler::{Discv5Handler, HandlerRequest};
 
 mod metrics;
 pub use metrics::Metrics;

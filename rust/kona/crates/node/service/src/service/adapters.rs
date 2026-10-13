@@ -4,12 +4,14 @@ use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_node_actors::{
     EngineClientError, EngineClientResult, NetworkEngineClient, SequencerEngineClient, derivation,
-    engine,
+    discovery, engine,
     engine::{Consolidation, EngineState, FinalizeBlockId},
-    sequencer, signer,
+    network, sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::{collections::HashSet, time::Duration};
 
 #[derive(Debug, Clone)]
 pub(super) struct Engine(pub(super) engine::Handle);
@@ -88,6 +90,22 @@ impl NetworkEngineClient for Engine {
     async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
         self.0.insert_unsafe_block(block).await
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Discovery(pub(super) discovery::Handle);
+
+#[async_trait]
+impl network::Discovery for Discovery {
+    type Error = discovery::HandleError;
+
+    async fn ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), Self::Error> {
+        self.0.ban(addrs, duration).await
     }
 }
 
