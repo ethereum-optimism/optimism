@@ -97,7 +97,6 @@ pub trait WitnessExecutor {
         P: Pipeline + SignalReceiver + Send + Sync + Debug,
     {
         let boot = &claims.first;
-        // Install the SP1-accelerated crypto provider (see `CustomCrypto`).
         revm::precompile::install_crypto(CustomCrypto::default());
 
         let rollup_config = Arc::new(boot.rollup_config.clone());

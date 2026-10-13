@@ -95,7 +95,7 @@ infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop a
 
 #### Build provenance
 
-Both guests embed the commit they were built from, so a guest ELF identifies its own source
+Every guest embeds the commit it was built from, so a guest ELF identifies its own source
 without a manifest, a lookup table, or executing it:
 
 ```bash
@@ -225,8 +225,8 @@ generated ELFs get zkVM precompile-accelerated crypto without changing the host
 The EVM-executing super-range guest also enables `revm`'s `bn` feature
 in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
 backend for EIP-196/197 bn128 precompiles. The EIP-2537 BLS12-381 precompiles run
-through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field and G1
-point syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
+through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field, G1 point, and
+bigint syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
 against revm's arkworks backend and prints per-operation cycle counts.
 
 ## Usage

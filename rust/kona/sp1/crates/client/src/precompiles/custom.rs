@@ -1,4 +1,4 @@
-//! Custom crypto provider: KZG proof verification (kzg-rs) and EIP-2537 BLS12-381 operations
+//! Custom crypto provider: KZG proof verification (`kzg-rs`) and EIP-2537 BLS12-381 operations
 //! (`sp1_bls12_381`), both SP1-accelerated in the zkVM.
 
 use kzg_rs::{Bytes32, Bytes48, KzgProof, KzgSettings};
@@ -9,7 +9,7 @@ use revm::precompile::{
 
 use super::bls12_381;
 
-/// SP1-accelerated [`Crypto`] provider (see module docs).
+/// SP1-accelerated [`Crypto`]: KZG via `kzg-rs`, EIP-2537 via `sp1_bls12_381`.
 #[derive(Debug)]
 pub struct CustomCrypto {
     kzg_settings: KzgSettings,

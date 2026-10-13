@@ -23,15 +23,17 @@
 //!
 //! # zkVM hint paths and preconditions (re-audit when bumping `sp1_bls12_381`)
 //!
-//! - `Fp2::invert`, `Fp2::sqrt`: return `None` on a forged hint; never collapse that with
-//!   `unwrap_or` (as `G2Affine::from` does, hence [`g2_to_affine`]).
-//! - `Fp::sqrt`: the prover picks the root's sign.
-//! - `final_exponentiation` unwraps a forged `Fp12::invert` hint, so [`pairing_check`] panics
-//!   instead of returning a wrong result.
-//! - G2 `MapToCurve::map_to_curve` returns the off-curve (0, 0) at u = 0: call it only behind
-//!   [`map_fp2_to_g2`]'s zero check.
-//! - `G1Affine::add_affine` / `double` require on-curve inputs: the zkVM path asserts on an equal-x
-//!   pair that is not a negation.
+//! - `Fp::invert` asserts its hint; [`g1_to_affine`] and the zkVM `mul_by_x` in `is_torsion_free` /
+//!   `clear_h` rely on that.
+//! - `Fp2::invert` returns `None` on a forged hint; never collapse that with `unwrap_or` (as
+//!   `G2Affine::from` does, hence [`g2_to_affine`]). `final_exponentiation` unwraps it through
+//!   `Fp6`/`Fp12::invert`, so [`pairing_check`] panics instead of returning a wrong result.
+//! - G2 `map_to_curve_simple_swu` yields the off-curve (0, 0) at u = 0: call `map_to_curve` only
+//!   behind [`map_fp2_to_g2`]'s zero check.
+//! - `G1Affine::add_affine` / `double` require on-curve inputs: off-curve input gives a wrong but
+//!   provable zkVM result (the add syscall with distinct x, the double syscall), not a panic.
+//! - `Fp::sqrt` / `Fp2::sqrt` take hints (`Fp2::sqrt` returns `None` on a forged one), but no path
+//!   here reaches them: `map_to_curve` uses fixed addition chains.
 
 use alloc::{vec, vec::Vec};
 use alloy_primitives::{U256, hex};
@@ -69,14 +71,13 @@ fn read_fp(bytes: &[u8; FP_LENGTH]) -> Result<Fp, PrecompileHalt> {
     Option::<Fp>::from(Fp::from_bytes(bytes)).ok_or(PrecompileHalt::NonCanonicalFp)
 }
 
-/// Decodes an Fp2 element from its EIP-2537 `c0`, `c1` coordinates, `c0` first. Replaces the
-/// banned `Fp2::from_bytes`.
+/// Decodes an Fp2 element from its EIP-2537 `c0`, `c1` coordinates, `c0` first.
 fn read_fp2(c0: &[u8; FP_LENGTH], c1: &[u8; FP_LENGTH]) -> Result<Fp2, PrecompileHalt> {
     Ok(Fp2 { c0: read_fp(c0)?, c1: read_fp(c1)? })
 }
 
 /// Decodes a G1 point without a subgroup check: `x`, then `y`, then (0, 0) is the identity,
-/// otherwise the point must satisfy y² = x³ + 4. Never use the `from_uncompressed*` family.
+/// otherwise the point must satisfy y² = x³ + 4.
 fn read_g1_unchecked(x: &[u8; FP_LENGTH], y: &[u8; FP_LENGTH]) -> Result<G1Affine, PrecompileHalt> {
     let (x, y) = (read_fp(x)?, read_fp(y)?);
     if bool::from(x.is_zero() & y.is_zero()) {
@@ -99,8 +100,7 @@ fn read_g1_checked(x: &[u8; FP_LENGTH], y: &[u8; FP_LENGTH]) -> Result<G1Affine,
 }
 
 /// Decodes a G2 point without a subgroup check: `x0`, `x1`, `y0`, `y1`, then all-zero is the
-/// identity, otherwise the point must satisfy y² = x³ + 4(1 + u). Never use the
-/// `from_uncompressed*` family.
+/// identity, otherwise the point must satisfy y² = x³ + 4(1 + u).
 fn read_g2_unchecked(
     x0: &[u8; FP_LENGTH],
     x1: &[u8; FP_LENGTH],
@@ -133,14 +133,12 @@ fn read_g2_checked(
     Ok(p)
 }
 
-/// Reduces an arbitrary 256-bit big-endian EIP-2537 scalar mod r. Replaces the banned
-/// `Scalar::from_bytes`.
+/// Reduces an arbitrary 256-bit big-endian EIP-2537 scalar mod r.
 fn read_scalar(be: &[u8; SCALAR_LENGTH]) -> Scalar {
     Scalar::from_raw(U256::from_be_bytes(*be).into_limbs())
 }
 
-/// EIP-2537 G1 encoding: 96 zero bytes for the identity, otherwise `x ‖ y` big-endian. Replaces
-/// the banned `to_uncompressed`.
+/// EIP-2537 G1 encoding: 96 zero bytes for the identity, otherwise `x ‖ y` big-endian.
 fn encode_g1(p: &G1Affine) -> [u8; G1_LENGTH] {
     let mut out = [0u8; G1_LENGTH];
     if !bool::from(p.is_identity()) {
@@ -151,7 +149,7 @@ fn encode_g1(p: &G1Affine) -> [u8; G1_LENGTH] {
 }
 
 /// EIP-2537 G2 encoding: 192 zero bytes for the identity, otherwise `x.c0 ‖ x.c1 ‖ y.c0 ‖ y.c1`
-/// big-endian. Replaces the banned `to_uncompressed`.
+/// big-endian.
 fn encode_g2(p: &G2Affine) -> [u8; G2_LENGTH] {
     let mut out = [0u8; G2_LENGTH];
     if !bool::from(p.is_identity()) {
@@ -162,9 +160,7 @@ fn encode_g2(p: &G2Affine) -> [u8; G2_LENGTH] {
     out
 }
 
-/// G2 projective-to-affine that rejects a forged zkVM inverse hint: `Fp2::invert` (`sp1_bls12_381`
-/// `fp2.rs:640-668`) returns `None` on a bad hint instead of asserting, and `G2Affine::from` turns
-/// that into the identity. `Fp::invert` asserts, so G1 needs no equivalent.
+/// G2 projective-to-affine that panics on a forged `Fp2::invert` hint (see module docs).
 fn g2_to_affine(p: &G2Projective) -> G2Affine {
     let a = G2Affine::from(p);
     assert_eq!(
@@ -175,7 +171,7 @@ fn g2_to_affine(p: &G2Projective) -> G2Affine {
     a
 }
 
-/// G1 projective-to-affine; no hint check needed (see [`g2_to_affine`]).
+/// G1 projective-to-affine; `Fp::invert` asserts its hint, so no check is needed (see module docs).
 fn g1_to_affine(p: &G1Projective) -> G1Affine {
     G1Affine::from(p)
 }
@@ -336,8 +332,7 @@ pub(super) fn map_fp2_to_g2(
     c1: &[u8; FP_LENGTH],
 ) -> Result<[u8; G2_LENGTH], PrecompileHalt> {
     let u = read_fp2(c0, c1)?;
-    // sp1_bls12_381 (like zkcrypto bls12_381 0.8.0's `map_g2` eta loop) passes its x1 root check
-    // trivially at u = 0 (0 == 0) and returns off-curve (0, 0); the check is exact for u ≠ 0.
+    // `map_to_curve_simple_swu` yields the off-curve (0, 0) at u = 0 (see module docs).
     if bool::from(u.is_zero()) {
         return Ok(MAP_FP2_TO_G2_ZERO);
     }

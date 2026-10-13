@@ -227,6 +227,20 @@ fn scalar_values() -> Vec<[u8; 32]> {
     out
 }
 
+/// Scalars at both edges of every arkworks `msm_signed` size class (ark-ec 0.6
+/// `scalar_mul/variable_base/mod.rs` `ScalarSize`): U1, U8, U16, U32, U64, their negations mod r,
+/// and `BigInt`. Arkworks dispatches multi-term MSMs on these classes; `sp1_bls12_381` does not.
+fn msm_size_class_scalars() -> Vec<[u8; 32]> {
+    let r = U256::from_be_bytes(r_bytes());
+    [1, 0xff, 0x100, 0xffff, 0x1_0000, 0xffff_ffff, 0x1_0000_0000, u64::MAX]
+        .map(U256::from)
+        .into_iter()
+        .chain([U256::ONE << 64usize])
+        .flat_map(|v| [v, r - v])
+        .map(|v| v.to_be_bytes())
+        .collect()
+}
+
 // ---------------------------------------------------------------------------------------------
 // Seeded helpers and encodings
 // ---------------------------------------------------------------------------------------------
@@ -746,7 +760,8 @@ pub fn g2_add_cases() -> Vec<BlsCase> {
 
 /// G1MSM cases: scalar edges, identity points, zero scalars, invalid points behind skip-eligible
 /// scalars, cancellation, padding-error precedence, both sides of `CustomCrypto`'s per-term/bucket
-/// threshold (3 vs 4 kept terms), and seeded sizes up to the Jovian and Isthmus caps.
+/// threshold (3 vs 4 kept terms), every arkworks multi-term scalar size class, and seeded sizes up
+/// to the Jovian and Isthmus caps.
 pub fn g1_msm_cases() -> Vec<BlsCase> {
     let mut c = Cases::new("g1-msm");
     let sc = scalar_values();
@@ -818,6 +833,14 @@ pub fn g1_msm_cases() -> Vec<BlsCase> {
     ] {
         c.push("bucket-edge", BlsCall::G1Msm(items));
     }
+    let size_classes = msm_size_class_scalars();
+    let points = seeded_points(g1_sub("g1-msm/size-classes", 0), qa, size_classes.len());
+    c.push(
+        "size-classes",
+        BlsCall::G1Msm(
+            points.into_iter().zip(size_classes).map(|(p, s)| some(enc_g1(p), s)).collect(),
+        ),
+    );
 
     for k in [2, 3, 4, 5, 8, 16, 31, 32, 33, 64, 128, 256].into_iter().chain(G1_MSM_CAPS) {
         let label = format!("g1-msm/seeded/{k}");
@@ -907,6 +930,14 @@ pub fn g2_msm_cases() -> Vec<BlsCase> {
     ] {
         c.push("bucket-edge", BlsCall::G2Msm(items));
     }
+    let size_classes = msm_size_class_scalars();
+    let points = seeded_points(g2_sub("g2-msm/size-classes", 0), qa, size_classes.len());
+    c.push(
+        "size-classes",
+        BlsCall::G2Msm(
+            points.into_iter().zip(size_classes).map(|(p, s)| some(enc_g2(p), s)).collect(),
+        ),
+    );
 
     for k in [2, 3, 4, 5, 8, 16, 31, 32, 33, 64, 128].into_iter().chain(G2_MSM_CAPS) {
         let label = format!("g2-msm/seeded/{k}");

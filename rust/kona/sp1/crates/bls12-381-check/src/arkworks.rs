@@ -1,5 +1,6 @@
-//! Vendored from revm-precompile 42.0.1 (MIT) `src/bls12_381/arkworks.rs` + `pairing_common.rs`:
-//! the backend the zkVM guest's `DefaultCrypto` runs. Re-vendor when bumping revm-precompile.
+//! Vendored from revm-precompile 42.0.1 `src/bls12_381/arkworks.rs` + `pairing_common.rs`: the
+//! backend the zkVM guest's `DefaultCrypto` runs. Re-vendor when bumping revm-precompile.
+//! MIT-licensed; copyright and permission notice in `rust/kona/sp1/LICENSE-THIRD-PARTY`.
 //!
 //! Only mechanical edits: crate paths, the ark 0.6 aliases, `pub(crate)` → private, this lint
 //! allowance for upstream's doc style, and the [`ArkworksCrypto`] wrapper at the end.
