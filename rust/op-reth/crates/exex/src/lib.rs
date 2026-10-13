@@ -18,10 +18,10 @@ use reth_optimism_trie::{
     CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
     engine::EngineHandle,
 };
-use reth_provider::BlockNumReader;
+use reth_provider::{BlockHashReader, BlockNumReader};
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 // Safety threshold for maximum blocks to prune automatically on startup.
 // If the required prune exceeds this, the node will error out and require manual pruning. Default
@@ -217,25 +217,10 @@ where
             pruner,
         );
 
-        let mut persisted_tip = engine_handle.subscribe_persisted_tip();
         engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;
 
-        loop {
-            tokio::select! {
-                changed = persisted_tip.changed() => {
-                    changed.map_err(|_| eyre::eyre!("proofs-history engine stopped"))?;
-                    // Acknowledge only persisted heights: reth may prune blocks below the
-                    // finished height, and buffered blocks must be re-executed after a crash.
-                    let tip = *persisted_tip.borrow_and_update();
-                    if let Some(tip) = tip {
-                        self.ctx.events.send(ExExEvent::FinishedHeight(tip))?;
-                    }
-                }
-                notification = self.ctx.notifications.try_next() => {
-                    let Some(notification) = notification? else { break };
-                    self.handle_notification(notification, &engine_handle)?;
-                }
-            }
+        while let Some(notification) = self.ctx.notifications.try_next().await? {
+            self.handle_notification(notification, &engine_handle)?;
         }
 
         Ok(())
@@ -288,6 +273,10 @@ where
             }
         }
 
+        if let Some(committed_chain) = notification.committed_chain() {
+            self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().num_hash()))?;
+        }
+
         Ok(())
     }
 
@@ -325,33 +314,23 @@ where
                     (**trie_updates).clone(),
                     (**hashed_state).clone(),
                 )?;
-            } else {
+            } else if let Err(err) = engine_handle.execute_block(block) {
                 // Slow path: execute the block in full (no trie data, or verification interval
-                // hit).
-                match engine_handle.execute_block(block) {
-                    Ok(()) => {}
-                    // Verification checks re-execution against reth's own result, so a failure
-                    // is a correctness problem to surface rather than a reorg to wait out.
-                    Err(err) if should_verify && err.is_retryable() => {
-                        return Err(eyre::Report::new(err).wrap_err(format!(
-                            "proofs-history verification failed at block {block_number}"
-                        )));
-                    }
-                    Err(err) if err.is_retryable() => {
-                        // The sync loop retries with reth's canonical blocks, which also covers
-                        // a reorg away from this notification's chain.
-                        error!(
-                            target: "optimism::exex",
-                            block_number,
-                            block_hash = ?block.hash(),
-                            %err,
-                            "Proofs-history execution failed; retrying in the sync loop",
-                        );
-                        engine_handle.sync_to(new.tip().number())?;
-                        return Ok(());
-                    }
-                    Err(err) => return Err(err.into()),
+                // hit). Execution reads bytecode reth has not persisted from reth's in-memory
+                // chain, so a block from a fork reth has since left can fail. Leave that block to
+                // the sync loop, which executes reth's canonical block at this height.
+                if self.ctx.provider().block_hash(block_number)? == Some(block.hash()) {
+                    return Err(err.into());
                 }
+                debug!(
+                    target: "optimism::exex",
+                    block_number,
+                    block_hash = ?block.hash(),
+                    %err,
+                    "Block left reth's chain during proofs execution; syncing to reth's chain",
+                );
+                engine_handle.sync_to(new.tip().number())?;
+                return Ok(());
             }
         }
 
@@ -974,12 +953,37 @@ mod tests {
         assert_eq!(latest, 0);
     }
 
+    /// Returns block 1 sealed with `state_root`, built on the genesis block the tests' proofs store
+    /// is initialized with.
+    fn block_one_with_state_root(state_root: B256) -> RecoveredBlock<Block> {
+        let header = alloy_consensus::Header {
+            number: 1,
+            parent_hash: hash_for_num(0),
+            state_root,
+            ..Default::default()
+        };
+        reth_primitives_traits::SealedBlock::seal_slow(Block { header, body: Default::default() })
+            .try_recover()
+            .expect("empty block")
+    }
+
+    /// Makes `block` reth's canonical block at its height.
+    fn make_canonical(
+        handle: &reth_exex_test_utils::TestExExHandle,
+        provider: &impl reth_provider::CanonChainTracker<Header = alloy_consensus::Header>,
+        block: &RecoveredBlock<Block>,
+    ) {
+        use reth_provider::BlockWriter;
+
+        let rw = handle.provider_factory.provider_rw().expect("provider rw");
+        rw.insert_block(block).expect("insert block");
+        rw.commit().expect("commit");
+        provider.set_canonical_head(block.clone_sealed_header());
+    }
+
     #[tokio::test]
-    async fn handle_notification_hands_failed_execution_to_sync_loop() {
-        use alloy_consensus::Header;
+    async fn handle_notification_hands_block_reth_replaced_to_sync_loop() {
         use reth_optimism_trie::engine::EngineError;
-        use reth_primitives_traits::SealedBlock;
-        use reth_provider::{BlockWriter, CanonChainTracker};
         use std::time::{Duration, Instant};
 
         let dir = tempdir_path();
@@ -1002,7 +1006,7 @@ mod tests {
         let exex = build_test_exex(ctx, store.clone());
 
         // The notification's block 1 builds on the proofs tip, but its header's state root is not
-        // the one execution produces, so execution fails with a retryable error.
+        // the one execution produces, so its execution fails.
         let err = engine_handle.execute_block(&mk_block(1)).expect_err("state root should differ");
         let EngineError::StateRootMismatch { current_state_hash, .. } = err else {
             panic!("expected a state root mismatch, got {err}");
@@ -1010,24 +1014,13 @@ mod tests {
 
         // reth's canonical block 1 has the state root execution produces, standing in for the
         // block that replaced the notification's block in a reorg.
-        let header = Header {
-            number: 1,
-            parent_hash: hash_for_num(0),
-            state_root: current_state_hash,
-            ..Default::default()
-        };
-        let canonical = SealedBlock::seal_slow(Block { header, body: Default::default() })
-            .try_recover()
-            .expect("empty block");
-        let rw = handle.provider_factory.provider_rw().expect("provider rw");
-        rw.insert_block(&canonical).expect("insert block");
-        rw.commit().expect("commit");
-        provider.set_canonical_head(canonical.clone_sealed_header());
+        let canonical = block_one_with_state_root(current_state_hash);
+        make_canonical(&handle, &provider, &canonical);
 
         let notif =
             ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(1, 1)) };
         exex.handle_notification(notif, &engine_handle)
-            .expect("a retryable execution failure should not stop the ExEx");
+            .expect("a failed block reth has replaced should not stop the ExEx");
 
         // Only the sync loop can index reth's block 1: the ExEx stopped at the failed block.
         let deadline = Instant::now() + Duration::from_secs(30);
@@ -1043,18 +1036,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_notification_halts_on_failed_verification() {
+    async fn handle_notification_propagates_failed_execution_of_canonical_block() {
+        assert_failure_of_canonical_block_stops_exex(0, false).await;
+    }
+
+    #[tokio::test]
+    async fn handle_notification_propagates_failed_verification_of_canonical_block() {
+        assert_failure_of_canonical_block_stops_exex(1, true).await;
+    }
+
+    /// Asserts that the ExEx stops when reth's canonical block 1 fails proofs execution, both on
+    /// the execution path and at the verification interval.
+    async fn assert_failure_of_canonical_block_stops_exex(
+        verification_interval: u64,
+        with_trie_data: bool,
+    ) {
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         init_storage(store.clone());
 
-        let (ctx, _handle) =
+        let (ctx, handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let provider = ctx.components.provider.clone();
+        let pruner = OpProofStoragePruner::new(store.clone(), provider.clone(), 20);
         // The test context's EVM config is a no-op that cannot execute blocks.
         let engine_handle = EngineHandle::spawn_with_thresholds(
             reth_evm_ethereum::EthEvmConfig::mainnet(),
-            ctx.components.provider.clone(),
+            provider.clone(),
             store.clone(),
             pruner,
             1,
@@ -1062,60 +1070,29 @@ mod tests {
         );
         let exex = OpProofsExEx::builder(ctx, store.clone())
             .with_proofs_history_window(20)
-            .with_verification_interval(1)
+            .with_verification_interval(verification_interval)
             .build();
 
-        // Block 1 has trie data, but the interval makes it a verification block, so it is
-        // re-executed; its header's state root is not the one execution produces.
-        let notif =
-            ExExNotification::ChainCommitted { new: Arc::new(mk_chain_with_updates(1, 1, None)) };
+        // reth's canonical block 1 is the notification's block, whose header's state root is not
+        // the one execution produces. Executing it again would fail the same way, so the failure
+        // stops the ExEx.
+        let block = mk_block(1);
+        make_canonical(&handle, &provider, &block);
+        let chain = if with_trie_data {
+            mk_chain_with_updates(1, 1, None)
+        } else {
+            mk_chain_without_updates(1, 1)
+        };
+        let notif = ExExNotification::ChainCommitted { new: Arc::new(chain) };
         let err = exex
             .handle_notification(notif, &engine_handle)
-            .expect_err("a failed verification should stop the ExEx");
-        assert!(err.to_string().contains("verification failed at block 1"), "{err:#}");
+            .expect_err("a failed block reth still has should stop the ExEx");
+        assert!(err.to_string().contains("State root mismatch for block 1"), "{err:#}");
 
         engine_handle.flush();
         let latest =
             store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
         assert_eq!(latest, 0);
-    }
-
-    #[tokio::test]
-    async fn run_acknowledges_only_persisted_heights() {
-        let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        init_storage(store.clone());
-
-        let (ctx, mut handle) =
-            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
-        let run = tokio::spawn(build_test_exex(ctx, store).run());
-
-        // Blocks 1..=3 stay below the engine's default persistence threshold of five, so they are
-        // only buffered; blocks 4..=5 reach it. Acknowledging buffered blocks would report 3 first.
-        handle
-            .send_notification_chain_committed(mk_chain_with_updates(1, 3, None))
-            .await
-            .expect("send notification");
-        handle
-            .send_notification_chain_committed(mk_chain_with_updates(4, 5, None))
-            .await
-            .expect("send notification");
-
-        let finished = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            loop {
-                let ExExEvent::FinishedHeight(height) =
-                    handle.events_rx.recv().await.expect("ExEx event channel closed");
-                if height.number >= 1 {
-                    return height;
-                }
-            }
-        })
-        .await
-        .expect("persisted blocks should be acknowledged");
-        assert_eq!(finished, NumHash::new(5, hash_for_num(5)));
-
-        run.abort();
-        let _ = run.await;
     }
 
     #[tokio::test]

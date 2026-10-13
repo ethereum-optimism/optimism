@@ -8,10 +8,7 @@ use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN
 use reth_db::Database;
 use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::{Block, BlockBody, Receipt, Transaction, TransactionSigned};
-use reth_evm::{
-    ConfigureEvm,
-    execute::{BlockExecutionOutput, Executor},
-};
+use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
@@ -22,10 +19,10 @@ use reth_optimism_trie::{
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
-    BlockWriter as _, CanonChainTracker, ExecutionOutcome, HashedPostStateProvider,
-    LatestStateProviderRef, ProviderFactory, StateRootProvider, StorageSettingsCache,
+    BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
+    ProviderFactory, StateRootProvider, StorageSettingsCache,
     providers::{BlockchainProvider, ProviderNodeTypes},
-    test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
+    test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, rand::rng};
@@ -635,21 +632,14 @@ where
     run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
 }
 
-/// Block 1 deploys a contract and block 2 calls it. The proofs engine has executed block 1 and
-/// reth has committed it; block 2 is built with its correct state root but not executed or
-/// committed.
-struct DeployAndCall {
-    factory: ProviderFactory<MockNodeTypesWithDB>,
-    blockchain: BlockchainProvider<MockNodeTypesWithDB>,
-    storage: OpProofsStorage<Arc<MdbxProofsStorage>>,
-    engine: EngineHandle<Block>,
-    code_hash: B256,
-    parent: RecoveredBlock<Block>,
-    child: RecoveredBlock<Block>,
-    child_output: BlockExecutionOutput<Receipt>,
-}
+/// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the
+/// parent-state provider. The parent deploys a contract; its child executes the deployed code.
+#[test]
+#[serial]
+fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
+    use reth_db::{tables, transaction::DbTxMut};
+    use reth_provider::StateProviderFactory;
 
-fn deploy_and_call() -> eyre::Result<DeployAndCall> {
     let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
     let contract = sender.create(0);
@@ -693,10 +683,8 @@ fn deploy_and_call() -> eyre::Result<DeployAndCall> {
         &mut nonce,
     );
     let output = execute_block(&mut parent, &factory, &chain_spec)?;
-    let code_hash = output.state.account(&contract).unwrap().info.as_ref().unwrap().code_hash;
     engine.execute_block(&parent)?;
     commit_block_to_database(&parent, &output, &factory)?;
-    blockchain.set_canonical_head(parent.clone_sealed_header());
 
     let call = BlockSpec::new(vec![TxSpec {
         to: TxKind::Call(contract),
@@ -707,34 +695,11 @@ fn deploy_and_call() -> eyre::Result<DeployAndCall> {
     }]);
     let mut child =
         create_block_from_spec(&call, 2, parent.hash(), &chain_spec, key_pair, &mut nonce);
-    let child_output = execute_block(&mut child, &factory, &chain_spec)?;
+    let output = execute_block(&mut child, &factory, &chain_spec)?;
     assert_eq!(
-        child_output.state.account(&contract).unwrap().storage_slot(U256::ZERO),
+        output.state.account(&contract).unwrap().storage_slot(U256::ZERO),
         Some(U256::from(1))
     );
-
-    Ok(DeployAndCall {
-        factory,
-        blockchain,
-        storage,
-        engine,
-        code_hash,
-        parent,
-        child,
-        child_output,
-    })
-}
-
-/// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the
-/// parent-state provider. The parent deploys a contract; its child executes the deployed code.
-#[test]
-#[serial]
-fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
-    use reth_db::{tables, transaction::DbTxMut};
-    use reth_provider::StateProviderFactory;
-
-    let DeployAndCall { factory, blockchain, storage, engine, parent, child, .. } =
-        deploy_and_call()?;
 
     // Model the unavailable-parent failure without deleting the bytecode or proofs state.
     let rw = factory.provider_rw()?;
@@ -748,122 +713,5 @@ fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
     engine.execute_block(&child)?;
     engine.flush();
     assert_eq!(storage.provider_ro()?.get_latest_block()?.number, 2);
-    Ok(())
-}
-
-/// Waits until the engine has stopped, which makes every later call fail with `EngineDied`.
-fn wait_for_engine_stop(engine: &EngineHandle<Block>) {
-    use std::time::{Duration, Instant};
-
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while !matches!(engine.sync_to(0), Err(EngineError::EngineDied)) {
-        assert!(Instant::now() < deadline, "the engine kept running");
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
-
-/// A block on reth's canonical chain that fails in the sync loop fails the same way on every
-/// attempt, so the engine stops instead of retrying. Missing bytecode stands in for the failure.
-#[test]
-#[serial]
-fn sync_loop_stops_when_a_canonical_block_fails() -> eyre::Result<()> {
-    use reth_db::{tables, transaction::DbTxMut};
-
-    let DeployAndCall {
-        factory, blockchain, storage, engine, code_hash, child, child_output, ..
-    } = deploy_and_call()?;
-    commit_block_to_database(&child, &child_output, &factory)?;
-    blockchain.set_canonical_head(child.clone_sealed_header());
-    let rw = factory.provider_rw()?;
-    rw.tx_ref().delete::<tables::Bytecodes>(code_hash, None)?;
-    rw.commit()?;
-
-    engine.sync_to(child.number())?;
-    wait_for_engine_stop(&engine);
-    assert_eq!(storage.provider_ro()?.get_latest_block()?.number, 1);
-    Ok(())
-}
-
-/// When reth's next block doesn't build on the proofs tip, the sync loop waits for an action to
-/// move the tip instead of failing, then syncs reth's chain.
-#[test]
-#[serial]
-fn sync_loop_waits_when_the_proofs_tip_is_off_reths_chain() -> eyre::Result<()> {
-    use alloy_eips::{NumHash, eip1898::BlockWithParent};
-    use std::time::{Duration, Instant};
-
-    let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
-    let sender = public_key_to_address(key_pair.public_key());
-    let chain_spec = chain_spec_with_address(sender);
-    let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
-    init_genesis(&factory)?;
-    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = create_mdbx_proofs_storage().into();
-    {
-        let tx = factory.db_ref().tx()?;
-        InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Legacy)
-            .run(0, chain_spec.genesis_hash())?;
-    }
-    let blockchain = BlockchainProvider::new(factory.clone())?;
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain.clone(), 1000);
-    let engine = EngineHandle::spawn_with_thresholds(
-        EthEvmConfig::ethereum(chain_spec.clone()),
-        blockchain.clone(),
-        storage.clone(),
-        pruner,
-        1,
-        2,
-    );
-
-    // The proofs engine executes block 1 from a fork reth never adopts.
-    let transfer =
-        |to: u8| BlockSpec::new(vec![TxSpec::transfer(Address::repeat_byte(to), U256::from(1))]);
-    let mut fork = create_block_from_spec(
-        &transfer(1),
-        1,
-        chain_spec.genesis_hash(),
-        &chain_spec,
-        key_pair,
-        &mut 0,
-    );
-    execute_block(&mut fork, &factory, &chain_spec)?;
-    engine.execute_block(&fork)?;
-
-    // reth's chain has a different block 1 and a block 2 on top of it.
-    let mut nonce = 0;
-    let mut parent = None;
-    for number in 1..=2 {
-        let parent_hash = parent
-            .as_ref()
-            .map_or_else(|| chain_spec.genesis_hash(), |b: &RecoveredBlock<Block>| b.hash());
-        let mut block = create_block_from_spec(
-            &transfer(2),
-            number,
-            parent_hash,
-            &chain_spec,
-            key_pair,
-            &mut nonce,
-        );
-        let output = execute_block(&mut block, &factory, &chain_spec)?;
-        commit_block_to_database(&block, &output, &factory)?;
-        blockchain.set_canonical_head(block.clone_sealed_header());
-        parent = Some(block);
-    }
-    let reth_tip = parent.expect("reth block 2");
-
-    engine.sync_to(2)?;
-    std::thread::sleep(Duration::from_millis(300));
-    engine.flush();
-    assert_eq!(storage.provider_ro()?.get_latest_block()?.hash, fork.hash());
-
-    // Unwinding the fork moves the tip, so the sync loop resumes on reth's chain. The unwind also
-    // lowers the sync target, as a reorg notification does before its new blocks.
-    engine.unwind(BlockWithParent::new(chain_spec.genesis_hash(), NumHash::new(1, fork.hash())))?;
-    engine.sync_to(2)?;
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while storage.provider_ro()?.get_latest_block()?.hash != reth_tip.hash() {
-        assert!(Instant::now() < deadline, "the sync loop did not resume");
-        std::thread::sleep(Duration::from_millis(50));
-        engine.flush();
-    }
     Ok(())
 }

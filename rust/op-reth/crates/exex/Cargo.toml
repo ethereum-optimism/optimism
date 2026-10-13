@@ -30,7 +30,6 @@ alloy-eips.workspace = true
 # misc
 eyre.workspace = true
 futures-util.workspace = true
-tokio = { workspace = true, features = ["macros", "sync"] }
 tracing.workspace = true
 
 [dev-dependencies]
@@ -38,7 +37,7 @@ futures.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-optimism-trie = { workspace = true, features = ["test-utils"] }
 reth-node-builder.workspace = true
-tokio = { workspace = true, features = ["time"] }
+tokio.workspace = true
 reth-optimism-node.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-primitives-traits.workspace = true

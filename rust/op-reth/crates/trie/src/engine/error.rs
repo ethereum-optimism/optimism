@@ -10,6 +10,9 @@ use thiserror::Error;
 /// Errors produced by the live trie engine.
 #[derive(Debug, Error)]
 pub enum EngineError {
+    /// Block was not found in the provider during sync catch-up.
+    #[error("Block {0} not found in provider")]
+    BlockNotFound(u64),
     /// Reth has pruned the block body, so we cannot recompute its state delta.
     ///
     /// Detected when `recovered_block` returns a block whose header advertises a non-empty
@@ -67,76 +70,4 @@ pub enum EngineError {
     /// A storage-layer error propagated from the underlying store.
     #[error(transparent)]
     Storage(#[from] OpProofsStorageError),
-}
-
-impl EngineError {
-    /// Returns whether executing the block again may succeed.
-    ///
-    /// Execution reads bytecode and block hashes from reth. If reth has left the block's fork,
-    /// those reads can come from another chain and execution fails; the sync loop then retries
-    /// with reth's canonical block at that height. Storage, persistence, and provider errors are
-    /// not retryable, including a provider error raised while the EVM reads state.
-    pub fn is_retryable(&self) -> bool {
-        match self {
-            Self::StateRootMismatch { .. } => true,
-            Self::Execution(err) => !is_provider_failure(err),
-            _ => false,
-        }
-    }
-}
-
-/// Returns whether `err` wraps a [`ProviderError`] raised while executing the block.
-///
-/// The EVM reports database failures as internal errors whose payload is not exposed as a
-/// `source`, so the walk starts from the payload.
-fn is_provider_failure(err: &BlockExecutionError) -> bool {
-    let Some(internal) = err.as_internal() else { return false };
-    let Some(payload) = internal.as_evm().map(|(_, err)| err).or_else(|| internal.as_other())
-    else {
-        return false;
-    };
-    let payload: &(dyn core::error::Error + 'static) = payload;
-    core::iter::successors(Some(payload), |err| err.source()).any(|err| err.is::<ProviderError>())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy_primitives::B256;
-    use reth_revm::revm::context::result::{EVMError, InvalidTransaction};
-
-    #[test]
-    fn provider_failures_during_execution_are_not_retryable() {
-        let database = EVMError::<ProviderError, InvalidTransaction>::Database(
-            ProviderError::StateForHashNotFound(B256::ZERO),
-        );
-        let err = EngineError::Execution(BlockExecutionError::evm(database, B256::ZERO));
-        assert!(!err.is_retryable(), "{err}");
-
-        let other = EngineError::Execution(BlockExecutionError::other(
-            ProviderError::StateForHashNotFound(B256::ZERO),
-        ));
-        assert!(!other.is_retryable(), "{other}");
-    }
-
-    #[test]
-    fn execution_and_state_root_failures_are_retryable() {
-        let invalid_tx = EVMError::<ProviderError, InvalidTransaction>::Transaction(
-            InvalidTransaction::NonceTooHigh { tx: 5, state: 1 },
-        );
-        assert!(
-            EngineError::Execution(BlockExecutionError::evm(invalid_tx, B256::ZERO)).is_retryable()
-        );
-        assert!(
-            EngineError::StateRootMismatch {
-                block_number: 1,
-                current_state_hash: B256::ZERO,
-                expected_state_hash: B256::ZERO,
-            }
-            .is_retryable()
-        );
-        assert!(
-            !EngineError::Provider(ProviderError::StateForHashNotFound(B256::ZERO)).is_retryable()
-        );
-    }
 }
