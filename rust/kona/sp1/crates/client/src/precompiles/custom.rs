@@ -1,9 +1,15 @@
-//! Custom crypto provider for KZG proof verification.
+//! Custom crypto provider: KZG proof verification (kzg-rs) and EIP-2537 BLS12-381 operations
+//! (`sp1_bls12_381`), both SP1-accelerated in the zkVM.
 
 use kzg_rs::{Bytes32, Bytes48, KzgProof, KzgSettings};
-use revm::precompile::{Crypto, PrecompileHalt};
+use revm::precompile::{
+    Crypto, PrecompileHalt,
+    bls12_381::{G1Point, G1PointScalar, G2Point, G2PointScalar},
+};
 
-/// Custom cryptography provider using kzg-rs for KZG proof verification.
+use super::bls12_381;
+
+/// SP1-accelerated [`Crypto`] provider (see module docs).
 #[derive(Debug)]
 pub struct CustomCrypto {
     kzg_settings: KzgSettings,
@@ -34,6 +40,76 @@ impl Crypto for CustomCrypto {
             Ok(true) => Ok(()),
             Ok(false) | Err(_) => Err(PrecompileHalt::BlobVerifyKzgProofFailed),
         }
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_g1_add`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::p1_add_affine_bytes` bit for bit, errors
+    /// included.
+    fn bls12_381_g1_add(&self, a: G1Point, b: G1Point) -> Result<[u8; 96], PrecompileHalt> {
+        bls12_381::g1_add(a, b)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_g1_msm`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::p1_msm_bytes` bit for bit, errors included.
+    fn bls12_381_g1_msm(
+        &self,
+        pairs: &mut dyn Iterator<Item = Result<G1PointScalar, PrecompileHalt>>,
+    ) -> Result<[u8; 96], PrecompileHalt> {
+        bls12_381::g1_msm(pairs)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_g2_add`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::p2_add_affine_bytes` bit for bit, errors
+    /// included.
+    fn bls12_381_g2_add(&self, a: G2Point, b: G2Point) -> Result<[u8; 192], PrecompileHalt> {
+        bls12_381::g2_add(a, b)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_g2_msm`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::p2_msm_bytes` bit for bit, errors included.
+    fn bls12_381_g2_msm(
+        &self,
+        pairs: &mut dyn Iterator<Item = Result<G2PointScalar, PrecompileHalt>>,
+    ) -> Result<[u8; 192], PrecompileHalt> {
+        bls12_381::g2_msm(pairs)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_pairing_check`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::pairing_check_bytes` (via
+    /// `pairing_common::pairing_check_bytes_generic`) bit for bit, errors included.
+    fn bls12_381_pairing_check(
+        &self,
+        pairs: &[(G1Point, G2Point)],
+    ) -> Result<bool, PrecompileHalt> {
+        bls12_381::pairing_check(pairs)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_fp_to_g1`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::map_fp_to_g1_bytes` bit for bit, errors
+    /// included.
+    fn bls12_381_fp_to_g1(&self, fp: &[u8; 48]) -> Result<[u8; 96], PrecompileHalt> {
+        bls12_381::map_fp_to_g1(fp)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-precompile@42.0.1
+    /// `revm_precompile::interface::Crypto::bls12_381_fp2_to_g2`
+    ///
+    /// Must equal the default's `bls12_381::arkworks::map_fp2_to_g2_bytes` bit for bit, errors
+    /// included.
+    fn bls12_381_fp2_to_g2(&self, fp2: ([u8; 48], [u8; 48])) -> Result<[u8; 192], PrecompileHalt> {
+        bls12_381::map_fp2_to_g2(&fp2.0, &fp2.1)
     }
 }
 

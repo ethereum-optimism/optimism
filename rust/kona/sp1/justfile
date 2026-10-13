@@ -40,8 +40,22 @@ build-super-aggregation-elf:
 install-sp1-toolchain:
     cargo prove install-toolchain
 
+# Build the test-only EIP-2537 BLS12-381 zkVM check guest into elf/ (not part of build-elfs).
+build-bls12-381-check-elf:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export KONA_SP1_GIT_SHA="$(just _git-sha)"
+    just _build-elf bls12-381-check native "" tests/bls12-381-check
+
+# Execute elf/bls12-381-check-elf in SP1's CPU executor and print per-op cycle counts.
+run-bls12-381-check:
+    cd ../.. && KONA_SP1_ELF_DIR="{{justfile_directory()}}/elf" cargo run --release --locked -p kona-sp1-bls12-381-check --example zkvm_check
+
+# Build + run the BLS12-381 zkVM differential check (requires `just install-sp1-toolchain`).
+check-bls12-381-zkvm: build-bls12-381-check-elf run-bls12-381-check
+
 [private]
-_build-elf NAME MODE features="":
+_build-elf NAME MODE features="" DIR="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -77,8 +91,8 @@ _build-elf NAME MODE features="":
       fi
     fi
 
-    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so both guests
-    # carry the same one; see crates/build-info/build.rs for the two channels.
+    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so the production
+    # guests carry the same one; see crates/build-info/build.rs for the two channels.
     : "${KONA_SP1_GIT_SHA:?resolve it via build-elfs or build-elfs-native}"
     export KONA_SP1_GIT_SHA
 
@@ -105,7 +119,8 @@ _build-elf NAME MODE features="":
       args+=(--features "{{features}}")
     fi
 
-    cd "{{justfile_directory()}}/programs/{{NAME}}"
+    program_dir="{{DIR}}"
+    cd "{{justfile_directory()}}/programs/${program_dir:-{{NAME}}}"
     cargo prove build "${args[@]}"
 
     # Nothing fails at compile time if the marker literal is dropped or an injection channel
@@ -120,7 +135,8 @@ _build-elf NAME MODE features="":
       exit 1
     fi
 
-# Commit recorded in the guest build marker. Resolved once per build so both guests agree.
+# Commit recorded in the guest build marker. Resolved once per build so the guests built together
+# agree.
 # `-custom` marks a KONA_CUSTOM_CONFIGS_DIR build: those compile chain configs from outside the
 # repo into the guest, so the commit alone does not describe the artifact.
 [private]

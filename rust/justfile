@@ -316,6 +316,10 @@ check-sp1-guest-precompile-patches:
   # The aggregation guest verifies proofs but does not execute L2 EVM precompiles.
   verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
 
+  # The test-only BLS12-381 check guest must resolve the same SP1 crypto patches as
+  # production, so the zkVM check exercises the accelerated paths that ship.
+  verify_program_patches kona-sp1-bls12-381-check-guest "${common_patches[@]}" "substrate-bn bn"
+
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.
 # Refresh the SP1 guest Cargo.lock after changing kona crates it depends on
