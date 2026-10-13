@@ -100,7 +100,7 @@ impl NodeCommand {
 
     /// Initializes CLI metrics for the Node subcommand.
     pub fn init_cli_metrics(&self) -> anyhow::Result<()> {
-        if !self.metrics.enabled {
+        if !self.metrics.is_enabled() {
             debug!("CLI metrics are disabled");
             return Ok(());
         }
@@ -191,7 +191,7 @@ impl NodeCommand {
         );
 
         // If metrics are enabled, initialize the global cli metrics.
-        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.chain.rollup_config));
+        self.metrics.is_enabled().then(|| init_rollup_config_metrics(&config.chain.rollup_config));
 
         let clients = RollupNodeClients::connect(&endpoints)?;
         let Err(error) = RollupNode::new(config, clients).start().await else {

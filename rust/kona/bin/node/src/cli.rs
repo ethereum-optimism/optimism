@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(node.log_args.level, 4);
         assert_eq!(node.chain.l2_chain_id.unwrap().id(), 8453);
         assert_eq!(node.chain.overrides.karst_override, Some(123));
-        assert!(node.metrics.enabled);
+        assert!(node.metrics.is_enabled());
 
         // The flags belong to the node subcommand, so they cannot precede it.
         let err = Cli::try_parse_from(
