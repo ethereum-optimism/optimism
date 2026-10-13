@@ -76,7 +76,7 @@ func TestPostMessageExpiryContracts(gt *testing.T) {
 		bridge := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(client),
 			bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
 		_, err = contractio.Read(bridge.RefundETH(eth.ChainIDFromUInt64(1), common.Big0, common.Address{1},
-			common.Address{1}, common.Big0), t.Ctx())
+			common.Big0), t.Ctx())
 		require.ErrorContains(errutil.TryAddRevertReason(err),
 			hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "the bridge must have refundETH")
 	})
