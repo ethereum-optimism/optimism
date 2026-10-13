@@ -1568,6 +1568,83 @@ mod tests {
         assert_eq!(account.info.balance, expected_refund);
     }
 
+    /// Regression test for #23213: RPC-built transactions (e.g. `eth_simulateV1`)
+    /// carry an empty enveloped transaction, so no operator fee was charged up
+    /// front while `operator_fee_refund` still refunded the unused portion —
+    /// the sender gained ETH for a fee it never paid, and later calls in the
+    /// same simulation saw the inflated balance.
+    ///
+    /// The operator fee is gas-based, so the simulation path charges it up
+    /// front exactly like block execution charges a real enveloped
+    /// transaction, and the refund then only hands back the unused portion of
+    /// what was actually charged: the sender ends up paying the operator fee
+    /// for the gas it used, and nothing more.
+    #[test]
+    fn test_operator_fee_charged_for_empty_enveloped_tx() {
+        const SENDER: Address = Address::ZERO;
+        const GAS_LIMIT: u64 = 100_000;
+        const GAS_USED: u64 = 21_000;
+        // Isthmus operator fee formula: `gas * scalar / 1e6 + constant`.
+        let fee = |gas: u64| {
+            U256::from(gas) * U256::from(10_000_000) / U256::from(1_000_000) + U256::from(50)
+        };
+
+        let initial = U256::from(10_000_000);
+        let mut db = InMemoryDB::default();
+        db.insert_account_info(SENDER, AccountInfo { balance: initial, ..Default::default() });
+
+        let ctx = Context::op()
+            .with_db(db)
+            .with_chain(L1BlockInfo {
+                operator_fee_scalar: Some(U256::from(10_000_000)),
+                operator_fee_constant: Some(U256::from(50)),
+                l2_block: Some(U256::from(0)),
+                ..Default::default()
+            })
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::ISTHMUS))
+            .with_tx(
+                OpTransaction::builder()
+                    .base(
+                        TxEnv::builder()
+                            .gas_limit(GAS_LIMIT)
+                            .gas_price(0)
+                            .gas_priority_fee(None)
+                            .caller(SENDER),
+                    )
+                    // What op-reth's `OpTxEnvConverter` sets for RPC requests.
+                    .enveloped_tx(Some(Bytes::new()))
+                    .build_fill(),
+            );
+
+        let mut evm = ctx.build_op();
+        let handler =
+            OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
+
+        // Charge: the full operator fee for the gas limit is deducted up front,
+        // as it is for a real enveloped transaction.
+        handler
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
+            .unwrap();
+        let after_charge = evm.ctx().journal_mut().load_account(SENDER).unwrap().info.balance;
+        assert_eq!(after_charge, initial - fee(GAS_LIMIT));
+
+        // Refund after spending `GAS_USED` of the gas limit: only the unused
+        // portion of the charged fee comes back.
+        let mut gas = Gas::new(GAS_LIMIT);
+        gas.set_spent(GAS_USED);
+        let mut exec_result = FrameResult::Call(CallOutcome::new(
+            InterpreterResult {
+                result: InstructionResult::Return,
+                output: Default::default(),
+                gas,
+            },
+            0..0,
+        ));
+        handler.reimburse_caller(&mut evm, &mut exec_result).unwrap();
+        let after_refund = evm.ctx().journal_mut().load_account(SENDER).unwrap().info.balance;
+        assert_eq!(after_refund, initial - fee(GAS_USED));
+    }
+
     #[test]
     fn test_tx_low_balance_nonce_unchanged() {
         let ctx = Context::op().with_tx(
