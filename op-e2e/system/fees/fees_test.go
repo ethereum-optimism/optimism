@@ -124,7 +124,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif)
 	require.NoError(t, err)
 
-	config := sys.L2Genesis().Config
+	config := sys.L2Genesis().Config.GethChainConfig()
 
 	sga := &stateGetterAdapter{
 		ctx:    context.Background(),

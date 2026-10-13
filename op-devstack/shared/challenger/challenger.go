@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -59,7 +60,7 @@ const DummyPermissionedPrestate = "0x0000000000000000000000000000000000000000000
 // without depending on the legacy fault-proof program binary. The server defaults to the cannon VM
 // binary, which is never executed for the Cannon VM config — output games use cannon-kona and
 // permissioned games resolve without reaching step().
-func applyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+func applyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -75,7 +76,7 @@ func applyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesi
 // type. The VM binary and oracle server are required by the challenger config validation but are
 // never invoked for permissioned games, so the cannon binary doubles as the (unused) server and
 // the absolute prestate is a dummy value.
-func applyPermissionedCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+func applyPermissionedCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis) error {
 	if err := applyCannonVMConfig(c, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
@@ -96,7 +97,7 @@ func LocateKonaHost(ctx context.Context) (string, error) {
 	return bin, nil
 }
 
-func applyCannonKonaConfig(ctx context.Context, c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, interop bool) error {
+func applyCannonKonaConfig(ctx context.Context, c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis, interop bool) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -117,7 +118,7 @@ func applyCannonKonaConfig(ctx context.Context, c *config.Config, rollupCfgs []*
 	return nil
 }
 
-func applyVmConfig(root string, c *vm.Config, dataDir string, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+func applyVmConfig(root string, c *vm.Config, dataDir string, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis) error {
 	c.VmBin = root + "cannon/bin/cannon"
 	c.SnapshotFreq = 10_000_000
 
@@ -177,19 +178,19 @@ func WithSuperRootRPC(endpoint string) Option {
 // WithPermissionedCannonConfig wires the Cannon VM config used by the PermissionedCannon game
 // type. The legacy fault-proof program is no longer referenced — the prestate is a dummy and the
 // server is unused.
-func WithPermissionedCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
+func WithPermissionedCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis) Option {
 	return func(_ context.Context, c *config.Config) error {
 		return applyPermissionedCannonConfig(c, rollupCfgs, l1Genesis, l2Geneses)
 	}
 }
 
-func WithCannonKonaConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
+func WithCannonKonaConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis) Option {
 	return func(ctx context.Context, c *config.Config) error {
 		return applyCannonKonaConfig(ctx, c, rollupCfgs, l1Genesis, l2Geneses, false)
 	}
 }
 
-func WithCannonKonaInteropConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
+func WithCannonKonaInteropConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*opgenesis.Genesis) Option {
 	return func(ctx context.Context, c *config.Config) error {
 		return applyCannonKonaConfig(ctx, c, rollupCfgs, l1Genesis, l2Geneses, true)
 	}

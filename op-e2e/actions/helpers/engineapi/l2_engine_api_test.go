@@ -191,7 +191,7 @@ func createGenesisWithIsthmusTimeOffset(forkTimeOffset uint64) *core.Genesis {
 		panic(err)
 	}
 
-	return l2Genesis
+	return l2Genesis.GethGenesis()
 }
 
 type stubCachingBackend struct {
