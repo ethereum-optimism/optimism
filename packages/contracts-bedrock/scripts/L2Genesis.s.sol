@@ -75,6 +75,7 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
+        uint256 l2ToL2MessageExpiryPeriod;
     }
 
     using ForkUtils for Fork;
@@ -132,6 +133,7 @@ contract L2Genesis is Script {
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
         );
+        require(_input.l2ToL2MessageExpiryPeriod == 0, "L2Genesis: expiry period override unsupported");
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);

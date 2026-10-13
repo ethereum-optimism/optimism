@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -34,6 +35,10 @@ type l2GenesisOverrides struct {
 	OperatorFeeVaultWithdrawalNetwork        genesis.WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
+	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
+	// seconds. Zero keeps the production period. Test networks only; any later upgrade resets the
+	// period to 8 days.
+	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
 }
 
 type cgtConfig struct {
@@ -91,6 +96,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 
 	cgt := buildCGTConfig(thisIntent)
 
+	if err := checkL2ToL2MessageExpiryPeriodOverride(intent.ConfigType, intent.L1ChainID, overrides.L2ToL2MessageExpiryPeriod); err != nil {
+		return err
+	}
+
 	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
 
 	if err != nil {
@@ -128,6 +137,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
+		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -251,4 +261,19 @@ func defaultOverrides() l2GenesisOverrides {
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
 	}
+}
+
+// checkL2ToL2MessageExpiryPeriodOverride refuses an expiry period override for standard intents
+// and on public L1s.
+func checkL2ToL2MessageExpiryPeriodOverride(configType state.IntentType, l1ChainID uint64, period uint64) error {
+	if period == 0 {
+		return nil
+	}
+	if configType == state.IntentTypeStandard || configType == state.IntentTypeStandardOverrides {
+		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for %s intents", period, configType)
+	}
+	if eth.L1ChainConfigByChainID(eth.ChainIDFromUInt64(l1ChainID)) != nil {
+		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for chains on public L1 %d", period, l1ChainID)
+	}
+	return nil
 }
