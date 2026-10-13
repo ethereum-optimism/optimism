@@ -112,7 +112,7 @@ jobs:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      # No cache save: downloads no crates (index/advisory DB only).
+      # No cache save: downloads no crates (index only).
       # rust-deny only runs on develop (see workflow filter); on failure, ping
       # @protocol-oncall in Slack since it gates post-merge, not the PR.
       - notify-failures-on-develop:
@@ -983,8 +983,9 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
-          # cargo-deny (advisory/license/ban audit) only gates develop, not
-          # PRs/branches. It is intentionally not part of required-rust-ci.
+          # cargo-deny (license/ban/source audit; advisories are tracked via image
+          # scanning) only gates develop, not PRs/branches. It is intentionally not
+          # part of required-rust-ci.
           filters:
             branches:
               only: develop
