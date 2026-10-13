@@ -41,6 +41,9 @@ const DEFAULT_VERIFICATION_INTERVAL: u64 = 0;
 /// asynchronously by the engine.
 const REAL_TIME_BLOCKS_THRESHOLD: u64 = 64;
 
+/// Command that (re-)initializes the proofs storage.
+const PROOFS_INIT_COMMAND: &str = "op-reth proofs init --proofs-history.storage-path <PATH>";
+
 /// Builder for [`OpProofsExEx`].
 #[derive(Debug)]
 pub struct OpProofsExExBuilder<Node, Storage>
@@ -203,8 +206,8 @@ where
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
-        self.ensure_initialized()?;
-        self.reconcile_with_canonical_chain()?;
+        let window = self.ensure_initialized()?;
+        self.reconcile_with_canonical_chain(window)?;
 
         let pruner = OpProofStoragePruner::new(
             self.storage.clone(),
@@ -228,13 +231,13 @@ where
         Ok(())
     }
 
-    /// Ensure proofs storage is initialized
-    fn ensure_initialized(&self) -> eyre::Result<()> {
+    /// Ensure proofs storage is initialized, and return its proof window.
+    fn ensure_initialized(&self) -> eyre::Result<ProofWindowRange> {
         // Check if proofs storage is initialized. An empty proof window returns NoBlocksFound;
         let provider_ro = self.storage.provider_ro()?;
-        let window = provider_ro.get_proof_window().map_err(|_| eyre::eyre!(
-            "Proofs storage not initialized. Please run 'op-reth proofs init --proofs-history.storage-path <PATH>' first."
-        ))?;
+        let window = provider_ro.get_proof_window().map_err(|_| {
+            eyre::eyre!("Proofs storage not initialized. Please run '{PROOFS_INIT_COMMAND}' first.")
+        })?;
         let earliest_block_number = window.earliest.number;
         let latest_block_number = window.latest.number;
 
@@ -255,7 +258,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(window)
     }
 
     /// Unwinds the proofs storage to the highest stored block that is on reth's canonical chain.
@@ -267,11 +270,10 @@ where
     ///
     /// Returns an error if reth's best block is below the proofs window, or if no block of the
     /// window is on reth's canonical chain.
-    fn reconcile_with_canonical_chain(&self) -> eyre::Result<()> {
+    fn reconcile_with_canonical_chain(&self, window: ProofWindowRange) -> eyre::Result<()> {
+        let ProofWindowRange { earliest, latest } = window;
         let provider = self.ctx.provider();
         let best_block = provider.best_block_number()?;
-        let storage_provider = self.storage.provider_ro()?;
-        let ProofWindowRange { earliest, latest } = storage_provider.get_proof_window()?;
 
         if latest.number <= best_block && provider.block_hash(latest.number)? == Some(latest.hash) {
             return Ok(());
@@ -280,8 +282,7 @@ where
         if earliest.number > best_block {
             return Err(eyre::eyre!(
                 "Proofs storage starts at block {} but reth's best block is {best_block}. \
-                 Please re-initialize it with \
-                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                 Please re-initialize it with '{PROOFS_INIT_COMMAND}'.",
                 earliest.number,
             ));
         }
@@ -291,7 +292,7 @@ where
             return Err(eyre::eyre!(
                 "Proofs storage (blocks {}..={}, tip {}) shares no block with reth's canonical \
                  chain (best block {best_block}). Please re-initialize it with \
-                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                 '{PROOFS_INIT_COMMAND}'.",
                 earliest.number,
                 latest.number,
                 latest.hash,
@@ -300,6 +301,7 @@ where
 
         // The storage records block hashes only for the window bounds. Blocks in between are
         // matched by their state root instead, which pins the state proofs are served from.
+        let storage_provider = self.storage.provider_ro()?;
         let canonical_match = |number: u64| -> eyre::Result<Option<NumHash>> {
             let header = provider
                 .sealed_header(number)?
@@ -1428,7 +1430,7 @@ mod tests {
 
         let err = run_startup_error(ctx, store).await;
         assert!(err.to_string().contains("shares no block"), "{err:#}");
-        assert!(err.to_string().contains("op-reth proofs init"), "{err:#}");
+        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
     }
 
     async fn run_fails_with_proofs_window_above_reth_head<S: OpProofsStore + Clone + 'static>(
@@ -1442,7 +1444,7 @@ mod tests {
 
         let err = run_startup_error(ctx, store).await;
         assert!(err.to_string().contains("starts at block 5"), "{err:#}");
-        assert!(err.to_string().contains("op-reth proofs init"), "{err:#}");
+        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
     }
 
     #[tokio::test]
