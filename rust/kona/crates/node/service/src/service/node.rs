@@ -80,7 +80,8 @@ type DerivationTask = Pin<Box<dyn Future<Output = Result<(), derivation::ActorEr
 
 impl RollupNode {
     /// Creates the node from its configuration and the clients it talks to the L1 and L2 chains
-    /// with, usually [`RollupNodeClients::connect`]ed from the same configuration.
+    /// with, usually built by [`RollupNodeClients::connect`] from the node's
+    /// [`RollupNodeEndpoints`](crate::RollupNodeEndpoints).
     pub fn new(config: RollupNodeConfig, clients: RollupNodeClients) -> Self {
         // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
         // lookups are keyed by hash, so a reorged-out block is never returned regardless.
@@ -94,10 +95,10 @@ impl RollupNode {
         Self {
             version: config.version,
             config: config.rollup_config,
-            l1_chain_config: config.l1_client.chain_config,
+            l1_chain_config: config.l1_chain_config,
             clients,
             engine_client,
-            mode: config.engine_config.mode,
+            mode: config.mode,
             rpc_builder: config.rpc_config,
             p2p_config: config.p2p_config,
             sequencer_config: config.sequencer_config,

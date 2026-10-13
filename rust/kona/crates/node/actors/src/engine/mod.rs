@@ -3,9 +3,6 @@
 mod actor;
 pub use actor::Builder;
 
-mod config;
-pub use config::EngineConfig;
-
 mod error;
 pub use error::{
     ActorError, BuildTaskError, ConsolidateTaskError, EngineBuildError, EngineClientError,

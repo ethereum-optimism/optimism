@@ -158,11 +158,10 @@ drive each actor's `step` method in its own task.
 
 #### Programmatic Node Construction
 
-A [`RollupNodeConfig`][config] and the clients
-`RollupNodeClients::connect` builds from it make a standard node. You
-can pass your own `RollupNodeClients` to `RollupNode::new` instead, and
-for advanced use cases, you can build your own node by composing actors
-directly.
+A [`RollupNodeConfig`][config] and the clients `RollupNodeClients::connect`
+builds from a `RollupNodeEndpoints` make a standard node. You can pass your
+own `RollupNodeClients` to `RollupNode::new` instead, and for advanced use
+cases, you can build your own node by composing actors directly.
 
 #### Current Limitations
 

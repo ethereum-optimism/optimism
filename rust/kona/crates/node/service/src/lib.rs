@@ -11,18 +11,18 @@ extern crate tracing;
 
 mod service;
 pub use service::{
-    DerivationDelegateConfig, L1ClientConfig, NodeMode, RollupNode, RollupNodeClients,
-    RollupNodeClientsError, RollupNodeConfig,
+    NodeMode, RollupNode, RollupNodeClients, RollupNodeClientsError, RollupNodeConfig,
+    RollupNodeEndpoints,
 };
 
 pub use kona_node_actors::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider,
     DerivationDelegateClientError, DerivationDelegateProvider, EngineClientError,
-    EngineClientResult, EngineConfig, L1OriginSelector, L1OriginSelectorError,
-    L1OriginSelectorProvider, NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError,
-    NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    NodeActor, OriginSelector, RpcActor, RpcActorError, SequencerConfig, SequencerEngineClient,
-    derivation, engine, l1, l1_signer_updater, sequencer, signer,
+    EngineClientResult, L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider,
+    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
+    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor,
+    OriginSelector, RpcActor, RpcActorError, SequencerConfig, SequencerEngineClient, derivation,
+    engine, l1, l1_signer_updater, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

@@ -1,9 +1,6 @@
 //! Configs for the service's tests.
 
-use crate::{
-    DerivationDelegateConfig, EngineConfig, L1ClientConfig, NetworkConfig, NodeMode,
-    RollupNodeConfig, SequencerConfig,
-};
+use crate::{NetworkConfig, NodeMode, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig};
 use alloy_rpc_types_engine::JwtSecret;
 use kona_disc::LocalNode;
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -12,6 +9,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     sync::Arc,
 };
+use url::Url;
 
 /// A JWT secret for tests.
 pub(crate) const JWT_HEX: &str =
@@ -35,28 +33,27 @@ pub(crate) fn network_config(tcp_port: u16, udp_port: u16) -> NetworkConfig {
     config
 }
 
-/// A node config whose L1 and L2 endpoints nothing listens on, with the given P2P config.
-pub(crate) fn node_config(
-    p2p_config: NetworkConfig,
-    derivation_delegate_config: Option<DerivationDelegateConfig>,
-) -> RollupNodeConfig {
+/// A validator's node config with the given P2P config.
+pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
     RollupNodeConfig {
         version: "test".to_owned(),
         rollup_config: Arc::new(RollupConfig::default()),
-        l1_client: L1ClientConfig {
-            chain_config: Arc::new(L1ChainConfig::default()),
-            beacon: "http://127.0.0.1:1".parse().unwrap(),
-            rpc_url: "http://127.0.0.1:2".parse().unwrap(),
-        },
-        engine_config: EngineConfig {
-            l2_url: "http://127.0.0.1:3".parse().unwrap(),
-            l2_jwt_secret: JwtSecret::from_hex(JWT_HEX).unwrap(),
-            mode: NodeMode::Validator,
-        },
+        l1_chain_config: Arc::new(L1ChainConfig::default()),
+        mode: NodeMode::Validator,
         p2p_config,
         rpc_config: None,
         sequencer_config: SequencerConfig::default(),
-        derivation_delegate_config,
         dependency_set: None,
+    }
+}
+
+/// Endpoints nothing listens on, with the given derivation delegate.
+pub(crate) fn endpoints(derivation_delegate: Option<Url>) -> RollupNodeEndpoints {
+    RollupNodeEndpoints {
+        l1_rpc: "http://127.0.0.1:1".parse().unwrap(),
+        l1_beacon: "http://127.0.0.1:2".parse().unwrap(),
+        l2_engine: "http://127.0.0.1:3".parse().unwrap(),
+        l2_jwt_secret: JwtSecret::from_hex(JWT_HEX).unwrap(),
+        derivation_delegate,
     }
 }

@@ -14,7 +14,7 @@ use async_trait::async_trait;
 mod capacity;
 
 pub mod engine;
-pub use engine::{EngineClientError, EngineClientResult, EngineConfig};
+pub use engine::{EngineClientError, EngineClientResult};
 
 mod rpc;
 pub use rpc::{RpcActor, RpcActorError};

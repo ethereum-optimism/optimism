@@ -1,6 +1,5 @@
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Result, anyhow};
-use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
@@ -45,13 +44,6 @@ pub struct DerivationDelegateArgs {
     /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus`.
     #[arg(long, visible_alias = "l2.follow.source", env = "KONA_NODE_L2_FOLLOW_SOURCE")]
     pub l2_follow_source: Option<Url>,
-}
-
-impl DerivationDelegateArgs {
-    /// Builds the derivation delegate configuration if an L2 CL URL was provided.
-    pub fn config(self) -> Option<DerivationDelegateConfig> {
-        self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
-    }
 }
 
 #[cfg(test)]

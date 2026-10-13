@@ -103,7 +103,7 @@ mod tests {
     use super::*;
     use crate::{
         RollupNode, RollupNodeClients,
-        service::test_utils::{JWT_HEX, network_config, node_config},
+        service::test_utils::{JWT_HEX, endpoints, network_config, node_config},
     };
     use alloy_provider::RootProvider;
     use alloy_rpc_types_engine::JwtSecret;
@@ -144,8 +144,8 @@ mod tests {
         // anything waits on them.
         let taken = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = taken.local_addr().unwrap().port();
-        let config = node_config(network_config(port, 0), None);
-        let clients = RollupNodeClients::connect(&config).unwrap();
+        let config = node_config(network_config(port, 0));
+        let clients = RollupNodeClients::connect(&endpoints(None)).unwrap();
 
         let err = RollupNode::new(config, clients).start().await.unwrap_err();
 

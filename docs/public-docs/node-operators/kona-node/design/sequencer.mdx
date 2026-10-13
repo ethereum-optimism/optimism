@@ -24,7 +24,7 @@ The sequencer uses the same core derivation pipeline as validator nodes but oper
 
 ### `NodeMode`
 
-The node's operational mode is expressed by the `NodeMode` enum, carried on the node's `EngineConfig`:
+The node's operational mode is expressed by the `NodeMode` enum, the `mode` of the node's `RollupNodeConfig`:
 
 ```rust
 pub enum NodeMode {
@@ -61,10 +61,12 @@ pub struct SequencerConfig {
 
 ### Using the RollupNodeConfig
 
-To configure a Kona node programmatically for sequencer mode, set `NodeMode::Sequencer` on the `EngineConfig` and put a `SequencerConfig` in the `RollupNodeConfig`:
+To configure a Kona node programmatically for sequencer mode, set the `RollupNodeConfig`'s `mode` to `NodeMode::Sequencer` and give it a `SequencerConfig`:
 
 ```rust
-use kona_node_service::{NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, SequencerConfig};
+use kona_node_service::{
+    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig,
+};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
@@ -74,21 +76,28 @@ let sequencer_config = SequencerConfig {
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
-// engine_config carries `mode: NodeMode::Sequencer` along with the
-// L2 engine URL and JWT secret. A sequencer needs a block signer:
-// `p2p_config.gossip_signer` must be `Some`, or `start` fails.
+// A sequencer needs a block signer: `p2p_config.gossip_signer` must be
+// `Some`, or `start` fails.
 let config = RollupNodeConfig {
     version,
     rollup_config,
-    l1_client,
-    engine_config,
+    l1_chain_config,
+    mode: NodeMode::Sequencer,
     p2p_config,
     rpc_config,
     sequencer_config,
-    derivation_delegate_config: None,
     dependency_set: None,
 };
-let clients = RollupNodeClients::connect(&config)?;
+// Where the L1 and L2 endpoints are. Pass your own `RollupNodeClients`
+// to `RollupNode::new` instead to connect to them differently.
+let endpoints = RollupNodeEndpoints {
+    l1_rpc,
+    l1_beacon,
+    l2_engine,
+    l2_jwt_secret,
+    derivation_delegate: None,
+};
+let clients = RollupNodeClients::connect(&endpoints)?;
 RollupNode::new(config, clients).start().await?;
 ```
 

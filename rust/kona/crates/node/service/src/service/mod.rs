@@ -9,10 +9,10 @@ mod block_sink;
 pub(crate) use block_sink::BufferImportedBlocks;
 
 mod clients;
-pub use clients::{RollupNodeClients, RollupNodeClientsError};
+pub use clients::{RollupNodeClients, RollupNodeClientsError, RollupNodeEndpoints};
 
 mod config;
-pub use config::{DerivationDelegateConfig, L1ClientConfig, RollupNodeConfig};
+pub use config::RollupNodeConfig;
 
 mod middleware;
 

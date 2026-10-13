@@ -10,7 +10,7 @@ use crate::{
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_node_service::{
-    EngineConfig, L1ClientConfig, NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig,
+    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints,
 };
 use std::sync::Arc;
 use strum::IntoEnumIterator;
@@ -170,35 +170,34 @@ impl NodeCommand {
     /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
         let cfg = Arc::new(self.chain.rollup_config()?);
-
-        let l1_client = L1ClientConfig {
-            chain_config: Arc::new(self.chain.l1_config(cfg.l1_chain_id)?),
-            beacon: self.l1_rpc_args.l1_beacon.clone(),
-            rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
-        };
-
-        let engine_config = EngineConfig {
-            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: self.l2_client_args.jwt_secret()?,
-            mode: self.node_mode,
-        };
-
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
-            l1_client,
-            engine_config,
+            l1_chain_config: Arc::new(self.chain.l1_config(cfg.l1_chain_id)?),
+            mode: self.node_mode,
             p2p_config: self.p2p_flags.clone().config(&cfg)?,
             rpc_config: self.rpc_flags.clone().into(),
             sequencer_config: self.sequencer_flags.config(),
-            derivation_delegate_config: self.derivation_delegate_args.clone().config(),
             dependency_set: self.chain.dependency_set(&cfg)?,
             rollup_config: cfg,
+        })
+    }
+
+    /// Resolves the flags into the endpoints the node's clients connect to, reading the JWT
+    /// secret file.
+    pub fn endpoints(&self) -> anyhow::Result<RollupNodeEndpoints> {
+        Ok(RollupNodeEndpoints {
+            l1_rpc: self.l1_rpc_args.l1_eth_rpc.clone(),
+            l1_beacon: self.l1_rpc_args.l1_beacon.clone(),
+            l2_engine: self.l2_client_args.l2_engine_rpc.clone(),
+            l2_jwt_secret: self.l2_client_args.jwt_secret()?,
+            derivation_delegate: self.derivation_delegate_args.l2_follow_source.clone(),
         })
     }
 
     /// Run the Node subcommand.
     pub async fn run(self) -> anyhow::Result<()> {
         let config = self.config()?;
+        let endpoints = self.endpoints()?;
 
         info!(
             target: "rollup_node",
@@ -214,7 +213,7 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         self.metrics.enabled.then(|| init_rollup_config_metrics(&config.rollup_config));
 
-        let clients = RollupNodeClients::connect(&config)?;
+        let clients = RollupNodeClients::connect(&endpoints)?;
         RollupNode::new(config, clients).start().await.map_err(|e| {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
             anyhow::anyhow!("{e}")
@@ -321,19 +320,31 @@ mod tests {
         ]);
 
         let config = command.config().unwrap();
+        let endpoints = command.endpoints().unwrap();
 
         assert_eq!(config.rollup_config.l2_chain_id.id(), 10);
-        assert_eq!(config.l1_client.chain_config.chain_id, 1);
-        assert_eq!(config.l1_client.rpc_url.as_str(), "http://127.0.0.1:1/");
-        assert_eq!(config.l1_client.beacon.as_str(), "http://127.0.0.1:2/");
-        assert_eq!(config.engine_config.l2_url.as_str(), "http://127.0.0.1:3/");
-        assert_eq!(config.engine_config.l2_jwt_secret, JwtSecret::from_hex(JWT_HEX).unwrap());
-        assert_eq!(config.engine_config.mode, NodeMode::Sequencer);
+        assert_eq!(config.l1_chain_config.chain_id, 1);
+        assert_eq!(config.mode, NodeMode::Sequencer);
+        assert_eq!(endpoints.l1_rpc.as_str(), "http://127.0.0.1:1/");
+        assert_eq!(endpoints.l1_beacon.as_str(), "http://127.0.0.1:2/");
+        assert_eq!(endpoints.l2_engine.as_str(), "http://127.0.0.1:3/");
+        assert_eq!(endpoints.l2_jwt_secret, JwtSecret::from_hex(JWT_HEX).unwrap());
+        assert_eq!(endpoints.derivation_delegate, None);
         assert_eq!(
             config.sequencer_config.conductor_rpc_url,
             Some("http://127.0.0.1:4".parse().unwrap())
         );
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 10 }));
+    }
+
+    #[test]
+    fn test_endpoints_with_a_follow_source() {
+        let (command, _jwt) =
+            parse_node(&["--chain", "optimism", "--l2-follow-source", "http://127.0.0.1:5"]);
+
+        let endpoints = command.endpoints().unwrap();
+
+        assert_eq!(endpoints.derivation_delegate, Some("http://127.0.0.1:5".parse().unwrap()));
     }
 
     #[test]
@@ -358,7 +369,7 @@ mod tests {
         let config = command.config().unwrap();
 
         assert_eq!(config.rollup_config.l2_chain_id.id(), 901);
-        assert_eq!(config.l1_client.chain_config.chain_id, 900);
+        assert_eq!(config.l1_chain_config.chain_id, 900);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
         assert!(config.dependency_set.is_none());
     }

@@ -8,8 +8,9 @@ which encapsulates the core wiring for the node. A `RollupNode` is
 created from a [`RollupNodeConfig`][config], plain data saying what the
 node does, and a [`RollupNodeClients`][clients], the clients it talks to
 L1 and L2 with, which `RollupNodeClients::connect` builds from the
-config. Its [`start` method][start] handles connecting the different
-components of the node and running its actors in spawned tasks.
+[`RollupNodeEndpoints`][clients] saying where those are. Its
+[`start` method][start] handles connecting the different components of
+the node and running its actors in spawned tasks.
 
 Most actors are built with a builder that hands out the actor's handle
 before its dependencies exist, and expose a lifetime future that the
