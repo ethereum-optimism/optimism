@@ -5,7 +5,6 @@ use alloy_rpc_types_engine::JwtSecret;
 use kona_disc::LocalNode;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::{ChainDependency, DependencySet};
-use kona_rpc::RpcBuilder;
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{
     collections::BTreeMap,
@@ -50,11 +49,7 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
             }),
         },
         p2p_config,
-        rpc_config: RpcBuilder {
-            socket: (Ipv4Addr::LOCALHOST, 0).into(),
-            enable_admin: false,
-            admin_persistence: None,
-        },
+        rpc_addr: (Ipv4Addr::LOCALHOST, 0).into(),
         sequencer: None,
     }
 }

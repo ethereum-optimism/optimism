@@ -9,6 +9,8 @@ The `admin` api provides methods for controlling and monitoring Kona's consensus
 
 <Unreleased component="kona-node" />
 
+The RPC server always serves the `admin` api. Its methods can stop the sequencer and reset the node, so keep the RPC port off untrusted networks.
+
 ## `admin_postUnsafePayload`
 
 Queues an unsafe payload for the engine to insert. The payload is not gossiped. A payload whose block hash does not match its contents is rejected with an invalid params error.

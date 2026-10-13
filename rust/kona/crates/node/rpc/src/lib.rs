@@ -12,9 +12,6 @@ extern crate tracing;
 mod admin;
 pub use admin::{AdminRpc, SequencerAdminRpc};
 
-mod config;
-pub use config::RpcBuilder;
-
 mod p2p;
 pub use p2p::P2pRpc;
 

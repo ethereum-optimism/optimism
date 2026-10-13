@@ -1,7 +1,7 @@
 //! The configuration of a [`RollupNode`](crate::RollupNode).
 
 use crate::{ChainSpec, NetworkConfig, SequencerConfig};
-use kona_rpc::RpcBuilder;
+use std::net::SocketAddr;
 
 /// The configuration of a [`RollupNode`](crate::RollupNode): what the node does, as plain data.
 ///
@@ -15,12 +15,13 @@ pub struct RollupNodeConfig {
     pub chain: ChainSpec,
     /// The [`NetworkConfig`].
     pub p2p_config: NetworkConfig,
-    /// The RPC server's configuration.
-    pub rpc_config: RpcBuilder,
+    /// The address the RPC server listens on. It serves the admin API, so keep it off untrusted
+    /// networks.
+    pub rpc_addr: SocketAddr,
     /// The [`SequencerConfig`] of a node that can sequence; `None` for a node that only follows
     /// the chain.
     ///
     /// A node that can sequence starts with its sequencer stopped, and serves the sequencer's
-    /// admin RPC methods, such as `admin_startSequencer`, when the admin API is enabled.
+    /// admin RPC methods, such as `admin_startSequencer`.
     pub sequencer: Option<SequencerConfig>,
 }

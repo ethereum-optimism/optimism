@@ -89,18 +89,20 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 The RPC server starts once. If it stops unexpectedly, the node shuts down with an error.
 
+<Unreleased component="kona-node" />
+
+The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin), which can stop the sequencer and reset the node. Keep the RPC port off untrusted networks.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
 | `--rpc.port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
 
 ## Sequencer Arguments
 
 <Unreleased component="kona-node" />
 
-A node given a block signer, either `--sequencer.signer.key.path` or `--sequencer.signer.url` with `--sequencer.signer.address`, can sequence. Its sequencer starts stopped: enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production. A node without a block signer does not serve the sequencer's admin methods. Every other sequencer flag requires a block signer: the node refuses to start if one is given without it.
+A node given a block signer, either `--sequencer.signer.key.path` or `--sequencer.signer.url` with `--sequencer.signer.address`, can sequence. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without a block signer does not serve the sequencer's admin methods. Every other sequencer flag requires a block signer: the node refuses to start if one is given without it.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|

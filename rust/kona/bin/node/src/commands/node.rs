@@ -23,7 +23,7 @@ use tracing::{debug, error, info};
 ///
 /// A node given a block signer (`--sequencer.signer.key.path`, or `--sequencer.signer.url`
 /// with `--sequencer.signer.address`) can sequence. Its sequencer starts
-/// stopped; start it with `admin_startSequencer`, which `--rpc.enable-admin` serves. A node
+/// stopped; start it with `admin_startSequencer`. A node
 /// without a block signer follows the chain only.
 ///
 /// # Configuration Sources
@@ -155,7 +155,7 @@ impl NodeCommand {
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
             p2p_config: self.p2p_flags.clone().config(&chain.rollup_config)?,
-            rpc_config: self.rpc_flags.clone().into(),
+            rpc_addr: self.rpc_flags.addr(),
             sequencer: self.sequencer_flags.clone().config()?,
             chain,
         })

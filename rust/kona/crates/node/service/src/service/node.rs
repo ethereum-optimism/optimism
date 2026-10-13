@@ -26,9 +26,11 @@ use kona_providers_alloy::{
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
-    RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminApiServer, SequencerAdminRpc,
+    RollupNodeApiServer, RollupRpc, SequencerAdminApiServer, SequencerAdminRpc,
 };
-use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible, future::Future, net::SocketAddr, pin::Pin, sync::Arc, time::Duration,
+};
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -53,8 +55,8 @@ pub struct RollupNode {
     /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
     /// config.
     pub(crate) engine_client: Arc<EngineClient>,
-    /// The RPC server's configuration.
-    pub(crate) rpc_builder: RpcBuilder,
+    /// The address the RPC server listens on.
+    pub(crate) rpc_addr: SocketAddr,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] of a node that can sequence.
@@ -92,7 +94,7 @@ impl RollupNode {
             chain: config.chain,
             clients,
             engine_client,
-            rpc_builder: config.rpc_config,
+            rpc_addr: config.rpc_addr,
             p2p_config: config.p2p_config,
             sequencer: config.sequencer,
             l2_block_buffer,
@@ -366,27 +368,17 @@ impl RollupNode {
         modules.merge(p2p_rpc.into_rpc()).map_err(|e| {
             RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
         })?;
-        // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-        if self.sequencer.is_some() && !self.rpc_builder.enable_admin() {
-            warn!(
-                target: "rollup_node",
-                "The admin API is disabled, so the sequencer cannot be started: enable it with \
-                 --rpc.enable-admin"
-            );
-        }
-        if self.rpc_builder.enable_admin() {
-            modules.merge(AdminRpc::new(engine.clone()).into_rpc()).map_err(|e| {
-                RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
+        modules.merge(AdminRpc::new(engine.clone()).into_rpc()).map_err(|e| {
+            RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
+        })?;
+        // A node that cannot sequence does not serve the sequencer's methods, so calls to them
+        // fail with "method not found".
+        if let Some(sequencer_admin_rpc) = sequencer_admin_rpc {
+            modules.merge(sequencer_admin_rpc.into_rpc()).map_err(|e| {
+                RollupNodeError::Startup(format!(
+                    "Failed to register sequencer admin module: {e:?}"
+                ))
             })?;
-            // A node that cannot sequence does not serve the sequencer's methods, so calls to
-            // them fail with "method not found".
-            if let Some(sequencer_admin_rpc) = sequencer_admin_rpc {
-                modules.merge(sequencer_admin_rpc.into_rpc()).map_err(|e| {
-                    RollupNodeError::Startup(format!(
-                        "Failed to register sequencer admin module: {e:?}"
-                    ))
-                })?;
-            }
         }
         modules
             .merge(
@@ -421,7 +413,7 @@ impl RollupNode {
             )
             .set_http_middleware(middleware)
             .set_rpc_middleware(rpc_middleware)
-            .build(self.rpc_builder.socket)
+            .build(self.rpc_addr)
             .await
             .map_err(|e: std::io::Error| {
                 RollupNodeError::Startup(format!("Failed to launch rpc server: {e:?}"))

@@ -28,7 +28,7 @@ The sequencer uses the same core derivation pipeline as validator nodes but oper
 
 <Unreleased component="kona-node" />
 
-Whether a node can sequence is the `sequencer` of its `RollupNodeConfig`, an `Option<SequencerConfig>`. A node with a `SequencerConfig` runs the sequencer actor and the block signer, and serves the sequencer's admin RPC methods (`admin_startSequencer`, `admin_stopSequencer`, `admin_sequencerActive`, `admin_conductorEnabled` and `admin_overrideLeader`) when the admin API is enabled. A node without one follows the chain only, and calls to those methods fail with "method not found".
+Whether a node can sequence is the `sequencer` of its `RollupNodeConfig`, an `Option<SequencerConfig>`. A node with a `SequencerConfig` runs the sequencer actor and the block signer, and serves the sequencer's admin RPC methods (`admin_startSequencer`, `admin_stopSequencer`, `admin_sequencerActive`, `admin_conductorEnabled` and `admin_overrideLeader`). A node without one follows the chain only, and calls to those methods fail with "method not found".
 
 ### `SequencerActor`
 
@@ -41,7 +41,7 @@ The core actor responsible for block production. Like every node component, it i
 
 ### `SequencerConfig`
 
-Sequencers start stopped. Enable the admin API and issue `admin_startSequencer` to begin block production. Sequencer behavior is configured through the `SequencerConfig` struct:
+Sequencers start stopped. Issue `admin_startSequencer` to begin block production. Sequencer behavior is configured through the `SequencerConfig` struct:
 
 ```rust
 pub struct SequencerConfig {
@@ -82,7 +82,7 @@ let config = RollupNodeConfig {
     version,
     chain,
     p2p_config,
-    rpc_config,
+    rpc_addr,
     sequencer: Some(sequencer_config),
 };
 // Where the L1 and L2 endpoints are. Pass your own `RollupNodeClients`
