@@ -29,7 +29,7 @@ of three fates:
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
    op-e2e/actions moves onto an op-reth-test-engine subprocess EL (#20415, #21196); op-e2e system
    tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
-   `op-chain-ops/script` + op-deployer move to a Rust script engine (§16).
+   op-deployer runs all its scripts on upstream forge, deleting `op-chain-ops/script` (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
    op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat` and the
    stale pre-Holocene `check-*` tools (§18).
@@ -484,9 +484,9 @@ preserving the conservative maximum across both rule sets.
 
 ---
 
-## 16. `op-chain-ops/script` + op-deployer — Rust script engine
+## 16. `op-chain-ops/script` + op-deployer — forge as the only script engine — open (#23300)
 
-`op-chain-ops/script` is the Foundry-style in-process forge-script executor; op-deployer runs all
+`op-chain-ops/script` is the Foundry-style in-process forge-script executor; op-deployer runs its
 deployment/genesis scripts through it. Semantically it is **plain L1 EVM** — its chain config
 activates only Ethereum forks (the OP fork fields are explicitly nil) — so by §"scope" rules it
 *could* be fate 1. But its cheatcode mechanism runs on fork-only EVM hooks that upstream has no
@@ -495,13 +495,39 @@ equivalent for: `vm.Config.PrecompileOverrides` (cheatcode precompiles), `vm.Con
 `script/forking.ForkDB` cannot implement upstream's `state.Database` (its `Commit` takes an
 *unexported* type). "Swap to op-core" does not exist here.
 
-**Decision: rewrite script execution as a Rust engine reusing foundry crates** (forge is the
-reference executor for these scripts; revm underneath), consumed by op-deployer — subprocess/
-sidecar per the op-reth-test-engine precedent (#20415), or equivalent embedding. Constraints:
-op-deployer keeps working without a system-installed foundry (engine version-pinned and shipped
-with our tooling); cheatcode surface limited to what our scripts use (derive from the cheatcode
-dispatch in `op-chain-ops/script`); parity-gate against the Go engine on reference deployments
-before switching.
+**Decision: upstream forge is the only script engine; delete the Go host.** op-deployer's
+`--use-forge` path (pinned forge binary, `runWithBytes(bytes)` entrypoints, `== Return ==` output
+parsing) is extended to every use:
+
+| Use | Mechanism |
+|---|---|
+| Live deploys (`apply` live, `bootstrap`) | `forge script --broadcast` |
+| Genesis-target L1 (op-e2e, sysgo, `apply --deployment-target genesis`) | offline `forge script`, one process per stage, chained by a state-in/state-out hook (`vm.loadAllocs` / `vm.dumpState`) in the deploy scripts' `runWithBytes`; `SetPreinstalls` runs in forge, while geth-param preinstalls, prefund, mock SP1 verifier and seal stay Go-side alloc edits |
+| L2 genesis | offline `forge script` dump wrapper around `L2Genesis.s.sol` |
+| `prepare` / `continue` | keyless forge dry-run; `continue` preflight on an ephemeral `anvil --fork-url` |
+| Read-only paths (op-fetcher, StandardValidator reads) | no script engine: eth_call on live paths; upstream `state`/`vm` without fork hooks over genesis allocs |
+
+**Dropped, not ported:** the `calldata`/`noop` deployment targets, `manage`, the script-driven
+upgrade path (`upgrade/embedded.Upgrade`, used by `manage` and sysgo) and `inspect l2-semvers`.
+Day-2 operations leave op-deployer and are ABI-packed by their callers (netchef, superchain-ops,
+sysgo's 7702 helper). `op-chain-ops/interopgen` is deleted; the op-e2e interop harness builds its
+world through op-deployer.
+
+Invariants:
+
+- **Exact state-root parity before switching.** Genesis-target L1 and L2 genesis are gated by a
+  differential test against the Go host on reference intents; forge reproduces Go-host quirks
+  until the cutover. Live deploys are gated by e2e apply tests. Genesis-output changes happen in a
+  separate, deliberate change afterwards.
+- **No runtime recompile.** forge runs `--offline` against a prebuilt bundle; op-deployer fails if
+  forge compiles. Recompiles break the `prepare`→`continue` bundle digest and cannot run in the
+  alpine image (no solc).
+- **One contracts release per op-deployer release.** The forge path requires bundles with the
+  `runWithBytes` entrypoints; a preflight fails fast on a mismatched bundle.
+- **forge (and anvil, for `continue`) is a runtime dependency.** Shipped in the op-deployer image;
+  auto-downloaded (pinned, checksummed) on Linux and macOS; on PATH via mise in CI and devstack.
+- **Per-invocation isolation.** Concurrent forge runs (devstack) get their own `FOUNDRY_BROADCAST`
+  directory, and their own state files inside the bundle's `fs_permissions`.
 
 **No interim module split.** Splitting op-chain-ops+op-deployer into their own Go module that
 keeps the op-geth replace was considered and rejected: the epic's value only materialises when we
@@ -509,7 +535,7 @@ stop maintaining the op-geth fork entirely — any in-repo module still dependin
 fork alive. (The same lens applies to the superchain-registry repo's `ops` module, which pins its
 own op-geth — outside this repo, flagged to that team.)
 
-This is a hard blocker of #20266 and the longest pole alongside #20415/#21196.
+This is a hard blocker of #20266.
 
 ---
 
@@ -683,7 +709,7 @@ monorepo has to fix on their behalf.
 | Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
 | RPC recorder hooks + `JsonError` (§15) | owned `op-service/jsonrpc` seam: client wrapper; server-side recording removed | **done** |
 | One-off fork symbols (§15) | per-symbol swaps, ride #20263 family | `SetBlobTxSidecar`/`LogForStorage` **done**; rest are test-only, ride §13 |
-| `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
+| `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | open (#23300) |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
