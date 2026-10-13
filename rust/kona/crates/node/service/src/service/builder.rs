@@ -18,6 +18,7 @@ use std::{sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use url::Url;
 
+use kona_engine::EngineClientBuilder;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
@@ -42,7 +43,7 @@ impl Default for DerivationDelegateConfig {
 #[derive(Debug)]
 pub struct L1ClientConfig {
     /// The L1 chain configuration.
-    pub chain_config: L1ChainConfig,
+    pub chain_config: Arc<L1ChainConfig>,
     /// The L1 beacon API.
     pub beacon: Url,
     /// The L1 RPC URL.
@@ -54,11 +55,11 @@ pub struct L1ClientConfig {
 pub struct RollupNodeConfig {
     /// The application version reported by the RPC server.
     pub version: String,
-    /// The rollup configuration.
-    pub config: RollupConfig,
+    /// The rollup configuration, shared by every component of the node.
+    pub rollup_config: Arc<RollupConfig>,
     /// How to reach the L1 chain.
     pub l1_client: L1ClientConfig,
-    /// Engine builder configuration.
+    /// How the node reaches the L2 engine, and the mode it runs in.
     pub engine_config: EngineConfig,
     /// The [`NetworkConfig`].
     pub p2p_config: NetworkConfig,
@@ -94,8 +95,17 @@ impl RollupNodeConfig {
             .expect("l1 http client initialization");
         let l1_rpc_client =
             RpcClient::new_http_with_client(l1_client, self.l1_client.rpc_url.clone());
+        let rollup_config = self.rollup_config;
+        let engine_client = EngineClientBuilder {
+            l2: self.engine_config.l2_url.clone(),
+            l2_jwt: self.engine_config.l2_jwt_secret,
+            l1_rpc: self.l1_client.rpc_url.clone(),
+            cfg: rollup_config.clone(),
+        }
+        .build();
+
         let l1_config = L1Config {
-            chain_config: Arc::new(self.l1_client.chain_config),
+            chain_config: self.l1_client.chain_config,
             beacon_client: l1_beacon,
             engine_provider: RootProvider::new(l1_rpc_client),
         };
@@ -111,7 +121,6 @@ impl RollupNodeConfig {
         let rpc_client = RpcClient::new(http_hyper, false);
         let l2_provider = RootProvider::<Optimism>::new(rpc_client);
 
-        let rollup_config = Arc::new(self.config);
         // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
         // lookups are keyed by hash, so a reorged-out block is never returned regardless.
         let l2_block_buffer = BufferedL2Provider::new(
@@ -134,7 +143,8 @@ impl RollupNodeConfig {
             l1_config,
             l2_provider,
             l2_block_buffer,
-            engine_config: self.engine_config,
+            engine_client: Arc::new(engine_client),
+            mode: self.engine_config.mode,
             rpc_builder: self.rpc_config,
             p2p_config,
             sequencer_config: self.sequencer_config,

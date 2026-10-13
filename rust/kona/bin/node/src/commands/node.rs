@@ -235,19 +235,17 @@ impl NodeCommand {
     /// flags name if it does not exist yet, but does no network I/O: [`Self::run`] checks the
     /// engine and the P2P ports, and the node reads its chain state from L1 when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
-        let cfg = self.chain.rollup_config()?;
+        let cfg = Arc::new(self.chain.rollup_config()?);
 
         let l1_client = L1ClientConfig {
-            chain_config: self.chain.l1_config(cfg.l1_chain_id)?,
+            chain_config: Arc::new(self.chain.l1_config(cfg.l1_chain_id)?),
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
         };
 
         let engine_config = EngineConfig {
-            config: Arc::new(cfg.clone()),
             l2_url: self.l2_client_args.l2_engine_rpc.clone(),
             l2_jwt_secret: self.l2_client_args.jwt_secret()?,
-            l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             mode: self.node_mode,
         };
 
@@ -260,7 +258,7 @@ impl NodeCommand {
             sequencer_config: self.sequencer_flags.config(),
             derivation_delegate_config: self.derivation_delegate_args.clone().config(),
             dependency_set: self.chain.dependency_set(&cfg)?,
-            config: cfg,
+            rollup_config: cfg,
         })
     }
 
@@ -270,17 +268,17 @@ impl NodeCommand {
 
         info!(
             target: "rollup_node",
-            chain_id = config.config.l2_chain_id.id(),
+            chain_id = config.rollup_config.l2_chain_id.id(),
             "Starting rollup node services"
         );
         info!(
             target: "rollup_node",
-            hardforks = %config.config.hardforks,
+            hardforks = %config.rollup_config.hardforks,
             "Hardfork schedule"
         );
 
         // If metrics are enabled, initialize the global cli metrics.
-        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.config));
+        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.rollup_config));
 
         // Check the host and the engine before starting the node.
         self.p2p_flags.check_ports()?;
@@ -407,7 +405,7 @@ mod tests {
 
         let config = command.config().unwrap();
 
-        assert_eq!(config.config.l2_chain_id.id(), 10);
+        assert_eq!(config.rollup_config.l2_chain_id.id(), 10);
         assert_eq!(config.l1_client.chain_config.chain_id, 1);
         assert_eq!(config.l1_client.rpc_url.as_str(), "http://127.0.0.1:1/");
         assert_eq!(config.l1_client.beacon.as_str(), "http://127.0.0.1:2/");
@@ -442,8 +440,7 @@ mod tests {
 
         let config = command.config().unwrap();
 
-        assert_eq!(config.config.l2_chain_id.id(), 901);
-        assert_eq!(config.engine_config.config.l2_chain_id.id(), 901);
+        assert_eq!(config.rollup_config.l2_chain_id.id(), 901);
         assert_eq!(config.l1_client.chain_config.chain_id, 900);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
         assert!(config.dependency_set.is_none());

@@ -1,9 +1,9 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DerivationDelegateClient, EngineConfig,
-    L1OriginSelector, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
-    NodeMode, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
+    ConductorClient, DelayedL1OriginSelectorProvider, DerivationDelegateClient, L1OriginSelector,
+    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RpcActor,
+    SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
@@ -68,8 +68,10 @@ pub struct RollupNode {
     pub(crate) l1_config: L1Config,
     /// The L2 EL provider.
     pub(crate) l2_provider: RootProvider<Optimism>,
-    /// The [`EngineConfig`] for the node.
-    pub(crate) engine_config: EngineConfig,
+    /// The client for the L2 execution layer's Engine API.
+    pub(crate) engine_client: Arc<EngineClient>,
+    /// The mode of operation for the node.
+    pub(crate) mode: NodeMode,
     /// The [`RpcBuilder`] for the node.
     pub(crate) rpc_builder: Option<RpcBuilder>,
     /// The P2P [`NetworkConfig`] for the node.
@@ -93,7 +95,7 @@ type DerivationTask = Pin<Box<dyn Future<Output = Result<(), derivation::ActorEr
 impl RollupNode {
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
-        self.engine_config.mode
+        self.mode
     }
 
     /// Creates a network builder for the node whose gossip validation follows
@@ -388,7 +390,7 @@ impl RollupNode {
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<signer::Payload>(16);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
+        let engine_client = self.engine_client.clone();
         let l2_query_client = engine_client.as_ref().clone();
         let engine_actor = self.build_engine(engine_builder, engine_client);
 
