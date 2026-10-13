@@ -30,7 +30,7 @@ impl<ChainSpec> OpBlockAssembler<ChainSpec> {
 }
 
 impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
-    /// UPSTREAM-MIRROR(copy): reth@rev:2f40498
+    /// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
     /// `reth_evm_ethereum::EthBlockAssembler::assemble_block`
     ///
     /// Copies upstream block assembly with OP receipt roots, withdrawals, and DA fields.
