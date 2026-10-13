@@ -109,6 +109,8 @@ It does not vendor them. `op-alloy-consensus` holds the wire format and the sour
 
 The fault-proof executor holds no separate deposit execution rules.
 It uses `alloy-op-evm` and `op-revm`, so an execution finding usually affects both clients.
+A prestate can still lag a fixed execution change.
+A fix that needs a new prestate is not complete when the code merges, so state that in the finding impact.
 
 The receipts-root encoding is the exception.
 Three implementations reproduce it: op-node in Go, `reth-optimism-consensus`, and `kona-executor`.
@@ -165,7 +167,7 @@ Also run it for these changes:
 - A change to transaction type dispatch, RLP decoding, or the typed envelope.
 - A change to receipt encoding, decoding, or hashing.
 - A change to `OptimismPortal`, address aliasing, or resource metering.
-- An upstream `revm`, `alloy`, or `reth` bump that touches transaction execution, gas, or receipts.
+- An upstream `revm`, `alloy`, or `reth` bump that touches transaction execution, gas, or receipts. See [reth-update-review.md](reth-update-review.md) for the drift method.
 - A Kona client release or a prestate change that contains mapped changes.
 
 ## Deposit analysis
@@ -262,23 +264,6 @@ In this area the sibling pairs are:
 - The consensus decode path against any network or pooled decode path.
 - The same rule list in op-node against the matching list in Kona.
 - The execution rule set in op-reth against the rule set in the fault-proof executor.
-
-## Upstream and fork drift
-
-Deposits depend on forked upstream code.
-The highest-value class of defect produces no local diff.
-
-Check these drift sources:
-
-- A hand-rolled copy of an upstream helper. Compare it field by field with the upstream function at the pinned version.
-- A silent upstream behavior change under an unchanged call site.
-- A fallback or dispatch table that upstream extends.
-- A fault-proof prestate that predates a fixed execution change.
-
-A fix that needs a new prestate is not complete when the code merges.
-State that requirement in the finding impact.
-
-See [reth-update-review.md](reth-update-review.md) for the upstream-bump method.
 
 ## Adversarial boundaries
 
