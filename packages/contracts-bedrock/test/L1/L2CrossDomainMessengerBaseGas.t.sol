@@ -110,9 +110,7 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
 
     /// @notice Tests that `relayMessage` has enough base gas to finish when relaying a near-max
     ///         L2 => L1 payload to a target that consumes all forwarded gas.
-    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
-    ///         intrinsic gas. The relay is OptimismPortal2's internal call, whose gas limit never
-    ///         has to.
+    ///         Not isolated; see `testFuzz_relayMessage_baseGasSufficient_succeeds`.
     /// forge-config: default.isolate = false
     function test_relayMessage_nearMaxPayloadAllGasTarget_succeeds() external {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
@@ -164,9 +162,7 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
     /// @notice Tests that `relayMessage` has enough base gas to finish when relaying value to a cold,
     ///         EIP-7702 delegated target that consumes all forwarded gas. The value transfer and the
     ///         target and delegate accesses are paid from the relay's reserved gas.
-    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
-    ///         intrinsic gas. The relay is OptimismPortal2's internal call, whose gas limit never
-    ///         has to.
+    ///         Not isolated; see `testFuzz_relayMessage_baseGasSufficient_succeeds`.
     /// forge-config: default.isolate = false
     function test_relayMessage_valueToColdDelegatedTarget_succeeds() external {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
@@ -195,9 +191,7 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
 
     /// @notice Tests that `relayMessage` has enough base gas to send value to an account that doesn't
     ///         exist yet, which costs EIP-8037 state gas on top of `GasConstants.L1_RELAY_CALL_OVERHEAD`.
-    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
-    ///         intrinsic gas. The relay is OptimismPortal2's internal call, whose gas limit never
-    ///         has to.
+    ///         Not isolated; see `testFuzz_relayMessage_baseGasSufficient_succeeds`.
     /// forge-config: default.isolate = false
     function test_relayMessage_valueToNewAccount_succeeds() external {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
