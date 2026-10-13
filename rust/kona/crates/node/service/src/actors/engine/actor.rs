@@ -1,46 +1,25 @@
-use crate::{
-    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetRequest, SealRequest,
-};
+use crate::{BuildRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest};
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
+    InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::{
     sync::{mpsc, watch},
     time::{self, Duration, Instant},
 };
 
-/// A request handled by the [`EngineActor`].
-#[derive(Debug)]
-pub enum EngineActorRequest {
-    /// Request to start building a block.
-    Build(Box<BuildRequest>),
-    /// Request to process a Safe signal, which can be derived attributes or delegated block info.
-    ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
-    ProcessFinalizedL2Block(Box<FinalizeBlockId>),
-    /// Request to process a received unsafe L2 block.
-    ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
-    /// Request to reset the forkchoice.
-    Reset(Box<ResetRequest>),
-    /// Request to seal a block.
-    Seal(Box<SealRequest>),
-}
-
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
 #[derive(Debug)]
-pub struct EngineActor<EngineClient_, DerivationClient>
+pub struct EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient,
     DerivationClient: EngineDerivationClient,
 {
     /// The client used to send messages to the [`crate::DerivationActor`].
@@ -58,9 +37,9 @@ where
     /// The [`RollupConfig`] used to build tasks.
     rollup: Arc<RollupConfig>,
     /// An [`EngineClient`] used for creating engine tasks.
-    client: Arc<EngineClient_>,
+    client: Arc<EngineClient>,
     /// The [`Engine`] task queue.
-    engine: Engine<EngineClient_>,
+    engine: Engine,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
     /// Where to hand every imported block, so the derivation providers can read it locally
@@ -76,17 +55,16 @@ where
     retry_delay: Duration,
 }
 
-impl<EngineClient_, DerivationClient> EngineActor<EngineClient_, DerivationClient>
+impl<DerivationClient> EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient + 'static,
     DerivationClient: EngineDerivationClient + 'static,
 {
     /// Constructs a new [`EngineActor`] from the params.
     pub fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
-        engine: Engine<EngineClient_>,
+        engine: Engine,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -259,9 +237,8 @@ where
 }
 
 #[async_trait]
-impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
+impl<DerivationClient> NodeActor for EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient + 'static,
     DerivationClient: EngineDerivationClient + 'static,
 {
     type Error = EngineError;

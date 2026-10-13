@@ -8,15 +8,12 @@ pub use traits::NodeActor;
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    EngineConfig, EngineDerivationClient, EngineError, QueuedEngineDerivationClient, ResetRequest,
+    SealRequest,
 };
 
-pub(crate) mod rpc;
-pub use rpc::{
-    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher,
-};
+mod rpc;
+pub use rpc::{RpcActor, RpcActorError};
 
 mod derivation;
 pub use derivation::{
@@ -49,8 +46,7 @@ mod sequencer;
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
-    SequencerEngineClient,
+    SequencerActor, SequencerActorError, SequencerConfig, SequencerEngineClient,
 };
 
 #[cfg(test)]

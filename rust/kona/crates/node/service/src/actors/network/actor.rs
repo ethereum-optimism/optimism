@@ -1,12 +1,15 @@
 use async_trait::async_trait;
-use kona_gossip::P2pRpcRequest;
-use kona_rpc::NetworkAdminQuery;
+use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::{
     self, select,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        watch,
+    },
 };
 
 use crate::{
@@ -23,10 +26,12 @@ use crate::{
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// The live libp2p [`NetworkHandler`].
     handler: NetworkHandler,
-    /// A channel to receive p2p RPC requests.
-    p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
-    /// A channel to receive admin RPC queries.
-    admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
+    /// Gossip state published for readers outside the actor.
+    gossip_state_tx: watch::Sender<Arc<GossipState>>,
+    /// A channel to receive gossip commands.
+    gossip_command_rx: GossipCommandReceiver,
+    /// A channel to receive unsafe payloads submitted through admin RPC.
+    admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
     publish_rx: mpsc::Receiver<SignedPayload>,
     /// A client to use to interact with the engine actor.
@@ -48,20 +53,27 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     pub fn new(
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
-        p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
-        admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
+        gossip_command_rx: GossipCommandReceiver,
+        admin_payload_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
         publish_rx: mpsc::Receiver<SignedPayload>,
     ) -> Self {
+        let (gossip_state_tx, _) = watch::channel(Arc::new(handler.gossip.snapshot()));
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
         Self {
             handler,
-            p2p_rpc_rx,
-            admin_query_rx,
+            gossip_state_tx,
+            gossip_command_rx,
+            admin_payload_rx,
             publish_rx,
             engine_client,
             unsafe_block_tx,
             unsafe_block_rx,
         }
+    }
+
+    /// Returns a read-only handle to the actor's published gossip state.
+    pub fn gossip_query_handle(&self) -> GossipQueryHandle {
+        GossipQueryHandle::new(self.gossip_state_tx.subscribe())
     }
 }
 
@@ -92,7 +104,8 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
     type Error = NetworkActorError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        select! {
+        let mut applied = None;
+        let result = select! {
             block = self.unsafe_block_rx.recv() => {
                 let Some(block) = block else {
                     error!(target: "node::p2p", "The unsafe block receiver channel has closed");
@@ -141,17 +154,25 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 self.handler.handle_peer_monitoring().await;
                 Ok(())
             }
-            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if !self.admin_query_rx.is_closed() => {
-                debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                if self.unsafe_block_tx.send(payload).is_err() {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
-                }
+            Some(payload) = self.admin_payload_rx.recv(), if !self.admin_payload_rx.is_closed() => {
+                debug!(target: "node::p2p", "Forwarding unsafe payload from admin API to engine");
+                self.engine_client.send_unsafe_block(payload).await.map_err(|_| {
+                    warn!(target: "network", "Failed to forward unsafe block to engine");
+                    NetworkActorError::ChannelClosed
+                })
+            }
+            Some((req, applied_tx)) = self.gossip_command_rx.recv(), if !self.gossip_command_rx.is_closed() => {
+                req.handle(&mut self.handler.gossip);
+                applied = Some(applied_tx);
                 Ok(())
             }
-            Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {
-                req.handle(&mut self.handler.gossip, &self.handler.discovery);
-                Ok(())
-            }
+        };
+        if result.is_ok() && self.gossip_state_tx.receiver_count() > 0 {
+            self.gossip_state_tx.send_replace(Arc::new(self.handler.gossip.snapshot()));
         }
+        if let Some(applied) = applied {
+            let _ = applied.send(());
+        }
+        result
     }
 }

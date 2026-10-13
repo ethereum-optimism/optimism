@@ -1,24 +1,29 @@
 //! Contains the [`RollupNode`] implementation.
+use super::middleware::RpcMetricsLayer;
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher,
-    L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
-    NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
+    EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain,
+    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
+    SequencerConfig, SignedPayload, SignerActor,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
-use jsonrpsee::RpcModule;
+use jsonrpsee::{
+    RpcModule,
+    server::{
+        Server, ServerConfig,
+        middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
+    },
+};
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineState, OpEngineClient};
+use kona_engine::{Engine, EngineQueryClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
@@ -27,9 +32,9 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
-    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, WsRPC, WsServer,
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
+    P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
+    SequencerAdminHandle,
 };
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -64,6 +69,8 @@ pub struct L1Config {
 /// Stack configuration of components.
 #[derive(Debug)]
 pub struct RollupNode {
+    /// The application version reported by the RPC server.
+    pub(crate) version: String,
     /// The rollup configuration.
     pub(crate) config: Arc<RollupConfig>,
     /// The L1 configuration.
@@ -133,12 +140,7 @@ where
 }
 
 /// Concrete type of the engine actor used by `RollupNode`.
-type ConfiguredEngineActor =
-    EngineActor<OpEngineClient<RootProvider, RootProvider<Optimism>>, QueuedEngineDerivationClient>;
-
-/// Concrete type of the engine rpc actor used by `RollupNode`.
-type ConfiguredEngineRpcActor =
-    EngineRpcActor<OpEngineClient<RootProvider, RootProvider<Optimism>>>;
+type ConfiguredEngineActor = EngineActor<QueuedEngineDerivationClient>;
 
 /// Concrete type of the sequencer actor used by `RollupNode`.
 type ConfiguredSequencerActor = SequencerActor<
@@ -148,9 +150,6 @@ type ConfiguredSequencerActor = SequencerActor<
     QueuedSequencerEngineClient,
     QueuedUnsafePayloadGossipClient,
 >;
-
-/// Concrete type of the rpc actor used by `RollupNode`.
-type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -224,23 +223,17 @@ impl RollupNode {
         ))
     }
 
-    /// Builds both engine actors. They share a single [`kona_engine::EngineClient`] and a watch
-    /// over the engine queue length / state, but otherwise run as independent peers.
-    ///
-    /// The non-rpc actor handles state-mutating requests (build, reset, seal, safe-signal
-    /// consolidation, etc); the rpc actor handles read-only queries.
-    fn build_engine_actors(
+    /// Builds the engine actor and returns the read-only L2 client and state watch used by RPC.
+    fn build_engine_actor(
         &self,
         engine_request_rx: mpsc::Receiver<EngineActorRequest>,
-        engine_rpc_request_rx: mpsc::Receiver<EngineRpcRequest>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
-    ) -> (ConfiguredEngineActor, ConfiguredEngineRpcActor) {
-        // Engine-internal watches; not visible outside this helper.
+    ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
+        // Share engine state with RPC without routing reads through the actor.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
-        let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
-        let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
+        let engine = Engine::new(engine_state, engine_state_tx);
 
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
 
@@ -257,15 +250,7 @@ impl RollupNode {
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
 
-        let rpc_actor = EngineRpcActor::new(
-            engine_client,
-            self.config.clone(),
-            engine_state_rx,
-            engine_queue_length_rx,
-            engine_rpc_request_rx,
-        );
-
-        (actor, rpc_actor)
+        (actor, engine_client.query_client(), engine_state_rx)
     }
 
     /// Selects between the standard and delegate derivation actor implementations and constructs
@@ -381,7 +366,7 @@ impl RollupNode {
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
-        sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
+        sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
     ) -> Option<ConfiguredSequencerActor> {
         if !self.mode().is_sequencer() {
             return None;
@@ -404,7 +389,7 @@ impl RollupNode {
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
         Some(SequencerActor::new(
-            sequencer_admin_api_rx,
+            sequencer_admin_command_rx,
             self.create_attributes_builder(),
             conductor,
             sequencer_engine_client,
@@ -420,53 +405,68 @@ impl RollupNode {
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
     async fn build_rpc_actor(
         &self,
-        engine_rpc_request_tx: mpsc::Sender<EngineRpcRequest>,
-        sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
-        p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
-        network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+        l2_query_client: EngineQueryClient,
+        engine_state_rx: watch::Receiver<EngineState>,
+        admin_rpc: AdminRpc,
+        p2p_rpc: P2pRpc,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
-    ) -> Result<Option<ConfiguredRpcActor>, String> {
+    ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
         };
 
-        let engine_rpc_client = QueuedEngineRpcClient::new(engine_rpc_request_tx);
-
         let mut modules = RpcModule::new(());
         modules
-            .merge(HealthzApiServer::into_rpc(HealthzRpc {}))
+            .merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone())))
             .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
         modules
-            .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
+            .merge(p2p_rpc.into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        merge_admin_module(
-            &mut modules,
-            config.enable_admin(),
-            sequencer_admin_client,
-            network_admin_tx,
-        )?;
+        // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
+        if config.enable_admin() {
+            modules
+                .merge(admin_rpc.into_rpc())
+                .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        }
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(
+                    self.version.clone(),
+                    self.config.clone(),
+                    engine_state_rx,
+                    l2_query_client,
+                    l1_watcher_queries_tx,
+                )
+                .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
-        if config.dev_enabled() {
-            modules
-                .merge(DevEngineRpc::new(engine_rpc_client.clone()).into_rpc())
-                .map_err(|e| format!("Failed to register dev engine module: {e:?}"))?;
-        }
-        if config.ws_enabled() {
-            modules
-                .merge(WsRPC::new(engine_rpc_client.clone()).into_rpc())
-                .map_err(|e| format!("Failed to register ws module: {e:?}"))?;
-        }
 
-        let restarts_remaining = config.restart_count();
-        let launcher = JsonrpseeServerLauncher::new(config);
-        let handle = launcher
-            .launch(modules.clone())
+        let middleware = tower::ServiceBuilder::new()
+            .layer(
+                ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                    .expect("Critical: Failed to build GET method proxy"),
+            )
+            .timeout(Duration::from_secs(2));
+        let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
+        let server = Server::builder()
+            .set_config(
+                ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
+            )
+            .set_http_middleware(middleware)
+            .set_rpc_middleware(rpc_middleware)
+            .build(config.socket)
             .await
             .map_err(|e: std::io::Error| format!("Failed to launch rpc server: {e:?}"))?;
 
-        Ok(Some(RpcActor::new(launcher, modules, handle, restarts_remaining)))
+        if let Ok(addr) = server.local_addr() {
+            info!(target: "rpc", addr = ?addr, "RPC server bound to address");
+        } else {
+            error!(target: "rpc", "Failed to get local address for RPC server");
+        }
+
+        Ok(Some(RpcActor::new(server.start(modules))))
     }
 
     /// Starts the rollup node service.
@@ -505,13 +505,12 @@ impl RollupNode {
             mpsc::channel::<DerivationActorRequest>(1024);
         let (engine_actor_request_tx, engine_actor_request_rx) =
             mpsc::channel::<EngineActorRequest>(1024);
-        let (engine_rpc_request_tx, engine_rpc_request_rx) =
-            mpsc::channel::<EngineRpcRequest>(1024);
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
-        let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
+        let (sequencer_admin_command_tx, sequencer_admin_command_rx) = mpsc::channel(1024);
         // Network actor inbound channels
-        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
-        let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
+        let (admin_payload_tx, admin_payload_rx) =
+            mpsc::channel::<OpExecutionPayloadEnvelope>(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let (gossip_payload_tx, gossip_payload_rx) =
@@ -525,9 +524,8 @@ impl RollupNode {
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let (engine_actor, engine_rpc_actor) = self.build_engine_actors(
+        let (engine_actor, l2_query_client, engine_state_rx) = self.build_engine_actor(
             engine_actor_request_rx,
-            engine_rpc_request_rx,
             derivation_actor_request_tx.clone(),
             unsafe_head_tx,
         );
@@ -552,13 +550,16 @@ impl RollupNode {
             .await
             .map_err(|e| format!("Failed to start network: {e:?}"))?;
 
+        let discovery = handler.discovery.clone();
         let network = NetworkActor::new(
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
-            p2p_rpc_rx,
-            network_admin_rx,
+            gossip_command_rx,
+            admin_payload_rx,
             signed_payload_rx,
         );
+
+        let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
@@ -568,24 +569,19 @@ impl RollupNode {
         )?;
 
         let sequencer_actor = self.build_sequencer(
-            engine_actor_request_tx,
+            engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
             l1_head_updates_rx,
-            sequencer_admin_api_rx,
+            sequencer_admin_command_rx,
         );
-        let sequencer_admin_client = sequencer_actor
-            .is_some()
-            .then(|| QueuedSequencerAdminAPIClient::new(sequencer_admin_api_tx));
+        let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
+            SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
+        });
 
+        let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
-            .build_rpc_actor(
-                engine_rpc_request_tx,
-                sequencer_admin_client,
-                p2p_rpc_tx,
-                network_admin_tx,
-                l1_query_tx,
-            )
+            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
             .await?;
 
         crate::service::spawn_and_wait!(
@@ -598,55 +594,8 @@ impl RollupNode {
                 Some(l1_watcher),
                 Some(derivation),
                 Some(engine_actor),
-                Some(engine_rpc_actor),
             ]
         );
         Ok(())
-    }
-}
-
-/// Registers the admin API namespace on `modules`, but only when `enable_admin` is set.
-///
-/// The admin API is opt-in via `--rpc.enable-admin`, matching op-node's admin namespace.
-fn merge_admin_module(
-    modules: &mut RpcModule<()>,
-    enable_admin: bool,
-    sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
-    network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
-) -> Result<(), String> {
-    if enable_admin {
-        modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
-            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn admin_method_names(enable_admin: bool) -> Vec<String> {
-        let mut modules = RpcModule::new(());
-        let (network_admin_tx, _rx) = mpsc::channel(1);
-        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
-            .expect("admin module registration");
-        modules.method_names().map(ToString::to_string).collect()
-    }
-
-    #[test]
-    fn admin_module_registered_only_when_enabled() {
-        // Without `--rpc.enable-admin`, no admin methods are exposed.
-        assert!(
-            admin_method_names(false).is_empty(),
-            "admin namespace must not be registered when disabled"
-        );
-
-        // With it enabled, the sequencer-control and payload-injection methods the acceptance
-        // suite relies on are present.
-        let enabled = admin_method_names(true);
-        for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
-            assert!(enabled.iter().any(|m| m == method), "missing {method}");
-        }
     }
 }

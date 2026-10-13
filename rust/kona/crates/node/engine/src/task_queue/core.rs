@@ -15,22 +15,22 @@ use tokio::sync::watch::Sender;
 /// A stable ordering within each task priority. Retried work can accumulate many same-kind
 /// requests, which must keep their original order (especially unsafe payload imports).
 #[derive(Debug)]
-struct QueuedTask<C: EngineClient> {
+struct QueuedTask {
     sequence: u64,
-    task: EngineTask<C>,
+    task: EngineTask,
 }
-impl<C: EngineClient> PartialEq for QueuedTask<C> {
+impl PartialEq for QueuedTask {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
-impl<C: EngineClient> Eq for QueuedTask<C> {}
-impl<C: EngineClient> PartialOrd for QueuedTask<C> {
+impl Eq for QueuedTask {}
+impl PartialOrd for QueuedTask {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
-impl<C: EngineClient> Ord for QueuedTask<C> {
+impl Ord for QueuedTask {
     fn cmp(&self, other: &Self) -> Ordering {
         self.task.cmp(&other.task).then_with(|| other.sequence.cmp(&self.sequence))
     }
@@ -50,32 +50,25 @@ impl<C: EngineClient> Ord for QueuedTask<C> {
 /// they are not popped from the queue, the error is returned, and they are retried on the
 /// next call to [`Engine::drain`].
 #[derive(Debug)]
-pub struct Engine<EngineClient_: EngineClient> {
+pub struct Engine {
     /// The state of the engine.
     state: EngineState,
     /// A sender that can be used to notify the engine actor of state changes.
     state_sender: Sender<EngineState>,
-    /// A sender that can be used to notify the engine actor of task queue length changes.
-    task_queue_length: Sender<usize>,
     /// The task queue.
-    tasks: BinaryHeap<QueuedTask<EngineClient_>>,
+    tasks: BinaryHeap<QueuedTask>,
     next_sequence: u64,
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
-    active: Option<EngineTask<EngineClient_>>,
+    active: Option<EngineTask>,
 }
 
-impl<EngineClient_: EngineClient> Engine<EngineClient_> {
+impl Engine {
     /// Creates a new [`Engine`] with an empty task queue and the passed initial [`EngineState`].
-    pub fn new(
-        initial_state: EngineState,
-        state_sender: Sender<EngineState>,
-        task_queue_length: Sender<usize>,
-    ) -> Self {
+    pub fn new(initial_state: EngineState, state_sender: Sender<EngineState>) -> Self {
         Self {
             state: initial_state,
             state_sender,
-            task_queue_length,
             tasks: BinaryHeap::default(),
             active: None,
             next_sequence: 0,
@@ -92,19 +85,12 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         self.state_sender.subscribe()
     }
 
-    /// Returns a receiver that can be used to listen to engine queue length updates.
-    pub fn queue_length_subscribe(&self) -> tokio::sync::watch::Receiver<usize> {
-        self.task_queue_length.subscribe()
-    }
-
     /// Enqueues a new [`EngineTask`] for execution.
-    /// Updates the queue length and notifies listeners of the change.
-    pub fn enqueue(&mut self, task: EngineTask<EngineClient_>) {
+    pub fn enqueue(&mut self, task: EngineTask) {
         let sequence = self.next_sequence;
         self.next_sequence =
             self.next_sequence.checked_add(1).expect("engine task sequence exhausted");
         self.tasks.push(QueuedTask { sequence, task });
-        self.task_queue_length.send_replace(self.len());
     }
 
     /// Number of queued and active tasks, including work awaiting a retry.
@@ -122,7 +108,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// forkchoice update will be enqueued in order to reorg the execution layer.
     pub async fn reset(
         &mut self,
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
         let start = find_starting_forkchoice(&config, client.as_ref()).await?;
@@ -140,7 +126,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         );
         synchronize.execute(&mut self.state).await?;
 
-        kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
+        metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)
     }
@@ -149,7 +135,6 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.active = None;
-        self.task_queue_length.send_replace(0);
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
@@ -165,7 +150,6 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             task.execute(&mut self.state).await?;
             self.state_sender.send_replace(self.state);
             self.active = None;
-            self.task_queue_length.send_replace(self.len());
         }
 
         Ok(())
@@ -197,7 +181,7 @@ impl EngineResetError {
 #[cfg(test)]
 mod recovery_tests {
     use super::*;
-    use crate::{InsertTask, NoopBlockSink, test_utils::MockEngineClient};
+    use crate::{InsertTask, NoopBlockSink, test_utils::test_engine_client};
     use alloy_rpc_types_engine::{
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
     };
@@ -212,10 +196,11 @@ mod recovery_tests {
         let mut config = RollupConfig::default();
         config.genesis.l2.hash = block.header.hash_slow();
         let config = Arc::new(config);
-        let client = Arc::new(MockEngineClient::builder().with_config(config.clone()).build());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        l2.expect_error("engine_newPayloadV1");
         let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
-        let (queue_tx, queue_rx) = tokio::sync::watch::channel(0);
-        let mut engine = Engine::new(EngineState::default(), state_tx, queue_tx);
+        let mut engine = Engine::new(EngineState::default(), state_tx);
         engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
             client.clone(),
             config,
@@ -230,7 +215,6 @@ mod recovery_tests {
             .unwrap_err();
         assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
         assert_eq!(engine.len(), 1);
-        assert_eq!(*queue_rx.borrow(), 1);
         // Accumulate additional unsafe imports during the outage. Equal-priority heap
         // entries must remain FIFO; otherwise the final unsafe head can move backwards.
         for number in 1..=3 {
@@ -250,17 +234,17 @@ mod recovery_tests {
                 Arc::new(NoopBlockSink),
             ))));
         }
-        client
-            .set_new_payload_v1_response(PayloadStatus::from_status(PayloadStatusEnum::Valid))
-            .await;
-        client
-            .set_fork_choice_updated_v3_response(ForkchoiceUpdated::new(
-                PayloadStatus::from_status(PayloadStatusEnum::Valid),
-            ))
-            .await;
+        for _ in 0..4 {
+            l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+            l2.expect(
+                "engine_forkchoiceUpdatedV3",
+                ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+            );
+        }
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
-        assert_eq!(*queue_rx.borrow(), 0);
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }
