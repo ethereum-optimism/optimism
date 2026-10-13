@@ -11,16 +11,6 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger, IProxyAdminOwnedBase
     error ReinitializableBase_ZeroInitVersion();
 
     function PORTAL() external view returns (IOptimismPortal);
-    function LOCAL_RELAY_GAS_CHECK_BUFFER() external view returns (uint64);
-    function LOCAL_RELAY_RESERVED_GAS() external view returns (uint64);
-    function RELAY_CALL_OVERHEAD() external view returns (uint64);
-    function RELAY_CONSTANT_OVERHEAD() external view returns (uint64);
-    function RELAY_GAS_CHECK_BUFFER() external view returns (uint64);
-    function RELAY_RESERVED_GAS() external view returns (uint64);
-    function REMOTE_RELAY_CALL_OVERHEAD() external view returns (uint64);
-    function REMOTE_RELAY_CONSTANT_OVERHEAD() external view returns (uint64);
-    function REMOTE_RELAY_GAS_CHECK_BUFFER() external view returns (uint64);
-    function REMOTE_RELAY_RESERVED_GAS() external view returns (uint64);
     function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external;
     function initVersion() external view returns (uint8);
     function portal() external view returns (IOptimismPortal);

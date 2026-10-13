@@ -197,9 +197,9 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
     function testFuzz_baseGas_usesRemoteRelayConstants_succeeds(bytes calldata _message, uint32 _minGasLimit) external {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
 
-        uint64 executionGas = l2CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
-            + l2CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD() + l2CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS()
-            + l2CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
+        uint64 executionGas = l2CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
+            + l2CrossDomainMessenger.RELAY_CALL_OVERHEAD() + l2CrossDomainMessenger.RELAY_RESERVED_GAS()
+            + l2CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
             + ((_minGasLimit * l2CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
                 / l2CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR());
         uint64 totalMessageSize = uint64(_message.length + l2CrossDomainMessenger.ENCODING_OVERHEAD());
@@ -214,24 +214,13 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
         assertEq(l2CrossDomainMessenger.baseGas(_message, _minGasLimit), expected);
     }
 
-    /// @notice Tests that the relay constants are the L2 (local) and L1 (remote) `GasConstants` values, and
-    ///         that the legacy relay getters return the remote ones.
+    /// @notice Tests that the relay getters return the L1 `GasConstants` values.
     function test_baseGas_relayConstants_succeeds() external {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
 
-        assertEq(l2CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), GasConstants.L2_RELAY_RESERVED_GAS);
-        assertEq(l2CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), GasConstants.L2_RELAY_GAS_CHECK_BUFFER);
-        assertEq(l2CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), GasConstants.L1_RELAY_CONSTANT_OVERHEAD);
-        assertEq(l2CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD(), GasConstants.L1_RELAY_CALL_OVERHEAD);
-        assertEq(l2CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS(), GasConstants.L1_RELAY_RESERVED_GAS);
-        assertEq(l2CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER(), GasConstants.L1_RELAY_GAS_CHECK_BUFFER);
-        assertEq(
-            l2CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), l2CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
-        );
-        assertEq(l2CrossDomainMessenger.RELAY_CALL_OVERHEAD(), l2CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD());
-        assertEq(l2CrossDomainMessenger.RELAY_RESERVED_GAS(), l2CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS());
-        assertEq(
-            l2CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER(), l2CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
-        );
+        assertEq(l2CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), GasConstants.L1_RELAY_CONSTANT_OVERHEAD);
+        assertEq(l2CrossDomainMessenger.RELAY_CALL_OVERHEAD(), GasConstants.L1_RELAY_CALL_OVERHEAD);
+        assertEq(l2CrossDomainMessenger.RELAY_RESERVED_GAS(), GasConstants.L1_RELAY_RESERVED_GAS);
+        assertEq(l2CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER(), GasConstants.L1_RELAY_GAS_CHECK_BUFFER);
     }
 }

@@ -195,9 +195,9 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
                 * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD());
 
         // Calculate the expected execution gas (simplified version of what's in the contract)
-        uint64 executionGas = l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
-            + l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS()
-            + l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
+        uint64 executionGas = l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
+            + l1CrossDomainMessenger.RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.RELAY_RESERVED_GAS()
+            + l1CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
             + ((highGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
                 / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR());
 
@@ -222,9 +222,9 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
         uint64 baseGasResult = l1CrossDomainMessenger.baseGas(_message, _minGasLimit);
 
         // Calculate the expected execution gas
-        uint64 executionGas = l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
-            + l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS()
-            + l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
+        uint64 executionGas = l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
+            + l1CrossDomainMessenger.RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.RELAY_RESERVED_GAS()
+            + l1CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
             + ((_minGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
                 / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR());
 

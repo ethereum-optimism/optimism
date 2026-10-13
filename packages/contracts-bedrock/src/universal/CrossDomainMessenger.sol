@@ -334,6 +334,23 @@ abstract contract CrossDomainMessenger is
         return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
+    /// @notice Constant costs of `relayMessage` on the other chain, added to the base gas for a message.
+    /// @return Gas added to the base gas for a message.
+    function RELAY_CONSTANT_OVERHEAD() external view virtual returns (uint64);
+
+    /// @notice Gas the other chain needs for the dynamic parts of the CALL opcode in `relayMessage`.
+    /// @return Gas added to the base gas for a message.
+    function RELAY_CALL_OVERHEAD() external view virtual returns (uint64);
+
+    /// @notice Gas the other chain reserves for finishing `relayMessage` after the safe call.
+    /// @return Gas added to the base gas for a message.
+    function RELAY_RESERVED_GAS() external view virtual returns (uint64);
+
+    /// @notice Gas the other chain reserves for the execution between the `hasMinGas` check and
+    ///         the external call in `relayMessage`.
+    /// @return Gas added to the base gas for a message.
+    function RELAY_GAS_CHECK_BUFFER() external view virtual returns (uint64);
+
     /// @notice Computes the amount of gas required to guarantee that a given message will be
     ///         received on the other chain without running out of gas. Guaranteeing that a message
     ///         will not run out of gas is important because this ensures that a message can always

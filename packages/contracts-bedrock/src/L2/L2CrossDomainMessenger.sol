@@ -25,38 +25,34 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     string public constant version = "2.4.0";
 
     /// @notice See `GasConstants.L2_RELAY_RESERVED_GAS`.
-    uint64 public constant LOCAL_RELAY_RESERVED_GAS = GasConstants.L2_RELAY_RESERVED_GAS;
+    uint64 internal constant LOCAL_RELAY_RESERVED_GAS = GasConstants.L2_RELAY_RESERVED_GAS;
 
     /// @notice See `GasConstants.L2_RELAY_GAS_CHECK_BUFFER`.
-    uint64 public constant LOCAL_RELAY_GAS_CHECK_BUFFER = GasConstants.L2_RELAY_GAS_CHECK_BUFFER;
+    uint64 internal constant LOCAL_RELAY_GAS_CHECK_BUFFER = GasConstants.L2_RELAY_GAS_CHECK_BUFFER;
 
     /// @notice See `GasConstants.L1_RELAY_CONSTANT_OVERHEAD`.
-    uint64 public constant REMOTE_RELAY_CONSTANT_OVERHEAD = GasConstants.L1_RELAY_CONSTANT_OVERHEAD;
+    uint64 internal constant REMOTE_RELAY_CONSTANT_OVERHEAD = GasConstants.L1_RELAY_CONSTANT_OVERHEAD;
 
     /// @notice See `GasConstants.L1_RELAY_CALL_OVERHEAD`.
-    uint64 public constant REMOTE_RELAY_CALL_OVERHEAD = GasConstants.L1_RELAY_CALL_OVERHEAD;
+    uint64 internal constant REMOTE_RELAY_CALL_OVERHEAD = GasConstants.L1_RELAY_CALL_OVERHEAD;
 
     /// @notice See `GasConstants.L1_RELAY_RESERVED_GAS`.
-    uint64 public constant REMOTE_RELAY_RESERVED_GAS = GasConstants.L1_RELAY_RESERVED_GAS;
+    uint64 internal constant REMOTE_RELAY_RESERVED_GAS = GasConstants.L1_RELAY_RESERVED_GAS;
 
     /// @notice See `GasConstants.L1_RELAY_GAS_CHECK_BUFFER`.
-    uint64 public constant REMOTE_RELAY_GAS_CHECK_BUFFER = GasConstants.L1_RELAY_GAS_CHECK_BUFFER;
+    uint64 internal constant REMOTE_RELAY_GAS_CHECK_BUFFER = GasConstants.L1_RELAY_GAS_CHECK_BUFFER;
 
-    /// @notice Legacy alias for `REMOTE_RELAY_CONSTANT_OVERHEAD`.
-    /// @custom:legacy
-    uint64 public constant RELAY_CONSTANT_OVERHEAD = REMOTE_RELAY_CONSTANT_OVERHEAD;
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_CONSTANT_OVERHEAD = REMOTE_RELAY_CONSTANT_OVERHEAD;
 
-    /// @notice Legacy alias for `REMOTE_RELAY_CALL_OVERHEAD`.
-    /// @custom:legacy
-    uint64 public constant RELAY_CALL_OVERHEAD = REMOTE_RELAY_CALL_OVERHEAD;
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_CALL_OVERHEAD = REMOTE_RELAY_CALL_OVERHEAD;
 
-    /// @notice Legacy alias for `REMOTE_RELAY_RESERVED_GAS`.
-    /// @custom:legacy
-    uint64 public constant RELAY_RESERVED_GAS = REMOTE_RELAY_RESERVED_GAS;
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_RESERVED_GAS = REMOTE_RELAY_RESERVED_GAS;
 
-    /// @notice Legacy alias for `REMOTE_RELAY_GAS_CHECK_BUFFER`.
-    /// @custom:legacy
-    uint64 public constant RELAY_GAS_CHECK_BUFFER = REMOTE_RELAY_GAS_CHECK_BUFFER;
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_GAS_CHECK_BUFFER = REMOTE_RELAY_GAS_CHECK_BUFFER;
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     constructor() {
