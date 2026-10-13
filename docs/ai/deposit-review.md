@@ -286,7 +286,7 @@ Apply the shared dismissal checks first.
 These deposit cases extend them:
 
 - The portal already bounds the value, so the L2 path cannot reach it.
-- The field is RPC metadata only, and no consensus value depends on it.
+- The field is an L1 fee field, such as `L1GasPrice` or `L1Fee`. The Go receipt struct holds these beside the consensus fields, but the deposit receipt RLP never carries them.
 - The difference appears only before the fork that activates the rule.
 - A later guard rejects the input before the suspected operation.
 
