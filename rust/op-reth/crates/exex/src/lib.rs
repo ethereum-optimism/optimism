@@ -329,15 +329,27 @@ where
         }
         drop(storage_provider);
 
-        warn!(
-            target: "optimism::exex",
-            proofs_tip = latest.number,
-            proofs_tip_hash = ?latest.hash,
-            best_block,
-            unwind_to = common.number,
-            unwind_to_hash = ?common.hash,
-            "Proofs storage is not on reth's canonical chain, unwinding it",
-        );
+        // reth re-imports the blocks it dropped above its best block, so a storage ahead of reth
+        // on its chain is routine to unwind.
+        if common.number == best_block {
+            info!(
+                target: "optimism::exex",
+                proofs_tip = latest.number,
+                proofs_tip_hash = ?latest.hash,
+                best_block,
+                "Proofs storage is ahead of reth, unwinding it to reth's best block",
+            );
+        } else {
+            warn!(
+                target: "optimism::exex",
+                proofs_tip = latest.number,
+                proofs_tip_hash = ?latest.hash,
+                best_block,
+                unwind_to = common.number,
+                unwind_to_hash = ?common.hash,
+                "Proofs storage is not on reth's canonical chain, unwinding it",
+            );
+        }
         let storage_provider = self.storage.provider_rw()?;
         // Only the number of the first removed block is read; the storage does not record its
         // hash.
