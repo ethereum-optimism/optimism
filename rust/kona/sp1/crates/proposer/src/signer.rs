@@ -9,9 +9,9 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy_consensus::TxEnvelope;
 use alloy_eips::Decodable2718;
-use alloy_network::{Ethereum, EthereumWallet, TransactionBuilder};
+use alloy_network::{Ethereum, EthereumWallet, NetworkTransactionBuilder};
 use alloy_primitives::{Address, Bytes};
-use alloy_provider::{Provider, ProviderBuilder, Web3Signer};
+use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_transport_http::reqwest::Url;
@@ -20,42 +20,10 @@ use kona_sources::ReloadingRpcClient;
 use kona_sp1_host_utils::tls::ClientTls;
 use tokio::{sync::Mutex, time::Duration};
 
-use crate::env_var;
-
-/// Number of L1 confirmations required before a transaction is considered included.
-pub const NUM_CONFIRMATIONS: u64 = 3;
-
-/// Optional operator caps on EIP-1559 fee fields, applied after fee
-/// estimation (see [`clamp_fee_caps`]). Unset caps leave the estimate.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct FeeCaps {
-    /// Cap on max fee per gas, in wei.
-    pub max_fee_per_gas: Option<u128>,
-    /// Cap on max priority fee per gas, in wei.
-    pub max_priority_fee_per_gas: Option<u128>,
-}
-
-/// Clamps a filled request's EIP-1559 fee fields to the configured caps,
-/// then restores the `priority <= max_fee` invariant. Fields the filler
-/// left unset are untouched (legacy/pre-1559 requests pass through).
-pub const fn clamp_fee_caps(request: &mut TransactionRequest, caps: FeeCaps) {
-    if let (Some(cap), Some(fee)) = (caps.max_fee_per_gas, request.max_fee_per_gas) &&
-        fee > cap
-    {
-        request.max_fee_per_gas = Some(cap);
-    }
-    if let (Some(cap), Some(prio)) =
-        (caps.max_priority_fee_per_gas, request.max_priority_fee_per_gas) &&
-        prio > cap
-    {
-        request.max_priority_fee_per_gas = Some(cap);
-    }
-    if let (Some(fee), Some(prio)) = (request.max_fee_per_gas, request.max_priority_fee_per_gas) &&
-        prio > fee
-    {
-        request.max_priority_fee_per_gas = Some(fee);
-    }
-}
+use crate::{
+    env_var,
+    tx_sender::{self, FeeCaps},
+};
 
 /// The type of signer to use for signing transactions.
 #[derive(Clone, Debug)]
@@ -167,92 +135,34 @@ impl Signer {
         }
     }
 
-    /// Sends a transaction request, signed by the configured `signer`, with a caller-supplied
-    /// confirmation timeout (in seconds). The filled request's fee fields are
-    /// clamped to `fee_caps` before signing (see [`clamp_fee_caps`]).
-    pub async fn send_transaction_request_with_timeout(
+    /// Signs a fully populated EIP-1559 request with the local key or through op-signer's
+    /// `eth_signTransaction`.
+    pub(crate) async fn sign_transaction(
         &self,
-        l1_rpc: Url,
-        mut transaction_request: TransactionRequest,
-        timeout_secs: u64,
-        fee_caps: FeeCaps,
-    ) -> Result<TransactionReceipt> {
+        mut request: TransactionRequest,
+    ) -> Result<TxEnvelope> {
         match self {
-            Self::Web3Signer { url, address, mtls } => {
-                // Set the from address to the signer address.
-                transaction_request.set_from(*address);
-
-                // Fill the transaction request with all of the relevant gas and nonce information.
-                let provider = ProviderBuilder::new().network::<Ethereum>().connect_http(l1_rpc);
-                let filled_tx = provider.fill(transaction_request).await?;
-
-                // Sign the transaction request using the Web3Signer.
-                let signer_provider = mtls.as_ref().map_or_else(
-                    || ProviderBuilder::new().network::<Ethereum>().connect_http(url.clone()),
-                    |mtls| {
-                        ProviderBuilder::new().network::<Ethereum>().connect_client(mtls.client())
-                    },
+            Self::Web3Signer { url, mtls, .. } => {
+                request.normalize_data();
+                let provider: RootProvider = mtls.as_ref().map_or_else(
+                    || ProviderBuilder::default().connect_http(url.clone()),
+                    |mtls| ProviderBuilder::default().connect_client(mtls.client()),
                 );
-                let signer = Web3Signer::new(signer_provider, *address);
-
-                let mut tx = filled_tx.as_builder().unwrap().clone();
-                tx.normalize_data();
-                clamp_fee_caps(&mut tx, fee_caps);
-
-                let raw: Bytes =
-                    signer.provider().client().request("eth_signTransaction", (tx,)).await?;
-
-                let tx_envelope = TxEnvelope::decode_2718(&mut raw.as_ref()).context(
-                    "eth_signTransaction returned bytes that do not decode as a signed envelope",
-                )?;
-
-                let receipt = provider
-                    .send_tx_envelope(tx_envelope)
+                let raw: Bytes = provider
+                    .client()
+                    .request("eth_signTransaction", (request,))
                     .await
-                    .context("Failed to send transaction")?
-                    .with_required_confirmations(NUM_CONFIRMATIONS)
-                    .with_timeout(Some(Duration::from_secs(timeout_secs)))
-                    .get_receipt()
-                    .await?;
-
-                Ok(receipt)
+                    .context("eth_signTransaction failed")?;
+                TxEnvelope::decode_2718(&mut raw.as_ref()).context(
+                    "eth_signTransaction returned bytes that do not decode as a signed envelope",
+                )
             }
             Self::LocalSigner(private_key) => {
-                let provider = ProviderBuilder::new()
-                    .network::<Ethereum>()
-                    .wallet(EthereumWallet::new(private_key.clone()))
-                    .connect_http(l1_rpc.clone());
-
-                // Ensure the request has a `from` address so the wallet filler can sign it.
-                transaction_request.set_from(private_key.address());
-                // The proposer never deploys contracts; a request without a
-                // `to` address is a bug upstream of the signer.
-                anyhow::ensure!(
-                    transaction_request.to.is_some(),
-                    "transaction request has no `to` address"
-                );
-
-                // Fill on a separate wallet-less provider so the fee estimates
-                // can be clamped: the wallet provider signs during fill,
-                // returning an envelope, and a signed envelope cannot be
-                // clamped. The wallet provider then re-fills the already-set
-                // fields as no-ops and signs.
-                let fill_provider =
-                    ProviderBuilder::new().network::<Ethereum>().connect_http(l1_rpc);
-                let filled = fill_provider.fill(transaction_request).await?;
-                let mut request = filled.as_builder().expect("wallet-less fill").clone();
-                clamp_fee_caps(&mut request, fee_caps);
-
-                let receipt = provider
-                    .send_transaction(request)
-                    .await
-                    .context("Failed to send transaction")?
-                    .with_required_confirmations(NUM_CONFIRMATIONS)
-                    .with_timeout(Some(Duration::from_secs(timeout_secs)))
-                    .get_receipt()
-                    .await?;
-
-                Ok(receipt)
+                let wallet = EthereumWallet::new(private_key.clone());
+                Ok(<TransactionRequest as NetworkTransactionBuilder<Ethereum>>::build(
+                    request, &wallet,
+                )
+                .await?)
             }
         }
     }
@@ -278,24 +188,17 @@ impl SignerLock {
         self.cached_address
     }
 
-    /// Sends a transaction request with a caller-supplied confirmation timeout (in seconds).
-    /// Transactions are serialized via a Mutex to prevent nonce conflicts.
-    pub async fn send_transaction_request_with_timeout(
+    /// Sends a transaction through [`tx_sender`], holding the lock for the whole send so
+    /// concurrent callers never share a nonce. `timeout` bounds the send including fee bumps.
+    pub async fn send_transaction<P: Provider>(
         &self,
-        l1_rpc: Url,
-        transaction_request: TransactionRequest,
-        timeout_secs: u64,
+        provider: &P,
+        request: TransactionRequest,
+        timeout: Duration,
         fee_caps: FeeCaps,
     ) -> Result<TransactionReceipt> {
         let signer = self.inner.lock().await;
-        signer
-            .send_transaction_request_with_timeout(
-                l1_rpc,
-                transaction_request,
-                timeout_secs,
-                fee_caps,
-            )
-            .await
+        tx_sender::send_transaction(provider, &signer, request, timeout, fee_caps).await
     }
 }
 
@@ -303,18 +206,10 @@ impl SignerLock {
 mod tests {
     use std::{env, path::Path};
 
-    use alloy_rpc_types_eth::TransactionRequest;
     use serial_test::serial;
 
-    use super::{Address, FeeCaps, Signer, clamp_fee_caps};
+    use super::{Address, Signer};
 
-    fn filled_request(max_fee: u128, max_priority: u128) -> TransactionRequest {
-        TransactionRequest {
-            max_fee_per_gas: Some(max_fee),
-            max_priority_fee_per_gas: Some(max_priority),
-            ..Default::default()
-        }
-    }
     fn clear_signer_env() {
         for suffix in [
             "PRIVATE_KEY",
@@ -400,59 +295,5 @@ mod tests {
         assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
         assert!(error.contains("mutually exclusive"), "{error}");
         clear_signer_env();
-    }
-
-    #[test]
-    fn clamps_both_fees_to_caps() {
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(60), max_priority_fee_per_gas: Some(10) },
-        );
-        assert_eq!(request.max_fee_per_gas, Some(60));
-        assert_eq!(request.max_priority_fee_per_gas, Some(10));
-    }
-
-    #[test]
-    fn unset_caps_leave_estimates() {
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(&mut request, FeeCaps::default());
-        assert_eq!(request.max_fee_per_gas, Some(100));
-        assert_eq!(request.max_priority_fee_per_gas, Some(50));
-    }
-
-    #[test]
-    fn caps_above_estimates_change_nothing() {
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(200), max_priority_fee_per_gas: Some(80) },
-        );
-        assert_eq!(request.max_fee_per_gas, Some(100));
-        assert_eq!(request.max_priority_fee_per_gas, Some(50));
-    }
-
-    #[test]
-    fn priority_reclamped_when_fee_cap_undercuts_it() {
-        // Only the max fee is capped, below the estimated priority fee: the
-        // priority fee must follow it down to keep priority <= max_fee.
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(30), max_priority_fee_per_gas: None },
-        );
-        assert_eq!(request.max_fee_per_gas, Some(30));
-        assert_eq!(request.max_priority_fee_per_gas, Some(30));
-    }
-
-    #[test]
-    fn unfilled_fields_untouched() {
-        let mut request = TransactionRequest::default();
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(1), max_priority_fee_per_gas: Some(1) },
-        );
-        assert_eq!(request.max_fee_per_gas, None);
-        assert_eq!(request.max_priority_fee_per_gas, None);
     }
 }

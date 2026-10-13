@@ -120,22 +120,23 @@ pub struct ProposerConfig {
     /// Maximum game-deadline lag behind the anchor, in seconds.
     pub max_game_deadline_lag: u64,
 
-    /// Maximum time (in seconds) to wait for an L1 transaction to reach the
-    /// required confirmations before the watcher gives up.
+    /// Maximum time (in seconds) for one L1 transaction send, from nonce
+    /// selection through fee bumps until a version reaches the required
+    /// confirmations.
     pub tx_confirmation_timeout: u64,
 
-    /// Optional cap, in wei, on the EIP-1559 max fee per gas the fee
-    /// estimator may set on submitted transactions. Unset = uncapped.
+    /// Optional cap, in wei, on the EIP-1559 max fee per gas of submitted
+    /// transactions, including fee bumps. Unset = uncapped.
     /// A cap below prevailing fees delays inclusion until fees decay; for a
     /// deadline-driven actor that can cost far more than it saves. Leave
     /// unset unless a specific need exists.
     pub max_fee_per_gas: Option<u128>,
 
-    /// Optional cap, in wei, on the EIP-1559 max priority fee per gas the
-    /// fee estimator may set. Unset = uncapped. A cap below prevailing
-    /// fees delays inclusion until fees decay; for a deadline-driven actor
-    /// that can cost far more than it saves. Leave unset unless a specific
-    /// need exists.
+    /// Optional cap, in wei, on the EIP-1559 max priority fee per gas of
+    /// submitted transactions, including fee bumps. Unset = uncapped. A cap
+    /// below prevailing fees delays inclusion until fees decay; for a
+    /// deadline-driven actor that can cost far more than it saves. Leave
+    /// unset unless a specific need exists.
     pub max_priority_fee_per_gas: Option<u128>,
 
     /// Selects network or mock proving for challenged games.

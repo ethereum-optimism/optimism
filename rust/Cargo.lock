@@ -9949,6 +9949,7 @@ dependencies = [
  "alloy-consensus 2.4.2",
  "alloy-contract",
  "alloy-eips 2.5.0",
+ "alloy-json-rpc 2.5.0",
  "alloy-network 2.4.2",
  "alloy-primitives",
  "alloy-provider",
@@ -9956,6 +9957,7 @@ dependencies = [
  "alloy-rpc-types-eth 2.4.2",
  "alloy-signer-local 2.4.2",
  "alloy-sol-types",
+ "alloy-transport",
  "alloy-transport-http",
  "anyhow",
  "async-trait",
@@ -9983,6 +9985,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tower 0.5.3",
  "tracing",
 ]
 
