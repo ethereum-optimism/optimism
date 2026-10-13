@@ -35,6 +35,7 @@ pub struct Builder {
     handle: Handle,
     messages_rx: mpsc::Receiver<Message>,
     state_tx: watch::Sender<EngineState>,
+    resets_tx: watch::Sender<EngineState>,
 }
 
 impl Builder {
@@ -42,7 +43,13 @@ impl Builder {
     pub fn new(capacity: Capacity) -> Self {
         let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
-        Self { handle: Handle::new(messages_tx, state_rx), messages_rx, state_tx }
+        let (resets_tx, resets_rx) = watch::channel(EngineState::default());
+        Self {
+            handle: Handle::new(messages_tx, state_rx, resets_rx),
+            messages_rx,
+            state_tx,
+            resets_tx,
+        }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -61,8 +68,8 @@ impl Builder {
         rollup: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, messages_rx, state_tx } = self;
-        Actor::new(client, rollup, block_sink, state_tx, messages_rx).run()
+        let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
+        Actor::new(client, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
     }
 }
 
@@ -115,6 +122,8 @@ struct Actor {
     state: EngineState,
     /// Publishes the state to handles.
     state_tx: watch::Sender<EngineState>,
+    /// Publishes the state after each reset to handles.
+    resets_tx: watch::Sender<EngineState>,
     /// Receives messages from handles.
     messages_rx: mpsc::Receiver<Message>,
 }
@@ -126,10 +135,11 @@ impl Actor {
         config: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
         state_tx: watch::Sender<EngineState>,
+        resets_tx: watch::Sender<EngineState>,
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let state = *state_tx.borrow();
-        Self { client, config, block_sink, state, state_tx, messages_rx }
+        Self { client, config, block_sink, state, state_tx, resets_tx, messages_rx }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
@@ -291,6 +301,7 @@ impl Actor {
     /// matches them. Otherwise the attributes are built and sealed, reorging the unsafe chain.
     ///
     /// Attributes whose parent is not the safe head were derived before a reset, and are skipped.
+    /// Otherwise, the L1 block the attributes were derived from becomes the safe head's source.
     async fn handle_consolidate(
         &mut self,
         attributes: OpAttributesWithParent,
@@ -323,6 +334,7 @@ impl Actor {
             // batch.
             if matches && self.try_make_unsafe_block_safe(block, attributes.is_last_in_span).await?
             {
+                self.state = self.state.with_safe_head_source(attributes.derived_from);
                 return Ok(());
             }
         }
@@ -385,16 +397,20 @@ impl Actor {
     }
 
     /// Fetches the [`L2BlockInfo`] identified by `block_id`, makes it the finalized head, and
-    /// dispatches a forkchoice update to finalize the block.
+    /// dispatches a forkchoice update to finalize the block. A request for a block that is not
+    /// safe is dropped.
     async fn handle_finalize(
         &mut self,
         block_id: FinalizeBlockId,
     ) -> Result<(), FinalizeTaskError> {
         let block_number = block_id.number();
 
-        // Sanity check that the block that is being finalized is at least safe.
-        if self.state.safe_head().block_info.number < block_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        // Only a safe block can be finalized. A reset can move the safe head back after the
+        // request was sent; finality asks again once the next L1 block finalizes.
+        let safe_head = self.state.safe_head().block_info.number;
+        if safe_head < block_number {
+            warn!(target: "engine", block_number, safe_head, "Dropping a request to finalize a block that is not safe");
+            return Ok(());
         }
 
         // Look up by hash when the caller pinned a specific hash (delegated polling supplies
@@ -496,7 +512,7 @@ impl Actor {
     }
 
     /// Resets the engine to a sync starting point found with [`find_starting_forkchoice`], reorgs
-    /// the execution layer to it, and counts the reset in the state. Callers publish the state.
+    /// the execution layer to it, and publishes the state and then the reset.
     ///
     /// Temporary failures are retried until the reset succeeds.
     async fn reset(&mut self) -> Result<(), ActorError> {
@@ -522,7 +538,13 @@ impl Actor {
                 Err(err) => return Err(err.into()),
             }
         }
-        self.state = self.state.count_reset();
+        // The reset's safe head was not derived from a known L1 block.
+        self.state = self.state.with_safe_head_source(None);
+        // Readers that follow the engine's chain start over from the reset's safe head. The reset
+        // is published before the reply to the request that caused it, and after the state, so a
+        // reader that sees the reset finds no older state left to read.
+        self.publish_state();
+        self.resets_tx.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
         Ok(())
     }
@@ -544,8 +566,9 @@ impl Actor {
         //
         // NOTE:
         // We shouldn't retry the forkchoice update there. Since the heads are only updated
-        // here (except during consolidation, when the block is not the last in the batch) - the
-        // engine would get stuck retrying the forkchoice update.
+        // here (except during consolidation, when the block is not the last in the batch, and
+        // the safe head's source, which is not part of the forkchoice) - the engine would get
+        // stuck retrying the forkchoice update.
         if self.state.has_heads() && self.state == new_state {
             debug!(target: "engine", ?new_state, "No forkchoice update needed");
             return Ok(());
@@ -786,6 +809,10 @@ impl Actor {
         {
             Ok(new_block_ref) => {
                 info!(target: "engine", "Successfully imported payload");
+                if is_attributes_derived {
+                    // A deposits-only replacement is derived from the same L1 block.
+                    self.state = self.state.with_safe_head_source(attributes.derived_from);
+                }
                 new_block_ref
             }
             Err(InsertTaskError::UnexpectedPayloadStatus(e)) if attributes.is_deposits_only() => {
@@ -932,7 +959,7 @@ enum Recovery {
     Completed,
     /// The execution layer rejected the operation's block, and a deposits-only block replaced it.
     Flushed,
-    /// The operation was abandoned and the engine reset, counting the reset in its state.
+    /// The operation was abandoned and the engine reset, publishing the reset.
     Reset,
 }
 

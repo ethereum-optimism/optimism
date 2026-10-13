@@ -56,8 +56,8 @@ pub(super) struct ResetRequest {
 /// The engine publishes its state before replying, so the state matches the published one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Consolidation {
-    /// The engine state after the consolidation. If the engine reset, before or during the
-    /// consolidation, its reset count moved, and derivation must start over from its safe head.
+    /// The engine state after the consolidation. If the engine reset before or during the
+    /// consolidation, it published the reset before replying.
     pub state: EngineState,
     /// Whether the execution layer rejected the attributes' block, and a deposits-only block built
     /// from the same attributes replaced it, so derivation must flush its channel.
@@ -80,20 +80,31 @@ pub(super) struct SealRequest {
 pub struct Handle {
     messages: mpsc::Sender<Message>,
     state: watch::Receiver<EngineState>,
+    resets: watch::Receiver<EngineState>,
 }
 
 impl Handle {
-    /// Construct a handle from the engine's request sender and published state.
+    /// Construct a handle from the engine's request sender, published state, and published
+    /// resets.
     pub(super) const fn new(
         messages: mpsc::Sender<Message>,
         state: watch::Receiver<EngineState>,
+        resets: watch::Receiver<EngineState>,
     ) -> Self {
-        Self { messages, state }
+        Self { messages, state, resets }
     }
 
     /// Subscribes to the engine state, which the actor publishes as it executes tasks.
     pub fn state(&self) -> watch::Receiver<EngineState> {
         self.state.clone()
+    }
+
+    /// Subscribes to the engine's resets from now on. The receiver sees the engine state after
+    /// each later reset, before the reply to the request that caused it.
+    pub fn resets(&self) -> watch::Receiver<EngineState> {
+        let mut resets = self.resets.clone();
+        resets.mark_unchanged();
+        resets
     }
 
     /// Resets the engine forkchoice to a starting point found from the execution layer's heads,
@@ -211,7 +222,8 @@ mod tests {
     fn handle() -> (Handle, mpsc::Receiver<Message>) {
         let (messages, receiver) = mpsc::channel(1);
         let (_, state) = watch::channel(EngineState::default());
-        (Handle::new(messages, state), receiver)
+        let (_, resets) = watch::channel(EngineState::default());
+        (Handle::new(messages, state, resets), receiver)
     }
 
     #[tokio::test]
@@ -233,7 +245,7 @@ mod tests {
             result = &mut reset => panic!("reset returned before the actor replied: {result:?}"),
             _ = ready(()) => {}
         }
-        let state = EngineState::default().count_reset();
+        let state = EngineState::default();
         reply.send(Ok(state)).unwrap();
         assert_eq!(reset.await.unwrap(), state);
 

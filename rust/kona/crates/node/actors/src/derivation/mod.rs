@@ -5,9 +5,9 @@
 //! [`Builder::build_delegated`] follows the safe head of an external derivation delegate.
 //!
 //! Derivation drives the engine: it starts by resetting the engine once the execution layer is
-//! synced, and it learns every result from the engine's replies and published state. The engine
-//! never sends derivation anything on its own. The engine counts its resets in its state, and
-//! derivation starts over from the engine's safe head whenever the count moves.
+//! synced, and it learns every result from the engine's replies and published resets. The engine
+//! only replies to requests and publishes its state and resets. Whenever the engine resets, by
+//! any actor's request, derivation resets its pipeline onto the engine's safe head.
 
 mod actor;
 
@@ -20,15 +20,12 @@ pub use engine::Engine;
 mod error;
 pub use error::ActorError;
 
-mod finalizer;
-pub(crate) use finalizer::L2Finalizer;
-
 mod handle;
 
 mod status;
 pub use status::DerivationStatus;
 
-use crate::{EngineClientError, engine::EngineState};
+use crate::EngineClientError;
 use tokio::{
     sync::watch,
     time::{self, Duration},
@@ -69,11 +66,11 @@ pub struct Handle {
     status: watch::Receiver<DerivationStatus>,
 }
 
-/// Resets the engine and returns its state afterwards, asking again while the execution layer
-/// syncs.
-async fn reset_engine(engine: &impl Engine) -> Result<EngineState, ActorError> {
+/// Resets the engine, asking again while the execution layer syncs. The engine publishes the
+/// reset before it replies.
+async fn reset_engine(engine: &impl Engine) -> Result<(), ActorError> {
     loop {
-        match engine.reset().await {
+        match engine.reset().await.map(|_| ()) {
             Err(EngineClientError::ElSyncing) => {
                 debug!(target: "derivation", "Waiting for the execution layer to sync");
                 time::sleep(ENGINE_RESET_RETRY_INTERVAL).await;
