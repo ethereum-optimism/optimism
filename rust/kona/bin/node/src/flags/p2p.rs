@@ -4,28 +4,24 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use crate::flags::{GlobalArgs, SignerArgs};
+use crate::flags::SignerArgs;
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
 use libp2p::identity::Keypair;
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
-    num::ParseIntError,
     path::PathBuf,
     str::FromStr,
 };
 use tokio::time::Duration;
-use url::Url;
 
 /// Resolves a hostname or IP address string to an [`IpAddr`].
 ///
@@ -56,9 +52,6 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
-    /// Disable Discv5 (node discovery).
-    #[arg(long = "p2p.no-discovery", default_value = "false", env = "KONA_NODE_P2P_NO_DISCOVERY")]
-    pub no_discovery: bool,
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after
     /// restarting, maintaining the previous advertised identity.
@@ -98,22 +91,6 @@ pub struct P2PArgs {
     /// UDP port to bind Discv5 to. Same as TCP port if left 0.
     #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
     pub listen_udp_port: u16,
-    /// Low-tide peer count. The node actively searches for new peer connections if below this
-    /// amount.
-    #[arg(long = "p2p.peers.lo", default_value = "20", env = "KONA_NODE_P2P_PEERS_LO")]
-    pub peers_lo: u32,
-    /// High-tide peer count. The node starts pruning peer connections slowly after reaching this
-    /// number.
-    #[arg(long = "p2p.peers.hi", default_value = "30", env = "KONA_NODE_P2P_PEERS_HI")]
-    pub peers_hi: u32,
-    /// Grace period to keep a newly connected peer around, if it is not misbehaving.
-    #[arg(
-        long = "p2p.peers.grace",
-        default_value = "30",
-        env = "KONA_NODE_P2P_PEERS_GRACE",
-        value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::from_secs(arg.parse()?))}
-    )]
-    pub peers_grace: Duration,
     /// Configure `GossipSub` topic stable mesh target count.
     /// Aka: The desired outbound degree (numbers of peers to gossip to).
     #[arg(long = "p2p.gossip.mesh.d", default_value = "8", env = "KONA_NODE_P2P_GOSSIP_MESH_D")]
@@ -220,13 +197,6 @@ pub struct P2PArgs {
     )]
     pub topic_scoring: bool,
 
-    /// An optional unsafe block signer address.
-    ///
-    /// By default, this is fetched from the chain config in the superchain-registry using the
-    /// specified L2 chain ID.
-    #[arg(long = "p2p.unsafe.block.signer", env = "KONA_NODE_P2P_UNSAFE_BLOCK_SIGNER")]
-    pub unsafe_block_signer: Option<alloy_primitives::Address>,
-
     /// An optional flag to remove random peers from discovery to rotate the peer set.
     ///
     /// This is the number of seconds to wait before removing a peer from the discovery
@@ -313,45 +283,8 @@ impl P2PArgs {
         None
     }
 
-    /// Returns the unsafe block signer from the CLI arguments.
-    pub async fn unsafe_block_signer(
-        &self,
-        args: &GlobalArgs,
-        rollup_config: &RollupConfig,
-        l1_eth_rpc: Option<Url>,
-    ) -> anyhow::Result<alloy_primitives::Address> {
-        if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-            let latest_block_num = provider.latest_block_number().await?;
-            let block_info = provider.block_info_by_number(latest_block_num).await?;
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
-                rollup_config.l1_system_config_address,
-                block_info.hash,
-            )
-            .await?);
-        }
-
-        // Otherwise use the genesis signer or the configured unsafe block signer.
-        args.genesis_signer().or_else(|_| {
-            self.unsafe_block_signer
-                .ok_or_else(|| anyhow::anyhow!("Unsafe block signer not provided"))
-        })
-    }
-
     /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
-    ///
-    /// ## Parameters
-    ///
-    /// - [`GlobalArgs`]: required to fetch the genesis unsafe block signer.
-    ///
-    /// Errors if the genesis unsafe block signer isn't available for the specified L2 Chain ID.
-    pub async fn config(
-        self,
-        config: &RollupConfig,
-        args: &GlobalArgs,
-        l1_rpc: Option<Url>,
-    ) -> anyhow::Result<NetworkConfig> {
+    pub fn config(self, config: &RollupConfig) -> Result<NetworkConfig> {
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
@@ -411,16 +344,7 @@ impl P2PArgs {
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
-
-        let bootstore = if self.disable_bootstore {
-            None
-        } else {
-            Some(self.bootstore.map_or_else(
-                || BootStoreFile::Default { chain_id: args.l2_chain_id.into() },
-                BootStoreFile::Custom,
-            ))
-        };
+        let bootstore = self.bootstore_file(config);
 
         let bootnodes = self
             .bootnodes
@@ -437,7 +361,6 @@ impl P2PArgs {
             enr_update: !static_ip,
             gossip_address,
             keypair,
-            unsafe_block_signer,
             gossip_config,
             scoring: self.scoring,
             monitor_peers,
@@ -449,8 +372,22 @@ impl P2PArgs {
             },
             bootnodes,
             rollup_config: config.clone(),
-            gossip_signer: self.signer.config(args)?,
+            gossip_signer: self.signer.config()?,
         })
+    }
+
+    /// Returns the bootstore file to use for the rollup's L2 chain, or `None` if the bootstore is
+    /// disabled.
+    fn bootstore_file(&self, config: &RollupConfig) -> Option<BootStoreFile> {
+        if self.disable_bootstore {
+            return None;
+        }
+        let chain_id = config.l2_chain_id.id();
+        Some(
+            self.bootstore
+                .clone()
+                .map_or(BootStoreFile::Default { chain_id }, BootStoreFile::Custom),
+        )
     }
 
     /// Returns the [`Keypair`] from the cli inputs.
@@ -539,17 +476,32 @@ mod tests {
     }
 
     #[test]
+    fn test_p2p_args_bootstore_file() {
+        let config =
+            RollupConfig { l2_chain_id: alloy_chains::Chain::from_id(8453), ..Default::default() };
+
+        let args = MockCommand::parse_from(["test"]);
+        assert_eq!(
+            args.p2p.bootstore_file(&config),
+            Some(BootStoreFile::Default { chain_id: 8453 })
+        );
+
+        let args = MockCommand::parse_from(["test", "--p2p.bootstore", "/tmp/bootstore.json"]);
+        assert_eq!(
+            args.p2p.bootstore_file(&config),
+            Some(BootStoreFile::Custom(PathBuf::from("/tmp/bootstore.json")))
+        );
+
+        let args = MockCommand::parse_from(["test", "--p2p.no-bootstore"]);
+        assert_eq!(args.p2p.bootstore_file(&config), None);
+    }
+
+    #[test]
     fn test_p2p_args_randomized() {
         let args = MockCommand::parse_from(["test", "--p2p.discovery.randomize", "10"]);
         assert_eq!(args.p2p.discovery_randomize, Some(10));
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p.discovery_randomize, None);
-    }
-
-    #[test]
-    fn test_p2p_args_no_discovery() {
-        let args = MockCommand::parse_from(["test", "--p2p.no-discovery"]);
-        assert!(args.p2p.no_discovery);
     }
 
     #[test]

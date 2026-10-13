@@ -185,9 +185,6 @@ pub struct OnlineBeaconClient {
     pub base: String,
     /// The inner reqwest client.
     pub inner: Client,
-    /// The duration in seconds of an L1 slot. This can be used to override the CL slot
-    /// duration if the l1-beacon's slot configuration endpoint is not available.
-    pub l1_slot_duration: Option<u64>,
 }
 
 impl OnlineBeaconClient {
@@ -197,18 +194,7 @@ impl OnlineBeaconClient {
         if base.ends_with('/') {
             base.remove(base.len() - 1);
         }
-        Self {
-            base,
-            inner: Client::builder().build().expect("Failed to create beacon client"),
-            l1_slot_duration: None,
-        }
-    }
-
-    /// Sets the duration in seconds of an L1 slot. This can be used to override the CL slot
-    /// duration if the l1-beacon's slot configuration endpoint is not available.
-    pub const fn with_l1_slot_duration_override(mut self, l1_slot_duration: u64) -> Self {
-        self.l1_slot_duration = Some(l1_slot_duration);
-        self
+        Self { base, inner: Client::builder().build().expect("Failed to create beacon client") }
     }
 
     /// Fetches only the blobs corresponding to the provided (versioned) blob hashes
@@ -273,11 +259,6 @@ impl BeaconClient for OnlineBeaconClient {
 
     async fn slot_interval(&self) -> Result<APIConfigResponse, Self::Error> {
         kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_REQUESTS, "method" => "spec");
-
-        // Use the l1 slot duration if provided
-        if let Some(l1_slot_duration) = self.l1_slot_duration {
-            return Ok(APIConfigResponse::new(l1_slot_duration));
-        }
 
         let result = async {
             let first = self.inner.get(format!("{}/{}", self.base, SPEC_METHOD)).send().await?;

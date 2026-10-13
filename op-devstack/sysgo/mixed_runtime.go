@@ -569,7 +569,6 @@ func startMixedKonaNode(
 		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which

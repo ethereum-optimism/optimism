@@ -61,6 +61,7 @@ alloy-signer-local.workspace = true
 tower.workspace = true
 
 alloy-json-rpc.workspace = true
+httpmock.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }

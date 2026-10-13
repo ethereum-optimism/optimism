@@ -37,12 +37,6 @@ impl CliMetrics {
     /// The advertised udp port via P2P.
     pub const P2P_ADVERTISE_UDP_PORT: &'static str = "kona_node_advertise_udp";
 
-    /// The low-tide peer count.
-    pub const P2P_PEERS_LO: &'static str = "kona_node_peers_lo";
-
-    /// The high-tide peer count.
-    pub const P2P_PEERS_HI: &'static str = "kona_node_peers_hi";
-
     /// The gossip mesh d option.
     pub const P2P_GOSSIP_MESH_D: &'static str = "kona_node_gossip_mesh_d";
 

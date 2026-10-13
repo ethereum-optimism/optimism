@@ -1,6 +1,5 @@
 //! Configuration for the `Network`.
 
-use alloy_primitives::Address;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
@@ -25,8 +24,6 @@ pub struct NetworkConfig {
     pub enr_update: bool,
     /// The gossip address.
     pub gossip_address: libp2p::Multiaddr,
-    /// The unsafe block signer.
-    pub unsafe_block_signer: Address,
     /// The keypair.
     pub keypair: Keypair,
     /// The gossip config.
@@ -79,7 +76,6 @@ impl NetworkConfig {
         rollup_config: RollupConfig,
         discovery_listen: LocalNode,
         gossip_address: Multiaddr,
-        unsafe_block_signer: Address,
     ) -> Self {
         Self {
             rollup_config,
@@ -88,7 +84,6 @@ impl NetworkConfig {
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
             gossip_address,
-            unsafe_block_signer,
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
             bootnodes: Default::default(),
@@ -128,12 +123,7 @@ mod tests {
             0,
             0,
         );
-        let config = NetworkConfig::new(
-            RollupConfig::default(),
-            local_node,
-            Multiaddr::empty(),
-            Address::ZERO,
-        );
+        let config = NetworkConfig::new(RollupConfig::default(), local_node, Multiaddr::empty());
         assert_eq!(config.discovery_config.auto_nat_listen_duration, None);
     }
 }

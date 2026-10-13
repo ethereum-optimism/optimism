@@ -50,8 +50,6 @@ const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 pub struct L1Config {
     /// The L1 chain configuration.
     pub chain_config: Arc<L1ChainConfig>,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
     /// The L1 beacon client.
     pub beacon_client: OnlineBeaconClient,
     /// The L1 engine provider.
@@ -70,8 +68,6 @@ pub struct RollupNode {
     pub(crate) l1_config: L1Config,
     /// The L2 EL provider.
     pub(crate) l2_provider: RootProvider<Optimism>,
-    /// Whether to trust the L2 RPC.
-    pub(crate) l2_trust_rpc: bool,
     /// The [`EngineConfig`] for the node.
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
@@ -103,7 +99,7 @@ impl RollupNode {
     /// Creates a network builder for the node whose gossip validation follows
     /// `unsafe_block_signer`.
     fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
-        NetworkBuilder::from(self.p2p_config.clone()).with_unsafe_block_signer(unsafe_block_signer)
+        NetworkBuilder::from_config(self.p2p_config.clone(), unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -115,18 +111,16 @@ impl RollupNode {
     fn create_attributes_builder(
         &self,
     ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
-        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
+        let l1_derivation_provider = AlloyChainProvider::new(
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
+            AlloyL2ChainProvider::new(
                 self.l2_provider.clone(),
                 self.config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
             ),
         );
 
@@ -141,18 +135,16 @@ impl RollupNode {
 
     async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
         // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
+        let l1_derivation_provider = AlloyChainProvider::new(
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
         );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
+            AlloyL2ChainProvider::new(
                 self.l2_provider.clone(),
                 self.config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
             ),
         );
 
@@ -360,8 +352,13 @@ impl RollupNode {
         let head = head_builder.handle();
         let safe = safe_builder.handle();
         let finalized = finalized_builder.handle();
-        let signer_updater_builder =
-            l1_signer_updater::Builder::new(self.p2p_config.unsafe_block_signer);
+        let initial_signer = l1_signer_updater::signer_at_l1_head(
+            &self.l1_config.engine_provider,
+            self.config.l1_system_config_address,
+        )
+        .await
+        .map_err(|error| format!("Failed to read the unsafe block signer from L1: {error}"))?;
+        let signer_updater_builder = l1_signer_updater::Builder::new(initial_signer);
         let signer_rx = signer_updater_builder.handle();
         // actor request channels
         let derivation_builder = derivation::Builder::new();

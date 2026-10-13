@@ -20,16 +20,15 @@ op-version.workspace = true
 
 kona-rpc.workspace = true
 kona-peers.workspace = true
-kona-genesis = { workspace = true, features = ["tabled"] }
+kona-genesis.workspace = true
 kona-interop = { workspace = true, features = ["serde"] }
-kona-protocol.workspace = true
 
 kona-cli = { workspace = true, features = ["secrets"] }
 kona-gossip.workspace = true
 kona-disc.workspace = true
 kona-derive = { workspace = true, features = ["metrics"] }
 kona-engine.workspace = true
-kona-registry = { workspace = true, features = ["tabled"] }
+kona-registry.workspace = true
 kona-sources = { workspace = true }
 kona-node-service.workspace = true
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
@@ -37,39 +36,25 @@ kona-providers-local = { workspace = true, features = ["metrics"] }
 
 # alloy
 alloy-chains.workspace = true
-alloy-genesis.workspace = true
 alloy-signer.workspace = true
-alloy-provider.workspace = true
-alloy-transport.workspace = true
-alloy-transport-http.workspace = true
 alloy-primitives.workspace = true
 alloy-signer-local.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 
 # op-alloy
 op-alloy-provider.workspace = true
-op-alloy-network.workspace = true
-op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 
 # general
 url.workspace = true
-dirs.workspace = true
 strum.workspace = true
-discv5.workspace = true
 enr.workspace = true
-tabled.workspace = true
 libp2p.workspace = true
-derive_more.workspace = true
 anyhow.workspace = true
-futures.workspace = true
 metrics.workspace = true
 reqwest.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-tokio-stream.workspace = true
-tokio-util.workspace = true
 serde_json = { workspace = true, features = ["std"] }
-jsonrpsee = { workspace = true, features = ["server"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
