@@ -599,9 +599,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             .disputeGameFinalityDelaySeconds();
     }
 
-    /// @notice Reverts unless every chain has the same dispute game finality delay. The shared
-    ///         AnchorStateRegistry holds one value, so a disagreement would silently change the
-    ///         delay for the other chains.
+    /// @notice Reverts unless every chain has the same dispute game finality delay.
+    ///         The AnchorStateRegistry is shared, so we perform a check to avoid a single chain
+    ///         dictating the delay for the entire interop set.
+    ///         TODO: Add the DelayedWETH delay uniformity check here in the follow up PR
     /// @param _chainSystemConfigs The chain system configs being migrated.
     function _validateSharedDelays(ISystemConfig[] calldata _chainSystemConfigs) internal view {
         for (uint256 i = 1; i < _chainSystemConfigs.length; i++) {
