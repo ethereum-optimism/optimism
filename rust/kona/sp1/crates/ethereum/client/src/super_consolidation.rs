@@ -40,8 +40,8 @@ where
 {
     inputs.validate()?;
 
-    // Deposit-only replacement re-executes blocks through revm, which may hit the KZG
-    // point-evaluation precompile. Install the SP1-compatible crypto provider first.
+    // Deposit-only replacement re-executes blocks through revm; install the SP1-accelerated
+    // crypto provider (see `CustomCrypto`) first.
     revm::precompile::install_crypto(CustomCrypto::default());
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
