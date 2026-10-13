@@ -115,7 +115,9 @@ Sets the recovery mode for the sequencer.
 
 ## `admin_overrideLeader`
 
-Overrides the leader in the conductor.
+Locally bypasses unsafe-payload commits to the conductor for disaster recovery. The override remains active until the node restarts.
+
+This does not override the conductor's own leadership state. To serve downstream traffic through the conductor's leader-gated RPC proxy, also set its `conductor_overrideLeader` RPC to `true`.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |

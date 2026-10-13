@@ -153,7 +153,7 @@ pub trait AdminApi {
     #[method(name = "setRecoverMode")]
     async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()>;
 
-    /// Overrides the leader in the conductor.
+    /// Locally bypasses conductor commits for disaster recovery until the node restarts.
     #[method(name = "overrideLeader")]
     async fn admin_override_leader(&self) -> RpcResult<()>;
 
