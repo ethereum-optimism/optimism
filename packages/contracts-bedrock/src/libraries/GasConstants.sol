@@ -19,7 +19,8 @@ pragma solidity ^0.8.0;
 // executing.
 // To set: measure that path on the chain's EVM with cold storage, and add margin.
 
-/// @dev Set empirically for pre-Glamsterdam L1.
+/// @dev Set empirically for pre-Glamsterdam L1. Its slack also absorbs EIP-8037 state gas for value
+///      sent to a new account; see `L1_RELAY_CALL_OVERHEAD`.
 uint64 constant L1_RELAY_CONSTANT_OVERHEAD = 200_000;
 
 /// @dev Set empirically.
