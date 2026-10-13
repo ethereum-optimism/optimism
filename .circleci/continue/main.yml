@@ -2394,8 +2394,10 @@ jobs:
             gcloud auth configure-docker us-docker.pkg.dev
       - run:
           name: Run goreleaser
+          # Without an explicit tag, goreleaser picks the highest version-sorted tag on HEAD.
+          # Git sorts v1.0.0-rc.1 above v1.0.0, so a final tag on an rc's commit releases as the rc.
           command: |
-            goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
+            GORELEASER_CURRENT_TAG="$CIRCLE_TAG" goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
   diff-fetcher-forge-artifacts:
     docker:
