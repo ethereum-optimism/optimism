@@ -22,7 +22,7 @@ A message that its destination never relays can be marked expired on its source 
 2.  **Withdrawal.** The export is an L2-to-L1 withdrawal to the source chain's `L1CrossDomainMessenger`. After the destination's withdrawal delay, someone proves and finalizes it on L1, and the source chain's `L1CrossDomainMessenger` passes it to the source chain as a deposit.
 3.  **Expiry.** The source chain's `L2ToL2CrossDomainMessenger` sets `expiredMessages(messageHash)` and emits `MessageExpired(messageHash, undeliveredAt)`, but only if the export happened more than 8 days after the message was sent (the expiry window plus a day of margin). An earlier export never becomes valid: it ends up as a failed message on the source chain, and the message can be exported again later.
 
-The `SuperchainETHBridge` undoes an expired send with `refundETH`, which returns the ETH to the sender. Another application can undo its own sends the same way: check `expiredMessages(messageHash)` on the source chain's `L2ToL2CrossDomainMessenger`, or watch for `MessageExpired`, and record that it undid the send, so the undo happens only once. The flag stays set.
+The `SuperchainETHBridge` undoes an expired send with `refundETH`: the address that called `sendETH` calls it and gets its ETH back. Another application can undo its own sends the same way: check `expiredMessages(messageHash)` on the source chain's `L2ToL2CrossDomainMessenger`, or watch for `MessageExpired`, and record that it undid the send, so the undo happens only once. The flag stays set.
 
 ## Next steps
 
