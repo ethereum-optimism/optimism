@@ -5,6 +5,7 @@ import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -22,12 +23,20 @@ contract RelayActor is StdUtils {
 
     IOptimismPortal2 op;
     IL1CrossDomainMessenger xdm;
+    IL2CrossDomainMessenger l2xdm;
     Vm vm;
     bool doFail;
 
-    constructor(IOptimismPortal2 _op, IL1CrossDomainMessenger _xdm, Vm _vm, bool _doFail) {
+    constructor(
+        IOptimismPortal2 _op,
+        IL1CrossDomainMessenger _xdm,
+        IL2CrossDomainMessenger _l2xdm,
+        Vm _vm,
+        bool _doFail
+    ) {
         op = _op;
         xdm = _xdm;
+        l2xdm = _l2xdm;
         vm = _vm;
         doFail = _doFail;
         senderSlotIndex = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender").slot;
@@ -59,9 +68,10 @@ contract RelayActor is StdUtils {
         // will not reject value being sent to it.
         _value = _value % 2;
 
-        // If the message should succeed, supply it `baseGas`. If not, supply enough gas for the
-        // relay to record the failure from cold storage, but too little to call the target.
-        uint256 gas = doFail ? bound(minGasLimit, 225_000, 235_000) : xdm.baseGas(_message, minGasLimit);
+        // If the message should succeed, supply it `baseGas` as computed by the sending L2
+        // messenger. If not, supply enough gas for the relay to record the failure from cold
+        // storage, but too little to call the target.
+        uint256 gas = doFail ? bound(minGasLimit, 225_000, 235_000) : l2xdm.baseGas(_message, minGasLimit);
 
         // Compute the cross domain message hash and store it in `hashes`.
         // The `relayMessage` function will always encode the message as a version 1
@@ -102,7 +112,7 @@ contract XDM_MinGasLimits is CommonTest {
         super.setUp();
 
         // Deploy a relay actor
-        actor = new RelayActor(optimismPortal2, l1CrossDomainMessenger, vm, doFail);
+        actor = new RelayActor(optimismPortal2, l1CrossDomainMessenger, l2CrossDomainMessenger, vm, doFail);
 
         // Give the portal some ether to send to `relayMessage`
         vm.deal(address(optimismPortal2), type(uint128).max);

@@ -2022,11 +2022,13 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         }
 
         vm.assume(
-            _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
+            _sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER // L2CrossDomainMessenger withdrawals revert on failure
+                && _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
                 && _target.code.length == 0 // No accounts with code
                 && _target != CONSOLE // The console has no code but behaves like a contract
-                && uint160(_target) > 9 // No precompiles (or zero address)
+                && _target != address(0)
         );
+        assumeNotPrecompile(_target);
 
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
@@ -2105,8 +2107,9 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
                 && _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
                 && _target.code.length == 0 // No accounts with code
                 && _target != CONSOLE // The console has no code but behaves like a contract
-                && uint160(_target) > 9 // No precompiles (or zero address)
+                && _target != address(0)
         );
+        assumeNotPrecompile(_target);
 
         // Bound to prevent changes in retirementTimestamp
         _newGameType = GameType.wrap(uint32(bound(_newGameType.raw(), 0, type(uint32).max - 1)));
