@@ -68,14 +68,12 @@ uint64 constant L2_RELAY_RESERVED_GAS = 40_000;
 ////////////////////////////////////////////////////////////////
 
 // Covers the work between the `hasMinGas` check and the CALL: setting `xDomainMsgSender` (a warm,
-// nonzero-to-nonzero write, so no state gas) and preparing the call's arguments. The CALL's own
-// charges are budgeted in the reserved gas, so the 40,000 `hasMinGas` allowance also covers this
-// window. Too low, and the target can receive less than `minGasLimit`.
-// To set: with the `hasMinGas` allowance, it must exceed that window's cost on the chain's EVM.
+// nonzero-to-nonzero write, so no state gas) and preparing the call's arguments. Too low, and the
+// target can receive less than `minGasLimit`.
+// To set: the cost of that window on the chain's EVM, rounded up generously.
 
-/// @dev Too small on its own under Amsterdam, where the `xDomainMsgSender` write costs 10,100; the
-///      `hasMinGas` allowance covers the rest.
-uint64 constant L1_RELAY_GAS_CHECK_BUFFER = 5_000;
+/// @dev The `xDomainMsgSender` write alone costs 10,100 under Amsterdam.
+uint64 constant L1_RELAY_GAS_CHECK_BUFFER = 15_000;
 
-/// @dev Conservative round number.
+/// @dev The `xDomainMsgSender` write alone costs 2,900 under Prague.
 uint64 constant L2_RELAY_GAS_CHECK_BUFFER = 5_000;

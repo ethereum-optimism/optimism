@@ -15,7 +15,7 @@ contract GasConstants_Uncategorized_Test is Test {
         assertEq(GasConstants.L1_RELAY_CONSTANT_OVERHEAD, 200_000);
         assertEq(GasConstants.L1_RELAY_CALL_OVERHEAD, 40_000);
         assertEq(GasConstants.L1_RELAY_RESERVED_GAS, 135_000);
-        assertEq(GasConstants.L1_RELAY_GAS_CHECK_BUFFER, 5_000);
+        assertEq(GasConstants.L1_RELAY_GAS_CHECK_BUFFER, 15_000);
     }
 
     /// @notice Tests the L2 relay gas budgets.
