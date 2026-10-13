@@ -9,7 +9,7 @@ mod error;
 pub use error::{CliError, CliResult};
 
 mod flags;
-pub use flags::{GlobalArgs, LogArgs, MetricsArgs, OverrideArgs};
+pub use flags::{LogArgs, MetricsArgs};
 
 mod logs;
 pub use logs::{FileLogConfig, LogConfig, LogRotation, StdoutLogConfig};

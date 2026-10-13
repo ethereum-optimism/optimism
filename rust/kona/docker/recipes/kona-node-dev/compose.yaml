@@ -90,11 +90,11 @@ services:
     networks:
       - stf-net
     command: >
+      node
       -vvv
       --chain optimism-sepolia
       --metrics.enabled
       --metrics.port ${KONA_NODE_METRICS_PORT:-9002}
-      node
       --l1 ${L1_PROVIDER_RPC:?}
       --l1-beacon ${L1_BEACON_API:?}
       --l2 "http://op-rs-op-sepolia-reth:${OP_RETH_ENGINE_PORT:-8551}"

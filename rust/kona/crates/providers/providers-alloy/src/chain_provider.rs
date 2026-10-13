@@ -16,12 +16,13 @@ use std::{boxed::Box, num::NonZeroUsize, vec::Vec};
 
 /// The [`AlloyChainProvider`] is a concrete implementation of the [`ChainProvider`] trait,
 /// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
+///
+/// It does not trust the RPC: every header and block it fetches by hash is checked to hash to
+/// the requested hash.
 #[derive(Debug, Clone)]
 pub struct AlloyChainProvider {
     /// The inner Ethereum JSON-RPC provider.
     pub inner: RootProvider,
-    /// Whether to trust the RPC without verification.
-    pub trust_rpc: bool,
     /// `header_by_hash` LRU cache.
     header_by_hash_cache: LruCache<B256, Header>,
     /// `receipts_by_hash_cache` LRU cache.
@@ -36,17 +37,8 @@ impl AlloyChainProvider {
     /// ## Panics
     /// - Panics if `cache_size` is zero.
     pub fn new(inner: RootProvider, cache_size: usize) -> Self {
-        Self::new_with_trust(inner, cache_size, true)
-    }
-
-    /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new_with_trust(inner: RootProvider, cache_size: usize, trust_rpc: bool) -> Self {
         Self {
             inner,
-            trust_rpc,
             header_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             receipts_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             block_info_and_transactions_by_hash_cache: LruCache::new(
@@ -80,16 +72,15 @@ impl AlloyChainProvider {
         self.inner.get_chain_id().await
     }
 
-    /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
+    /// Verifies that a header hashes to the expected hash.
+    ///
+    /// The hash an endpoint reports alongside a block is its own claim, so it is recomputed from
+    /// the header rather than taken at face value: otherwise an endpoint could echo back the hash
+    /// it was asked for while serving different header fields.
     fn verify_header_hash(
-        &self,
         header: &Header,
         expected_hash: B256,
     ) -> Result<(), AlloyChainProviderError> {
-        if self.trust_rpc {
-            return Ok(());
-        }
-
         let actual_hash = header.hash_slow();
         if actual_hash != expected_hash {
             return Err(AlloyChainProviderError::Transport(RpcError::Transport(
@@ -173,7 +164,7 @@ impl ChainProvider for AlloyChainProvider {
         let header = block.header.into_consensus();
 
         // Verify the header hash matches what we requested
-        self.verify_header_hash(&header, hash)?;
+        Self::verify_header_hash(&header, hash)?;
 
         self.header_by_hash_cache.put(hash, header.clone());
 
@@ -262,7 +253,7 @@ impl ChainProvider for AlloyChainProvider {
             .map_transactions(|t| t.inner.into_inner());
 
         // Verify the block hash matches what we requested
-        self.verify_header_hash(&block.header, hash)?;
+        Self::verify_header_hash(&block.header, hash)?;
 
         let block_info = BlockInfo {
             hash, // Use the already verified hash instead of recomputing
@@ -314,6 +305,36 @@ mod tests {
         assert!(
             matches!(kind, PipelineErrorKind::Temporary(_)),
             "number-based BlockNotFound must stay Temporary (block not yet produced)"
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_cannot_echo_the_requested_block_hash() {
+        // The hash an endpoint reports alongside a header is its own claim. Taken at face value,
+        // a faulty or malicious endpoint can echo back whatever hash was asked for while serving
+        // different header fields, and the header is then cached and used under a hash it does
+        // not have.
+        let requested = B256::repeat_byte(0xbb);
+        let header = Header::default();
+        assert_ne!(header.hash_slow(), requested, "the header must not hash to the request");
+        let mut rpc_header = alloy_rpc_types_eth::Header::new(header);
+        rpc_header.hash = requested;
+        let block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::new(
+            rpc_header,
+            alloy_rpc_types_eth::BlockTransactions::Hashes(vec![]),
+        );
+
+        let server = httpmock::MockServer::start();
+        server.mock(|when, then| {
+            when.method(httpmock::Method::POST).body_includes("eth_getBlockByHash");
+            then.json_body(serde_json::json!({"jsonrpc": "2.0", "id": 0, "result": block}));
+        });
+
+        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let err = provider.header_by_hash(requested).await.unwrap_err();
+        assert!(
+            matches!(err, AlloyChainProviderError::Transport(_)),
+            "expected the hash mismatch to be rejected, got {err:?}"
         );
     }
 }

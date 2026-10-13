@@ -22,51 +22,45 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 |------|-----|-------------|----------|---------|
 | `--mode <validator/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | No | `validator` |
 | `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
-| `--l1-trust-rpc <true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `true` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
-| `--l2-trust-rpc <true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
-| `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | No | - |
-| `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
-| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
+| `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | Yes | - |
 
-## Global Arguments
+## Chain Arguments
 
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--l2-chain-id <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string) | No | `10` (Optimism) |
+| `--chain <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string) to load the rollup config for from the superchain registry | One of these two | - |
+| `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to an L2 rollup configuration file, for a chain that is not in the superchain registry | One of these two | - |
 
 ### Chain ID Support
 
-The `--l2-chain-id` flag supports flexible chain identification using the `alloy_chains` crate:
+The `--chain` flag (alias `--l2-chain-id`) supports flexible chain identification using the `alloy_chains` crate:
 
 **Numeric Chain IDs:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
-kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
-kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+kona-node node --chain 10 [args...]      # OP Mainnet
+kona-node node --chain 8453 [args...]    # Base mainnet
 ```
 
 **String Chain Names:**
 ```bash
-kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id base node [args...]
-kona-node --l2-chain-id mainnet node [args...]
+kona-node node --chain optimism [args...]
+kona-node node --chain base [args...]
 ```
 
 **Short Flag and Environment Variable:**
 ```bash
-kona-node -c optimism node [args...]
+kona-node node -c optimism [args...]
 export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 ```
 
-Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`, `mainnet`). Unknown numeric chain IDs are accepted for custom networks.
+Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`). The chain must be in the superchain registry; for a custom network, use `--l2-config-file` instead.
 
 ## P2P Arguments
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery) | `false` |
 | `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
@@ -75,9 +69,6 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
 | `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
 | `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
-| `--p2p.peers.lo <N>` | `KONA_NODE_P2P_PEERS_LO` | Low-tide peer count | `20` |
-| `--p2p.peers.hi <N>` | `KONA_NODE_P2P_PEERS_HI` | High-tide peer count | `30` |
-| `--p2p.peers.grace <SECONDS>` | `KONA_NODE_P2P_PEERS_GRACE` | Grace period for new peers | `30` |
 | `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
 | `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLO` | GossipSub mesh low watermark | `6` |
 | `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
@@ -117,10 +108,8 @@ Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and cal
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
-| `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
 
 ## Interop Arguments
 
@@ -131,9 +120,12 @@ Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and cal
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.
 
-## RPC Trust Flags
+## RPC Response Verification
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
+`kona-node` does not trust the L1 RPC: every L1 header and block it fetches by hash is checked
+to hash to the hash it asked for, so an RPC cannot serve different block contents under a
+requested hash. It trusts the L2 execution client given by `--l2-engine-rpc`, which should be
+the node's own, authenticated with the JWT secret. Neither behavior is configurable.
 
 ## Default Behavior
 
@@ -150,17 +142,17 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
 
 ## Rollup Configuration Loading
 
-If a file path to a rollup config is _not_ specified via the
-`--l2-config-file` cli flag, the Rollup Config will be loaded
-via the [superchain registry][scr].
+The rollup config comes from exactly one of two sources:
 
-A custom rollup config can either be specified through the
-`--l2-config-file` flag, or specific values may be overridden
-using a set of override flags provided by the `kona-node`.
+- `--chain` loads it from the [superchain registry][scr].
+- `--l2-config-file` loads it from a file, for a chain that is not in the registry.
 
-Override flags (for example `--canyon-override`) can be viewed
-in the help menu by running `kona-node node --help`. The only
-overrides currently supported are hardfork timestamps in seconds.
+`kona-node` exits with an error if neither or both are set.
+
+Override flags (for example `--canyon-override`) change values in
+the rollup config from either source. They can be viewed in the help
+menu by running `kona-node node --help`. They override hardfork
+activation timestamps, in seconds, and `keep_karst_upgrade_gas`.
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
 

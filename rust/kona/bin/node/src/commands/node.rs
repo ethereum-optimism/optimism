@@ -3,28 +3,17 @@
 use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
-        DerivationDelegateArgs, GlobalArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
+        ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
         SequencerArgs,
     },
 };
-use alloy_rpc_types_engine::JwtSecret;
-use anyhow::{Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
-use kona_cli::{LogConfig, MetricsArgs};
+use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_engine::EngineClient;
-use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_interop::DependencySet;
-use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
-use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
+use kona_node_service::{EngineConfig, L1ClientConfig, NodeMode, RollupNodeConfig};
 use op_alloy_provider::ext::engine::OpEngineApi;
-use serde_json::{Value, from_reader, from_value};
-use std::{
-    fs::File,
-    io::{Read, Write},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::sync::Arc;
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -59,18 +48,21 @@ pub(super) enum JwtValidationError {
 /// # Examples
 ///
 /// ```bash
-/// # Run as validator with default settings
-/// kona node --l1-eth-rpc http://localhost:8545 \
-///           --l1-beacon http://localhost:5052 \
-///           --l2-engine-rpc http://localhost:8551
+/// # Run as validator on OP Mainnet with default settings
+/// kona-node node --chain optimism \
+///                --l1-eth-rpc http://localhost:8545 \
+///                --l1-beacon http://localhost:5052 \
+///                --l2-engine-rpc http://localhost:8551 \
+///                --l2-engine-jwt-secret /path/to/jwt.hex
 ///
-/// # Run as sequencer with custom JWT secret
-/// kona node --mode sequencer \
-///           --l1-eth-rpc http://localhost:8545 \
-///           --l1-beacon http://localhost:5052 \
-///           --l2-engine-rpc http://localhost:8551 \
-///           --l2-engine-jwt-secret /path/to/jwt.hex \
-///           --p2p.sequencer.key.path /path/to/p2p-sequencer.key
+/// # Run as sequencer for a custom chain
+/// kona-node node --mode sequencer \
+///                --l2-config-file /path/to/rollup.json \
+///                --l1-eth-rpc http://localhost:8545 \
+///                --l1-beacon http://localhost:5052 \
+///                --l2-engine-rpc http://localhost:8551 \
+///                --l2-engine-jwt-secret /path/to/jwt.hex \
+///                --p2p.sequencer.key.path /path/to/p2p-sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
@@ -102,21 +94,9 @@ pub struct NodeCommand {
     #[clap(flatten)]
     pub derivation_delegate_args: DerivationDelegateArgs,
 
-    /// Path to a custom L2 rollup configuration file
-    /// (overrides the default rollup configuration from the registry)
-    #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
-    pub l2_config_file: Option<PathBuf>,
-    /// Path to a custom L1 chain configuration or genesis file
-    /// (overrides the default L1 configuration from the registry)
-    #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
-    pub l1_config_file: Option<PathBuf>,
-    /// Path to a JSON file describing the interop dependency set for this
-    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Lagoon hardfork; the inner
-    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
-    /// silent state-divergence bug into a startup crash.
-    #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
-    pub interop_dependency_set: Option<PathBuf>,
+    /// Chain CLI arguments.
+    #[command(flatten)]
+    pub chain: ChainArgs,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -126,39 +106,28 @@ pub struct NodeCommand {
     /// SEQUENCER CLI arguments.
     #[command(flatten)]
     pub sequencer_flags: SequencerArgs,
-}
-
-impl Default for NodeCommand {
-    fn default() -> Self {
-        Self {
-            l1_rpc_args: L1ClientArgs::default(),
-            l2_client_args: L2ClientArgs::default(),
-            derivation_delegate_args: DerivationDelegateArgs::default(),
-            l2_config_file: None,
-            l1_config_file: None,
-            interop_dependency_set: None,
-            node_mode: NodeMode::Validator,
-            p2p_flags: P2PArgs::default(),
-            rpc_flags: RpcArgs::default(),
-            sequencer_flags: SequencerArgs::default(),
-        }
-    }
+    /// Logging CLI arguments.
+    #[command(flatten)]
+    pub log_args: LogArgs,
+    /// Metrics CLI arguments.
+    #[command(flatten)]
+    pub metrics: MetricsArgs,
 }
 
 impl NodeCommand {
-    /// Initializes the logging system based on global arguments.
-    pub fn init_logs(&self, args: &GlobalArgs) -> anyhow::Result<()> {
+    /// Initializes the logging system based on the logging arguments.
+    pub fn init_logs(&self) -> anyhow::Result<()> {
         // Filter out discovery warnings since they're very very noisy.
         let filter = tracing_subscriber::EnvFilter::from_default_env()
             .add_directive("discv5=error".parse()?);
 
-        LogConfig::new(args.log_args.clone()).init_tracing_subscriber(Some(filter))?;
+        LogConfig::new(self.log_args.clone()).init_tracing_subscriber(Some(filter))?;
         Ok(())
     }
 
     /// Initializes CLI metrics for the Node subcommand.
-    pub fn init_cli_metrics(&self, args: &MetricsArgs) -> anyhow::Result<()> {
-        if !args.enabled {
+    pub fn init_cli_metrics(&self) -> anyhow::Result<()> {
+        if !self.metrics.enabled {
             debug!("CLI metrics are disabled");
             return Ok(());
         }
@@ -193,8 +162,6 @@ impl NodeCommand {
                         .advertise_udp_port
                         .map_or_else(|| "auto".to_string(), |p| p.to_string())
                 ),
-                (CliMetrics::P2P_PEERS_LO, self.p2p_flags.peers_lo.to_string()),
-                (CliMetrics::P2P_PEERS_HI, self.p2p_flags.peers_hi.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D, self.p2p_flags.gossip_mesh_d.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D_LO, self.p2p_flags.gossip_mesh_dlo.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D_HI, self.p2p_flags.gossip_mesh_dhi.to_string()),
@@ -228,28 +195,23 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
-        let jwt_secret = self.l2_jwt_secret()?;
-
+    /// Validates the engine's JWT secret by exchanging capabilities with the engine, which fails
+    /// if the engine was given a different secret. Retries other failures, such as an engine
+    /// that is not up yet.
+    async fn validate_jwt(engine_config: &EngineConfig) -> anyhow::Result<()> {
         let engine =
-            EngineClient::rpc_client(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+            EngineClient::rpc_client(engine_config.l2_url.clone(), engine_config.l2_jwt_secret);
 
         let exchange = || async {
             match engine.exchange_capabilities(vec![]).await {
                 Ok(_) => {
                     debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
+                    Ok(())
                 }
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
                         error!(
-                            "Engine API JWT secret differs from the one specified by --l2.jwt-secret/--l2.jwt-secret-encoded"
-                        );
-                        error!(
-                            "Ensure that the JWT secret file specified is correct (by default it is `jwt.hex` in the current directory)"
+                            "Engine API JWT secret differs from the one in --l2-engine-jwt-secret"
                         );
                         return Err(JwtValidationError::InvalidSignature.into());
                     }
@@ -267,196 +229,80 @@ impl NodeCommand {
             .await
     }
 
-    /// Run the Node subcommand.
-    pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
-        let cfg = self.get_l2_config(args)?;
+    /// Resolves the flags into the node's configuration.
+    ///
+    /// This reads the configuration and key files the flags name, and creates a P2P key file the
+    /// flags name if it does not exist yet, but does no network I/O: [`Self::run`] checks the
+    /// engine and the P2P ports, and the node reads its chain state from L1 when it starts.
+    pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
+        let cfg = self.chain.rollup_config()?;
 
-        info!(
-            target: "rollup_node",
-            chain_id = cfg.l2_chain_id.id(),
-            "Starting rollup node services"
-        );
-        for hf in cfg.hardforks.to_string().lines() {
-            info!(target: "rollup_node", "{hf}");
-        }
-
-        let l1_config = L1ConfigBuilder {
-            chain_config: self.get_l1_config(cfg.l1_chain_id)?,
-            trust_rpc: self.l1_rpc_args.l1_trust_rpc,
+        let l1_client = L1ClientConfig {
+            chain_config: self.chain.l1_config(cfg.l1_chain_id)?,
             beacon: self.l1_rpc_args.l1_beacon.clone(),
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
-            slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
         };
-
-        // If metrics are enabled, initialize the global cli metrics.
-        args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
-
-        let jwt_secret = self.validate_jwt().await?;
-
-        self.p2p_flags.check_ports()?;
-        let p2p_config = self
-            .p2p_flags
-            .clone()
-            .config(&cfg, args, Some(self.l1_rpc_args.l1_eth_rpc.clone()))
-            .await?;
-        let rpc_config = self.rpc_flags.clone().into();
 
         let engine_config = EngineConfig {
             config: Arc::new(cfg.clone()),
             l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: jwt_secret,
+            l2_jwt_secret: self.l2_client_args.jwt_secret()?,
             l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             mode: self.node_mode,
         };
 
-        let dependency_set = self.load_dependency_set(&cfg)?;
-
-        RollupNodeBuilder::new(
-            crate::version::version().to_owned(),
-            cfg,
-            l1_config,
-            self.l2_client_args.l2_trust_rpc,
+        Ok(RollupNodeConfig {
+            version: crate::version::version().to_owned(),
+            l1_client,
             engine_config,
-            p2p_config,
-            rpc_config,
-        )
-        .with_sequencer_config(self.sequencer_flags.config())
-        .with_derivation_delegate_config(self.derivation_delegate_args.config())
-        .with_dependency_set(dependency_set)
-        .build()
-        .start()
-        .await
-        .map_err(|e| {
+            p2p_config: self.p2p_flags.clone().config(&cfg)?,
+            rpc_config: self.rpc_flags.clone().into(),
+            sequencer_config: self.sequencer_flags.config(),
+            derivation_delegate_config: self.derivation_delegate_args.clone().config(),
+            dependency_set: self.chain.dependency_set(&cfg)?,
+            config: cfg,
+        })
+    }
+
+    /// Run the Node subcommand.
+    pub async fn run(self) -> anyhow::Result<()> {
+        let config = self.config()?;
+
+        info!(
+            target: "rollup_node",
+            chain_id = config.config.l2_chain_id.id(),
+            "Starting rollup node services"
+        );
+        info!(
+            target: "rollup_node",
+            hardforks = %config.config.hardforks,
+            "Hardfork schedule"
+        );
+
+        // If metrics are enabled, initialize the global cli metrics.
+        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.config));
+
+        // Check the host and the engine before starting the node.
+        self.p2p_flags.check_ports()?;
+        Self::validate_jwt(&config.engine_config).await?;
+
+        config.build().start().await.map_err(|e| {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
             anyhow::anyhow!("{e}")
         })?;
 
         Ok(())
     }
-
-    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
-    ///
-    /// Enforces the invariant that when the rollup config schedules the
-    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
-    /// Errors rather than panicking so the operator sees a clear message.
-    fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
-        match &self.interop_dependency_set {
-            Some(path) => {
-                let file = File::open(path).map_err(|e| {
-                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
-                })?;
-                let dep_set: DependencySet = from_reader(file).map_err(|e| {
-                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
-                })?;
-                Ok(Some(Arc::new(dep_set)))
-            }
-            None if cfg.hardforks.lagoon_time.is_some() => bail!(
-                "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
-                 --interop.dependency-set was not provided. Supply the dependency-set \
-                 JSON file matching op-node's --interop.dependency-set to avoid silent \
-                 state divergence on Lagoon activation.",
-                cfg.hardforks.lagoon_time,
-            ),
-            None => Ok(None),
-        }
-    }
-
-    /// Parses an L1 chain config from either a direct config or a genesis document.
-    fn parse_l1_config(reader: impl Read) -> serde_json::Result<L1ChainConfig> {
-        let mut value: Value = from_reader(reader)?;
-        if let Value::Object(object) = &mut value &&
-            let Some(config) = object.remove("config")
-        {
-            return from_value(config);
-        }
-        from_value(value)
-    }
-
-    /// Get the L1 config, either from a file or the known chains.
-    pub fn get_l1_config(&self, l1_chain_id: u64) -> Result<L1ChainConfig> {
-        match &self.l1_config_file {
-            Some(path) => {
-                debug!("Loading l1 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l1 config file: {e}"))?;
-                Self::parse_l1_config(file)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
-            }
-            None => {
-                debug!("Loading l1 config from known chains");
-                let cfg = L1Config::get_l1_genesis(l1_chain_id).map_err(|e| {
-                    anyhow::anyhow!("Failed to find l1 config for chain ID {l1_chain_id}: {e}")
-                })?;
-                Ok(cfg.into())
-            }
-        }
-    }
-
-    /// Get the L2 rollup config, either from a file or the superchain registry.
-    pub fn get_l2_config(&self, args: &GlobalArgs) -> Result<RollupConfig> {
-        match &self.l2_config_file {
-            Some(path) => {
-                debug!("Loading l2 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))
-            }
-            None => {
-                debug!("Loading l2 config from superchain registry");
-                let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
-                    bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
-                };
-                Ok(cfg.clone())
-            }
-        }
-    }
-
-    /// Returns the L2 JWT secret for the engine API
-    /// using the provided [`PathBuf`]. If the file is not found,
-    /// it will return the default JWT secret.
-    pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
-        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
-            let Ok(secret) = std::fs::read_to_string(path)
-        {
-            return JwtSecret::from_hex(secret)
-                .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
-        }
-
-        if let Some(secret) = &self.l2_client_args.l2_engine_jwt_encoded {
-            return Ok(*secret);
-        }
-
-        Self::default_jwt_secret("l2_jwt.hex")
-    }
-
-    /// Uses the current directory to attempt to read
-    /// the JWT secret from a file named `file_name`.
-    /// If the file is not found, it will create a new random JWT secret and write it to the file.
-    pub fn default_jwt_secret(file_name: &str) -> anyhow::Result<JwtSecret> {
-        let cur_dir = std::env::current_dir()
-            .map_err(|e| anyhow::anyhow!("Failed to get current directory: {e}"))?;
-        std::fs::read_to_string(cur_dir.join(file_name)).map_or_else(
-            |_| {
-                let secret = JwtSecret::random();
-
-                if let Ok(mut file) = File::create(file_name) &&
-                    let Err(e) = file
-                        .write_all(alloy_primitives::hex::encode(secret.as_bytes()).as_bytes())
-                {
-                    return Err(anyhow::anyhow!("Failed to write JWT secret to file: {e}"));
-                }
-
-                Ok(secret)
-            },
-            |content| Ok(JwtSecret::from_hex(content)?),
-        )
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_chains::Chain;
+    use alloy_rpc_types_engine::JwtSecret;
     use anyhow::anyhow;
+    use kona_genesis::RollupConfig;
+    use kona_peers::BootStoreFile;
 
     #[derive(Debug)]
     struct MockError {
@@ -473,12 +319,16 @@ mod tests {
 
     const fn default_flags() -> &'static [&'static str] {
         &[
+            "--chain",
+            "10",
             "--l1-eth-rpc",
             "http://localhost:8545",
             "--l1-beacon",
             "http://localhost:5052",
             "--l2-engine-rpc",
             "http://localhost:8551",
+            "--l2-engine-jwt-secret",
+            "/path/to/jwt.hex",
         ]
     }
 
@@ -516,21 +366,87 @@ mod tests {
         assert!(err.to_string().contains("--l2-engine-rpc"));
     }
 
+    /// Required flags whose URLs nothing listens on, so that any network I/O fails.
+    const UNREACHABLE_FLAGS: [&str; 6] = [
+        "--l1-eth-rpc",
+        "http://127.0.0.1:1",
+        "--l1-beacon",
+        "http://127.0.0.1:2",
+        "--l2-engine-rpc",
+        "http://127.0.0.1:3",
+    ];
+
+    const JWT_HEX: &str = "0xabababababababababababababababababababababababababababababababab";
+
+    /// Parses the node command with [`UNREACHABLE_FLAGS`], a JWT secret file holding [`JWT_HEX`]
+    /// and `args`. The returned file must outlive the command's use of it.
+    fn parse_node(args: &[&str]) -> (NodeCommand, tempfile::NamedTempFile) {
+        let mut jwt = tempfile::NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut jwt, JWT_HEX.as_bytes()).unwrap();
+        let jwt_path = jwt.path().to_str().unwrap().to_owned();
+        let command = NodeCommand::try_parse_from(
+            std::iter::once("node")
+                .chain(UNREACHABLE_FLAGS)
+                .chain(["--l2-engine-jwt-secret", &jwt_path])
+                .chain(args.iter().copied()),
+        )
+        .unwrap();
+        (command, jwt)
+    }
+
     #[test]
-    fn test_get_l1_config_from_direct_and_genesis_files() {
-        let documents = [
-            serde_json::json!({"chainId": 123}),
-            serde_json::json!({"config": {"chainId": 123}, "alloc": {}}),
-        ];
+    fn test_config_for_a_registry_chain() {
+        let (command, _jwt) = parse_node(&[
+            "--chain",
+            "optimism",
+            "--mode",
+            "sequencer",
+            "--conductor.rpc",
+            "http://127.0.0.1:4",
+        ]);
 
-        for document in documents {
-            let mut file = tempfile::NamedTempFile::new().unwrap();
-            serde_json::to_writer(&mut file, &document).unwrap();
+        let config = command.config().unwrap();
 
-            let command =
-                NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
-            assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
-        }
+        assert_eq!(config.config.l2_chain_id.id(), 10);
+        assert_eq!(config.l1_client.chain_config.chain_id, 1);
+        assert_eq!(config.l1_client.rpc_url.as_str(), "http://127.0.0.1:1/");
+        assert_eq!(config.l1_client.beacon.as_str(), "http://127.0.0.1:2/");
+        assert_eq!(config.engine_config.l2_url.as_str(), "http://127.0.0.1:3/");
+        assert_eq!(config.engine_config.l2_jwt_secret, JwtSecret::from_hex(JWT_HEX).unwrap());
+        assert_eq!(config.engine_config.mode, NodeMode::Sequencer);
+        assert_eq!(
+            config.sequencer_config.conductor_rpc_url,
+            Some("http://127.0.0.1:4".parse().unwrap())
+        );
+        assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 10 }));
+    }
+
+    #[test]
+    fn test_config_from_rollup_and_l1_config_files() {
+        let rollup = RollupConfig {
+            l2_chain_id: Chain::from_id(901),
+            l1_chain_id: 900,
+            ..Default::default()
+        };
+        let mut rollup_file = tempfile::NamedTempFile::new().unwrap();
+        serde_json::to_writer(&mut rollup_file, &rollup).unwrap();
+        let mut l1_file = tempfile::NamedTempFile::new().unwrap();
+        serde_json::to_writer(&mut l1_file, &serde_json::json!({"chainId": 900})).unwrap();
+
+        let (command, _jwt) = parse_node(&[
+            "--l2-config-file",
+            rollup_file.path().to_str().unwrap(),
+            "--l1-config-file",
+            l1_file.path().to_str().unwrap(),
+        ]);
+
+        let config = command.config().unwrap();
+
+        assert_eq!(config.config.l2_chain_id.id(), 901);
+        assert_eq!(config.engine_config.config.l2_chain_id.id(), 901);
+        assert_eq!(config.l1_client.chain_config.chain_id, 900);
+        assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
+        assert!(config.dependency_set.is_none());
     }
 
     #[test]

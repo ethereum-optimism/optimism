@@ -6,21 +6,11 @@
 
 use clap::Parser;
 use kona_node_service::SequencerConfig;
-use std::{num::ParseIntError, time::Duration};
 use url::Url;
 
 /// Sequencer CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct SequencerArgs {
-    /// Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
-    /// Disabled if 0.
-    #[arg(
-        long = "sequencer.max-safe-lag",
-        default_value = "0",
-        env = "KONA_NODE_SEQUENCER_MAX_SAFE_LAG"
-    )]
-    pub max_safe_lag: u64,
-
     /// Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1
     /// origin.
     #[arg(long = "sequencer.l1-confs", default_value = "4", env = "KONA_NODE_SEQUENCER_L1_CONFS")]
@@ -29,15 +19,6 @@ pub struct SequencerArgs {
     /// Conductor service rpc endpoint. Providing this value will enable the conductor service.
     #[arg(long = "conductor.rpc", env = "KONA_NODE_CONDUCTOR_RPC")]
     pub conductor_rpc: Option<Url>,
-
-    /// Conductor service rpc timeout.
-    #[arg(
-        long = "conductor.rpc.timeout",
-        default_value = "1",
-        env = "KONA_NODE_CONDUCTOR_RPC_TIMEOUT",
-        value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::from_secs(arg.parse()?))}
-    )]
-    pub conductor_rpc_timeout: Duration,
 }
 
 impl Default for SequencerArgs {

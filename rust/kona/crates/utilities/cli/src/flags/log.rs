@@ -64,7 +64,7 @@ mod tests {
     use super::*;
     use clap::Parser;
 
-    // Helper struct to parse GlobalArgs within a test CLI structure
+    // Helper struct to parse LogArgs within a test CLI structure
     #[derive(Parser, Debug)]
     struct TestCli {
         #[command(flatten)]

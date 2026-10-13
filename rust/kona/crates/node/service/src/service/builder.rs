@@ -38,133 +38,64 @@ impl Default for DerivationDelegateConfig {
     }
 }
 
-/// The [`L1ConfigBuilder`] is used to construct a [`L1Config`].
+/// How to reach the L1 chain.
 #[derive(Debug)]
-pub struct L1ConfigBuilder {
+pub struct L1ClientConfig {
     /// The L1 chain configuration.
     pub chain_config: L1ChainConfig,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
     /// The L1 beacon API.
     pub beacon: Url,
     /// The L1 RPC URL.
     pub rpc_url: Url,
-    /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
-    /// duration if the l1-beacon's slot configuration is not available.
-    pub slot_duration_override: Option<u64>,
 }
 
-/// The [`RollupNodeBuilder`] is used to construct a [`RollupNode`] service.
+/// The configuration of a [`RollupNode`], which [`Self::build`] assembles the node from.
 #[derive(Debug)]
-pub struct RollupNodeBuilder {
+pub struct RollupNodeConfig {
     /// The application version reported by the RPC server.
     pub version: String,
     /// The rollup configuration.
     pub config: RollupConfig,
-    /// The L1 chain configuration.
-    pub l1_config_builder: L1ConfigBuilder,
-    /// Whether to trust the L2 RPC.
-    pub l2_trust_rpc: bool,
+    /// How to reach the L1 chain.
+    pub l1_client: L1ClientConfig,
     /// Engine builder configuration.
     pub engine_config: EngineConfig,
     /// The [`NetworkConfig`].
     pub p2p_config: NetworkConfig,
     /// An RPC Configuration.
     pub rpc_config: Option<RpcBuilder>,
-    /// The [`SequencerConfig`].
-    pub sequencer_config: Option<SequencerConfig>,
+    /// The [`SequencerConfig`], used when the engine runs in sequencer mode.
+    pub sequencer_config: SequencerConfig,
     /// Optional configuration for Derivation Delegate mode.
     /// When present, the node does not run derivation, instead trusting the configured delegate.
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
     /// The interop dependency set for this chain.
+    ///
+    /// Must be set when the rollup config schedules the Lagoon hardfork. When not set, the
+    /// underlying [`kona_derive::StatefulAttributesBuilder`] constructor panics on an
+    /// interop-scheduled chain.
     pub dependency_set: Option<Arc<DependencySet>>,
 }
 
-impl RollupNodeBuilder {
-    /// Creates a new [`RollupNodeBuilder`] with the application version and [`RollupConfig`].
-    pub const fn new(
-        version: String,
-        config: RollupConfig,
-        l1_config_builder: L1ConfigBuilder,
-        l2_trust_rpc: bool,
-        engine_config: EngineConfig,
-        p2p_config: NetworkConfig,
-        rpc_config: Option<RpcBuilder>,
-    ) -> Self {
-        Self {
-            version,
-            config,
-            l1_config_builder,
-            l2_trust_rpc,
-            engine_config,
-            p2p_config,
-            rpc_config,
-            sequencer_config: None,
-            derivation_delegate_config: None,
-            dependency_set: None,
-        }
-    }
-
-    /// Sets the interop [`DependencySet`] on the [`RollupNodeBuilder`].
-    ///
-    /// Must be called when the rollup config schedules the Lagoon hardfork.
-    /// When not set, the underlying [`kona_derive::StatefulAttributesBuilder`]
-    /// constructor panics on an interop-scheduled chain.
-    pub fn with_dependency_set(self, dependency_set: Option<Arc<DependencySet>>) -> Self {
-        Self { dependency_set, ..self }
-    }
-
-    /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
-    pub fn with_engine_config(self, engine_config: EngineConfig) -> Self {
-        Self { engine_config, ..self }
-    }
-
-    /// Sets the [`RpcBuilder`] on the [`RollupNodeBuilder`].
-    pub fn with_rpc_config(self, rpc_config: Option<RpcBuilder>) -> Self {
-        Self { rpc_config, ..self }
-    }
-
-    /// Appends the [`SequencerConfig`] to the builder.
-    pub fn with_sequencer_config(self, sequencer_config: SequencerConfig) -> Self {
-        Self { sequencer_config: Some(sequencer_config), ..self }
-    }
-
-    /// Sets the Derivation Delegate configuration, trusting the configured delegate for safe head
-    /// updates.
-    pub fn with_derivation_delegate_config(
-        self,
-        derivation_delegate_config: Option<DerivationDelegateConfig>,
-    ) -> Self {
-        Self { derivation_delegate_config, ..self }
-    }
-
+impl RollupNodeConfig {
     /// Assembles the [`RollupNode`] service.
     ///
     /// ## Panics
     ///
     /// Panics if:
-    /// - The L1 provider RPC URL is not set.
-    /// - The L1 beacon API URL is not set.
-    /// - The L2 provider RPC URL is not set.
-    /// - The L2 engine URL is not set.
-    /// - The jwt secret is not set.
-    /// - The P2P config is not set.
     /// - The L1 HTTP client cannot be initialized.
+    /// - The derivation delegate client cannot be created from its configuration.
     pub fn build(self) -> RollupNode {
-        let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
-        if let Some(l1_slot_duration) = self.l1_config_builder.slot_duration_override {
-            l1_beacon = l1_beacon.with_l1_slot_duration_override(l1_slot_duration);
-        }
+        let l1_beacon = OnlineBeaconClient::new_http(self.l1_client.beacon.to_string());
 
         let l1_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
             .expect("l1 http client initialization");
         let l1_rpc_client =
-            RpcClient::new_http_with_client(l1_client, self.l1_config_builder.rpc_url.clone());
+            RpcClient::new_http_with_client(l1_client, self.l1_client.rpc_url.clone());
         let l1_config = L1Config {
-            chain_config: Arc::new(self.l1_config_builder.chain_config),
-            trust_rpc: self.l1_config_builder.trust_rpc,
+            chain_config: Arc::new(self.l1_client.chain_config),
             beacon_client: l1_beacon,
             engine_provider: RootProvider::new(l1_rpc_client),
         };
@@ -190,7 +121,6 @@ impl RollupNodeBuilder {
         );
 
         let p2p_config = self.p2p_config;
-        let sequencer_config = self.sequencer_config.unwrap_or_default();
 
         let derivation_delegate_provider = self.derivation_delegate_config.as_ref().map(|config| {
             DerivationDelegateClient::new(config.l2_cl_url.clone()).expect(
@@ -204,11 +134,10 @@ impl RollupNodeBuilder {
             l1_config,
             l2_provider,
             l2_block_buffer,
-            l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
             p2p_config,
-            sequencer_config,
+            sequencer_config: self.sequencer_config,
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
         }
