@@ -13,7 +13,7 @@ import (
 // stop operation.
 func TestSequencerStopsAndRestartsAtPreviousHead(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node admin RPC compatibility is tracked by #21906")
+	sysgo.SkipOnKonaNode(t, "kona-node ignores the admin_startSequencer head hash, tracked by #23323")
 
 	sys := presets.NewMinimalNoFaultProofs(t)
 	sys.L2CL.AdvancedUnsafe(1, 30)
