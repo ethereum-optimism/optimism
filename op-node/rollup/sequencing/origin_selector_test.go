@@ -2,7 +2,9 @@ package sequencing
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -174,7 +176,8 @@ func TestOriginSelectorAdvances(t *testing.T) {
 		s.nextOrigin = b
 
 		// Trigger the background fetch via a forkchoice update.
-		// This should be a no-op because the next origin is already cached.
+		// The next origin is already cached, so this only prefetches its successor.
+		l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
 		handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 		require.True(t, handled)
 
@@ -185,17 +188,15 @@ func TestOriginSelectorAdvances(t *testing.T) {
 			Time:     26,
 		}
 
-		// The origin is still `b` because the next origin has not been fetched yet.
-		requireL1OriginAt(l2Head, b)
+		// Adopting `b` promoted the prefetched `c` to next origin, so the origin
+		// advances again without waiting for another forkchoice update.
+		requireL1OriginAt(l2Head, c)
 
-		l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
-
-		// Trigger the background fetch via a forkchoice update.
-		// This will actually fetch the next origin because the internal cache is empty.
+		// The forkchoice update now looks further ahead, but `d` is not available yet.
+		l1.ExpectL1BlockRefByNumber(d.Number, eth.BlockRef{}, ethereum.NotFound)
 		handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 		require.True(t, handled)
 
-		// The next origin should be `c` now.
 		requireL1OriginAt(l2Head, c)
 
 		// Now force the retrieval of the next L1 origin
@@ -309,8 +310,9 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 		Time:     24,
 	}
 
-	// This is called as part of the background prefetch job
+	// These are called as part of the background prefetch job
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
+	l1.ExpectL1BlockRefByNumber(b.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
 
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
@@ -367,8 +369,19 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 		Time:     24,
 	}
 
-	// This is called as part of the background prefetch job
+	// A reorg happens and `b` is replaced by a block with a different hash,
+	// which the canonical `c` builds on.
+	c := eth.L1BlockRef{
+		Hash:       common.Hash{'c'},
+		Number:     12,
+		Time:       24,
+		ParentHash: common.Hash{'b', '2'},
+	}
+
+	// These are called as part of the background prefetch job. The lookahead
+	// already sees the reorged chain.
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
+	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
 
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
@@ -396,20 +409,15 @@ func TestOriginSelectorHandlesReorg(t *testing.T) {
 	// The next origin should be `b` now.
 	requireFindl1OriginEqual(b)
 
-	// A reorg happens and `b` is replaced by a block with a different hash
-	c := eth.L1BlockRef{
-		Hash:       common.Hash{'c'},
-		Number:     12,
-		Time:       24,
-		ParentHash: common.Hash{'b', '2'},
-	}
-	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
 	l2Head = eth.L2BlockRef{
 		L1Origin: b.ID(),
 		Time:     26,
 	}
 
-	// Trigger the background fetch via a forkchoice update
+	// The lookahead `c` does not extend `b`, so it is not promoted along with `b`:
+	// the forkchoice update fetches the next origin again.
+	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
+	l1.ExpectL1BlockRefByNumber(c.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
 	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
@@ -1001,5 +1009,76 @@ func TestFindL1OriginOfNextL2Block(t *testing.T) {
 				t.Errorf("expected result %v, got %v", tc.expectedResult, result)
 			}
 		})
+	}
+}
+
+// simulatedL1 serves a canonical L1 chain with one block every 12s, hiding blocks
+// fewer than confDepth blocks behind the head implied by now.
+type simulatedL1 struct {
+	// The selector only looks up block refs; anything else panics on the nil embed.
+	L1Blocks
+	now       uint64
+	confDepth uint64
+}
+
+func simulatedL1Hash(n uint64) (h common.Hash) {
+	binary.BigEndian.PutUint64(h[24:], n)
+	return h
+}
+
+func simulatedL1Block(n uint64) eth.L1BlockRef {
+	return eth.L1BlockRef{
+		Hash:       simulatedL1Hash(n),
+		Number:     n,
+		Time:       n * 12,
+		ParentHash: simulatedL1Hash(n - 1),
+	}
+}
+
+func (s *simulatedL1) L1BlockRefByNumber(_ context.Context, n uint64) (eth.L1BlockRef, error) {
+	if n+s.confDepth > s.now/12 {
+		return eth.L1BlockRef{}, ethereum.NotFound
+	}
+	return simulatedL1Block(n), nil
+}
+
+func (s *simulatedL1) L1BlockRefByHash(_ context.Context, h common.Hash) (eth.L1BlockRef, error) {
+	return simulatedL1Block(binary.BigEndian.Uint64(h[24:])), nil
+}
+
+// TestOriginSelectorKeepsUpWithL1 ensures the L1 origin keeps pace with L1 whether the next
+// build or the previous block's forkchoice update reaches the selector first. A 10s block time
+// falls behind L1 if the origin can only advance every other L2 block.
+func TestOriginSelectorKeepsUpWithL1(t *testing.T) {
+	const confDepth = 15
+	for _, blockTime := range []uint64{2, 10} {
+		for _, buildFirst := range []bool{false, true} {
+			t.Run(fmt.Sprintf("blockTime=%d/buildFirst=%v", blockTime, buildFirst), func(t *testing.T) {
+				ctx := context.Background()
+				l1 := &simulatedL1{now: 10_000, confDepth: confDepth}
+				cfg := &rollup.Config{BlockTime: blockTime, MaxSequencerDrift: 1800}
+				s := NewL1OriginSelector(ctx, testlog.Logger(t, log.LevelCrit), cfg, l1)
+
+				l2Head := eth.L2BlockRef{Time: l1.now, L1Origin: simulatedL1Block(l1.now/12 - confDepth).ID()}
+				// Long enough for a lagging origin to drift all the way to the limit.
+				for l2Head.Time < 10_000+3*cfg.MaxSequencerDrift {
+					l1.now = l2Head.Time
+					fcu := engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head}
+					if !buildFirst {
+						s.OnEvent(ctx, fcu)
+					}
+					origin, err := s.FindL1Origin(ctx, l2Head)
+					require.NoError(t, err)
+					if buildFirst {
+						s.OnEvent(ctx, fcu)
+					}
+					l2Head = eth.L2BlockRef{Number: l2Head.Number + 1, Time: l2Head.Time + blockTime, L1Origin: origin.ID()}
+				}
+
+				l1Head := l2Head.Time / 12
+				require.LessOrEqual(t, l1Head-l2Head.L1Origin.Number, uint64(confDepth+2),
+					"L1 origin fell behind the sequencer confirmation depth")
+			})
+		}
 	}
 }

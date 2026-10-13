@@ -36,8 +36,7 @@ type l2GenesisOverrides struct {
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
 	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
-	// seconds. Zero keeps the production period. Test networks only; any later upgrade resets the
-	// period to 8 days.
+	// seconds. Zero keeps the production period. Test networks only; upgrades keep the period.
 	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
 }
 

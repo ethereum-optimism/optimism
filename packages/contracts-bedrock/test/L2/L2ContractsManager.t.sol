@@ -912,16 +912,49 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
         );
     }
 
-    /// @notice Tests that an upgrade sets the production expiry period of 8 days, whatever period the
-    ///         messenger had, and that running it again keeps it.
-    function testFuzz_upgradeSetsProductionMessengerExpiryPeriod_succeeds(uint256 _expiryPeriod) public {
+    /// @notice Tests that an upgrade keeps the messenger's expiry period, and that running it again
+    ///         keeps it too.
+    function testFuzz_upgradeKeepsMessengerExpiryPeriod_succeeds(uint256 _expiryPeriod) public {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
         IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         stdstore.target(address(messenger)).sig(messenger.expiryPeriod.selector).checked_write(_expiryPeriod);
 
         _executeUpgrade();
+        assertEq(messenger.expiryPeriod(), _expiryPeriod);
+
+        _executeUpgrade();
+        assertEq(messenger.expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that an upgrade keeps a short expiry period that a test network set at genesis.
+    function test_upgradeKeepsMessengerExpiryPeriod_shortPeriod_succeeds() public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        stdstore.target(address(messenger)).sig(messenger.expiryPeriod.selector).checked_write(uint256(1 hours));
+
+        _executeUpgrade();
+
+        assertEq(messenger.expiryPeriod(), 1 hours);
+    }
+
+    /// @notice Tests that an upgrade keeps the production expiry period of 8 days.
+    function test_upgradeKeepsMessengerExpiryPeriod_productionPeriod_succeeds() public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         assertEq(messenger.expiryPeriod(), 8 days);
 
         _executeUpgrade();
+
+        assertEq(messenger.expiryPeriod(), 8 days);
+    }
+
+    /// @notice Tests that an upgrade from a messenger whose expiry period reads 0 initializes it with
+    ///         the production expiry period of 8 days.
+    function test_upgradeSetsProductionMessengerExpiryPeriod_zeroPeriod_succeeds() public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.store(address(messenger), bytes32(uint256(5)), bytes32(0));
+        assertEq(messenger.expiryPeriod(), 0);
+
+        _executeUpgrade();
+
         assertEq(messenger.expiryPeriod(), 8 days);
     }
 
