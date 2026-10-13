@@ -82,7 +82,7 @@ pub struct Payload {
 }
 
 /// Signs each payload the sequencer produces, in order, and passes it to the
-/// [`NetworkActor`](crate::NetworkActor) to gossip.
+/// [network actor](crate::network) to gossip.
 ///
 /// The signer retries its own transient failures, such as a remote signer that is unreachable or
 /// does not answer in time, until it succeeds, so no payload is skipped or reordered. While a

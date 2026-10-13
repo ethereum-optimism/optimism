@@ -1,6 +1,6 @@
 # Network actor
 
-The network actor is responsible for handling interactions with the p2p layer of the kona-node, specifically the libp2p gossip driver and the discv5 handler.
+The network actor runs the libp2p gossip swarm of the kona-node. Peer discovery runs in the separate discovery actor, which passes the peers it finds to the network actor to dial.
 
 ### Integration
 
@@ -11,6 +11,6 @@ The network actor is responsible for handling interactions with the p2p layer of
 > check to make sure you are not using the loopback address,
 > `127.0.0.1` aka "localhost", which can prevent outward facing connections.
 
-The node service starts the gossip and discovery drivers, constructs the network actor with its clients and channels, and supervises a lifetime future that repeatedly calls `NodeActor::step`.
+The node service calls `NetworkConfig::start`, which starts the gossip swarm listening and builds the discovery driver. It passes the gossip driver to `network::Builder::new`, gives the builder's handle to the discovery actor and the P2P RPC, and builds the actor's lifetime future with the engine, discovery and the signer's payloads.
 
 When an actor exits or the node lifetime is dropped, the supervisor aborts the remaining actor tasks. See [the node service](../../../service/src/service/node.rs) for the wiring.

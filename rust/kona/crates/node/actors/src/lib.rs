@@ -31,7 +31,7 @@ pub mod l1;
 pub mod signer;
 
 pub mod network;
-pub use network::{NetworkActor, NetworkActorError, NetworkConfig, NetworkEngineClient};
+pub use network::NetworkConfig;
 
 pub mod sequencer;
 

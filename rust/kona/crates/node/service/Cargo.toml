@@ -40,6 +40,7 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
 # general
 url.workspace = true
 libp2p = { workspace = true, features = ["metrics"] }
+discv5.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
@@ -58,7 +59,6 @@ kona-peers.workspace = true
 alloy-chains.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
-discv5.workspace = true
 thiserror.workspace = true
 
 metrics-exporter-prometheus.workspace = true

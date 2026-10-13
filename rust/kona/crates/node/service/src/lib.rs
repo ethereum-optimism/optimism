@@ -18,9 +18,9 @@ pub use kona_node_actors::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider,
     DerivationDelegateClientError, DerivationDelegateProvider, EngineClientError,
     EngineClientResult, EngineConfig, L1OriginSelector, L1OriginSelectorError,
-    L1OriginSelectorProvider, NetworkActor, NetworkActorError, NetworkConfig, NetworkEngineClient,
-    NodeActor, OriginSelector, RpcActor, RpcActorError, SequencerConfig, SequencerEngineClient,
-    derivation, discovery, engine, l1, l1_signer_updater, network, sequencer, signer,
+    L1OriginSelectorProvider, NetworkConfig, NodeActor, OriginSelector, RpcActor, RpcActorError,
+    SequencerConfig, SequencerEngineClient, derivation, discovery, engine, l1, l1_signer_updater,
+    network, sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;

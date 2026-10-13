@@ -45,6 +45,7 @@ libp2p = { workspace = true, features = ["metrics"] }
 discv5.workspace = true
 enr.workspace = true
 futures.workspace = true
+ipnet.workspace = true
 rand = { workspace = true, features = ["thread_rng"] }
 tracing.workspace = true
 thiserror.workspace = true

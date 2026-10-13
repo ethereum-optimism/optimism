@@ -2,7 +2,7 @@
 use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DerivationDelegateClient, EngineConfig,
-    L1OriginSelector, NetworkActor, NetworkConfig, NodeActor, NodeMode, RpcActor, SequencerConfig,
+    L1OriginSelector, NetworkConfig, NodeActor, NodeMode, RpcActor, SequencerConfig,
     service::BufferImportedBlocks, signer,
 };
 use alloy_provider::RootProvider;
@@ -17,7 +17,7 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{derivation, discovery, engine, l1, l1_signer_updater, sequencer};
+use kona_node_actors::{derivation, discovery, engine, l1, l1_signer_updater, network, sequencer};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -378,10 +378,6 @@ impl RollupNode {
             discovery::Capacity::try_from(1024).map_err(|error| error.to_string())?,
         );
         let discovery = discovery_builder.handle();
-        // Network actor inbound channels
-        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        // Peers that discovery finds, for the network actor to dial.
-        let (enrs_tx, enrs_rx) = mpsc::channel(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let signer_builder = signer::Builder::new(
@@ -416,22 +412,21 @@ impl RollupNode {
             .start(signer_rx)
             .await
             .map_err(|e| format!("Failed to start network: {e}"))?;
-        let discovery_actor = discovery_builder.build(discovery_driver, enrs_tx);
-        let network = NetworkActor::new(
-            adapters::Engine(engine.clone()),
+        let network_builder = network::Builder::new(
+            network::Capacity::try_from(1024).map_err(|error| error.to_string())?,
             gossip,
+        );
+        let network = network_builder.handle();
+        let discovery_actor =
+            discovery_builder.build(discovery_driver, adapters::Network(network.clone()));
+        let network_actor = network_builder.build(
+            adapters::Engine(engine.clone()),
             adapters::Discovery(discovery.clone()),
-            enrs_rx,
-            gossip_command_rx,
             signed_payload_rx,
         );
 
-        let p2p_rpc = P2pRpc::new(
-            network.gossip_query_handle(),
-            discovery,
-            gossip_command_tx,
-            self.config.l2_chain_id.id(),
-        );
+        let p2p_rpc =
+            P2pRpc::new(network.state(), network, discovery, self.config.l2_chain_id.id());
 
         let signer_updater = signer_updater_builder.build(
             self.l1_config.engine_provider.clone(),
@@ -487,7 +482,7 @@ impl RollupNode {
         if let Some(signer) = signer_actor {
             supervisor.spawn("signer", signer);
         }
-        supervisor.spawn("network", run_node_actor(network));
+        supervisor.spawn("network", network_actor);
         supervisor.spawn("discovery", discovery_actor);
         supervisor.spawn("l1_head", l1_head);
         supervisor.spawn("l1_safe", l1_safe);

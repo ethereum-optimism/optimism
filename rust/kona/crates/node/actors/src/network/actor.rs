@@ -1,86 +1,241 @@
-use super::Discovery;
-use async_trait::async_trait;
+//! Network construction and execution.
+
+use super::{
+    Capacity, Discovery, Engine, Handle,
+    handle::{Applied, Message},
+};
+use crate::signer;
 use discv5::Enr;
 use kona_gossip::{
-    ConnectionGate, ConnectionGater, GossipCommandReceiver, GossipDriver, GossipQueryHandle,
-    GossipState, PEER_SCORE_INSPECT_FREQUENCY,
+    ConnectionGate, ConnectionGater, GossipDriver, GossipState, PEER_SCORE_INSPECT_FREQUENCY,
 };
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, future::Future, sync::Arc};
 use thiserror::Error;
 use tokio::{
-    self, select,
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-        watch,
-    },
-    time::Interval,
+    select,
+    sync::{mpsc, watch},
+    time::{self, Interval},
 };
 
-use crate::{NetworkEngineClient, NodeActor, signer};
-
-/// The network actor handles two core networking components of the rollup node:
-/// - *discovery*: Peer discovery over UDP using discv5.
-/// - *gossip*: Block gossip over TCP using libp2p.
+/// Constructs the handle and task.
 #[derive(Debug)]
-pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient, Discovery_: Discovery> {
-    /// The gossip driver, whose swarm is listening.
+pub struct Builder {
+    handle: Handle,
     gossip: GossipDriver<ConnectionGater>,
-    /// Bans the addresses of disconnected peers in discovery.
-    discovery: Discovery_,
-    /// Peers found by discovery, to dial.
-    enrs: mpsc::Receiver<Enr>,
-    /// Paces the peer score checks that ban peers below the threshold.
-    peer_score_inspector: Interval,
-    /// Gossip state published for readers outside the actor.
-    gossip_state_tx: watch::Sender<Arc<GossipState>>,
-    /// A channel to receive gossip commands.
-    gossip_command_rx: GossipCommandReceiver,
-    /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
-    publish_rx: mpsc::Receiver<signer::Payload>,
-    /// A client to use to interact with the engine actor.
-    engine_client: NetworkEngineClient_,
-    // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
-    // never crosses an actor boundary, so it lives here rather than being injected.
-    unsafe_block_tx: UnboundedSender<OpExecutionPayloadEnvelope>,
-    unsafe_block_rx: UnboundedReceiver<OpExecutionPayloadEnvelope>,
+    state: watch::Sender<Arc<GossipState>>,
+    messages: mpsc::Receiver<Message>,
+    peers: mpsc::Receiver<Enr>,
 }
 
-impl<NetworkEngineClient_: NetworkEngineClient, Discovery_: Discovery>
-    NetworkActor<NetworkEngineClient_, Discovery_>
-{
-    /// Constructs a new [`NetworkActor`].
+impl Builder {
+    /// Creates the builder around a gossip driver whose swarm is listening, as
+    /// [`NetworkConfig::start`](super::NetworkConfig::start) leaves it, and publishes its state.
     ///
-    /// The `gossip` swarm must already be listening, as
-    /// [`NetworkConfig::start`](super::NetworkConfig::start) leaves it. `enrs` carries the peers
-    /// that discovery finds.
-    pub fn new(
-        engine_client: NetworkEngineClient_,
-        gossip: GossipDriver<ConnectionGater>,
-        discovery: Discovery_,
-        enrs: mpsc::Receiver<Enr>,
-        gossip_command_rx: GossipCommandReceiver,
-        publish_rx: mpsc::Receiver<signer::Payload>,
-    ) -> Self {
-        let (gossip_state_tx, _) = watch::channel(Arc::new(gossip.snapshot()));
-        let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
+    /// The message queue and the queue of peers to dial each hold `capacity` entries.
+    pub fn new(capacity: Capacity, gossip: GossipDriver<ConnectionGater>) -> Self {
+        let (state, state_rx) = watch::channel(Arc::new(gossip.snapshot()));
+        let (messages_tx, messages) = mpsc::channel(capacity.get());
+        let (peers_tx, peers) = mpsc::channel(capacity.get());
         Self {
+            handle: Handle::new(state_rx, messages_tx, peers_tx),
             gossip,
-            discovery,
-            enrs,
-            peer_score_inspector: tokio::time::interval(*PEER_SCORE_INSPECT_FREQUENCY),
-            gossip_state_tx,
-            gossip_command_rx,
-            publish_rx,
-            engine_client,
-            unsafe_block_tx,
-            unsafe_block_rx,
+            state,
+            messages,
+            peers,
         }
     }
 
-    /// Returns a read-only handle to the actor's published gossip state.
-    pub fn gossip_query_handle(&self) -> GossipQueryHandle {
-        GossipQueryHandle::new(self.gossip_state_tx.subscribe())
+    /// Returns a handle that can be wired into other components before the actor starts.
+    pub fn handle(&self) -> Handle {
+        self.handle.clone()
+    }
+
+    /// Supplies dependencies and produces the actor's lifetime future without spawning it.
+    ///
+    /// `signed` carries the signed payloads to publish. Dropping the future stops the actor and
+    /// the swarm.
+    pub fn build<Engine_: Engine + 'static, Discovery_: Discovery + 'static>(
+        self,
+        engine: Engine_,
+        discovery: Discovery_,
+        signed: mpsc::Receiver<signer::Payload>,
+    ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
+        let Self { handle: _, gossip, state, messages, peers } = self;
+        async move {
+            let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
+            Actor {
+                gossip,
+                state,
+                messages,
+                peers,
+                signed,
+                engine,
+                discovery,
+                peer_score_inspector: time::interval(*PEER_SCORE_INSPECT_FREQUENCY),
+                unsafe_block_tx,
+                unsafe_block_rx,
+            }
+            .run()
+            .await
+        }
+    }
+}
+
+/// A fatal error from the network actor.
+#[derive(Debug, Error)]
+pub enum ActorError {
+    /// The engine stopped taking unsafe blocks.
+    #[error("The engine stopped")]
+    EngineClosed,
+    /// The gossip swarm's event stream ended.
+    #[error("The gossip swarm stream ended")]
+    SwarmEnded,
+}
+
+/// Runs the libp2p gossip swarm: publishes signed payloads, passes received blocks to the engine,
+/// dials the peers discovery finds, and bans peers below the score threshold.
+#[derive(Debug)]
+struct Actor<Engine_, Discovery_> {
+    /// The gossip driver, whose swarm is listening.
+    gossip: GossipDriver<ConnectionGater>,
+    /// Publishes the gossip state to handle readers.
+    state: watch::Sender<Arc<GossipState>>,
+    /// Changes from handles.
+    messages: mpsc::Receiver<Message>,
+    /// Peers to dial, from discovery.
+    peers: mpsc::Receiver<Enr>,
+    /// Signed payloads to publish, from the signer.
+    signed: mpsc::Receiver<signer::Payload>,
+    /// Inserts the unsafe blocks received over gossip.
+    engine: Engine_,
+    /// Bans the addresses of disconnected peers in discovery.
+    discovery: Discovery_,
+    /// Paces the peer score checks that ban peers below the threshold.
+    peer_score_inspector: Interval,
+    // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
+    // never crosses an actor boundary, so it lives here rather than being injected.
+    unsafe_block_tx: mpsc::UnboundedSender<OpExecutionPayloadEnvelope>,
+    unsafe_block_rx: mpsc::UnboundedReceiver<OpExecutionPayloadEnvelope>,
+}
+
+impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
+    async fn run(mut self) -> Result<(), ActorError> {
+        loop {
+            let applied = select! {
+                Some(block) = self.unsafe_block_rx.recv() => {
+                    if self.engine.insert_unsafe_block(block).await.is_err() {
+                        warn!(target: "network", "Failed to forward unsafe block to engine");
+                        return Err(ActorError::EngineClosed);
+                    }
+                    None
+                }
+                Some(signed) = self.signed.recv(), if !self.signed.is_closed() => {
+                    self.publish(signed);
+                    None
+                }
+                event = self.gossip.next() => {
+                    let event = event.ok_or_else(|| {
+                        error!(target: "node::p2p", "The gossip swarm stream has ended");
+                        ActorError::SwarmEnded
+                    })?;
+                    if let Some(payload) = self.gossip.handle_event(event) &&
+                        self.unsafe_block_tx.send(payload).is_err()
+                    {
+                        warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                    }
+                    None
+                }
+                // A closed queue only means no handle remains.
+                Some(enr) = self.peers.recv(), if !self.peers.is_closed() => {
+                    self.gossip.dial(enr);
+                    None
+                }
+                _ = self.peer_score_inspector.tick(), if self.gossip.peer_monitoring.is_some() => {
+                    self.ban_low_scoring_peers().await;
+                    None
+                }
+                Some(message) = self.messages.recv(), if !self.messages.is_closed() => {
+                    Some(self.handle_message(message))
+                }
+            };
+            self.state.send_replace(Arc::new(self.gossip.snapshot()));
+            // A handle that stopped waiting for its change is not an error.
+            if let Some(applied) = applied {
+                let _ = applied.send(());
+            }
+        }
+    }
+
+    fn publish(&mut self, signed: signer::Payload) {
+        // Published even if the signer rotated since signing: peers then reject the block, which
+        // is harmless.
+        let timestamp = signed.payload.timestamp();
+        let selector = |handler: &kona_gossip::BlockHandler| handler.topic(timestamp);
+        match self.gossip.publish(selector, signed.payload, signed.signature) {
+            Ok(id) => info!("Published unsafe payload | {:?}", id),
+            Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
+        }
+    }
+
+    /// Makes a change to the gossip driver, and returns the sender to reply on once the state
+    /// that follows it is published.
+    fn handle_message(&mut self, message: Message) -> Applied {
+        let gossip = &mut self.gossip;
+        match message {
+            Message::BlockPeer(id, applied) => {
+                gossip.connection_gate.block_peer(&id);
+                gossip.swarm.behaviour_mut().gossipsub.blacklist_peer(&id);
+                applied
+            }
+            Message::UnblockPeer(id, applied) => {
+                gossip.connection_gate.unblock_peer(&id);
+                gossip.swarm.behaviour_mut().gossipsub.remove_blacklisted_peer(&id);
+                applied
+            }
+            Message::BlockAddr(address, applied) => {
+                gossip.connection_gate.block_addr(address);
+                applied
+            }
+            Message::UnblockAddr(address, applied) => {
+                gossip.connection_gate.unblock_addr(address);
+                applied
+            }
+            Message::BlockSubnet(subnet, applied) => {
+                gossip.connection_gate.block_subnet(subnet);
+                applied
+            }
+            Message::UnblockSubnet(subnet, applied) => {
+                gossip.connection_gate.unblock_subnet(subnet);
+                applied
+            }
+            Message::ConnectPeer(address, applied) => {
+                gossip.dial_multiaddr(address);
+                applied
+            }
+            Message::ProtectPeer(id, applied) => {
+                gossip.connection_gate.protect_peer(id);
+                applied
+            }
+            Message::UnprotectPeer(id, applied) => {
+                gossip.connection_gate.unprotect_peer(id);
+                applied
+            }
+            Message::DisconnectPeer(id, applied) => {
+                if let Err(e) = gossip.swarm.disconnect_peer_id(id) {
+                    warn!(target: "p2p::rpc", "Failed to disconnect peer {}: {:?}", id, e);
+                } else {
+                    info!(target: "p2p::rpc", "Disconnected peer {}", id);
+                    if let Some(start_time) = gossip.peer_connection_start.remove(&id) {
+                        metrics::histogram!(
+                            kona_gossip::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS
+                        )
+                        .record(start_time.elapsed().as_secs_f64());
+                    }
+                }
+                applied
+            }
+        }
     }
 
     /// Disconnects the peers whose score is below the ban threshold, and asks discovery to ban
@@ -132,6 +287,9 @@ impl<NetworkEngineClient_: NetworkEngineClient, Discovery_: Discovery>
             })
             .flatten()
             .collect::<HashSet<_>>();
+        if addrs_to_ban.is_empty() {
+            return;
+        }
 
         if let Err(err) = self.discovery.ban(addrs_to_ban, ban_peers.ban_duration).await {
             warn!(?err, "Failed to ask discovery to ban the addresses of low-scoring peers");
@@ -139,83 +297,95 @@ impl<NetworkEngineClient_: NetworkEngineClient, Discovery_: Discovery>
     }
 }
 
-/// An error from the network actor.
-#[derive(Debug, Error)]
-pub enum NetworkActorError {
-    /// Channel closed unexpectedly.
-    #[error("Channel closed unexpectedly")]
-    ChannelClosed,
-}
+#[cfg(test)]
+pub(super) mod tests {
+    use super::*;
+    use crate::{EngineClientResult, discovery::HandleError};
+    use alloy_primitives::Address;
+    use kona_genesis::RollupConfig;
+    use libp2p::{Multiaddr, identity::Keypair};
+    use std::time::Duration;
 
-#[async_trait]
-impl<NetworkEngineClient_: NetworkEngineClient + 'static, Discovery_: Discovery + 'static> NodeActor
-    for NetworkActor<NetworkEngineClient_, Discovery_>
-{
-    type Error = NetworkActorError;
+    /// A gossip driver whose swarm is not listening.
+    fn gossip() -> GossipDriver<ConnectionGater> {
+        GossipDriver::<ConnectionGater>::builder(
+            RollupConfig::default(),
+            Address::ZERO,
+            "/ip4/127.0.0.1/tcp/0".parse().unwrap(),
+            Keypair::generate_secp256k1(),
+        )
+        .build()
+        .unwrap()
+    }
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        let mut applied = None;
-        let result = select! {
-            block = self.unsafe_block_rx.recv() => {
-                let Some(block) = block else {
-                    error!(target: "node::p2p", "The unsafe block receiver channel has closed");
-                    return Err(NetworkActorError::ChannelClosed);
-                };
+    /// The state of a gossip driver whose swarm is not listening.
+    pub(in crate::network) fn state() -> GossipState {
+        gossip().snapshot()
+    }
 
-                if self.engine_client.send_unsafe_block(block).await.is_err() {
-                    warn!(target: "network", "Failed to forward unsafe block to engine");
-                    return Err(NetworkActorError::ChannelClosed);
-                }
-                Ok(())
-            }
-            Some(signed) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                // Published even if the signer rotated since signing: peers then reject the block,
-                // which is harmless.
-                let timestamp = signed.payload.timestamp();
-                let selector = |handler: &kona_gossip::BlockHandler| handler.topic(timestamp);
-                match self.gossip.publish(selector, signed.payload, signed.signature) {
-                    Ok(id) => info!("Published unsafe payload | {:?}", id),
-                    Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
-                }
-                Ok(())
-            }
-            event = self.gossip.next() => {
-                let Some(event) = event else {
-                    error!(target: "node::p2p", "The gossip swarm stream has ended");
-                    return Err(NetworkActorError::ChannelClosed);
-                };
+    #[derive(Debug)]
+    struct UnusedEngine;
 
-                if let Some(payload) = self.gossip.handle_event(event) &&
-                    self.unsafe_block_tx.send(payload).is_err()
-                {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
-                }
-                Ok(())
-            }
-            enr = self.enrs.recv() => {
-                let Some(enr) = enr else {
-                    error!(target: "node::p2p", "The enr receiver channel has closed");
-                    return Err(NetworkActorError::ChannelClosed);
-                };
-                self.gossip.dial(enr);
-                Ok(())
-            }
-            _ = self.peer_score_inspector.tick(), if self.gossip.peer_monitoring.is_some() => {
-                self.ban_low_scoring_peers().await;
-                Ok(())
-            }
-            Some((req, applied_tx)) = self.gossip_command_rx.recv(), if !self.gossip_command_rx.is_closed() => {
-                req.handle(&mut self.gossip);
-                applied = Some(applied_tx);
-                Ok(())
-            }
-        };
-        if result.is_ok() && self.gossip_state_tx.receiver_count() > 0 {
-            self.gossip_state_tx.send_replace(Arc::new(self.gossip.snapshot()));
+    #[async_trait::async_trait]
+    impl Engine for UnusedEngine {
+        async fn insert_unsafe_block(
+            &self,
+            _block: OpExecutionPayloadEnvelope,
+        ) -> EngineClientResult<()> {
+            panic!("no block is gossiped")
         }
-        if let Some(applied) = applied {
-            let _ = applied.send(());
+    }
+
+    #[derive(Debug)]
+    struct UnusedDiscovery;
+
+    #[async_trait::async_trait]
+    impl Discovery for UnusedDiscovery {
+        type Error = HandleError;
+
+        async fn ban(
+            &self,
+            _addrs: HashSet<Multiaddr>,
+            _duration: Duration,
+        ) -> Result<(), Self::Error> {
+            panic!("peer monitoring is off")
         }
-        result
+    }
+
+    #[tokio::test]
+    async fn publishes_state_from_construction_until_the_builder_or_actor_stops() {
+        let builder = Builder::new(Capacity::try_from(1).unwrap(), gossip());
+        let state = builder.handle().state();
+        assert!(state.borrow().connected_peers.is_empty());
+        assert!(state.has_changed().is_ok());
+
+        drop(builder);
+        assert!(state.has_changed().is_err());
+    }
+
+    #[tokio::test]
+    async fn a_change_returns_once_the_state_that_follows_it_is_published() {
+        let builder = Builder::new(Capacity::try_from(1).unwrap(), gossip());
+        let handle = builder.handle();
+        let (_signed_tx, signed) = mpsc::channel(1);
+        let task = tokio::spawn(builder.build(UnusedEngine, UnusedDiscovery, signed));
+        let state = handle.state();
+        let id = libp2p::PeerId::random();
+
+        handle.block_peer(id).await.unwrap();
+        assert_eq!(state.borrow().blocked_peers, vec![id]);
+        handle.unblock_peer(id).await.unwrap();
+        assert!(state.borrow().blocked_peers.is_empty());
+
+        let subnet = "192.0.2.0/24".parse().unwrap();
+        handle.block_subnet(subnet).await.unwrap();
+        assert_eq!(state.borrow().blocked_subnets, vec![subnet]);
+        handle.protect_peer(id).await.unwrap();
+        assert_eq!(state.borrow().protected_peers, vec![id]);
+
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(state.has_changed().is_err());
+        assert_eq!(handle.unprotect_peer(id).await, Err(super::super::HandleError));
     }
 }
