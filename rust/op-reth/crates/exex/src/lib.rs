@@ -265,7 +265,8 @@ where
     /// may be replaced by another fork. Indexing on top of a stale tip would keep serving the
     /// dropped blocks and reject reth's next block with a parent hash mismatch.
     ///
-    /// Returns an error if no block of the proofs window is on reth's canonical chain.
+    /// Returns an error if reth's best block is below the proofs window, or if no block of the
+    /// window is on reth's canonical chain.
     fn reconcile_with_canonical_chain(&self) -> eyre::Result<()> {
         let provider = self.ctx.provider();
         let best_block = provider.best_block_number()?;
@@ -276,11 +277,17 @@ where
             return Ok(());
         }
 
+        if earliest.number > best_block {
+            return Err(eyre::eyre!(
+                "Proofs storage starts at block {} but reth's best block is {best_block}. \
+                 Please re-initialize it with \
+                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                earliest.number,
+            ));
+        }
         // The stored blocks form a single chain, so if none of them is canonical, the earliest
         // is not either.
-        if earliest.number > best_block ||
-            provider.block_hash(earliest.number)? != Some(earliest.hash)
-        {
+        if provider.block_hash(earliest.number)? != Some(earliest.hash) {
             return Err(eyre::eyre!(
                 "Proofs storage (blocks {}..={}, tip {}) shares no block with reth's canonical \
                  chain (best block {best_block}). Please re-initialize it with \
@@ -293,8 +300,7 @@ where
 
         // The storage records block hashes only for the window bounds. Blocks in between are
         // matched by their state root instead, which pins the state proofs are served from.
-        let highest_candidate =
-            if latest.number > best_block { best_block } else { latest.number - 1 };
+        let highest_candidate = best_block.min(latest.number - 1);
         let mut common = earliest;
         for number in (earliest.number + 1..=highest_candidate).rev() {
             let header = provider
