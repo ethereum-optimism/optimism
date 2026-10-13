@@ -193,6 +193,33 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
         );
     }
 
+    /// @notice Tests that `relayMessage` has enough base gas to send value to an account that doesn't
+    ///         exist yet, which costs EIP-8037 state gas on top of `GasConstants.L1_RELAY_CALL_OVERHEAD`.
+    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
+    ///         intrinsic gas. The relay is OptimismPortal2's internal call, whose gas limit never
+    ///         has to.
+    /// forge-config: default.isolate = false
+    function test_relayMessage_valueToNewAccount_succeeds() external {
+        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
+
+        address target = makeAddr("newAccount");
+        uint256 value = 1 ether;
+        bytes memory message = hex"";
+        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 0);
+        bytes memory encoded =
+            Encoding.encodeCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), alice, target, value, 0, message);
+
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(abi.encode(address(l2CrossDomainMessenger))));
+        vm.deal(address(optimismPortal2), value);
+        vm.prank(address(optimismPortal2));
+
+        (bool success,) = address(l1CrossDomainMessenger).call{ gas: baseGas, value: value }(encoded);
+        assertTrue(success, "L1CrossDomainMessenger call should not fail");
+        assertTrue(l1CrossDomainMessenger.successfulMessages(keccak256(encoded)), "message should be relayed");
+        assertEq(target.balance, value);
+    }
+
     /// @notice Tests that `baseGas` budgets the relay with the L1 relay constants.
     function testFuzz_baseGas_usesRemoteRelayConstants_succeeds(bytes calldata _message, uint32 _minGasLimit) external {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
