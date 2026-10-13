@@ -33,9 +33,6 @@ pub struct EngineState {
     /// The L1 block the safe head was derived from, if a consolidation made it safe. Unknown after
     /// a reset, or once a delegated safe head replaces it.
     safe_head_source: Option<BlockInfo>,
-    /// How many times the engine has reset. A reset can move every head, so a reader that follows
-    /// the engine's chain starts over when this changes.
-    resets: u64,
 }
 
 impl EngineState {
@@ -68,17 +65,6 @@ impl EngineState {
     #[must_use]
     pub const fn with_safe_head_source(self, safe_head_source: Option<BlockInfo>) -> Self {
         Self { safe_head_source, ..self }
-    }
-
-    /// Returns how many times the engine has reset.
-    pub const fn resets(&self) -> u64 {
-        self.resets
-    }
-
-    /// Returns the state after one more reset.
-    #[must_use]
-    pub const fn count_reset(self) -> Self {
-        Self { resets: self.resets + 1, ..self }
     }
 
     /// Creates a `ForkchoiceState`
@@ -138,7 +124,6 @@ impl EngineState {
             } else {
                 self.safe_head_source
             },
-            resets: self.resets,
         }
     }
 

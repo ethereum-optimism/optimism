@@ -30,6 +30,9 @@ pub enum ActorError {
     /// The engine's state publisher closed.
     #[error("engine state channel closed")]
     EngineStateClosed,
+    /// The engine's reset publisher closed.
+    #[error("engine reset channel closed")]
+    EngineResetsClosed,
     /// The finalized L1 block publisher closed.
     #[error("finalized l1 channel closed")]
     FinalizedClosed,

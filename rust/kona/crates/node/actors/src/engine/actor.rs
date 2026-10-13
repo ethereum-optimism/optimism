@@ -35,6 +35,7 @@ pub struct Builder {
     handle: Handle,
     messages_rx: mpsc::Receiver<Message>,
     state_tx: watch::Sender<EngineState>,
+    resets_tx: watch::Sender<EngineState>,
 }
 
 impl Builder {
@@ -42,7 +43,13 @@ impl Builder {
     pub fn new(capacity: Capacity) -> Self {
         let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
-        Self { handle: Handle::new(messages_tx, state_rx), messages_rx, state_tx }
+        let (resets_tx, resets_rx) = watch::channel(EngineState::default());
+        Self {
+            handle: Handle::new(messages_tx, state_rx, resets_rx),
+            messages_rx,
+            state_tx,
+            resets_tx,
+        }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -61,8 +68,8 @@ impl Builder {
         rollup: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, messages_rx, state_tx } = self;
-        Actor::new(client, rollup, block_sink, state_tx, messages_rx).run()
+        let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
+        Actor::new(client, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
     }
 }
 
@@ -115,6 +122,8 @@ struct Actor {
     state: EngineState,
     /// Publishes the state to handles.
     state_tx: watch::Sender<EngineState>,
+    /// Publishes the state after each reset to handles.
+    resets_tx: watch::Sender<EngineState>,
     /// Receives messages from handles.
     messages_rx: mpsc::Receiver<Message>,
 }
@@ -126,10 +135,11 @@ impl Actor {
         config: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
         state_tx: watch::Sender<EngineState>,
+        resets_tx: watch::Sender<EngineState>,
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let state = *state_tx.borrow();
-        Self { client, config, block_sink, state, state_tx, messages_rx }
+        Self { client, config, block_sink, state, state_tx, resets_tx, messages_rx }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
@@ -502,7 +512,7 @@ impl Actor {
     }
 
     /// Resets the engine to a sync starting point found with [`find_starting_forkchoice`], reorgs
-    /// the execution layer to it, and counts the reset in the state. Callers publish the state.
+    /// the execution layer to it, and publishes the state and then the reset.
     ///
     /// Temporary failures are retried until the reset succeeds.
     async fn reset(&mut self) -> Result<(), ActorError> {
@@ -529,7 +539,12 @@ impl Actor {
             }
         }
         // The reset's safe head was not derived from a known L1 block.
-        self.state = self.state.count_reset().with_safe_head_source(None);
+        self.state = self.state.with_safe_head_source(None);
+        // Readers that follow the engine's chain start over from the reset's safe head. The reset
+        // is published before the reply to the request that caused it, and after the state, so a
+        // reader that sees the reset finds no older state left to read.
+        self.publish_state();
+        self.resets_tx.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
         Ok(())
     }
@@ -944,7 +959,7 @@ enum Recovery {
     Completed,
     /// The execution layer rejected the operation's block, and a deposits-only block replaced it.
     Flushed,
-    /// The operation was abandoned and the engine reset, counting the reset in its state.
+    /// The operation was abandoned and the engine reset, publishing the reset.
     Reset,
 }
 

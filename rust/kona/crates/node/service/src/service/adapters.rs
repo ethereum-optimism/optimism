@@ -10,15 +10,28 @@ use kona_node_actors::{
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use tokio::sync::watch;
 
+/// Adapts the engine handle to the traits of the actors that use the engine.
 #[derive(Debug, Clone)]
-pub(super) struct Engine(pub(super) engine::Handle);
+pub(super) struct Engine {
+    handle: engine::Handle,
+    /// The engine's resets after this adapter was created.
+    resets: watch::Receiver<EngineState>,
+}
+
+impl Engine {
+    /// Creates the adapter, which sees the engine's resets from now on.
+    pub(super) fn new(handle: engine::Handle) -> Self {
+        Self { resets: handle.resets(), handle }
+    }
+}
 
 #[async_trait]
 impl SequencerEngineClient for Engine {
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
         info!(target: "sequencer", "Sending reset request to engine.");
-        let state = self.0.reset().await?;
+        let state = self.handle.reset().await?;
         info!(target: "sequencer", safe_head = ?state.safe_head(), "Engine reset successfully.");
         Ok(())
     }
@@ -28,7 +41,7 @@ impl SequencerEngineClient for Engine {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId> {
         trace!(target: "sequencer", "Sending start build request to engine.");
-        self.0.start_build(attributes).await.inspect(|payload_id| {
+        self.handle.start_build(attributes).await.inspect(|payload_id| {
             trace!(target: "sequencer", ?payload_id, "Start build request successfully.")
         })
     }
@@ -39,7 +52,7 @@ impl SequencerEngineClient for Engine {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
         trace!(target: "sequencer", ?attributes, "Sending seal request to engine.");
-        self.0
+        self.handle
             .seal(payload_id, attributes)
             .await
             .inspect(|payload| trace!(target: "sequencer", ?payload, "Seal succeeded."))
@@ -51,7 +64,7 @@ impl SequencerEngineClient for Engine {
     }
 
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {
-        Ok(self.0.state().borrow().unsafe_head())
+        Ok(self.handle.state().borrow().unsafe_head())
     }
 }
 
@@ -59,7 +72,7 @@ impl SequencerEngineClient for Engine {
 impl derivation::Engine for Engine {
     async fn reset(&self) -> EngineClientResult<EngineState> {
         info!(target: "derivation", "Sending reset request to engine.");
-        self.0.reset_if_el_synced().await.inspect(
+        self.handle.reset_if_el_synced().await.inspect(
             |state| info!(target: "derivation", safe_head = ?state.safe_head(), "Engine reset successfully."),
         )
     }
@@ -69,29 +82,24 @@ impl derivation::Engine for Engine {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<Consolidation> {
         trace!(target: "derivation", ?attributes, "Sending derived attributes to engine.");
-        self.0.consolidate(attributes).await
+        self.handle.consolidate(attributes).await
     }
 
-    fn state(&self) -> EngineState {
-        *self.0.state().borrow()
-    }
-
-    async fn reset_after(&self, resets: u64) -> EngineClientResult<EngineState> {
-        let mut state = self.0.state();
-        let state = state.wait_for(|state| state.resets() > resets).await.map_err(|_| {
-            EngineClientError::RequestError("engine state channel closed".to_string())
+    async fn next_reset(&mut self) -> EngineClientResult<EngineState> {
+        self.resets.changed().await.map_err(|_| {
+            EngineClientError::RequestError("engine reset channel closed".to_string())
         })?;
-        Ok(*state)
+        Ok(*self.resets.borrow_and_update())
     }
 
     async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
-        self.0.finalize(block_id).await
+        self.handle.finalize(block_id).await
     }
 
     async fn follow_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
         trace!(target: "derivation", ?safe_head, "Sending delegated safe head to engine.");
-        self.0.follow_safe_head(safe_head).await
+        self.handle.follow_safe_head(safe_head).await
     }
 }
 
@@ -99,7 +107,7 @@ impl derivation::Engine for Engine {
 impl finality::Engine for Engine {
     async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         trace!(target: "finality", ?block_id, "Sending finalized L2 block id to engine.");
-        self.0.finalize(block_id).await
+        self.handle.finalize(block_id).await
     }
 }
 
@@ -107,7 +115,7 @@ impl finality::Engine for Engine {
 impl NetworkEngineClient for Engine {
     async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
-        self.0.insert_unsafe_block(block).await
+        self.handle.insert_unsafe_block(block).await
     }
 }
 
@@ -137,14 +145,14 @@ mod tests {
     #[tokio::test]
     async fn engine_reports_a_closed_queue() {
         let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
-        let engine = Engine(builder.handle());
+        let mut engine = Engine::new(builder.handle());
         drop(builder);
         assert!(matches!(
             derivation::Engine::finalize(&engine, FinalizeBlockId::ByNumber(1)).await,
             Err(EngineClientError::RequestError(_))
         ));
         assert!(matches!(
-            derivation::Engine::reset_after(&engine, 0).await,
+            derivation::Engine::next_reset(&mut engine).await,
             Err(EngineClientError::RequestError(_))
         ));
     }

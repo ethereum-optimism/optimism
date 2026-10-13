@@ -24,7 +24,7 @@ The derivation subsystem in kona-node is built around the derivation actor in `k
 - `Builder::build` takes the engine, the derivation pipeline, and the L1 head receiver, and derives payload attributes from L1.
 - `Builder::build_delegated` takes the engine, the derivation delegate, and an L1 provider, and follows the delegate's safe head instead. It also starts by resetting the engine once the execution layer is synced.
 
-Derivation drives the engine; the engine never sends derivation anything on its own. Derivation starts by asking the engine to reset once the execution layer is synced, retrying while the engine reports it is still syncing, and resets its pipeline onto the safe head in the reply. It then consolidates each set of derived attributes and waits for the reply, which carries the engine state and whether to flush the channel of a block the engine replaced. The engine state counts the engine's resets. Whenever the count in a reply or in the engine's latest state is past the one derivation started from, derivation starts over from the engine's safe head, including after a reset another actor made that left the safe head where it was. Derivation reaches the engine only through the `derivation::Engine` trait, which also returns the engine's latest state and waits for its next reset. `Handle::status` subscribes to the published `DerivationStatus`. L1 head updates arrive directly through a watch receiver.
+Derivation drives the engine; the engine only replies to requests and publishes its state and resets. Derivation starts by asking the engine to reset once the execution layer is synced, retrying while the engine reports it is still syncing. It then consolidates each set of derived attributes and waits for the reply, which carries the engine state and whether to flush the channel of a block the engine replaced. The engine publishes each reset, whichever actor asked for it, before replying to the request that caused it; derivation resets its pipeline onto the safe head of every reset it sees, including one that left the safe head where it was. Derivation reaches the engine only through the `derivation::Engine` trait, whose `next_reset` waits for the engine's next reset. `Handle::status` subscribes to the published `DerivationStatus`. L1 head updates arrive directly through a watch receiver.
 
 The actor publishes `DerivationStatus` through a watch channel after pipeline steps and signals. Its `current_l1` is the pipeline's current origin, so observing a newer L1 head does not advance this field until derivation processes it. Resets can move the published origin backwards. In delegated mode, the actor publishes the delegate's current L1 block only after validating the reported L1 information against the canonical chain.
 
@@ -65,30 +65,26 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 
 ### Main Processing Loop
 
-The derivation actor resets the engine, then derives from each engine reset to the next. Starting from an engine reset, it resets the pipeline onto the engine's safe head, then loops:
+The derivation actor resets the engine, then repeatedly selects, in this order of priority:
 
-1. **Engine reset**: If another actor reset the engine, derivation starts over from the engine's new state
-2. **Derivation**: Derives the next set of attributes and consolidates the engine's safe head with it. If the engine reset, derivation starts over from its new state; if the pipeline asks for a reset, derivation resets the engine and starts over
-3. **Out of data**: If the pipeline runs out of data, derivation waits for an L1 head update. If the engine resets first, derivation starts over from its new state
+1. **Engine reset**: When the engine resets, by any actor's request, derivation resets the pipeline onto the engine's safe head. A pipeline reset that fails temporarily is retried, onto the safe head of the latest engine reset, until it succeeds. A pipeline that cannot reset onto the safe head, such as one whose ancestors an L1 reorg replaced, asks the engine to reset. A critical failure stops the actor
+2. **Derivation**: Otherwise, it steps the pipeline on the safe head until it produces attributes, and consolidates the engine's safe head with them. When the pipeline runs out of data, it waits for an L1 head update and steps again. When the pipeline asks for a reset, derivation asks the engine to reset, and the engine's reset then resets the pipeline
 
-Engine resets are therefore handled between sets of attributes, rather than after the pipeline runs out of data. An L1 head update that arrives while deriving is read once the pipeline runs out of data, so it resumes derivation.
+An engine reset interrupts a pipeline step in progress. The pipeline reset that follows rebuilds every stage from the safe head's L1 origin, so the interrupted step leaves nothing behind. Nothing else interrupts a step. An L1 head update that arrives while deriving is read once the pipeline runs out of data, so it resumes derivation.
 
 ### Finality
 
-The finality actor in `kona_node_actors::finality`, not derivation, finalizes derived blocks. It follows the engine's published state, which records the L1 block each safe head was derived from, and the finalized L1 block receiver. When an L1 block finalizes, it asks the engine to finalize the highest safe head it recorded whose source that L1 block covers. The published state coalesces, so the actor may miss some safe heads; it then finalizes the highest one it saw, and catches up when the next L1 block finalizes. An engine reset drops the safe heads recorded before it, whose sources an L1 reorg may have replaced. Delegated derivation runs no finality actor: it finalizes the delegate's finalized blocks itself.
+The finality actor in `kona_node_actors::finality`, not derivation, finalizes derived blocks. It follows the engine's published state, which records the L1 block each safe head was derived from, and the finalized L1 block receiver. When an L1 block finalizes, it asks the engine to finalize the highest safe head it recorded whose source that L1 block covers. The published state coalesces, so the actor may miss some safe heads; it then finalizes the highest one it saw, and catches up when the next L1 block finalizes. Each reset the engine publishes drops the safe heads recorded before it, whose sources an L1 reorg may have replaced. Delegated derivation runs no finality actor: it finalizes the delegate's finalized blocks itself.
 
 ### Stepping Logic
 
-The core derivation logic is implemented in `produce_next_attributes()`:
+The core derivation logic is implemented in `Deriver::next()`, which owns the pipeline, the safe head it derives on, and the L1 head receiver:
 
 ```rust
-async fn produce_next_attributes(
-    &mut self,
-    safe_head: L2BlockInfo,
-) -> Result<Derived, ActorError>
+async fn next(&mut self) -> Result<Derived, ActorError>
 ```
 
-This method continuously steps the pipeline until payload attributes are produced, the pipeline runs out of data, or it needs a reset:
+This method continuously steps the pipeline until payload attributes are produced or the pipeline needs a reset, waiting for the next L1 head whenever the pipeline runs out of data:
 
 1. **Step the pipeline** with the engine's safe head from the latest consolidation or reset
 2. **Handle step results**:
@@ -107,7 +103,7 @@ The derivation actor handles three categories of pipeline errors:
 
 #### Reset Errors  
 - `ResetError::HoloceneActivation`: Send an `ActivationSignal` to the pipeline and keep stepping
-- Any other reset error, including `ResetError::ReorgDetected`: Reset the engine, then start over from the engine's new state. `ReorgDetected` additionally increments the `L1_REORG_COUNT` metric.
+- Any other reset error, including `ResetError::ReorgDetected`: Ask the engine to reset; the engine's published reset then resets the pipeline. `ReorgDetected` additionally increments the `L1_REORG_COUNT` metric.
 
 #### Critical Errors
 - Unrecoverable errors that terminate the derivation process
@@ -121,7 +117,7 @@ The pipeline supports several signal types for coordination:
 - **ActivationSignal**: Handles hardfork activations (e.g., Holocene)
 - **FlushChannel**: Invalidates current channel data for deposit-only blocks
 
-Derivation sends these signals to its own pipeline, in response to the engine's replies and state.
+Derivation sends these signals to its own pipeline, in response to the engine's replies and published resets.
 
 ## Configuration
 

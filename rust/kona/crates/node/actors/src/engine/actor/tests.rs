@@ -68,8 +68,9 @@ fn actor(
     block_sink: Arc<dyn ImportedBlockSink>,
 ) -> (Actor, watch::Receiver<EngineState>) {
     let (state_tx, state_rx) = watch::channel(state);
+    let (resets_tx, _) = watch::channel(state);
     let (_, messages_rx) = mpsc::channel(1);
-    (Actor::new(Arc::new(client), config, block_sink, state_tx, messages_rx), state_rx)
+    (Actor::new(Arc::new(client), config, block_sink, state_tx, resets_tx, messages_rx), state_rx)
 }
 
 /// Spawns an actor with the initial engine state and returns its handle and task.
@@ -80,9 +81,16 @@ fn spawn(
 ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
-    let actor =
-        Actor::new(Arc::new(client), config, Arc::new(NoopBlockSink), state_tx, messages_rx);
-    (Handle::new(messages, state_rx), tokio::spawn(actor.run()))
+    let (resets_tx, resets_rx) = watch::channel(state);
+    let actor = Actor::new(
+        Arc::new(client),
+        config,
+        Arc::new(NoopBlockSink),
+        state_tx,
+        resets_tx,
+        messages_rx,
+    );
+    (Handle::new(messages, state_rx, resets_rx), tokio::spawn(actor.run()))
 }
 
 /// Returns a rollup configuration whose genesis is the default L2 block.
@@ -167,13 +175,15 @@ async fn reset_recovers_and_completes_original_request(
     }
     expect_reset(&l1, &l2, read_delay);
     let (handle, actor) = spawn(client, config.clone(), EngineState::default());
+    let resets = handle.resets();
 
     let started = Instant::now();
     let state = time::timeout(Duration::from_secs(20), handle.reset()).await.unwrap().unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
     assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
-    assert_eq!(state.resets(), 1);
-    // The reset's state is published before the reply.
+    // The reset and its state are published before the reply.
+    assert!(resets.has_changed().unwrap());
+    assert_eq!(*resets.borrow(), state);
     assert_eq!(*handle.state().borrow(), state);
     actor.abort();
     l1.assert_finished();
@@ -203,16 +213,18 @@ async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
     expect_reset(&l1, &l2, Duration::ZERO);
     let (handle, actor) = spawn(client, config.clone(), EngineState::default());
 
+    let resets = handle.resets();
     // With no heads, there is no forkchoice to ask with.
     assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
+    // A refused reset is not published.
+    assert!(!resets.has_changed().unwrap());
     handle.follow_safe_head(test_block_info(1)).await.unwrap();
     assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
     let state = handle.reset_if_el_synced().await.unwrap();
     assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
     handle.follow_safe_head(test_block_info(1)).await.unwrap();
     assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
-    let state = handle.reset_if_el_synced().await.unwrap();
-    assert_eq!(state.resets(), 2);
+    handle.reset_if_el_synced().await.unwrap();
     actor.abort();
     l1.assert_finished();
     l2.assert_finished();
@@ -428,8 +440,8 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
     l2.assert_finished();
 }
 
-/// A consolidation the engine abandons for a reset replies with the state after the reset, whose
-/// reset count tells derivation to reset onto it.
+/// A consolidation the engine abandons for a reset publishes the reset, then replies with the
+/// state after it.
 #[tokio::test(start_paused = true)]
 async fn consolidation_that_resets_replies_with_the_reset_state() {
     let config = config();
@@ -443,12 +455,15 @@ async fn consolidation_that_resets_replies_with_the_reset_state() {
         .with_finalized_head(L2BlockInfo::default())
         .build();
     let (handle, actor) = spawn(client, config.clone(), state);
+    let resets = handle.resets();
 
     let attributes = TestAttributesBuilder::new().with_parent(L2BlockInfo::default()).build();
     let Consolidation { state, flush } = handle.consolidate(attributes).await.unwrap();
 
     assert!(!flush);
-    assert_eq!(state.resets(), 1);
+    // The reset is published before the reply.
+    assert!(resets.has_changed().unwrap());
+    assert_eq!(*resets.borrow(), state);
     // The reset's safe head was not derived from a known L1 block.
     assert_eq!(state.safe_head_source(), None);
     assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
@@ -459,7 +474,7 @@ async fn consolidation_that_resets_replies_with_the_reset_state() {
 }
 
 /// Attributes derived before a reset do not extend the reset's safe head, so the engine skips
-/// them, and its reply carries the reset.
+/// them and replies with the reset's state.
 #[tokio::test(start_paused = true)]
 async fn consolidation_skips_attributes_derived_before_a_reset() {
     let config = config();

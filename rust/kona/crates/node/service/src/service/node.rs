@@ -187,13 +187,17 @@ impl RollupNode {
                 self.l1_config.engine_provider.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             );
-            Ok(Box::pin(builder.build_delegated(adapters::Engine(engine), provider, l1_provider)))
+            Ok(Box::pin(builder.build_delegated(
+                adapters::Engine::new(engine),
+                provider,
+                l1_provider,
+            )))
         } else {
             let pipeline = self
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(Box::pin(builder.build(adapters::Engine(engine), pipeline, head)))
+            Ok(Box::pin(builder.build(adapters::Engine::new(engine), pipeline, head)))
         }
     }
 
@@ -205,9 +209,13 @@ impl RollupNode {
         finalized: watch::Receiver<BlockInfo>,
     ) -> Option<FinalityTask> {
         self.derivation_delegate_provider.is_none().then(|| {
-            let engine_state = engine.state();
-            Box::pin(finality::build(adapters::Engine(engine), engine_state, finalized))
-                as FinalityTask
+            let (engine_state, resets) = (engine.state(), engine.resets());
+            Box::pin(finality::build(
+                adapters::Engine::new(engine),
+                engine_state,
+                resets,
+                finalized,
+            )) as FinalityTask
         })
     }
 
@@ -249,7 +257,7 @@ impl RollupNode {
 
         builder.build(
             self.create_attributes_builder(),
-            adapters::Engine(engine),
+            adapters::Engine::new(engine),
             delayed_origin_selector,
             self.config.clone(),
             self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
@@ -435,7 +443,7 @@ impl RollupNode {
 
         let discovery = handler.discovery.clone();
         let network = NetworkActor::new(
-            adapters::Engine(engine.clone()),
+            adapters::Engine::new(engine.clone()),
             handler,
             gossip_command_rx,
             admin_payload_rx,

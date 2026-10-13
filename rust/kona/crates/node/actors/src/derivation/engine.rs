@@ -10,7 +10,8 @@ use std::fmt::Debug;
 #[async_trait]
 pub trait Engine: Debug + Send + Sync {
     /// Resets the engine onto a starting point found from the execution layer's heads, and returns
-    /// the engine state afterwards.
+    /// the engine state afterwards. The engine publishes the reset, for [`Self::next_reset`],
+    /// before it replies.
     ///
     /// Fails with [`EngineClientError::ElSyncing`] while the execution layer may be syncing.
     ///
@@ -24,12 +25,11 @@ pub trait Engine: Debug + Send + Sync {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<Consolidation>;
 
-    /// Returns the engine's latest published state.
-    fn state(&self) -> EngineState;
-
-    /// Waits until the engine has reset more than `resets` times, and returns its state then.
-    /// Returns at once if the engine already has.
-    async fn reset_after(&self, resets: u64) -> EngineClientResult<EngineState>;
+    /// Waits for the engine's next reset, by any actor, and returns its state after the reset.
+    ///
+    /// Each reset is returned once, starting with the first reset after this engine was created.
+    /// Cancelling the wait loses no reset.
+    async fn next_reset(&mut self) -> EngineClientResult<EngineState>;
 
     /// Asks the engine to finalize the L2 block identified by the provided [`FinalizeBlockId`],
     /// without waiting for the engine to do so.
@@ -46,6 +46,7 @@ pub(crate) use test_engine::{Request, TestEngine};
 #[cfg(test)]
 mod test_engine {
     use super::*;
+    use crate::EngineClientError;
     use std::{
         collections::VecDeque,
         fmt,
@@ -63,73 +64,75 @@ mod test_engine {
         FollowSafeHead(L2BlockInfo),
     }
 
-    /// Replies to a consolidation, given the engine's state publisher.
+    /// Replies to a consolidation, given the publisher of the engine's resets.
     type ConsolidationReply = Box<dyn FnOnce(&watch::Sender<EngineState>) -> Consolidation + Send>;
 
     /// An engine that replies from a script and records the requests it receives.
     ///
-    /// Like the engine actor, it publishes the state it replies with. A script runs out with a
-    /// panic.
-    #[derive(Default)]
+    /// Like the engine actor, it publishes each reset before replying. Clones share the script and
+    /// the requests. A script that runs out panics.
+    #[derive(Debug, Clone)]
     pub(crate) struct TestEngine {
-        /// The engine's published state.
-        pub(crate) published: watch::Sender<EngineState>,
+        script: Arc<Script>,
+        resets: watch::Receiver<EngineState>,
+    }
+
+    #[derive(Default)]
+    struct Script {
+        resets_tx: watch::Sender<EngineState>,
         resets: Mutex<VecDeque<EngineClientResult<EngineState>>>,
         consolidations: Mutex<VecDeque<ConsolidationReply>>,
         requests: Mutex<Vec<Request>>,
+    }
+
+    impl fmt::Debug for Script {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("Script").field("requests", &self.requests).finish_non_exhaustive()
+        }
     }
 
     impl TestEngine {
         /// Creates an engine that replies to resets with the given results, in order.
         pub(crate) fn new(
             resets: impl IntoIterator<Item = EngineClientResult<EngineState>>,
-        ) -> Arc<Self> {
-            Arc::new(Self {
-                resets: Mutex::new(resets.into_iter().collect()),
-                ..Default::default()
-            })
+        ) -> Self {
+            let script =
+                Script { resets: Mutex::new(resets.into_iter().collect()), ..Default::default() };
+            let resets = script.resets_tx.subscribe();
+            Self { script: Arc::new(script), resets }
         }
 
-        /// Replies to the next unscripted consolidation with the given reply.
-        pub(crate) fn consolidates(&self, consolidation: Consolidation) {
-            self.on_consolidation(move |state| {
-                state.send_replace(consolidation.state);
-                consolidation
-            });
-        }
-
-        /// Replies to the next unscripted consolidation by running `reply`, which publishes the
-        /// engine's state itself.
+        /// Replies to the next unscripted consolidation by running `reply`, which may publish a
+        /// reset.
         pub(crate) fn on_consolidation(
             &self,
             reply: impl FnOnce(&watch::Sender<EngineState>) -> Consolidation + Send + 'static,
         ) {
-            self.consolidations.lock().unwrap().push_back(Box::new(reply));
+            self.script.consolidations.lock().unwrap().push_back(Box::new(reply));
+        }
+
+        /// Publishes a reset another actor made.
+        pub(crate) fn publish_reset(&self, state: EngineState) {
+            self.script.resets_tx.send_replace(state);
         }
 
         /// Returns the requests received so far, in order.
         pub(crate) fn requests(&self) -> Vec<Request> {
-            self.requests.lock().unwrap().clone()
+            self.script.requests.lock().unwrap().clone()
         }
 
         fn record(&self, request: Request) {
-            self.requests.lock().unwrap().push(request);
-        }
-    }
-
-    impl fmt::Debug for TestEngine {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("TestEngine").field("requests", &self.requests).finish_non_exhaustive()
+            self.script.requests.lock().unwrap().push(request);
         }
     }
 
     #[async_trait]
-    impl Engine for Arc<TestEngine> {
+    impl Engine for TestEngine {
         async fn reset(&self) -> EngineClientResult<EngineState> {
             self.record(Request::Reset);
-            let result = self.resets.lock().unwrap().pop_front().expect("unscripted reset");
+            let result = self.script.resets.lock().unwrap().pop_front().expect("unscripted reset");
             if let Ok(state) = &result {
-                self.published.send_replace(*state);
+                self.publish_reset(*state);
             }
             result
         }
@@ -139,19 +142,22 @@ mod test_engine {
             attributes: OpAttributesWithParent,
         ) -> EngineClientResult<Consolidation> {
             self.record(Request::Consolidate(attributes));
-            let reply =
-                self.consolidations.lock().unwrap().pop_front().expect("unscripted consolidation");
-            Ok(reply(&self.published))
+            let reply = self
+                .script
+                .consolidations
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unscripted consolidation");
+            Ok(reply(&self.script.resets_tx))
         }
 
-        fn state(&self) -> EngineState {
-            *self.published.borrow()
-        }
-
-        async fn reset_after(&self, resets: u64) -> EngineClientResult<EngineState> {
-            let mut state = self.published.subscribe();
-            let state = state.wait_for(|state| state.resets() > resets).await.unwrap();
-            Ok(*state)
+        async fn next_reset(&mut self) -> EngineClientResult<EngineState> {
+            self.resets
+                .changed()
+                .await
+                .map_err(|_| EngineClientError::RequestError("resets closed".to_string()))?;
+            Ok(*self.resets.borrow_and_update())
         }
 
         async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {

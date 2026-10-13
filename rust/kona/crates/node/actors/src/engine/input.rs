@@ -7,8 +7,8 @@ use alloy_eips::BlockNumHash;
 /// Two semantic regimes drive finalization in kona-node:
 ///
 /// - [`FinalizeBlockId::ByNumber`] is used when the engine's own canonical chain is the
-///   authoritative source for the block at a given height (e.g. local L1-finality driven by
-///   `L2Finalizer`). The number is sufficient because there is only one chain to consult.
+///   authoritative source for the block at a given height (e.g. local L1-finality driven by the
+///   finality actor). The number is sufficient because there is only one chain to consult.
 /// - [`FinalizeBlockId::ByHash`] is used when an upstream supplies `(number, hash)` and the engine
 ///   must finalize the specific block identified by hash. If the engine does not have that hash,
 ///   finalization must error rather than silently finalize the engine's canonical block at the same
