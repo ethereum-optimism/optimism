@@ -10,23 +10,9 @@ use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
 use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, TransactionVariant};
-use std::{
-    ops::ControlFlow,
-    time::{Duration, Instant},
-};
+use std::{ops::ControlFlow, time::Instant};
 use tokio::sync::watch;
 use tracing::{debug, error, info};
-
-/// First retry delay after a sync step fails. Successful steps reset the delay to zero.
-const SYNC_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
-
-/// Upper bound for the exponential sync-retry delay. Caps log volume during persistent
-/// failure modes (e.g. provider regression that outlives our state) to ~0.1/sec.
-const SYNC_BACKOFF_MAX: Duration = Duration::from_secs(10);
-
-fn next_sync_backoff(current: Duration) -> Duration {
-    current.saturating_mul(2).clamp(SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX)
-}
 
 /// The engine that runs on a dedicated thread, dispatching [`EngineAction`]
 /// messages to self-contained task structs that operate on the engine state.
@@ -40,11 +26,9 @@ where
     incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
     persistence_threshold: u64,
     backpressure_threshold: u64,
-    /// Current retry delay for the sync arm; grows on failure, resets on success.
-    sync_backoff: Duration,
-    /// Earliest time the sync arm may run again. A deadline rather than a fresh timer per event,
-    /// so incoming actions cannot postpone a retry indefinitely.
-    next_sync_at: Instant,
+    /// Proofs tip at which syncing paused because reth's next block doesn't build on it. Syncing
+    /// resumes once an action moves the tip.
+    sync_paused_at: Option<NumHash>,
     /// Publishes the highest block whose proofs data is persisted.
     persisted_tip: watch::Sender<Option<NumHash>>,
     /// Whether the last persisted-tip read failed, so a failure is logged once, not per event.
@@ -75,8 +59,7 @@ where
             incoming,
             persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
             backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
-            sync_backoff: Duration::ZERO,
-            next_sync_at: Instant::now(),
+            sync_paused_at: None,
             persisted_tip,
             persisted_tip_read_failed: false,
         }
@@ -117,10 +100,11 @@ where
         });
     }
 
-    /// Returns `true` if the engine is behind its sync target.
+    /// Returns `true` if the engine is behind its sync target and syncing isn't paused at the
+    /// current tip.
     fn needs_sync(&self) -> bool {
-        let current_tip = self.state.get_tip().map(|t| t.number).unwrap_or(0);
-        self.state.sync_target > current_tip
+        let Ok(tip) = self.state.get_tip() else { return false };
+        self.state.sync_target > tip.number && self.sync_paused_at != Some(tip)
     }
 
     /// Returns `true` if the buffer is above the backpressure threshold with a save in-flight.
@@ -139,8 +123,12 @@ where
     }
 
     /// Execute the next sequential block (`current_tip + 1`) to advance toward the sync target.
+    ///
+    /// The block comes from reth's canonical chain, so a failure only goes away if reth replaces
+    /// the block. An error returned here would repeat and stops the engine.
     fn advance_sync(&mut self) -> Result<(), EngineError> {
-        let current_tip = self.state.get_tip()?.number;
+        let tip = self.state.get_tip()?;
+        let current_tip = tip.number;
 
         if self.state.sync_target <= current_tip {
             return Ok(());
@@ -171,13 +159,34 @@ where
             return Ok(());
         }
 
-        let block = self
-            .state
-            .provider
-            .recovered_block(block_num.into(), TransactionVariant::NoHash)?
-            .ok_or(EngineError::BlockNotFound(block_num))?;
+        let Some(block) =
+            self.state.provider.recovered_block(block_num.into(), TransactionVariant::NoHash)?
+        else {
+            // reth unwound past the block since the best-block read; its notification moves the
+            // tip.
+            self.sync_paused_at = Some(tip);
+            return Ok(());
+        };
 
-        super::tasks::execute_block(&block, &mut self.state)
+        match super::tasks::execute_block(&block, &mut self.state) {
+            Ok(()) => Ok(()),
+            // The proofs tip is off reth's chain: either a reorg notification is still on its way,
+            // or the proofs store is on a fork reth abandoned (e.g. after an unclean shutdown).
+            // Executing again can't help, so wait for the next action to move the tip. A stale
+            // store fails on the same mismatch when the next notification arrives.
+            Err(err @ EngineError::ParentHashMismatch { .. }) => {
+                debug!(target: "trie::engine::runner", %err, "Pausing sync until the proofs tip moves");
+                self.sync_paused_at = Some(tip);
+                Ok(())
+            }
+            // reth replaced the block while it executed (e.g. it reads bytecode from a fork reth
+            // has left), so the next step runs reth's new block at this height.
+            Err(err) if self.state.provider.block_hash(block_num)? != Some(block.hash()) => {
+                debug!(target: "trie::engine::runner", block_num, %err, "Block left reth's chain during sync");
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
     }
 
     /// Process one event from the action, persistence, sync, or idle-flush channel.
@@ -193,7 +202,7 @@ where
     ///   the persistence threshold hasn't been reached and no save is in flight. Keeps a paused
     ///   chain from leaving buffered blocks invisible to the proofs RPC indefinitely.
     ///
-    /// Returns [`ControlFlow::Break`] when the action channel disconnects.
+    /// Returns [`ControlFlow::Break`] when the action channel disconnects or a sync step fails.
     fn process_next_event(&mut self) -> ControlFlow<()> {
         let backpressure = self.backpressure_active();
         let save_in_flight = self.state.persistence.in_flight.is_some();
@@ -205,11 +214,9 @@ where
         let incoming_rx: Receiver<EngineAction<BlockTy<Evm::Primitives>>> =
             if backpressure { crossbeam_channel::never() } else { self.incoming.clone() };
 
-        // Fire when there is sync work to do; block indefinitely otherwise. After a failed
-        // sync step we wait until `next_sync_at` so a sustained failure (e.g. a stale sync target
-        // ahead of the provider's tip) doesn't spin the CPU and flood logs.
+        // Fire when there is sync work to do; block indefinitely otherwise.
         let sync_rx: Receiver<Instant> = if self.needs_sync() && !backpressure {
-            crossbeam_channel::at(self.next_sync_at)
+            crossbeam_channel::at(Instant::now())
         } else {
             crossbeam_channel::never()
         };
@@ -224,29 +231,15 @@ where
 
         crossbeam_channel::select! {
             recv(incoming_rx) -> msg => match msg {
-                Ok(action) => {
-                    let tip = self.state.get_tip().ok();
-                    action.execute(&mut self.state);
-                    // Another path moved the tip, e.g. a reorg replaced the block the sync loop
-                    // kept failing on, so the next sync step need not wait out the backoff.
-                    if self.state.get_tip().ok() != tip {
-                        self.sync_backoff = Duration::ZERO;
-                        self.next_sync_at = Instant::now();
-                    }
-                }
+                Ok(action) => action.execute(&mut self.state),
                 Err(_) => return ControlFlow::Break(()),
             },
             recv(persist_rx) -> result => self.state.persistence.on_complete(result, &self.state.memory),
-            recv(sync_rx) -> _ => match self.advance_sync() {
-                Ok(()) => {
-                    self.sync_backoff = Duration::ZERO;
-                    self.next_sync_at = Instant::now();
-                }
-                Err(err) => {
-                    self.sync_backoff = next_sync_backoff(self.sync_backoff);
-                    self.next_sync_at = Instant::now() + self.sync_backoff;
-                    error!(target: "trie::engine::runner", ?err, backoff = ?self.sync_backoff, "Sync step failed");
-                }
+            recv(sync_rx) -> _ => if let Err(err) = self.advance_sync() {
+                // Stopping the engine closes its persisted-tip channel, which the ExEx treats as
+                // fatal, so the node shuts down.
+                error!(target: "trie::engine::runner", %err, "Proofs sync failed; stopping the proofs engine");
+                return ControlFlow::Break(());
             },
             recv(idle_flush_rx) -> _ => if let Err(e) = self.state.advance_persistence() {
                 error!(target: "trie::engine::runner", ?e, "Idle flush failed");
@@ -278,45 +271,5 @@ where
         debug!(target: "trie::engine::runner", "Collector engine shutting down, draining in-flight persist");
         self.state.drain_persistence();
         debug!(target: "trie::engine::runner", "Collector engine stopped");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX, next_sync_backoff};
-    use std::time::Duration;
-
-    #[test]
-    fn zero_backoff_jumps_to_initial() {
-        // First failure after a clean run: backoff seeded at the configured initial delay.
-        assert_eq!(next_sync_backoff(Duration::ZERO), SYNC_BACKOFF_INITIAL);
-    }
-
-    #[test]
-    fn doubles_below_cap() {
-        let stepped = next_sync_backoff(SYNC_BACKOFF_INITIAL);
-        assert_eq!(stepped, SYNC_BACKOFF_INITIAL * 2);
-    }
-
-    #[test]
-    fn clamps_to_max() {
-        // Halfway to the cap doubles into the cap.
-        let half = SYNC_BACKOFF_MAX / 2;
-        assert_eq!(next_sync_backoff(half), SYNC_BACKOFF_MAX);
-
-        // Already at the cap stays at the cap.
-        assert_eq!(next_sync_backoff(SYNC_BACKOFF_MAX), SYNC_BACKOFF_MAX);
-
-        // Just past the cap (defensive) is still clamped.
-        assert_eq!(
-            next_sync_backoff(SYNC_BACKOFF_MAX + Duration::from_millis(1)),
-            SYNC_BACKOFF_MAX
-        );
-    }
-
-    #[test]
-    fn does_not_overflow_on_huge_input() {
-        let near_max = Duration::new(u64::MAX / 2 + 1, 0);
-        assert_eq!(next_sync_backoff(near_max), SYNC_BACKOFF_MAX);
     }
 }

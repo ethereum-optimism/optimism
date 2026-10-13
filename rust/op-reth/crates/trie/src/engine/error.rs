@@ -10,9 +10,6 @@ use thiserror::Error;
 /// Errors produced by the live trie engine.
 #[derive(Debug, Error)]
 pub enum EngineError {
-    /// Block was not found in the provider during sync catch-up.
-    #[error("Block {0} not found in provider")]
-    BlockNotFound(u64),
     /// Reth has pruned the block body, so we cannot recompute its state delta.
     ///
     /// Detected when `recovered_block` returns a block whose header advertises a non-empty

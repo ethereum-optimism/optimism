@@ -217,8 +217,8 @@ where
         self.persistence.unwind(to, &self.memory)?;
         self.memory.unwind(to.block.number);
         // Clamp `sync_target` to the post-unwind tip. Without this, a stale target left over
-        // from before a deep FCU rewind keeps `needs_sync()` perpetually true and spins the
-        // runner on `BlockNotFound` for blocks the provider no longer has.
+        // from before a deep FCU rewind keeps `needs_sync()` true for blocks the provider no
+        // longer has.
         self.sync_target = self.sync_target.min(to.block.number.saturating_sub(1));
         #[cfg(feature = "metrics")]
         self.metrics.unwind_duration_seconds.record(start.elapsed());
