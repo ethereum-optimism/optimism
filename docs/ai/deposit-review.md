@@ -19,7 +19,7 @@ Review these behaviors:
 - Deposit transaction encoding and decoding, including the `0x7E` typed envelope.
 - L1 attributes deposit construction and its calldata for each fork.
 - Network upgrade transactions that derivation generates as deposits.
-- The unconditional mint and its position relative to execution rollback.
+- The unconditional mint and its position relative to execution rollback. The mint is the only path that creates L2 ETH with no L2 source.
 - Deposit execution rules that differ from a type-2 transaction.
 - Nonce handling, including the increment on failure.
 - Gas limits, intrinsic gas, the block gas pool, and fork gas caps.
@@ -34,16 +34,6 @@ Do not review these areas unless changed behavior crosses their boundary:
 - Non-deposit transaction execution.
 - Withdrawal proving and finalization.
 - Dispute game logic.
-
-## Why this area carries high risk
-
-Deposits hold the only path that creates L2 ETH with no L2 source.
-A wrong `mint` value produces unbacked supply.
-A derivation or execution difference between clients splits the chain, or lets a party prove a false output root.
-
-Two paid bounty reports in 2026 shared one trigger: a permissionless over-cap deposit after Karst.
-Both were live on OP Mainnet with the respected fault-proof prestate.
-Treat the deposit gas path, the mint path, and the receipt path as the highest-value targets.
 
 ## Specification sources
 
