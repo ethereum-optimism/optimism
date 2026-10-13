@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 // TestSequencerStopsAndRestartsAtPreviousHead verifies an operator can stop
@@ -12,6 +13,8 @@ import (
 // stop operation.
 func TestSequencerStopsAndRestartsAtPreviousHead(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	sysgo.SkipOnKonaNode(t, "kona-node ignores the admin_startSequencer head hash, tracked by #23323")
+
 	sys := presets.NewMinimalNoFaultProofs(t)
 	sys.L2CL.AdvancedUnsafe(1, 30)
 
