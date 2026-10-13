@@ -109,8 +109,6 @@ It does not vendor them. `op-alloy-consensus` holds the wire format and the sour
 
 The fault-proof executor holds no separate deposit execution rules.
 It uses `alloy-op-evm` and `op-revm`, so an execution finding usually affects both clients.
-A prestate can still lag a fixed execution change.
-A fix that needs a new prestate is not complete when the code merges, so state that in the finding impact.
 
 The receipts-root encoding is the exception.
 Three implementations reproduce it: op-node in Go, `reth-optimism-consensus`, and `kona-executor`.
