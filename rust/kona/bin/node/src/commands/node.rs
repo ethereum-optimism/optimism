@@ -21,8 +21,8 @@ use tracing::{debug, error, info};
 ///
 /// # Sequencing
 ///
-/// A node given a block signer (`--p2p.sequencer.key`, `--p2p.sequencer.key.path`, or
-/// `--p2p.signer.endpoint` with `--p2p.signer.address`) can sequence. Its sequencer starts
+/// A node given a block signer (`--sequencer.signer.key.path`, or `--sequencer.signer.url`
+/// with `--sequencer.signer.address`) can sequence. Its sequencer starts
 /// stopped; start it with `admin_startSequencer`, which `--rpc.enable-admin` serves. A node
 /// without a block signer follows the chain only.
 ///
@@ -49,7 +49,7 @@ use tracing::{debug, error, info};
 ///                --l1-beacon http://localhost:5052 \
 ///                --l2-engine-rpc http://localhost:8551 \
 ///                --l2-engine-jwt-secret /path/to/jwt.hex \
-///                --p2p.sequencer.key.path /path/to/p2p-sequencer.key
+///                --sequencer.signer.key.path /path/to/sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
@@ -152,12 +152,11 @@ impl NodeCommand {
     /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
         let chain = self.chain.chain_spec()?;
-        let block_signer = self.p2p_flags.signer.clone().config()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
             p2p_config: self.p2p_flags.clone().config(&chain.rollup_config)?,
             rpc_config: self.rpc_flags.clone().into(),
-            sequencer: self.sequencer_flags.config(block_signer)?,
+            sequencer: self.sequencer_flags.clone().config()?,
             chain,
         })
     }
@@ -278,9 +277,6 @@ mod tests {
 
     const JWT_HEX: &str = "0xabababababababababababababababababababababababababababababababab";
 
-    const SEQUENCER_KEY: &str =
-        "0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be";
-
     /// Parses the node command with [`UNREACHABLE_FLAGS`], a JWT secret file holding [`JWT_HEX`]
     /// and `args`. The returned file must outlive the command's use of it.
     fn parse_node(args: &[&str]) -> (NodeCommand, tempfile::NamedTempFile) {
@@ -299,12 +295,13 @@ mod tests {
 
     #[test]
     fn test_config_for_a_registry_chain() {
+        let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
         let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
-            "--p2p.sequencer.key",
-            SEQUENCER_KEY,
-            "--conductor.rpc",
+            "--sequencer.signer.key.path",
+            key.path().to_str().unwrap(),
+            "--sequencer.conductor-url",
             "http://127.0.0.1:4",
         ]);
 
@@ -326,19 +323,21 @@ mod tests {
 
     #[test]
     fn test_config_without_a_block_signer_cannot_sequence() {
-        let (command, _jwt) = parse_node(&["--chain", "optimism", "--sequencer.l1-confs", "2"]);
+        let (command, _jwt) = parse_node(&["--chain", "optimism"]);
 
         assert!(command.config().unwrap().sequencer.is_none());
     }
 
     #[test]
-    fn test_conductor_requires_a_block_signer() {
-        let (command, _jwt) =
-            parse_node(&["--chain", "optimism", "--conductor.rpc", "http://127.0.0.1:4"]);
+    fn test_sequencer_flags_require_a_block_signer() {
+        let error = NodeCommand::try_parse_from(
+            std::iter::once("node")
+                .chain(default_flags().iter().copied())
+                .chain(["--sequencer.conductor-url", "http://127.0.0.1:4"]),
+        )
+        .unwrap_err();
 
-        let error = command.config().unwrap_err();
-
-        assert!(error.is::<crate::flags::ConductorWithoutSignerError>(), "{error:?}");
+        assert_eq!(error.kind(), clap::error::ErrorKind::MissingRequiredArgument);
     }
 
     #[test]

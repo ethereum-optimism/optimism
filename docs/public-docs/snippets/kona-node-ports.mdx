@@ -26,9 +26,8 @@ flag group. Its only interop flag, `--interop.dependency-set`
 (`KONA_NODE_INTEROP_DEPENDENCY_SET`), takes a path to a dependency-set JSON file
 rather than a port.
 
-`--conductor.rpc` (`KONA_NODE_CONDUCTOR_RPC`) is not a listening port either. It is
+`--sequencer.conductor-url` (`KONA_NODE_SEQUENCER_CONDUCTOR_URL`) is not a listening port either. It is
 the RPC endpoint URL of an external conductor service that the node dials out to,
 and it has no default value. Supplying it enables the conductor integration. It
-requires a block signer (`--p2p.sequencer.key`, `--p2p.sequencer.key.path`, or
-`--p2p.signer.endpoint` with `--p2p.signer.address`): without one, the node refuses to
-start.
+requires a block signer (`--sequencer.signer.key.path`, or `--sequencer.signer.url`
+with `--sequencer.signer.address`): without one, the node refuses to start.

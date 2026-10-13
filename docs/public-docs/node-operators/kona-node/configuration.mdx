@@ -85,10 +85,6 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
-| `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A node given this, `--p2p.sequencer.key.path`, or a remote signer can sequence | - |
-| `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
-| `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
-| `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
 
 ## RPC Arguments
 
@@ -105,12 +101,19 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 
 <Unreleased component="kona-node" />
 
-A node given a block signer (`--p2p.sequencer.key`, `--p2p.sequencer.key.path`, or `--p2p.signer.endpoint` with `--p2p.signer.address`) can sequence. Its sequencer starts stopped: enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production. A node without a block signer does not serve the sequencer's admin methods.
+A node given a block signer, either `--sequencer.signer.key.path` or `--sequencer.signer.url` with `--sequencer.signer.address`, can sequence. Its sequencer starts stopped: enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production. A node without a block signer does not serve the sequencer's admin methods. Every other sequencer flag requires a block signer: the node refuses to start if one is given without it.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer. Ignored without a block signer | `4` |
-| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration. Requires a block signer | - |
+| `--sequencer.signer.key.path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH` | Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The file must exist | - |
+| `--sequencer.signer.url <URL>` | `KONA_NODE_SEQUENCER_SIGNER_URL` | Remote op-signer that signs the sequencer's blocks, instead of a local key. Requires `--sequencer.signer.address` | - |
+| `--sequencer.signer.address <ADDRESS>` | `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Address of the remote op-signer's key | - |
+| `--sequencer.signer.header <NAME=VALUE>` | `KONA_NODE_SEQUENCER_SIGNER_HEADER` | Header to send to the remote op-signer. Pass the flag once per header; the environment variable sets a single header | - |
+| `--sequencer.signer.tls.ca <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_CA` | CA certificates that verify the remote op-signer | - |
+| `--sequencer.signer.tls.cert <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_CERT` | Client certificate presented to the remote op-signer. Requires `--sequencer.signer.tls.key` | - |
+| `--sequencer.signer.tls.key <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_KEY` | Private key of the client certificate. Requires `--sequencer.signer.tls.cert` | - |
+| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
+| `--sequencer.conductor-url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
 
 ## Interop Arguments
 

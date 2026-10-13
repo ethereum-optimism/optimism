@@ -4,7 +4,6 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use crate::flags::SignerArgs;
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
@@ -205,11 +204,6 @@ pub struct P2PArgs {
     /// This is useful for discovering a wider set of peers.
     #[arg(long = "p2p.discovery.randomize", env = "KONA_NODE_P2P_DISCOVERY_RANDOMIZE")]
     pub discovery_randomize: Option<u64>,
-
-    /// Specify optional remote signer configuration. Note that this argument is mutually exclusive
-    /// with `p2p.sequencer.key` that specifies a local sequencer signer.
-    #[command(flatten)]
-    pub signer: SignerArgs,
 }
 
 impl Default for P2PArgs {
@@ -485,17 +479,6 @@ mod tests {
         ]);
         let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
         assert_eq!(args.p2p.private_key, Some(key));
-    }
-
-    #[test]
-    fn test_p2p_args_sequencer_key() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.sequencer.key",
-            "bcc617ea05150ff60490d3c6058630ba94ae9f12a02a87efd291349ca0e54e0a",
-        ]);
-        let key = b256!("bcc617ea05150ff60490d3c6058630ba94ae9f12a02a87efd291349ca0e54e0a");
-        assert_eq!(args.p2p.signer.sequencer_key, Some(key));
     }
 
     #[test]

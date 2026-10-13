@@ -25,7 +25,7 @@ kona-node node \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
   --l2-engine-jwt-secret=./jwt.hex \
-  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --sequencer.signer.key.path=./sequencer.key \
   --l2-config-file=./rollup.json
 ```
 
@@ -54,14 +54,14 @@ A sequencer requires all standard node arguments plus a block signer. Missing an
 | **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
 | **JWT Secret** | `--l2-engine-jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
 | **Rollup Config** | `--l2-config-file` or `--chain` | `KONA_NODE_ROLLUP_CONFIG` or `KONA_NODE_L2_CHAIN_ID` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
-| **Block Signer** | `--p2p.sequencer.key.path`, `--p2p.sequencer.key`, or `--p2p.signer.endpoint` with `--p2p.signer.address` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH`, `KONA_NODE_P2P_SEQUENCER_KEY`, `KONA_NODE_P2P_SIGNER_ENDPOINT`, `KONA_NODE_P2P_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
+| **Block Signer** | `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH`, `KONA_NODE_SEQUENCER_SIGNER_URL`, `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
 
 ## Sequencer-Specific Flags
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Ignored without a block signer |
-| `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint. Requires a block signer |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Requires a block signer |
+| `--sequencer.conductor-url` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | - | Conductor service RPC endpoint. Requires a block signer |
 
 The full flag catalogue, including the standard node arguments every node takes, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 
@@ -75,7 +75,7 @@ kona-node node \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \
   --l2-engine-jwt-secret=./jwt.hex \
-  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --sequencer.signer.key.path=./sequencer.key \
   --l2-config-file=./rollup.json
 ```
 
@@ -83,13 +83,13 @@ kona-node node \
 ```bash
 kona-node node \
   --rpc.enable-admin \
-  --conductor.rpc=http://conductor:8080 \
+  --sequencer.conductor-url=http://conductor:8080 \
   --sequencer.l1-confs=6 \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
   --l2-engine-jwt-secret=./jwt.hex \
-  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --sequencer.signer.key.path=./sequencer.key \
   --l2-config-file=./rollup.json
 ```
 

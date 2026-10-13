@@ -169,7 +169,7 @@ func startStoppedSequencerCL(
 		var extraEnv []string
 		if konaCfg.ConductorRPC != "" {
 			// kona-node has no conductor RPC timeout, so ConductorRPCTimeout does not apply.
-			extraEnv = append(extraEnv, "KONA_NODE_CONDUCTOR_RPC="+konaCfg.ConductorRPC)
+			extraEnv = append(extraEnv, "KONA_NODE_SEQUENCER_CONDUCTOR_URL="+konaCfg.ConductorRPC)
 		}
 		return startMixedKonaNode(
 			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, false, nil,
