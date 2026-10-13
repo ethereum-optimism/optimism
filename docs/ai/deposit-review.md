@@ -49,7 +49,7 @@ At minimum, check these amendments:
 | Fork | Deposit effect | Specification |
 | --- | --- | --- |
 | Regolith | Disables `isSystemTx`, meters real gas, adds `depositNonce` | [Regolith](https://specs.optimism.io/protocol/regolith/overview.html) |
-| Canyon | Makes `depositNonce` and `depositNonceVersion` always present | [Canyon](https://specs.optimism.io/protocol/canyon/overview.html) |
+| Canyon | Makes `depositNonce` and `depositReceiptVersion` always present | [Canyon](https://specs.optimism.io/protocol/canyon/overview.html) |
 | Ecotone | Changes L1 attributes calldata | [Ecotone L1 attributes](https://specs.optimism.io/protocol/ecotone/l1-attributes.html) |
 | Isthmus | Adds upgrade deposits, operator fee, and EIP-6110 request exclusion | [Isthmus derivation](https://specs.optimism.io/protocol/isthmus/derivation.html), [Isthmus execution engine](https://specs.optimism.io/protocol/isthmus/exec-engine.html) |
 | Jovian | Adds upgrade deposits and the DA footprint gas rule | [Jovian derivation](https://specs.optimism.io/protocol/jovian/derivation.html), [Jovian execution engine](https://specs.optimism.io/protocol/jovian/exec-engine.html) |
@@ -66,10 +66,7 @@ Read these two pages as well, for every fork from Karst onward:
 - [L2 upgrades, execution](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html) for the bundle format, the intent prefix rule, the sender rule, and the gas allocation.
 - [Interop derivation](https://specs.optimism.io/interop/derivation.html) for the Lagoon activation deposits and the dependency-set conditional deposits.
 
-Two further sources state deposit rules outside `deposits.md`:
-
-- [Guaranteed gas market](https://specs.optimism.io/protocol/guaranteed-gas-market.html) for the L1 gas purchase and the per-block gas bound.
-- [Interop derivation](https://specs.optimism.io/interop/derivation.html) for source-hash domains `3` and `4`.
+[Guaranteed gas market](https://specs.optimism.io/protocol/guaranteed-gas-market.html) states the L1 gas purchase and the per-block gas bound.
 
 One upgrade deposit carries a non-zero mint.
 Treat the bundle data as a mint source, not as static configuration.
@@ -91,7 +88,7 @@ It does not vendor them. `op-alloy-consensus` holds the wire format and the sour
 | --- | --- | --- | --- | --- |
 | `0x7E` wire format, encode, decode, hash | [Deposited transaction type](https://specs.optimism.io/protocol/deposits.html#the-deposited-transaction-type) | `op-core/types`: `DepositTx`, `MarshalBinary`, `UnmarshalDepositTx`, `Hash` | `op-alloy-consensus`: `TxDeposit`, `OpTxType`; `op-revm`: `DepositTransactionParts`, `DEPOSIT_TRANSACTION_TYPE` | `OptimismPortal2`: `TransactionDeposited` |
 | Typed-envelope dispatch, including every fallback | [Deposited transaction type](https://specs.optimism.io/protocol/deposits.html#the-deposited-transaction-type) | `op-core/types`: `UnmarshalDepositTx`, the JSON transaction decoder | `op-alloy-consensus`: `OpTxEnvelope`, `OpPooledTransaction`, `fallback_decode`; `reth-optimism-primitives`: the `Decodable2718` table for `OpTransactionSigned` | n/a |
-| Source hash domains | [Source hash computation](https://specs.optimism.io/protocol/deposits.html#source-hash-computation) | `op-node/rollup/derive`: `UserDepositSource`, `L1InfoDepositSource`, `UpgradeDepositSource`, `InvalidatedBlockSource` | `op-alloy-consensus`: `DepositSourceDomain`, `UserDepositSource`, `L1InfoDepositSource`, `UpgradeDepositSource`, `InteropBlockReplacementDepositSource`. Kona holds no second implementation. | n/a |
+| Source hash domains | [Source hash computation](https://specs.optimism.io/protocol/deposits.html#source-hash-computation) | `op-node/rollup/derive`: `UserDepositSource`, `L1InfoDepositSource`, `UpgradeDepositSource` | `op-alloy-consensus`: `DepositSourceDomain`, `UserDepositSource`, `L1InfoDepositSource`, `UpgradeDepositSource`. Kona holds no second implementation. | n/a |
 | Deposit log decode and the derived fields | [User-deposited transactions](https://specs.optimism.io/protocol/deposits.html#user-deposited-transactions) | `op-node/rollup/derive`: `UnmarshalDepositLogEvent`, `unmarshalDepositVersion0`, `MarshalDepositLogEvent` | `kona-protocol`: `decode_deposit`, `DepositError` | `OptimismPortal2`: `depositTransaction`, the `opaqueData` packing |
 | Per-block deposit list | [Kinds of deposited transactions](https://specs.optimism.io/protocol/deposits.html#kinds-of-deposited-transactions) | `op-node/rollup/derive`: `UserDeposits`, `DeriveDeposits` | `kona-derive`: `StatefulAttributesBuilder`, `derive_deposits` | n/a |
 | Transaction order in the block | [Kinds of deposited transactions](https://specs.optimism.io/protocol/deposits.html#kinds-of-deposited-transactions) | `op-node/rollup/derive`: `PreparePayloadAttributes` | `kona-derive`: `prepare_payload_attributes` | n/a |
@@ -174,19 +171,8 @@ Also run it for these changes:
 ## Deposit analysis
 
 Trace a deposit from the L1 log through the L2 receipt.
-Trace each implementation independently.
-
-For each affected path, determine:
-
-- Which log or byte strings it accepts.
-- Which field values it derives.
-- Which limits it applies, and at which stage.
-- Which fork condition gates each rule.
-- Which state survives a failure.
-- Which receipt fields it writes.
-
-Compare each implementation with the specification first.
-Then compare the implementations with each other.
+Follow the shared guide to prove each implementation's behavior.
+Add one output to the list it gives: the receipt fields that the path writes.
 
 ### Cross-component values
 
@@ -238,7 +224,7 @@ Apply these checks to any changed deposit behavior.
 
 ### Receipt
 
-- `depositNonce` and `depositNonceVersion` presence is fork-gated, and the version must be `1`.
+- `depositNonce` and `depositReceiptVersion` presence is fork-gated, and the version must be `1`.
 - The consensus receipt encoding and the receipt hash must match the fork rule.
 - `cumulativeGasUsed` reflects metered gas after Regolith.
 
@@ -276,9 +262,6 @@ In this area the sibling pairs are:
 - The consensus decode path against any network or pooled decode path.
 - The same rule list in op-node against the matching list in Kona.
 - The execution rule set in op-reth against the rule set in the fault-proof executor.
-
-A deposit rule often has two implementations in one client.
-Prove which path a shared helper reaches.
 
 ## Upstream and fork drift
 
