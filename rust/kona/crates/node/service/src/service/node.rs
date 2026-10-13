@@ -2,10 +2,9 @@
 use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DerivationDelegateClient, EngineConfig,
-    L1OriginSelector, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
-    NodeMode, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
+    L1OriginSelector, NetworkActor, NetworkConfig, NodeActor, NodeMode, RpcActor, SequencerConfig,
+    service::BufferImportedBlocks, signer,
 };
-use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::{
     RpcModule,
@@ -93,12 +92,6 @@ impl RollupNode {
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
         self.engine_config.mode
-    }
-
-    /// Creates a network builder for the node whose gossip validation follows
-    /// `unsafe_block_signer`.
-    fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
-        NetworkBuilder::from_config(self.p2p_config.clone(), unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -411,20 +404,18 @@ impl RollupNode {
             )
         });
 
-        // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
-        // stays sync.
-        let handler: NetworkHandler = self
-            .network_builder(signer_rx)
-            .build()
-            .map_err(|e| format!("Failed to build network: {e:?}"))?
-            .start()
+        let (gossip, discovery) = self
+            .p2p_config
+            .clone()
+            .start(signer_rx)
             .await
-            .map_err(|e| format!("Failed to start network: {e:?}"))?;
-
-        let discovery = handler.discovery.clone();
+            .map_err(|e| format!("Failed to start network: {e}"))?;
+        let (discovery, enrs) = discovery.start();
         let network = NetworkActor::new(
             adapters::Engine(engine.clone()),
-            handler,
+            gossip,
+            discovery.clone(),
+            enrs,
             gossip_command_rx,
             signed_payload_rx,
         );

@@ -28,11 +28,8 @@ pub mod l1;
 
 pub mod signer;
 
-mod network;
-pub use network::{
-    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-};
+pub mod network;
+pub use network::{NetworkActor, NetworkActorError, NetworkConfig, NetworkEngineClient};
 
 pub mod sequencer;
 

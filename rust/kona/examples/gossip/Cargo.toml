@@ -16,7 +16,6 @@ libp2p.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-discv5.workspace = true
 enr.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
 async-trait.workspace = true

@@ -23,10 +23,10 @@ use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
 };
 use kona_registry::ROLLUP_CONFIGS;
-use libp2p::{Multiaddr, identity::Keypair};
+use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -112,34 +112,17 @@ impl GossipCommand {
         let _unused_senders = (gossip_command_tx, gossip_payload_tx);
 
         let network_config = NetworkConfig {
-            discovery_address: disc_addr,
-            gossip_address: gossip_addr,
-            discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
-                ip: disc_ip,
-                port: self.disc_port,
-            })
-            .build(),
             discovery_interval: Duration::from_secs(self.interval),
-            discovery_randomize: None,
-            keypair: Keypair::generate_secp256k1(),
-            gossip_config: Default::default(),
-            scoring: Default::default(),
-            topic_scoring: Default::default(),
-            monitor_peers: Default::default(),
-            bootstore: None,
-            gater_config: Default::default(),
-            bootnodes: Default::default(),
-            rollup_config: rollup_config.clone(),
-            gossip_signer: None,
-            enr_update: true,
+            ..NetworkConfig::new(rollup_config.clone(), disc_addr, gossip_addr)
         };
-        let network_builder = NetworkBuilder::from_config(network_config, watch::channel(signer).1);
-
-        let handler = network_builder.build()?.start().await?;
+        let (gossip, discovery) = network_config.start(watch::channel(signer).1).await?;
+        let (discovery, enrs) = discovery.start();
 
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
-            handler,
+            gossip,
+            discovery,
+            enrs,
             gossip_command_rx,
             gossip_payload_rx,
         );

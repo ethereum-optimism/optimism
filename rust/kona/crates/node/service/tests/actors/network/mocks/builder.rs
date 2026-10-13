@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, signer,
+    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor, signer,
 };
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
@@ -90,18 +90,20 @@ impl TestNetworkBuilder {
         gossip_multiaddr.push(Protocol::Tcp(0));
 
         // Create a new network actor. No external connections
-        let builder = NetworkBuilder::new(
-            // Create a new rollup config. We don't need to specify any of the fields.
-            self.rollup_config(),
-            self.unsafe_block_signer,
-            gossip_multiaddr,
+        let config = NetworkConfig {
             keypair,
-            LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
-        )
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
-
-        let handler = builder.build().expect("build network").start().await.expect("start network");
+            bootnodes: bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into(),
+            ..NetworkConfig::new(
+                // Create a new rollup config. We don't need to specify any of the fields.
+                self.rollup_config(),
+                LocalNode::new(local_node_key, node_addr, 0, 0),
+                gossip_multiaddr,
+            )
+        };
+        let (gossip, discovery) =
+            config.start(watch::channel(self.unsafe_block_signer).1).await.expect("start network");
+        let (discovery, enrs) = discovery.start();
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
@@ -109,10 +111,11 @@ impl TestNetworkBuilder {
         let signer_handle = signer_builder.handle();
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
-        let discovery = handler.discovery.clone();
         let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
-            handler,
+            gossip,
+            discovery.clone(),
+            enrs,
             gossip_command_rx,
             signed_payload_rx,
         );
