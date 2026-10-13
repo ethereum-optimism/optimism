@@ -71,9 +71,7 @@ pub struct RollupNode {
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
     /// The interop dependency set for this chain.
-    /// Mirrors op-node's `--interop.dependency-set`.
-    /// [`StatefulAttributesBuilder`] constructor panics otherwise.
-    pub(crate) dependency_set: Option<Arc<DependencySet>>,
+    pub(crate) dependency_set: Arc<DependencySet>,
 }
 
 /// The lifetime future of whichever derivation actor the node is configured to run.
@@ -144,7 +142,7 @@ impl RollupNode {
             self.l1_chain_config.clone(),
             l2_derivation_provider,
             l1_derivation_provider,
-            self.dependency_set.clone(),
+            Some(self.dependency_set.clone()),
         )
     }
 
@@ -167,7 +165,7 @@ impl RollupNode {
             OnlineBlobProvider::init(self.clients.l1_beacon.clone()).await?,
             l1_derivation_provider,
             l2_derivation_provider,
-            self.dependency_set.clone(),
+            Some(self.dependency_set.clone()),
         ))
     }
 

@@ -114,7 +114,7 @@ Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and cal
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork for a chain outside the superchain registry. | The registry's set for the chain, or else a set containing only this chain |
 
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.

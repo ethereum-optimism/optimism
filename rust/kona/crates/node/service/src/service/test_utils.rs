@@ -4,9 +4,11 @@ use crate::{NetworkConfig, NodeMode, RollupNodeConfig, RollupNodeEndpoints, Sequ
 use alloy_rpc_types_engine::JwtSecret;
 use kona_disc::LocalNode;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::{ChainDependency, DependencySet};
 use kona_rpc::RpcBuilder;
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{
+    collections::BTreeMap,
     net::{IpAddr, Ipv4Addr},
     sync::Arc,
 };
@@ -35,6 +37,7 @@ pub(crate) fn network_config(tcp_port: u16, udp_port: u16) -> NetworkConfig {
 }
 
 /// A validator's node config with the given P2P config.
+#[allow(clippy::zero_sized_map_values)] // `DependencySet` is a map to `ChainDependency {}`.
 pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
     RollupNodeConfig {
         version: "test".to_owned(),
@@ -48,7 +51,10 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
             admin_persistence: None,
         },
         sequencer_config: SequencerConfig::default(),
-        dependency_set: None,
+        dependency_set: Arc::new(DependencySet {
+            dependencies: BTreeMap::from([(0, ChainDependency {})]),
+            override_message_expiry_window: None,
+        }),
     }
 }
 

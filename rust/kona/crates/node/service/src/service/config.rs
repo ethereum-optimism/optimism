@@ -26,10 +26,8 @@ pub struct RollupNodeConfig {
     pub rpc_config: RpcBuilder,
     /// The [`SequencerConfig`], used when the node runs in sequencer mode.
     pub sequencer_config: SequencerConfig,
-    /// The interop dependency set for this chain.
-    ///
-    /// Must be set when the rollup config schedules the Lagoon hardfork. When not set, the
-    /// underlying [`kona_derive::StatefulAttributesBuilder`] constructor panics on an
-    /// interop-scheduled chain.
-    pub dependency_set: Option<Arc<DependencySet>>,
+    /// The interop dependency set for this chain. It decides which upgrade transactions the Lagoon
+    /// hardfork's activation block carries; a chain outside any interop cluster has a set
+    /// containing only itself.
+    pub dependency_set: Arc<DependencySet>,
 }

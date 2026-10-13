@@ -377,6 +377,6 @@ mod tests {
         assert_eq!(config.rollup_config.l2_chain_id.id(), 901);
         assert_eq!(config.l1_chain_config.chain_id, 900);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
-        assert!(config.dependency_set.is_none());
+        assert_eq!(config.dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [901]);
     }
 }

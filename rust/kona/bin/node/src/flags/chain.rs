@@ -4,10 +4,10 @@ use crate::flags::OverrideArgs;
 use anyhow::{Result, bail};
 use clap::{ArgGroup, Parser};
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_interop::DependencySet;
-use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
+use kona_interop::{ChainDependency, DependencySet};
+use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use serde_json::{Value, from_reader, from_value};
-use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, fs::File, io::Read, path::PathBuf, sync::Arc};
 use tracing::debug;
 
 /// Flags that select the chain the node follows and load its configuration.
@@ -100,12 +100,17 @@ impl ChainArgs {
         from_value(value)
     }
 
-    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
+    /// Returns the chain's interop [`DependencySet`], as op-node resolves it: from
+    /// `--interop.dependency-set` when given, and otherwise from the superchain registry, by the
+    /// rollup config's L2 chain ID.
     ///
-    /// Enforces the invariant that when the rollup config schedules the
-    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
-    /// Errors rather than panicking so the operator sees a clear message.
-    pub fn dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
+    /// For a chain outside the registry, a Lagoon hardfork scheduled without the flag is an error
+    /// rather than a guess, since the set decides which upgrade transactions Lagoon's activation
+    /// block carries. Any other such chain gets a set containing only itself, which is what the
+    /// registry gives every chain outside an interop cluster, and which nothing reads before
+    /// Lagoon.
+    #[allow(clippy::zero_sized_map_values)] // `DependencySet` is a map to `ChainDependency {}`.
+    pub fn dependency_set(&self, cfg: &RollupConfig) -> Result<Arc<DependencySet>> {
         match &self.interop_dependency_set {
             Some(path) => {
                 let file = File::open(path).map_err(|e| {
@@ -114,7 +119,10 @@ impl ChainArgs {
                 let dep_set: DependencySet = from_reader(file).map_err(|e| {
                     anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
                 })?;
-                Ok(Some(Arc::new(dep_set)))
+                Ok(Arc::new(dep_set))
+            }
+            None if let Some(dependency_set) = DEPENDENCY_SETS.get(&cfg.l2_chain_id.id()) => {
+                Ok(Arc::new(dependency_set.clone()))
             }
             None if cfg.hardforks.lagoon_time.is_some() => bail!(
                 "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
@@ -123,7 +131,10 @@ impl ChainArgs {
                  state divergence on Lagoon activation.",
                 cfg.hardforks.lagoon_time,
             ),
-            None => Ok(None),
+            None => Ok(Arc::new(DependencySet {
+                dependencies: BTreeMap::from([(cfg.l2_chain_id.id(), ChainDependency {})]),
+                override_message_expiry_window: None,
+            })),
         }
     }
 }
@@ -243,5 +254,60 @@ mod tests {
             let args = ChainArgs { l1_config_file: Some(file.path().into()), ..Default::default() };
             assert_eq!(args.l1_config(123).unwrap().chain_id, 123);
         }
+    }
+
+    #[test]
+    fn dependency_set_comes_from_the_registry() {
+        let args = ChainArgs::try_parse_from(["test", "--chain", "10"]).unwrap();
+        let mut cfg =
+            RollupConfig { l2_chain_id: alloy_chains::Chain::from_id(10), ..Default::default() };
+        // A registry chain needs no flag, even with Lagoon scheduled.
+        cfg.hardforks.lagoon_time = Some(0);
+
+        assert_eq!(*args.dependency_set(&cfg).unwrap(), DEPENDENCY_SETS[&10]);
+    }
+
+    #[test]
+    fn dependency_set_defaults_to_the_chain_alone_outside_the_registry() {
+        let args = ChainArgs::try_parse_from(["test", "--chain", "10"]).unwrap();
+        let cfg = RollupConfig {
+            l2_chain_id: alloy_chains::Chain::from_id(999_999),
+            ..Default::default()
+        };
+        assert!(!DEPENDENCY_SETS.contains_key(&999_999));
+
+        let dependency_set = args.dependency_set(&cfg).unwrap();
+
+        assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [999_999]);
+        assert_eq!(dependency_set.override_message_expiry_window, None);
+    }
+
+    #[test]
+    fn dependency_set_is_required_when_lagoon_is_scheduled_outside_the_registry() {
+        let args = ChainArgs::try_parse_from(["test", "--chain", "10"]).unwrap();
+        let mut cfg = RollupConfig::default();
+        assert!(!DEPENDENCY_SETS.contains_key(&cfg.l2_chain_id.id()));
+        cfg.hardforks.lagoon_time = Some(0);
+
+        assert!(args.dependency_set(&cfg).is_err());
+    }
+
+    #[test]
+    #[allow(clippy::zero_sized_map_values)]
+    fn dependency_set_is_loaded_from_the_flag() {
+        let set = DependencySet {
+            dependencies: BTreeMap::from([(10, ChainDependency {}), (11, ChainDependency {})]),
+            override_message_expiry_window: Some(60),
+        };
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        serde_json::to_writer(&mut file, &set).unwrap();
+        let path = file.path().to_str().unwrap();
+        let args =
+            ChainArgs::try_parse_from(["test", "--chain", "10", "--interop.dependency-set", path])
+                .unwrap();
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.lagoon_time = Some(0);
+
+        assert_eq!(*args.dependency_set(&cfg).unwrap(), set);
     }
 }
