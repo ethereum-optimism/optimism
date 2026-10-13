@@ -10,7 +10,6 @@ import (
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -24,8 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
-
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func NewSingleChainMultiNodeRuntime(t devtest.T, withP2P bool) *SingleChainRuntime {
@@ -180,7 +177,6 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 		t,
 		conductorA,
 		runtime.L2CL,
-		runtime.L2EL,
 		[]*Conductor{conductorB, conductorC},
 		[]L2CLNode{nodeB.CL, nodeC.CL},
 	)
@@ -441,7 +437,6 @@ func startConductorCluster(
 	t devtest.T,
 	bootstrap *Conductor,
 	bootstrapNode L2CLNode,
-	bootstrapEL L2ELNode,
 	members []*Conductor,
 	memberNodes []L2CLNode,
 ) {
@@ -490,18 +485,15 @@ func startConductorCluster(
 	// head and cannot create competing forks before this point.
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), bootstrapNode.UserRPC())
 	require.NoError(err, "failed to dial bootstrap sequencer node")
-	execClient, err := ethclient.DialContext(ctx, bootstrapEL.UserRPC())
-	require.NoError(err, "failed to dial bootstrap execution node")
-	defer execClient.Close()
-	initialHead, err := execClient.HeaderByNumber(ctx, nil)
-	require.NoError(err, "failed to fetch bootstrap execution head")
-	require.NoError(rollupClient.StartSequencer(ctx, initialHead.Hash()), "failed to start sequencing on bootstrap node")
+	initialStatus, err := rollupClient.SyncStatus(ctx)
+	require.NoError(err, "failed to fetch bootstrap sequencer sync status")
+	require.NoError(rollupClient.StartSequencer(ctx, initialStatus.UnsafeL2.Hash), "failed to start sequencing on bootstrap node")
 	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
 		status, err := rollupClient.SyncStatus(ctx)
 		if err != nil {
 			return err
 		}
-		if status.UnsafeL2.Number <= bigs.Uint64Strict(initialHead.Number) {
+		if status.UnsafeL2.Number <= initialStatus.UnsafeL2.Number {
 			return fmt.Errorf("bootstrap sequencer has not sealed a block yet, unsafe head at %d", status.UnsafeL2.Number)
 		}
 		return nil
