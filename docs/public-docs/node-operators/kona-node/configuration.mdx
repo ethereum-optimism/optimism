@@ -107,7 +107,7 @@ The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address. Set it to `0.0.0.0` to reach the RPC from outside a container | `127.0.0.1` |
 | `--rpc.port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
 
 ## Sequencer Arguments
@@ -143,7 +143,7 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
 - The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
   to receive block gossip. The `discv5` discovery service runs on
   UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `0.0.0.0:9545`. Websocket connections
+- An RPC server is exposed at `127.0.0.1:9545`. Websocket connections
   are disabled by default.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,

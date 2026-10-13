@@ -99,6 +99,7 @@ services:
       --l1.beacon-url ${L1_BEACON_API:?}
       --l2.engine.url "http://op-rs-op-sepolia-reth:${OP_RETH_ENGINE_PORT:-8551}"
       --l2.engine.jwt-secret /jwt.hex
+      --rpc.addr 0.0.0.0
       --rpc.port ${KONA_NODE_RPC_PORT:-5060}
       --p2p.listen.tcp ${KONA_NODE_DISCOVERY_PORT:-9223}
       --p2p.listen.udp ${KONA_NODE_DISCOVERY_PORT:-9223}

@@ -83,6 +83,7 @@ services:
       --l1.beacon-url $L1_BEACON_API
       --l2.engine.url http://op-reth:8551
       --l2.engine.jwt-secret /root/jwt/jwt.hex
+      --rpc.addr 0.0.0.0
       --rpc.port 5060
       --p2p.listen.tcp 9223
       --p2p.listen.udp 9223

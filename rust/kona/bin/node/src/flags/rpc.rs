@@ -11,11 +11,10 @@ use std::net::{IpAddr, SocketAddr};
 pub struct RpcArgs {
     /// RPC listening address.
     ///
-    /// Defaults to `0.0.0.0`: the node is released as a Docker image, where binding `127.0.0.1`
-    /// makes the RPC unreachable from outside the container. The server always serves the admin
-    /// API, which can stop the sequencer and reset the node, so operators placing the node on an
-    /// untrusted network must firewall the port.
-    #[arg(long = "rpc.addr", default_value = "0.0.0.0", env = "KONA_NODE_RPC_ADDR")]
+    /// Defaults to `127.0.0.1`, because the server always serves the admin API, which can stop
+    /// the sequencer and reset the node. Set it to `0.0.0.0` to reach the RPC from outside a
+    /// container, and keep the port off untrusted networks.
+    #[arg(long = "rpc.addr", default_value = "127.0.0.1", env = "KONA_NODE_RPC_ADDR")]
     pub listen_addr: IpAddr,
     /// RPC listening port.
     #[arg(long = "rpc.port", default_value = "9545", env = "KONA_NODE_RPC_PORT")]
@@ -55,8 +54,8 @@ mod tests {
     }
 
     #[test]
-    fn rpc_addr_defaults_to_all_interfaces() {
-        // 0.0.0.0 is intentional: released as a Docker image, where 127.0.0.1 is unreachable.
-        assert_eq!(RpcArgs::default().listen_addr, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+    fn rpc_addr_defaults_to_loopback() {
+        // The RPC serves the admin API, so it is reachable only locally unless asked otherwise.
+        assert_eq!(RpcArgs::default().listen_addr, IpAddr::V4(Ipv4Addr::LOCALHOST));
     }
 }
