@@ -36,9 +36,10 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     /// @notice Gas L1 needs for the dynamic parts of the CALL opcode in `relayMessage`.
     uint64 public constant REMOTE_RELAY_CALL_OVERHEAD = 40_000;
 
-    /// @notice Gas reserved on L1 for finalizing `relayMessage` after the safe call. Covers
+    /// @notice Gas reserved on L1 for the safe call's own charges and for finalizing `relayMessage`
+    ///         after it. Covers the value transfer, cold target and EIP-7702 delegate accesses, and
     ///         recording the outcome in a fresh storage slot, including EIP-8037 state gas.
-    uint64 public constant REMOTE_RELAY_RESERVED_GAS = 125_000;
+    uint64 public constant REMOTE_RELAY_RESERVED_GAS = 135_000;
 
     /// @notice Gas reserved on L1 for the execution between the `hasMinGas` check and the
     ///         external call in `relayMessage`.

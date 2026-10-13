@@ -39,9 +39,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @custom:semver 2.13.0
     string public constant version = "2.13.0";
 
-    /// @notice Gas reserved on L1 for finalizing `relayMessage` after the safe call. Covers
+    /// @notice Gas reserved on L1 for the safe call's own charges and for finalizing `relayMessage`
+    ///         after it. Covers the value transfer, cold target and EIP-7702 delegate accesses, and
     ///         recording the outcome in a fresh storage slot, including EIP-8037 state gas.
-    uint64 public constant LOCAL_RELAY_RESERVED_GAS = 125_000;
+    uint64 public constant LOCAL_RELAY_RESERVED_GAS = 135_000;
 
     /// @notice Gas reserved on L1 for the execution between the `hasMinGas` check and the
     ///         external call in `relayMessage`.
