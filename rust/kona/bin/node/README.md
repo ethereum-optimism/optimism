@@ -35,7 +35,7 @@ kona-node node \
   --l1-beacon <L1_BEACON_API> \
   --l2 <L2_ENGINE_RPC> \
   --l2-engine-jwt-secret /path/to/jwt.hex \
-  --port 5060 \
+  --rpc.port 5060 \
   --p2p.listen.tcp 9223 \
   --p2p.listen.udp 9223 \
   --p2p.scoring off \
@@ -60,7 +60,7 @@ kona-node node \
   --l1-beacon $L1_BEACON_API \
   --l2 http://localhost:8551 \
   --l2-engine-jwt-secret ./jwt.hex \
-  --port 5060 \
+  --rpc.port 5060 \
   --p2p.listen.tcp 9223 \
   --p2p.listen.udp 9223 \
   --p2p.scoring off \
@@ -88,7 +88,7 @@ export KONA_NODE_L2_ENGINE_RPC="http://localhost:8551"
 export KONA_NODE_L2_ENGINE_AUTH="/path/to/jwt.hex"
 export RUST_LOG="kona_node=info,kona_derive=debug"
 
-kona-node node --port 5060
+kona-node node --rpc.port 5060
 ```
 
 ### Help and Documentation
