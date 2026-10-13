@@ -14,7 +14,9 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_node_service::{EngineClientResult, NetworkConfig, discovery, network, signer};
+use kona_node_service::{
+    EngineClientError, EngineClientResult, NetworkConfig, discovery, network, signer,
+};
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
 use kona_sources::BlockSignerHandler;
@@ -185,6 +187,8 @@ impl network::Discovery for BanningDiscovery {
     }
 }
 
+/// Passes the blocks the network actor receives to the test, and stops once the test drops the
+/// receiver.
 #[derive(Debug)]
 struct ForwardingEngine {
     blocks_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
@@ -196,11 +200,9 @@ impl network::Engine for ForwardingEngine {
         &self,
         block: OpExecutionPayloadEnvelope,
     ) -> EngineClientResult<()> {
-        let _ = self
-            .blocks_tx
+        self.blocks_tx
             .send(block)
             .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-        Ok(())
+            .map_err(|_| EngineClientError::RequestError("the test engine stopped".to_string()))
     }
 }

@@ -9,7 +9,6 @@ use discv5::Enr;
 use kona_gossip::{
     ConnectionGate, ConnectionGater, GossipDriver, GossipState, PEER_SCORE_INSPECT_FREQUENCY,
 };
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashSet, future::Future, sync::Arc};
 use thiserror::Error;
 use tokio::{
@@ -68,7 +67,6 @@ impl Builder {
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, gossip, state, messages, peers, payloads } = self;
         async move {
-            let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
             Actor {
                 gossip,
                 state,
@@ -78,8 +76,6 @@ impl Builder {
                 engine,
                 discovery,
                 peer_score_inspector: time::interval(*PEER_SCORE_INSPECT_FREQUENCY),
-                unsafe_block_tx,
-                unsafe_block_rx,
             }
             .run()
             .await
@@ -118,23 +114,12 @@ struct Actor<Engine_, Discovery_> {
     discovery: Discovery_,
     /// Paces the peer score checks that ban peers below the threshold.
     peer_score_inspector: Interval,
-    // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
-    // never crosses an actor boundary, so it lives here rather than being injected.
-    unsafe_block_tx: mpsc::UnboundedSender<OpExecutionPayloadEnvelope>,
-    unsafe_block_rx: mpsc::UnboundedReceiver<OpExecutionPayloadEnvelope>,
 }
 
 impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
             let applied = select! {
-                Some(block) = self.unsafe_block_rx.recv() => {
-                    if self.engine.insert_unsafe_block(block).await.is_err() {
-                        warn!(target: "network", "Failed to forward unsafe block to engine");
-                        return Err(ActorError::EngineClosed);
-                    }
-                    None
-                }
                 Some(signed) = self.payloads.recv(), if !self.payloads.is_closed() => {
                     self.publish(signed);
                     None
@@ -144,10 +129,13 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
                         error!(target: "node::p2p", "The gossip swarm stream has ended");
                         ActorError::SwarmEnded
                     })?;
-                    if let Some(payload) = self.gossip.handle_event(event) &&
-                        self.unsafe_block_tx.send(payload).is_err()
+                    // The swarm is not polled while the engine's queue is full, so a backed-up
+                    // engine slows the network instead of growing a queue without bound.
+                    if let Some(block) = self.gossip.handle_event(event) &&
+                        self.engine.insert_unsafe_block(block).await.is_err()
                     {
-                        warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                        warn!(target: "network", "Failed to forward unsafe block to engine");
+                        return Err(ActorError::EngineClosed);
                     }
                     None
                 }
@@ -309,6 +297,7 @@ pub(super) mod tests {
     use alloy_primitives::Address;
     use kona_genesis::RollupConfig;
     use libp2p::{Multiaddr, identity::Keypair};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::time::Duration;
 
     /// A gossip driver whose swarm is not listening.
