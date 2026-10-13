@@ -36,7 +36,8 @@ uint64 constant L2_RELAY_CONSTANT_OVERHEAD = 200_000;
 // To set: at least the allowance hardcoded in `SafeCall.hasMinGas`. Change them together.
 
 /// @dev Sending value to a new account also costs EIP-8037 state gas (183,600), which this does not
-///      cover; `baseGas` absorbs it in the constant overhead's slack, with about 11k to spare.
+///      cover; `baseGas` absorbs it in the other budgets' slack. Measured under Amsterdam, an empty
+///      message needs 391,338 against a `baseGas` of 415,160.
 ///      `test_relayMessage_valueToNewAccount_succeeds` covers it.
 uint64 constant L1_RELAY_CALL_OVERHEAD = 40_000;
 
