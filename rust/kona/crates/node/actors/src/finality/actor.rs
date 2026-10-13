@@ -1,6 +1,6 @@
 //! The finality actor.
 
-use super::{ActorError, Engine};
+use super::{ActorError, Engine, L1};
 use crate::engine::{EngineState, FinalizeBlockId};
 use kona_protocol::BlockInfo;
 use std::{collections::BTreeMap, future::Future};
@@ -10,19 +10,20 @@ use tokio::sync::watch;
 /// it.
 ///
 /// The actor records the safe heads in `engine_state` with the L1 blocks they were derived from,
-/// forgets them when the engine `resets`, and asks `engine` to finalize them as `finalized` L1
-/// blocks arrive. Initial snapshots do not trigger processing. Runtime work begins when the future
-/// is polled. Dropping the future stops the actor.
-pub fn build<Engine_>(
+/// forgets them when the engine `resets`, and asks `engine` to finalize them as `l1` finalizes the
+/// blocks they were derived from. Initial engine snapshots do not trigger processing. Runtime work
+/// begins when the future is polled. Dropping the future stops the actor.
+pub fn build<Engine_, L1_>(
     engine: Engine_,
     engine_state: watch::Receiver<EngineState>,
     resets: watch::Receiver<EngineState>,
-    finalized: watch::Receiver<BlockInfo>,
+    l1: L1_,
 ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
 where
     Engine_: Engine + 'static,
+    L1_: L1 + 'static,
 {
-    Actor { engine, engine_state, resets, finalized, safe_heads: BTreeMap::new() }.run()
+    Actor { engine, engine_state, resets, l1, safe_heads: BTreeMap::new() }.run()
 }
 
 /// An L1 block number.
@@ -36,20 +37,20 @@ type L2BlockNumber = u64;
 /// The engine's published state coalesces, so the actor may miss some safe heads. It then
 /// finalizes the highest one it saw, and catches up when the next L1 block finalizes.
 #[derive(Debug)]
-struct Actor<Engine_> {
+struct Actor<Engine_, L1_> {
     /// The engine, which finalizes blocks.
     engine: Engine_,
     /// The engine's published state, whose safe head and its source the actor records.
     engine_state: watch::Receiver<EngineState>,
     /// The engine's published resets.
     resets: watch::Receiver<EngineState>,
-    /// The latest published finalized L1 block.
-    finalized: watch::Receiver<BlockInfo>,
+    /// The L1 chain, whose finalized blocks the actor follows.
+    l1: L1_,
     /// The highest safe L2 block derived from each L1 block, awaiting finalization.
     safe_heads: BTreeMap<L1BlockNumber, L2BlockNumber>,
 }
 
-impl<Engine_: Engine> Actor<Engine_> {
+impl<Engine_: Engine, L1_: L1> Actor<Engine_, L1_> {
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
             // The engine publishes at most once per request, so its state cannot keep the
@@ -66,9 +67,8 @@ impl<Engine_: Engine> Actor<Engine_> {
                     let state = *self.engine_state.borrow_and_update();
                     self.record(state);
                 }
-                result = self.finalized.changed() => {
-                    result.map_err(|_| ActorError::FinalizedClosed)?;
-                    let finalized = *self.finalized.borrow_and_update();
+                finalized = self.l1.next_finalized() => {
+                    let finalized = finalized.ok_or(ActorError::L1Stopped)?;
                     self.finalize(finalized).await?;
                 }
             }
@@ -106,6 +106,14 @@ mod tests {
     use kona_protocol::L2BlockInfo;
     use std::sync::{Arc, Mutex};
     use tokio::time::{self, Duration};
+
+    #[async_trait]
+    impl L1 for watch::Receiver<BlockInfo> {
+        async fn next_finalized(&mut self) -> Option<BlockInfo> {
+            self.changed().await.ok()?;
+            Some(*self.borrow_and_update())
+        }
+    }
 
     /// An engine that records the blocks it is asked to finalize, or fails if asked to.
     #[derive(Debug, Default)]
@@ -308,7 +316,7 @@ mod tests {
                 assert!(matches!(result, Err(ActorError::EngineStateClosed)))
             }
             Publisher::Resets => assert!(matches!(result, Err(ActorError::EngineResetsClosed))),
-            Publisher::Finalized => assert!(matches!(result, Err(ActorError::FinalizedClosed))),
+            Publisher::Finalized => assert!(matches!(result, Err(ActorError::L1Stopped))),
         }
     }
 }

@@ -13,7 +13,7 @@ pub enum ActorError {
     /// A request to the engine actor failed.
     #[error("Failed to send a request to the engine actor: {0}")]
     Sender(#[from] EngineClientError),
-    /// An L1 observation publisher closed.
-    #[error("l1 observation channel closed")]
-    L1ReceiveFailed,
+    /// The L1 actor stopped.
+    #[error("the L1 actor stopped")]
+    L1Stopped,
 }

@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use std::{fmt::Debug, sync::Arc};
-use tokio::sync::watch;
+
+use crate::l1;
 
 /// Trait for selecting the next L1 origin block for sequencing.
 ///
@@ -181,6 +182,9 @@ pub enum L1OriginSelectorError {
     /// The L1 origin block could not be found by its hash.
     #[error("L1 origin block not found for hash: {0}")]
     OriginNotFound(B256),
+    /// The L1 actor stopped.
+    #[error(transparent)]
+    L1(#[from] l1::HandleError),
 }
 
 /// L1 [`BlockInfo`] provider interface for the [`L1OriginSelector`].
@@ -205,20 +209,16 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
 pub struct DelayedL1OriginSelectorProvider {
     /// The inner [`RootProvider`].
     inner: RootProvider,
-    /// The latest published L1 head.
-    l1_head: watch::Receiver<BlockInfo>,
+    /// The L1 actor, which reports the L1 head.
+    l1: l1::Handle,
     /// The confirmation depth to delay the view of the L1 chain.
     confirmation_depth: u64,
 }
 
 impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
-    pub const fn new(
-        inner: RootProvider,
-        l1_head: watch::Receiver<BlockInfo>,
-        confirmation_depth: u64,
-    ) -> Self {
-        Self { inner, l1_head, confirmation_depth }
+    pub const fn new(inner: RootProvider, l1: l1::Handle, confirmation_depth: u64) -> Self {
+        Self { inner, l1, confirmation_depth }
     }
 }
 
@@ -236,16 +236,11 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        let l1_head = *self.l1_head.borrow();
-
-        if number == 0 ||
-            self.confirmation_depth == 0 ||
-            number + self.confirmation_depth <= l1_head.number
-        {
-            Ok(Provider::get_block_by_number(&self.inner, number.into()).await?.map(Into::into))
-        } else {
-            Ok(None)
+        let delayed = number != 0 && self.confirmation_depth != 0;
+        if delayed && number + self.confirmation_depth > self.l1.status().await?.head.number {
+            return Ok(None);
         }
+        Ok(Provider::get_block_by_number(&self.inner, number.into()).await?.map(Into::into))
     }
 }
 
@@ -263,8 +258,10 @@ mod test {
         use serde_json::json;
 
         let mock = RpcMock::default();
-        let (published, head) = watch::channel(BlockInfo::default());
-        let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), head, 2);
+        let (published, status) = tokio::sync::watch::channel(l1::Status::default());
+        let provider =
+            DelayedL1OriginSelectorProvider::new(mock.provider(), l1::Handle::reporting(status), 2);
+        let publish = |number| published.send_modify(|status| status.head.number = number);
         let mut block: Block = Block::default();
         block.header.inner.number = 8;
         block.header.hash = block.header.inner.hash_slow();
@@ -272,14 +269,14 @@ mod test {
 
         // The initial head enforces the delay before the first observation.
         assert_eq!(provider.get_block_by_number(8).await.unwrap(), None);
-        published.send_replace(BlockInfo { number: 9, ..Default::default() });
+        publish(9);
         assert_eq!(provider.get_block_by_number(8).await.unwrap(), None);
-        published.send_replace(BlockInfo { number: 10, ..Default::default() });
+        publish(10);
         mock.expect_params("eth_getBlockByNumber", json!(["0x8", false]), &block);
         assert_eq!(provider.get_block_by_number(8).await.unwrap(), Some(expected));
 
         // A backward reorg restores the delay for the same requested block.
-        published.send_replace(BlockInfo { number: 9, ..Default::default() });
+        publish(9);
         assert_eq!(provider.get_block_by_number(8).await.unwrap(), None);
         mock.assert_finished();
     }
@@ -291,8 +288,9 @@ mod test {
         use serde_json::json;
 
         let mock = RpcMock::default();
-        let (_published, head) = watch::channel(BlockInfo::default());
-        let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), head.clone(), 2);
+        let (_published, status) = tokio::sync::watch::channel(l1::Status::default());
+        let l1 = l1::Handle::reporting(status);
+        let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), l1.clone(), 2);
         let mut block: Block = Block::default();
         block.header.hash = block.header.inner.hash_slow();
         let expected = BlockInfo::from(block.clone());
@@ -301,7 +299,7 @@ mod test {
         mock.expect_params("eth_getBlockByHash", json!([block.header.hash, false]), &block);
         assert_eq!(provider.get_block_by_hash(block.header.hash).await.unwrap(), Some(expected));
 
-        let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), head, 0);
+        let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), l1, 0);
         block.header.inner.number = 8;
         block.header.hash = block.header.inner.hash_slow();
         mock.expect_params("eth_getBlockByNumber", json!(["0x8", false]), &block);

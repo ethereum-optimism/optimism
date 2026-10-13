@@ -1,12 +1,12 @@
 //! The derivation actor, which derives payload attributes from L1.
 
-use super::{ActorError, Builder, DerivationStatus, Engine, reset_engine};
+use super::{ActorError, Builder, DerivationStatus, Engine, L1, reset_engine};
 use crate::{Metrics, engine::Consolidation};
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
     SignalReceiver, StepResult,
 };
-use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use std::future::Future;
 use tokio::{
     sync::watch,
@@ -21,20 +21,22 @@ impl Builder {
     /// Supplies the dependencies of the derivation actor that derives payload attributes from L1,
     /// and produces its lifetime future without spawning it.
     ///
-    /// The status reports the pipeline's origin from now on. Runtime work begins when the future is
-    /// polled. Dropping the future stops the actor.
-    pub fn build<Engine_, PipelineSignalReceiver>(
+    /// The status reports the pipeline's origin from now on. Derivation waits on `l1` for a new
+    /// head whenever the pipeline runs out of data. Runtime work begins when the future is polled.
+    /// Dropping the future stops the actor.
+    pub fn build<Engine_, PipelineSignalReceiver, L1_>(
         self,
         engine: Engine_,
         pipeline: PipelineSignalReceiver,
-        head: watch::Receiver<BlockInfo>,
+        l1: L1_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
     where
         Engine_: Engine + 'static,
         PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync + 'static,
+        L1_: L1 + 'static,
     {
         let Self { handle: _, status_tx } = self;
-        let mut actor = Actor { engine, deriver: Deriver::new(pipeline, head, status_tx) };
+        let mut actor = Actor { engine, deriver: Deriver::new(pipeline, l1, status_tx) };
         async move { actor.run().await }
     }
 }
@@ -44,17 +46,18 @@ impl Builder {
 /// It resets the engine once the execution layer is synced, and resets the pipeline onto the
 /// engine's safe head whenever the engine resets.
 #[derive(Debug)]
-struct Actor<Engine_, PipelineSignalReceiver> {
+struct Actor<Engine_, PipelineSignalReceiver, L1_> {
     /// The engine, which derivation drives.
     engine: Engine_,
     /// The pipeline, stepped on the engine's safe head.
-    deriver: Deriver<PipelineSignalReceiver>,
+    deriver: Deriver<PipelineSignalReceiver, L1_>,
 }
 
-impl<Engine_, PipelineSignalReceiver> Actor<Engine_, PipelineSignalReceiver>
+impl<Engine_, PipelineSignalReceiver, L1_> Actor<Engine_, PipelineSignalReceiver, L1_>
 where
     Engine_: Engine,
     PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync,
+    L1_: L1,
 {
     async fn run(&mut self) -> Result<(), ActorError> {
         reset_engine(&self.engine).await?;
@@ -128,31 +131,30 @@ enum Derived {
 
 /// The derivation pipeline, the safe head it derives on, and the L1 head it waits for.
 #[derive(Debug)]
-struct Deriver<PipelineSignalReceiver> {
+struct Deriver<PipelineSignalReceiver, L1_> {
     /// The derivation pipeline.
     pipeline: PipelineSignalReceiver,
     /// The engine's safe head, which the next attributes extend.
     safe_head: L2BlockInfo,
-    /// The latest published L1 head.
-    head: watch::Receiver<BlockInfo>,
+    /// The L1 chain, whose new heads wake derivation when the pipeline runs out of data.
+    l1: L1_,
     /// Progress published to RPC readers.
     status: watch::Sender<DerivationStatus>,
 }
 
-impl<PipelineSignalReceiver> Deriver<PipelineSignalReceiver>
+impl<PipelineSignalReceiver, L1_> Deriver<PipelineSignalReceiver, L1_>
 where
     PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync,
+    L1_: L1,
 {
     /// Creates the deriver and publishes the pipeline's origin.
-    ///
-    /// L1 heads are consumed as changes; the initial snapshot does not trigger stepping.
     fn new(
         pipeline: PipelineSignalReceiver,
-        head: watch::Receiver<BlockInfo>,
+        l1: L1_,
         status: watch::Sender<DerivationStatus>,
     ) -> Self {
         status.send_replace(DerivationStatus { current_l1: pipeline.origin() });
-        Self { pipeline, safe_head: L2BlockInfo::default(), head, status }
+        Self { pipeline, safe_head: L2BlockInfo::default(), l1, status }
     }
 
     /// Steps the pipeline on the safe head until it produces attributes or needs a reset, waiting
@@ -183,8 +185,7 @@ where
                     PipelineErrorKind::Temporary(PipelineError::NotEnoughData) => continue,
                     PipelineErrorKind::Temporary(_) => {
                         info!(target: "derivation", "Yielding derivation until more data is available.");
-                        self.head.changed().await.map_err(|_| ActorError::L1ReceiveFailed)?;
-                        let head = *self.head.borrow_and_update();
+                        let head = self.l1.next_head().await.ok_or(ActorError::L1Stopped)?;
                         info!(target: "derivation", l1_head = ?head, "Processing l1 head update");
                     }
                     PipelineErrorKind::Reset(ResetError::HoloceneActivation) => {
@@ -263,6 +264,7 @@ mod tests {
     use async_trait::async_trait;
     use kona_derive::PipelineResult;
     use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
+    use kona_protocol::BlockInfo;
     use rstest::rstest;
     use std::{
         collections::VecDeque,
@@ -392,7 +394,15 @@ mod tests {
         }
     }
 
-    type TestActor = Actor<TestEngine, TestPipeline>;
+    #[async_trait]
+    impl L1 for watch::Receiver<BlockInfo> {
+        async fn next_head(&mut self) -> Option<BlockInfo> {
+            self.changed().await.ok()?;
+            Some(*self.borrow_and_update())
+        }
+    }
+
+    type TestActor = Actor<TestEngine, TestPipeline, watch::Receiver<BlockInfo>>;
 
     /// The L1 head publisher an actor reads from, and its status.
     struct Publishers {
@@ -732,7 +742,7 @@ mod tests {
         .await;
 
         assert!(stopped.is_none());
-        assert!(!actor.deriver.head.has_changed().unwrap());
+        assert!(!actor.deriver.l1.has_changed().unwrap());
     }
 
     /// An L1 head that arrives while deriving makes derivation step the pipeline again once it
@@ -761,6 +771,6 @@ mod tests {
         let (mut actor, publishers) = actor(engine, TestPipeline::new());
         drop(publishers.heads);
 
-        assert!(matches!(actor.run().await, Err(ActorError::L1ReceiveFailed)));
+        assert!(matches!(actor.run().await, Err(ActorError::L1Stopped)));
     }
 }

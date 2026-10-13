@@ -10,6 +10,7 @@ pub use actor::build;
 
 use crate::{EngineClientError, EngineClientResult, engine::FinalizeBlockId};
 use async_trait::async_trait;
+use kona_protocol::BlockInfo;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -19,6 +20,14 @@ pub trait Engine: Debug + Send + Sync {
     /// Asks the engine to finalize the L2 block identified by the provided [`FinalizeBlockId`],
     /// without waiting for the engine to do so.
     async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()>;
+}
+
+/// The L1 chain, as the finality actor follows it.
+#[async_trait]
+pub trait L1: Debug + Send + Sync {
+    /// Waits for a finalized L1 block other than the last one returned, and returns it. Returns
+    /// `None` once no more finalized blocks will arrive. Cancelling the wait loses no block.
+    async fn next_finalized(&mut self) -> Option<BlockInfo>;
 }
 
 /// An error that stops the finality actor.
@@ -33,7 +42,7 @@ pub enum ActorError {
     /// The engine's reset publisher closed.
     #[error("engine reset channel closed")]
     EngineResetsClosed,
-    /// The finalized L1 block publisher closed.
-    #[error("finalized l1 channel closed")]
-    FinalizedClosed,
+    /// The L1 actor stopped.
+    #[error("the L1 actor stopped")]
+    L1Stopped,
 }

@@ -6,11 +6,16 @@ use alloy_primitives::{Address, B256};
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::BlockNumberOrTag;
 use alloy_transport::{TransportError, TransportErrorKind};
-use futures::StreamExt;
 use kona_protocol::BlockInfo;
 use std::future::Future;
 use tokio::sync::watch;
-use tokio_stream::wrappers::WatchStream;
+
+/// The L1 chain, whose canonical heads the updater follows.
+pub trait L1: Send {
+    /// Waits for a canonical L1 head other than the last one returned, and returns it. Returns
+    /// `None` once no more heads will arrive.
+    fn next_head(&mut self) -> impl Future<Output = Option<BlockInfo>> + Send;
+}
 
 /// The signer lookup needed by the updater.
 pub trait SignerProvider: Send + Sync {
@@ -71,28 +76,31 @@ impl Builder {
     ///
     /// Runtime work begins when the future is polled.
     /// Dropping the future stops the actor and closes its publisher.
-    pub fn build<L1Provider: SignerProvider + 'static>(
+    pub fn build<L1Provider, L1_>(
         self,
         provider: L1Provider,
         system_config: Address,
-        head: watch::Receiver<BlockInfo>,
-    ) -> impl Future<Output = ()> + Send + 'static {
-        Actor { provider, system_config, head, published: self.published }.run()
+        l1: L1_,
+    ) -> impl Future<Output = ()> + Send + 'static
+    where
+        L1Provider: SignerProvider + 'static,
+        L1_: L1 + 'static,
+    {
+        Actor { provider, system_config, l1, published: self.published }.run()
     }
 }
 
 #[derive(Debug)]
-struct Actor<L1Provider> {
+struct Actor<L1Provider, L1_> {
     provider: L1Provider,
     system_config: Address,
-    head: watch::Receiver<BlockInfo>,
+    l1: L1_,
     published: watch::Sender<Address>,
 }
 
-impl<L1Provider: SignerProvider> Actor<L1Provider> {
-    async fn run(self) {
-        let mut heads = WatchStream::from_changes(self.head);
-        while let Some(head) = heads.next().await {
+impl<L1Provider: SignerProvider, L1_: L1> Actor<L1Provider, L1_> {
+    async fn run(mut self) {
+        while let Some(head) = self.l1.next_head().await {
             match self.provider.signer_at_block(self.system_config, head.hash).await {
                 Ok(signer) => {
                     self.published
@@ -127,6 +135,13 @@ mod tests {
     };
 
     const SYSTEM_CONFIG: Address = Address::repeat_byte(11);
+
+    impl L1 for watch::Receiver<BlockInfo> {
+        async fn next_head(&mut self) -> Option<BlockInfo> {
+            self.changed().await.ok()?;
+            Some(*self.borrow_and_update())
+        }
+    }
 
     #[derive(Debug, Default)]
     struct ProviderState {

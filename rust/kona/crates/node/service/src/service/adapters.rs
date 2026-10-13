@@ -6,9 +6,9 @@ use discv5::Enr;
 use kona_node_actors::{
     EngineClientError, EngineClientResult, SequencerEngineClient, derivation, discovery, engine,
     engine::{Consolidation, EngineState, FinalizeBlockId},
-    finality, network, sequencer, signer,
+    finality, l1, l1_signer_updater, network, sequencer, signer,
 };
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashSet, time::Duration};
@@ -124,6 +124,50 @@ impl network::Engine for Engine {
     ) -> EngineClientResult<()> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
         self.handle.insert_unsafe_block(block).await
+    }
+}
+
+/// Adapts the L1 handle to the traits of the actors that follow L1.
+///
+/// The adapter remembers the last head and finalized block it returned, and waits for the next
+/// ones, so each actor needs its own.
+#[derive(Debug)]
+pub(super) struct L1 {
+    handle: l1::Handle,
+    head: BlockInfo,
+    finalized: BlockInfo,
+}
+
+impl L1 {
+    /// Creates the adapter, which returns the current head and finalized block first.
+    pub(super) fn new(handle: l1::Handle) -> Self {
+        Self { handle, head: BlockInfo::default(), finalized: BlockInfo::default() }
+    }
+
+    async fn next_head(&mut self) -> Option<BlockInfo> {
+        self.head = self.handle.next_head(self.head).await.ok()?;
+        Some(self.head)
+    }
+}
+
+#[async_trait]
+impl derivation::L1 for L1 {
+    async fn next_head(&mut self) -> Option<BlockInfo> {
+        Self::next_head(self).await
+    }
+}
+
+impl l1_signer_updater::L1 for L1 {
+    async fn next_head(&mut self) -> Option<BlockInfo> {
+        Self::next_head(self).await
+    }
+}
+
+#[async_trait]
+impl finality::L1 for L1 {
+    async fn next_finalized(&mut self) -> Option<BlockInfo> {
+        self.finalized = self.handle.next_finalized(self.finalized).await.ok()?;
+        Some(self.finalized)
     }
 }
 

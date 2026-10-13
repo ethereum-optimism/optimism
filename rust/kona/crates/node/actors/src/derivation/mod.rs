@@ -17,6 +17,9 @@ pub use delegated::{DerivationDelegateClientError, DerivationDelegateProvider};
 mod engine;
 pub use engine::Engine;
 
+mod l1;
+pub use l1::L1;
+
 mod error;
 pub use error::ActorError;
 

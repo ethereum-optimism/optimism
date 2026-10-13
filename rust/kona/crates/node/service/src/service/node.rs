@@ -18,7 +18,6 @@ use kona_engine::EngineClient;
 use kona_node_actors::{
     derivation, discovery, engine, finality, l1, l1_signer_updater, network, sequencer,
 };
-use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBlobProvider,
     OnlinePipeline,
@@ -29,7 +28,9 @@ use kona_rpc::{
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
 use kona_sources::BlockSignerHandler;
-use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible, future::Future, num::NonZeroUsize, pin::Pin, sync::Arc, time::Duration,
+};
 use tokio::sync::watch;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -41,6 +42,9 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
+/// The most L1 blocks the L1 actor holds. L1 finalizes about 64 to 96 blocks behind its head, so
+/// this covers finality stalling for a few epochs.
+const L1_WINDOW: NonZeroUsize = NonZeroUsize::new(256).unwrap();
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
 /// Stack configuration of components.
@@ -179,7 +183,7 @@ impl RollupNode {
         &self,
         builder: derivation::Builder,
         engine: engine::Handle,
-        head: watch::Receiver<BlockInfo>,
+        l1: l1::Handle,
     ) -> Result<DerivationTask, String> {
         if let Some(provider) = self.clients.derivation_delegate.clone() {
             // L1 Provider for sanity checking Derivation Delegation
@@ -195,24 +199,24 @@ impl RollupNode {
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(Box::pin(builder.build(adapters::Engine::new(engine), pipeline, head)))
+            Ok(Box::pin(builder.build(
+                adapters::Engine::new(engine),
+                pipeline,
+                adapters::L1::new(l1),
+            )))
         }
     }
 
     /// Builds the finality actor when the node derives from L1; otherwise returns `None`, since
     /// delegated derivation finalizes the delegate's blocks.
-    fn build_finality(
-        &self,
-        engine: engine::Handle,
-        finalized: watch::Receiver<BlockInfo>,
-    ) -> Option<FinalityTask> {
+    fn build_finality(&self, engine: engine::Handle, l1: l1::Handle) -> Option<FinalityTask> {
         self.clients.derivation_delegate.is_none().then(|| {
             let (engine_state, resets) = (engine.state(), engine.resets());
             Box::pin(finality::build(
                 adapters::Engine::new(engine),
                 engine_state,
                 resets,
-                finalized,
+                adapters::L1::new(l1),
             )) as FinalityTask
         })
     }
@@ -242,12 +246,12 @@ impl RollupNode {
         &self,
         engine: engine::Handle,
         signer: signer::Handle,
-        l1_head: watch::Receiver<BlockInfo>,
+        l1: l1::Handle,
         builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
             self.clients.l1.clone(),
-            l1_head,
+            l1,
             self.sequencer_config.l1_conf_delay,
         );
         let delayed_origin_selector =
@@ -272,9 +276,7 @@ impl RollupNode {
         engine_state: watch::Receiver<engine::EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
-        head_l1: watch::Receiver<BlockInfo>,
-        safe_l1: watch::Receiver<BlockInfo>,
-        finalized_l1: watch::Receiver<BlockInfo>,
+        l1: l1::Handle,
         derivation_status: watch::Receiver<derivation::DerivationStatus>,
     ) -> Result<RpcActor, String> {
         let config = self.rpc_builder();
@@ -299,9 +301,7 @@ impl RollupNode {
                     self.chain.rollup_config.clone(),
                     engine_state,
                     l2_query_client,
-                    head_l1,
-                    safe_l1,
-                    finalized_l1,
+                    l1,
                     derivation_status,
                 )
                 .into_rpc(),
@@ -383,12 +383,11 @@ impl RollupNode {
         startup::validate_engine_jwt(&self.engine_client, ExponentialBuilder::default()).await?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
-        let head_builder = l1::Builder::new(BlockInfo::default());
-        let safe_builder = l1::Builder::new(BlockInfo::default());
-        let finalized_builder = l1::Builder::new(BlockInfo::default());
-        let head = head_builder.handle();
-        let safe = safe_builder.handle();
-        let finalized = finalized_builder.handle();
+        let l1_builder = l1::Builder::new(
+            l1::Capacity::try_from(1024)
+                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
+        );
+        let l1 = l1_builder.handle();
         let initial_signer = l1_signer_updater::signer_at_l1_head(
             &self.clients.l1,
             self.chain.rollup_config.l1_system_config_address,
@@ -433,10 +432,10 @@ impl RollupNode {
         let engine_actor = self.build_engine(engine_builder, engine_client);
 
         let derivation_actor = self
-            .build_derivation(derivation_builder, engine.clone(), head.clone())
+            .build_derivation(derivation_builder, engine.clone(), l1.clone())
             .await
             .map_err(RollupNodeError::Startup)?;
-        let finality_actor = self.build_finality(engine.clone(), finalized.clone());
+        let finality_actor = self.build_finality(engine.clone(), l1.clone());
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
@@ -477,26 +476,19 @@ impl RollupNode {
         let signer_updater = signer_updater_builder.build(
             self.clients.l1.clone(),
             self.chain.rollup_config.l1_system_config_address,
-            head.clone(),
+            adapters::L1::new(l1.clone()),
         );
-        let l1_head = head_builder.build(
+        let l1_actor = l1_builder.build(
             self.clients.l1.clone(),
-            l1::Tag::Head,
-            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-        );
-        let l1_safe = safe_builder.build(
-            self.clients.l1.clone(),
-            l1::Tag::Safe,
-            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-        );
-        let l1_finalized = finalized_builder.build(
-            self.clients.l1.clone(),
-            l1::Tag::Finalized,
-            Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+            l1::Config {
+                head_interval: Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
+                finalized_interval: Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+                window: L1_WINDOW,
+            },
         );
 
         let sequencer_actor = sequencer_builder.map(|builder| {
-            self.build_sequencer(engine.clone(), signer_handle, head.clone(), builder)
+            self.build_sequencer(engine.clone(), signer_handle, l1.clone(), builder)
         });
 
         let engine_state = engine.state();
@@ -511,9 +503,7 @@ impl RollupNode {
                 engine_state,
                 admin_rpc,
                 p2p_rpc,
-                head,
-                safe,
-                finalized,
+                l1,
                 derivation.status(),
             )
             .await
@@ -529,9 +519,7 @@ impl RollupNode {
         }
         supervisor.spawn("network", network_actor);
         supervisor.spawn("discovery", discovery_actor);
-        supervisor.spawn("l1_head", l1_head);
-        supervisor.spawn("l1_safe", l1_safe);
-        supervisor.spawn("l1_finalized", l1_finalized);
+        supervisor.spawn("l1", l1_actor);
         supervisor.spawn("l1_signer_updater", async move {
             signer_updater.await;
             Ok::<(), Infallible>(())
