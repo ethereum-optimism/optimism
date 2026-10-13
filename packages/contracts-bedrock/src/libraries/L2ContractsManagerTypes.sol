@@ -50,8 +50,7 @@ library L2ContractsManagerTypes {
     }
 
     /// @notice Full network-specific configuration gathered from existing predeploys.
-    ///         These values are read before upgrade and passed to initializers after, except
-    ///         `l2ToL2MessageExpiryPeriod`, which upgrades always set to the production period.
+    ///         These values are read before upgrade and passed to initializers after.
     struct FullConfig {
         CrossDomainMessengerConfig crossDomainMessenger;
         StandardBridgeConfig standardBridge;

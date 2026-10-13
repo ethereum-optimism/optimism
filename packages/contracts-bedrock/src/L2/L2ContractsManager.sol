@@ -37,8 +37,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.15.1
-    string public constant version = "1.15.1";
+    /// @custom:semver 1.16.1
+    string public constant version = "1.16.1";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -249,8 +249,18 @@ contract L2ContractsManager is ISemver {
         }
 
         // L2ToL2CrossDomainMessenger
-        // Upgrades always set the production expiry period. Test networks set a shorter one at genesis.
-        fullConfig_.l2ToL2MessageExpiryPeriod = Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD;
+        // Uses try/catch because expiryPeriod() does not exist on messengers from before the expiry
+        // period was configurable, or on a chain whose messenger is not deployed yet. Those, and a
+        // messenger that returns 0, get the production period.
+        // eip150-safe
+        try IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod() returns (
+            uint256 expiryPeriod_
+        ) {
+            fullConfig_.l2ToL2MessageExpiryPeriod = expiryPeriod_;
+        } catch { }
+        if (fullConfig_.l2ToL2MessageExpiryPeriod == 0) {
+            fullConfig_.l2ToL2MessageExpiryPeriod = Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD;
+        }
     }
 
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate
