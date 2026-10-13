@@ -1,23 +1,13 @@
 //! Checks [`RollupNode::start`](crate::RollupNode::start) makes before it starts the node's
 //! actors.
 
+use super::error::{ListenProtocol, RollupNodeError};
 use crate::NetworkConfig;
 use backon::{ExponentialBuilder, Retryable};
 use kona_engine::EngineClient;
 use libp2p::multiaddr::Protocol;
 use op_alloy_provider::ext::engine::OpEngineApi;
-use std::net::{IpAddr, TcpListener, UdpSocket};
-
-/// An error from the engine's JWT check.
-#[derive(Debug, thiserror::Error)]
-pub(super) enum JwtValidationError {
-    /// The engine rejected the node's JWT secret.
-    #[error("the engine rejected the JWT secret: it was given a different one")]
-    InvalidSignature,
-    /// Exchanging capabilities with the engine failed for another reason.
-    #[error("failed to exchange capabilities with the engine: {0}")]
-    CapabilityExchange(String),
-}
+use std::net::{IpAddr, SocketAddr, TcpListener, UdpSocket};
 
 /// Returns whether `error`, or an error it was caused by, is the engine rejecting the JWT.
 fn is_jwt_signature_error(error: &(dyn std::error::Error + 'static)) -> bool {
@@ -37,34 +27,38 @@ fn is_jwt_signature_error(error: &(dyn std::error::Error + 'static)) -> bool {
 }
 
 /// Checks the engine's JWT secret by exchanging capabilities with the engine, which fails if the
-/// engine was given a different secret. Other failures, such as an engine that is not up yet, are
-/// retried with backon's default exponential backoff, up to three times.
-pub(super) async fn validate_engine_jwt(engine: &EngineClient) -> Result<(), JwtValidationError> {
+/// engine rejects the node's JWT. Other failures, such as an engine that is not up yet, are retried
+/// with `backoff`; [`RollupNode::start`](crate::RollupNode::start) uses backon's default
+/// exponential backoff, which retries up to three times.
+pub(super) async fn validate_engine_jwt(
+    engine: &EngineClient,
+    backoff: ExponentialBuilder,
+) -> Result<(), RollupNodeError> {
     let exchange = || async {
         match engine.exchange_capabilities(vec![]).await {
             Ok(_) => {
                 debug!("Successfully exchanged capabilities with engine");
                 Ok(())
             }
-            Err(e) if is_jwt_signature_error(&e) => Err(JwtValidationError::InvalidSignature),
-            Err(e) => Err(JwtValidationError::CapabilityExchange(e.to_string())),
+            Err(e) if is_jwt_signature_error(&e) => Err(RollupNodeError::JwtRejected),
+            Err(e) => Err(RollupNodeError::EngineCapabilityExchange(e)),
         }
     };
 
     exchange
-        .retry(ExponentialBuilder::default())
-        .when(|e| !matches!(e, JwtValidationError::InvalidSignature))
+        .retry(backoff)
+        .when(|e| !matches!(e, RollupNodeError::JwtRejected))
         .notify(|_, duration| {
             debug!("Retrying engine capability handshake after {duration:?}");
         })
         .await
 }
 
-/// Checks that the P2P stack's gossip (TCP) and discovery (UDP) listen ports are free, so that a
-/// port in use is reported before the node waits on its other dependencies.
+/// Checks that the P2P stack's gossip (TCP) and discovery (UDP) listen addresses can be bound, so
+/// that an unusable address is reported before the node waits on its other dependencies.
 ///
-/// Each port is checked on its own, and ports of `0`, which the OS chooses, are not checked.
-pub(super) fn check_listen_ports(config: &NetworkConfig) -> Result<(), String> {
+/// Each address is checked on its own, and ports of `0`, which the OS chooses, are not checked.
+pub(super) fn check_listen_ports(config: &NetworkConfig) -> Result<(), RollupNodeError> {
     let gossip_ip = config.gossip_address.iter().find_map(|protocol| match protocol {
         Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
         Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
@@ -77,8 +71,12 @@ pub(super) fn check_listen_ports(config: &NetworkConfig) -> Result<(), String> {
     if let (Some(ip), Some(port)) = (gossip_ip, gossip_port) &&
         port != 0
     {
-        TcpListener::bind((ip, port))
-            .map_err(|e| format!("Error binding TCP socket on port {port}: {e}"))?;
+        let addr = SocketAddr::new(ip, port);
+        TcpListener::bind(addr).map_err(|source| RollupNodeError::ListenAddressUnavailable {
+            protocol: ListenProtocol::Tcp,
+            addr,
+            source,
+        })?;
     }
 
     let discovery: Vec<(IpAddr, u16)> = match &config.discovery_config.listen_config {
@@ -91,8 +89,12 @@ pub(super) fn check_listen_ports(config: &NetworkConfig) -> Result<(), String> {
         discv5::ListenConfig::FromSockets { .. } => vec![],
     };
     for (ip, port) in discovery.into_iter().filter(|(_, port)| *port != 0) {
-        UdpSocket::bind((ip, port))
-            .map_err(|e| format!("Error binding UDP socket on port {port}: {e}"))?;
+        let addr = SocketAddr::new(ip, port);
+        UdpSocket::bind(addr).map_err(|source| RollupNodeError::ListenAddressUnavailable {
+            protocol: ListenProtocol::Udp,
+            addr,
+            source,
+        })?;
     }
 
     Ok(())
@@ -108,7 +110,7 @@ mod tests {
     use alloy_provider::RootProvider;
     use alloy_rpc_types_engine::JwtSecret;
     use kona_genesis::RollupConfig;
-    use std::{net::Ipv4Addr, sync::Arc};
+    use std::{net::Ipv4Addr, sync::Arc, time::Duration};
 
     /// Returns a port that was free a moment ago.
     fn free_tcp_port() -> u16 {
@@ -127,7 +129,14 @@ mod tests {
         let taken = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = taken.local_addr().unwrap().port();
         let err = check_listen_ports(&network_config(port, 0)).unwrap_err();
-        assert!(err.contains("TCP"), "{err}");
+        assert!(
+            matches!(
+                err,
+                RollupNodeError::ListenAddressUnavailable { protocol: ListenProtocol::Tcp, addr, .. }
+                    if addr.port() == port
+            ),
+            "{err}"
+        );
     }
 
     #[test]
@@ -135,7 +144,14 @@ mod tests {
         let taken = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = taken.local_addr().unwrap().port();
         let err = check_listen_ports(&network_config(0, port)).unwrap_err();
-        assert!(err.contains("UDP"), "{err}");
+        assert!(
+            matches!(
+                err,
+                RollupNodeError::ListenAddressUnavailable { protocol: ListenProtocol::Udp, addr, .. }
+                    if addr.port() == port
+            ),
+            "{err}"
+        );
     }
 
     #[tokio::test]
@@ -149,7 +165,30 @@ mod tests {
 
         let err = RollupNode::new(config, clients).start().await.unwrap_err();
 
-        assert!(err.contains("TCP"), "{err}");
+        assert!(
+            matches!(
+                err,
+                RollupNodeError::ListenAddressUnavailable { protocol: ListenProtocol::Tcp, .. }
+            ),
+            "{err}"
+        );
+    }
+
+    /// An engine client whose Engine API is `server`.
+    fn engine(server: &httpmock::MockServer) -> EngineClient {
+        EngineClient::new(
+            RootProvider::new_http(server.url("/l1").parse().unwrap()),
+            EngineClient::rpc_client(
+                server.url("/").parse().unwrap(),
+                JwtSecret::from_hex(JWT_HEX).unwrap(),
+            ),
+            Arc::new(RollupConfig::default()),
+        )
+    }
+
+    /// A backoff that retries twice without waiting long.
+    fn fast_backoff() -> ExponentialBuilder {
+        ExponentialBuilder::default().with_min_delay(Duration::from_millis(1)).with_max_times(2)
     }
 
     #[tokio::test]
@@ -159,19 +198,38 @@ mod tests {
             when.method("POST");
             then.status(401).body("signature invalid");
         });
-        let engine = EngineClient::new(
-            RootProvider::new_http(server.url("/l1").parse().unwrap()),
-            EngineClient::rpc_client(
-                server.url("/").parse().unwrap(),
-                JwtSecret::from_hex(JWT_HEX).unwrap(),
-            ),
-            Arc::new(RollupConfig::default()),
-        );
 
-        let err = validate_engine_jwt(&engine).await.unwrap_err();
+        let err = validate_engine_jwt(&engine(&server), fast_backoff()).await.unwrap_err();
 
-        assert!(matches!(err, JwtValidationError::InvalidSignature), "{err}");
+        assert!(matches!(err, RollupNodeError::JwtRejected), "{err}");
         rejection.assert_calls(1);
+    }
+
+    #[tokio::test]
+    async fn other_engine_failures_are_retried() {
+        let server = httpmock::MockServer::start();
+        let failure = server.mock(|when, then| {
+            when.method("POST");
+            then.status(500).body("internal error");
+        });
+
+        let err = validate_engine_jwt(&engine(&server), fast_backoff()).await.unwrap_err();
+
+        assert!(matches!(err, RollupNodeError::EngineCapabilityExchange(_)), "{err}");
+        failure.assert_calls(3);
+    }
+
+    #[test]
+    fn messages_leave_the_cause_to_the_source() {
+        let source = std::io::Error::other("address in use");
+        let err = RollupNodeError::ListenAddressUnavailable {
+            protocol: ListenProtocol::Tcp,
+            addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9222),
+            source,
+        };
+
+        assert_eq!(err.to_string(), "failed to bind the P2P TCP listen address 127.0.0.1:9222");
+        assert_eq!(std::error::Error::source(&err).unwrap().to_string(), "address in use");
     }
 
     #[test]

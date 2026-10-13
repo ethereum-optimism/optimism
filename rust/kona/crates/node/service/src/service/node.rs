@@ -1,11 +1,12 @@
 //! Contains the [`RollupNode`] implementation.
-use super::{Supervisor, adapters, middleware::RpcMetricsLayer, startup};
+use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkActor,
     NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RollupNodeClients,
     RollupNodeConfig, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use alloy_primitives::Address;
+use backon::ExponentialBuilder;
 use jsonrpsee::{
     RpcModule,
     server::{
@@ -357,16 +358,20 @@ impl RollupNode {
     ///
     /// ## Errors
     ///
-    /// Before starting any actor, this fails if:
-    /// - a P2P listen port is in use;
-    /// - the engine rejects the JWT secret, or is still unreachable after the retries;
-    /// - the unsafe block signer cannot be read from L1.
-    pub async fn start(&self) -> Result<(), String> {
+    /// Before starting any actor, this fails with:
+    /// - [`RollupNodeError::ListenAddressUnavailable`] if a P2P listen address cannot be bound;
+    /// - [`RollupNodeError::JwtRejected`] if the engine rejects the node's JWT;
+    /// - [`RollupNodeError::EngineCapabilityExchange`] if the capability exchange that checks the
+    ///   JWT secret still fails after the retries;
+    /// - [`RollupNodeError::UnsafeBlockSigner`] if the unsafe block signer cannot be read from L1.
+    ///
+    /// Any other component that fails to start is a [`RollupNodeError::Startup`]. Once the actors
+    /// run, the node stops when the first of them exits: this returns `Ok(())` if it exited
+    /// cleanly, and [`RollupNodeError::Stopped`] if it failed.
+    pub async fn start(&self) -> Result<(), RollupNodeError> {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
         startup::check_listen_ports(&self.p2p_config)?;
-        startup::validate_engine_jwt(&self.engine_client)
-            .await
-            .map_err(|error| format!("Engine API JWT check failed: {error}"))?;
+        startup::validate_engine_jwt(&self.engine_client, ExponentialBuilder::default()).await?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         let head_builder = l1::Builder::new(BlockInfo::default());
@@ -380,19 +385,21 @@ impl RollupNode {
             self.config.l1_system_config_address,
         )
         .await
-        .map_err(|error| format!("Failed to read the unsafe block signer from L1: {error}"))?;
+        .map_err(RollupNodeError::UnsafeBlockSigner)?;
         let signer_updater_builder = l1_signer_updater::Builder::new(initial_signer);
         let signer_rx = signer_updater_builder.handle();
         // actor request channels
         let derivation_builder = derivation::Builder::new();
         let derivation = derivation_builder.handle();
         let engine_builder = engine::Builder::new(
-            engine::Capacity::try_from(1024).map_err(|error| error.to_string())?,
+            engine::Capacity::try_from(1024)
+                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
         );
         let engine = engine_builder.handle();
         let sequencer_builder = if self.mode().is_sequencer() {
             Some(sequencer::Builder::new(
-                sequencer::Capacity::try_from(1024).map_err(|error| error.to_string())?,
+                sequencer::Capacity::try_from(1024)
+                    .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
             ))
         } else {
             None
@@ -405,7 +412,8 @@ impl RollupNode {
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let signer_builder = signer::Builder::new(
-            signer::Capacity::try_from(32).map_err(|error| error.to_string())?,
+            signer::Capacity::try_from(32)
+                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
         );
         let signer_handle = signer_builder.handle();
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<signer::Payload>(16);
@@ -417,28 +425,30 @@ impl RollupNode {
 
         let derivation_actor = self
             .build_derivation(derivation_builder, engine.clone(), head.clone(), finalized.clone())
-            .await?;
+            .await
+            .map_err(RollupNodeError::Startup)?;
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
-        let signer_actor = self.build_signer().await?.map(|signer| {
-            signer_builder.build(
-                signer,
-                self.config.l2_chain_id.id(),
-                signer_rx.clone(),
-                signed_payload_tx,
-            )
-        });
+        let signer_actor =
+            self.build_signer().await.map_err(RollupNodeError::Startup)?.map(|signer| {
+                signer_builder.build(
+                    signer,
+                    self.config.l2_chain_id.id(),
+                    signer_rx.clone(),
+                    signed_payload_tx,
+                )
+            });
 
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
         // stays sync.
         let handler: NetworkHandler = self
             .network_builder(signer_rx)
             .build()
-            .map_err(|e| format!("Failed to build network: {e:?}"))?
+            .map_err(|e| RollupNodeError::Startup(format!("Failed to build network: {e:?}")))?
             .start()
             .await
-            .map_err(|e| format!("Failed to start network: {e:?}"))?;
+            .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e:?}")))?;
 
         let discovery = handler.discovery.clone();
         let network = NetworkActor::new(
@@ -494,7 +504,8 @@ impl RollupNode {
                 finalized,
                 derivation.status(),
             )
-            .await?;
+            .await
+            .map_err(RollupNodeError::Startup)?;
 
         let mut supervisor = Supervisor::new();
         if let Some(rpc) = rpc {
@@ -516,7 +527,7 @@ impl RollupNode {
         });
         supervisor.spawn("derivation", derivation_actor);
         supervisor.spawn("engine", engine_actor);
-        supervisor.wait().await
+        supervisor.wait().await.map_err(RollupNodeError::Stopped)
     }
 }
 

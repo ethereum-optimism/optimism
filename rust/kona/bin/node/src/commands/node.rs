@@ -10,7 +10,7 @@ use crate::{
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_node_service::{
-    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints,
+    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
 use std::sync::Arc;
 use strum::IntoEnumIterator;
@@ -214,12 +214,18 @@ impl NodeCommand {
         self.metrics.enabled.then(|| init_rollup_config_metrics(&config.rollup_config));
 
         let clients = RollupNodeClients::connect(&endpoints)?;
-        RollupNode::new(config, clients).start().await.map_err(|e| {
-            error!(target: "rollup_node", "Failed to start rollup node service: {e}");
-            anyhow::anyhow!("{e}")
-        })?;
-
-        Ok(())
+        let Err(error) = RollupNode::new(config, clients).start().await else {
+            return Ok(());
+        };
+        if matches!(error, RollupNodeError::JwtRejected) {
+            error!(
+                target: "rollup_node",
+                "Check that --l2-engine-jwt-secret holds the engine's JWT secret, and that the \
+                 node's and the engine's clocks agree"
+            );
+        }
+        error!(target: "rollup_node", "Failed to start rollup node service: {error}");
+        Err(error.into())
     }
 }
 

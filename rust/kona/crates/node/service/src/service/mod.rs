@@ -14,6 +14,9 @@ pub use clients::{RollupNodeClients, RollupNodeClientsError, RollupNodeEndpoints
 mod config;
 pub use config::RollupNodeConfig;
 
+mod error;
+pub use error::{ListenProtocol, RollupNodeError};
+
 mod middleware;
 
 pub use kona_node_actors::NodeMode;
