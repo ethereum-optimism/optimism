@@ -4,7 +4,7 @@
 use alloy_consensus::{Sealable, SignableTransaction, TxEip1559};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxKind};
-use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated};
+use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadStatus};
 use jsonrpsee::{
     core::{ClientError, client::ClientT},
     rpc_params,
@@ -99,7 +99,7 @@ async fn derived_attributes_with_invalid_post_exec_are_rejected_at_fcu() -> eyre
 
     let cases = [
         (
-            "E1: two 0x7D",
+            "two 0x7D",
             vec![
                 deposit.clone(),
                 regular.clone(),
@@ -108,20 +108,20 @@ async fn derived_attributes_with_invalid_post_exec_are_rejected_at_fcu() -> eyre
             ],
         ),
         (
-            "E3: 0x7D anchored to the next block",
+            "0x7D anchored to the next block",
             vec![deposit.clone(), regular.clone(), post_exec(2, vec![refund(1, 1)])],
         ),
-        ("E4: empty refund entries", vec![deposit.clone(), regular.clone(), post_exec(1, vec![])]),
+        ("empty refund entries", vec![deposit.clone(), regular.clone(), post_exec(1, vec![])]),
         (
-            "E4: refund targets a deposit",
+            "refund targets a deposit",
             vec![deposit.clone(), regular.clone(), post_exec(1, vec![refund(0, 1)])],
         ),
         (
-            "E5: refund above evmGasUsed",
+            "refund above evmGasUsed",
             vec![deposit.clone(), regular.clone(), post_exec(1, vec![refund(1, 21_001)])],
         ),
         (
-            "E6: refund entry past the last tx",
+            "refund entry past the last tx",
             vec![deposit.clone(), regular.clone(), post_exec(1, vec![refund(1, 1), refund(5, 1)])],
         ),
         (
@@ -140,10 +140,27 @@ async fn derived_attributes_with_invalid_post_exec_are_rejected_at_fcu() -> eyre
     let id = updated.payload_id.expect("valid derived attributes start a payload job");
     let payload: OpExecutionPayloadEnvelopeV4 =
         client.request("engine_getPayloadV5", rpc_params![id]).await?;
-    assert_eq!(
-        payload.execution_payload.payload_inner.payload_inner.payload_inner.transactions.len(),
-        3
-    );
+    let block = &payload.execution_payload.payload_inner.payload_inner.payload_inner;
+    assert_eq!(block.transactions.len(), 3);
+
+    // The block built at FCU must be one the node accepts and makes canonical.
+    let hash = block.block_hash;
+    let status: PayloadStatus = client
+        .request(
+            "engine_newPayloadV4",
+            rpc_params![
+                payload.execution_payload,
+                Vec::<B256>::new(),
+                payload.parent_beacon_block_root,
+                payload.execution_requests
+            ],
+        )
+        .await?;
+    assert!(status.is_valid(), "newPayload of the built block: {status:?}");
+    let updated: ForkchoiceUpdated = client
+        .request("engine_forkchoiceUpdatedV3", rpc_params![ForkchoiceState::same_hash(hash)])
+        .await?;
+    assert!(updated.payload_status.is_valid(), "FCU to the built block: {updated:?}");
 
     Ok(())
 }

@@ -1,9 +1,9 @@
 use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
-    RethPayloadTransactions, build_post_exec_recovered_tx, is_invalid_payload_error,
+    RethPayloadTransactions, build_post_exec_recovered_tx, is_invalid_derived_payload_error,
     try_include_post_exec_tx,
 };
-use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
+use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig, error::OpPayloadBuilderError};
 use alloy_consensus::{
     Header, Sealable, SignableTransaction, Transaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
@@ -18,7 +18,8 @@ use alloy_op_evm::block::OpBlockExecutionError;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use op_alloy_consensus::{
-    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, TxDeposit, build_post_exec_tx,
+    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, PostExecPayloadValidationError, SDMGasEntry,
+    TxDeposit, build_post_exec_tx,
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
@@ -996,33 +997,78 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
 /// error reported as invalid would make the rollup node derive a wrong deposit-only block.
 #[test]
 fn derived_payload_error_classification() {
-    let cases: [(BlockExecutionError, bool); 4] = [
+    let validation =
+        |err: BlockValidationError| PayloadBuilderError::from(BlockExecutionError::from(err));
+    let op_execution =
+        |err: OpBlockExecutionError| validation(BlockValidationError::Other(Box::new(err)));
+    let op_payload = PayloadBuilderError::other::<OpPayloadBuilderError>;
+    let invalid_post_exec = || OpBlockExecutionError::InvalidPostExecPayload("x".into());
+    let cases = [
         (
-            BlockValidationError::InvalidTx {
+            validation(BlockValidationError::InvalidTx {
                 hash: B256::ZERO,
                 error: Box::new(revm::context::result::InvalidTransaction::NonceTooHigh {
                     tx: 5,
                     state: 0,
                 }),
-            }
-            .into(),
+            }),
             true,
         ),
+        (validation(BlockValidationError::BlockGasExceeded), true),
         (
-            BlockValidationError::Other(Box::new(OpBlockExecutionError::InvalidPostExecPayload(
-                "x".into(),
-            )))
-            .into(),
+            validation(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit: 2,
+                block_available_gas: 1,
+            }),
             true,
         ),
-        (BlockExecutionError::other(ProviderError::StateForHashNotFound(B256::ZERO)), false),
+        (op_execution(invalid_post_exec()), true),
         (
-            BlockValidationError::Other(Box::new(OpBlockExecutionError::LoadCacheAccount)).into(),
+            op_execution(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                transaction_da_footprint: 2,
+                available_block_da_footprint: 1,
+            }),
+            true,
+        ),
+        (op_execution(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock), true),
+        (
+            op_execution(OpBlockExecutionError::PostExecSettlementUnderflow {
+                address: Address::ZERO,
+                delta: U256::from(1),
+            }),
+            true,
+        ),
+        (op_execution(OpBlockExecutionError::LoadCacheAccount), false),
+        (op_execution(OpBlockExecutionError::GetJovianDaFootprintScalar("x".into())), false),
+        (PayloadBuilderError::other(alloy_rlp::Error::UnexpectedLength), true),
+        (
+            PayloadBuilderError::other(PostExecPayloadValidationError::UnexpectedPostExecTx {
+                tx_index: 0,
+            }),
+            true,
+        ),
+        (op_payload(OpPayloadBuilderError::TransactionEcRecoverFailed), true),
+        (op_payload(OpPayloadBuilderError::BlobTransactionRejected), true),
+        (op_payload(OpPayloadBuilderError::L1BlockInfoParseFailed), false),
+        (op_payload(OpPayloadBuilderError::AccountLoadFailed(Address::ZERO)), false),
+        (op_payload(OpPayloadBuilderError::ForceCreate2DeployerFail), false),
+        (PayloadBuilderError::MissingParentHeader(B256::ZERO), false),
+        // Pins only the classifier. The node test's "empty refund entries" case, rejected during
+        // pre-execution, is what catches `OpBuilder::build` reporting that error as `Internal`.
+        (
+            PayloadBuilderError::Internal(
+                BlockExecutionError::from(BlockValidationError::Other(Box::new(
+                    invalid_post_exec(),
+                )))
+                .into(),
+            ),
             false,
         ),
+        (BlockExecutionError::other(ProviderError::StateForHashNotFound(B256::ZERO)).into(), false),
+        (ProviderError::StateForHashNotFound(B256::ZERO).into(), false),
     ];
 
     for (err, expected) in cases {
-        assert_eq!(is_invalid_payload_error(&err), expected, "{err:?}");
+        assert_eq!(is_invalid_derived_payload_error(&err), expected, "{err:?}");
     }
 }

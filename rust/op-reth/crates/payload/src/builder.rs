@@ -1,9 +1,7 @@
 //! Optimism payload builder implementation.
 use crate::{
-    OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives,
-    config::OpBuilderConfig,
-    error::{DerivedAttributesError, OpPayloadBuilderError},
-    payload::OpBuiltPayload,
+    OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
+    error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
@@ -13,10 +11,9 @@ use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_consensus::{
-    ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
-    parse_post_exec_payload_from_transactions, total_gas_refund,
+    ParsedPostExecPayload, PostExecPayloadValidationError, SDMGasEntry, TxPostExec,
+    build_post_exec_tx, parse_post_exec_payload_from_transactions, total_gas_refund,
 };
-use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -488,9 +485,10 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
 
         // 1. apply pre-execution changes
-        builder.apply_pre_execution_changes().map_err(|err| {
+        // Kept as an execution error, not `Internal`, so `is_invalid_derived_payload_error` sees an
+        // invalid `0x7D`, which is rejected here.
+        builder.apply_pre_execution_changes().inspect_err(|err| {
             warn!(target: "payload_builder", %err, "failed to apply pre-execution changes");
-            PayloadBuilderError::Internal(err.into())
         })?;
 
         // 2. execute sequencer transactions
@@ -617,105 +615,61 @@ impl<Txs> OpBuilder<'_, Txs> {
     }
 }
 
-/// Validates derived attributes by executing them without computing the state root.
-pub fn validate_derived_attributes<Evm, ChainSpec>(
-    evm_config: Evm,
-    chain_spec: Arc<ChainSpec>,
-    parent: SealedHeaderFor<Evm::Primitives>,
-    state_provider: impl StateProvider,
-    attributes: OpPayloadAttributes,
-) -> Result<(), DerivedAttributesError>
-where
-    Evm: ConfigurePostExecEvm<
-            Primitives: OpPayloadPrimitives,
-            NextBlockEnvCtx: BuildNextEnv<
-                OpPayloadBuilderAttributes<TxTy<Evm::Primitives>>,
-                HeaderTy<Evm::Primitives>,
-                ChainSpec,
-            >,
-        >,
-    ChainSpec: EthChainSpec + OpHardforks,
-{
-    let attributes = OpPayloadBuilderAttributes::try_new(parent.hash(), attributes, 3)
-        .map_err(|err| DerivedAttributesError::InvalidPayload(PayloadBuilderError::other(err)))?;
-
-    let ctx = OpPayloadBuilderCtx {
-        evm_config,
-        builder_config: OpBuilderConfig::default(),
-        chain_spec,
-        config: PayloadConfig {
-            parent_header: Arc::new(parent),
-            parent_block_info: None,
-            payload_id: attributes.payload_id(),
-            attributes,
-        },
-        cancel: Default::default(),
-        best_payload: None,
-    };
-
-    let post_exec_mode = ctx.post_exec_mode().map_err(DerivedAttributesError::InvalidPayload)?;
-
-    let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
-        .with_bundle_update()
-        .build();
-    // Match OpBuilder::build's L1 contract cache initialization.
-    db.load_cache_account(L1_BLOCK_CONTRACT)
-        .map_err(|err| DerivedAttributesError::Other(PayloadBuilderError::other(err)))?;
-
-    let mut builder = ctx
-        .block_builder_with_mode(&mut db, post_exec_mode)
-        .map_err(DerivedAttributesError::Other)?;
-
-    builder.apply_pre_execution_changes().map_err(|err| classify(PayloadBuilderError::evm(err)))?;
-    ctx.execute_sequencer_transactions(&mut builder, None).map_err(classify)?;
-    builder
-        .into_executor()
-        .apply_post_execution_changes()
-        .map_err(|err| classify(PayloadBuilderError::evm(err)))?;
-
-    Ok(())
+/// Returns whether building a derived (`noTxPool`) payload failed because of its transactions.
+///
+/// Only these failures may be reported as invalid payload attributes, which makes the rollup node
+/// replace the block with a deposits-only one. A node-local failure reported that way would derive
+/// a wrong block, so every other error must stay retryable.
+pub fn is_invalid_derived_payload_error(err: &PayloadBuilderError) -> bool {
+    match err {
+        PayloadBuilderError::EvmExecutionError(e) => {
+            e.downcast_ref::<BlockExecutionError>().is_some_and(is_invalid_payload_error)
+        }
+        // An undecodable, blob or unrecoverable transaction, or a malformed `0x7D`.
+        PayloadBuilderError::Other(e) => {
+            e.is::<alloy_rlp::Error>() ||
+                e.is::<PostExecPayloadValidationError>() ||
+                e.downcast_ref::<OpPayloadBuilderError>()
+                    .is_some_and(is_invalid_op_payload_error)
+        }
+        _ => false,
+    }
 }
 
-// Only transaction-caused failures permit deposits-only recovery.
-pub(super) fn is_invalid_payload_error(err: &BlockExecutionError) -> bool {
+fn is_invalid_payload_error(err: &BlockExecutionError) -> bool {
     match err {
         BlockExecutionError::Validation(
             BlockValidationError::InvalidTx { .. } |
             BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
             BlockValidationError::BlockGasExceeded,
         ) => true,
-        BlockExecutionError::Validation(BlockValidationError::Other(e)) => matches!(
-            e.downcast_ref::<OpBlockExecutionError>(),
-            Some(
-                OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
-                    OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
-                    OpBlockExecutionError::InvalidPostExecPayload(_) |
-                    OpBlockExecutionError::PostExecSettlementUnderflow { .. }
-            )
-        ),
+        BlockExecutionError::Validation(BlockValidationError::Other(e)) => {
+            e.downcast_ref::<OpBlockExecutionError>().is_some_and(is_invalid_op_execution_error)
+        }
         _ => false,
     }
 }
 
-fn classify(err: PayloadBuilderError) -> DerivedAttributesError {
-    let invalid = match &err {
-        PayloadBuilderError::EvmExecutionError(e) => {
-            e.downcast_ref::<BlockExecutionError>().is_some_and(is_invalid_payload_error)
-        }
-        PayloadBuilderError::Other(e) => matches!(
-            e.downcast_ref::<OpPayloadBuilderError>(),
-            Some(
-                OpPayloadBuilderError::BlobTransactionRejected |
-                    OpPayloadBuilderError::TransactionEcRecoverFailed
-            )
-        ),
-        _ => false,
-    };
-    if invalid {
-        DerivedAttributesError::InvalidPayload(err)
-    } else {
-        DerivedAttributesError::Other(err)
+// Exhaustive, like `is_invalid_op_execution_error`, so a new variant must be classified: one that
+// defaults to node-local would stall derivation on every node.
+const fn is_invalid_op_payload_error(err: &OpPayloadBuilderError) -> bool {
+    match err {
+        OpPayloadBuilderError::TransactionEcRecoverFailed |
+        OpPayloadBuilderError::BlobTransactionRejected => true,
+        OpPayloadBuilderError::L1BlockInfoParseFailed |
+        OpPayloadBuilderError::AccountLoadFailed(_) |
+        OpPayloadBuilderError::ForceCreate2DeployerFail => false,
+    }
+}
+
+const fn is_invalid_op_execution_error(err: &OpBlockExecutionError) -> bool {
+    match err {
+        OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
+        OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
+        OpBlockExecutionError::InvalidPostExecPayload(_) |
+        OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
+        OpBlockExecutionError::LoadCacheAccount |
+        OpBlockExecutionError::GetJovianDaFootprintScalar(_) => false,
     }
 }
 

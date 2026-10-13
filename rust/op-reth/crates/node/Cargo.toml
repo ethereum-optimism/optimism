@@ -16,6 +16,7 @@ reth-chainspec.workspace = true
 ## ensure secp256k1 recovery with rayon support is activated
 reth-primitives-traits = { workspace = true, features = ["secp256k1", "rayon"] }
 reth-payload-builder.workspace = true
+reth-basic-payload-builder.workspace = true
 reth-consensus.workspace = true
 reth-node-api.workspace = true
 reth-node-builder.workspace = true
@@ -89,7 +90,6 @@ alloy-genesis = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
-reth-basic-payload-builder.workspace = true
 reth-node-metrics.workspace = true
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }

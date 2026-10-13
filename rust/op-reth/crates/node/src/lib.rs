@@ -29,9 +29,12 @@ pub use head_metrics::{OpChainHeadMetrics, maintain_chain_head_metrics};
 pub mod node;
 pub use node::*;
 
+pub mod payload_job;
+pub use payload_job::OpPayloadJobGenerator;
+
 /// OP payload-service configuration.
 pub mod payload_service;
-pub use payload_service::OpPayloadServiceBuilder;
+pub use payload_service::{OpBasicPayloadServiceBuilder, OpPayloadServiceBuilder};
 
 pub mod rpc;
 pub use rpc::OpEngineApiBuilder;
