@@ -9,19 +9,21 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_consensus::BlockHeader;
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use futures_util::TryStreamExt;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
-    CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
-    engine::EngineHandle,
+    CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsProviderRw,
+    OpProofsStore, ProofWindowRange, engine::EngineHandle, proof::DatabaseStateRoot,
 };
-use reth_provider::{BlockHashReader, BlockNumReader};
-use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
+use reth_provider::{BlockHashReader, BlockNumReader, HeaderProvider};
+use reth_trie::{
+    HashedPostState, HashedPostStateSorted, SortedTrieData, StateRoot, updates::TrieUpdatesSorted,
+};
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 // Safety threshold for maximum blocks to prune automatically on startup.
 // If the required prune exceeds this, the node will error out and require manual pruning. Default
@@ -38,6 +40,9 @@ const DEFAULT_VERIFICATION_INTERVAL: u64 = 0;
 /// operation. Notifications further behind than this are treated as sync catch-up and handled
 /// asynchronously by the engine.
 const REAL_TIME_BLOCKS_THRESHOLD: u64 = 64;
+
+/// Command that (re-)initializes the proofs storage.
+const PROOFS_INIT_COMMAND: &str = "op-reth proofs init --proofs-history.storage-path <PATH>";
 
 /// Builder for [`OpProofsExEx`].
 #[derive(Debug)]
@@ -202,7 +207,8 @@ where
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
-        self.ensure_initialized()?;
+        let window = self.ensure_initialized()?;
+        self.reconcile_with_canonical_chain(window)?;
 
         let pruner = OpProofStoragePruner::new(
             self.storage.clone(),
@@ -226,13 +232,13 @@ where
         Ok(())
     }
 
-    /// Ensure proofs storage is initialized
-    fn ensure_initialized(&self) -> eyre::Result<()> {
+    /// Ensure proofs storage is initialized, and return its proof window.
+    fn ensure_initialized(&self) -> eyre::Result<ProofWindowRange> {
         // Check if proofs storage is initialized. An empty proof window returns NoBlocksFound;
         let provider_ro = self.storage.provider_ro()?;
-        let window = provider_ro.get_proof_window().map_err(|_| eyre::eyre!(
-            "Proofs storage not initialized. Please run 'op-reth proofs init --proofs-history.storage-path <PATH>' first."
-        ))?;
+        let window = provider_ro.get_proof_window().map_err(|_| {
+            eyre::eyre!("Proofs storage not initialized. Please run '{PROOFS_INIT_COMMAND}' first.")
+        })?;
         let earliest_block_number = window.earliest.number;
         let latest_block_number = window.latest.number;
 
@@ -253,6 +259,108 @@ where
             }
         }
 
+        Ok(window)
+    }
+
+    /// Unwinds the proofs storage to the highest stored block that is on reth's canonical chain.
+    ///
+    /// reth can start below the proofs tip, or on another fork: after an unclean shutdown it
+    /// unwinds to its last persisted state trie without notifying ExExes, and the dropped blocks
+    /// may be replaced by another fork. Indexing on top of a stale tip would keep serving the
+    /// dropped blocks and reject reth's next block with a parent hash mismatch.
+    ///
+    /// Returns an error if reth's best block is below the proofs window, or if no block of the
+    /// window is on reth's canonical chain.
+    fn reconcile_with_canonical_chain(&self, window: ProofWindowRange) -> eyre::Result<()> {
+        let ProofWindowRange { earliest, latest } = window;
+        let provider = self.ctx.provider();
+        let best_block = provider.best_block_number()?;
+
+        if latest.number <= best_block && provider.block_hash(latest.number)? == Some(latest.hash) {
+            return Ok(());
+        }
+
+        if earliest.number > best_block {
+            return Err(eyre::eyre!(
+                "Proofs storage starts at block {} but reth's best block is {best_block}. \
+                 Please re-initialize it with '{PROOFS_INIT_COMMAND}'.",
+                earliest.number,
+            ));
+        }
+        // The stored blocks form a single chain, so the canonical ones are a prefix of the window
+        // that starts at the earliest block.
+        if provider.block_hash(earliest.number)? != Some(earliest.hash) {
+            return Err(eyre::eyre!(
+                "Proofs storage (blocks {}..={}, tip {}) shares no block with reth's canonical \
+                 chain (best block {best_block}). Please re-initialize it with \
+                 '{PROOFS_INIT_COMMAND}'.",
+                earliest.number,
+                latest.number,
+                latest.hash,
+            ));
+        }
+
+        // The storage records block hashes only for the window bounds. Blocks in between are
+        // matched by their state root instead, which pins the state proofs are served from.
+        let storage_provider = self.storage.provider_ro()?;
+        let canonical_match = |number: u64| -> eyre::Result<Option<NumHash>> {
+            let header = provider
+                .sealed_header(number)?
+                .ok_or_else(|| eyre::eyre!("canonical header {number} not found"))?;
+            let state_root =
+                StateRoot::overlay_root(&storage_provider, number, HashedPostState::default())?;
+            Ok((state_root == header.state_root()).then(|| NumHash::new(number, header.hash())))
+        };
+
+        // A storage ahead of reth on reth's chain matches at the first probe. Otherwise, binary
+        // search the canonical prefix for its end, keeping `common` canonical and `mismatch` not.
+        let highest_candidate = best_block.min(latest.number - 1);
+        let mut common = earliest;
+        if highest_candidate > earliest.number {
+            if let Some(found) = canonical_match(highest_candidate)? {
+                common = found;
+            } else {
+                let mut mismatch = highest_candidate;
+                while mismatch - common.number > 1 {
+                    let mid = common.number + (mismatch - common.number) / 2;
+                    match canonical_match(mid)? {
+                        Some(found) => common = found,
+                        None => mismatch = mid,
+                    }
+                }
+            }
+        }
+        drop(storage_provider);
+
+        // reth re-imports the blocks it dropped above its best block, so a storage ahead of reth
+        // on its chain is routine to unwind.
+        if common.number == best_block {
+            info!(
+                target: "optimism::exex",
+                proofs_tip = latest.number,
+                proofs_tip_hash = ?latest.hash,
+                best_block,
+                "Proofs storage is ahead of reth, unwinding it to reth's best block",
+            );
+        } else {
+            warn!(
+                target: "optimism::exex",
+                proofs_tip = latest.number,
+                proofs_tip_hash = ?latest.hash,
+                best_block,
+                unwind_to = common.number,
+                unwind_to_hash = ?common.hash,
+                "Proofs storage is not on reth's canonical chain, unwinding it",
+            );
+        }
+        let storage_provider = self.storage.provider_rw()?;
+        // Only the number of the first removed block is read; the storage does not record its
+        // hash.
+        storage_provider.unwind_history(BlockWithParent::new(
+            common.hash,
+            NumHash::new(common.number + 1, Default::default()),
+        ))?;
+        storage_provider.commit()?;
         Ok(())
     }
 
@@ -410,18 +518,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::private::alloy_primitives::B256;
+    use alloy_consensus::{Header, private::alloy_primitives::B256};
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
     use reth_db::test_utils::tempdir_path;
     use reth_ethereum_primitives::{Block, Receipt};
     use reth_execution_types::{Chain, ExecutionOutcome};
+    use reth_exex_test_utils::{TestExExContext, TestExExHandle};
     use reth_optimism_trie::{
-        BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
+        BlockStateDiff, InMemoryProofsStorage, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
     };
-    use reth_primitives_traits::RecoveredBlock;
+    use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock, SealedHeader};
+    use reth_provider::{BlockWriter, CanonChainTracker};
     use reth_trie::{
-        ComputedTrieData, HashedPostStateSorted, LazyTrieData, updates::TrieUpdatesSorted,
+        ComputedTrieData, HashedPostState, HashedPostStateSorted, LazyTrieData,
+        updates::TrieUpdatesSorted,
     };
     use std::{collections::BTreeMap, default::Default, sync::Arc};
 
@@ -500,11 +611,73 @@ mod tests {
 
     // Bootstrap storage to the genesis block via the init flow (sets earliest = latest = genesis).
     fn init_storage<S: OpProofsStore>(storage: S) {
-        let genesis = NumHash::new(0, b256(0x00));
+        init_storage_at(storage, NumHash::new(0, b256(0x00)));
+    }
+
+    fn init_storage_at<S: OpProofsStore>(storage: S, genesis: NumHash) {
         let init = storage.initialization_provider().expect("init");
         init.set_initial_state_anchor(genesis).expect("anchor");
         init.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(init).expect("commit");
+    }
+
+    fn store_block<S: OpProofsStore>(
+        storage: &S,
+        parent: B256,
+        block: NumHash,
+        diff: BlockStateDiff,
+    ) {
+        let rw = storage.provider_rw().expect("provider rw");
+        rw.store_trie_updates(BlockWithParent::new(parent, block), diff).expect("store block");
+        OpProofsProviderRw::commit(rw).expect("commit");
+    }
+
+    // A state diff that makes the block's state root differ from an empty block's.
+    fn diff_with_account() -> BlockStateDiff {
+        let mut post_state = HashedPostState::default();
+        post_state.accounts.insert(b256(0xaa), Some(Account { nonce: 1, ..Default::default() }));
+        BlockStateDiff { sorted_post_state: post_state.into_sorted(), ..Default::default() }
+    }
+
+    // Inserts empty blocks 1..=tip on top of reth's genesis and makes the last one reth's head.
+    // Returns the canonical headers indexed by block number, genesis included.
+    fn insert_canonical_chain<P>(
+        handle: &TestExExHandle,
+        provider: &P,
+        tip: u64,
+    ) -> Vec<SealedHeader>
+    where
+        P: CanonChainTracker<Header = Header>,
+    {
+        let mut headers = vec![handle.genesis.clone_sealed_header()];
+        let rw = handle.provider_factory.provider_rw().expect("provider rw");
+        for number in 1..=tip {
+            let parent_hash = headers.last().expect("genesis").hash();
+            let header = Header { number, parent_hash, ..Default::default() };
+            let block = SealedBlock::seal_slow(Block { header, body: Default::default() })
+                .try_recover()
+                .expect("empty block");
+            rw.insert_block(&block).expect("insert block");
+            headers.push(block.clone_sealed_header());
+        }
+        rw.commit().expect("commit");
+        provider.set_canonical_head(headers.last().expect("genesis").clone());
+        headers
+    }
+
+    /// Waits until the proofs storage's latest block is `expected`.
+    async fn wait_for_latest_block<S: OpProofsStore>(store: &S, expected: NumHash) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let provider = store.provider_ro().expect("provider ro");
+                if provider.get_latest_block().expect("get latest block") == expected {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("proofs storage should be unwound to reth's chain within 5s");
     }
 
     // Initialize exex with config
@@ -1093,6 +1266,186 @@ mod tests {
         let latest =
             store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
         assert_eq!(latest, 0);
+    }
+
+    /// Runs each startup reconciliation scenario against both proofs storage backends.
+    macro_rules! reconcile_tests {
+        ($($scenario:ident),* $(,)?) => {
+            mod reconcile_mdbx {
+                use super::*;
+                $(
+                    #[tokio::test]
+                    async fn $scenario() {
+                        let dir = tempdir_path();
+                        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+                        super::$scenario(store).await;
+                    }
+                )*
+            }
+
+            mod reconcile_in_memory {
+                use super::*;
+                $(
+                    #[tokio::test]
+                    async fn $scenario() {
+                        super::$scenario(InMemoryProofsStorage::new()).await;
+                    }
+                )*
+            }
+        };
+    }
+
+    reconcile_tests!(
+        run_unwinds_proofs_storage_ahead_of_reth,
+        run_unwinds_proofs_storage_on_diverged_fork,
+        run_unwinds_proofs_storage_ahead_of_reth_on_another_fork,
+        run_unwinds_proofs_storage_to_its_earliest_block,
+        run_fails_without_canonical_block_in_proofs_window,
+        run_fails_with_proofs_window_above_reth_head,
+    );
+
+    /// Runs the ExEx until the proofs storage's latest block is `expected`.
+    async fn run_until_latest_block<S: OpProofsStore + Clone + 'static>(
+        ctx: TestExExContext,
+        store: S,
+        expected: NumHash,
+    ) {
+        let run = tokio::spawn(build_test_exex(ctx, store.clone()).run());
+        wait_for_latest_block(&store, expected).await;
+        run.abort();
+        let _ = run.await;
+    }
+
+    /// Runs the ExEx and returns its startup error.
+    async fn run_startup_error<S: OpProofsStore + Clone + 'static>(
+        ctx: TestExExContext,
+        store: S,
+    ) -> eyre::Report {
+        tokio::time::timeout(std::time::Duration::from_secs(5), build_test_exex(ctx, store).run())
+            .await
+            .expect("run should fail at startup")
+            .expect_err("run should fail at startup")
+    }
+
+    async fn run_unwinds_proofs_storage_ahead_of_reth<S: OpProofsStore + Clone + 'static>(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        for header in &canonical[1..] {
+            store_block(&store, header.parent_hash, header.num_hash(), Default::default());
+        }
+        // Blocks 4 and 5 were indexed before reth dropped them at restart.
+        let mut parent = canonical[3].hash();
+        for number in 4..=5 {
+            store_block(
+                &store,
+                parent,
+                NumHash::new(number, hash_for_num(number)),
+                diff_with_account(),
+            );
+            parent = hash_for_num(number);
+        }
+
+        run_until_latest_block(ctx, store, canonical[3].num_hash()).await;
+    }
+
+    async fn run_unwinds_proofs_storage_on_diverged_fork<S: OpProofsStore + Clone + 'static>(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        store_block(&store, canonical[0].hash(), canonical[1].num_hash(), Default::default());
+        // The proofs storage followed a fork from block 2 on that reth no longer has. The stored
+        // tip is at reth's height but has another hash.
+        store_block(&store, canonical[1].hash(), NumHash::new(2, b256(0xb2)), diff_with_account());
+        store_block(&store, b256(0xb2), NumHash::new(3, b256(0xb3)), diff_with_account());
+
+        run_until_latest_block(ctx, store, canonical[1].num_hash()).await;
+    }
+
+    async fn run_unwinds_proofs_storage_ahead_of_reth_on_another_fork<
+        S: OpProofsStore + Clone + 'static,
+    >(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 4);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        for header in &canonical[1..=2] {
+            store_block(&store, header.parent_hash, header.num_hash(), Default::default());
+        }
+        // The proofs storage followed a fork from block 3 on, past reth's best block 4.
+        let mut parent = canonical[2].hash();
+        for number in 3..=6 {
+            let hash = b256(0xb0 + number as u8);
+            store_block(&store, parent, NumHash::new(number, hash), diff_with_account());
+            parent = hash;
+        }
+
+        run_until_latest_block(ctx, store, canonical[2].num_hash()).await;
+    }
+
+    async fn run_unwinds_proofs_storage_to_its_earliest_block<
+        S: OpProofsStore + Clone + 'static,
+    >(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        // The proofs storage followed a fork from block 1 on, so only its earliest block is
+        // canonical.
+        let mut parent = canonical[0].hash();
+        for number in 1..=3 {
+            let hash = b256(0xb0 + number as u8);
+            store_block(&store, parent, NumHash::new(number, hash), diff_with_account());
+            parent = hash;
+        }
+
+        run_until_latest_block(ctx, store.clone(), canonical[0].num_hash()).await;
+        let provider = store.provider_ro().expect("provider ro");
+        assert_eq!(provider.get_earliest_block().expect("earliest"), canonical[0].num_hash());
+    }
+
+    async fn run_fails_without_canonical_block_in_proofs_window<
+        S: OpProofsStore + Clone + 'static,
+    >(
+        store: S,
+    ) {
+        // The proofs storage is anchored on a genesis that is not reth's.
+        init_storage(store.clone());
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let err = run_startup_error(ctx, store).await;
+        assert!(err.to_string().contains("shares no block"), "{err:#}");
+        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
+    }
+
+    async fn run_fails_with_proofs_window_above_reth_head<S: OpProofsStore + Clone + 'static>(
+        store: S,
+    ) {
+        // reth's best block is its genesis, below the proofs window.
+        init_storage_at(store.clone(), NumHash::new(5, b256(0x05)));
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let err = run_startup_error(ctx, store).await;
+        assert!(err.to_string().contains("starts at block 5"), "{err:#}");
+        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
     }
 
     #[tokio::test]
