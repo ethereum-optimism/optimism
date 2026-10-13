@@ -21,6 +21,7 @@ import { Features } from "src/libraries/Features.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -28,6 +29,32 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IUndeliveredMessageExporter } from "interfaces/L2/IUndeliveredMessageExporter.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+/// @title SuperchainETHBridge_Sender_Harness
+/// @notice A contract that sends ETH through the bridge for its users. If a send expires, it
+///         claims the refund and pays its user in the same call.
+contract SuperchainETHBridge_Sender_Harness {
+    ISuperchainETHBridge internal immutable bridge;
+
+    /// @notice User of each send, by the send's message nonce.
+    mapping(uint256 => address) public users;
+
+    constructor(ISuperchainETHBridge _bridge) {
+        bridge = _bridge;
+    }
+
+    function send(address _to, uint256 _chainId) external payable returns (bytes32 msgHash_) {
+        users[IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).messageNonce()] = msg.sender;
+        msgHash_ = bridge.sendETH{ value: msg.value }(_to, _chainId);
+    }
+
+    /// @notice Claims an expired send's refund and pays it to the send's user.
+    function refund(uint256 _destination, uint256 _nonce, address _to, uint256 _amount) external {
+        bridge.refundETH(_destination, _nonce, _to, _amount);
+        (bool success,) = users[_nonce].call{ value: _amount }("");
+        require(success, "SuperchainETHBridge_Sender_Harness: payment failed");
+    }
+}
 
 /// @title SuperchainETHBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainETHBridge` tests.
@@ -79,6 +106,7 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
         // Assume
         vm.assume(_sender != address(ethLiquidity));
         vm.assume(_sender != ZERO_ADDRESS);
+        vm.assume(_sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         vm.assume(_to != ZERO_ADDRESS);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
@@ -112,6 +140,72 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
 
         // Check the total supply and balance of `_sender` after the send were updated correctly
         assertEq(_sender.balance, _senderBalanceBefore - _amount);
+    }
+
+    /// @notice Tests that the L2ToL2CrossDomainMessenger cannot send ETH.
+    function testFuzz_sendETH_senderIsMessenger_reverts(address _to, uint256 _amount, uint256 _chainId) external {
+        vm.assume(_to != ZERO_ADDRESS);
+        vm.deal(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _amount);
+
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_SenderIsMessenger.selector);
+        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        superchainETHBridge.sendETH{ value: _amount }(_to, _chainId);
+    }
+
+    /// @notice Returns a relayable message from chain 901 to this chain, from alice, that calls
+    ///         `_target` with `_message`, and has the CrossL2Inbox accept it.
+    function _relayable(
+        address _target,
+        bytes memory _message
+    )
+        internal
+        returns (Identifier memory id_, bytes memory sentMessage_)
+    {
+        id_ = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, uint64(block.timestamp), 901);
+        sentMessage_ = abi.encodePacked(
+            abi.encode(
+                keccak256("SentMessage(uint256,address,uint256,address,bytes)"), block.chainid, _target, uint256(0)
+            ),
+            abi.encode(alice, _message)
+        );
+        vm.mockCall(
+            Predeploys.CROSS_L2_INBOX, abi.encodeCall(ICrossL2Inbox.validateMessage, (id_, keccak256(sentMessage_))), ""
+        );
+    }
+
+    /// @notice Tests that a relayed message that calls sendETH reverts its whole relay, so the
+    ///         relayer keeps the ETH it attached.
+    function test_sendETH_relayedMessage_reverts() external {
+        address relayer = makeAddr("relayer");
+        vm.deal(relayer, 1 ether);
+        bytes memory message = abi.encodeCall(ISuperchainETHBridge.sendETH, (bob, 901));
+        (Identifier memory id, bytes memory sentMessage) = _relayable(address(superchainETHBridge), message);
+
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_SenderIsMessenger.selector);
+        vm.prank(relayer);
+        IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).relayMessage{ value: 1 ether }(
+            id, sentMessage
+        );
+
+        assertEq(relayer.balance, 1 ether);
+        assertEq(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.balance, 0);
+    }
+
+    /// @notice Tests that a message from L1 can send ETH.
+    function test_sendETH_fromL1Message_succeeds() external {
+        address l1Messenger = address(l1CrossDomainMessenger);
+        uint256 nonce = Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 });
+        bytes memory message = abi.encodeCall(ISuperchainETHBridge.sendETH, (bob, 902));
+        vm.deal(AddressAliasHelper.applyL1ToL2Alias(l1Messenger), 1 ether);
+
+        vm.expectEmit(address(superchainETHBridge));
+        emit SendETH(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bob, 1 ether, 902);
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1Messenger));
+        l2CrossDomainMessenger.relayMessage{ value: 1 ether }(
+            nonce, alice, address(superchainETHBridge), 1 ether, 200_000, message
+        );
+
+        assertEq(address(l2CrossDomainMessenger).balance, 0);
     }
 }
 
@@ -227,6 +321,7 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
     /// @notice Tests that the ETH of an expired send goes back to the sender, once.
     function testFuzz_refundETH_succeeds(address _from, address _to, uint256 _amount) external {
         vm.assume(_from != address(ethLiquidity) && _from != address(0) && _to != address(0));
+        vm.assume(_from != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         assumeNotPrecompile(_from);
         _amount = bound(_amount, 1, type(uint248).max - 1);
         (uint256 nonce, bytes32 messageHash) = _send(_from, _to, _amount);
@@ -236,13 +331,15 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 1);
         vm.expectEmit(address(superchainETHBridge));
         emit RefundETH(_from, _amount, messageHash);
-        superchainETHBridge.refundETH(DESTINATION, nonce, _from, _to, _amount);
+        vm.prank(_from);
+        superchainETHBridge.refundETH(DESTINATION, nonce, _to, _amount);
 
         assertEq(_from.balance, balanceBefore + _amount);
         assertTrue(superchainETHBridge.refunded(messageHash));
 
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_AlreadyRefunded.selector);
-        superchainETHBridge.refundETH(DESTINATION, nonce, _from, _to, _amount);
+        vm.prank(_from);
+        superchainETHBridge.refundETH(DESTINATION, nonce, _to, _amount);
     }
 
     /// @notice Tests that an expired send of no ETH is still marked refunded, once, and reported.
@@ -252,11 +349,13 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
 
         vm.expectEmit(address(superchainETHBridge));
         emit RefundETH(alice, 0, messageHash);
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 0);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 0);
 
         assertTrue(superchainETHBridge.refunded(messageHash));
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_AlreadyRefunded.selector);
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 0);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 0);
     }
 
     /// @notice Tests that the refund record lives in the `refunded` mapping at storage slot 0, where
@@ -268,7 +367,8 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         bytes32 slot = keccak256(abi.encode(messageHash, uint256(0)));
         assertEq(vm.load(address(superchainETHBridge), slot), bytes32(0));
 
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
 
         assertEq(vm.load(address(superchainETHBridge), slot), bytes32(uint256(1)));
     }
@@ -278,7 +378,8 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         (uint256 nonce,) = _send(alice, bob, 1 ether);
 
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
     }
 
     /// @notice Tests that a refund whose arguments differ from the expired send's message is
@@ -286,7 +387,6 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
     function testFuzz_refundETH_wrongPreimage_reverts(
         uint256 _destination,
         uint256 _nonce,
-        address _from,
         address _to,
         uint256 _amount
     )
@@ -295,12 +395,25 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
         _expire(messageHash);
         vm.assume(
-            keccak256(abi.encode(_destination, _nonce, _from, _to, _amount))
-                != keccak256(abi.encode(DESTINATION, nonce, alice, bob, 1 ether))
+            keccak256(abi.encode(_destination, _nonce, _to, _amount))
+                != keccak256(abi.encode(DESTINATION, nonce, bob, 1 ether))
         );
 
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
-        superchainETHBridge.refundETH(_destination, _nonce, _from, _to, _amount);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(_destination, _nonce, _to, _amount);
+    }
+
+    /// @notice Tests that only the sender can claim the refund.
+    function testFuzz_refundETH_notSender_reverts(address _caller) external {
+        vm.assume(_caller != alice);
+        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
+        _expire(messageHash);
+
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
+        vm.prank(_caller);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
+        assertFalse(superchainETHBridge.refunded(messageHash));
     }
 
     /// @notice Tests that naming this chain as the destination refunds nothing: no message can be
@@ -310,7 +423,8 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         _expire(messageHash);
 
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
-        superchainETHBridge.refundETH(block.chainid, nonce, alice, bob, 1 ether);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(block.chainid, nonce, bob, 1 ether);
     }
 
     /// @notice Tests that an expired message shaped like a send but not sent by the bridge refunds
@@ -326,7 +440,27 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         _expire(messageHash);
 
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
+    }
+
+    /// @notice Tests that a contract that sends for its users can claim a refund and pay its user
+    ///         in the same call.
+    function test_refundETH_contractSender_succeeds() external {
+        SuperchainETHBridge_Sender_Harness sender = new SuperchainETHBridge_Sender_Harness(superchainETHBridge);
+        uint256 nonce = messenger.messageNonce();
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        bytes32 messageHash = sender.send{ value: 1 ether }(bob, DESTINATION);
+        _expire(messageHash);
+
+        vm.prank(bob);
+        sender.refund(DESTINATION, nonce, bob, 1 ether);
+
+        assertEq(alice.balance, 1 ether);
+        assertEq(address(sender).balance, 0);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_AlreadyRefunded.selector);
+        sender.refund(DESTINATION, nonce, bob, 1 ether);
     }
 
     /// @notice Tests that the refund is a forced send: a sender contract that rejects ETH still
@@ -338,7 +472,8 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         // Code that reverts on any call.
         vm.etch(sender, hex"5f5ffd");
 
-        superchainETHBridge.refundETH(DESTINATION, nonce, sender, bob, 1 ether);
+        vm.prank(sender);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
 
         assertEq(sender.balance, 1 ether);
     }
@@ -453,7 +588,8 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         _relayToL2(depositNonce, expire, 1_000_000);
         assertTrue(messenger.expiredMessages(messageHash));
 
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
         assertEq(alice.balance, 1 ether);
     }
 
@@ -508,7 +644,8 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         );
         assertTrue(messenger.expiredMessages(messageHash));
 
-        superchainETHBridge.refundETH(DESTINATION, nonce, alice, bob, 1 ether);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
         assertEq(alice.balance, 1 ether);
     }
 

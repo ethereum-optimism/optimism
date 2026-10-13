@@ -5,6 +5,7 @@
 package expiry
 
 import (
+	"math/big"
 	"slices"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -121,14 +123,14 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	require.Equal(send.BlockTime, bigs.Uint64Strict(contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash))),
 		"A must have recorded the message at its send time")
 	require.False(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must not expire early")
-	_, err := contractio.Read(send.RefundCall(), t.Ctx())
+	_, err := contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(sender.Address()))
 	require.ErrorContains(errutil.TryAddRevertReason(err),
 		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "an unexpired send must not be refundable")
 }
 
 // TestUnrelayedMessageExpiresAndIsRefunded runs the expiry path to a refund: A sends ETH that B
 // never relays; once B is past the expiry period, B's exporter, forced in as a deposit, tells A
-// through L1; A marks the message expired, and anyone can then return the ETH to the sender, once.
+// through L1; A marks the message expired, and the sender can then claim its ETH back, once.
 // The system deploys the messenger with a short expiry period so it can pass within the test.
 func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	t := devtest.ParallelT(gt)
@@ -160,11 +162,16 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	}), "A's messenger must emit MessageExpired for the message")
 	require.True(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must be expired on A")
 
-	// Anyone can refund the send; the ETH goes to the sender, once.
-	contract.Write(sys.FunderA.NewFundedEOA(eth.OneEther), send.RefundCall())
-	sender.VerifyBalanceExact(balanceAfterSend.Add(eth.HalfEther))
+	// Only the sender can claim the refund; the ETH goes back to it, once.
+	_, err := contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(recipient.Address()))
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "only the sender may claim the refund")
+	rcpt := contract.Write(sender, send.RefundCall())
+	fee := new(big.Int).Mul(new(big.Int).SetUint64(rcpt.GasUsed), rcpt.EffectiveGasPrice)
+	fee.Add(fee, rcpt.L1Fee)
+	sender.VerifyBalanceExact(balanceAfterSend.Add(eth.HalfEther).Sub(eth.WeiBig(fee)))
 	require.True(send.Refunded(), "the send must be marked refunded")
-	_, err := contractio.Read(send.RefundCall(), t.Ctx())
+	_, err = contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(sender.Address()))
 	require.ErrorContains(errutil.TryAddRevertReason(err),
 		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_AlreadyRefunded()")), "a send must be refunded only once")
 }

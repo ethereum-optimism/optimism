@@ -13,11 +13,6 @@
       },
       {
         "internalType": "address",
-        "name": "_from",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_to",
         "type": "address"
       },
@@ -211,6 +206,11 @@
   {
     "inputs": [],
     "name": "SuperchainETHBridge_MessageNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SuperchainETHBridge_SenderIsMessenger",
     "type": "error"
   },
   {
