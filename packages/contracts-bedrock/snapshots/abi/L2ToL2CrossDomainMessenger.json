@@ -1,6 +1,19 @@
 [
   {
     "inputs": [],
+    "name": "EXPIRY_PERIOD",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "crossDomainMessageContext",
     "outputs": [
       {
@@ -38,6 +51,43 @@
         "internalType": "uint256",
         "name": "source_",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_messageHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_undeliveredAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "expireMessage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "expiredMessages",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -128,45 +178,6 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256",
-        "name": "_nonce",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "_sender",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_target",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_message",
-        "type": "bytes"
-      }
-    ],
-    "name": "resendMessage",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "messageHash_",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_destination",
-        "type": "uint256"
-      },
-      {
         "internalType": "address",
         "name": "_target",
         "type": "address"
@@ -186,6 +197,25 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "sentMessageTimestamps",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -238,6 +268,25 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "messageHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "undeliveredAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "MessageExpired",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -320,6 +369,21 @@
   {
     "inputs": [],
     "name": "InvalidMessage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L2ToL2CrossDomainMessenger_MessageNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L2ToL2CrossDomainMessenger_MessageTargetUnsafe",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L2ToL2CrossDomainMessenger_NotOtherMessenger",
     "type": "error"
   },
   {

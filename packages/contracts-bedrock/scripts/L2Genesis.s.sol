@@ -281,6 +281,7 @@ contract L2Genesis is Script {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
+            setUndeliveredMessageExporter(); // 30
         }
         if (_input.useCustomGasToken) {
             setLiquidityController(_input); // 29
@@ -629,6 +630,14 @@ contract L2Genesis is Script {
     function setSuperchainETHBridge() internal {
         Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    function setUndeliveredMessageExporter() internal {
+        Predeploys.assertGates(
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
+        );
+        _setImplementationCode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

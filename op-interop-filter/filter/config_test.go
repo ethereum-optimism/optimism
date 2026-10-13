@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -43,4 +44,20 @@ func TestConfigCheck_AssumeValidBefore(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigCheck_MessageExpiryWindow(t *testing.T) {
+	cfg := &Config{
+		L2RPCs:             []string{"http://localhost:8545"},
+		RollupConfigs:      map[eth.ChainID]*rollup.Config{eth.ChainIDFromUInt64(901): {}},
+		BackfillDuration:   168 * time.Hour,
+		PollInterval:       time.Second,
+		ValidationInterval: time.Second,
+		RPCConcurrency:     1,
+		FetchConcurrency:   1,
+	}
+	cfg.MessageExpiryWindow = depset.MessageExpiryTimeSecondsInterop
+	require.NoError(t, cfg.Check())
+	cfg.MessageExpiryWindow = depset.MessageExpiryTimeSecondsInterop + 1
+	require.ErrorContains(t, cfg.Check(), "message-expiry-window 604801s exceeds protocol window 604800s")
 }
