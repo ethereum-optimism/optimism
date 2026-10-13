@@ -109,12 +109,15 @@ func TestCLIPCDResume(t *testing.T) {
 		require.NotNil(t, frozen.genesisTime)
 		journey.restartCold(committedWorkdir)
 
-		elapsedTimestamp := uint64(*frozen.genesisTime) + 1
-		require.NoError(t, journey.l1Client.Client().Call(nil, "anvil_setNextBlockTimestamp", elapsedTimestamp))
-		require.NoError(t, journey.l1Client.Client().Call(nil, "evm_mine"))
 		head, err := journey.l1Client.HeaderByNumber(t.Context(), nil)
 		require.NoError(t, err)
-		require.Greater(t, head.Time, uint64(*frozen.genesisTime))
+		// Move L1 past the committed genesis time by more than the warn threshold (1 hour).
+		elapsedTimestamp := max(uint64(*frozen.genesisTime)+3601, head.Time+1)
+		require.NoError(t, journey.l1Client.Client().Call(nil, "anvil_setNextBlockTimestamp", elapsedTimestamp))
+		require.NoError(t, journey.l1Client.Client().Call(nil, "evm_mine"))
+		head, err = journey.l1Client.HeaderByNumber(t.Context(), nil)
+		require.NoError(t, err)
+		require.Greater(t, head.Time, uint64(*frozen.genesisTime)+3600)
 
 		_, output := journey.runContinueWithOutput()
 		require.Contains(t, output, "committed genesis time has elapsed")
