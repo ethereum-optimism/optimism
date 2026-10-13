@@ -18,7 +18,7 @@ use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_actors::{derivation, engine, l1, l1_signer_updater, sequencer};
+use kona_node_actors::{derivation, engine, finality, l1, l1_signer_updater, sequencer};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
@@ -89,6 +89,9 @@ pub struct RollupNode {
 
 /// The lifetime future of whichever derivation actor the node is configured to run.
 type DerivationTask = Pin<Box<dyn Future<Output = Result<(), derivation::ActorError>> + Send>>;
+
+/// The lifetime future of the finality actor.
+type FinalityTask = Pin<Box<dyn Future<Output = Result<(), finality::ActorError>> + Send>>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -177,7 +180,6 @@ impl RollupNode {
         builder: derivation::Builder,
         engine: engine::Handle,
         head: watch::Receiver<BlockInfo>,
-        finalized: watch::Receiver<BlockInfo>,
     ) -> Result<DerivationTask, String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
@@ -191,8 +193,22 @@ impl RollupNode {
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(Box::pin(builder.build(adapters::Engine(engine), pipeline, head, finalized)))
+            Ok(Box::pin(builder.build(adapters::Engine(engine), pipeline, head)))
         }
+    }
+
+    /// Builds the finality actor when the node derives from L1; otherwise returns `None`, since
+    /// delegated derivation finalizes the delegate's blocks.
+    fn build_finality(
+        &self,
+        engine: engine::Handle,
+        finalized: watch::Receiver<BlockInfo>,
+    ) -> Option<FinalityTask> {
+        self.derivation_delegate_provider.is_none().then(|| {
+            let engine_state = engine.state();
+            Box::pin(finality::build(adapters::Engine(engine), engine_state, finalized))
+                as FinalityTask
+        })
     }
 
     /// Starts the signing backend when the node is in sequencer mode; otherwise returns `None`.
@@ -392,9 +408,9 @@ impl RollupNode {
         let l2_query_client = engine_client.as_ref().clone();
         let engine_actor = self.build_engine(engine_builder, engine_client);
 
-        let derivation_actor = self
-            .build_derivation(derivation_builder, engine.clone(), head.clone(), finalized.clone())
-            .await?;
+        let derivation_actor =
+            self.build_derivation(derivation_builder, engine.clone(), head.clone()).await?;
+        let finality_actor = self.build_finality(engine.clone(), finalized.clone());
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
@@ -492,6 +508,9 @@ impl RollupNode {
             Ok::<(), Infallible>(())
         });
         supervisor.spawn("derivation", derivation_actor);
+        if let Some(finality) = finality_actor {
+            supervisor.spawn("finality", finality);
+        }
         supervisor.spawn("engine", engine_actor);
         supervisor.wait().await
     }

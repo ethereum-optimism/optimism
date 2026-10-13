@@ -44,7 +44,12 @@ The [`RollupNode`][node] builds and starts the following actors.
   The [engine][engine] docs expand on this.
 - **L1 Actors**: Poll head, safe, and finalized blocks and
   publish the latest observations through watch channels.
-  Derivation, sequencing, and rollup RPC subscribe directly.
+  Derivation, finality, sequencing, and rollup RPC subscribe
+  directly.
+- **Finality Actor**: Finalizes derived L2 blocks once the
+  L1 blocks they were derived from finalize, following the
+  engine's published state. See the [derivation][derivation]
+  docs.
 - **L1 Signer Updater Actor**: Keeps the unsafe block signer
   current from the `SystemConfig` contract, for gossip
   validation and the signer actor.

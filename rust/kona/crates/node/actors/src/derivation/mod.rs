@@ -20,9 +20,6 @@ pub use engine::Engine;
 mod error;
 pub use error::ActorError;
 
-mod finalizer;
-pub(crate) use finalizer::L2Finalizer;
-
 mod handle;
 
 mod status;

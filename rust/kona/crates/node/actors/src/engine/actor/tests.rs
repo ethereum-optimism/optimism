@@ -14,7 +14,7 @@ use kona_engine::{
 use kona_genesis::ChainGenesis;
 use kona_protocol::BlockInfo;
 use op_alloy_consensus::OpTxType;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use rstest::rstest;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
@@ -311,18 +311,30 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     l2.assert_finished();
 }
 
-/// After Holocene, a derived payload the execution layer rejects is replaced by a deposits-only
-/// block built from the same attributes, without retrying the consolidation.
+/// How the execution layer treats the blocks a consolidation builds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdicts {
+    /// It accepts the block derived from the attributes.
+    Accepted,
+    /// It rejects that block, and accepts the deposits-only replacement.
+    Replaced,
+    /// It rejects both.
+    BothRejected,
+}
+
+/// A consolidation that cannot make an unsafe block safe builds and seals the derived attributes,
+/// and the L1 block they were derived from becomes the safe head's source.
 ///
-/// If the replacement is accepted, the engine replies that derivation must flush its channel, with
-/// the replacement as the safe head. If it is rejected too, the engine actor stops.
+/// After Holocene, a derived payload the execution layer rejects is replaced by a deposits-only
+/// block built from the same attributes, without retrying the consolidation. If the replacement is
+/// accepted, the engine replies that derivation must flush its channel, with the replacement as
+/// the safe head. If it is rejected too, the engine actor stops.
 #[rstest]
-#[case::replacement_accepted(true)]
-#[case::replacement_rejected(false)]
+#[case::accepted(Verdicts::Accepted)]
+#[case::replaced(Verdicts::Replaced)]
+#[case::both_rejected(Verdicts::BothRejected)]
 #[tokio::test(start_paused = true)]
-async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
-    #[case] replacement_accepted: bool,
-) {
+async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Verdicts) {
     let root = B256::repeat_byte(0x42);
     let payload = OpExecutionPayloadEnvelopeV3 {
         execution_payload: ExecutionPayloadV3::from_block_slow(&alloy_consensus::Block::<
@@ -346,9 +358,11 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
     let config = Arc::new(config);
 
     // A user transaction, which the deposits-only replacement drops.
-    let attributes = TestAttributesBuilder::new()
+    let mut attributes = TestAttributesBuilder::new()
         .with_transactions(vec![vec![OpTxType::Legacy as u8, 0xbb].into()])
         .build();
+    let source = BlockInfo { number: 7, ..Default::default() };
+    attributes.derived_from = Some(source);
     // The attributes extend the safe head, which is also the unsafe head.
     let state = TestEngineStateBuilder::new()
         .with_unsafe_head(attributes.parent)
@@ -364,37 +378,37 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
             validation_error: "invalid transaction".into(),
         })
     };
-    // The derived payload is built and sealed, and the execution layer rejects it.
+    // The derived payload is built and sealed.
     l2.expect_params(
         "engine_forkchoiceUpdatedV3",
         serde_json::json!([forkchoice, attributes.attributes]),
         started(),
     );
     l2.expect("engine_getPayloadV3", payload.clone());
-    l2.expect("engine_newPayloadV3", invalid());
-    // The deposits-only replacement is built and sealed.
-    l2.expect_params(
-        "engine_forkchoiceUpdatedV3",
-        serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
-        started(),
-    );
-    l2.expect("engine_getPayloadV3", payload);
-    if replacement_accepted {
+    if verdicts == Verdicts::Accepted {
         l2.expect("engine_newPayloadV3", valid());
         l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     } else {
         l2.expect("engine_newPayloadV3", invalid());
+        // The deposits-only replacement is built and sealed.
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
+            started(),
+        );
+        l2.expect("engine_getPayloadV3", payload);
+        if verdicts == Verdicts::Replaced {
+            l2.expect("engine_newPayloadV3", valid());
+            l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
+        } else {
+            l2.expect("engine_newPayloadV3", invalid());
+        }
     }
     let (handle, actor) = spawn(client, config.clone(), state);
 
     let consolidation = handle.consolidate(attributes).await;
 
-    if replacement_accepted {
-        let Consolidation { state, flush } = consolidation.unwrap();
-        assert!(flush);
-        assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
-        actor.abort();
-    } else {
+    if verdicts == Verdicts::BothRejected {
         assert!(consolidation.is_err(), "the engine stops without replying");
         let result = time::timeout(Duration::from_secs(10), actor).await.unwrap().unwrap();
         assert!(matches!(
@@ -403,6 +417,12 @@ async fn rejected_holocene_payload_is_replaced_by_deposits_only_block(
                 SealTaskError::DepositOnlyPayloadReattemptFailed
             )))
         ));
+    } else {
+        let Consolidation { state, flush } = consolidation.unwrap();
+        assert_eq!(flush, verdicts == Verdicts::Replaced);
+        assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
+        assert_eq!(state.safe_head_source(), Some(source));
+        actor.abort();
     }
     l1.assert_finished();
     l2.assert_finished();
@@ -429,6 +449,8 @@ async fn consolidation_that_resets_replies_with_the_reset_state() {
 
     assert!(!flush);
     assert_eq!(state.resets(), 1);
+    // The reset's safe head was not derived from a known L1 block.
+    assert_eq!(state.safe_head_source(), None);
     assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
     assert_eq!(*handle.state().borrow(), state);
     actor.abort();
@@ -458,6 +480,32 @@ async fn consolidation_skips_attributes_derived_before_a_reset() {
     let reset = reset.unwrap();
     assert_eq!(consolidation.unwrap(), Consolidation { state: reset, flush: false });
     actor.abort();
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A reset forgets the safe head's source, even when it keeps the safe head.
+#[tokio::test]
+async fn reset_forgets_the_safe_head_source() {
+    let config = config();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    expect_reset(&l1, &l2, Duration::ZERO);
+    // The second reset finds the same heads, so it sends no forkchoice update.
+    for _ in 0..3 {
+        l2.expect("eth_getBlockByNumber", L2Block::default());
+    }
+    l1.expect(
+        "eth_getBlockByHash",
+        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+    );
+    let (mut actor, _) = actor(client, config, EngineState::default(), Arc::new(NoopBlockSink));
+
+    actor.reset().await.unwrap();
+    actor.state =
+        actor.state.with_safe_head_source(Some(BlockInfo { number: 1, ..Default::default() }));
+    actor.reset().await.unwrap();
+
+    assert_eq!(actor.state.safe_head_source(), None);
     l1.assert_finished();
     l2.assert_finished();
 }
@@ -762,6 +810,57 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
     l2.assert_finished();
 }
 
+/// A consolidation whose attributes match the unsafe block at their height makes that block safe,
+/// with the attributes' L1 block as its source. Only the last attributes of a span send a
+/// forkchoice update.
+#[rstest]
+#[case::last_in_span(true)]
+#[case::within_a_span(false)]
+#[tokio::test]
+async fn consolidation_makes_a_matching_unsafe_block_safe(#[case] is_last_in_span: bool) {
+    let header = RpcHeader::new(alloy_consensus::Header::default());
+    let block_hash = header.hash;
+    let block: RpcBlock<op_alloy_rpc_types::Transaction> =
+        RpcBlock::new(header, BlockTransactions::Full(vec![]));
+    // Pin genesis to this block so its L2BlockInfo needs no L1-info deposit.
+    let cfg = Arc::new(RollupConfig {
+        genesis: ChainGenesis {
+            l2: BlockNumHash { hash: block_hash, number: 0 },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    l2.expect("eth_getBlockByNumber", block);
+    if is_last_in_span {
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+    }
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(1))
+        .with_safe_head(L2BlockInfo::default())
+        .with_finalized_head(L2BlockInfo::default())
+        .build();
+    let (mut actor, _) = actor(client, cfg, state, Arc::new(NoopBlockSink));
+    let source = BlockInfo { number: 7, ..Default::default() };
+    // Attributes that match the default block.
+    let attributes = OpAttributesWithParent::new(
+        OpPayloadAttributes { gas_limit: Some(0), ..Default::default() },
+        L2BlockInfo::default(),
+        Some(source),
+        is_last_in_span,
+    );
+
+    actor.handle_consolidate(attributes).await.unwrap();
+
+    assert_eq!(actor.state.safe_head().block_info.hash, block_hash);
+    assert_eq!(actor.state.safe_head_source(), Some(source));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
 /// A delegated safe head that the unsafe chain does not hold becomes the unsafe and safe head, with
 /// a forkchoice update.
 #[rstest]
@@ -800,6 +899,22 @@ async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
 
     assert_eq!(actor.state.unsafe_head(), safe_head);
     assert_eq!(actor.state.safe_head(), safe_head);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A request to finalize a block above the safe head, which a reset can leave behind, is dropped
+/// without asking the execution layer, and the engine keeps running.
+#[tokio::test]
+async fn finalize_drops_a_block_that_is_not_safe() {
+    let config = config();
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(2)).build();
+    let (mut actor, _) = actor(client, config, state, Arc::new(NoopBlockSink));
+
+    actor.handle_finalize(FinalizeBlockId::ByNumber(3)).await.unwrap();
+
+    assert_eq!(actor.state, state);
     l1.assert_finished();
     l2.assert_finished();
 }

@@ -291,6 +291,7 @@ impl Actor {
     /// matches them. Otherwise the attributes are built and sealed, reorging the unsafe chain.
     ///
     /// Attributes whose parent is not the safe head were derived before a reset, and are skipped.
+    /// Otherwise, the L1 block the attributes were derived from becomes the safe head's source.
     async fn handle_consolidate(
         &mut self,
         attributes: OpAttributesWithParent,
@@ -323,6 +324,7 @@ impl Actor {
             // batch.
             if matches && self.try_make_unsafe_block_safe(block, attributes.is_last_in_span).await?
             {
+                self.state = self.state.with_safe_head_source(attributes.derived_from);
                 return Ok(());
             }
         }
@@ -385,16 +387,20 @@ impl Actor {
     }
 
     /// Fetches the [`L2BlockInfo`] identified by `block_id`, makes it the finalized head, and
-    /// dispatches a forkchoice update to finalize the block.
+    /// dispatches a forkchoice update to finalize the block. A request for a block that is not
+    /// safe is dropped.
     async fn handle_finalize(
         &mut self,
         block_id: FinalizeBlockId,
     ) -> Result<(), FinalizeTaskError> {
         let block_number = block_id.number();
 
-        // Sanity check that the block that is being finalized is at least safe.
-        if self.state.safe_head().block_info.number < block_number {
-            return Err(FinalizeTaskError::BlockNotSafe);
+        // Only a safe block can be finalized. A reset can move the safe head back after the
+        // request was sent; finality asks again once the next L1 block finalizes.
+        let safe_head = self.state.safe_head().block_info.number;
+        if safe_head < block_number {
+            warn!(target: "engine", block_number, safe_head, "Dropping a request to finalize a block that is not safe");
+            return Ok(());
         }
 
         // Look up by hash when the caller pinned a specific hash (delegated polling supplies
@@ -522,7 +528,8 @@ impl Actor {
                 Err(err) => return Err(err.into()),
             }
         }
-        self.state = self.state.count_reset();
+        // The reset's safe head was not derived from a known L1 block.
+        self.state = self.state.count_reset().with_safe_head_source(None);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
         Ok(())
     }
@@ -544,8 +551,9 @@ impl Actor {
         //
         // NOTE:
         // We shouldn't retry the forkchoice update there. Since the heads are only updated
-        // here (except during consolidation, when the block is not the last in the batch) - the
-        // engine would get stuck retrying the forkchoice update.
+        // here (except during consolidation, when the block is not the last in the batch, and
+        // the safe head's source, which is not part of the forkchoice) - the engine would get
+        // stuck retrying the forkchoice update.
         if self.state.has_heads() && self.state == new_state {
             debug!(target: "engine", ?new_state, "No forkchoice update needed");
             return Ok(());
@@ -786,6 +794,10 @@ impl Actor {
         {
             Ok(new_block_ref) => {
                 info!(target: "engine", "Successfully imported payload");
+                if is_attributes_derived {
+                    // A deposits-only replacement is derived from the same L1 block.
+                    self.state = self.state.with_safe_head_source(attributes.derived_from);
+                }
                 new_block_ref
             }
             Err(InsertTaskError::UnexpectedPayloadStatus(e)) if attributes.is_deposits_only() => {

@@ -6,7 +6,7 @@ use kona_node_actors::{
     EngineClientError, EngineClientResult, NetworkEngineClient, SequencerEngineClient, derivation,
     engine,
     engine::{Consolidation, EngineState, FinalizeBlockId},
-    sequencer, signer,
+    finality, sequencer, signer,
 };
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -92,6 +92,14 @@ impl derivation::Engine for Engine {
     async fn follow_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
         trace!(target: "derivation", ?safe_head, "Sending delegated safe head to engine.");
         self.0.follow_safe_head(safe_head).await
+    }
+}
+
+#[async_trait]
+impl finality::Engine for Engine {
+    async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
+        trace!(target: "finality", ?block_id, "Sending finalized L2 block id to engine.");
+        self.0.finalize(block_id).await
     }
 }
 

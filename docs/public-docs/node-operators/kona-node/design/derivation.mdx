@@ -13,7 +13,6 @@ The derivation subsystem in kona-node is built around the derivation actor in `k
 
 - **Derivation actor**: The main actor responsible for running the derivation pipeline, built with `derivation::Builder` and reached through `derivation::Handle`
 - **OnlinePipeline**: A concrete implementation of the derivation pipeline using online providers
-- **L2Finalizer**: Tracks derived L2 blocks awaiting finalization
 - **Signal System**: Handles pipeline resets, hardfork activations, and error conditions
 
 ## Architecture
@@ -22,16 +21,16 @@ The derivation subsystem in kona-node is built around the derivation actor in `k
 
 `derivation::Builder::new` creates the actor's `DerivationStatus` publisher before any dependencies exist, so the node can hand the status to the RPC layer before building either actor. The builder then builds one of two actors, each returning its lifetime future:
 
-- `Builder::build` takes the engine, the derivation pipeline, and the L1 head and finalized block receivers, and derives payload attributes from L1.
+- `Builder::build` takes the engine, the derivation pipeline, and the L1 head receiver, and derives payload attributes from L1.
 - `Builder::build_delegated` takes the engine, the derivation delegate, and an L1 provider, and follows the delegate's safe head instead. It also starts by resetting the engine once the execution layer is synced.
 
-Derivation drives the engine; the engine never sends derivation anything on its own. Derivation starts by asking the engine to reset once the execution layer is synced, retrying while the engine reports it is still syncing, and resets its pipeline onto the safe head in the reply. It then consolidates each set of derived attributes and waits for the reply, which carries the engine state and whether to flush the channel of a block the engine replaced. The engine state counts the engine's resets. Whenever the count in a reply or in the engine's latest state is past the one derivation started from, derivation starts over from the engine's safe head, including after a reset another actor made that left the safe head where it was. Derivation reaches the engine only through the `derivation::Engine` trait, which also returns the engine's latest state and waits for its next reset. `Handle::status` subscribes to the published `DerivationStatus`. L1 head and finalized block updates arrive directly through watch receivers.
+Derivation drives the engine; the engine never sends derivation anything on its own. Derivation starts by asking the engine to reset once the execution layer is synced, retrying while the engine reports it is still syncing, and resets its pipeline onto the safe head in the reply. It then consolidates each set of derived attributes and waits for the reply, which carries the engine state and whether to flush the channel of a block the engine replaced. The engine state counts the engine's resets. Whenever the count in a reply or in the engine's latest state is past the one derivation started from, derivation starts over from the engine's safe head, including after a reset another actor made that left the safe head where it was. Derivation reaches the engine only through the `derivation::Engine` trait, which also returns the engine's latest state and waits for its next reset. `Handle::status` subscribes to the published `DerivationStatus`. L1 head updates arrive directly through a watch receiver.
 
 The actor publishes `DerivationStatus` through a watch channel after pipeline steps and signals. Its `current_l1` is the pipeline's current origin, so observing a newer L1 head does not advance this field until derivation processes it. Resets can move the published origin backwards. In delegated mode, the actor publishes the delegate's current L1 block only after validating the reported L1 information against the canonical chain.
 
 The actor coordinates with several other node components:
 - **Engine Actor**: Consolidates payload attributes and replies with the outcome, resets on request, and publishes its state
-- **L1 Actors**: Publish head and finalized block observations through watch channels
+- **L1 Actors**: Publish head block observations through a watch channel
 
 ### Pipeline Construction
 
@@ -69,11 +68,14 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 The derivation actor resets the engine, then derives from each engine reset to the next. Starting from an engine reset, it resets the pipeline onto the engine's safe head, then loops:
 
 1. **Engine reset**: If another actor reset the engine, derivation starts over from the engine's new state
-2. **Finalized L1 updates**: Finalizes derived L2 blocks whose L1 origin became final
-3. **Derivation**: Derives the next set of attributes and consolidates the engine's safe head with it. If the engine reset, derivation starts over from its new state; if the pipeline asks for a reset, derivation resets the engine and starts over
-4. **Out of data**: If the pipeline runs out of data, derivation waits for an L1 head update, finalizing derived L2 blocks as L1 blocks finalize meanwhile. If the engine resets first, derivation starts over from its new state
+2. **Derivation**: Derives the next set of attributes and consolidates the engine's safe head with it. If the engine reset, derivation starts over from its new state; if the pipeline asks for a reset, derivation resets the engine and starts over
+3. **Out of data**: If the pipeline runs out of data, derivation waits for an L1 head update. If the engine resets first, derivation starts over from its new state
 
-Engine resets and finalized L1 updates are therefore handled between sets of attributes, rather than after the pipeline runs out of data. An L1 head update that arrives while deriving is read once the pipeline runs out of data, so it resumes derivation. Blocks awaiting finalization are kept from one engine reset to the next, so a reset drops them.
+Engine resets are therefore handled between sets of attributes, rather than after the pipeline runs out of data. An L1 head update that arrives while deriving is read once the pipeline runs out of data, so it resumes derivation.
+
+### Finality
+
+The finality actor in `kona_node_actors::finality`, not derivation, finalizes derived blocks. It follows the engine's published state, which records the L1 block each safe head was derived from, and the finalized L1 block receiver. When an L1 block finalizes, it asks the engine to finalize the highest safe head it recorded whose source that L1 block covers. The published state coalesces, so the actor may miss some safe heads; it then finalizes the highest one it saw, and catches up when the next L1 block finalizes. An engine reset drops the safe heads recorded before it, whose sources an L1 reorg may have replaced. Delegated derivation runs no finality actor: it finalizes the delegate's finalized blocks itself.
 
 ### Stepping Logic
 
@@ -152,7 +154,7 @@ The engine actor executes these attributes, updates the L2 safe head, and replie
 
 ### With the L1 Actors
 
-The derivation actor subscribes directly to the head and finalized L1 block receivers published by the L1 polling actors. Head changes indicate when new L1 data is available for processing; finalized changes drive the `L2Finalizer`. These receivers retain the latest observation while derivation is busy, including reorgs. Initial snapshots do not trigger processing.
+The derivation actor subscribes directly to the head L1 block receiver published by the L1 polling actors. Head changes indicate when new L1 data is available for processing. The receiver retains the latest observation while derivation is busy, including reorgs. Initial snapshots do not trigger processing. The finality actor subscribes to the finalized L1 block receiver the same way.
 
 ### With RPC Layer
 

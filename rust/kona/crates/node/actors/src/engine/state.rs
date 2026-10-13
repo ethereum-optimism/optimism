@@ -2,7 +2,7 @@
 
 use alloy_rpc_types_engine::ForkchoiceState;
 use kona_engine::Metrics;
-use kona_protocol::L2BlockInfo;
+use kona_protocol::{BlockInfo, L2BlockInfo};
 
 /// The engine's view of the L2 chain: its heads at each safety level.
 ///
@@ -30,6 +30,9 @@ pub struct EngineState {
     safe_head: L2BlockInfo,
     /// Derived from finalized L1 data with only finalized dependencies (highest safety level).
     finalized_head: L2BlockInfo,
+    /// The L1 block the safe head was derived from, if a consolidation made it safe. Unknown after
+    /// a reset, or once a delegated safe head replaces it.
+    safe_head_source: Option<BlockInfo>,
     /// How many times the engine has reset. A reset can move every head, so a reader that follows
     /// the engine's chain starts over when this changes.
     resets: u64,
@@ -54,6 +57,17 @@ impl EngineState {
     /// Returns the current finalized head.
     pub const fn finalized_head(&self) -> L2BlockInfo {
         self.finalized_head
+    }
+
+    /// Returns the L1 block the safe head was derived from, if known.
+    pub const fn safe_head_source(&self) -> Option<BlockInfo> {
+        self.safe_head_source
+    }
+
+    /// Returns the state with the given source for its safe head.
+    #[must_use]
+    pub const fn with_safe_head_source(self, safe_head_source: Option<BlockInfo>) -> Self {
+        Self { safe_head_source, ..self }
     }
 
     /// Returns how many times the engine has reset.
@@ -84,11 +98,12 @@ impl EngineState {
 
     /// Returns whether any head is set, as it is once the initial forkchoice state is sent.
     pub fn has_heads(&self) -> bool {
-        Self { resets: 0, ..*self } != Self::default()
+        [self.unsafe_head, self.local_safe_head, self.safe_head, self.finalized_head] !=
+            [L2BlockInfo::default(); 4]
     }
 
     /// Applies the update to the heads, keeping each head the update does not specify. Returns the
-    /// new state.
+    /// new state, which forgets the safe head's source if the safe head changes.
     #[must_use]
     pub fn apply_update(self, update: HeadsUpdate) -> Self {
         if let Some(unsafe_head) = update.unsafe_head {
@@ -118,6 +133,11 @@ impl EngineState {
             local_safe_head: update.local_safe_head.unwrap_or(self.local_safe_head),
             safe_head: update.safe_head.unwrap_or(self.safe_head),
             finalized_head: update.finalized_head.unwrap_or(self.finalized_head),
+            safe_head_source: if update.safe_head.is_some_and(|head| head != self.safe_head) {
+                None
+            } else {
+                self.safe_head_source
+            },
             resets: self.resets,
         }
     }
@@ -179,6 +199,29 @@ mod test {
                 ..Default::default()
             });
         }
+    }
+
+    /// The safe head's source lasts until the safe head changes.
+    #[test]
+    fn safe_head_source_lasts_until_the_safe_head_changes() {
+        let safe_head = |number| L2BlockInfo {
+            block_info: BlockInfo { number, ..Default::default() },
+            ..Default::default()
+        };
+        let source = Some(BlockInfo { number: 7, ..Default::default() });
+        let state = EngineState::default()
+            .apply_update(HeadsUpdate { safe_head: Some(safe_head(1)), ..Default::default() })
+            .with_safe_head_source(source);
+
+        let unchanged = state.apply_update(HeadsUpdate {
+            unsafe_head: Some(safe_head(2)),
+            safe_head: Some(safe_head(1)),
+            ..Default::default()
+        });
+        assert_eq!(unchanged.safe_head_source(), source);
+        let changed =
+            state.apply_update(HeadsUpdate { safe_head: Some(safe_head(2)), ..Default::default() });
+        assert_eq!(changed.safe_head_source(), None);
     }
 
     #[rstest]
