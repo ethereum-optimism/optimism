@@ -4,28 +4,28 @@ description: "Set up logging, Prometheus metrics, and Grafana dashboards for kon
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 This guide covers observability for a running `kona-node`: adjusting
 log verbosity, filtering log targets, and collecting Prometheus
 metrics into Grafana dashboards.
 
 ## Logging
 
-`kona-node` provides a `-v` (or `--v`) flag as a way to set
-the "verbosity" level for logs. By default, the verbosity level
-is set to `3`, which is the INFO level. The level ranges from `0`
-being no logs to `5` which includes trace logs. Log levels are
-listed below, with each level including the one below it.
+<Unreleased component="kona-node" />
 
-- `5`: `TRACE` - very verbose logs that provide a detailed trace
-- `4`: `DEBUG` - logs meant to print debugging information
-- `3`: `INFO` - informational logs
-- `2`: `WARN` - includes warning and error logs
-- `1`: `ERROR` - only error logs are shown
-- `0`: No logs
+`kona-node` sets the most detailed level it logs at with the `--logs.level`
+flag, or the `KONA_LOG_LEVEL` environment variable. It applies to both stdout
+and file logs. From the least detailed to the most, the levels are:
 
-The default verbosity level is `-vvv` which is the `3` or `INFO`
-level. To set the `kona-node` to print `DEBUG` logs or level `4`,
-run the node like so: `kona-node node -vvvv`.
+- `error`: only error logs
+- `warn`: warning and error logs
+- `info`: informational logs, and the levels above. This is the default.
+- `debug`: logs meant to print debugging information, and the levels above
+- `trace`: very verbose logs that provide a detailed trace
+
+To log at the `debug` level, run the node like so:
+`kona-node node --logs.level debug`.
 
 ### Filtering Log Targets
 

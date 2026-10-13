@@ -91,7 +91,6 @@ services:
       - stf-net
     command: >
       node
-      -vvv
       --chain optimism-sepolia
       --metrics.enabled
       --metrics.port ${KONA_NODE_METRICS_PORT:-9002}

@@ -146,7 +146,8 @@ mod tests {
     #[test]
     fn test_parse_node_flags() {
         let flags = [
-            "-vvvv",
+            "--logs.level",
+            "debug",
             "--chain",
             "8453",
             "--chain.hardfork.karst",
@@ -156,7 +157,7 @@ mod tests {
             "--metrics.enabled",
         ];
         let Commands::Node(node) = try_parse_node(&flags).unwrap().subcommand;
-        assert_eq!(node.log_args.level, 4);
+        assert_eq!(node.log_args.level, kona_cli::LogLevel::Debug);
         assert_eq!(node.chain.l2_chain_id.unwrap().id(), 8453);
         assert_eq!(node.chain.overrides.karst, Some(123));
         assert!(node.metrics.is_enabled());

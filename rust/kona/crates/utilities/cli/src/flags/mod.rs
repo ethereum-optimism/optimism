@@ -3,7 +3,7 @@
 //! These are cli flags that are shared across binaries to standardize kona's services CLI UX.
 
 mod log;
-pub use log::LogArgs;
+pub use log::{LogArgs, LogLevel};
 
 mod metrics;
 pub use metrics::MetricsArgs;
