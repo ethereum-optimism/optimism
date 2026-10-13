@@ -171,7 +171,7 @@ contract L1CrossDomainMessenger_BaseGas_Test is CommonTest {
     /// @notice Tests that the relay getters return the L2 `GasConstants` values.
     function test_baseGas_relayConstants_succeeds() external view {
         assertEq(l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), GasConstants.L2_RELAY_CONSTANT_OVERHEAD);
-        assertEq(l1CrossDomainMessenger.RELAY_CALL_OVERHEAD(), GasConstants.L2_RELAY_CALL_OVERHEAD);
+        assertEq(l1CrossDomainMessenger.RELAY_CALL_OVERHEAD(), GasConstants.RELAY_CALL_OVERHEAD);
         assertEq(l1CrossDomainMessenger.RELAY_RESERVED_GAS(), GasConstants.L2_RELAY_RESERVED_GAS);
         assertEq(l1CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER(), GasConstants.L2_RELAY_GAS_CHECK_BUFFER);
     }

@@ -3,7 +3,8 @@ pragma solidity ^0.8.0;
 
 // Gas budgets for `CrossDomainMessenger.relayMessage`, named for the chain the relay executes on. A
 // messenger uses its own chain's values in `relayMessage` and the other chain's values in `baseGas`,
-// so each value must cover the worst case on the chain it is named for.
+// so each value must cover the worst case on the chain it is named for. `RELAY_CALL_OVERHEAD` is
+// shared because `SafeCall.hasMinGas` is.
 // File-level rather than a library so that contract constants can be initialized from them. Import
 // as `import "src/libraries/GasConstants.sol" as GasConstants;`. NatSpec on file-level constants
 // accepts only `@dev`.
@@ -20,7 +21,7 @@ pragma solidity ^0.8.0;
 // To set: measure that path on the chain's EVM with cold storage, and add margin.
 
 /// @dev Set empirically for pre-Glamsterdam L1. Its slack also absorbs EIP-8037 state gas for value
-///      sent to a new account; see `L1_RELAY_CALL_OVERHEAD`.
+///      sent to a new account; see `RELAY_CALL_OVERHEAD`.
 uint64 constant L1_RELAY_CONSTANT_OVERHEAD = 200_000;
 
 /// @dev Set empirically.
@@ -30,19 +31,16 @@ uint64 constant L2_RELAY_CONSTANT_OVERHEAD = 200_000;
 //                       Call overhead                        //
 ////////////////////////////////////////////////////////////////
 
-// `SafeCall.hasMinGas` on the receiving chain requires 40,000 gas above `minGasLimit * 64 / 63` for
-// the CALL's dynamic costs (cold access, value transfer, new account). Used only by `baseGas`, which
-// must supply at least that much.
+// `SafeCall.hasMinGas` requires 40,000 gas above `minGasLimit * 64 / 63` for the CALL's dynamic
+// costs (cold access, value transfer, new account). Used only by `baseGas`, which must supply at
+// least that much. Shared by both chains because `SafeCall.hasMinGas` is.
 // To set: at least the allowance hardcoded in `SafeCall.hasMinGas`. Change them together.
 
-/// @dev Sending value to a new account also costs EIP-8037 state gas (183,600), which this does not
-///      cover; `baseGas` absorbs it in the other budgets' slack. Measured under Amsterdam, an empty
-///      message needs 391,338 against a `baseGas` of 415,160.
+/// @dev On L1, sending value to a new account also costs EIP-8037 state gas (183,600), which this
+///      does not cover; `baseGas` absorbs it in the other budgets' slack. Measured under Amsterdam,
+///      an empty message needs 391,338 against a `baseGas` of 415,160.
 ///      `test_relayMessage_valueToNewAccount_succeeds` covers it.
-uint64 constant L1_RELAY_CALL_OVERHEAD = 40_000;
-
-/// @dev Matches `SafeCall.hasMinGas`.
-uint64 constant L2_RELAY_CALL_OVERHEAD = 40_000;
+uint64 constant RELAY_CALL_OVERHEAD = 40_000;
 
 ////////////////////////////////////////////////////////////////
 //                        Reserved gas                        //

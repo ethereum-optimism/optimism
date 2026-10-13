@@ -33,8 +33,8 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     /// @notice See `GasConstants.L1_RELAY_CONSTANT_OVERHEAD`.
     uint64 internal constant REMOTE_RELAY_CONSTANT_OVERHEAD = GasConstants.L1_RELAY_CONSTANT_OVERHEAD;
 
-    /// @notice See `GasConstants.L1_RELAY_CALL_OVERHEAD`.
-    uint64 internal constant REMOTE_RELAY_CALL_OVERHEAD = GasConstants.L1_RELAY_CALL_OVERHEAD;
+    /// @notice See `GasConstants.RELAY_CALL_OVERHEAD`.
+    uint64 internal constant REMOTE_RELAY_CALL_OVERHEAD = GasConstants.RELAY_CALL_OVERHEAD;
 
     /// @notice See `GasConstants.L1_RELAY_RESERVED_GAS`.
     uint64 internal constant REMOTE_RELAY_RESERVED_GAS = GasConstants.L1_RELAY_RESERVED_GAS;

@@ -190,7 +190,7 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
     }
 
     /// @notice Tests that `relayMessage` has enough base gas to send value to an account that doesn't
-    ///         exist yet, which costs EIP-8037 state gas on top of `GasConstants.L1_RELAY_CALL_OVERHEAD`.
+    ///         exist yet, which costs EIP-8037 state gas on top of `GasConstants.RELAY_CALL_OVERHEAD`.
     ///         Not isolated; see `testFuzz_relayMessage_baseGasSufficient_succeeds`.
     /// forge-config: default.isolate = false
     function test_relayMessage_valueToNewAccount_succeeds() external {
@@ -240,7 +240,7 @@ contract L2CrossDomainMessenger_BaseGas_Test is CommonTest {
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
 
         assertEq(l2CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), GasConstants.L1_RELAY_CONSTANT_OVERHEAD);
-        assertEq(l2CrossDomainMessenger.RELAY_CALL_OVERHEAD(), GasConstants.L1_RELAY_CALL_OVERHEAD);
+        assertEq(l2CrossDomainMessenger.RELAY_CALL_OVERHEAD(), GasConstants.RELAY_CALL_OVERHEAD);
         assertEq(l2CrossDomainMessenger.RELAY_RESERVED_GAS(), GasConstants.L1_RELAY_RESERVED_GAS);
         assertEq(l2CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER(), GasConstants.L1_RELAY_GAS_CHECK_BUFFER);
     }
