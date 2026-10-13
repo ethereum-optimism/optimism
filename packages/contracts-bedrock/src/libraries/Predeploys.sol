@@ -236,11 +236,14 @@ library Predeploys {
     }
 
     /// @notice Returns true if the predeploy is upgradeable. In this context, upgradeable means that the predeploy
-    ///         is in the predeploy namespace and it is proxied.
+    ///         is in the predeploy namespace and it is proxied. The non-proxied predeploys are
+    ///         listed by hand instead of looked up in `getAllRecords()`, so that callers do not
+    ///         compile in the whole record table. The list must match the records with
+    ///         `isProxied = false`; `Predeploys_IsUpgradeable_Test` checks this.
     /// @param _proxy The address of the predeploy.
     /// @return isUpgradeable_ True if the predeploy is upgradeable, false otherwise.
     function isUpgradeable(address _proxy) internal pure returns (bool isUpgradeable_) {
-        isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy);
+        isUpgradeable_ = isPredeployNamespace(_proxy) && _proxy != WETH && _proxy != GOVERNANCE_TOKEN;
     }
 
     /// @notice Returns all predeploy implementation records.
@@ -257,6 +260,7 @@ library Predeploys {
     ///        3. scripts/L2Genesis.s.sol
     ///           - Add a `setXxx()` setter function.
     ///           - Call it from `setPredeployImplementations()`.
+    ///        4. If the predeploy is not proxied, exclude it in `isUpgradeable()` above.
     ///      Non-proxied records (isProxied = false) are appended at the end and must be skipped
     ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must

@@ -240,6 +240,45 @@ contract Predeploys_GetAllRecords_Test is Predeploys_TestInit {
     }
 }
 
+/// @title Predeploys_IsUpgradeable_Test
+/// @notice Tests the `isUpgradeable` function of the `Predeploys` library.
+contract Predeploys_IsUpgradeable_Test is Predeploys_TestInit {
+    /// @notice Tests that `isUpgradeable` matches the `isProxied` flag of every record, so that a
+    ///         non-proxied predeploy cannot be added to `getAllRecords` without also being excluded
+    ///         in `isUpgradeable`.
+    function test_isUpgradeable_matchesRecords_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            assertEq(
+                Predeploys.isUpgradeable(records[i].proxy),
+                records[i].isProxied,
+                string.concat(Predeploys.implName(records[i]), ": isUpgradeable does not match isProxied")
+            );
+        }
+    }
+
+    /// @notice Tests that every predeploy namespace address without a record is upgradeable.
+    function test_isUpgradeable_unlistedNamespaceAddress_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        uint160 prefix = uint160(0x420) << 148;
+        for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {
+            address addr = address(prefix | uint160(i));
+            bool listed = false;
+            for (uint256 j = 0; j < records.length; j++) {
+                if (records[j].proxy == addr) listed = true;
+            }
+            if (listed) continue;
+            assertTrue(Predeploys.isUpgradeable(addr), vm.toString(addr));
+        }
+    }
+
+    /// @notice Tests that an address outside the predeploy namespace is not upgradeable.
+    function testFuzz_isUpgradeable_outsideNamespace_succeeds(address _addr) external pure {
+        vm.assume(!Predeploys.isPredeployNamespace(_addr));
+        assertFalse(Predeploys.isUpgradeable(_addr));
+    }
+}
+
 /// @title Predeploys_Interop_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Predeploys` contract
 ///         or are testing multiple functions at once, using interop mode.
