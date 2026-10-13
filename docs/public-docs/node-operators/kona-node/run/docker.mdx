@@ -4,6 +4,10 @@ description: "Run kona-node with op-reth using Kona's pre-packaged docker-compos
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
+<Unreleased component="kona-node" />
+
 <Info>
 This guide uses Kona's pre-packaged docker config.
 
@@ -91,7 +95,7 @@ By default, the recipe is configured for **OP Sepolia**. To sync a different OP 
 2. Modify the docker-compose.yaml:
    - Update `op-reth --chain` parameter
    - Update `op-reth --rollup.sequencer-http` endpoint
-   - Update `kona-node --chain` parameter, or replace it with `--l2-config-file` for a chain that is not in the superchain registry
+   - Update `kona-node --chain` parameter, or replace it with `--chain.rollup-config` for a chain that is not in the superchain registry
 
 ### Port Configuration
 

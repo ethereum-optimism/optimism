@@ -82,13 +82,13 @@ mod tests {
 
     /// The node subcommand's required flags.
     const REQUIRED_NODE_FLAGS: [&str; 8] = [
-        "--l1-eth-rpc",
+        "--l1.eth-url",
         "http://localhost:8545",
-        "--l1-beacon",
+        "--l1.beacon-url",
         "http://localhost:5052",
-        "--l2-engine-rpc",
+        "--l2.engine.url",
         "http://localhost:8551",
-        "--l2-engine-jwt-secret",
+        "--l2.engine.jwt-secret",
         "/path/to/jwt.hex",
     ];
 
@@ -149,7 +149,7 @@ mod tests {
             "-vvvv",
             "--chain",
             "8453",
-            "--karst-override",
+            "--chain.hardfork.karst",
             "123",
             "--logs.stdout.format",
             "json",
@@ -158,7 +158,7 @@ mod tests {
         let Commands::Node(node) = try_parse_node(&flags).unwrap().subcommand;
         assert_eq!(node.log_args.level, 4);
         assert_eq!(node.chain.l2_chain_id.unwrap().id(), 8453);
-        assert_eq!(node.chain.overrides.karst_override, Some(123));
+        assert_eq!(node.chain.overrides.karst, Some(123));
         assert!(node.metrics.is_enabled());
 
         // The flags belong to the node subcommand, so they cannot precede it.

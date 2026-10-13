@@ -30,7 +30,8 @@ use tracing::{debug, error, info};
 ///
 /// Configuration can be provided through:
 /// - Command-line arguments
-/// - Environment variables (prefixed with `KONA_NODE_`)
+/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_LOG_` and `KONA_METRICS_` for the
+///   logging and metrics flags)
 /// - Configuration files (for rollup config)
 ///
 /// # Examples
@@ -38,18 +39,18 @@ use tracing::{debug, error, info};
 /// ```bash
 /// # Follow OP Mainnet with default settings
 /// kona-node node --chain optimism \
-///                --l1-eth-rpc http://localhost:8545 \
-///                --l1-beacon http://localhost:5052 \
-///                --l2-engine-rpc http://localhost:8551 \
-///                --l2-engine-jwt-secret /path/to/jwt.hex
+///                --l1.eth-url http://localhost:8545 \
+///                --l1.beacon-url http://localhost:5052 \
+///                --l2.engine.url http://localhost:8551 \
+///                --l2.engine.jwt-secret /path/to/jwt.hex
 ///
 /// # Run a node that can sequence a custom chain
 /// kona-node node --sequencer.enabled \
-///                --l2-config-file /path/to/rollup.json \
-///                --l1-eth-rpc http://localhost:8545 \
-///                --l1-beacon http://localhost:5052 \
-///                --l2-engine-rpc http://localhost:8551 \
-///                --l2-engine-jwt-secret /path/to/jwt.hex \
+///                --chain.rollup-config /path/to/rollup.json \
+///                --l1.eth-url http://localhost:8545 \
+///                --l1.beacon-url http://localhost:5052 \
+///                --l2.engine.url http://localhost:8551 \
+///                --l2.engine.jwt-secret /path/to/jwt.hex \
 ///                --sequencer.signer.key.path /path/to/sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
@@ -166,11 +167,11 @@ impl NodeCommand {
     /// secret file.
     pub fn endpoints(&self) -> anyhow::Result<RollupNodeEndpoints> {
         Ok(RollupNodeEndpoints {
-            l1_rpc: self.l1_rpc_args.l1_eth_rpc.clone(),
-            l1_beacon: self.l1_rpc_args.l1_beacon.clone(),
-            l2_engine: self.l2_client_args.l2_engine_rpc.clone(),
+            l1_rpc: self.l1_rpc_args.eth_url.clone(),
+            l1_beacon: self.l1_rpc_args.beacon_url.clone(),
+            l2_engine: self.l2_client_args.engine_url.clone(),
             l2_jwt_secret: self.l2_client_args.jwt_secret()?,
-            derivation_delegate: self.derivation_delegate_args.l2_follow_source.clone(),
+            derivation_delegate: self.derivation_delegate_args.cl_url.clone(),
         })
     }
 
@@ -200,7 +201,7 @@ impl NodeCommand {
         if matches!(error, RollupNodeError::JwtRejected) {
             error!(
                 target: "rollup_node",
-                "Check that --l2-engine-jwt-secret holds the engine's JWT secret, and that the \
+                "Check that --l2.engine.jwt-secret holds the engine's JWT secret, and that the \
                  node's and the engine's clocks agree"
             );
         }
@@ -221,13 +222,13 @@ mod tests {
         &[
             "--chain",
             "10",
-            "--l1-eth-rpc",
+            "--l1.eth-url",
             "http://localhost:8545",
-            "--l1-beacon",
+            "--l1.beacon-url",
             "http://localhost:5052",
-            "--l2-engine-rpc",
+            "--l2.engine.url",
             "http://localhost:8551",
-            "--l2-engine-jwt-secret",
+            "--l2.engine.jwt-secret",
             "/path/to/jwt.hex",
         ]
     }
@@ -241,38 +242,38 @@ mod tests {
     }
 
     #[test]
-    fn test_node_cli_missing_l1_eth_rpc() {
+    fn test_node_cli_missing_l1_eth_url() {
         let err = NodeCommand::try_parse_from(["node"]).unwrap_err();
-        assert!(err.to_string().contains("--l1-eth-rpc"));
+        assert!(err.to_string().contains("--l1.eth-url"));
     }
 
     #[test]
-    fn test_node_cli_missing_l1_beacon() {
-        let err = NodeCommand::try_parse_from(["node", "--l1-eth-rpc", "http://localhost:8545"])
+    fn test_node_cli_missing_l1_beacon_url() {
+        let err = NodeCommand::try_parse_from(["node", "--l1.eth-url", "http://localhost:8545"])
             .unwrap_err();
-        assert!(err.to_string().contains("--l1-beacon"));
+        assert!(err.to_string().contains("--l1.beacon-url"));
     }
 
     #[test]
-    fn test_node_cli_missing_l2_engine_rpc() {
+    fn test_node_cli_missing_l2_engine_url() {
         let err = NodeCommand::try_parse_from([
             "node",
-            "--l1-eth-rpc",
+            "--l1.eth-url",
             "http://localhost:8545",
-            "--l1-beacon",
+            "--l1.beacon-url",
             "http://localhost:5052",
         ])
         .unwrap_err();
-        assert!(err.to_string().contains("--l2-engine-rpc"));
+        assert!(err.to_string().contains("--l2.engine.url"));
     }
 
     /// Required flags whose URLs nothing listens on, so that any network I/O fails.
     const UNREACHABLE_FLAGS: [&str; 6] = [
-        "--l1-eth-rpc",
+        "--l1.eth-url",
         "http://127.0.0.1:1",
-        "--l1-beacon",
+        "--l1.beacon-url",
         "http://127.0.0.1:2",
-        "--l2-engine-rpc",
+        "--l2.engine.url",
         "http://127.0.0.1:3",
     ];
 
@@ -287,7 +288,7 @@ mod tests {
         let command = NodeCommand::try_parse_from(
             std::iter::once("node")
                 .chain(UNREACHABLE_FLAGS)
-                .chain(["--l2-engine-jwt-secret", &jwt_path])
+                .chain(["--l2.engine.jwt-secret", &jwt_path])
                 .chain(args.iter().copied()),
         )
         .unwrap();
@@ -345,7 +346,7 @@ mod tests {
     #[test]
     fn test_endpoints_with_a_follow_source() {
         let (command, _jwt) =
-            parse_node(&["--chain", "optimism", "--l2-follow-source", "http://127.0.0.1:5"]);
+            parse_node(&["--chain", "optimism", "--l2.cl-url", "http://127.0.0.1:5"]);
 
         let endpoints = command.endpoints().unwrap();
 
@@ -365,9 +366,9 @@ mod tests {
         serde_json::to_writer(&mut l1_file, &serde_json::json!({"chainId": 900})).unwrap();
 
         let (command, _jwt) = parse_node(&[
-            "--l2-config-file",
+            "--chain.rollup-config",
             rollup_file.path().to_str().unwrap(),
-            "--l1-config-file",
+            "--chain.l1-config",
             l1_file.path().to_str().unwrap(),
         ]);
 

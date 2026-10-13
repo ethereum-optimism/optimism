@@ -562,12 +562,12 @@ func startMixedKonaNode(
 	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o640))
 
 	envVars := []string{
-		"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
-		"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
-		"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
-		"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
-		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
-		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
+		"KONA_NODE_L1_ETH_URL=" + l1EL.UserRPC(),
+		"KONA_NODE_L1_BEACON_URL=" + l1CL.beaconHTTPAddr,
+		"KONA_NODE_L2_ENGINE_URL=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
+		"KONA_NODE_L2_ENGINE_JWT_SECRET=" + l2EL.JWTPath(),
+		"KONA_NODE_CHAIN_ROLLUP_CONFIG=" + tempRollupCfgPath,
+		"KONA_NODE_CHAIN_L1_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
@@ -586,7 +586,7 @@ func startMixedKonaNode(
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
-		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
+		envVars = append(envVars, "KONA_NODE_CHAIN_DEPENDENCY_SET="+tempDepSetPath)
 	}
 
 	if isSequencer {

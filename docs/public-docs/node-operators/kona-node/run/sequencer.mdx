@@ -21,12 +21,12 @@ To run a Kona node that can sequence, pass `--sequencer.enabled` and a block sig
 ```bash
 kona-node node \
   --sequencer.enabled \
-  --l1-eth-rpc=http://l1-node:8545 \
-  --l1-beacon=http://l1-beacon:5052 \
-  --l2-engine-rpc=http://l2-execution:8551 \
-  --l2-engine-jwt-secret=./jwt.hex \
+  --l1.eth-url=http://l1-node:8545 \
+  --l1.beacon-url=http://l1-beacon:5052 \
+  --l2.engine.url=http://l2-execution:8551 \
+  --l2.engine.jwt-secret=./jwt.hex \
   --sequencer.signer.key.path=./sequencer.key \
-  --l2-config-file=./rollup.json
+  --chain.rollup-config=./rollup.json
 ```
 
 Sequencers start stopped after every restart, and the sequencer's admin methods are served only by a node run with `--sequencer.enabled`. Once the node is running, start block production through the admin API:
@@ -49,11 +49,11 @@ A sequencer requires all standard node arguments plus `--sequencer.enabled` and 
 
 | Argument | Flag | Environment Variable | Description |
 |----------|------|---------------------|-------------|
-| **L1 RPC** | `--l1-eth-rpc` | `KONA_NODE_L1_ETH_RPC` | L1 execution client RPC URL |
-| **L1 Beacon** | `--l1-beacon` | `KONA_NODE_L1_BEACON` | L1 beacon API URL |
-| **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
-| **JWT Secret** | `--l2-engine-jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
-| **Rollup Config** | `--l2-config-file` or `--chain` | `KONA_NODE_ROLLUP_CONFIG` or `KONA_NODE_L2_CHAIN_ID` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
+| **L1 RPC** | `--l1.eth-url` | `KONA_NODE_L1_ETH_URL` | L1 execution client RPC URL |
+| **L1 Beacon** | `--l1.beacon-url` | `KONA_NODE_L1_BEACON_URL` | L1 beacon API URL |
+| **L2 Engine** | `--l2.engine.url` | `KONA_NODE_L2_ENGINE_URL` | L2 engine API endpoint |
+| **JWT Secret** | `--l2.engine.jwt-secret` | `KONA_NODE_L2_ENGINE_JWT_SECRET` | Path to JWT secret file |
+| **Rollup Config** | `--chain.rollup-config` or `--chain` | `KONA_NODE_CHAIN_ROLLUP_CONFIG` or `KONA_NODE_CHAIN` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
 | **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The environment variable must be `true` or unset |
 | **Block Signer** | `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH`, `KONA_NODE_SEQUENCER_SIGNER_URL`, `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
 
@@ -72,12 +72,12 @@ The full flag catalogue, including the standard node arguments every node takes,
 ```bash
 kona-node node \
   --sequencer.enabled \
-  --l1-eth-rpc=http://localhost:8545 \
-  --l1-beacon=http://localhost:5052 \
-  --l2-engine-rpc=http://localhost:8551 \
-  --l2-engine-jwt-secret=./jwt.hex \
+  --l1.eth-url=http://localhost:8545 \
+  --l1.beacon-url=http://localhost:5052 \
+  --l2.engine.url=http://localhost:8551 \
+  --l2.engine.jwt-secret=./jwt.hex \
   --sequencer.signer.key.path=./sequencer.key \
-  --l2-config-file=./rollup.json
+  --chain.rollup-config=./rollup.json
 ```
 
 ### Sequencer with Conductor
@@ -86,12 +86,12 @@ kona-node node \
   --sequencer.enabled \
   --sequencer.conductor-url=http://conductor:8080 \
   --sequencer.l1-confs=6 \
-  --l1-eth-rpc=http://l1-node:8545 \
-  --l1-beacon=http://l1-beacon:5052 \
-  --l2-engine-rpc=http://l2-execution:8551 \
-  --l2-engine-jwt-secret=./jwt.hex \
+  --l1.eth-url=http://l1-node:8545 \
+  --l1.beacon-url=http://l1-beacon:5052 \
+  --l2.engine.url=http://l2-execution:8551 \
+  --l2.engine.jwt-secret=./jwt.hex \
   --sequencer.signer.key.path=./sequencer.key \
-  --l2-config-file=./rollup.json
+  --chain.rollup-config=./rollup.json
 ```
 
 ## Key Considerations

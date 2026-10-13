@@ -14,32 +14,39 @@ use tracing::debug;
 /// Flags that select the chain the node follows and load its configuration.
 ///
 /// The rollup config comes from exactly one of `--chain`, which looks it up in the superchain
-/// registry, and `--l2-config-file`.
+/// registry, and `--chain.rollup-config`.
 #[derive(Parser, Debug, Default, Clone, PartialEq, Eq)]
 #[command(group(
-    ArgGroup::new("rollup_config").required(true).args(["l2_chain_id", "l2_config_file"])
+    ArgGroup::new("rollup_config").required(true).args(["l2_chain_id", "rollup_config_file"])
 ))]
 #[command(next_help_heading = "Chain")]
 pub struct ChainArgs {
     /// The L2 chain to load the rollup config for from the superchain registry, by chain ID or
     /// name.
-    #[arg(long = "chain", env = "KONA_NODE_L2_CHAIN_ID")]
+    #[arg(long = "chain", env = "KONA_NODE_CHAIN", value_name = "CHAIN")]
     pub l2_chain_id: Option<alloy_chains::Chain>,
     /// Path to an L2 rollup configuration file, for a chain that is not in the superchain
     /// registry.
-    #[arg(long, env = "KONA_NODE_ROLLUP_CONFIG")]
-    pub l2_config_file: Option<PathBuf>,
-    /// Path to a custom L1 chain configuration or genesis file
-    /// (overrides the default L1 configuration from the registry)
-    #[arg(long, env = "KONA_NODE_L1_CHAIN_CONFIG")]
+    #[arg(
+        long = "chain.rollup-config",
+        env = "KONA_NODE_CHAIN_ROLLUP_CONFIG",
+        value_name = "PATH"
+    )]
+    pub rollup_config_file: Option<PathBuf>,
+    /// Path to the L1 chain config, or to an L1 genesis file, whose `config` field holds it. By
+    /// default, the L1 chain config is looked up by the rollup config's L1 chain ID.
+    #[arg(long = "chain.l1-config", env = "KONA_NODE_CHAIN_L1_CONFIG", value_name = "PATH")]
     pub l1_config_file: Option<PathBuf>,
-    /// Path to a JSON file describing the interop dependency set for this
-    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Lagoon hardfork; the inner
-    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
-    /// silent state-divergence bug into a startup crash.
-    #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
-    pub interop_dependency_set: Option<PathBuf>,
+    /// Path to a JSON file describing the interop dependency set for this chain, like op-node's
+    /// `--interop.dependency-set`. By default, the set is the superchain registry's for the chain.
+    /// Required when the rollup config schedules the Lagoon hardfork for a chain outside the
+    /// registry.
+    #[arg(
+        long = "chain.dependency-set",
+        env = "KONA_NODE_CHAIN_DEPENDENCY_SET",
+        value_name = "PATH"
+    )]
+    pub dependency_set_file: Option<PathBuf>,
     /// Hardfork override flags.
     #[command(flatten)]
     pub overrides: OverrideArgs,
@@ -49,7 +56,7 @@ impl ChainArgs {
     /// Get the L2 rollup config, either from a file or the superchain registry, with the
     /// hardfork overrides applied.
     pub fn rollup_config(&self) -> Result<RollupConfig> {
-        let cfg = match (&self.l2_config_file, &self.l2_chain_id) {
+        let cfg = match (&self.rollup_config_file, &self.l2_chain_id) {
             (Some(path), None) => {
                 debug!("Loading l2 config from file: {:?}", path);
                 let file = File::open(path)
@@ -61,12 +68,12 @@ impl ChainArgs {
                 let Some(cfg) = scr_rollup_config_by_alloy_ident(chain) else {
                     bail!(
                         "Chain {chain} is not in the superchain registry; \
-                         pass its rollup config with --l2-config-file instead"
+                         pass its rollup config with --chain.rollup-config instead"
                     );
                 };
                 cfg.clone()
             }
-            _ => bail!("Exactly one of --chain and --l2-config-file must be set"),
+            _ => bail!("Exactly one of --chain and --chain.rollup-config must be set"),
         };
         Ok(self.overrides.apply(cfg))
     }
@@ -116,7 +123,7 @@ impl ChainArgs {
     }
 
     /// Returns the chain's interop [`DependencySet`], as op-node resolves it: from
-    /// `--interop.dependency-set` when given, and otherwise from the superchain registry, by the
+    /// `--chain.dependency-set` when given, and otherwise from the superchain registry, by the
     /// rollup config's L2 chain ID.
     ///
     /// For a chain outside the registry, a Lagoon hardfork scheduled without the flag is an error
@@ -126,7 +133,7 @@ impl ChainArgs {
     /// Lagoon.
     #[allow(clippy::zero_sized_map_values)] // `DependencySet` is a map to `ChainDependency {}`.
     pub fn dependency_set(&self, cfg: &RollupConfig) -> Result<Arc<DependencySet>> {
-        match &self.interop_dependency_set {
+        match &self.dependency_set_file {
             Some(path) => {
                 let file = File::open(path).map_err(|e| {
                     anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
@@ -141,7 +148,7 @@ impl ChainArgs {
             }
             None if cfg.hardforks.lagoon_time.is_some() => bail!(
                 "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
-                 --interop.dependency-set was not provided. Supply the dependency-set \
+                 --chain.dependency-set was not provided. Supply the dependency-set \
                  JSON file matching op-node's --interop.dependency-set to avoid silent \
                  state divergence on Lagoon activation.",
                 cfg.hardforks.lagoon_time,
@@ -185,29 +192,29 @@ mod tests {
     #[case::string("optimism", 10)]
     fn test_l2_chain_id_env_var(#[case] env_value: &str, #[case] expected_id: u64) {
         unsafe {
-            std::env::set_var("KONA_NODE_L2_CHAIN_ID", env_value);
+            std::env::set_var("KONA_NODE_CHAIN", env_value);
         }
         let args = ChainArgs::try_parse_from(["test"]).unwrap();
         assert_eq!(args.l2_chain_id.unwrap().id(), expected_id);
         unsafe {
-            std::env::remove_var("KONA_NODE_L2_CHAIN_ID");
+            std::env::remove_var("KONA_NODE_CHAIN");
         }
     }
 
     #[test]
-    fn test_l2_config_file_env_var() {
+    fn test_rollup_config_file_env_var() {
         unsafe {
-            std::env::set_var("KONA_NODE_ROLLUP_CONFIG", "rollup.json");
+            std::env::set_var("KONA_NODE_CHAIN_ROLLUP_CONFIG", "rollup.json");
         }
         let args = ChainArgs::try_parse_from(["test"]).unwrap();
-        assert_eq!(args.l2_config_file, Some(PathBuf::from("rollup.json")));
+        assert_eq!(args.rollup_config_file, Some(PathBuf::from("rollup.json")));
         assert_eq!(args.l2_chain_id, None);
 
         // A chain from the command line conflicts with a rollup config file from the environment.
         let err = ChainArgs::try_parse_from(["test", "--chain", "10"]).unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
         unsafe {
-            std::env::remove_var("KONA_NODE_ROLLUP_CONFIG");
+            std::env::remove_var("KONA_NODE_CHAIN_ROLLUP_CONFIG");
         }
     }
 
@@ -219,9 +226,14 @@ mod tests {
 
     #[test]
     fn test_rollup_config_sources_conflict() {
-        let err =
-            ChainArgs::try_parse_from(["test", "--chain", "10", "--l2-config-file", "rollup.json"])
-                .unwrap_err();
+        let err = ChainArgs::try_parse_from([
+            "test",
+            "--chain",
+            "10",
+            "--chain.rollup-config",
+            "rollup.json",
+        ])
+        .unwrap_err();
         assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
     }
 
@@ -232,13 +244,13 @@ mod tests {
         let path = file.path().to_str().unwrap();
 
         for args in [
-            ChainArgs::try_parse_from(["test", "--karst-override", "123", "--chain", "10"])
+            ChainArgs::try_parse_from(["test", "--chain.hardfork.karst", "123", "--chain", "10"])
                 .unwrap(),
             ChainArgs::try_parse_from([
                 "test",
-                "--karst-override",
+                "--chain.hardfork.karst",
                 "123",
-                "--l2-config-file",
+                "--chain.rollup-config",
                 path,
             ])
             .unwrap(),
@@ -310,7 +322,7 @@ mod tests {
         serde_json::to_writer(&mut file, &set).unwrap();
         let path = file.path().to_str().unwrap();
         let args =
-            ChainArgs::try_parse_from(["test", "--chain", "10", "--interop.dependency-set", path])
+            ChainArgs::try_parse_from(["test", "--chain", "10", "--chain.dependency-set", path])
                 .unwrap();
         let mut cfg = RollupConfig::default();
         cfg.hardforks.lagoon_time = Some(0);
