@@ -24,6 +24,9 @@ pub use kona_node_actors::NodeMode;
 mod node;
 pub use node::RollupNode;
 
+mod spec;
+pub use spec::ChainSpec;
+
 mod startup;
 
 mod supervisor;

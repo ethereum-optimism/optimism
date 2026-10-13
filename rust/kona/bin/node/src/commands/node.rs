@@ -12,7 +12,6 @@ use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_node_service::{
     NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
-use std::sync::Arc;
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -169,16 +168,14 @@ impl NodeCommand {
     /// flags name if it does not exist yet, but does no network I/O: the node checks the engine
     /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
-        let cfg = Arc::new(self.chain.rollup_config()?);
+        let chain = self.chain.chain_spec()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
-            l1_chain_config: Arc::new(self.chain.l1_config(cfg.l1_chain_id)?),
             mode: self.node_mode,
-            p2p_config: self.p2p_flags.clone().config(&cfg)?,
+            p2p_config: self.p2p_flags.clone().config(&chain.rollup_config)?,
             rpc_config: self.rpc_flags.clone().into(),
             sequencer_config: self.sequencer_flags.config(),
-            dependency_set: self.chain.dependency_set(&cfg)?,
-            rollup_config: cfg,
+            chain,
         })
     }
 
@@ -201,17 +198,17 @@ impl NodeCommand {
 
         info!(
             target: "rollup_node",
-            chain_id = config.rollup_config.l2_chain_id.id(),
+            chain_id = config.chain.rollup_config.l2_chain_id.id(),
             "Starting rollup node services"
         );
         info!(
             target: "rollup_node",
-            hardforks = %config.rollup_config.hardforks,
+            hardforks = %config.chain.rollup_config.hardforks,
             "Hardfork schedule"
         );
 
         // If metrics are enabled, initialize the global cli metrics.
-        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.rollup_config));
+        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.chain.rollup_config));
 
         let clients = RollupNodeClients::connect(&endpoints)?;
         let Err(error) = RollupNode::new(config, clients).start().await else {
@@ -328,8 +325,8 @@ mod tests {
         let config = command.config().unwrap();
         let endpoints = command.endpoints().unwrap();
 
-        assert_eq!(config.rollup_config.l2_chain_id.id(), 10);
-        assert_eq!(config.l1_chain_config.chain_id, 1);
+        assert_eq!(config.chain.rollup_config.l2_chain_id.id(), 10);
+        assert_eq!(config.chain.l1_config.chain_id, 1);
         assert_eq!(config.mode, NodeMode::Sequencer);
         assert_eq!(endpoints.l1_rpc.as_str(), "http://127.0.0.1:1/");
         assert_eq!(endpoints.l1_beacon.as_str(), "http://127.0.0.1:2/");
@@ -374,9 +371,12 @@ mod tests {
 
         let config = command.config().unwrap();
 
-        assert_eq!(config.rollup_config.l2_chain_id.id(), 901);
-        assert_eq!(config.l1_chain_config.chain_id, 900);
+        assert_eq!(config.chain.rollup_config.l2_chain_id.id(), 901);
+        assert_eq!(config.chain.l1_config.chain_id, 900);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
-        assert_eq!(config.dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [901]);
+        assert_eq!(
+            config.chain.dependency_set.dependencies.keys().copied().collect::<Vec<_>>(),
+            [901]
+        );
     }
 }

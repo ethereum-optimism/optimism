@@ -1,6 +1,8 @@
 //! Configs for the service's tests.
 
-use crate::{NetworkConfig, NodeMode, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig};
+use crate::{
+    ChainSpec, NetworkConfig, NodeMode, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig,
+};
 use alloy_rpc_types_engine::JwtSecret;
 use kona_disc::LocalNode;
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -41,8 +43,14 @@ pub(crate) fn network_config(tcp_port: u16, udp_port: u16) -> NetworkConfig {
 pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
     RollupNodeConfig {
         version: "test".to_owned(),
-        rollup_config: Arc::new(RollupConfig::default()),
-        l1_chain_config: Arc::new(L1ChainConfig::default()),
+        chain: ChainSpec {
+            rollup_config: Arc::new(RollupConfig::default()),
+            l1_config: Arc::new(L1ChainConfig::default()),
+            dependency_set: Arc::new(DependencySet {
+                dependencies: BTreeMap::from([(0, ChainDependency {})]),
+                override_message_expiry_window: None,
+            }),
+        },
         mode: NodeMode::Validator,
         p2p_config,
         rpc_config: RpcBuilder {
@@ -51,10 +59,6 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
             admin_persistence: None,
         },
         sequencer_config: SequencerConfig::default(),
-        dependency_set: Arc::new(DependencySet {
-            dependencies: BTreeMap::from([(0, ChainDependency {})]),
-            override_message_expiry_window: None,
-        }),
     }
 }
 

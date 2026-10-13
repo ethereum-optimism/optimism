@@ -122,7 +122,7 @@ mod tests {
     #[tokio::test]
     async fn the_engine_client_uses_the_configs_rollup_config() {
         let config = node_config(network_config(0, 0));
-        let rollup_config = config.rollup_config.clone();
+        let rollup_config = config.chain.rollup_config.clone();
         let clients = RollupNodeClients::connect(&endpoints(None)).unwrap();
 
         let node = crate::RollupNode::new(config, clients);

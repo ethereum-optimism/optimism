@@ -1,7 +1,7 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkActor,
+    ChainSpec, ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkActor,
     NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RollupNodeClients,
     RollupNodeConfig, RpcActor, SequencerConfig, service::BufferImportedBlocks, signer,
 };
@@ -16,8 +16,6 @@ use jsonrpsee::{
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::EngineClient;
-use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_interop::DependencySet;
 use kona_node_actors::{derivation, engine, l1, l1_signer_updater, sequencer};
 use kona_protocol::BlockInfo;
 use kona_providers_alloy::{
@@ -50,10 +48,8 @@ const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 pub struct RollupNode {
     /// The application version reported by the RPC server.
     pub(crate) version: String,
-    /// The rollup configuration.
-    pub(crate) config: Arc<RollupConfig>,
-    /// The L1 chain configuration.
-    pub(crate) l1_chain_config: Arc<L1ChainConfig>,
+    /// The rules of the chain the node follows.
+    pub(crate) chain: ChainSpec,
     /// The clients the node talks to the L1 and L2 chains with.
     pub(crate) clients: RollupNodeClients,
     /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
@@ -70,8 +66,6 @@ pub struct RollupNode {
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
-    /// The interop dependency set for this chain.
-    pub(crate) dependency_set: Arc<DependencySet>,
 }
 
 /// The lifetime future of whichever derivation actor the node is configured to run.
@@ -84,17 +78,19 @@ impl RollupNode {
     pub fn new(config: RollupNodeConfig, clients: RollupNodeClients) -> Self {
         // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
         // lookups are keyed by hash, so a reorged-out block is never returned regardless.
-        let l2_block_buffer =
-            BufferedL2Provider::new(config.rollup_config.clone(), IMPORTED_BLOCK_BUFFER_SIZE, 0);
+        let l2_block_buffer = BufferedL2Provider::new(
+            config.chain.rollup_config.clone(),
+            IMPORTED_BLOCK_BUFFER_SIZE,
+            0,
+        );
         let engine_client = Arc::new(EngineClient::new(
             clients.l1.clone(),
             clients.engine.clone(),
-            config.rollup_config.clone(),
+            config.chain.rollup_config.clone(),
         ));
         Self {
             version: config.version,
-            config: config.rollup_config,
-            l1_chain_config: config.l1_chain_config,
+            chain: config.chain,
             clients,
             engine_client,
             mode: config.mode,
@@ -102,7 +98,6 @@ impl RollupNode {
             p2p_config: config.p2p_config,
             sequencer_config: config.sequencer_config,
             l2_block_buffer,
-            dependency_set: config.dependency_set,
         }
     }
 
@@ -132,17 +127,17 @@ impl RollupNode {
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
                 self.clients.l2.clone(),
-                self.config.clone(),
+                self.chain.rollup_config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             ),
         );
 
         StatefulAttributesBuilder::new(
-            self.config.clone(),
-            self.l1_chain_config.clone(),
+            self.chain.rollup_config.clone(),
+            self.chain.l1_config.clone(),
             l2_derivation_provider,
             l1_derivation_provider,
-            Some(self.dependency_set.clone()),
+            Some(self.chain.dependency_set.clone()),
         )
     }
 
@@ -154,18 +149,18 @@ impl RollupNode {
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
                 self.clients.l2.clone(),
-                self.config.clone(),
+                self.chain.rollup_config.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             ),
         );
 
         Ok(OnlinePipeline::new_polled(
-            self.config.clone(),
-            self.l1_chain_config.clone(),
+            self.chain.rollup_config.clone(),
+            self.chain.l1_config.clone(),
             OnlineBlobProvider::init(self.clients.l1_beacon.clone()).await?,
             l1_derivation_provider,
             l2_derivation_provider,
-            Some(self.dependency_set.clone()),
+            Some(self.chain.dependency_set.clone()),
         ))
     }
 
@@ -177,7 +172,7 @@ impl RollupNode {
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
-            self.config.clone(),
+            self.chain.rollup_config.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )
     }
@@ -238,13 +233,13 @@ impl RollupNode {
             self.sequencer_config.l1_conf_delay,
         );
         let delayed_origin_selector =
-            L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
+            L1OriginSelector::new(self.chain.rollup_config.clone(), delayed_l1_provider);
 
         builder.build(
             self.create_attributes_builder(),
             adapters::Engine(engine),
             delayed_origin_selector,
-            self.config.clone(),
+            self.chain.rollup_config.clone(),
             self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
             adapters::Signer(signer),
         )
@@ -283,7 +278,7 @@ impl RollupNode {
             .merge(
                 RollupRpc::new(
                     self.version.clone(),
-                    self.config.clone(),
+                    self.chain.rollup_config.clone(),
                     engine_state,
                     l2_query_client,
                     head_l1,
@@ -378,7 +373,7 @@ impl RollupNode {
         let finalized = finalized_builder.handle();
         let initial_signer = l1_signer_updater::signer_at_l1_head(
             &self.clients.l1,
-            self.config.l1_system_config_address,
+            self.chain.rollup_config.l1_system_config_address,
         )
         .await
         .map_err(RollupNodeError::UnsafeBlockSigner)?;
@@ -430,7 +425,7 @@ impl RollupNode {
             self.build_signer().await.map_err(RollupNodeError::Startup)?.map(|signer| {
                 signer_builder.build(
                     signer,
-                    self.config.l2_chain_id.id(),
+                    self.chain.rollup_config.l2_chain_id.id(),
                     signer_rx.clone(),
                     signed_payload_tx,
                 )
@@ -459,7 +454,7 @@ impl RollupNode {
 
         let signer_updater = signer_updater_builder.build(
             self.clients.l1.clone(),
-            self.config.l1_system_config_address,
+            self.chain.rollup_config.l1_system_config_address,
             head.clone(),
         );
         let l1_head = head_builder.build(

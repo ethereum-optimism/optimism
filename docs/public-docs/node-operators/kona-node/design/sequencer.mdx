@@ -78,15 +78,15 @@ let sequencer_config = SequencerConfig {
 
 // A sequencer needs a block signer: `p2p_config.gossip_signer` must be
 // `Some`, or `start` fails.
+// `chain` is a `ChainSpec`: the rollup config, the L1 chain config and the
+// interop dependency set.
 let config = RollupNodeConfig {
     version,
-    rollup_config,
-    l1_chain_config,
+    chain,
     mode: NodeMode::Sequencer,
     p2p_config,
     rpc_config,
     sequencer_config,
-    dependency_set: None,
 };
 // Where the L1 and L2 endpoints are. Pass your own `RollupNodeClients`
 // to `RollupNode::new` instead to connect to them differently.

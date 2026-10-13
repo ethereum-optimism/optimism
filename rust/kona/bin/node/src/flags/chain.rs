@@ -5,6 +5,7 @@ use anyhow::{Result, bail};
 use clap::{ArgGroup, Parser};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::{ChainDependency, DependencySet};
+use kona_node_service::ChainSpec;
 use kona_registry::{DEPENDENCY_SETS, L1Config, scr_rollup_config_by_alloy_ident};
 use serde_json::{Value, from_reader, from_value};
 use std::{collections::BTreeMap, fs::File, io::Read, path::PathBuf, sync::Arc};
@@ -67,6 +68,19 @@ impl ChainArgs {
             _ => bail!("Exactly one of --chain and --l2-config-file must be set"),
         };
         Ok(self.overrides.apply(cfg))
+    }
+
+    /// Resolves the rules of the chain the node follows: the rollup config with the hardfork
+    /// overrides applied, the config of the L1 chain it names, and its dependency set.
+    pub fn chain_spec(&self) -> Result<ChainSpec> {
+        let rollup_config = self.rollup_config()?;
+        let l1_config = self.l1_config(rollup_config.l1_chain_id)?;
+        let dependency_set = self.dependency_set(&rollup_config)?;
+        Ok(ChainSpec {
+            rollup_config: Arc::new(rollup_config),
+            l1_config: Arc::new(l1_config),
+            dependency_set,
+        })
     }
 
     /// Get the L1 config, either from a file or the known chains.
