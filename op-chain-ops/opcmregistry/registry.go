@@ -43,10 +43,12 @@ const (
 	SepoliaChainID = uint64(11155111)
 )
 
-// GitHub raw URLs for the standard versions TOML files
+// GitHub raw URLs for the standard versions TOML files.
+// The v8 release branch pins the last registry commit before 2026-09-01. Later commits list the
+// final v8 OPCM, and the upgrade tests then apply v8 as a past upgrade before they test it.
 const (
-	standardVersionsMainnetURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/validation/standard/standard-versions-mainnet.toml"
-	standardVersionsSepoliaURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/validation/standard/standard-versions-sepolia.toml"
+	standardVersionsMainnetURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/52037bfea66a6b923b0d52994a3d5294634db6e5/validation/standard/standard-versions-mainnet.toml"
+	standardVersionsSepoliaURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/52037bfea66a6b923b0d52994a3d5294634db6e5/validation/standard/standard-versions-sepolia.toml"
 )
 
 // Global registry instance
