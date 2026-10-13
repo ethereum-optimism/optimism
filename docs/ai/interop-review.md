@@ -141,6 +141,9 @@ Check these boundaries:
 For each missing-data branch, determine whether the code retries, holds, rejects, prunes, or replaces.
 Compare each observable outcome with the current specification.
 
+For each source lookup on a kona-sp1 guest path that the change adds or changes, compute the proof cost with [kona-sp1-proof-limits.md](kona-sp1-proof-limits.md).
+An honest proof that exceeds a limit is a completeness finding.
+
 ## Safety checks
 
 Identify every frontier source used by each safety decision.
