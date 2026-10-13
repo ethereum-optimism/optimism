@@ -13,7 +13,7 @@ use jsonrpsee::{
         middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
     },
 };
-use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
+use kona_derive::StatefulAttributesBuilder;
 use kona_engine::EngineClient;
 use kona_node_actors::{
     derivation, discovery, engine, finality, l1, l1_signer_updater, network, sequencer,
@@ -28,9 +28,7 @@ use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
-use kona_sources::BlockSignerHandler;
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
-use tokio::sync::watch;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -104,238 +102,6 @@ impl RollupNode {
         }
     }
 
-    /// The mode of operation for the node.
-    const fn mode(&self) -> NodeMode {
-        self.mode
-    }
-
-    /// Returns an rpc builder for the node.
-    fn rpc_builder(&self) -> RpcBuilder {
-        self.rpc_builder.clone()
-    }
-
-    /// Returns the sequencer builder for the node.
-    fn create_attributes_builder(
-        &self,
-    ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
-        let l1_derivation_provider =
-            AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new(
-                self.clients.l2.clone(),
-                self.chain.rollup_config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-            ),
-        );
-
-        StatefulAttributesBuilder::new(
-            self.chain.rollup_config.clone(),
-            self.chain.l1_config.clone(),
-            l2_derivation_provider,
-            l1_derivation_provider,
-            Some(self.chain.dependency_set.clone()),
-        )
-    }
-
-    async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
-        // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider =
-            AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new(
-                self.clients.l2.clone(),
-                self.chain.rollup_config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-            ),
-        );
-
-        Ok(OnlinePipeline::new_polled(
-            self.chain.rollup_config.clone(),
-            self.chain.l1_config.clone(),
-            OnlineBlobProvider::init(self.clients.l1_beacon.clone()).await?,
-            l1_derivation_provider,
-            l2_derivation_provider,
-            Some(self.chain.dependency_set.clone()),
-        ))
-    }
-
-    /// Wires the engine dependencies and returns its lifetime future.
-    fn build_engine(
-        &self,
-        builder: engine::Builder,
-        client: Arc<EngineClient>,
-    ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
-        builder.build(
-            client,
-            self.chain.rollup_config.clone(),
-            Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
-        )
-    }
-
-    /// Selects between the standard and delegate derivation actors and builds the chosen one.
-    async fn build_derivation(
-        &self,
-        builder: derivation::Builder,
-        engine: engine::Handle,
-        head: watch::Receiver<BlockInfo>,
-    ) -> Result<DerivationTask, String> {
-        if let Some(provider) = self.clients.derivation_delegate.clone() {
-            // L1 Provider for sanity checking Derivation Delegation
-            let l1_provider =
-                AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
-            Ok(Box::pin(builder.build_delegated(
-                adapters::Engine::new(engine),
-                provider,
-                l1_provider,
-            )))
-        } else {
-            let pipeline = self
-                .create_pipeline()
-                .await
-                .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(Box::pin(builder.build(adapters::Engine::new(engine), pipeline, head)))
-        }
-    }
-
-    /// Builds the finality actor when the node derives from L1; otherwise returns `None`, since
-    /// delegated derivation finalizes the delegate's blocks.
-    fn build_finality(
-        &self,
-        engine: engine::Handle,
-        finalized: watch::Receiver<BlockInfo>,
-    ) -> Option<FinalityTask> {
-        self.clients.derivation_delegate.is_none().then(|| {
-            let (engine_state, resets) = (engine.state(), engine.resets());
-            Box::pin(finality::build(
-                adapters::Engine::new(engine),
-                engine_state,
-                resets,
-                finalized,
-            )) as FinalityTask
-        })
-    }
-
-    /// Starts the signing backend when the node is in sequencer mode; otherwise returns `None`.
-    ///
-    /// A sequencer must have a block signer: its blocks are gossiped only once signed.
-    async fn build_signer(&self) -> Result<Option<BlockSignerHandler>, String> {
-        if !self.mode().is_sequencer() {
-            if self.p2p_config.gossip_signer.is_some() {
-                warn!(target: "rollup_node", "Ignoring the configured block signer: only a sequencer signs blocks");
-            }
-            return Ok(None);
-        }
-        let Some(signer) = self.p2p_config.gossip_signer.clone() else {
-            return Err("Sequencer mode requires a block signer: set --p2p.sequencer.key, \
-                 --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
-                .into());
-        };
-        let signer =
-            signer.start().await.map_err(|e| format!("Failed to start block signer: {e}"))?;
-        Ok(Some(signer))
-    }
-
-    /// Wires the sequencer dependencies and returns its lifetime future.
-    fn build_sequencer(
-        &self,
-        engine: engine::Handle,
-        signer: signer::Handle,
-        l1_head: watch::Receiver<BlockInfo>,
-        builder: sequencer::Builder,
-    ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
-        let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
-            self.clients.l1.clone(),
-            l1_head,
-            self.sequencer_config.l1_conf_delay,
-        );
-        let delayed_origin_selector =
-            L1OriginSelector::new(self.chain.rollup_config.clone(), delayed_l1_provider);
-
-        builder.build(
-            self.create_attributes_builder(),
-            adapters::Engine::new(engine),
-            delayed_origin_selector,
-            self.chain.rollup_config.clone(),
-            self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
-            adapters::Signer(signer),
-        )
-    }
-
-    /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
-    /// configured [`RpcActor`].
-    #[allow(clippy::too_many_arguments)]
-    async fn build_rpc_actor(
-        &self,
-        l2_query_client: EngineClient,
-        engine_state: watch::Receiver<engine::EngineState>,
-        admin_rpc: AdminRpc,
-        p2p_rpc: P2pRpc,
-        head_l1: watch::Receiver<BlockInfo>,
-        safe_l1: watch::Receiver<BlockInfo>,
-        finalized_l1: watch::Receiver<BlockInfo>,
-        derivation_status: watch::Receiver<derivation::DerivationStatus>,
-    ) -> Result<RpcActor, String> {
-        let config = self.rpc_builder();
-
-        let mut modules = RpcModule::new(());
-        modules
-            .merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone())))
-            .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
-        modules
-            .merge(p2p_rpc.into_rpc())
-            .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-        if config.enable_admin() {
-            modules
-                .merge(admin_rpc.into_rpc())
-                .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
-        }
-        modules
-            .merge(
-                RollupRpc::new(
-                    self.version.clone(),
-                    self.chain.rollup_config.clone(),
-                    engine_state,
-                    l2_query_client,
-                    head_l1,
-                    safe_l1,
-                    finalized_l1,
-                    derivation_status,
-                )
-                .into_rpc(),
-            )
-            .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
-
-        let middleware = tower::ServiceBuilder::new()
-            .layer(
-                ProxyGetRequestLayer::new([("/healthz", "healthz")])
-                    .expect("Critical: Failed to build GET method proxy"),
-            )
-            .timeout(Duration::from_secs(2));
-        let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
-        let rpc_middleware = RpcServiceBuilder::new()
-            .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
-        let server = Server::builder()
-            .set_config(
-                ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
-            )
-            .set_http_middleware(middleware)
-            .set_rpc_middleware(rpc_middleware)
-            .build(config.socket)
-            .await
-            .map_err(|e: std::io::Error| format!("Failed to launch rpc server: {e:?}"))?;
-
-        if let Ok(addr) = server.local_addr() {
-            info!(target: "rpc", addr = ?addr, "RPC server bound to address");
-        } else {
-            error!(target: "rpc", "Failed to get local address for RPC server");
-        }
-
-        Ok(RpcActor::new(server.start(modules)))
-    }
-
     /// Starts the rollup node service.
     ///
     /// The rollup node, in validator mode, listens to two sources of information to sync the L2
@@ -405,7 +171,7 @@ impl RollupNode {
                 .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
         );
         let engine = engine_builder.handle();
-        let sequencer_builder = if self.mode().is_sequencer() {
+        let sequencer_builder = if self.mode.is_sequencer() {
             Some(sequencer::Builder::new(
                 sequencer::Capacity::try_from(1024)
                     .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
@@ -427,21 +193,98 @@ impl RollupNode {
         );
         let signer_handle = signer_builder.handle();
 
-        // ─── actor construction ─────────────────────────────────────────────────────────────
-        let engine_client = self.engine_client.clone();
-        let l2_query_client = engine_client.as_ref().clone();
-        let engine_actor = self.build_engine(engine_builder, engine_client);
+        // ─── engine ─────────────────────────────────────────────────────────────────────────
+        let l2_query_client = self.engine_client.as_ref().clone();
+        let engine_actor = engine_builder.build(
+            self.engine_client.clone(),
+            self.chain.rollup_config.clone(),
+            Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
+        );
 
-        let derivation_actor = self
-            .build_derivation(derivation_builder, engine.clone(), head.clone())
-            .await
-            .map_err(RollupNodeError::Startup)?;
-        let finality_actor = self.build_finality(engine.clone(), finalized.clone());
+        // ─── derivation and finality ────────────────────────────────────────────────────────
+        // A node that delegates derivation follows the delegate's safe and finalized heads, so it
+        // neither derives from L1 nor finalizes.
+        let (derivation_actor, finality_actor): (DerivationTask, Option<FinalityTask>) =
+            if let Some(provider) = self.clients.derivation_delegate.clone() {
+                // L1 Provider for sanity checking Derivation Delegation
+                let l1_provider = AlloyChainProvider::new(
+                    self.clients.l1.clone(),
+                    DERIVATION_PROVIDER_CACHE_SIZE,
+                );
+                let derivation = derivation_builder.build_delegated(
+                    adapters::Engine::new(engine.clone()),
+                    provider,
+                    l1_provider,
+                );
+                (Box::pin(derivation), None)
+            } else {
+                // Create the caching L1/L2 EL providers for derivation.
+                let l1_derivation_provider = AlloyChainProvider::new(
+                    self.clients.l1.clone(),
+                    DERIVATION_PROVIDER_CACHE_SIZE,
+                );
+                let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
+                    self.l2_block_buffer.clone(),
+                    AlloyL2ChainProvider::new(
+                        self.clients.l2.clone(),
+                        self.chain.rollup_config.clone(),
+                        DERIVATION_PROVIDER_CACHE_SIZE,
+                    ),
+                );
+                let blob_provider = OnlineBlobProvider::init(self.clients.l1_beacon.clone())
+                    .await
+                    .map_err(|error| {
+                        RollupNodeError::Startup(format!(
+                            "Failed to initialize L1 blob provider: {error}"
+                        ))
+                    })?;
+                let pipeline = OnlinePipeline::new_polled(
+                    self.chain.rollup_config.clone(),
+                    self.chain.l1_config.clone(),
+                    blob_provider,
+                    l1_derivation_provider,
+                    l2_derivation_provider,
+                    Some(self.chain.dependency_set.clone()),
+                );
+                let derivation = derivation_builder.build(
+                    adapters::Engine::new(engine.clone()),
+                    pipeline,
+                    head.clone(),
+                );
+                let (engine_state, resets) = (engine.state(), engine.resets());
+                let finality = finality::build(
+                    adapters::Engine::new(engine.clone()),
+                    engine_state,
+                    resets,
+                    finalized.clone(),
+                );
+                (Box::pin(derivation), Some(Box::pin(finality)))
+            };
 
+        // ─── block signer ───────────────────────────────────────────────────────────────────
         // Start the block signer before the network, so a misconfigured or unreachable remote
-        // signer fails before the node binds its p2p ports.
-        let block_signer = self.build_signer().await.map_err(RollupNodeError::Startup)?;
+        // signer fails before the node binds its p2p ports. A sequencer must have one: its blocks
+        // are gossiped only once signed.
+        let block_signer = if self.mode.is_sequencer() {
+            let Some(signer) = self.p2p_config.gossip_signer.clone() else {
+                return Err(RollupNodeError::Startup(
+                    "Sequencer mode requires a block signer: set --p2p.sequencer.key, \
+                     --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
+                        .into(),
+                ));
+            };
+            let signer = signer.start().await.map_err(|e| {
+                RollupNodeError::Startup(format!("Failed to start block signer: {e}"))
+            })?;
+            Some(signer)
+        } else {
+            if self.p2p_config.gossip_signer.is_some() {
+                warn!(target: "rollup_node", "Ignoring the configured block signer: only a sequencer signs blocks");
+            }
+            None
+        };
 
+        // ─── network ────────────────────────────────────────────────────────────────────────
         let (gossip, discovery_driver) = self
             .p2p_config
             .clone()
@@ -474,6 +317,7 @@ impl RollupNode {
             self.chain.rollup_config.l2_chain_id.id(),
         );
 
+        // ─── L1 watchers ────────────────────────────────────────────────────────────────────
         let signer_updater = signer_updater_builder.build(
             self.clients.l1.clone(),
             self.chain.rollup_config.l1_system_config_address,
@@ -495,29 +339,105 @@ impl RollupNode {
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         );
 
+        // ─── sequencer ──────────────────────────────────────────────────────────────────────
         let sequencer_actor = sequencer_builder.map(|builder| {
-            self.build_sequencer(engine.clone(), signer_handle, head.clone(), builder)
+            let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
+                self.clients.l1.clone(),
+                head.clone(),
+                self.sequencer_config.l1_conf_delay,
+            );
+            let origin_selector =
+                L1OriginSelector::new(self.chain.rollup_config.clone(), delayed_l1_provider);
+            let l1_derivation_provider =
+                AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
+            let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
+                self.l2_block_buffer.clone(),
+                AlloyL2ChainProvider::new(
+                    self.clients.l2.clone(),
+                    self.chain.rollup_config.clone(),
+                    DERIVATION_PROVIDER_CACHE_SIZE,
+                ),
+            );
+            let attributes_builder = StatefulAttributesBuilder::new(
+                self.chain.rollup_config.clone(),
+                self.chain.l1_config.clone(),
+                l2_derivation_provider,
+                l1_derivation_provider,
+                Some(self.chain.dependency_set.clone()),
+            );
+            builder.build(
+                attributes_builder,
+                adapters::Engine::new(engine.clone()),
+                origin_selector,
+                self.chain.rollup_config.clone(),
+                self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
+                adapters::Signer(signer_handle),
+            )
         });
 
-        let engine_state = engine.state();
-        let admin_rpc = AdminRpc::new(
-            sequencer_handle,
-            self.sequencer_config.conductor_rpc_url.is_some(),
-            engine,
-        );
-        let rpc = self
-            .build_rpc_actor(
-                l2_query_client,
-                engine_state,
-                admin_rpc,
-                p2p_rpc,
-                head,
-                safe,
-                finalized,
-                derivation.status(),
+        // ─── RPC ────────────────────────────────────────────────────────────────────────────
+        let mut modules = RpcModule::new(());
+        modules.merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone()))).map_err(
+            |e| RollupNodeError::Startup(format!("Failed to register healthz module: {e:?}")),
+        )?;
+        modules.merge(p2p_rpc.into_rpc()).map_err(|e| {
+            RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
+        })?;
+        // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
+        if self.rpc_builder.enable_admin() {
+            let admin_rpc = AdminRpc::new(
+                sequencer_handle,
+                self.sequencer_config.conductor_rpc_url.is_some(),
+                engine.clone(),
+            );
+            modules.merge(admin_rpc.into_rpc()).map_err(|e| {
+                RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
+            })?;
+        }
+        modules
+            .merge(
+                RollupRpc::new(
+                    self.version.clone(),
+                    self.chain.rollup_config.clone(),
+                    engine.state(),
+                    l2_query_client,
+                    head,
+                    safe,
+                    finalized,
+                    derivation.status(),
+                )
+                .into_rpc(),
             )
+            .map_err(|e| {
+                RollupNodeError::Startup(format!("Failed to register rollup module: {e:?}"))
+            })?;
+
+        let middleware = tower::ServiceBuilder::new()
+            .layer(
+                ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                    .expect("Critical: Failed to build GET method proxy"),
+            )
+            .timeout(Duration::from_secs(2));
+        let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
+        let server = Server::builder()
+            .set_config(
+                ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
+            )
+            .set_http_middleware(middleware)
+            .set_rpc_middleware(rpc_middleware)
+            .build(self.rpc_builder.socket)
             .await
-            .map_err(RollupNodeError::Startup)?;
+            .map_err(|e: std::io::Error| {
+                RollupNodeError::Startup(format!("Failed to launch rpc server: {e:?}"))
+            })?;
+        if let Ok(addr) = server.local_addr() {
+            info!(target: "rpc", addr = ?addr, "RPC server bound to address");
+        } else {
+            error!(target: "rpc", "Failed to get local address for RPC server");
+        }
+        let rpc = RpcActor::new(server.start(modules));
 
         let mut supervisor = Supervisor::new();
         supervisor.spawn("rpc", run_node_actor(rpc));
