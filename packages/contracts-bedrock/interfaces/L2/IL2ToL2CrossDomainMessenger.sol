@@ -2,10 +2,16 @@
 pragma solidity ^0.8.0;
 
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title IL2ToL2CrossDomainMessenger
 /// @notice Interface for the L2ToL2CrossDomainMessenger contract.
-interface IL2ToL2CrossDomainMessenger {
+interface IL2ToL2CrossDomainMessenger is IProxyAdminOwnedBase {
+    error InvalidInitialization();
+    error NotInitializing();
+
+    event Initialized(uint64 version);
+
     /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
     error NotEntered();
 
@@ -33,6 +39,22 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
     error InvalidMessage();
 
+    /// @notice Thrown when attempting to send or relay a message whose target is the
+    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser.
+    error L2ToL2CrossDomainMessenger_MessageTargetUnsafe();
+
+    /// @notice Thrown when a message is marked expired by anything but this chain's
+    ///         L1CrossDomainMessenger.
+    error L2ToL2CrossDomainMessenger_NotOtherMessenger();
+
+    /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed
+    ///         past the expiry period.
+    error L2ToL2CrossDomainMessenger_MessageNotExpired();
+
+    /// @notice Thrown when the contract is initialized with an expiry period of zero or above
+    ///         365 days.
+    error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
     /// @param target       Target contract or wallet address.
@@ -52,7 +74,28 @@ interface IL2ToL2CrossDomainMessenger {
         uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash, bytes32 returnDataHash
     );
 
+    /// @notice Emitted when a message sent from this chain is marked expired.
+    /// @param messageHash   Hash of the message.
+    /// @param undeliveredAt Destination timestamp at which the message had not been relayed.
+    event MessageExpired(bytes32 indexed messageHash, uint256 undeliveredAt);
+
     function version() external view returns (string memory);
+
+    /// @notice How long after it is sent a message must go unrelayed before it can be marked
+    ///         expired.
+    function expiryPeriod() external view returns (uint256);
+
+    /// @notice Mapping of message hashes to the timestamp of the block they were sent in.
+    function sentMessageTimestamps(bytes32) external view returns (uint256);
+
+    /// @notice Mapping of message hashes to whether they expired undelivered.
+    function expiredMessages(bytes32) external view returns (bool);
+
+    /// @notice Marks a message sent from this chain expired, on word from this chain's
+    ///         L1CrossDomainMessenger.
+    /// @param _messageHash   Hash of the message.
+    /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
+    function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
@@ -83,11 +126,12 @@ interface IL2ToL2CrossDomainMessenger {
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
 
-    /// @notice Sends a message to some target address on a destination chain. The destination chain
-    ///         must differ from the current chain, and the target cannot be the
-    ///         L2ToL2CrossDomainMessenger predeploy. This function is not payable, so no ETH can be
-    ///         sent with the message. If the relayed call reverts on the destination chain, the relay
-    ///         transaction reverts and the message can be relayed again later, so it is never stuck.
+    /// @notice Sends a message to some target address on a destination chain. The destination
+    ///         chain must differ from the current chain. The target cannot be the
+    ///         L2ToL2CrossDomainMessenger, the L2CrossDomainMessenger or the
+    ///         L2ToL1MessagePasser. This function is not payable, so no ETH can be sent with the
+    ///         message. If the relayed call reverts, the message can be relayed again until it
+    ///         expires.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
@@ -95,26 +139,6 @@ interface IL2ToL2CrossDomainMessenger {
     ///                      has successfully been relayed.
     function sendMessage(
         uint256 _destination,
-        address _target,
-        bytes calldata _message
-    )
-        external
-        returns (bytes32 messageHash_);
-
-    /// @notice Re-emits a previously sent message event for old messages that haven't been
-    ///         relayed yet, allowing offchain infrastructure to pick them up and relay them.
-    /// @dev    Emitting a message that has already been relayed will have no effect, as it is only
-    ///         relayed once on the destination chain.
-    /// @param _destination Chain ID of the destination chain.
-    /// @param _nonce Nonce of the message sent
-    /// @param _sender Address that sent the message
-    /// @param _target Target contract or wallet address.
-    /// @param _message Message payload to call target with.
-    /// @return messageHash_ The hash of the message being re-sent.
-    function resendMessage(
-        uint256 _destination,
-        uint256 _nonce,
-        address _sender,
         address _target,
         bytes calldata _message
     )
@@ -139,6 +163,8 @@ interface IL2ToL2CrossDomainMessenger {
         returns (bytes memory returnData_);
 
     function messageVersion() external view returns (uint16);
+
+    function initialize(uint256 _expiryPeriod) external;
 
     function __constructor__() external;
 }
