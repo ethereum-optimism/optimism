@@ -1,0 +1,20 @@
+[package]
+name = "kona-sp1-bls12-381-check-guest"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+kona-sp1-build-info.workspace = true
+kona-sp1-client-utils.workspace = true
+kona-sp1-bls12-381-check.workspace = true
+revm.workspace = true
+rkyv.workspace = true
+sp1-zkvm.workspace = true
+
+[lints]
+workspace = true
