@@ -19,7 +19,7 @@ mod hint;
 pub use hint::HintType;
 
 mod provider;
-pub use provider::{ChainScopedHinter, OracleInteropProvider};
+pub use provider::{ChainScopedHinter, OracleInteropProvider, receipts_from_trie};
 
 pub mod boot;
 pub use boot::BootInfo;

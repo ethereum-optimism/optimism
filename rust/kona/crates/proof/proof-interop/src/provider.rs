@@ -9,7 +9,9 @@ use alloy_rlp::Decodable;
 use async_trait::async_trait;
 use kona_interop::InteropProvider;
 use kona_mpt::{OrderedListWalker, TrieHinter, TrieNode, TrieProvider};
-use kona_preimage::{CommsClient, PreimageKey, PreimageKeyType, errors::PreimageOracleError};
+use kona_preimage::{
+    CommsClient, PreimageKey, PreimageKeyType, PreimageOracleClient, errors::PreimageOracleError,
+};
 use kona_proof::{eip_2935_history_lookup, errors::OracleProviderError};
 use kona_registry::HashMap;
 use op_alloy_consensus::OpReceiptEnvelope;
@@ -143,18 +145,7 @@ where
             .with_data(&[block_hash.as_ref(), chain_id.to_be_bytes().as_slice()])
             .send(self.oracle.as_ref())
             .await?;
-        let trie_walker = OrderedListWalker::try_new_hydrated(header.receipts_root, self)
-            .map_err(OracleProviderError::TrieWalker)?;
-
-        // Decode the receipts within the receipts trie.
-        let receipts = trie_walker
-            .into_iter()
-            .map(|(_, rlp)| {
-                let envelope = OpReceiptEnvelope::decode_2718(&mut rlp.as_ref())?;
-                Ok(envelope)
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(OracleProviderError::Rlp)?;
+        let receipts = receipts_from_trie(self.oracle.as_ref(), header.receipts_root)?;
 
         if self.local_safe_heads.get(&chain_id).is_some_and(|head| head.hash() == block_hash) {
             self.receipts_by_hash.lock().insert((chain_id, block_hash), receipts.clone());
@@ -268,9 +259,42 @@ where
     type Error = OracleProviderError;
 
     fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
+        OracleTrieProvider(self.oracle.as_ref()).trie_node_by_hash(key)
+    }
+}
+
+/// Walks the receipts trie under `receipts_root` and decodes its receipts in transaction order.
+///
+/// The SP1 log-commitment program must see exactly the receipts that [`InteropProvider`] lookups
+/// return, so both decode through this function.
+pub fn receipts_from_trie<O: PreimageOracleClient>(
+    oracle: &O,
+    receipts_root: B256,
+) -> Result<Vec<OpReceiptEnvelope>, OracleProviderError> {
+    let trie_walker =
+        OrderedListWalker::try_new_hydrated(receipts_root, &OracleTrieProvider(oracle))
+            .map_err(OracleProviderError::TrieWalker)?;
+
+    trie_walker
+        .into_iter()
+        .map(|(_, rlp)| {
+            let envelope = OpReceiptEnvelope::decode_2718(&mut rlp.as_ref())?;
+            Ok(envelope)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(OracleProviderError::Rlp)
+}
+
+/// A [`TrieProvider`] that reads keccak-keyed trie nodes from a preimage oracle.
+struct OracleTrieProvider<'a, O>(&'a O);
+
+impl<O: PreimageOracleClient> TrieProvider for OracleTrieProvider<'_, O> {
+    type Error = OracleProviderError;
+
+    fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
         kona_proof::block_on(async move {
             let trie_node_rlp = self
-                .oracle
+                .0
                 .get(PreimageKey::new(*key, PreimageKeyType::Keccak256))
                 .await
                 .map_err(OracleProviderError::Preimage)?;
