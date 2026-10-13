@@ -442,6 +442,12 @@ jobs:
               -timeout=30m \
               -run '^TestDeploymentUsesSuperAggregationVKey$' \
               ./op-acceptance-tests/tests/proofs/zk
+      - run:
+          name: Test log-commitment ELF against native output
+          working_directory: rust
+          command: |
+            KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
+              cargo nextest run --package kona-sp1-super-range-executor --test log_commitment
       - go-save-cache:
           namespace: sp1-super-range-elf-smoke
       - store_test_results:

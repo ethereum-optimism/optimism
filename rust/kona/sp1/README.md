@@ -14,6 +14,9 @@ The SP1 integration provides zkVM-based fault proofs for the OP Stack, allowing 
 
 zkVM programs that execute inside the SP1 prover:
 
+- **`log-commitment`**: Commits to the logs under each input receipts root as
+  `receipts_root ‖ log_count ‖ log_root` (72 bytes per root), so that interop message checks can
+  open a log without loading the block's receipts.
 - **`super-range`**: Unified super-root program for one or more chains, with modes for
   proving ranges and span-shaped consolidation.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
@@ -27,7 +30,8 @@ Supporting libraries for the SP1 fault proof system:
 
 - **`bls12-381-check`** (test-only): EIP-2537 reference oracle, case corpus, host differential
   tests, and the zkVM check runner (`just check-bls12-381-zkvm`)
-- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest except
+  `log-commitment`
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
@@ -75,13 +79,15 @@ supports the existing synthetic deployments without rebuilding for each deployme
 
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
+- **`log-commitment-elf`**: Compiled per-block log-commitment program
 - **`super-aggregation-elf`**: Compiled super-root aggregation program
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
 ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
-on linux/amd64 with `just build-elfs`; it builds the `super-range` leaf first, generates its vkey,
-and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`. Use
+on linux/amd64 with `just build-elfs`; it builds `log-commitment`, then the `super-range` leaf,
+generates its vkey, and then builds `super-aggregation` with that vkey embedded through
+`kona-sp1-range-vkeys`. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
 because paths and other environment details are embedded. The daily reproducibility job
@@ -95,8 +101,8 @@ infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop a
 
 #### Build provenance
 
-Every guest embeds the commit it was built from, so a guest ELF identifies its own source
-without a manifest, a lookup table, or executing it:
+Every guest except `log-commitment` embeds the commit it was built from, so a guest ELF identifies
+its own source without a manifest, a lookup table, or executing it:
 
 ```bash
 grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' elf/super-aggregation-elf | sort -u
@@ -114,12 +120,16 @@ aggregator must come from the same commit, not merely the same code. The marker 
 not attested: it records what an honest build embedded and proves nothing against a rewritten
 artifact.
 
-`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so both
-guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so the
+marked guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
 `KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
 describe. Builds outside the justfile record `unknown`.
 Each build recipe checks its own ELF; CI (`kona-build-sp1-elfs`) additionally pins the natively
 built ELFs to the commit under test.
+
+The `log-commitment` guest embeds no marker and ignores `KONA_CUSTOM_CONFIGS_DIR`, so its vkey
+changes only when the guest's code, a locked dependency, or the SP1 toolchain changes. Its build
+fails if the ELF contains a marker.
 
 Custom chains and devnets can compile separate SP1 artifacts with custom kona
 registry inputs:
@@ -129,12 +139,12 @@ KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
 ```
 
 The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
-Those files are compiled into the kona crates used by the guest programs, so
-custom configs produce different ELFs and verification-key hashes.
+Those files are compiled into the kona crates used by the `super-range` and `super-aggregation`
+guests, so custom configs produce different ELFs and verification-key hashes for them.
 
 ## Releases
 
-The two guest programs (`super-range` and `super-aggregation`) are released as ELFs under the
+The `super-range` and `super-aggregation` guest programs are released as ELFs under the
 `kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
 candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
 guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
@@ -151,7 +161,7 @@ family, with `op-zk-proposer/vX.Y.Z-rc.N` for release candidates. It is to
   programs execute. Tag both on the same commit; a proposer-only release with no program change is
   fine.
 - **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
-- **Every new commit rotates the vkeys**: both production guests embed the commit they were built
+- **Every new commit rotates the vkeys**: both released guests embed the commit they were built
   from (see [Build provenance](#build-provenance)), so a release tagged on a different commit from
   the previous one always has new vkeys, even if no guest code changed, and every consumer must
   repin. Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.

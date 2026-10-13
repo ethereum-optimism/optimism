@@ -20,10 +20,18 @@ build-elfs features="":
     export KONA_SP1_GIT_SHA="$(just _git-sha "{{features}}")"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
+    just build-log-commitment-elf
+    just _append-vkey log-commitment "$m"
     just build-super-range-elf "{{features}}"
     just _append-vkey super-range "$m"
     just build-super-aggregation-elf
     just _append-vkey super-aggregation "$m"
+
+# Build ELF file for the per-block log-commitment program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-log-commitment-elf:
+    @just _build-elf log-commitment docker
 
 # Build ELF file for the unified super-root range/consolidation program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
@@ -62,6 +70,12 @@ _build-elf NAME MODE features="" DIR="":
 
     root="$(cd "{{justfile_directory()}}/../../.." && pwd)"
     staged_configs=""
+    # log-commitment takes no per-commit or per-deployment input; see README "Build provenance".
+    stable_inputs=false
+    if [[ "{{NAME}}" == log-commitment ]]; then
+      stable_inputs=true
+      unset KONA_SP1_GIT_SHA KONA_CUSTOM_CONFIGS KONA_CUSTOM_CONFIGS_DIR
+    fi
 
     cleanup() {
       if [[ -n "$staged_configs" ]]; then
@@ -92,16 +106,20 @@ _build-elf NAME MODE features="" DIR="":
       fi
     fi
 
-    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so the production
-    # guests carry the same one; see crates/build-info/build.rs for the two channels.
-    : "${KONA_SP1_GIT_SHA:?resolve it via build-elfs or build-elfs-native}"
-    export KONA_SP1_GIT_SHA
+    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so the marked guests
+    # carry the same one; see crates/build-info/build.rs for the two channels.
+    if [[ "$stable_inputs" == false ]]; then
+      : "${KONA_SP1_GIT_SHA:?resolve it via build-elfs or build-elfs-native}"
+      export KONA_SP1_GIT_SHA
+    fi
 
     # --locked appears to be a no-op in upstream cargo-prove (regenerates the lock anyway).
     args=(--locked --ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
     if [[ "{{MODE}}" == "docker" ]]; then
       mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
       args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")
+    fi
+    if [[ "{{MODE}}" == "docker" && "$stable_inputs" == false ]]; then
       args+=(
         --rustflags=--cfg
         "--rustflags=kona_sp1_git_sha=\"${KONA_SP1_GIT_SHA}\""
@@ -124,11 +142,24 @@ _build-elf NAME MODE features="" DIR="":
     cd "{{justfile_directory()}}/programs/${program_dir:-{{NAME}}}"
     cargo prove build "${args[@]}"
 
+    elf="{{justfile_directory()}}/elf/{{NAME}}-elf"
+    if [[ "$stable_inputs" == true ]]; then
+      rc=0
+      grep -aqF 'KONA_SP1_BUILD{' "$elf" || rc=$?
+      if [[ "$rc" -eq 0 ]]; then
+        echo "ERROR: {{NAME}}-elf must not embed a build marker" >&2
+        exit 1
+      elif [[ "$rc" -ne 1 ]]; then
+        echo "ERROR: could not scan {{NAME}}-elf for a build marker" >&2
+        exit 1
+      fi
+      exit 0
+    fi
+
     # Nothing fails at compile time if the marker literal is dropped or an injection channel
     # stops working, so check the artifact on every build path rather than only the one CI runs.
     # Every distinct marker, so a second conflicting one fails rather than hiding behind the
     # first. The character class excludes control bytes, which would otherwise reach a terminal.
-    elf="{{justfile_directory()}}/elf/{{NAME}}-elf"
     markers=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "$elf" | sort -u || true)
     if [[ "$markers" != "KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" ]]; then
       echo "ERROR: {{NAME}}-elf build markers: ${markers:-<none>}" >&2
@@ -136,8 +167,7 @@ _build-elf NAME MODE features="" DIR="":
       exit 1
     fi
 
-# Commit recorded in the guest build marker. Resolved once per build so the guests built together
-# agree.
+# Commit recorded in the guest build marker. Resolved once per build so the marked guests agree.
 # `-custom` marks a KONA_CUSTOM_CONFIGS_DIR build: those compile chain configs from outside the
 # repo into the guest, so the commit alone does not describe the artifact.
 [private]
@@ -176,7 +206,7 @@ build-elfs-native features="":
     export KONA_SP1_GIT_SHA="$(just _git-sha "{{features}}")"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
-    for name in super-range super-aggregation; do
+    for name in log-commitment super-range super-aggregation; do
       just _build-elf "${name}" native "{{features}}"
       just _append-vkey "${name}" "$m"
     done

@@ -26,6 +26,7 @@ use kona_preimage::{
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
+    log_commitment::log_commitment_witness,
     super_root::{
         SuperConsolidationInputs, SuperConsolidationOutputs, SuperConsolidationTransitionInput,
         SuperInteropInputs, SuperInteropOutputs, SuperOptimisticBlock, SuperOutputRoot,
@@ -39,6 +40,7 @@ use kona_sp1_ethereum_client_utils::{
     super_range::build_range_outputs,
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
+use op_alloy_consensus::OpReceiptEnvelope;
 use serde::Deserialize;
 use sp1_sdk::{Elf, Prover, ProverClient, SP1PublicValues, SP1Stdin};
 
@@ -502,6 +504,19 @@ pub fn build_super_consolidation_stdin(
     witness: DefaultWitnessData,
 ) -> Result<SP1Stdin> {
     build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)
+}
+
+/// Encodes log-commitment SP1 stdin for blocks given as `(receipts root, receipts)`: the receipts
+/// roots, then the rkyv witness of their receipts tries. Fails if receipts do not hash to their
+/// root.
+pub fn build_log_commitment_stdin(blocks: &[(B256, Vec<OpReceiptEnvelope>)]) -> Result<SP1Stdin> {
+    let witness = log_commitment_witness(blocks)?;
+    let receipts_roots: Vec<B256> =
+        blocks.iter().map(|(receipts_root, _)| *receipts_root).collect();
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&receipts_roots);
+    stdin.write_slice(&rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?);
+    Ok(stdin)
 }
 
 fn build_super_interop_stdin(
