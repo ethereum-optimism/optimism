@@ -1,5 +1,5 @@
 //! Contains the [`RollupNode`] implementation.
-use super::{Supervisor, adapters, middleware::RpcMetricsLayer};
+use super::{Supervisor, adapters, middleware::RpcMetricsLayer, startup};
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkActor,
     NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode, RollupNodeClients,
@@ -353,7 +353,20 @@ impl RollupNode {
     ///
     /// Dropping this future aborts the remaining actors. Callers are responsible for handling
     /// OS shutdown signals.
+    ///
+    /// ## Errors
+    ///
+    /// Before starting any actor, this fails if:
+    /// - a P2P listen port is in use;
+    /// - the engine rejects the JWT secret, or is still unreachable after the retries;
+    /// - the unsafe block signer cannot be read from L1.
     pub async fn start(&self) -> Result<(), String> {
+        // ─── startup checks ─────────────────────────────────────────────────────────────────
+        startup::check_listen_ports(&self.p2p_config)?;
+        startup::validate_engine_jwt(&self.engine_client)
+            .await
+            .map_err(|error| format!("Engine API JWT check failed: {error}"))?;
+
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         let head_builder = l1::Builder::new(BlockInfo::default());
         let safe_builder = l1::Builder::new(BlockInfo::default());

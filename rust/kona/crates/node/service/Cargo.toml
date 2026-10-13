@@ -50,8 +50,12 @@ http-body-util.workspace = true
 
 metrics.workspace = true
 thiserror.workspace = true
+backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
+op-alloy-provider.workspace = true
+discv5.workspace = true
 
 [dev-dependencies]
+httpmock.workspace = true
 alloy-eips.workspace = true
 kona-gossip.workspace = true
 kona-disc.workspace = true
@@ -59,7 +63,6 @@ kona-peers.workspace = true
 alloy-chains.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
-discv5.workspace = true
 
 metrics-exporter-prometheus.workspace = true
 alloy-json-rpc.workspace = true
@@ -71,7 +74,6 @@ rstest.workspace = true
 arbitrary.workspace = true
 rand.workspace = true
 anyhow.workspace = true
-backon.workspace = true
 mockall.workspace = true
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }

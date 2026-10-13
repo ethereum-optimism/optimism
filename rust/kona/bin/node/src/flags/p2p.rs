@@ -221,39 +221,6 @@ impl Default for P2PArgs {
 }
 
 impl P2PArgs {
-    fn check_ports_inner(ip_addr: IpAddr, tcp_port: u16, udp_port: u16) -> Result<()> {
-        if tcp_port == 0 {
-            return Ok(());
-        }
-        if udp_port == 0 {
-            return Ok(());
-        }
-        let tcp_socket = std::net::TcpListener::bind((ip_addr, tcp_port));
-        let udp_socket = std::net::UdpSocket::bind((ip_addr, udp_port));
-        if let Err(e) = tcp_socket {
-            tracing::error!(target: "p2p::flags", tcp_port, "Error binding TCP socket: {e}");
-            anyhow::bail!("Error binding TCP socket on port {tcp_port}: {e}");
-        }
-        if let Err(e) = udp_socket {
-            tracing::error!(target: "p2p::flags", udp_port, "Error binding UDP socket: {e}");
-            anyhow::bail!("Error binding UDP socket on port {udp_port}: {e}");
-        }
-
-        Ok(())
-    }
-
-    /// Checks if the listen ports are available on the system.
-    ///
-    /// If either of the ports are `0`, this check is skipped.
-    ///
-    /// ## Errors
-    ///
-    /// - If the TCP port is already in use.
-    /// - If the UDP port is already in use.
-    pub fn check_ports(&self) -> Result<()> {
-        Self::check_ports_inner(self.listen_ip, self.listen_tcp_port, self.listen_udp_port)
-    }
-
     /// Returns the private key as specified in the raw cli flag or via file path.
     pub fn private_key(&self) -> Option<PrivateKeySigner> {
         if let Some(key) = self.private_key {

@@ -21,5 +21,10 @@ pub use kona_node_actors::NodeMode;
 mod node;
 pub use node::RollupNode;
 
+mod startup;
+
 mod supervisor;
+
+#[cfg(test)]
+pub(crate) mod test_utils;
 use supervisor::Supervisor;

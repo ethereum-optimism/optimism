@@ -98,68 +98,25 @@ pub enum RollupNodeClientsError {
 mod tests {
     use super::*;
     use crate::{
-        DerivationDelegateConfig, EngineConfig, L1ClientConfig, NetworkConfig, NodeMode,
-        SequencerConfig,
+        DerivationDelegateConfig,
+        service::test_utils::{network_config, node_config},
     };
-    use alloy_rpc_types_engine::JwtSecret;
-    use kona_disc::LocalNode;
-    use kona_genesis::{L1ChainConfig, RollupConfig};
-    use std::{
-        net::{IpAddr, Ipv4Addr},
-        sync::Arc,
-    };
-
-    /// A node config whose endpoints nothing listens on.
-    fn config(derivation_delegate_config: Option<DerivationDelegateConfig>) -> RollupNodeConfig {
-        let rollup_config = Arc::new(RollupConfig::default());
-        let local_node = LocalNode::new(
-            enr::k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap(),
-            IpAddr::V4(Ipv4Addr::LOCALHOST),
-            0,
-            0,
-        );
-        RollupNodeConfig {
-            version: "test".to_owned(),
-            rollup_config: rollup_config.clone(),
-            l1_client: L1ClientConfig {
-                chain_config: Arc::new(L1ChainConfig::default()),
-                beacon: "http://127.0.0.1:1".parse().unwrap(),
-                rpc_url: "http://127.0.0.1:2".parse().unwrap(),
-            },
-            engine_config: EngineConfig {
-                l2_url: "http://127.0.0.1:3".parse().unwrap(),
-                l2_jwt_secret: JwtSecret::from_hex(
-                    "0xabababababababababababababababababababababababababababababababab",
-                )
-                .unwrap(),
-                mode: NodeMode::Validator,
-            },
-            p2p_config: NetworkConfig::new(
-                (*rollup_config).clone(),
-                local_node,
-                libp2p::Multiaddr::empty(),
-            ),
-            rpc_config: None,
-            sequencer_config: SequencerConfig::default(),
-            derivation_delegate_config,
-            dependency_set: None,
-        }
-    }
 
     #[tokio::test]
     async fn connect_builds_the_delegate_client_only_when_configured() {
-        let clients = RollupNodeClients::connect(&config(None)).unwrap();
+        let clients = RollupNodeClients::connect(&node_config(network_config(0, 0), None)).unwrap();
         assert!(clients.derivation_delegate.is_none());
 
         let delegate =
             DerivationDelegateConfig { l2_cl_url: "http://127.0.0.1:4".parse().unwrap() };
-        let clients = RollupNodeClients::connect(&config(Some(delegate))).unwrap();
+        let config = node_config(network_config(0, 0), Some(delegate));
+        let clients = RollupNodeClients::connect(&config).unwrap();
         assert!(clients.derivation_delegate.is_some());
     }
 
     #[tokio::test]
     async fn the_engine_client_uses_the_configs_rollup_config() {
-        let config = config(None);
+        let config = node_config(network_config(0, 0), None);
         let rollup_config = config.rollup_config.clone();
         let clients = RollupNodeClients::connect(&config).unwrap();
 

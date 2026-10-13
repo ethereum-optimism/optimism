@@ -41,9 +41,6 @@ alloy-primitives.workspace = true
 alloy-signer-local.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 
-# op-alloy
-op-alloy-provider.workspace = true
-
 # general
 url.workspace = true
 strum.workspace = true
@@ -57,7 +54,6 @@ thiserror.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
-backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]

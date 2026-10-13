@@ -7,26 +7,14 @@ use crate::{
         SequencerArgs,
     },
 };
-use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
-use kona_engine::EngineClient;
 use kona_node_service::{
     EngineConfig, L1ClientConfig, NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig,
 };
-use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
-
-/// A JWT token validation error.
-#[derive(Debug, thiserror::Error)]
-pub(super) enum JwtValidationError {
-    #[error("JWT signature is invalid")]
-    InvalidSignature,
-    #[error("Failed to exchange capabilities with engine: {0}")]
-    CapabilityExchange(String),
-}
 
 /// Command-line interface for running a Kona rollup node.
 ///
@@ -175,67 +163,11 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Check if the error is related to JWT signature validation
-    fn is_jwt_signature_error(error: &dyn std::error::Error) -> bool {
-        let mut source = Some(error);
-        while let Some(err) = source {
-            let err_str = err.to_string().to_lowercase();
-            if err_str.contains("signature invalid") ||
-                (err_str.contains("jwt") && err_str.contains("invalid")) ||
-                err_str.contains("unauthorized") ||
-                err_str.contains("authentication failed")
-            {
-                return true;
-            }
-            source = err.source();
-        }
-        false
-    }
-
-    /// Helper to check JWT signature error from `anyhow::Error` (for retry condition)
-    fn is_jwt_signature_error_from_anyhow(error: &anyhow::Error) -> bool {
-        Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
-    }
-
-    /// Validates the engine's JWT secret by exchanging capabilities with the engine, which fails
-    /// if the engine was given a different secret. Retries other failures, such as an engine
-    /// that is not up yet.
-    async fn validate_jwt(engine_config: &EngineConfig) -> anyhow::Result<()> {
-        let engine =
-            EngineClient::rpc_client(engine_config.l2_url.clone(), engine_config.l2_jwt_secret);
-
-        let exchange = || async {
-            match engine.exchange_capabilities(vec![]).await {
-                Ok(_) => {
-                    debug!("Successfully exchanged capabilities with engine");
-                    Ok(())
-                }
-                Err(e) => {
-                    if Self::is_jwt_signature_error(&e) {
-                        error!(
-                            "Engine API JWT secret differs from the one in --l2-engine-jwt-secret"
-                        );
-                        return Err(JwtValidationError::InvalidSignature.into());
-                    }
-                    Err(JwtValidationError::CapabilityExchange(e.to_string()).into())
-                }
-            }
-        };
-
-        exchange
-            .retry(ExponentialBuilder::default())
-            .when(|e| !Self::is_jwt_signature_error_from_anyhow(e))
-            .notify(|_, duration| {
-                debug!("Retrying engine capability handshake after {duration:?}");
-            })
-            .await
-    }
-
     /// Resolves the flags into the node's configuration.
     ///
     /// This reads the configuration and key files the flags name, and creates a P2P key file the
-    /// flags name if it does not exist yet, but does no network I/O: [`Self::run`] checks the
-    /// engine and the P2P ports, and the node reads its chain state from L1 when it starts.
+    /// flags name if it does not exist yet, but does no network I/O: the node checks the engine
+    /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
         let cfg = Arc::new(self.chain.rollup_config()?);
 
@@ -282,10 +214,6 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         self.metrics.enabled.then(|| init_rollup_config_metrics(&config.rollup_config));
 
-        // Check the host and the engine before starting the node.
-        self.p2p_flags.check_ports()?;
-        Self::validate_jwt(&config.engine_config).await?;
-
         let clients = RollupNodeClients::connect(&config)?;
         RollupNode::new(config, clients).start().await.map_err(|e| {
             error!(target: "rollup_node", "Failed to start rollup node service: {e}");
@@ -301,22 +229,8 @@ mod tests {
     use super::*;
     use alloy_chains::Chain;
     use alloy_rpc_types_engine::JwtSecret;
-    use anyhow::anyhow;
     use kona_genesis::RollupConfig;
     use kona_peers::BootStoreFile;
-
-    #[derive(Debug)]
-    struct MockError {
-        message: String,
-    }
-
-    impl std::fmt::Display for MockError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.message)
-        }
-    }
-
-    impl std::error::Error for MockError {}
 
     const fn default_flags() -> &'static [&'static str] {
         &[
@@ -447,23 +361,5 @@ mod tests {
         assert_eq!(config.l1_client.chain_config.chain_id, 900);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
         assert!(config.dependency_set.is_none());
-    }
-
-    #[test]
-    fn test_is_jwt_signature_error() {
-        let jwt_error = MockError { message: "signature invalid".to_string() };
-        assert!(NodeCommand::is_jwt_signature_error(&jwt_error));
-
-        let other_error = MockError { message: "network timeout".to_string() };
-        assert!(!NodeCommand::is_jwt_signature_error(&other_error));
-    }
-
-    #[test]
-    fn test_is_jwt_signature_error_from_anyhow() {
-        let jwt_anyhow_error = anyhow!("signature invalid");
-        assert!(NodeCommand::is_jwt_signature_error_from_anyhow(&jwt_anyhow_error));
-
-        let other_anyhow_error = anyhow!("network timeout");
-        assert!(!NodeCommand::is_jwt_signature_error_from_anyhow(&other_anyhow_error));
     }
 }
