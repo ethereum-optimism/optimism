@@ -134,8 +134,6 @@ impl GossipCommand {
             LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
-        // This example only receives blocks, so nothing sends signed payloads to publish.
-        let (_signed_tx, signed_rx) = mpsc::channel(1);
 
         let network_config = NetworkConfig {
             discovery_interval: Duration::from_secs(self.interval),
@@ -153,11 +151,8 @@ impl GossipCommand {
             }
         });
 
-        let network_actor = network_builder.build(
-            ForwardingEngine { block_tx: unsafe_blocks_tx },
-            BanningDiscovery(discovery),
-            signed_rx,
-        );
+        let network_actor = network_builder
+            .build(ForwardingEngine { block_tx: unsafe_blocks_tx }, BanningDiscovery(discovery));
         tokio::spawn(async move {
             if let Err(e) = network_actor.await {
                 error!(target: "gossip", "Network actor error: {e:?}");

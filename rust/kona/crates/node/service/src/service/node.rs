@@ -31,7 +31,7 @@ use kona_rpc::{
 use kona_sources::BlockSignerHandler;
 use op_alloy_network::Optimism;
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -384,7 +384,6 @@ impl RollupNode {
             signer::Capacity::try_from(32).map_err(|error| error.to_string())?,
         );
         let signer_handle = signer_builder.handle();
-        let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<signer::Payload>(16);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
@@ -397,19 +396,12 @@ impl RollupNode {
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
-        let signer_actor = self.build_signer().await?.map(|signer| {
-            signer_builder.build(
-                signer,
-                self.config.l2_chain_id.id(),
-                signer_rx.clone(),
-                signed_payload_tx,
-            )
-        });
+        let block_signer = self.build_signer().await?;
 
         let (gossip, discovery_driver) = self
             .p2p_config
             .clone()
-            .start(signer_rx)
+            .start(signer_rx.clone())
             .await
             .map_err(|e| format!("Failed to start network: {e}"))?;
         let network_builder = network::Builder::new(
@@ -419,11 +411,16 @@ impl RollupNode {
         let network = network_builder.handle();
         let discovery_actor =
             discovery_builder.build(discovery_driver, adapters::Network(network.clone()));
-        let network_actor = network_builder.build(
-            adapters::Engine(engine.clone()),
-            adapters::Discovery(discovery.clone()),
-            signed_payload_rx,
-        );
+        let network_actor = network_builder
+            .build(adapters::Engine(engine.clone()), adapters::Discovery(discovery.clone()));
+        let signer_actor = block_signer.map(|signer| {
+            signer_builder.build(
+                signer,
+                self.config.l2_chain_id.id(),
+                signer_rx,
+                adapters::Network(network.clone()),
+            )
+        });
 
         let p2p_rpc =
             P2pRpc::new(network.state(), network, discovery, self.config.l2_chain_id.id());

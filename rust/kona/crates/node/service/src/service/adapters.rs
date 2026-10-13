@@ -12,7 +12,7 @@ use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashSet, time::Duration};
-use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::mpsc::error::{SendError, TrySendError};
 
 #[derive(Debug, Clone)]
 pub(super) struct Engine(pub(super) engine::Handle);
@@ -115,6 +115,15 @@ pub(super) struct Network(pub(super) network::Handle);
 impl discovery::Network for Network {
     fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
         self.0.dial(enr)
+    }
+}
+
+#[async_trait]
+impl signer::Network for Network {
+    type Error = SendError<signer::Payload>;
+
+    async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
+        self.0.publish(payload).await
     }
 }
 

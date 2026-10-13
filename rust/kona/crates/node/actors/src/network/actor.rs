@@ -18,6 +18,10 @@ use tokio::{
     time::{self, Interval},
 };
 
+/// How many signed payloads can wait to be published. The signer waits while the queue is full,
+/// and the sequencer then stops building once the signer's own queue fills.
+const PAYLOAD_QUEUE_CAPACITY: usize = 16;
+
 /// Constructs the handle and task.
 #[derive(Debug)]
 pub struct Builder {
@@ -26,6 +30,7 @@ pub struct Builder {
     state: watch::Sender<Arc<GossipState>>,
     messages: mpsc::Receiver<Message>,
     peers: mpsc::Receiver<Enr>,
+    payloads: mpsc::Receiver<signer::Payload>,
 }
 
 impl Builder {
@@ -37,12 +42,14 @@ impl Builder {
         let (state, state_rx) = watch::channel(Arc::new(gossip.snapshot()));
         let (messages_tx, messages) = mpsc::channel(capacity.get());
         let (peers_tx, peers) = mpsc::channel(capacity.get());
+        let (payloads_tx, payloads) = mpsc::channel(PAYLOAD_QUEUE_CAPACITY);
         Self {
-            handle: Handle::new(state_rx, messages_tx, peers_tx),
+            handle: Handle::new(state_rx, messages_tx, peers_tx, payloads_tx),
             gossip,
             state,
             messages,
             peers,
+            payloads,
         }
     }
 
@@ -53,15 +60,13 @@ impl Builder {
 
     /// Supplies dependencies and produces the actor's lifetime future without spawning it.
     ///
-    /// `signed` carries the signed payloads to publish. Dropping the future stops the actor and
-    /// the swarm.
+    /// Dropping the future stops the actor and the swarm.
     pub fn build<Engine_: Engine + 'static, Discovery_: Discovery + 'static>(
         self,
         engine: Engine_,
         discovery: Discovery_,
-        signed: mpsc::Receiver<signer::Payload>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, gossip, state, messages, peers } = self;
+        let Self { handle: _, gossip, state, messages, peers, payloads } = self;
         async move {
             let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
             Actor {
@@ -69,7 +74,7 @@ impl Builder {
                 state,
                 messages,
                 peers,
-                signed,
+                payloads,
                 engine,
                 discovery,
                 peer_score_inspector: time::interval(*PEER_SCORE_INSPECT_FREQUENCY),
@@ -106,7 +111,7 @@ struct Actor<Engine_, Discovery_> {
     /// Peers to dial, from discovery.
     peers: mpsc::Receiver<Enr>,
     /// Signed payloads to publish, from the signer.
-    signed: mpsc::Receiver<signer::Payload>,
+    payloads: mpsc::Receiver<signer::Payload>,
     /// Inserts the unsafe blocks received over gossip.
     engine: Engine_,
     /// Bans the addresses of disconnected peers in discovery.
@@ -130,7 +135,7 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
                     }
                     None
                 }
-                Some(signed) = self.signed.recv(), if !self.signed.is_closed() => {
+                Some(signed) = self.payloads.recv(), if !self.payloads.is_closed() => {
                     self.publish(signed);
                     None
                 }
@@ -367,8 +372,7 @@ pub(super) mod tests {
     async fn a_change_returns_once_the_state_that_follows_it_is_published() {
         let builder = Builder::new(Capacity::try_from(1).unwrap(), gossip());
         let handle = builder.handle();
-        let (_signed_tx, signed) = mpsc::channel(1);
-        let task = tokio::spawn(builder.build(UnusedEngine, UnusedDiscovery, signed));
+        let task = tokio::spawn(builder.build(UnusedEngine, UnusedDiscovery));
         let state = handle.state();
         let id = libp2p::PeerId::random();
 

@@ -22,7 +22,10 @@ use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::{
-    mpsc::{self, error::TrySendError},
+    mpsc::{
+        self,
+        error::{SendError, TrySendError},
+    },
     watch,
 };
 use tracing::error;
@@ -114,8 +117,7 @@ impl TestNetworkBuilder {
         let network_builder =
             network::Builder::new(network::Capacity::try_from(1024).unwrap(), gossip);
         let network = network_builder.handle();
-        let discovery_actor =
-            discovery_builder.build(discovery_driver, DialingNetwork(network.clone()));
+        let discovery_actor = discovery_builder.build(discovery_driver, Network(network.clone()));
         tokio::spawn(async move {
             if let Err(err) = discovery_actor.await {
                 error!(target: "net", ?err, "Discovery actor failed");
@@ -125,15 +127,11 @@ impl TestNetworkBuilder {
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let signer_builder = signer::Builder::new(signer::Capacity::try_from(256).unwrap());
         let signer_handle = signer_builder.handle();
-        let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
-        let network_actor = network_builder.build(
-            ForwardingEngine { blocks_tx },
-            BanningDiscovery(discovery.clone()),
-            signed_payload_rx,
-        );
+        let network_actor = network_builder
+            .build(ForwardingEngine { blocks_tx }, BanningDiscovery(discovery.clone()));
 
-        let p2p_rpc = P2pRpc::new(network.state(), network, discovery, self.chain_id);
+        let p2p_rpc = P2pRpc::new(network.state(), network.clone(), discovery, self.chain_id);
 
         // Every test network can sign: payloads sent to `signer_handle` are signed with this
         // node's key and then gossiped.
@@ -141,7 +139,7 @@ impl TestNetworkBuilder {
             BlockSignerHandler::Local(block_signer),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
-            signed_payload_tx,
+            Network(network),
         );
         tokio::spawn(async move {
             if let Err(err) = signer.await {
@@ -155,13 +153,22 @@ impl TestNetworkBuilder {
     }
 }
 
-/// Passes the peers discovery finds to the network actor.
-#[derive(Debug)]
-struct DialingNetwork(network::Handle);
+/// Passes the peers discovery finds and the payloads the signer signs to the network actor.
+#[derive(Debug, Clone)]
+struct Network(network::Handle);
 
-impl discovery::Network for DialingNetwork {
+impl discovery::Network for Network {
     fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
         self.0.dial(enr)
+    }
+}
+
+#[async_trait]
+impl signer::Network for Network {
+    type Error = SendError<signer::Payload>;
+
+    async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
+        self.0.publish(payload).await
     }
 }
 

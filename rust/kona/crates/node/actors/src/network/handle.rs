@@ -1,3 +1,4 @@
+use crate::signer;
 use discv5::Enr;
 use ipnet::IpNet;
 use kona_gossip::GossipState;
@@ -5,7 +6,10 @@ use libp2p::{Multiaddr, PeerId};
 use std::{net::IpAddr, sync::Arc};
 use thiserror::Error;
 use tokio::sync::{
-    mpsc::{self, error::TrySendError},
+    mpsc::{
+        self,
+        error::{SendError, TrySendError},
+    },
     oneshot, watch,
 };
 
@@ -37,12 +41,14 @@ pub(super) enum Message {
     UnprotectPeer(PeerId, Applied),
 }
 
-/// The network actor's published gossip state, its message queue, and its queue of peers to dial.
+/// The network actor's published gossip state, and its queues of messages, peers to dial, and
+/// signed payloads to publish.
 #[derive(Debug, Clone)]
 pub struct Handle {
     state: watch::Receiver<Arc<GossipState>>,
     messages: mpsc::Sender<Message>,
     peers: mpsc::Sender<Enr>,
+    payloads: mpsc::Sender<signer::Payload>,
 }
 
 impl Handle {
@@ -51,8 +57,9 @@ impl Handle {
         state: watch::Receiver<Arc<GossipState>>,
         messages: mpsc::Sender<Message>,
         peers: mpsc::Sender<Enr>,
+        payloads: mpsc::Sender<signer::Payload>,
     ) -> Self {
-        Self { state, messages, peers }
+        Self { state, messages, peers, payloads }
     }
 
     /// Subscribes to the gossip state the actor publishes after each event and change.
@@ -116,6 +123,16 @@ impl Handle {
         self.peers.try_send(enr)
     }
 
+    /// Queues a signed payload to publish, waiting for room in the queue.
+    ///
+    /// Success means the payload was queued, not that it was published.
+    pub async fn publish(
+        &self,
+        payload: signer::Payload,
+    ) -> Result<(), SendError<signer::Payload>> {
+        self.payloads.send(payload).await
+    }
+
     /// Sends a change and waits until the actor has published the state that follows it.
     async fn apply(&self, message: impl FnOnce(Applied) -> Message) -> Result<(), HandleError> {
         let (applied_tx, applied_rx) = oneshot::channel();
@@ -143,7 +160,8 @@ mod tests {
         let (_state_tx, state) = watch::channel(Arc::new(crate::network::actor::tests::state()));
         let (messages, mut receiver) = mpsc::channel(1);
         let (peers, _peers) = mpsc::channel(1);
-        let handle = Handle::new(state, messages, peers);
+        let (payloads, _payloads) = mpsc::channel(1);
+        let handle = Handle::new(state, messages, peers, payloads);
         let id = PeerId::random();
 
         let (result, ()) = tokio::join!(handle.block_peer(id), async {
@@ -170,7 +188,8 @@ mod tests {
         let (_state_tx, state) = watch::channel(Arc::new(crate::network::actor::tests::state()));
         let (messages, _messages) = mpsc::channel(1);
         let (peers, mut receiver) = mpsc::channel(1);
-        let handle = Handle::new(state, messages, peers);
+        let (payloads, _payloads) = mpsc::channel(1);
+        let handle = Handle::new(state, messages, peers, payloads);
         let (first, second) = (enr(), enr());
 
         handle.dial(first.clone()).unwrap();
@@ -180,5 +199,37 @@ mod tests {
         assert_eq!(receiver.recv().await.unwrap(), first);
         drop(receiver);
         assert!(matches!(handle.dial(second), Err(TrySendError::Closed(_))));
+    }
+
+    #[tokio::test]
+    async fn publishing_waits_for_room_and_returns_the_payload_once_the_actor_stops() {
+        let (_state_tx, state) = watch::channel(Arc::new(crate::network::actor::tests::state()));
+        let (messages, _messages) = mpsc::channel(1);
+        let (peers, _peers) = mpsc::channel(1);
+        let (payloads, mut receiver) = mpsc::channel(1);
+        let handle = Handle::new(state, messages, peers, payloads);
+        let payload = |number| {
+            let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+            block.header.number = number;
+            signer::Payload {
+                payload: op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V1(
+                    alloy_rpc_types_engine::ExecutionPayloadV1::from_block_slow(&block),
+                ),
+                signature: alloy_primitives::Signature::test_signature(),
+            }
+        };
+
+        handle.publish(payload(1)).await.unwrap();
+        let second = handle.publish(payload(2));
+        tokio::pin!(second);
+        tokio::select! {
+            biased;
+            result = &mut second => panic!("a full queue accepted a payload: {result:?}"),
+            _ = std::future::ready(()) => {}
+        }
+        assert_eq!(receiver.recv().await.unwrap(), payload(1));
+        second.await.unwrap();
+        drop(receiver);
+        assert_eq!(handle.publish(payload(3)).await.unwrap_err().0, payload(3));
     }
 }
