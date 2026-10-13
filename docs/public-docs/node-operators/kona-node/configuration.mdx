@@ -102,10 +102,11 @@ The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin
 
 <Unreleased component="kona-node" />
 
-A node given a block signer, either `--sequencer.signer.key.path` or `--sequencer.signer.url` with `--sequencer.signer.address`, can sequence. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without a block signer does not serve the sequencer's admin methods. Every other sequencer flag requires a block signer: the node refuses to start if one is given without it.
+A node run with `--sequencer.enabled` can sequence. It requires a block signer: `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. Every other sequencer flag requires `--sequencer.enabled`: the node refuses to start if one is given without it.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
+| `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Run the sequencer. Requires a block signer. The environment variable must be `true` or unset | - |
 | `--sequencer.signer.key.path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH` | Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The file must exist | - |
 | `--sequencer.signer.url <URL>` | `KONA_NODE_SEQUENCER_SIGNER_URL` | Remote op-signer that signs the sequencer's blocks, instead of a local key. Requires `--sequencer.signer.address` | - |
 | `--sequencer.signer.address <ADDRESS>` | `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Address of the remote op-signer's key | - |

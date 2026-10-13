@@ -7,3 +7,6 @@ pub use log::LogArgs;
 
 mod metrics;
 pub use metrics::MetricsArgs;
+
+mod enabled;
+pub use enabled::parse_enabled;

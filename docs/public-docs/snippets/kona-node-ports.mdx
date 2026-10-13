@@ -29,5 +29,4 @@ rather than a port.
 `--sequencer.conductor-url` (`KONA_NODE_SEQUENCER_CONDUCTOR_URL`) is not a listening port either. It is
 the RPC endpoint URL of an external conductor service that the node dials out to,
 and it has no default value. Supplying it enables the conductor integration. It
-requires a block signer (`--sequencer.signer.key.path`, or `--sequencer.signer.url`
-with `--sequencer.signer.address`): without one, the node refuses to start.
+requires `--sequencer.enabled`: without it, the node refuses to start.

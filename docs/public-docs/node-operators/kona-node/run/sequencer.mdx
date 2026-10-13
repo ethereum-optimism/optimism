@@ -8,18 +8,19 @@ import { Unreleased } from "/snippets/unreleased.mdx"
 
 <Unreleased component="kona-node" />
 
-This guide shows how to run `kona-node` as a **sequencer** from the command line. A node given a block signer can sequence; a node without one follows the chain only. For how sequencing works internally and how to configure it programmatically through the Node SDK, see the [sequencer design](/node-operators/kona-node/design/sequencer) page.
+This guide shows how to run `kona-node` as a **sequencer** from the command line. A node run with `--sequencer.enabled` and a block signer can sequence; a node without `--sequencer.enabled` follows the chain only. For how sequencing works internally and how to configure it programmatically through the Node SDK, see the [sequencer design](/node-operators/kona-node/design/sequencer) page.
 
 <Info>
-Sequencing is an advanced configuration primarily used by rollup operators. Most users will run nodes without a block signer, which follow the chain only.
+Sequencing is an advanced configuration primarily used by rollup operators. Most users will run nodes without `--sequencer.enabled`, which follow the chain only.
 </Info>
 
 ## Basic Sequencer Setup
 
-To run a Kona node that can sequence, give it a block signer:
+To run a Kona node that can sequence, pass `--sequencer.enabled` and a block signer:
 
 ```bash
 kona-node node \
+  --sequencer.enabled \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
@@ -28,7 +29,7 @@ kona-node node \
   --l2-config-file=./rollup.json
 ```
 
-Sequencers start stopped after every restart, and the sequencer's admin methods are served only by a node with a block signer. Once the node is running, start block production through the admin API:
+Sequencers start stopped after every restart, and the sequencer's admin methods are served only by a node run with `--sequencer.enabled`. Once the node is running, start block production through the admin API:
 
 ```bash
 curl http://localhost:9545 \
@@ -43,7 +44,7 @@ A conductor can issue the start request for managed sequencers.
 <Warning>
 **Required Configuration**
 
-A sequencer requires all standard node arguments plus a block signer. Missing any required argument will prevent the node from starting, and a node without a block signer cannot sequence.
+A sequencer requires all standard node arguments plus `--sequencer.enabled` and a block signer. Missing any required argument will prevent the node from starting.
 </Warning>
 
 | Argument | Flag | Environment Variable | Description |
@@ -53,14 +54,15 @@ A sequencer requires all standard node arguments plus a block signer. Missing an
 | **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
 | **JWT Secret** | `--l2-engine-jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
 | **Rollup Config** | `--l2-config-file` or `--chain` | `KONA_NODE_ROLLUP_CONFIG` or `KONA_NODE_L2_CHAIN_ID` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
+| **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The environment variable must be `true` or unset |
 | **Block Signer** | `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH`, `KONA_NODE_SEQUENCER_SIGNER_URL`, `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
 
 ## Sequencer-Specific Flags
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Requires a block signer |
-| `--sequencer.conductor-url` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | - | Conductor service RPC endpoint. Requires a block signer |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Requires `--sequencer.enabled` |
+| `--sequencer.conductor-url` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | - | Conductor service RPC endpoint. Requires `--sequencer.enabled` |
 
 The full flag catalogue, including the standard node arguments every node takes, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 
@@ -69,6 +71,7 @@ The full flag catalogue, including the standard node arguments every node takes,
 ### Basic Sequencer
 ```bash
 kona-node node \
+  --sequencer.enabled \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \
@@ -80,6 +83,7 @@ kona-node node \
 ### Sequencer with Conductor
 ```bash
 kona-node node \
+  --sequencer.enabled \
   --sequencer.conductor-url=http://conductor:8080 \
   --sequencer.l1-confs=6 \
   --l1-eth-rpc=http://l1-node:8545 \

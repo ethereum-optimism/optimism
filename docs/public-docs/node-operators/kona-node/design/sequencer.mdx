@@ -6,7 +6,7 @@ diataxis: explanation
 
 import { Unreleased } from "/snippets/unreleased.mdx"
 
-A Kona node given a block signer can **sequence**: build and produce new L2 blocks. When sequencing, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+A Kona node run with `--sequencer.enabled` and a block signer can **sequence**: build and produce new L2 blocks. When sequencing, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
 
 This page explains the design of the sequencer and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
 

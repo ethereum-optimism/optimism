@@ -21,10 +21,10 @@ use tracing::{debug, error, info};
 ///
 /// # Sequencing
 ///
-/// A node given a block signer (`--sequencer.signer.key.path`, or `--sequencer.signer.url`
-/// with `--sequencer.signer.address`) can sequence. Its sequencer starts
-/// stopped; start it with `admin_startSequencer`. A node
-/// without a block signer follows the chain only.
+/// A node run with `--sequencer.enabled` can sequence. It needs a block signer:
+/// `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`.
+/// Its sequencer starts stopped; start it with `admin_startSequencer`. A node without
+/// `--sequencer.enabled` follows the chain only.
 ///
 /// # Configuration Sources
 ///
@@ -44,7 +44,8 @@ use tracing::{debug, error, info};
 ///                --l2-engine-jwt-secret /path/to/jwt.hex
 ///
 /// # Run a node that can sequence a custom chain
-/// kona-node node --l2-config-file /path/to/rollup.json \
+/// kona-node node --sequencer.enabled \
+///                --l2-config-file /path/to/rollup.json \
 ///                --l1-eth-rpc http://localhost:8545 \
 ///                --l1-beacon http://localhost:5052 \
 ///                --l2-engine-rpc http://localhost:8551 \
@@ -299,6 +300,7 @@ mod tests {
         let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
+            "--sequencer.enabled",
             "--sequencer.signer.key.path",
             key.path().to_str().unwrap(),
             "--sequencer.conductor-url",

@@ -45,7 +45,7 @@ Returns whether the sequencer is currently active.
 {"jsonrpc":"2.0","id":1,"result":true}
 ```
 
-**Note**: This method will return a "Method not found" error if the node has no block signer, and so cannot sequence.
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_startSequencer`
 
@@ -62,7 +62,7 @@ Starts the sequencer.
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
-**Note**: This method will return a "Method not found" error if the node has no block signer, and so cannot sequence.
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_stopSequencer`
 
@@ -79,7 +79,7 @@ Stops the sequencer and returns the hash of the last processed block.
 {"jsonrpc":"2.0","id":1,"result":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"}
 ```
 
-**Note**: This method will return a "Method not found" error if the node has no block signer, and so cannot sequence.
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_conductorEnabled`
 
@@ -96,7 +96,7 @@ Returns whether the conductor is enabled.
 {"jsonrpc":"2.0","id":1,"result":false}
 ```
 
-**Note**: This method will return a "Method not found" error if the node has no block signer, and so cannot sequence.
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_overrideLeader`
 
@@ -113,4 +113,4 @@ Overrides the leader in the conductor.
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
-**Note**: This method will return a "Method not found" error if the node has no block signer, and so cannot sequence.
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.

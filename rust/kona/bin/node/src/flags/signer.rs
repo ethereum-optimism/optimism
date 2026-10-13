@@ -1,5 +1,6 @@
 //! Block signer CLI Flags
 
+use super::sequencer::SEQUENCER_ENABLED;
 use alloy_primitives::{Address, B256};
 use alloy_signer::k256::ecdsa;
 use alloy_signer_local::PrivateKeySigner;
@@ -14,13 +15,17 @@ use url::Url;
 pub(super) const BLOCK_SIGNER: &str = "block_signer";
 
 /// The flags that choose the sequencer's block signer: a local key read from a file, or a remote
-/// op-signer. A node given a block signer can sequence.
+/// op-signer. Each requires `--sequencer.enabled`.
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
 #[command(group(ArgGroup::new(BLOCK_SIGNER).args(["key_path", "url"])))]
 pub struct SignerArgs {
     /// Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The
     /// file must exist.
-    #[arg(long = "sequencer.signer.key.path", env = "KONA_NODE_SEQUENCER_SIGNER_KEY_PATH")]
+    #[arg(
+        long = "sequencer.signer.key.path",
+        env = "KONA_NODE_SEQUENCER_SIGNER_KEY_PATH",
+        requires = SEQUENCER_ENABLED
+    )]
     pub key_path: Option<PathBuf>,
     /// A remote op-signer that signs the sequencer's blocks.
     #[command(flatten)]
@@ -38,7 +43,8 @@ pub struct RemoteSignerArgs {
     #[arg(
         long = "sequencer.signer.url",
         env = "KONA_NODE_SEQUENCER_SIGNER_URL",
-        requires = "address"
+        requires = "address",
+        requires = SEQUENCER_ENABLED
     )]
     pub url: Option<Url>,
     /// The address of the remote op-signer's key.
@@ -169,24 +175,23 @@ mod tests {
         test_utils::{KEY, key_file},
         *,
     };
+    use crate::flags::SequencerArgs;
     use clap::{Parser, error::ErrorKind};
 
-    #[derive(Parser, Debug)]
-    struct Command {
-        #[command(flatten)]
-        signer: SignerArgs,
-    }
-
+    /// Parses the signer flags `args` of a node run with `--sequencer.enabled`, which they require.
     fn parse(args: &[&str]) -> Result<SignerArgs, clap::Error> {
-        Command::try_parse_from(std::iter::once("node").chain(args.iter().copied()))
-            .map(|command| command.signer)
+        SequencerArgs::try_parse_from(
+            ["node", "--sequencer.enabled"].into_iter().chain(args.iter().copied()),
+        )
+        .map(|sequencer| sequencer.signer)
     }
 
     const ADDRESS: &str = "0x0000000000000000000000000000000000000001";
 
     #[test]
     fn no_flags_choose_no_signer() {
-        assert!(parse(&[]).unwrap().config().unwrap().is_none());
+        let args = SequencerArgs::try_parse_from(["node"]).unwrap();
+        assert!(args.signer.config().unwrap().is_none());
     }
 
     #[test]

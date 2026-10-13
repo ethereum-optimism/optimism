@@ -596,6 +596,7 @@ func startMixedKonaNode(
 		tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
 		t.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o640))
 		envVars = append(envVars,
+			"KONA_NODE_SEQUENCER_ENABLED=true",
 			"KONA_NODE_SEQUENCER_SIGNER_KEY_PATH="+tempSeqKeyPath,
 			"KONA_NODE_SEQUENCER_L1_CONFS=2",
 		)
