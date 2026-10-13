@@ -52,7 +52,7 @@ interface IL2ToL2CrossDomainMessenger is IProxyAdminOwnedBase {
     error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
     /// @notice Thrown when the contract is initialized with an expiry period of zero or above
-    ///         365 days.
+    ///         365 days, or when a message is marked expired while the period is unset.
     error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
 
     /// @notice Emitted whenever a message is sent to a destination

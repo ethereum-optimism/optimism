@@ -50,7 +50,7 @@ error L2ToL2CrossDomainMessenger_NotOtherMessenger();
 error L2ToL2CrossDomainMessenger_MessageNotExpired();
 
 /// @notice Thrown when the contract is initialized with an expiry period of zero or above
-///         `MAX_EXPIRY_PERIOD`.
+///         `MAX_EXPIRY_PERIOD`, or when a message is marked expired while the period is unset.
 error L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
 
 /// @custom:proxied true
@@ -82,8 +82,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     uint256 internal constant MAX_EXPIRY_PERIOD = 365 days;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -293,7 +293,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     ///         L1CrossDomainMessenger that its destination had not relayed it by `_undeliveredAt`.
     ///         Only the destination can have produced that word, since it computed the message hash
     ///         with its own chain ID. Word for a message that already expired changes nothing and
-    ///         emits nothing.
+    ///         emits nothing. Word that arrives while the expiry period is unset reverts.
     /// @param _messageHash   Hash of the message.
     /// @param _undeliveredAt Destination timestamp at which the message had not been relayed.
     function expireMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
@@ -308,7 +308,9 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
 
         uint256 sentAt = sentMessageTimestamps[_messageHash];
         if (sentAt == 0) revert InvalidMessage();
-        if (_undeliveredAt <= sentAt + expiryPeriod) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
+        uint256 period = expiryPeriod;
+        if (period == 0) revert L2ToL2CrossDomainMessenger_InvalidExpiryPeriod();
+        if (_undeliveredAt <= sentAt + period) revert L2ToL2CrossDomainMessenger_MessageNotExpired();
 
         expiredMessages[_messageHash] = true;
 
