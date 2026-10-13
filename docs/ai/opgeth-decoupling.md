@@ -35,7 +35,7 @@ of three fates:
    stale pre-Holocene `check-*` tools (§18).
 
 Once every component is in fate 1, 2, or 3, the go.mod `replace` flips to upstream go-ethereum
-(#20266). A scheduled **CI ratchet** job rehearses the flip continuously (see §19).
+(#20266). A required **CI ratchet** check rehearses the flip on every PR (see §19).
 
 **Compile-compat is necessary, not sufficient.** Upstream go-ethereum does not implement the OP
 state transition, so code can compile and silently behave wrongly. The classifying question for
@@ -577,14 +577,30 @@ upstream-portable, and pointless in an op-reth fleet whose datadirs aren't geth-
 
 ## 19. CI ratchet — continuously rehearsing the cutover
 
-A scheduled CI job makes decoupling progress measurable and regression-proof: in a throwaway
-checkout it drops the go-ethereum `replace`, pins upstream at the current op-geth base version,
-runs `go mod tidy` + `go build`/`go vet`, and compares the **set of failing packages** against a
-committed baseline. A failure outside the baseline is a regression (a fork-API use crept into a
-clean package) and fails the job; a baselined package turning green shrinks the baseline — it
-only ever tightens. #20266 becomes executable exactly when the baseline is empty, and the flip PR
-deletes the job. The op-core differential tests are expected baseline members until then (they
-import op-geth-only symbols by design).
+`just opgeth-ratchet` (CI job `opgeth-ratchet`, required through `ci-gate`) type-checks the whole
+tree, tests included, against the upstream go-ethereum version op-geth is based on — via a
+temporary go.mod; the repo's go.mod is untouched — and compares the op-geth-only API uses it finds
+with `ops/scripts/opgeth-ratchet/allowlist.txt`. An entry names the package (suffixed `(tests)`
+for uses in its test files) and what it needs from the fork, e.g.
+`op-batcher/batcher | missing go-ethereum/core/types.DefaultBlockConfig | <reason>`.
+
+- **A use not on the allowlist fails the check.** Avoid it using this doc; if there is no way
+  around it yet, add the entry by hand with a reason. Review of that line is the gate.
+- **An entry no longer used fails the check too**; `just opgeth-ratchet-update` removes it. The
+  tool never adds entries, so the allowlist only grows deliberately.
+- **Each package reports only its own uses.** go/types type-checks every package from source and
+  continues past errors, so fixing a package never surfaces its importers as new failures. `go
+  build`/`go vet` report only the first failing layer, which is why the check doesn't compare
+  their failing-package sets.
+- **Compile-compat only.** Code that type-checks against upstream but would behave wrongly (e.g.
+  the in-process L2 EL, §17) is outside the check.
+- **op-geth also carries upstream backports** — later go-ethereum features (block access lists,
+  `CustodyBitmap`, builder deposit addresses, …) that its base version lacks. Uses of them are
+  allowlisted with reason "upstream backport" and are not decoupling work: they go when op-geth's
+  upstream base catches up.
+
+#20266 is executable when the allowlist is empty; the flip PR deletes the tool, the allowlist and
+the CI job. The op-core differential tests are allowlist entries until then.
 
 ---
 
@@ -713,6 +729,6 @@ monorepo has to fix on their behalf.
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
-| CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
+| CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
 | Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
