@@ -50,6 +50,7 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
+#[command(next_help_heading = "P2P")]
 pub struct P2PArgs {
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after

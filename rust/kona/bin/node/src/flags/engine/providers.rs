@@ -5,6 +5,7 @@ use url::Url;
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
+#[command(next_help_heading = "L1")]
 pub struct L1ClientArgs {
     /// URL of the L1 execution client RPC API.
     #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
@@ -16,6 +17,7 @@ pub struct L1ClientArgs {
 
 /// L2 client arguments.
 #[derive(Clone, Debug, clap::Args)]
+#[command(next_help_heading = "L2 Engine")]
 pub struct L2ClientArgs {
     /// URI of the engine API endpoint of an L2 execution client.
     #[arg(long, visible_alias = "l2", env = "KONA_NODE_L2_ENGINE_RPC")]
@@ -40,6 +42,7 @@ impl L2ClientArgs {
 
 /// L2 derivation delegate connection arguments.
 #[derive(Clone, Debug, Default, clap::Args)]
+#[command(next_help_heading = "Derivation Delegate")]
 pub struct DerivationDelegateArgs {
     /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus`.
     #[arg(long, visible_alias = "l2.follow.source", env = "KONA_NODE_L2_FOLLOW_SOURCE")]

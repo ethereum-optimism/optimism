@@ -11,6 +11,7 @@ use std::{
 
 /// RPC CLI Arguments
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
+#[command(next_help_heading = "RPC")]
 pub struct RpcArgs {
     /// RPC listening address.
     ///

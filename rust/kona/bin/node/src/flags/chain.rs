@@ -19,6 +19,7 @@ use tracing::debug;
 #[command(group(
     ArgGroup::new("rollup_config").required(true).args(["l2_chain_id", "l2_config_file"])
 ))]
+#[command(next_help_heading = "Chain")]
 pub struct ChainArgs {
     /// The L2 chain to load the rollup config for from the superchain registry, by chain ID or
     /// name.

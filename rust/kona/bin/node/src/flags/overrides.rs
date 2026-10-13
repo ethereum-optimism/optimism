@@ -5,6 +5,7 @@ use kona_genesis::RollupConfig;
 
 /// Override Flags.
 #[derive(Parser, Debug, Clone, Copy, PartialEq, Eq)]
+#[command(next_help_heading = "Hardfork Overrides")]
 pub struct OverrideArgs {
     /// Manually specify the timestamp for the Canyon fork, overriding the bundled setting.
     #[arg(long, env = "KONA_NODE_OVERRIDE_CANYON")]

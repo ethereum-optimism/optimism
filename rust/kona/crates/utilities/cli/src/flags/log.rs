@@ -9,6 +9,7 @@ use crate::{LogFormat, LogRotation};
 
 /// Global configuration arguments.
 #[derive(Args, Debug, Default, Serialize, Deserialize, Clone)]
+#[command(next_help_heading = "Logging")]
 pub struct LogArgs {
     /// Verbosity level (1-5).
     /// By default, the verbosity level is set to 3 (info level).

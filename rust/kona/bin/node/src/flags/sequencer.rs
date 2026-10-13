@@ -14,6 +14,7 @@ use url::Url;
 /// A node given a block signer can sequence. Every other flag here configures that sequencer, so
 /// it requires a block signer.
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
+#[command(next_help_heading = "Sequencer")]
 pub struct SequencerArgs {
     /// The sequencer's block signer.
     #[command(flatten)]
