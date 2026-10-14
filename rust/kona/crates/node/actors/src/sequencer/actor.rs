@@ -241,10 +241,13 @@ where
         self.conductor.as_ref().filter(|_| !self.leader_overridden)
     }
 
-    /// Publishes sequencer state and updates its metrics.
+    /// Publishes sequencer state and updates its metrics. The gauge whose `active` label is the
+    /// current state reads 1, and the other 0.
     fn update_state(&self) {
-        let state_flags = [("active", self.is_active.to_string())];
-        metrics::gauge!(crate::Metrics::SEQUENCER_STATE, &state_flags).set(1);
+        for active in [true, false] {
+            metrics::gauge!(crate::Metrics::SEQUENCER_STATE, "active" => active.to_string())
+                .set(f64::from(u8::from(active == self.is_active)));
+        }
         self.is_active_tx.send_replace(self.is_active);
     }
 

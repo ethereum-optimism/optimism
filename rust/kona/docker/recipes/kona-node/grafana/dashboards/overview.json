@@ -6129,7 +6129,7 @@
               "disableTextWrap": false,
               "editorMode": "builder",
               "exemplar": false,
-              "expr": "kona_node_sequencer_state{instance=~\"$instance\"}",
+              "expr": "kona_node_sequencer_state{instance=~\"$instance\", active=\"true\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": true,

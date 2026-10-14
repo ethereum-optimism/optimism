@@ -198,3 +198,20 @@ async fn failed_startup_does_not_apply_a_queued_command() {
     assert!(matches!(handle.is_active(), Err(HandleError::RequestError(_))));
     assert!(matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
 }
+
+/// Only the series for the sequencer's current state reads 1, so a dashboard of the gauge shows the
+/// state after it changes.
+#[test]
+fn the_state_gauge_reads_the_current_state_only() {
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics = recorder.handle();
+    let (mut actor, _, _) = test_actor_with_config(true, None);
+    metrics::with_local_recorder(&recorder, || {
+        actor.update_state();
+        actor.is_active = false;
+        actor.update_state();
+    });
+    let rendered = metrics.render();
+    assert!(rendered.contains("kona_node_sequencer_state{active=\"true\"} 0"), "{rendered}");
+    assert!(rendered.contains("kona_node_sequencer_state{active=\"false\"} 1"), "{rendered}");
+}

@@ -23,7 +23,8 @@ impl Metrics {
     /// Identifier for the counter of critical derivation errors (strictly for alerting.)
     pub const DERIVATION_CRITICAL_ERROR: &str = "kona_node_derivation_critical_errors";
 
-    /// Identifier for the counter that tracks sequencer state flags.
+    /// Gauge of whether the sequencer is active: the series whose `active` label is the current
+    /// state reads 1, and the other 0.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
 
     /// Gauge for the sequencer's attributes builder duration.
@@ -115,7 +116,10 @@ impl Metrics {
         );
 
         // Sequencer state
-        metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
+        metrics::describe_gauge!(
+            Self::SEQUENCER_STATE,
+            "Whether the sequencer is active: 1 for the current state's `active` label, 0 for the other"
+        );
 
         // Sequencer attributes builder duration
         metrics::describe_gauge!(
