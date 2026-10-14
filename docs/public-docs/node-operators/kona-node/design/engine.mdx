@@ -90,7 +90,7 @@ The engine actor receives all state-mutating input through its handle: payload a
 ```rust
 // Create the Engine API client from an authenticated Engine API provider.
 let client =
-    EngineApi::new(EngineApi::rpc_client(l2_engine_url, jwt_secret), rollup_config.clone());
+    EngineApi::new(kona_sources::l2_provider(l2_engine_url, jwt_secret), rollup_config.clone());
 
 // Create the request queue and state publisher, and hand out handles.
 let builder = engine::Builder::new(capacity);

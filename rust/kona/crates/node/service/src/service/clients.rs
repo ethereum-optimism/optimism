@@ -2,13 +2,9 @@
 
 use crate::{DerivationDelegateClient, DerivationDelegateClientError};
 use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::JwtSecret;
-use alloy_transport_http::reqwest;
 use kona_providers_alloy::OnlineBeaconClient;
-use kona_sources::EngineApi;
 use op_alloy_network::Optimism;
-use std::time::Duration;
 use url::Url;
 
 /// Where the node's L1 and L2 endpoints are, which [`RollupNodeClients::connect`] builds the
@@ -42,8 +38,9 @@ pub struct RollupNodeClients {
     /// The L2 execution layer's authenticated RPC, which also serves the Engine API. Derivation
     /// reads L2 blocks through it.
     ///
-    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineApi`] from it and the
-    /// config's rollup config, so the engine follows the same chain as the rest of the node.
+    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's
+    /// [`EngineApi`](kona_sources::EngineApi) from it and the config's rollup config, so the
+    /// engine follows the same chain as the rest of the node.
     pub l2: RootProvider<Optimism>,
     /// The consensus layer the node follows instead of deriving. The node derives the safe chain
     /// itself when this is `None`.
@@ -56,15 +53,10 @@ impl RollupNodeClients {
     /// This only builds the clients and does no network I/O, so it does not check that the
     /// endpoints are reachable.
     pub fn connect(endpoints: &RollupNodeEndpoints) -> Result<Self, RollupNodeClientsError> {
-        let l1_http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()
-            .map_err(RollupNodeClientsError::L1HttpClient)?;
-        let l1 =
-            RootProvider::new(RpcClient::new_http_with_client(l1_http, endpoints.l1_rpc.clone()));
+        let l1 = kona_sources::l1_provider(endpoints.l1_rpc.clone());
         let l1_beacon = OnlineBeaconClient::new_http(endpoints.l1_beacon.to_string());
 
-        let l2 = EngineApi::rpc_client(endpoints.l2_engine.clone(), endpoints.l2_jwt_secret);
+        let l2 = kona_sources::l2_provider(endpoints.l2_engine.clone(), endpoints.l2_jwt_secret);
 
         let derivation_delegate =
             endpoints.derivation_delegate.clone().map(DerivationDelegateClient::new).transpose()?;
@@ -76,9 +68,6 @@ impl RollupNodeClients {
 /// An error building a [`RollupNodeClients`].
 #[derive(Debug, thiserror::Error)]
 pub enum RollupNodeClientsError {
-    /// The L1 RPC's HTTP client could not be built.
-    #[error("failed to build the L1 RPC's HTTP client")]
-    L1HttpClient(#[source] reqwest::Error),
     /// The derivation delegate's client could not be built.
     #[error("failed to build the derivation delegate's client")]
     DerivationDelegate(#[from] DerivationDelegateClientError),

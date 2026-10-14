@@ -175,7 +175,7 @@ mod tests {
     /// An Engine API client whose Engine API is `server`.
     fn engine(server: &httpmock::MockServer) -> EngineApi {
         EngineApi::new(
-            EngineApi::rpc_client(
+            kona_sources::l2_provider(
                 server.url("/").parse().unwrap(),
                 JwtSecret::from_hex(JWT_HEX).unwrap(),
             ),

@@ -26,11 +26,9 @@ kona-rpc = { workspace = true, features = ["client"] }
 
 # alloy
 alloy-primitives.workspace = true
-alloy-rpc-client.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
 alloy-transport.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
 
 # op-alloy
 op-alloy-network.workspace = true

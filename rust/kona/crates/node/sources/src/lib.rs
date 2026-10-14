@@ -13,6 +13,9 @@ pub use engine::{EngineApi, EngineApiError};
 mod metrics;
 pub use metrics::Metrics;
 
+mod providers;
+pub use providers::{l1_provider, l2_provider};
+
 mod signer;
 pub use signer::{
     BlockSigner, BlockSignerError, BlockSignerHandler, BlockSignerStartError, RemoteSigner,
