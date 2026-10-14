@@ -4,10 +4,7 @@ mod config;
 pub use config::SequencerConfig;
 
 mod origin_selector;
-pub use origin_selector::{
-    DelayedL1OriginSelectorProvider, L1OriginSelector, L1OriginSelectorError,
-    L1OriginSelectorProvider, OriginSelector,
-};
+pub use origin_selector::{L1OriginSelector, L1OriginSelectorError, OriginSelector};
 
 mod actor;
 pub use actor::Builder;

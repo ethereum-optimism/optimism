@@ -280,13 +280,19 @@ mod tests {
         assert_eq!(handle.next_head(BlockInfo::default()).await.unwrap(), block(10, 1, 1));
 
         // Nothing after the head yet.
-        assert!(timeout(INTERVAL * 3, handle.child_of(block(10, 1, 1))).await.is_err());
+        assert!(timeout(INTERVAL * 3, handle.child_of(block(10, 1, 1).id())).await.is_err());
 
         // The head jumps two blocks; the actor fetches the one between.
         state.add([block(11, 1, 1)]);
         state.set_head(block(12, 1, 1));
-        assert_eq!(handle.child_of(block(10, 1, 1)).await.unwrap(), Child::Block(block(11, 1, 1)));
-        assert_eq!(handle.child_of(block(11, 1, 1)).await.unwrap(), Child::Block(block(12, 1, 1)));
+        assert_eq!(
+            handle.child_of(block(10, 1, 1).id()).await.unwrap(),
+            Child::Block(block(11, 1, 1))
+        );
+        assert_eq!(
+            handle.child_of(block(11, 1, 1).id()).await.unwrap(),
+            Child::Block(block(12, 1, 1))
+        );
         assert_eq!(state.by_hash_calls.load(Ordering::SeqCst), 1);
     }
 
@@ -300,13 +306,16 @@ mod tests {
         // A waiting consumer and one that asks later both see the reorg of block 11.
         let waiting = tokio::spawn({
             let handle = handle.clone();
-            async move { handle.child_of(block(11, 1, 1)).await.unwrap() }
+            async move { handle.child_of(block(11, 1, 1).id()).await.unwrap() }
         });
         state.add([block(11, 2, 1)]);
         state.set_head(block(12, 2, 2));
         assert_eq!(waiting.await.unwrap(), Child::Reorged);
-        assert_eq!(handle.child_of(block(11, 1, 1)).await.unwrap(), Child::Reorged);
-        assert_eq!(handle.child_of(block(10, 1, 1)).await.unwrap(), Child::Block(block(11, 2, 1)));
+        assert_eq!(handle.child_of(block(11, 1, 1).id()).await.unwrap(), Child::Reorged);
+        assert_eq!(
+            handle.child_of(block(10, 1, 1).id()).await.unwrap(),
+            Child::Block(block(11, 2, 1))
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -330,7 +339,10 @@ mod tests {
         assert_eq!(next.await.unwrap(), block(10, 1, 1));
         // The chain now starts at the finalized block, and the handle reads older blocks from L1.
         assert_eq!(handle.canonical(7).await.unwrap(), Some(block(7, 1, 1)));
-        assert_eq!(handle.child_of(block(7, 1, 1)).await.unwrap(), Child::Block(block(8, 1, 1)));
+        assert_eq!(
+            handle.child_of(block(7, 1, 1).id()).await.unwrap(),
+            Child::Block(block(8, 1, 1))
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -371,7 +383,7 @@ mod tests {
         head_reaches(&handle, block(11, 1, 1)).await;
         state.set_head(block(10, 1, 1));
         head_reaches(&handle, block(10, 1, 1)).await;
-        assert_eq!(handle.try_child_of(block(11, 1, 1), 0).await.unwrap(), None);
+        assert_eq!(handle.try_child_of(block(11, 1, 1).id(), 0).await.unwrap(), None);
         assert_eq!(handle.canonical(11).await.unwrap(), None);
         assert_eq!(state.by_hash_calls.load(Ordering::SeqCst), 0);
     }

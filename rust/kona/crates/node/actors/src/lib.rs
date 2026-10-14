@@ -38,9 +38,8 @@ pub use network::NetworkConfig;
 pub mod sequencer;
 
 pub use sequencer::{
-    Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
-    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, SequencerConfig,
-    SequencerEngineClient,
+    Conductor, ConductorClient, ConductorError, L1OriginSelector, L1OriginSelectorError,
+    OriginSelector, SequencerConfig, SequencerEngineClient,
 };
 
 #[cfg(test)]

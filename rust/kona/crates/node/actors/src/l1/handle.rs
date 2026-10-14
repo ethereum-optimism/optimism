@@ -4,6 +4,7 @@ use super::{
     chain::{Chain, Height},
     rpc::block_info,
 };
+use alloy_eips::BlockNumHash;
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{TransportError, TransportErrorKind};
 use kona_protocol::BlockInfo;
@@ -87,7 +88,7 @@ impl Handle {
 
     /// Waits until L1 has a canonical child of `block`, or `block` is reorged out, and returns
     /// which.
-    pub async fn child_of(&self, block: BlockInfo) -> Result<Child, HandleError> {
+    pub async fn child_of(&self, block: BlockNumHash) -> Result<Child, HandleError> {
         let mut chain = self.chain.clone();
         loop {
             // Mark the current chain seen before answering from it, so that a change while
@@ -104,7 +105,7 @@ impl Handle {
     /// after it, [`Child::Reorged`] if `block` is reorged out, or `None` if L1 cannot tell yet.
     pub async fn try_child_of(
         &self,
-        block: BlockInfo,
+        block: BlockNumHash,
         confirmations: u64,
     ) -> Result<Option<Child>, HandleError> {
         let (at_block, at_child, head) = {
@@ -191,15 +192,21 @@ mod tests {
         assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4, 1, 1)));
         assert_eq!(handle.canonical(7).await.unwrap(), None);
         assert_eq!(
-            handle.try_child_of(block(4, 1, 1), 0).await.unwrap(),
+            handle.try_child_of(block(4, 1, 1).id(), 0).await.unwrap(),
             Some(Child::Block(block(5, 1, 1)))
         );
         // A block that is not canonical, at or after the finalized block.
-        assert_eq!(handle.try_child_of(block(5, 2, 1), 0).await.unwrap(), Some(Child::Reorged));
-        assert_eq!(handle.try_child_of(block(3, 2, 2), 0).await.unwrap(), Some(Child::Reorged));
+        assert_eq!(
+            handle.try_child_of(block(5, 2, 1).id(), 0).await.unwrap(),
+            Some(Child::Reorged)
+        );
+        assert_eq!(
+            handle.try_child_of(block(3, 2, 2).id(), 0).await.unwrap(),
+            Some(Child::Reorged)
+        );
         // Nothing after the head, nor after a block after the head.
-        assert_eq!(handle.try_child_of(block(6, 1, 1), 0).await.unwrap(), None);
-        assert_eq!(handle.try_child_of(block(9, 2, 2), 0).await.unwrap(), None);
+        assert_eq!(handle.try_child_of(block(6, 1, 1).id(), 0).await.unwrap(), None);
+        assert_eq!(handle.try_child_of(block(9, 2, 2).id(), 0).await.unwrap(), None);
     }
 
     #[tokio::test(start_paused = true)]
@@ -207,10 +214,10 @@ mod tests {
         let chain = TestChain::new(&blocks(3..=6, 1));
         let handle = chain.handle();
         assert_eq!(
-            handle.try_child_of(block(3, 1, 1), 2).await.unwrap(),
+            handle.try_child_of(block(3, 1, 1).id(), 2).await.unwrap(),
             Some(Child::Block(block(4, 1, 1)))
         );
-        assert_eq!(handle.try_child_of(block(4, 1, 1), 2).await.unwrap(), None);
+        assert_eq!(handle.try_child_of(block(4, 1, 1).id(), 2).await.unwrap(), None);
     }
 
     #[tokio::test(start_paused = true)]
@@ -224,15 +231,18 @@ mod tests {
         ]));
         assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4, 1, 1)));
         assert_eq!(
-            handle.try_child_of(block(4, 1, 1), 0).await.unwrap(),
+            handle.try_child_of(block(4, 1, 1).id(), 0).await.unwrap(),
             Some(Child::Block(block(5, 1, 1)))
         );
         // A block that lost to a block L1 then finalized.
-        assert_eq!(handle.try_child_of(block(4, 2, 2), 0).await.unwrap(), Some(Child::Reorged));
+        assert_eq!(
+            handle.try_child_of(block(4, 2, 2).id(), 0).await.unwrap(),
+            Some(Child::Reorged)
+        );
         // The child of the block before the finalized block is the finalized block.
         let handle = chain.handle_with_history(history(&[block(9, 1, 1)]));
         assert_eq!(
-            handle.try_child_of(block(9, 1, 1), 0).await.unwrap(),
+            handle.try_child_of(block(9, 1, 1).id(), 0).await.unwrap(),
             Some(Child::Block(block(10, 1, 1)))
         );
     }
@@ -254,16 +264,16 @@ mod tests {
         let handle = chain.handle();
         let waiting = tokio::spawn({
             let handle = handle.clone();
-            async move { handle.child_of(block(5, 1, 1)).await.unwrap() }
+            async move { handle.child_of(block(5, 1, 1).id()).await.unwrap() }
         });
-        assert!(timeout(WAIT, handle.child_of(block(5, 1, 1))).await.is_err());
+        assert!(timeout(WAIT, handle.child_of(block(5, 1, 1).id())).await.is_err());
         chain.set_head(&[block(6, 1, 1)]);
         assert_eq!(waiting.await.unwrap(), Child::Block(block(6, 1, 1)));
 
         // A block after the head waits until the head reaches it.
         let waiting = tokio::spawn({
             let handle = handle.clone();
-            async move { handle.child_of(block(7, 2, 2)).await.unwrap() }
+            async move { handle.child_of(block(7, 2, 2).id()).await.unwrap() }
         });
         chain.set_head(&[block(7, 1, 1)]);
         assert_eq!(waiting.await.unwrap(), Child::Reorged);
@@ -292,13 +302,16 @@ mod tests {
         let handle = chain.handle();
         let waiting = tokio::spawn({
             let handle = handle.clone();
-            async move { handle.child_of(block(5, 1, 1)).await }
+            async move { handle.child_of(block(5, 1, 1).id()).await }
         });
         tokio::task::yield_now().await;
         drop(chain);
         assert!(matches!(waiting.await.unwrap(), Err(HandleError::Stopped)));
         assert!(matches!(handle.status(), Err(HandleError::Stopped)));
-        assert!(matches!(handle.try_child_of(block(4, 1, 1), 0).await, Err(HandleError::Stopped)));
+        assert!(matches!(
+            handle.try_child_of(block(4, 1, 1).id(), 0).await,
+            Err(HandleError::Stopped)
+        ));
         assert!(matches!(handle.next_head(block(5, 1, 1)).await, Err(HandleError::Stopped)));
     }
 }

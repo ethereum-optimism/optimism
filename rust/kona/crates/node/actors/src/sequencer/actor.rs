@@ -305,11 +305,11 @@ where
     ) -> Result<Option<BlockInfo>, ActorError> {
         let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head).await {
             Ok(l1_origin) => l1_origin,
-            Err(L1OriginSelectorError::OriginNotFound(hash)) => {
+            Err(L1OriginSelectorError::OriginReorged(origin)) => {
                 warn!(
                     target: "sequencer",
-                    %hash,
-                    "L1 origin block not found, resetting engine"
+                    ?origin,
+                    "L1 reorged out the unsafe head's L1 origin, resetting engine"
                 );
                 self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);

@@ -1,9 +1,9 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
-    ChainSpec, ConductorClient, DelayedL1OriginSelectorProvider, L1OriginSelector, NetworkConfig,
-    NodeActor, NodeMode, RollupNodeClients, RollupNodeConfig, RpcActor, SequencerConfig,
-    service::BufferImportedBlocks, signer,
+    ChainSpec, ConductorClient, L1OriginSelector, NetworkConfig, NodeActor, NodeMode,
+    RollupNodeClients, RollupNodeConfig, RpcActor, SequencerConfig, service::BufferImportedBlocks,
+    signer,
 };
 use backon::ExponentialBuilder;
 use jsonrpsee::{
@@ -246,18 +246,16 @@ impl RollupNode {
         l1: l1::Handle,
         builder: sequencer::Builder,
     ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
-        let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
-            self.clients.l1.clone(),
+        let origin_selector = L1OriginSelector::new(
+            self.chain.rollup_config.clone(),
             l1,
             self.sequencer_config.l1_conf_delay,
         );
-        let delayed_origin_selector =
-            L1OriginSelector::new(self.chain.rollup_config.clone(), delayed_l1_provider);
 
         builder.build(
             self.create_attributes_builder(),
             adapters::Engine::new(engine),
-            delayed_origin_selector,
+            origin_selector,
             self.chain.rollup_config.clone(),
             self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
             adapters::Signer(signer),

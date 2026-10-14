@@ -238,10 +238,10 @@ where
     /// origin instead.
     async fn wait_to_retry(&self) -> Result<Option<Derived>, ActorError> {
         let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        let child = match self.l1.try_child_of(origin).await {
+        let child = match self.l1.try_child_of(origin.id()).await {
             Ok(None) => {
                 debug!(target: "derivation", ?origin, "Waiting for L1 to extend the pipeline's origin");
-                self.l1.child_of(origin).await
+                self.l1.child_of(origin.id()).await
             }
             Ok(Some(child)) => {
                 if let Child::Block(_) = child {
