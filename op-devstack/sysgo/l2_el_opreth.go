@@ -27,6 +27,9 @@ type OpRethConfig struct {
 	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
 	// reject --proofs-history in the mode under test.
 	DisableProofsHistory bool
+	// ProofsHistoryWindow is the number of blocks the proofs-history store keeps. Zero keeps the
+	// mixed runtime's default window.
+	ProofsHistoryWindow uint64
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -87,6 +90,22 @@ func OpRethWithoutProofsHistory() OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.DisableProofsHistory = true
 	})
+}
+
+// OpRethWithProofsHistoryWindow sets the number of blocks the proofs-history store keeps. The mixed
+// runtime passes --proofs-history.window itself and op-reth rejects a repeated flag, so the window
+// cannot be set through OpRethWithExtraArgs.
+func OpRethWithProofsHistoryWindow(blocks uint64) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.ProofsHistoryWindow = blocks
+	})
+}
+
+// OpRethWithEthProofWindow lets eth_getProof answer for blocks up to the given distance behind the
+// head from reth's own historical state. reth's default window is zero, so a node without proofs
+// history rejects every historical proof request unless it gets this option.
+func OpRethWithEthProofWindow(blocks uint64) OpRethOption {
+	return OpRethWithExtraArgs(fmt.Sprintf("--rpc.eth-proof-window=%d", blocks))
 }
 
 // OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.

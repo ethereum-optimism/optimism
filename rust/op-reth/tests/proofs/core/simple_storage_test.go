@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
@@ -21,9 +22,9 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	contract, receipt := utils.DeploySimpleStorage(t, user)
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt.BlockNumber))
+	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(receipt.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// fetch and verify initial proof (should be zeroed storage)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, bigs.Uint64Strict(receipt.BlockNumber))
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt.BlockNumber), dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{common.HexToHash("0x0")}})
 
 	type caseEntry struct {
 		Block uint64
@@ -49,15 +50,15 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValue transaction included in L2 block %d", callRes.BlockNumber)
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(callRes.BlockNumber))
+	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(callRes.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// for each case, get proof and verify
 	for _, c := range cases {
-		utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, c.Block)
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), c.Block, dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{common.HexToHash("0x0")}})
 	}
 
 	// test with non-existent storage slot
 	nonExistentSlot := common.HexToHash("0xdeadbeef")
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{nonExistentSlot}, cases[len(cases)-1].Block)
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), cases[len(cases)-1].Block, dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{nonExistentSlot}})
 }
 
 func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
@@ -70,9 +71,9 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	contract, receipt := utils.DeployMultiStorage(t, user)
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt.BlockNumber))
+	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(receipt.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// fetch and verify initial proof (should be zeroed storage)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, bigs.Uint64Strict(receipt.BlockNumber))
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt.BlockNumber), dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}})
 
 	// set multiple storage slots
 	type caseEntry struct {
@@ -107,7 +108,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValues transaction included in L2 block %d", callRes.BlockNumber)
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(callRes.BlockNumber))
+	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(callRes.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// for each case, get proof and verify
 	for _, c := range cases {
 		var slots []common.Hash
@@ -115,7 +116,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 			slots = append(slots, slot)
 		}
 
-		utils.FetchAndVerifyProofs(t, sys, contract.Address(), slots, c.Block)
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), c.Block, dsl.ProofAccount{Address: contract.Address(), StorageKeys: slots})
 	}
 }
 
@@ -151,7 +152,7 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	deactBlock := bigs.Uint64Strict(deactRes.BlockNumber)
 	t.Logf("deactivateAllowance included in block %d", deactBlock)
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), deactBlock)
+	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(deactBlock, dsl.DefaultProofsCatchUpTimeout)
 
 	// balance slot for user
 	balanceSlot := contract.GetBalanceSlot(userAddr)
@@ -163,11 +164,11 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	// fetch & verify proofs at appropriate blocks
 	// balance after deposit (depositBlock)
 	t.Logf("Verifying balance slot %s at deposit block %d", balanceSlot.Hex(), depositBlock)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{balanceSlot, depositor0Slot}, depositBlock)
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), depositBlock, dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{balanceSlot, depositor0Slot}})
 	// allowance after approve (approveBlock)
 	t.Logf("Verifying allowance slot %s at approve block %d", allowanceSlot.Hex(), approveBlock)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{allowanceSlot}, approveBlock)
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), approveBlock, dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{allowanceSlot}})
 	// after deactivation, allowance should be zero at deactBlock
 	t.Logf("Verifying allowance slot %s at deactivate block %d", allowanceSlot.Hex(), deactBlock)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{allowanceSlot}, deactBlock)
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), deactBlock, dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{allowanceSlot}})
 }
