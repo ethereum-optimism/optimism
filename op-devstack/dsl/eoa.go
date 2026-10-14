@@ -254,15 +254,22 @@ func (u *EOA) DeployEventLogger() common.Address {
 	return eventLoggerAddress
 }
 
-// DeployBlockRecorder deploys a contract that writes the block number to storage slot 0 and the
-// block timestamp to slot 1 on every call, so every call to it changes its storage.
-func (u *EOA) DeployBlockRecorder() common.Address {
+// PlanBlockRecorderDeployment plans the deployment of a contract that writes the block number to
+// storage slot 0 and the block timestamp to slot 1 on every call, so every call to it changes its
+// storage. The transaction is not sent.
+func (u *EOA) PlanBlockRecorderDeployment() *txplan.PlannedTx {
 	runtimeCode := program.New().
 		Op(vm.NUMBER).Push(0).Op(vm.SSTORE).
 		Op(vm.TIMESTAMP).Push(1).Op(vm.SSTORE).
 		Bytes()
 	initCode := program.New().ReturnViaCodeCopy(runtimeCode).Bytes()
-	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(initCode))
+	return txplan.NewPlannedTx(u.Plan(), txplan.WithData(initCode))
+}
+
+// DeployBlockRecorder sends the deployment PlanBlockRecorderDeployment plans and returns the
+// contract's address.
+func (u *EOA) DeployBlockRecorder() common.Address {
+	tx := u.PlanBlockRecorderDeployment()
 	res, err := tx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to deploy block recorder")
 	u.log.Info("deployed block recorder", "chainID", tx.ChainID.Value(), "address", res.ContractAddress)

@@ -69,6 +69,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if ungraceful, ok := lifecycle[0].(stack.UngracefulLifecycle); ok {
 			l2EL.ungraceful = ungraceful
 		}
+		if recorder, ok := lifecycle[0].(stack.LogRecorder); ok {
+			l2EL.logRecorder = recorder
+		}
 	}
 	return l2EL
 }
