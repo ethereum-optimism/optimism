@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -90,9 +91,8 @@ func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State,
 
 	block := l2Genesis.ToBlock()
 	header := block.Header()
-	isthmusTime := config.IsthmusTime(header.Time)
-	isIsthmus := isthmusTime != nil && *isthmusTime <= header.Time
-	if !isIsthmus || header.WithdrawalsHash == nil {
+	genesisTime := header.Time
+	if !config.IsForkActive(forks.Isthmus, genesisTime, genesisTime) || header.WithdrawalsHash == nil {
 		return genesisOutput{}, fmt.Errorf(
 			"chain %s: genesis output root computation requires an Isthmus withdrawals root",
 			chainID.Hex(),
