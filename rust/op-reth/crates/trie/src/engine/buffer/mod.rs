@@ -9,4 +9,4 @@
 #[cfg(feature = "metrics")]
 mod metrics;
 pub(super) mod overlay;
-pub(super) mod state;
+pub(crate) mod state;
