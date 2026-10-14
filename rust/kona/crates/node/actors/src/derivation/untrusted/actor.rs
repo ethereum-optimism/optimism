@@ -1,8 +1,9 @@
 //! The derivation actor, which derives payload attributes from L1.
 
-use super::{ActorError, Builder, DerivationStatus, Engine, L1, reset_engine};
+use super::L1;
 use crate::{
     Metrics,
+    derivation::{ActorError, Builder, DerivationStatus, Engine, reset_engine},
     engine::Consolidation,
     l1::{Child, HandleError},
 };
@@ -32,8 +33,8 @@ impl Builder {
     /// The status reports the pipeline's origin from now on. Whenever the pipeline fails
     /// temporarily and L1 has no child of the pipeline's origin, derivation waits on `l1` for one,
     /// and resets if the origin is reorged out instead. The pipeline should read L1 heights from
-    /// the same L1 actor, through an [`L1ChainProvider`](super::L1ChainProvider). Runtime work
-    /// begins when the future is polled. Dropping the future stops the actor.
+    /// the same L1 actor, through an [`L1ChainProvider`](crate::derivation::L1ChainProvider).
+    /// Runtime work begins when the future is polled. Dropping the future stops the actor.
     pub fn build<Engine_, PipelineSignalReceiver, L1_>(
         self,
         engine: Engine_,

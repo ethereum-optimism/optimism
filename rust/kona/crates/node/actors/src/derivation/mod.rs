@@ -9,21 +9,16 @@
 //! published resets. The engine only replies to requests and publishes its state and resets.
 //! Whenever the engine resets, derivation resets its pipeline onto the engine's safe head.
 
-mod actor;
+pub mod untrusted;
+pub use untrusted::{L1, L1ChainProvider, L1ChainProviderError};
 
-mod delegated;
-pub use delegated::{
+pub mod trusted;
+pub use trusted::{
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
 };
 
 mod engine;
 pub use engine::Engine;
-
-mod l1;
-pub use l1::L1;
-
-mod chain_provider;
-pub use chain_provider::{L1ChainProvider, L1ChainProviderError};
 
 mod error;
 pub use error::ActorError;
