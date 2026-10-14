@@ -34,7 +34,6 @@ alloy-rpc-types-engine = { workspace = true, features = ["serde", "std"] }
 alloy-primitives = { workspace = true, features = ["map", "rlp", "serde", "std"] }
 
 # Misc
-url = { workspace = true, optional = true }
 libp2p = { workspace = true, features = ["metrics"] }
 tracing.workspace = true
 thiserror.workspace = true
@@ -75,7 +74,6 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 default = []
 reqwest = [ "client", "dep:alloy-rpc-client" ]
 client = [
-    "dep:url",
 	"jsonrpsee/async-client",
 	"jsonrpsee/client",
 	"op-alloy-rpc-jsonrpsee/client",

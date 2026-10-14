@@ -22,7 +22,7 @@ kona-derive = { workspace = true, features = ["metrics"] }
 kona-interop.workspace = true
 kona-protocol.workspace = true
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
-kona-rpc = { workspace = true, features = ["client"] }
+kona-rpc.workspace = true
 
 # alloy
 alloy-primitives.workspace = true
@@ -41,7 +41,7 @@ discv5.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
-jsonrpsee = { workspace = true, features = ["server", "http-client"] }
+jsonrpsee = { workspace = true, features = ["server"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
 
@@ -51,6 +51,7 @@ backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 op-alloy-provider.workspace = true
 
 [dev-dependencies]
+jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 httpmock.workspace = true
 alloy-eips.workspace = true
 kona-gossip.workspace = true

@@ -7551,6 +7551,7 @@ dependencies = [
  "alloy-signer 2.5.0",
  "alloy-signer-local 2.4.2",
  "alloy-transport",
+ "alloy-transport-http",
  "arbitrary",
  "async-trait",
  "derive_more 2.1.1",
@@ -7915,7 +7916,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "url",
 ]
 
 [[package]]

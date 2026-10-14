@@ -15,7 +15,9 @@ pub mod engine;
 pub use engine::{EngineClientError, EngineClientResult};
 
 pub mod derivation;
-pub use derivation::{DerivationDelegateClientError, DerivationDelegateProvider};
+pub use derivation::{
+    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
+};
 
 pub mod discovery;
 
