@@ -2,18 +2,14 @@ package sysgo
 
 import (
 	"context"
-	"errors"
 	"sync"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type KonaNode struct {
@@ -103,22 +99,9 @@ func (k *KonaNode) Start() {
 		rollupClient, err := dial.DialRollupClientWithTimeout(k.p.Ctx(), k.p.Logger(), k.userRPC)
 		k.p.Require().NoError(err, "failed to dial sequencer node")
 		defer rollupClient.Close()
-		// kona-node serves RPC before its engine reads the heads from the execution layer, and
-		// reports a zero unsafe head until then; it starts sequencing only on its own head, which
-		// may also move between reading it and starting.
-		ctx, cancel := context.WithTimeout(k.p.Ctx(), time.Minute)
-		defer cancel()
-		err = retry.Do0(ctx, 120, retry.Fixed(500*time.Millisecond), func() error {
-			status, err := rollupClient.SyncStatus(ctx)
-			if err != nil {
-				return err
-			}
-			if status.UnsafeL2.Hash == (common.Hash{}) {
-				return errors.New("kona-node has not read its unsafe head yet")
-			}
-			return rollupClient.StartSequencer(ctx, status.UnsafeL2.Hash)
-		})
-		k.p.Require().NoError(err, "failed to start sequencing")
+		status, err := rollupClient.SyncStatus(k.p.Ctx())
+		k.p.Require().NoError(err, "failed to fetch sequencer head")
+		k.p.Require().NoError(rollupClient.StartSequencer(k.p.Ctx(), status.UnsafeL2.Hash), "failed to start sequencing")
 	}
 }
 
