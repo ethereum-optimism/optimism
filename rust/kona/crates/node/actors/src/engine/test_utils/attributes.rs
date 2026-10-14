@@ -5,7 +5,7 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
 /// Builder for creating test `OpAttributesWithParent` instances with sensible defaults
 #[derive(Debug)]
-pub struct TestAttributesBuilder {
+pub(crate) struct TestAttributesBuilder {
     timestamp: u64,
     prev_randao: B256,
     suggested_fee_recipient: alloy_primitives::Address,
@@ -23,7 +23,7 @@ pub struct TestAttributesBuilder {
 
 impl TestAttributesBuilder {
     /// Creates a new builder with default values
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let parent = L2BlockInfo {
             block_info: BlockInfo {
                 number: 0,
@@ -53,33 +53,33 @@ impl TestAttributesBuilder {
     }
 
     /// Sets the timestamp
-    pub const fn with_timestamp(mut self, timestamp: u64) -> Self {
+    pub(crate) const fn with_timestamp(mut self, timestamp: u64) -> Self {
         self.timestamp = timestamp;
         self
     }
 
     /// Sets the parent block
-    pub const fn with_parent(mut self, parent: L2BlockInfo) -> Self {
+    pub(crate) const fn with_parent(mut self, parent: L2BlockInfo) -> Self {
         self.parent = parent;
         self
     }
 
     /// Sets the transactions
     #[allow(dead_code)]
-    pub fn with_transactions(mut self, txs: Vec<alloy_primitives::Bytes>) -> Self {
+    pub(crate) fn with_transactions(mut self, txs: Vec<alloy_primitives::Bytes>) -> Self {
         self.transactions = Some(txs);
         self
     }
 
     /// Sets the gas limit
     #[allow(dead_code)]
-    pub const fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+    pub(crate) const fn with_gas_limit(mut self, gas_limit: u64) -> Self {
         self.gas_limit = Some(gas_limit);
         self
     }
 
     /// Builds the `OpAttributesWithParent`
-    pub fn build(self) -> OpAttributesWithParent {
+    pub(crate) fn build(self) -> OpAttributesWithParent {
         let attributes = OpPayloadAttributes {
             payload_attributes: alloy_rpc_types_engine::PayloadAttributes {
                 timestamp: self.timestamp,

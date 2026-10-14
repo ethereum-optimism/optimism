@@ -3,17 +3,19 @@
 use super::{
     ActorError, BuildTaskError, Capacity, ConsolidateTaskError, Consolidation, EngineBuildError,
     EngineClientError, EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity,
-    FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, InsertTaskError, SealTaskError,
-    SynchronizeTaskError,
+    FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, ImportedBlockSink, InsertTaskError,
+    SealTaskError, SynchronizeTaskError,
+    attributes::AttributesMatch,
     handle::{BuildRequest, ConsolidateRequest, Message, ResetRequest, SealRequest},
+    sync::find_starting_forkchoice,
 };
+use crate::Metrics;
 use alloy_eips::BlockId;
 use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::{
     ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
 };
 use alloy_rpc_types_eth::Block as RpcBlock;
-use kona_engine::{AttributesMatch, ImportedBlockSink, Metrics, find_starting_forkchoice};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use kona_sources::EngineApi;

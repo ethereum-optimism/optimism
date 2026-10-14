@@ -1,5 +1,11 @@
 use super::*;
-use crate::EngineClientError;
+use crate::{
+    EngineClientError,
+    engine::{
+        NoopBlockSink,
+        test_utils::{TestAttributesBuilder, test_block_info},
+    },
+};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, FixedBytes, b256};
 use alloy_rpc_types_engine::{
@@ -7,10 +13,6 @@ use alloy_rpc_types_engine::{
     ForkchoiceUpdated, PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
-use kona_engine::{
-    NoopBlockSink,
-    test_utils::{TestAttributesBuilder, test_block_info},
-};
 use kona_genesis::ChainGenesis;
 use kona_protocol::BlockInfo;
 use kona_sources::test_utils::{RpcMock, test_engine_api};

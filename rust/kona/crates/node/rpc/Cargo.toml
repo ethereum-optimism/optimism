@@ -68,7 +68,6 @@ kona-derive = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
 op-alloy-rpc-types.workspace = true
 serde_json.workspace = true
-kona-engine.workspace = true
 kona-sources = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 

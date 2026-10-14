@@ -17,23 +17,8 @@ use op_alloy_rpc_types::Transaction;
 /// Used to verify that proposed payload attributes match the actual executed block,
 /// ensuring consistency between the rollup derivation process and execution layer.
 /// Validation includes withdrawals, transactions, fees, and other block properties.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use kona_engine::AttributesMatch;
-/// use kona_genesis::RollupConfig;
-/// use kona_protocol::OpAttributesWithParent;
-///
-/// let config = RollupConfig::default();
-/// let match_result = AttributesMatch::check_withdrawals(&config, &attributes, &block);
-///
-/// if match_result.is_match() {
-///     println!("Attributes are valid for this block");
-/// }
-/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttributesMatch {
+pub(super) enum AttributesMatch {
     /// The payload attributes are consistent with the block.
     Match,
     /// The attributes do not match the block (contains mismatch details).
@@ -42,17 +27,18 @@ pub enum AttributesMatch {
 
 impl AttributesMatch {
     /// Returns true if the attributes match the block.
-    pub const fn is_match(&self) -> bool {
+    pub(super) const fn is_match(&self) -> bool {
         matches!(self, Self::Match)
     }
 
     /// Returns true if the attributes do not match the block.
-    pub const fn is_mismatch(&self) -> bool {
+    #[cfg(test)]
+    const fn is_mismatch(&self) -> bool {
         matches!(self, Self::Mismatch(_))
     }
 
     /// Checks that withdrawals for a block and attributes match.
-    pub fn check_withdrawals(
+    pub(super) fn check_withdrawals(
         config: &RollupConfig,
         attributes: &OpAttributesWithParent,
         block: &Block<Transaction>,
@@ -291,7 +277,7 @@ impl AttributesMatch {
     /// Checks if the specified [`OpAttributesWithParent`] matches the specified [`Block`].
     /// Returns [`AttributesMatch::Match`] if they match, otherwise returns
     /// [`AttributesMatch::Mismatch`].
-    pub fn check(
+    pub(super) fn check(
         config: &RollupConfig,
         attributes: &OpAttributesWithParent,
         block: &Block<Transaction>,
@@ -374,7 +360,7 @@ impl AttributesMatch {
 /// An enum over the type of mismatch between [`OpAttributesWithParent`]
 /// and a [`Block`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttributesMismatch {
+pub(super) enum AttributesMismatch {
     /// The parent hash of the block does not match the parent hash of the attributes.
     ParentHash(B256, B256),
     /// The timestamp of the block does not match the timestamp of the attributes.
@@ -408,8 +394,6 @@ pub enum AttributesMismatch {
     MinBaseFee(Option<u64>, Option<u64>),
     /// Before Holocene, the block's extraData must be empty.
     NonEmptyPreHoloceneExtraData,
-    /// Transactions mismatch.
-    Transactions(u64, u64),
     /// The gas limit of the block does not match the gas limit of the attributes.
     GasLimit(u64, u64),
     /// The gas limit for the [`OpAttributesWithParent`] is missing.

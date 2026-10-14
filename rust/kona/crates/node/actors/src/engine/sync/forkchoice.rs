@@ -1,6 +1,6 @@
 //! Contains the forkchoice state for the L2.
 
-use crate::SyncStartError;
+use super::SyncStartError;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_provider::Network;
 use alloy_transport::TransportResult;
@@ -10,15 +10,15 @@ use kona_sources::EngineApi;
 use op_alloy_network::Optimism;
 
 /// An unsafe, safe, and finalized [`L2BlockInfo`] returned by the
-/// [`crate::find_starting_forkchoice`] function.
+/// [`find_starting_forkchoice`](super::find_starting_forkchoice) function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2ForkchoiceState {
+pub(crate) struct L2ForkchoiceState {
     /// The unsafe L2 block.
-    pub un_safe: L2BlockInfo,
+    pub(crate) un_safe: L2BlockInfo,
     /// The safe L2 block.
-    pub safe: L2BlockInfo,
+    pub(crate) safe: L2BlockInfo,
     /// The finalized L2 block.
-    pub finalized: L2BlockInfo,
+    pub(crate) finalized: L2BlockInfo,
 }
 
 impl L2ForkchoiceState {
@@ -28,7 +28,10 @@ impl L2ForkchoiceState {
     /// - The safe block may not always be available. If it is not, we fall back to the finalized
     ///   block.
     /// - The unsafe block is always assumed to be available.
-    pub async fn current(cfg: &RollupConfig, engine: &EngineApi) -> Result<Self, SyncStartError> {
+    pub(super) async fn current(
+        cfg: &RollupConfig,
+        engine: &EngineApi,
+    ) -> Result<Self, SyncStartError> {
         let finalized = {
             let rpc_block =
                 match get_block_compat(engine, BlockNumberOrTag::Finalized.into()).await {

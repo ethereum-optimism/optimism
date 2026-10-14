@@ -4,7 +4,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 
 mod forkchoice;
-pub use forkchoice::L2ForkchoiceState;
+use forkchoice::L2ForkchoiceState;
 
 mod error;
 pub use error::SyncStartError;
@@ -26,7 +26,7 @@ use kona_sources::EngineApi;
 /// Plausible: meaning that the blockhash of the L2 block's L1 origin
 /// (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another
 /// height in the L1 chain, and the same holds for all its ancestors.
-pub async fn find_starting_forkchoice(
+pub(super) async fn find_starting_forkchoice(
     cfg: &RollupConfig,
     engine: &EngineApi,
     l1: &impl Provider,

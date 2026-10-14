@@ -97,10 +97,10 @@ mod tests {
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
     };
     use kona_derive::test_utils::TestAttributesBuilder;
-    use kona_engine::NoopBlockSink;
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
         EngineClientResult, L1OriginSelectorError, OriginSelector, SequencerEngineClient,
+        engine::NoopBlockSink,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};

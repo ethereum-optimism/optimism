@@ -7281,37 +7281,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-engine"
-version = "0.1.2"
-dependencies = [
- "alloy-consensus 2.4.2",
- "alloy-eips 2.5.0",
- "alloy-network 2.4.2",
- "alloy-primitives",
- "alloy-provider",
- "alloy-rpc-types-engine",
- "alloy-rpc-types-eth 2.4.2",
- "alloy-transport",
- "arbitrary",
- "kona-genesis",
- "kona-protocol",
- "kona-registry",
- "kona-sources",
- "metrics",
- "op-alloy-consensus",
- "op-alloy-network",
- "op-alloy-rpc-types",
- "op-alloy-rpc-types-engine",
- "rand 0.9.4",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "kona-executor"
 version = "0.4.0"
 dependencies = [
@@ -7540,7 +7509,6 @@ dependencies = [
  "kona-cli",
  "kona-derive",
  "kona-disc",
- "kona-engine",
  "kona-genesis",
  "kona-gossip",
  "kona-interop",
@@ -7574,6 +7542,7 @@ dependencies = [
  "alloy-consensus 2.4.2",
  "alloy-eips 2.5.0",
  "alloy-json-rpc 2.5.0",
+ "alloy-network 2.4.2",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
@@ -7593,12 +7562,12 @@ dependencies = [
  "jsonrpsee",
  "kona-derive",
  "kona-disc",
- "kona-engine",
  "kona-genesis",
  "kona-gossip",
  "kona-peers",
  "kona-protocol",
  "kona-providers-alloy",
+ "kona-registry",
  "kona-sources",
  "libp2p",
  "metrics",
@@ -7648,7 +7617,6 @@ dependencies = [
  "jsonrpsee",
  "kona-derive",
  "kona-disc",
- "kona-engine",
  "kona-genesis",
  "kona-gossip",
  "kona-interop",
@@ -7934,7 +7902,6 @@ dependencies = [
  "jsonrpsee",
  "kona-derive",
  "kona-disc",
- "kona-engine",
  "kona-genesis",
  "kona-gossip",
  "kona-node-actors",
