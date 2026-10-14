@@ -52,13 +52,14 @@ thiserror.workspace = true
 async-trait.workspace = true
 strum = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true, features = ["display", "from_str"] }
-jsonrpsee = { workspace = true, features = ["server", "client-core"] }
+jsonrpsee = { workspace = true, features = ["client-core"] }
 tokio = { workspace = true, features = ["macros"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 
 metrics.workspace = true
 
 [dev-dependencies]
+jsonrpsee = { workspace = true, features = ["server"] }
 alloy-chains.workspace = true
 alloy-signer-local.workspace = true
 tower.workspace = true

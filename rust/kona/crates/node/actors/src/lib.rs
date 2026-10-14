@@ -16,9 +16,6 @@ mod capacity;
 pub mod engine;
 pub use engine::{EngineClientError, EngineClientResult};
 
-mod rpc;
-pub use rpc::{RpcActor, RpcActorError};
-
 pub mod derivation;
 pub use derivation::{DerivationDelegateClientError, DerivationDelegateProvider};
 

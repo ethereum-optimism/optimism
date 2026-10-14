@@ -14,10 +14,8 @@ the node and running its actors in spawned tasks.
 
 Most actors are built with a builder that hands out the actor's handle
 before its dependencies exist, and expose a lifetime future that the
-service spawns. The RPC actor still implements the
-[`NodeActor` trait][actor], a minimal interface with a single `step`
-method that the service drives in a loop. The node stops when any actor
-reports a fatal error or the node shuts down.
+service spawns. The node stops when any actor reports a fatal error,
+the RPC server stops, or the node shuts down.
 
 Kona provides implementations for all actors required to run a
 `RollupNode`. Actors are defined in the [`kona-node-actors`][actors]
@@ -71,10 +69,12 @@ The [`RollupNode`][node] builds and starts the following actors.
 - **Signer Actor**: Runs alongside the sequencer actor.
   It signs each block the sequencer builds, in order,
   and passes it to the network actor to gossip.
-- **RPC Actor**: Supervises the JSON-RPC server and handles
-  restarts. Jsonrpsee dispatches requests to the registered
-  modules, including `RollupRpc`, which serves the rollup
-  methods required by the [OP Stack Specs][specs].
+
+The node also runs a JSON-RPC server, which is not an actor:
+jsonrpsee dispatches requests straight to the registered
+modules, including `RollupRpc`, which serves the rollup methods
+required by the [OP Stack Specs][specs]. The modules read the
+state the actors publish and send requests to their handles.
 
 
 [p2p]: ./p2p
@@ -86,7 +86,6 @@ The [`RollupNode`][node] builds and starts the following actors.
 
 [service]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service/src/service
 [actors]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/actors
-[actor]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/actors/src/lib.rs
 [start]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
 [node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
 [config]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/config.rs
