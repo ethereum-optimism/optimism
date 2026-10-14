@@ -592,6 +592,11 @@ for uses in its test files) and what it needs from the fork, e.g.
   continues past errors, so fixing a package never surfaces its importers as new failures. `go
   build`/`go vet` report only the first failing layer, which is why the check doesn't compare
   their failing-package sets.
+- **Entries are per package and API, not per call site.** A package that lists an API can use it
+  again without a new entry; the check stops a package from taking on APIs it didn't use before.
+- **A missing API can hide another.** In `tx.Deposit().Mint`, once `Tx.Deposit` is missing the
+  type checker can't look up `Mint`, so removing one use can surface another, which then needs its
+  own entry. That is a use the tree already had, not a new one.
 - **Compile-compat only.** Code that type-checks against upstream but would behave wrongly (e.g.
   the in-process L2 EL, §17) is outside the check.
 - **op-geth also carries upstream backports** — later go-ethereum features (block access lists,

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -42,7 +43,7 @@ func upstreamVersion(opGeth string) (string, error) {
 // to dir, resolves upstream's dependencies into them, and returns the module path, the upstream
 // version and the file's path.
 // The repository's go.mod and go.sum are left untouched.
-func upstreamModFile(root, dir string) (modPath, version, path string, err error) {
+func upstreamModFile(ctx context.Context, root, dir string) (modPath, version, path string, err error) {
 	goMod := filepath.Join(root, "go.mod")
 	content, err := os.ReadFile(goMod)
 	if err != nil {
@@ -86,7 +87,7 @@ func upstreamModFile(root, dir string) (modPath, version, path string, err error
 	if err := os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644); err != nil {
 		return "", "", "", err
 	}
-	if err := resolve(root, path, goEthereumPath+"@"+version); err != nil {
+	if err := resolve(ctx, root, path, goEthereumPath+"@"+version); err != nil {
 		return "", "", "", err
 	}
 	// go mod tidy may upgrade go-ethereum while looking for packages only op-geth provides.
@@ -109,9 +110,9 @@ func upstreamModFile(root, dir string) (modPath, version, path string, err error
 // resolve adds upstream, a go-ethereum module query, to the module file at path and completes
 // its build list and go.sum. Upstream needs modules the repository's go.sum doesn't cover, so it
 // retries to ride out transient module proxy errors.
-func resolve(root, path, upstream string) error {
+func resolve(ctx context.Context, root, path, upstream string) error {
 	run := func(args ...string) error {
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 		cmd.Dir = root
 		var stderr bytes.Buffer
 		cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
@@ -123,7 +124,11 @@ func resolve(root, path, upstream string) error {
 	var err error
 	for attempt := range 3 {
 		if attempt > 0 {
-			time.Sleep(time.Duration(attempt) * retryDelay)
+			select {
+			case <-time.After(time.Duration(attempt) * retryDelay):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 		// Fails if go-ethereum can't be downloaded, which go mod tidy -e would only warn about,
 		// dropping go-ethereum from the build list.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -41,10 +42,11 @@ var (
 // Every package of the module is type-checked from source, and go/types continues past errors,
 // so each package reports only its own uses: a dependency that fails to type-check does not mask
 // the errors of its importers, which `go build` and `go vet` would.
-func collectUses(dir, modPath, gethPath string, buildFlags, patterns []string) (map[Use]bool, error) {
+func collectUses(ctx context.Context, dir, modPath, gethPath string, buildFlags, patterns []string) (map[Use]bool, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedImports | packages.NeedTypes |
 			packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedModule,
+		Context:    ctx,
 		Dir:        dir,
 		Tests:      true,
 		BuildFlags: buildFlags,

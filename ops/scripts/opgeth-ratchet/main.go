@@ -8,12 +8,15 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
@@ -26,7 +29,12 @@ const (
 func main() {
 	update := flag.Bool("update", false, "remove allowlist entries that are no longer used")
 	flag.Parse()
-	ok, err := run(*update)
+	// Cancelling instead of dying on a signal lets run remove its temporary module directory. A
+	// second signal kills it.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	context.AfterFunc(ctx, stop)
+	ok, err := run(ctx, *update)
+	stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(2)
@@ -36,7 +44,7 @@ func main() {
 	}
 }
 
-func run(update bool) (bool, error) {
+func run(ctx context.Context, update bool) (bool, error) {
 	root, err := opservice.FindMonorepoRoot(".")
 	if err != nil {
 		return false, err
@@ -52,14 +60,14 @@ func run(update bool) (bool, error) {
 		return false, err
 	}
 	defer os.RemoveAll(tmp)
-	modPath, version, modFile, err := upstreamModFile(root, tmp)
+	modPath, version, modFile, err := upstreamModFile(ctx, root, tmp)
 	if err != nil {
 		return false, err
 	}
 	fmt.Fprintf(os.Stderr, "Type-checking %s against go-ethereum %s...\n", modPath, version)
 	// cgo_test is the one build tag in the tree that hides geth uses from a default build.
 	flags := []string{"-modfile=" + modFile, "-tags=cgo_test"}
-	uses, err := collectUses(root, modPath, goEthereumPath, flags, []string{"./..."})
+	uses, err := collectUses(ctx, root, modPath, goEthereumPath, flags, []string{"./..."})
 	if err != nil {
 		return false, err
 	}

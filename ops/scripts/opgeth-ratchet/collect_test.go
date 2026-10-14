@@ -18,7 +18,7 @@ func TestCollectUses(t *testing.T) {
 		"module example.com/toy\n\ngo 1.24\n\nrequire example.com/geth v0.0.0\n\nreplace example.com/geth => "+
 			filepath.Join(toy, "upstream")+"\n"), 0o644))
 
-	uses, err := collectUses(filepath.Join(toy, "mod"), "example.com/toy", "example.com/geth",
+	uses, err := collectUses(t.Context(), filepath.Join(toy, "mod"), "example.com/toy", "example.com/geth",
 		[]string{"-modfile=" + modFile}, []string{"./..."})
 	require.NoError(t, err)
 	require.Equal(t, map[Use]bool{
@@ -42,12 +42,24 @@ func TestCollectUses(t *testing.T) {
 	}, uses)
 }
 
+// TestCollectUsesAgainstFork type-checks testdata/toy/mod against testdata/toy/fork, the module it
+// builds against. Only g's deliberate type error remains, so every other use TestCollectUses
+// expects is a fork API.
+func TestCollectUsesAgainstFork(t *testing.T) {
+	uses, err := collectUses(t.Context(), "testdata/toy/mod", "example.com/toy", "example.com/geth", nil, []string{"./..."})
+	require.NoError(t, err)
+	require.Equal(t, map[Use]bool{
+		{"g", `unclassified: cannot use "broken" (untyped string constant) as int value in variable declaration`}: true,
+	}, uses)
+}
+
 func TestCollectUsesFailsOnUnrelatedErrors(t *testing.T) {
-	_, err := collectUses("testdata/toy/bad", "example.com/bad", "example.com/geth", nil, []string{"./..."})
+	_, err := collectUses(t.Context(), "testdata/toy/bad", "example.com/bad", "example.com/geth", nil, []string{"./..."})
 	require.ErrorContains(t, err, "example.com/nowhere")
 }
 
 func TestCollectUsesFailsOnDependencyErrors(t *testing.T) {
-	_, err := collectUses("testdata/toy/baddep", "example.com/baddep", "example.com/geth", nil, []string{"./..."})
+	_, err := collectUses(t.Context(), "testdata/toy/baddep", "example.com/baddep", "example.com/geth", nil, []string{"./..."})
 	require.ErrorContains(t, err, "example.com/dep: ")
+	require.ErrorContains(t, err, "could not import example.com/nowhere")
 }

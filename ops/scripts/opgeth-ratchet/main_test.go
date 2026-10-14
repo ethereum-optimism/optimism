@@ -47,7 +47,7 @@ replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth 
 	retryDelay = 0
 	t.Cleanup(func() { retryDelay = old })
 
-	_, _, _, err := upstreamModFile(root, t.TempDir())
+	_, _, _, err := upstreamModFile(t.Context(), root, t.TempDir())
 	require.ErrorContains(t, err, "github.com/ethereum/go-ethereum@v1.17.2: module lookup disabled by GOPROXY=off")
 }
 
