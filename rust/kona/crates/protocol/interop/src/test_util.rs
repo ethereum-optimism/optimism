@@ -3,8 +3,8 @@
 #![allow(missing_docs, unreachable_pub, unused)]
 
 use crate::{
-    ExecutingMessage, MessageIdentifier, RawMessagePayload,
-    traits::{InteropProvider, LogCommitment},
+    BlocksWithReceipts, ExecutingMessage, MessageIdentifier, RawMessagePayload,
+    traits::{InitiatingLogs, InteropProvider, LogCommitment},
 };
 use alloy_consensus::{Header, Receipt, ReceiptWithBloom, Sealed};
 use alloy_primitives::{Address, B256, Bytes, Log, LogData, U256, keccak256, map::HashMap};
@@ -46,30 +46,15 @@ impl InteropProvider for MockInteropProvider {
             .clone())
     }
 
-    async fn receipts_by_number(
+    async fn initiating_logs(
         &self,
         chain_id: u64,
-        number: u64,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        Ok(self.receipts.get(&chain_id).and_then(|receipts| receipts.get(&number)).unwrap().clone())
-    }
-
-    async fn receipts_by_hash(
-        &self,
-        chain_id: u64,
-        block_hash: B256,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        Ok(self
-            .receipts
-            .get(&chain_id)
-            .and_then(|receipts| {
-                let headers = self.headers.get(&chain_id).unwrap();
-                let number =
-                    headers.values().find(|header| header.hash() == block_hash).unwrap().number;
-                receipts.get(&number)
-            })
-            .unwrap()
-            .clone())
+        header: &Header,
+    ) -> Result<InitiatingLogs, Self::Error> {
+        let receipts = &self.receipts[&chain_id][&header.number];
+        Ok(InitiatingLogs::Receipts(
+            receipts.iter().flat_map(|r| r.logs().iter().cloned()).collect(),
+        ))
     }
 }
 
@@ -88,9 +73,7 @@ impl SuperchainBuilder {
     }
 
     /// Builds the scenario into the format needed for testing
-    pub fn build(
-        self,
-    ) -> (HashMap<u64, Sealed<Header>>, HashMap<u64, RollupConfig>, MockInteropProvider) {
+    pub fn build(self) -> (BlocksWithReceipts, HashMap<u64, RollupConfig>, MockInteropProvider) {
         let mut headers_map = HashMap::default();
         let mut receipts_map = HashMap::default();
         let mut sealed_headers = HashMap::default();
@@ -106,10 +89,10 @@ impl SuperchainBuilder {
             headers_map.insert(chain_id, chain_headers);
 
             let mut chain_receipts = HashMap::default();
-            chain_receipts.insert(sealed_header.number, chain.receipts);
+            chain_receipts.insert(sealed_header.number, chain.receipts.clone());
             receipts_map.insert(chain_id, chain_receipts);
 
-            sealed_headers.insert(chain_id, sealed_header);
+            sealed_headers.insert(chain_id, (sealed_header, chain.receipts));
             rollup_cfgs.insert(chain_id, chain.rollup_config);
         }
 

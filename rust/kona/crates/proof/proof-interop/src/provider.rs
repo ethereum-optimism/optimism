@@ -8,7 +8,7 @@ use alloy_primitives::{Address, B256};
 use alloy_rlp::Decodable;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_interop::{InteropProvider, LogCommitment};
+use kona_interop::{BlocksWithReceipts, InitiatingLogs, InteropProvider, LogCommitment};
 use kona_mpt::{OrderedListWalker, TrieHinter, TrieNode, TrieProvider};
 use kona_preimage::{
     CommsClient, PreimageKey, PreimageKeyType, PreimageOracleClient, errors::PreimageOracleError,
@@ -170,6 +170,34 @@ where
         }
         Ok(receipts)
     }
+
+    /// Fetch all receipts for a given block by hash.
+    pub async fn receipts_by_hash(
+        &self,
+        chain_id: u64,
+        block_hash: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>, <Self as InteropProvider>::Error> {
+        if let Some(receipts) = self.receipts_by_hash.lock().get(&(chain_id, block_hash)) {
+            return Ok(receipts.clone());
+        }
+        let header = self.header_by_hash(chain_id, block_hash).await?;
+        self.derive_receipts(chain_id, block_hash, &header).await
+    }
+
+    /// The blocks in `heads` with their receipts, as [`MessageGraph::derive`] takes them.
+    ///
+    /// [`MessageGraph::derive`]: kona_interop::MessageGraph::derive
+    pub async fn blocks_with_receipts(
+        &self,
+        heads: &HashMap<u64, Sealed<Header>>,
+    ) -> Result<BlocksWithReceipts, <Self as InteropProvider>::Error> {
+        let mut blocks = HashMap::default();
+        for (chain_id, head) in heads {
+            let receipts = self.receipts_by_hash(*chain_id, head.hash()).await?;
+            blocks.insert(*chain_id, (head.clone(), receipts));
+        }
+        Ok(blocks)
+    }
 }
 
 #[async_trait]
@@ -246,36 +274,26 @@ where
         Ok(header)
     }
 
-    /// Fetch all receipts for a given block by number.
-    async fn receipts_by_number(
-        &self,
-        chain_id: u64,
-        number: u64,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        let header = self.header_by_number(chain_id, number).await?;
-        self.derive_receipts(chain_id, header.hash_slow(), &header).await
-    }
-
-    /// Fetch all receipts for a given block by hash.
-    async fn receipts_by_hash(
-        &self,
-        chain_id: u64,
-        block_hash: B256,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        if let Some(receipts) = self.receipts_by_hash.lock().get(&(chain_id, block_hash)) {
-            return Ok(receipts.clone());
-        }
-        let header = self.header_by_hash(chain_id, block_hash).await?;
-        self.derive_receipts(chain_id, block_hash, &header).await
-    }
-
     /// A local safe head can be replaced, so only a block below it is served a commitment.
-    fn log_commitment(&self, chain_id: u64, header: &Header) -> Option<Box<dyn LogCommitment>> {
-        let head = self.local_safe_heads.get(&chain_id)?;
-        if header.number >= head.number {
-            return None;
+    async fn initiating_logs(
+        &self,
+        chain_id: u64,
+        header: &Header,
+    ) -> Result<InitiatingLogs, Self::Error> {
+        let below_head =
+            self.local_safe_heads.get(&chain_id).is_some_and(|head| header.number < head.number);
+        if below_head &&
+            let Some(commitment) = self
+                .log_commitments
+                .as_ref()
+                .and_then(|source| source.log_commitment(chain_id, header))
+        {
+            return Ok(InitiatingLogs::Committed(commitment));
         }
-        self.log_commitments.as_ref()?.log_commitment(chain_id, header)
+        let receipts = self.derive_receipts(chain_id, header.hash_slow(), header).await?;
+        Ok(InitiatingLogs::Receipts(
+            receipts.into_iter().flat_map(OpReceiptEnvelope::into_logs).collect(),
+        ))
     }
 }
 
@@ -653,10 +671,9 @@ mod tests {
             boot_info(cfgs.clone()),
             heads.clone(),
         );
+        let blocks = provider.blocks_with_receipts(&heads).await.unwrap();
         let result =
-            MessageGraph::derive(&heads, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
-                .await
-                .unwrap()
+            MessageGraph::derive(&blocks, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
                 .resolve()
                 .await;
 
@@ -926,9 +943,8 @@ mod tests {
         let (headers, configs, mock) = superchain.build();
         let (mut client, fixture) = load_fixture();
         let mut safe_heads = HashMap::default();
-        for (chain_id, header) in headers {
-            let receipts_root =
-                insert_test_receipts(&mut client, &mock.receipts[&chain_id][&header.number]);
+        for (chain_id, (header, receipts)) in headers {
+            let receipts_root = insert_test_receipts(&mut client, &receipts);
             let header =
                 insert_test_header(&mut client, Header { receipts_root, ..header.into_inner() });
             safe_heads.insert(chain_id, header);
@@ -952,15 +968,14 @@ mod tests {
         };
         provider.local_safe_heads = safe_heads;
         for _ in 0..2 {
+            let blocks = provider.blocks_with_receipts(provider.local_safe_heads()).await.unwrap();
             let graph = MessageGraph::derive(
-                provider.local_safe_heads(),
+                &blocks,
                 &provider,
                 &configs,
                 &dependency_set,
                 MESSAGE_EXPIRY_WINDOW,
-            )
-            .await
-            .unwrap();
+            );
             graph.resolve().await.unwrap();
         }
         let source_key = PreimageKey::new(*source.receipts_root, PreimageKeyType::Keccak256);
@@ -972,15 +987,14 @@ mod tests {
         provider.replace_local_safe_head(1, replacement);
         let mut heads_to_check = provider.local_safe_heads().clone();
         heads_to_check.remove(&1);
+        let blocks = provider.blocks_with_receipts(&heads_to_check).await.unwrap();
         let graph = MessageGraph::derive(
-            &heads_to_check,
+            &blocks,
             &provider,
             &configs,
             &dependency_set,
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("cached source validity must not survive replacement");
         };
@@ -1039,11 +1053,11 @@ mod tests {
             "historical sources must not accumulate decoded receipts"
         );
         provider.replace_local_safe_head(fixture.chain_id, headers[0].clone());
-        provider.receipts_by_number(fixture.chain_id, headers[0].number).await.unwrap();
+        provider.initiating_logs(fixture.chain_id, &headers[0]).await.unwrap();
         assert_eq!(provider.receipts_by_hash.lock().len(), 1);
         provider.replace_local_safe_head(fixture.chain_id, headers[1].clone());
         assert_eq!(provider.receipts_by_hash.lock().len(), 0, "replaced heads must be evicted");
-        provider.receipts_by_number(fixture.chain_id, headers[1].number).await.unwrap();
+        provider.initiating_logs(fixture.chain_id, &headers[1]).await.unwrap();
         assert_eq!(provider.receipts_by_hash.lock().len(), 1);
     }
 
@@ -1153,15 +1167,14 @@ mod tests {
                 .filter(|(chain_id, _)| !replaced.contains(*chain_id))
                 .map(|(chain_id, head)| (*chain_id, head.clone()))
                 .collect();
+            let blocks = provider.blocks_with_receipts(&heads).await.unwrap();
             let result = MessageGraph::derive(
-                &heads,
+                &blocks,
                 &provider,
                 &fixture.configs,
                 &fixture.dependency_set,
                 MESSAGE_EXPIRY_WINDOW,
             )
-            .await
-            .unwrap()
             .resolve()
             .await;
             let invalid: BTreeSet<u64> = match result {
@@ -1232,21 +1245,25 @@ mod tests {
         let block_1 = |provider: &OracleInteropProvider<_>| {
             kona_proof::block_on(provider.header_by_number(1, 1)).unwrap()
         };
+        let committed = |provider: &OracleInteropProvider<_>, chain_id, header: &Header| {
+            let logs = kona_proof::block_on(provider.initiating_logs(chain_id, header)).unwrap();
+            matches!(logs, InitiatingLogs::Committed(_))
+        };
         let mut provider = OracleInteropProvider::new(
             Arc::new(fixture.client.clone()),
             rounds_boot_info(&fixture),
             fixture.heads.clone(),
         );
-        assert!(provider.log_commitment(1, &block_1(&provider)).is_none(), "no source");
+        assert!(!committed(&provider, 1, &block_1(&provider)), "no source");
 
         provider = provider.with_log_commitments(Arc::new(source));
-        assert!(provider.log_commitment(1, &block_1(&provider)).is_some());
-        assert!(provider.log_commitment(1, fixture.heads[&1].inner()).is_none());
-        assert!(provider.log_commitment(3, &block_1(&provider)).is_none(), "unknown chain");
+        assert!(committed(&provider, 1, &block_1(&provider)));
+        assert!(!committed(&provider, 1, fixture.heads[&1].inner()));
+        assert!(!committed(&provider, 3, &block_1(&provider)), "unknown chain");
 
         provider.replace_local_safe_head(1, fixture.replacements[&1].clone());
-        assert!(provider.log_commitment(1, fixture.replacements[&1].inner()).is_none());
-        assert!(provider.log_commitment(1, &block_1(&provider)).is_some());
-        assert!(provider.clone().log_commitment(1, &block_1(&provider)).is_some(), "clone");
+        assert!(!committed(&provider, 1, fixture.replacements[&1].inner()));
+        assert!(committed(&provider, 1, &block_1(&provider)));
+        assert!(committed(&provider.clone(), 1, &block_1(&provider)), "clone");
     }
 }

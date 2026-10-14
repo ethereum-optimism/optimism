@@ -508,7 +508,9 @@ mod tests {
     use alloy_consensus::Header;
     use alloy_primitives::hex;
     use alloy_rlp::Encodable;
-    use kona_interop::{DependencySet, InteropProvider, RawMessagePayload, SuperRoot};
+    use kona_interop::{
+        DependencySet, InitiatingLogs, InteropProvider, RawMessagePayload, SuperRoot,
+    };
     use kona_proof::errors::OracleProviderError;
     use kona_proof_interop::{BootInfo, LogCommitmentSource, OracleInteropProvider, PreState};
     use rand::Rng;
@@ -557,11 +559,11 @@ mod tests {
         level[0]
     }
 
-    /// The receipts that `OracleInteropProvider::receipts_by_hash` returns for `block_hash`.
-    fn interop_provider_receipts(
+    /// The logs that `OracleInteropProvider::initiating_logs` returns for `block_hash`.
+    fn interop_provider_logs(
         oracle: Arc<WitnessOracle>,
         block_hash: B256,
-    ) -> Result<Vec<OpReceiptEnvelope>, OracleProviderError> {
+    ) -> Result<Vec<Log>, OracleProviderError> {
         let boot = BootInfo {
             l1_head: B256::ZERO,
             agreed_pre_state_commitment: B256::ZERO,
@@ -576,15 +578,21 @@ mod tests {
             l1_config: Default::default(),
         };
         let provider = OracleInteropProvider::new(oracle, boot, Default::default());
-        kona_proof::block_on(provider.receipts_by_hash(CHAIN_ID, block_hash))
+        let InitiatingLogs::Receipts(logs) = kona_proof::block_on(async {
+            let header = provider.header_by_hash(CHAIN_ID, block_hash).await?;
+            provider.initiating_logs(CHAIN_ID, &header).await
+        })?
+        else {
+            panic!("a provider without a log commitment source serves receipts");
+        };
+        Ok(logs)
     }
 
     /// The leaves of the log list that `MessageGraph` indexes for the block with `block_hash`.
     fn interop_provider_leaves(oracle: Arc<WitnessOracle>, block_hash: B256) -> Vec<B256> {
-        interop_provider_receipts(oracle, block_hash)
+        interop_provider_logs(oracle, block_hash)
             .unwrap()
             .into_iter()
-            .flat_map(|receipt| receipt.into_logs())
             .map(|log| {
                 let payload_hash = keccak256(RawMessagePayload::from(&log).as_ref());
                 keccak256([log.address.as_slice(), payload_hash.as_slice()].concat())
@@ -650,8 +658,8 @@ mod tests {
             commit_receipts_root(&oracle, receipts_root),
             LogCommitmentEntry { receipts_root, log_count: 0, log_root: B256::ZERO },
         );
-        let receipts = interop_provider_receipts(oracle, block_hash);
-        assert!(receipts.is_err(), "the interop provider accepts the trie: {receipts:?}");
+        let logs = interop_provider_logs(oracle, block_hash);
+        assert!(logs.is_err(), "the interop provider accepts the trie: {logs:?}");
     }
 
     /// Pins `(r, 0, 0)` and a provider error for a receipts trie leaf that is not a receipt.
@@ -1119,15 +1127,14 @@ mod tests {
                 provider = provider.with_log_commitments(Arc::new(commitments));
             }
             kona_proof::block_on(async {
+                let blocks = provider.blocks_with_receipts(&heads).await.unwrap();
                 MessageGraph::derive(
-                    &heads,
+                    &blocks,
                     &provider,
                     &configs,
                     &dependency_set,
                     MESSAGE_EXPIRY_WINDOW,
                 )
-                .await
-                .unwrap()
                 .resolve()
                 .await
                 .is_ok()

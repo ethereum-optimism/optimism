@@ -2,10 +2,9 @@
 
 use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::Header;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, Log};
 use async_trait::async_trait;
 use core::{error::Error, fmt::Debug};
-use op_alloy_consensus::OpReceiptEnvelope;
 
 /// Describes the interface of the interop data provider. This provider is multiplexed over several
 /// chains, with each method consuming a chain ID to determine the target chain.
@@ -17,26 +16,22 @@ pub trait InteropProvider {
     /// Fetch a [Header] by its number.
     async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Header, Self::Error>;
 
-    /// Fetch all receipts for a given block by number.
-    async fn receipts_by_number(
+    /// The logs of the canonical block `header` on `chain_id`, which
+    /// [`MessageGraph`](crate::MessageGraph) checks initiating messages against.
+    async fn initiating_logs(
         &self,
         chain_id: u64,
-        number: u64,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error>;
+        header: &Header,
+    ) -> Result<InitiatingLogs, Self::Error>;
+}
 
-    /// Fetch all receipts for a given block by hash.
-    async fn receipts_by_hash(
-        &self,
-        chain_id: u64,
-        block_hash: B256,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error>;
-
-    /// A commitment to the logs of the canonical block `header` on `chain_id`, which
-    /// [`MessageGraph`](crate::MessageGraph) checks messages against instead of the block's
-    /// receipts. `None` reads the receipts.
-    fn log_commitment(&self, _chain_id: u64, _header: &Header) -> Option<Box<dyn LogCommitment>> {
-        None
-    }
+/// The logs of an initiating block, as an [`InteropProvider`] serves them.
+#[derive(Debug)]
+pub enum InitiatingLogs {
+    /// Every log of the block's receipts, in block order.
+    Receipts(Vec<Log>),
+    /// A commitment to the block's logs.
+    Committed(Box<dyn LogCommitment>),
 }
 
 /// A commitment to the log list of one canonical block: its receipts' logs in block order.

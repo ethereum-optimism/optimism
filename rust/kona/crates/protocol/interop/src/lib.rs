@@ -9,13 +9,13 @@
 extern crate alloc;
 
 mod graph;
-pub use graph::MessageGraph;
+pub use graph::{BlocksWithReceipts, MessageGraph};
 
 mod rules;
 pub use rules::MessageRules;
 
 mod traits;
-pub use traits::{InteropProvider, LogCommitment};
+pub use traits::{InitiatingLogs, InteropProvider, LogCommitment};
 
 mod safety;
 

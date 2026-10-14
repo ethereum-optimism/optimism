@@ -372,15 +372,14 @@ mod tests {
             let mut valid = true;
             for _ in 0..rounds {
                 valid &= kona_proof::block_on(async {
+                    let blocks = provider.blocks_with_receipts(&self.heads).await.unwrap();
                     MessageGraph::derive(
-                        &self.heads,
+                        &blocks,
                         &provider,
                         &self.boot.rollup_configs,
                         &self.boot.dependency_set,
                         MESSAGE_EXPIRY_WINDOW,
                     )
-                    .await
-                    .unwrap()
                     .resolve()
                     .await
                     .is_ok()

@@ -5,13 +5,14 @@ use crate::{
     errors::{MessageGraphError, MessageGraphResult},
     message::{EnrichedExecutingMessage, parse_log_to_executing_message},
     rules::MessageRules,
-    traits::{InteropProvider, LogCommitment},
+    traits::{InitiatingLogs, InteropProvider},
 };
-use alloc::{boxed::Box, string::ToString, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_primitives::{B256, Log, U256, keccak256};
+use alloy_primitives::{B256, U256, keccak256};
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_registry::HashMap;
+use op_alloy_consensus::OpReceiptEnvelope;
 use tracing::{info, warn};
 
 /// The [`MessageGraph`] represents a set of blocks — possibly at different timestamps, one per
@@ -32,8 +33,8 @@ pub struct MessageGraph<'a, P> {
     ///
     /// These are derived from the transactions within the blocks.
     messages: Vec<EnrichedExecutingMessage>,
-    /// The data provider for the graph. Required for fetching headers, receipts and remote
-    /// messages within history during resolution.
+    /// The data provider for the graph. Required for fetching the headers and logs of initiating
+    /// blocks during resolution.
     provider: &'a P,
     /// The message-validity rules, bound to the backup rollup configs and the message expiry
     /// window.
@@ -42,6 +43,10 @@ pub struct MessageGraph<'a, P> {
     dependency_set: &'a DependencySet,
 }
 
+/// Each chain's block and the block's receipts, verified against its receipts root, keyed by
+/// chain ID.
+pub type BlocksWithReceipts = HashMap<u64, (Sealed<Header>, Vec<OpReceiptEnvelope>)>;
+
 /// A canonical initiating block, with its logs loaded on the first message that passes the
 /// header checks.
 #[derive(Debug)]
@@ -49,15 +54,8 @@ struct InitiatingBlock {
     chain_id: u64,
     header: Header,
     logs: Option<InitiatingLogs>,
-}
-
-/// The logs of an [`InitiatingBlock`].
-#[derive(Debug)]
-enum InitiatingLogs {
-    /// Every log of the block, from its receipts, with the payload hash computed on first use.
-    Receipts(Vec<(Log, Option<B256>)>),
-    /// A commitment from [`InteropProvider::log_commitment`].
-    Committed(Box<dyn LogCommitment>),
+    /// The payload hashes of the receipt logs checked so far, keyed by log index.
+    payload_hashes: HashMap<usize, B256>,
 }
 
 impl<'a, P> MessageGraph<'a, P>
@@ -68,13 +66,13 @@ where
     /// blocks and searching for [`ExecutingMessage`]s.
     ///
     /// [`ExecutingMessage`]: crate::ExecutingMessage
-    pub async fn derive(
-        blocks: &HashMap<u64, Sealed<Header>>,
+    pub fn derive(
+        blocks: &BlocksWithReceipts,
         provider: &'a P,
         rollup_configs: &'a HashMap<u64, RollupConfig>,
         dependency_set: &'a DependencySet,
         message_expiry_window: u64,
-    ) -> MessageGraphResult<Self, P> {
+    ) -> Self {
         info!(
             target: "message_graph",
             num_chains = blocks.len(),
@@ -82,9 +80,7 @@ where
         );
 
         let mut messages = Vec::with_capacity(blocks.len());
-        for (chain_id, header) in blocks {
-            let receipts = provider.receipts_by_hash(*chain_id, header.hash()).await?;
-
+        for (chain_id, (header, receipts)) in blocks {
             // Track the global log index across all receipts in the block so we can
             // record each executing message's position, needed for cycle detection.
             let mut global_log_index: u32 = 0;
@@ -109,12 +105,12 @@ where
             num_messages = messages.len(),
             "Derived message graph successfully",
         );
-        Ok(Self {
+        Self {
             messages,
             provider,
             rules: MessageRules::new(rollup_configs, message_expiry_window),
             dependency_set,
-        })
+        }
     }
 
     /// Checks the validity of all messages within the graph.
@@ -256,8 +252,12 @@ where
                 .provider
                 .header_by_number(initiating_chain_id, initiating_block_number)
                 .await?;
-            *initiating_block =
-                Some(InitiatingBlock { chain_id: initiating_chain_id, header, logs: None });
+            *initiating_block = Some(InitiatingBlock {
+                chain_id: initiating_chain_id,
+                header,
+                logs: None,
+                payload_hashes: HashMap::default(),
+            });
         }
         let initiating_block = initiating_block.as_mut().expect("initiating block loaded");
 
@@ -271,24 +271,11 @@ where
 
         let logs = match &mut initiating_block.logs {
             Some(logs) => logs,
-            logs @ None => {
-                let loaded = match self
-                    .provider
-                    .log_commitment(initiating_chain_id, &initiating_block.header)
-                {
-                    Some(commitment) => InitiatingLogs::Committed(commitment),
-                    None => InitiatingLogs::Receipts(
-                        self.provider
-                            .receipts_by_number(initiating_chain_id, initiating_block_number)
-                            .await?
-                            .into_iter()
-                            .flat_map(|receipt| receipt.into_logs())
-                            .map(|log| (log, None))
-                            .collect(),
-                    ),
-                };
-                logs.insert(loaded)
-            }
+            logs @ None => logs.insert(
+                self.provider
+                    .initiating_logs(initiating_chain_id, &initiating_block.header)
+                    .await?,
+            ),
         };
         let log_index = message.inner.identifier.logIndex;
         let not_found = || MessageGraphError::RemoteMessageNotFound {
@@ -298,8 +285,8 @@ where
 
         match logs {
             InitiatingLogs::Receipts(logs) => {
-                let (remote_log, remote_message_hash) =
-                    logs.get_mut(log_index.saturating_to::<usize>()).ok_or_else(not_found)?;
+                let index = log_index.saturating_to::<usize>();
+                let remote_log = logs.get(index).ok_or_else(not_found)?;
 
                 // Validate the message's origin is correct.
                 if remote_log.address != message.inner.identifier.origin {
@@ -310,13 +297,14 @@ where
                 }
 
                 // Validate that the message hash is correct.
-                let remote_message_hash = remote_message_hash.get_or_insert_with(|| {
-                    keccak256(RawMessagePayload::from(&*remote_log).as_ref())
-                });
-                if *remote_message_hash != message.inner.payloadHash {
+                let remote_message_hash = *initiating_block
+                    .payload_hashes
+                    .entry(index)
+                    .or_insert_with(|| keccak256(RawMessagePayload::from(remote_log).as_ref()));
+                if remote_message_hash != message.inner.payloadHash {
                     return Err(MessageGraphError::InvalidMessageHash {
                         expected: message.inner.payloadHash,
-                        actual: *remote_message_hash,
+                        actual: remote_message_hash,
                     });
                 }
             }
@@ -345,9 +333,9 @@ where
 #[cfg(test)]
 #[allow(clippy::zero_sized_map_values)]
 mod test {
-    use super::{InitiatingLogs, MessageGraph};
+    use super::{BlocksWithReceipts, InitiatingLogs, MessageGraph};
     use crate::{
-        ExecutingMessage, InteropProvider, LogCommitment, MESSAGE_EXPIRY_WINDOW, MessageGraphError,
+        ExecutingMessage, InteropProvider, MESSAGE_EXPIRY_WINDOW, MessageGraphError,
         MessageGraphResult,
         message::EnrichedExecutingMessage,
         rules::detect_cycles,
@@ -360,7 +348,7 @@ mod test {
         boxed::Box,
         collections::{BTreeMap, BTreeSet},
     };
-    use alloy_consensus::{Header, Sealed};
+    use alloy_consensus::Header;
     use alloy_primitives::{Address, B256, U256, hex, keccak256};
     use core::sync::atomic::{AtomicUsize, Ordering};
     use kona_genesis::{ChainDependency, DependencySet, RollupConfig};
@@ -405,7 +393,7 @@ mod test {
         superchain
     }
 
-    /// Which blocks [`TestProvider`] serves a [`LogCommitment`] for.
+    /// Which blocks [`TestProvider`] serves a [`LogCommitment`](crate::LogCommitment) for.
     #[derive(Debug, Clone, Copy)]
     enum Commitments {
         None,
@@ -451,39 +439,30 @@ mod test {
             self.inner.header_by_number(chain_id, number).await
         }
 
-        async fn receipts_by_number(
+        async fn initiating_logs(
             &self,
             chain_id: u64,
-            number: u64,
-        ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
+            header: &Header,
+        ) -> Result<InitiatingLogs, Self::Error> {
+            let head = *self.inner.headers[&chain_id].keys().max().unwrap();
+            let committed = match self.commitments {
+                Commitments::None => false,
+                Commitments::All => true,
+                Commitments::BelowHead => header.number < head,
+            };
+            let failing = self.failing_receipts.contains(&(chain_id, header.number));
+            if committed {
+                self.commitment_loads.fetch_add(1, Ordering::Relaxed);
+                // A block whose receipts do not decode commits to no logs.
+                let receipts =
+                    if failing { &[][..] } else { &self.inner.receipts[&chain_id][&header.number] };
+                return Ok(InitiatingLogs::Committed(Box::new(LeafList::new(receipts))));
+            }
             self.receipt_loads.fetch_add(1, Ordering::Relaxed);
-            if self.failing_receipts.contains(&(chain_id, number)) {
+            if failing {
                 return Err(InteropProviderError);
             }
-            self.inner.receipts_by_number(chain_id, number).await
-        }
-
-        async fn receipts_by_hash(
-            &self,
-            chain_id: u64,
-            block_hash: B256,
-        ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-            self.inner.receipts_by_hash(chain_id, block_hash).await
-        }
-
-        fn log_commitment(&self, chain_id: u64, header: &Header) -> Option<Box<dyn LogCommitment>> {
-            let head = *self.inner.headers[&chain_id].keys().max().unwrap();
-            match self.commitments {
-                Commitments::None => return None,
-                Commitments::BelowHead if header.number >= head => return None,
-                Commitments::All | Commitments::BelowHead => {}
-            }
-            self.commitment_loads.fetch_add(1, Ordering::Relaxed);
-            // A block whose receipts do not decode commits to no logs.
-            if self.failing_receipts.contains(&(chain_id, header.number)) {
-                return Some(Box::new(LeafList::new(&[])));
-            }
-            Some(Box::new(LeafList::new(&self.inner.receipts[&chain_id][&header.number])))
+            self.inner.initiating_logs(chain_id, header).await
         }
     }
 
@@ -495,13 +474,13 @@ mod test {
 
     impl<'a> Differential<'a> {
         /// Derives both graphs; the committed one is served a commitment for every block.
-        async fn derive(
-            blocks: &HashMap<u64, Sealed<Header>>,
+        fn derive(
+            blocks: &BlocksWithReceipts,
             provider: &'a MockInteropProvider,
             rollup_configs: &'a HashMap<u64, RollupConfig>,
             dependency_set: &'a DependencySet,
             message_expiry_window: u64,
-        ) -> MessageGraphResult<Self, MockInteropProvider> {
+        ) -> Self {
             Self::derive_with(
                 blocks,
                 provider,
@@ -511,19 +490,18 @@ mod test {
                 Commitments::All,
                 &BTreeSet::new(),
             )
-            .await
         }
 
-        async fn derive_with(
-            blocks: &HashMap<u64, Sealed<Header>>,
+        fn derive_with(
+            blocks: &BlocksWithReceipts,
             provider: &'a MockInteropProvider,
             rollup_configs: &'a HashMap<u64, RollupConfig>,
             dependency_set: &'a DependencySet,
             message_expiry_window: u64,
             commitments: Commitments,
             failing_receipts: &BTreeSet<(u64, u64)>,
-        ) -> MessageGraphResult<Self, MockInteropProvider> {
-            let graph = async |commitments| {
+        ) -> Self {
+            let graph = |commitments| {
                 let provider =
                     Box::leak(Box::new(TestProvider::new(provider, commitments, failing_receipts)));
                 MessageGraph::derive(
@@ -533,12 +511,8 @@ mod test {
                     dependency_set,
                     message_expiry_window,
                 )
-                .await
             };
-            let receipts = graph(Commitments::None).await?;
-            let committed = graph(commitments).await.expect("derive reads no initiating logs");
-            assert_eq!(format!("{:?}", receipts.messages), format!("{:?}", committed.messages));
-            Ok(Self { receipts, committed })
+            Self { receipts: graph(Commitments::None), committed: graph(commitments) }
         }
 
         fn edit_messages(&mut self, edit: impl Fn(&mut Vec<EnrichedExecutingMessage>)) {
@@ -613,9 +587,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.resolve().await.unwrap();
     }
 
@@ -639,9 +611,7 @@ mod test {
         let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
 
         let graph =
-            Differential::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
-                .await
-                .unwrap();
+            Differential::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW);
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("Expected InvalidMessages")
         };
@@ -671,9 +641,7 @@ mod test {
         let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
 
         let graph =
-            Differential::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
-                .await
-                .unwrap();
+            Differential::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW);
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("Expected InvalidMessages")
         };
@@ -714,9 +682,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -749,9 +715,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -790,9 +754,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -836,9 +798,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -880,9 +840,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -944,9 +902,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -987,9 +943,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1033,9 +987,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1079,9 +1031,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1123,9 +1073,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1171,9 +1119,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.resolve().await.unwrap();
     }
 
@@ -1200,9 +1146,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1245,9 +1189,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1289,9 +1231,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1332,9 +1272,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1374,9 +1312,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1428,9 +1364,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.resolve().await.unwrap();
     }
 
@@ -1455,9 +1389,7 @@ mod test {
         let (headers, cfgs, provider) = superchain.build();
 
         let graph =
-            Differential::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
-                .await
-                .unwrap();
+            Differential::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY);
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -1497,9 +1429,7 @@ mod test {
         let (headers, cfgs, provider) = superchain.build();
 
         let graph =
-            Differential::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
-                .await
-                .unwrap();
+            Differential::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY);
         graph.resolve().await.unwrap();
     }
 
@@ -1537,9 +1467,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.resolve().await.unwrap();
     }
 
@@ -1593,9 +1521,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -1659,9 +1585,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -1928,9 +1852,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
 
         // Cycle detection must not flag these messages as cyclic. Per-message validation
         // may still reject them (the test provider has no historical blocks), but that is
@@ -2057,22 +1979,13 @@ mod test {
             self.inner.header_by_number(chain_id, number).await
         }
 
-        async fn receipts_by_number(
+        async fn initiating_logs(
             &self,
             chain_id: u64,
-            number: u64,
-        ) -> Result<Vec<op_alloy_consensus::OpReceiptEnvelope>, Self::Error> {
+            header: &alloy_consensus::Header,
+        ) -> Result<InitiatingLogs, Self::Error> {
             self.receipt_reads.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            self.inner.receipts_by_number(chain_id, number).await
-        }
-
-        async fn receipts_by_hash(
-            &self,
-            chain_id: u64,
-            hash: B256,
-        ) -> Result<Vec<op_alloy_consensus::OpReceiptEnvelope>, Self::Error> {
-            self.receipt_reads.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            self.inner.receipts_by_hash(chain_id, hash).await
+            self.inner.initiating_logs(chain_id, header).await
         }
     }
 
@@ -2097,9 +2010,7 @@ mod test {
                 &cfgs,
                 default_dep_set(),
                 MESSAGE_EXPIRY_WINDOW,
-            )
-            .await
-            .unwrap();
+            );
             let (edit, expected): (fn(&mut ExecutingMessage), _) = match field {
                 "hash" => (
                     |message| message.payloadHash = B256::ZERO,
@@ -2170,9 +2081,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.edit_messages(|messages| messages.sort_by_key(|message| message.executing_chain_id));
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("expected activation failure");
@@ -2223,9 +2132,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.resolve().await.unwrap();
     }
 
@@ -2247,9 +2154,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         assert_eq!(graph.receipts.messages.len(), 2);
         // Visit the non-self edge first so premature deduplication would discard the self-cycle.
         graph.edit_messages(|messages| messages.swap(0, 1));
@@ -2285,9 +2190,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("expected source lookup failure");
         };
@@ -2304,9 +2207,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let wide_number = U256::from(u64::MAX) + U256::from(1);
         for message in &mut graph.messages {
             message.inner.identifier.blockNumber = wide_number;
@@ -2350,8 +2251,7 @@ mod test {
             }
         }
         let (mut headers, cfgs, mut inner) = superchain.build();
-        let source = headers.remove(&CHAIN_A_ID).unwrap();
-        let receipts = inner.receipts[&CHAIN_A_ID][&source.number].clone();
+        let (source, receipts) = headers.remove(&CHAIN_A_ID).unwrap();
         for number in 2..=8 {
             inner.headers.get_mut(&CHAIN_A_ID).unwrap().insert(
                 number,
@@ -2371,10 +2271,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
-        provider.receipt_reads.store(0, Ordering::Relaxed);
+        );
         graph.resolve().await.unwrap();
         assert_eq!(
             provider.header_reads.load(Ordering::Relaxed),
@@ -2409,21 +2306,19 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let mut initiating_block = None;
         graph.check_single_dependency(&graph.messages[0], &mut initiating_block).await.unwrap();
-        let Some(InitiatingLogs::Receipts(logs)) = &initiating_block.as_ref().unwrap().logs else {
+        let initiating_block = initiating_block.unwrap();
+        let Some(InitiatingLogs::Receipts(logs)) = &initiating_block.logs else {
             panic!("expected receipt logs");
         };
         assert_eq!(logs.len(), 64);
         assert_eq!(
-            logs.iter().filter(|(_, hash)| hash.is_some()).count(),
-            1,
+            initiating_block.payload_hashes.into_iter().collect::<Vec<_>>(),
+            vec![(63, keccak256(MOCK_MESSAGE))],
             "unreferenced logs must not be hashed"
         );
-        assert_eq!(logs[63].1, Some(keccak256(MOCK_MESSAGE)));
     }
 
     /// Resolves chain B's message into chain A's one-log block `1`, after `edit`.
@@ -2446,9 +2341,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         graph.edit_messages(edit);
         graph.resolve().await
     }
@@ -2496,8 +2389,6 @@ mod test {
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
         )
-        .await
-        .unwrap()
         .resolve()
         .await;
         assert!(matches!(result, Err(MessageGraphError::InvalidMessages(_))), "{result:?}");
@@ -2525,8 +2416,6 @@ mod test {
             Commitments::All,
             &BTreeSet::from([(CHAIN_A_ID, 1)]),
         )
-        .await
-        .unwrap()
         .resolve()
         .await;
         let Err(MessageGraphError::InvalidMessages(invalid)) = result else {
@@ -2582,9 +2471,7 @@ mod test {
                 MESSAGE_EXPIRY_WINDOW,
                 Commitments::BelowHead,
                 &BTreeSet::new(),
-            )
-            .await
-            .unwrap();
+            );
             let committed = graph.committed.provider;
             let result = graph.resolve().await;
             assert_eq!(result.is_ok(), expect_valid, "{extra:?}: {result:?}");
@@ -2612,9 +2499,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let (receipts, committed) = (graph.receipts.provider, graph.committed.provider);
         let result = graph.resolve().await;
         assert!(matches!(result, Err(MessageGraphError::InvalidMessages(_))), "{result:?}");
@@ -2646,9 +2531,7 @@ mod test {
             &cfgs,
             default_dep_set(),
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let committed = graph.committed.provider;
         graph.resolve().await.unwrap();
         assert_eq!(committed.commitment_loads.load(Ordering::Relaxed), 1);
