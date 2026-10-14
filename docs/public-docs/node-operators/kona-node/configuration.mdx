@@ -136,7 +136,7 @@ A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled`,
 
 <Unreleased component="kona-node" />
 
-The block signer signs the blocks a sequencer builds, so that it can gossip them. A node uses and requires one only when `--sequencer.enabled` and `--p2p.enabled`: give `--signer.key-path`, or `--signer.url` with `--signer.address`. Any other node ignores the signer flags, and does not check them.
+The block signer signs the blocks a sequencer builds, so that it can gossip them. A node uses and requires one only when `--sequencer.enabled` and `--p2p.enabled`: give `--signer.key-path`, or `--signer.url` with `--signer.address`. Any other node ignores the signer flags: it still parses each value, but does not check how they combine, nor read the key file.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|

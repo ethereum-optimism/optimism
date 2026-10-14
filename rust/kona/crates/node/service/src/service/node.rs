@@ -150,9 +150,7 @@ impl RollupNode {
     /// cleanly, and [`RollupNodeError::Stopped`] if it failed.
     pub async fn start(&self) -> Result<(), RollupNodeError> {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
-        if self.sequencer.is_some() && self.p2p_config.is_some() && self.signer.is_none() {
-            return Err(RollupNodeError::NoBlockSigner);
-        }
+        let block_signer = self.block_signer()?;
         if let Some(p2p_config) = &self.p2p_config {
             startup::check_listen_ports(p2p_config)?;
         }
@@ -278,7 +276,7 @@ impl RollupNode {
 
             // Start the sequencer's block signer before the network, so a misconfigured or
             // unreachable remote signer fails before the node binds its p2p ports.
-            let block_signer = match self.signer.as_ref().filter(|_| self.sequencer.is_some()) {
+            let block_signer = match block_signer {
                 Some(signer) => Some(signer.clone().start().await.map_err(|e| {
                     RollupNodeError::Startup(format!("Failed to start block signer: {e}"))
                 })?),
@@ -485,6 +483,17 @@ impl RollupNode {
         }
         supervisor.spawn("engine", engine_actor);
         supervisor.wait().await.map_err(RollupNodeError::Stopped)
+    }
+}
+
+impl RollupNode {
+    /// Returns the block signer the node signs its blocks with. Only a node that can sequence and
+    /// has P2P signs blocks, to gossip them, and it needs a signer to.
+    fn block_signer(&self) -> Result<Option<&BlockSigner>, RollupNodeError> {
+        if self.sequencer.is_none() || self.p2p_config.is_none() {
+            return Ok(None);
+        }
+        self.signer.as_ref().map(Some).ok_or(RollupNodeError::NoBlockSigner)
     }
 }
 

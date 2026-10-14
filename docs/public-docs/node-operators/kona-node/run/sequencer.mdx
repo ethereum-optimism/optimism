@@ -8,7 +8,7 @@ import { Unreleased } from "/snippets/unreleased.mdx"
 
 <Unreleased component="kona-node" />
 
-This guide shows how to run `kona-node` as a **sequencer** from the command line. A node run with `--sequencer.enabled` and a block signer can sequence; a node without `--sequencer.enabled` follows the chain only. For how sequencing works internally and how to configure it programmatically through the Node SDK, see the [sequencer design](/node-operators/kona-node/design/sequencer) page.
+This guide shows how to run `kona-node` as a **sequencer** from the command line. A node run with `--sequencer.enabled` can sequence, and needs a block signer to gossip its blocks with `--p2p.enabled`; a node without `--sequencer.enabled` follows the chain only. For how sequencing works internally and how to configure it programmatically through the Node SDK, see the [sequencer design](/node-operators/kona-node/design/sequencer) page.
 
 <Info>
 Sequencing is an advanced configuration primarily used by rollup operators. Most users will run nodes without `--sequencer.enabled`, which follow the chain only.
@@ -16,7 +16,7 @@ Sequencing is an advanced configuration primarily used by rollup operators. Most
 
 ## Basic Sequencer Setup
 
-To run a Kona node that can sequence, pass `--sequencer.enabled`, `--rpc.enabled` and a block signer:
+To run a Kona node that can sequence and gossip its blocks, pass `--sequencer.enabled`, `--rpc.enabled`, `--p2p.enabled` and a block signer:
 
 ```bash
 kona-node node \

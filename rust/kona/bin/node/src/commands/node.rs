@@ -4,7 +4,7 @@ use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
         ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, LogArgs, MetricsArgs,
-        P2PArgs, RpcArgs, SequencerArgs, SignerArgs, SignerError,
+        P2PArgs, RpcArgs, SequencerArgs, SignerArgs,
     },
 };
 use clap::{CommandFactory, Parser, error::ErrorKind};
@@ -175,10 +175,7 @@ impl NodeCommand {
         }
         if self.signs_blocks() {
             self.signer_flags.check().map_err(|error| {
-                let kind = match error {
-                    SignerError::TwoSigners => ErrorKind::ArgumentConflict,
-                    _ => ErrorKind::MissingRequiredArgument,
-                };
+                let kind = error.kind().expect("checking the signer flags reads no key file");
                 Self::error(kind, error)
             })?;
         }
@@ -423,50 +420,53 @@ mod tests {
     #[test]
     fn test_a_signer_is_used_and_required_only_with_the_sequencer_and_p2p() {
         let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
-        let key_path = key.path().to_str().unwrap();
+        const ADDRESS: &str = "0x0000000000000000000000000000000000000001";
+        // Each choice of signer flags, with `KEY` for the key file, and the clap error it is with
+        // the sequencer and P2P.
         let signers: [(&[&str], Option<ErrorKind>); 4] = [
             (&[], Some(ErrorKind::MissingRequiredArgument)),
-            (&["--signer.key-path", key_path], None),
+            (&["--signer.key-path", "KEY"], None),
             (
-                &["--signer.key-path", key_path, "--signer.url", "http://a"],
+                &["--signer.key-path", "KEY", "--signer.url", "http://a"],
                 Some(ErrorKind::MissingRequiredArgument),
             ),
             (
                 &[
                     "--signer.key-path",
-                    key_path,
+                    "KEY",
                     "--signer.url",
                     "http://a",
                     "--signer.address",
-                    "0x0000000000000000000000000000000000000001",
+                    ADDRESS,
                 ],
                 Some(ErrorKind::ArgumentConflict),
             ),
         ];
-        for sequencer in [false, true] {
-            for p2p in [false, true] {
-                for (signer, error) in &signers {
-                    let switches = [
-                        "--chain",
-                        "optimism",
-                        "--rpc.enabled",
-                        if sequencer { "--sequencer.enabled" } else { "--sequencer.enabled=false" },
-                        if p2p { "--p2p.enabled" } else { "--p2p.enabled=false" },
-                    ];
-                    let (command, _jwt) = parse_node(&[&switches[..], signer].concat());
-                    let case = format!("sequencer {sequencer}, p2p {p2p}, {signer:?}");
+        for (sequencer, p2p) in [(false, false), (false, true), (true, false), (true, true)] {
+            let used = sequencer && p2p;
+            // A node that ignores the signer must not read its key file, so give it none.
+            let key_path = if used { key.path().to_str().unwrap() } else { "/nonexistent/key" };
+            for (signer, error) in &signers {
+                let mut args = vec![
+                    "--chain",
+                    "optimism",
+                    "--rpc.enabled",
+                    if sequencer { "--sequencer.enabled" } else { "--sequencer.enabled=false" },
+                    if p2p { "--p2p.enabled" } else { "--p2p.enabled=false" },
+                ];
+                args.extend(signer.iter().map(|arg| if *arg == "KEY" { key_path } else { arg }));
+                let (command, _jwt) = parse_node(&args);
+                let case = format!("sequencer {sequencer}, p2p {p2p}, {signer:?}");
 
-                    if !(sequencer && p2p) {
+                match (used, error) {
+                    (false, _) => {
                         command.check().unwrap_or_else(|e| panic!("{case}: {e}"));
                         assert!(command.config().unwrap().signer.is_none(), "{case}");
-                        continue;
                     }
-                    match error {
-                        Some(kind) => {
-                            assert_eq!(command.check().unwrap_err().kind(), *kind, "{case}")
-                        }
-                        None => assert!(command.config().unwrap().signer.is_some(), "{case}"),
+                    (true, Some(kind)) => {
+                        assert_eq!(command.check().unwrap_err().kind(), *kind, "{case}")
                     }
+                    (true, None) => assert!(command.config().unwrap().signer.is_some(), "{case}"),
                 }
             }
         }

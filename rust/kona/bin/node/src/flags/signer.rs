@@ -4,7 +4,7 @@ use alloy_primitives::{Address, B256};
 use alloy_signer::k256::ecdsa;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Context;
-use clap::Args;
+use clap::{Args, error::ErrorKind};
 use kona_sources::{BlockSigner, ClientCert, RemoteSigner};
 use reqwest::header::{HeaderName, HeaderValue};
 use std::{path::PathBuf, str::FromStr};
@@ -15,7 +15,8 @@ use url::Url;
 ///
 /// A node signs blocks only when it can sequence and gossips them: with `--sequencer.enabled` and
 /// `--p2p.enabled`. It then needs a signer, and these flags must choose exactly one. Otherwise they
-/// are ignored, and not checked.
+/// are ignored: clap still parses each value, but how they combine is not checked, and the key
+/// file is not read.
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
 #[command(next_help_heading = "Signer")]
 pub struct SignerArgs {
@@ -119,9 +120,17 @@ pub enum SignerError {
 }
 
 impl SignerError {
-    /// Whether the error is in how the flags combine, rather than in the key file they name.
-    pub const fn is_in_flags(&self) -> bool {
-        !matches!(self, Self::Read(..) | Self::Decode(..) | Self::Invalid(..))
+    /// The kind of clap error an error in how the flags combine is, or `None` for an error in the
+    /// key file they name.
+    pub const fn kind(&self) -> Option<ErrorKind> {
+        match self {
+            Self::TwoSigners => Some(ErrorKind::ArgumentConflict),
+            Self::NoSigner |
+            Self::IncompleteRemoteSigner |
+            Self::NoRemoteSigner(_) |
+            Self::IncompleteClientCert => Some(ErrorKind::MissingRequiredArgument),
+            Self::Read(..) | Self::Decode(..) | Self::Invalid(..) => None,
+        }
     }
 }
 
@@ -324,7 +333,7 @@ mod tests {
         for (raw, expected) in cases {
             let args = parse(&raw).unwrap();
             let error = args.check().unwrap_err();
-            assert!(error.is_in_flags(), "{raw:?}");
+            assert!(error.kind().is_some(), "{raw:?}");
             assert_eq!(error.to_string(), expected.to_string(), "{raw:?}");
             assert_eq!(args.config().unwrap_err().to_string(), expected.to_string(), "{raw:?}");
         }
