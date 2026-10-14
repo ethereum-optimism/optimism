@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 
@@ -525,6 +526,16 @@ func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())
 	lifecycle.Start()
+}
+
+// RecordLogLines returns a record of every log line this node's process writes from now on,
+// across restarts, whose message contains substring. It fails for a node whose log the devstack
+// does not expose, such as an in-process op-geth.
+func (el *L2ELNode) RecordLogLines(substring string) *logpipe.LogRecord {
+	recorder, ok := el.inner.(stack.LogRecorder)
+	el.require.Truef(ok, "L2EL node %s does not expose its log", el.inner.Name())
+	el.log.Info("Recording log lines", "name", el.inner.Name(), "substring", substring)
+	return recorder.RecordLogLines(substring)
 }
 
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
