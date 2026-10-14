@@ -110,7 +110,7 @@ impl TrieBufferState {
     }
 
     /// Insert a block into the buffer.
-    pub(in crate::engine) fn insert(&self, block: BlockWithParent, diff: BlockStateDiff) {
+    pub(crate) fn insert(&self, block: BlockWithParent, diff: BlockStateDiff) {
         self.inner.insert(block, diff);
     }
 

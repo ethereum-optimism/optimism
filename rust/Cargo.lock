@@ -14229,6 +14229,7 @@ dependencies = [
  "reth-trie",
  "reth-trie-common",
  "reth-trie-db",
+ "rstest",
  "secp256k1 0.31.1",
  "serde",
  "serial_test",
