@@ -302,23 +302,27 @@ impl RollupNode {
             // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
             // network actor. While signing or publishing stalls, the sequencer pauses block
             // production.
-            let signer_actor = block_signer.map(|block_signer| {
-                let signer_builder = signer::Builder::new();
-                sequencer_signer = Some(signer_builder.handle());
-                signer_builder.build(
-                    block_signer,
-                    self.chain.rollup_config.l2_chain_id.id(),
-                    signer_rx,
-                    adapters::Network(network),
-                )
-            });
+            let signer_actor;
+            (sequencer_signer, signer_actor) = block_signer
+                .map(|block_signer| {
+                    let signer_builder = signer::Builder::new();
+                    let handle = signer_builder.handle();
+                    let actor = signer_builder.build(
+                        block_signer,
+                        self.chain.rollup_config.l2_chain_id.id(),
+                        signer_rx,
+                        adapters::Network(network),
+                    );
+                    (handle, actor)
+                })
+                .unzip();
             // Boxed, so that the actors do not sit in `start`'s frame while it awaits.
-            p2p_actors = Some((
-                Box::pin(network_actor),
-                discovery_actor.map(Box::pin),
-                signer_actor.map(Box::pin),
-                Box::pin(signer_updater),
-            ));
+            p2p_actors = Some(P2pActors {
+                network: Box::pin(network_actor),
+                discovery: discovery_actor.map(Box::pin),
+                signer: signer_actor.map(Box::pin),
+                signer_updater: Box::pin(signer_updater),
+            });
         }
 
         // ─── L1 watcher ─────────────────────────────────────────────────────────────────────
@@ -452,7 +456,7 @@ impl RollupNode {
             supervisor.spawn("sequencer", sequencer);
             supervisor.spawn("origin", origin);
         }
-        if let Some((network, discovery, signer, signer_updater)) = p2p_actors {
+        if let Some(P2pActors { network, discovery, signer, signer_updater }) = p2p_actors {
             supervisor.spawn("network", network);
             if let Some(discovery) = discovery {
                 supervisor.spawn("discovery", discovery);
@@ -474,6 +478,17 @@ impl RollupNode {
         supervisor.spawn("engine", engine_actor);
         supervisor.wait().await.map_err(RollupNodeError::Stopped)
     }
+}
+
+/// The lifetime futures of the actors that run only with P2P.
+struct P2pActors<Network, Discovery, Signer, SignerUpdater> {
+    network: Network,
+    /// The discovery actor, which runs only with discovery.
+    discovery: Option<Discovery>,
+    /// The block signer actor, which runs only on a node that can sequence.
+    signer: Option<Signer>,
+    /// Keeps the unsafe block signer that the network and the block signer check against current.
+    signer_updater: SignerUpdater,
 }
 
 /// Returns the RPC server's lifetime future, which fails once the server stops.

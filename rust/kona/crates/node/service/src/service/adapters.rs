@@ -214,17 +214,13 @@ impl sequencer::Signer for Signer {
     type Error = signer::Stopped;
 
     async fn send(&self, payload: OpExecutionPayloadEnvelope) -> Result<(), Self::Error> {
-        match &self.0 {
-            Some(signer) => signer.send(payload).await,
-            None => Ok(()),
-        }
+        let Some(signer) = &self.0 else { return Ok(()) };
+        signer.send(payload).await
     }
 
     async fn ready(&self) -> Result<(), Self::Error> {
-        match &self.0 {
-            Some(signer) => signer.ready().await,
-            None => Ok(()),
-        }
+        let Some(signer) = &self.0 else { return Ok(()) };
+        signer.ready().await
     }
 }
 
