@@ -99,40 +99,31 @@ async fn stop_is_published_before_a_failed_unsafe_head_read() {
     assert!(!handle.is_active().unwrap());
 }
 
-#[rstest]
-#[case::no_conductor(false, false)]
-#[case::overridden(true, false)]
-#[case::conductor_error(true, true)]
+/// Once an operator overrides the conductor's leadership, for disaster recovery, the sequencer
+/// starts without asking its conductor whether it leads, as op-node.
 #[tokio::test(start_paused = true)]
-async fn override_leader(#[case] configured: bool, #[case] fail: bool) {
-    let conductor = configured.then(|| {
-        let mut conductor = MockConductor::new();
-        conductor.expect_override_leader().times(1).return_once(move || {
-            if fail {
-                Err(ConductorError::Rpc(RpcError::local_usage_str("test conductor error")))
-            } else {
-                Ok(())
-            }
-        });
-        conductor
-    });
-    let (mut actor, _, _) = test_actor_with_config(true, conductor);
-    let result = command(&mut actor, Message::OverrideLeader).await;
-    if !configured || fail {
-        let error = result.unwrap_err();
-        assert!(matches!(error, HandleError::LeaderOverrideError(_)));
-        let expected = if configured { "test conductor error" } else { "No conductor configured" };
-        assert!(error.to_string().contains(expected));
-    } else {
-        result.unwrap();
-    }
+async fn an_overridden_leader_starts_without_its_conductor() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(0);
+    let (mut actor, _, handle) = test_actor_with_config(false, Some(conductor));
+    actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+
+    command(&mut actor, Message::OverrideLeader).await.unwrap();
+    command(&mut actor, |tx| Message::StartSequencer(B256::ZERO, tx)).await.unwrap();
+    assert!(handle.is_active().unwrap());
+}
+
+#[tokio::test(start_paused = true)]
+async fn overriding_the_leader_needs_a_conductor() {
+    let (mut actor, _, _) = test_actor_with_config(true, None);
+    let error = command(&mut actor, Message::OverrideLeader).await.unwrap_err();
+    assert!(matches!(error, HandleError::LeaderOverrideError(_)));
+    assert!(error.to_string().contains("No conductor configured"));
 }
 
 #[tokio::test(start_paused = true)]
 async fn accepted_commands_run_when_response_receivers_are_dropped() {
-    let mut conductor = MockConductor::new();
-    conductor.expect_override_leader().times(1).return_once(|| Ok(()));
-    let (mut actor, _, handle) = test_actor_with_config(true, Some(conductor));
+    let (mut actor, _, handle) = test_actor_with_config(true, Some(MockConductor::new()));
     actor
         .engine_client
         .expect_get_unsafe_head()

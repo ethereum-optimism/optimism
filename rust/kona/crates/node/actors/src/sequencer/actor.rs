@@ -163,6 +163,9 @@ where
     attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
     conductor: Option<Conductor_>,
+    /// Whether an operator overrode the conductor's leadership, for disaster recovery: the
+    /// sequencer then neither asks the conductor whether it leads nor commits blocks to it.
+    leader_overridden: bool,
     /// The struct used to interact with the engine.
     engine_client: SequencerEngineClient_,
     /// The struct used to determine the next L1 origin.
@@ -224,11 +227,18 @@ where
             is_active_tx,
             attributes_builder,
             conductor,
+            leader_overridden: false,
             engine_client,
             origin,
             rollup_config,
             signer,
         }
+    }
+
+    /// Returns the conductor the sequencer defers to: none without one, or once an operator
+    /// overrode its leadership.
+    fn conductor(&self) -> Option<&Conductor_> {
+        self.conductor.as_ref().filter(|_| !self.leader_overridden)
     }
 
     /// Publishes sequencer state and updates its metrics.
@@ -282,7 +292,7 @@ where
     /// chain.
     async fn publish(&self, mut block: SealedBlock) -> Result<Publication, ActorError> {
         if !block.committed {
-            if let Some(conductor) = &self.conductor {
+            if let Some(conductor) = self.conductor() {
                 // A block left behind earlier may have been overtaken since: committing it would
                 // put a block that cannot become canonical in the conductor's log.
                 let unsafe_head = self.engine_client.get_unsafe_head().await?;
@@ -587,14 +597,12 @@ where
                 let _ = tx.send(result);
             }
             Message::OverrideLeader(tx) => {
-                let result = match self.conductor.as_mut() {
-                    Some(conductor) => conductor
-                        .override_leader()
-                        .await
-                        .map_err(|e| HandleError::LeaderOverrideError(e.to_string())),
-                    None => {
-                        Err(HandleError::LeaderOverrideError("No conductor configured".to_string()))
-                    }
+                let result = if self.conductor.is_some() {
+                    warn!(target: "sequencer", "Overriding the conductor's leadership: sequencing without it");
+                    self.leader_overridden = true;
+                    Ok(())
+                } else {
+                    Err(HandleError::LeaderOverrideError("No conductor configured".to_string()))
                 };
                 let _ = tx.send(result);
             }
@@ -608,7 +616,7 @@ where
         if self.is_active {
             return Ok(());
         }
-        if let Some(conductor) = &self.conductor {
+        if let Some(conductor) = self.conductor() {
             match conductor.leader().await {
                 Ok(true) => {}
                 Ok(false) => return Err(HandleError::NotLeader),

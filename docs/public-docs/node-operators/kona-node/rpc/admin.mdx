@@ -100,7 +100,7 @@ Returns whether the conductor is enabled.
 
 ## `admin_overrideLeader`
 
-Overrides the leader in the conductor.
+Lets the sequencer run without its conductor, for disaster recovery after the conductor cluster lost quorum, as op-node's. Until the node restarts, `admin_startSequencer` no longer asks the conductor whether it leads, and the sequencer no longer commits its blocks to the conductor before publishing them. The conductor's own leader override, `conductor_overrideLeader`, is separate: it opens the conductor's RPC proxy to the sequencer. Fails without a conductor.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |

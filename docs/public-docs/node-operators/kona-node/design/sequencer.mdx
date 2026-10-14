@@ -41,7 +41,7 @@ The core actor responsible for block production. It:
 
 ### Publishing a block
 
-The sequencer seals each block it built with the engine's `seal`, which does not import it. Behind op-conductor, it then commits the block to its conductor. Only a committed block is made canonical, with the engine's `canonicalize`, and then queued for gossip: a sequencer that lost leadership cannot fork the unsafe chain. A block the conductor does not commit is kept, and committed again a second later, unless the unsafe head has moved past its parent, in which case it is dropped. A committed block the engine fails to make canonical for a temporary reason is tried again as it is; one whose parent is no longer the unsafe head, or that the execution layer rejects, is dropped. Stopping the sequencer drops whatever it built.
+The sequencer seals each block it built with the engine's `seal`, which does not import it. Behind op-conductor, it then commits the block to its conductor. Only a committed block is made canonical, with the engine's `canonicalize`, and then queued for gossip: a sequencer that lost leadership cannot fork the unsafe chain. A block the conductor does not commit is kept, and committed again a second later, unless the unsafe head has moved past its parent, in which case it is dropped. A committed block the engine fails to make canonical for a temporary reason is tried again as it is; one whose parent is no longer the unsafe head, or that the execution layer rejects, is dropped. Stopping the sequencer drops whatever it built. After `admin_overrideLeader`, for disaster recovery, the sequencer skips the conductor and publishes each block it seals.
 
 ### Origin actor
 

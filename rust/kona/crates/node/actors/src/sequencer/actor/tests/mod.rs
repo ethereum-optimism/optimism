@@ -71,6 +71,7 @@ fn with_signer<S: Signer>(
         is_active_tx: actor.is_active_tx,
         attributes_builder: actor.attributes_builder,
         conductor: actor.conductor,
+        leader_overridden: actor.leader_overridden,
         engine_client: actor.engine_client,
         origin: actor.origin,
         rollup_config: actor.rollup_config,

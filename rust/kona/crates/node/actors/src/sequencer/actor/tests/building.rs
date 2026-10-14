@@ -5,7 +5,7 @@ use super::{
 use crate::{
     ConductorError, EngineClientError, MockConductor, MockOrigin, MockSequencerEngineClient,
     engine::{BuildTaskError, EngineBuildError, InsertTaskError, SealTaskError},
-    sequencer::{ActorError, MockSigner},
+    sequencer::{ActorError, MockSigner, handle::Message},
 };
 use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
@@ -17,7 +17,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::{
-    sync::{Notify, mpsc},
+    sync::{Notify, mpsc, oneshot},
     time::{self, Duration, Instant},
 };
 
@@ -214,6 +214,23 @@ async fn a_kept_block_the_unsafe_head_moved_past_is_dropped() {
 
     let publication = actor.publish(sealed_block(crate::test_payload(1))).await.unwrap();
     assert!(matches!(publication, Publication::Dropped));
+}
+
+/// Once an operator overrides the conductor's leadership, for disaster recovery, the sequencer
+/// publishes blocks without committing them to its conductor, as op-node.
+#[tokio::test(start_paused = true)]
+async fn an_overridden_leader_publishes_without_its_conductor() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(0);
+    let (mut actor, _, _) = test_actor_with_config(true, Some(conductor));
+    actor.engine_client.expect_canonicalize_block().times(1).return_once(|_, _| Ok(()));
+    actor.signer.expect_send().times(1).returning(|_| Ok(()));
+
+    let (tx, rx) = oneshot::channel();
+    actor.handle_message(Message::OverrideLeader(tx)).await;
+    rx.await.unwrap().unwrap();
+    let publication = actor.publish(sealed_block(crate::test_payload(1))).await.unwrap();
+    assert!(matches!(publication, Publication::Published));
 }
 
 /// A committed block the engine fails to make canonical is tried again as it is, without being

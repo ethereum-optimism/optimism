@@ -39,13 +39,9 @@ impl Conductor for PendingConductor {
         panic!("a stopped sequencer must not commit payloads")
     }
 
-    async fn override_leader(&self) -> Result<(), ConductorError> {
+    async fn leader(&self) -> Result<bool, ConductorError> {
         self.0.notify_one();
         pending().await
-    }
-
-    async fn leader(&self) -> Result<bool, ConductorError> {
-        Ok(true)
     }
 }
 
@@ -283,7 +279,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_message() {
         Some(PendingConductor(started.clone())),
         MockSigner::new(),
     ));
-    let command = tokio::spawn(async move { handle.override_leader().await });
+    let command = tokio::spawn(async move { handle.start(B256::ZERO).await });
     started.notified().await;
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
