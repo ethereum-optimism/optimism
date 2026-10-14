@@ -22,15 +22,22 @@ pub trait SequencerEngineClient: Debug + Send + Sync {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId>;
 
-    /// Seals and canonicalizes a previously started block.
+    /// Seals a previously started block, without importing it.
     ///
-    /// Takes a `PayloadId` from a previous `start_build_block` call and returns
-    /// the finalized execution payload envelope.
-    async fn seal_and_canonicalize_block(
+    /// Takes a `PayloadId` from a previous `start_build_block` call and returns the sealed
+    /// execution payload envelope.
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope>;
+
+    /// Imports a sealed block and makes it the unsafe head.
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<()>;
 
     /// Returns the current unsafe head [`L2BlockInfo`].
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo>;

@@ -1,10 +1,10 @@
 use super::{
-    super::{LastBuild, UnsealedPayloadHandle},
+    super::{LastBuild, Publication, SealedBlock, UnsealedPayloadHandle},
     QueueSigner, TestActor, test_actor, test_actor_with_config, with_signer,
 };
 use crate::{
-    EngineClientError, MockOrigin, MockSequencerEngineClient,
-    engine::{BuildTaskError, EngineBuildError},
+    ConductorError, EngineClientError, MockConductor, MockOrigin, MockSequencerEngineClient,
+    engine::{BuildTaskError, EngineBuildError, InsertTaskError, SealTaskError},
     sequencer::{ActorError, MockSigner},
 };
 use alloy_rpc_types_engine::PayloadId;
@@ -95,35 +95,159 @@ async fn build_handles_start_build_errors(#[case] error: EngineBuildError, #[cas
 }
 
 #[tokio::test]
-async fn sealing_propagates_signer_errors() {
+async fn publishing_propagates_signer_errors() {
     let mut actor = test_actor();
-    let block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
-    let payload = OpExecutionPayloadEnvelope::V1(
-        alloy_rpc_types_engine::ExecutionPayloadV1::from_block_slow(&block),
-    );
-    actor
-        .engine_client
-        .expect_seal_and_canonicalize_block()
-        .times(1)
-        .return_once(|_, _| Ok(payload));
+    actor.engine_client.expect_canonicalize_block().times(1).return_once(|_, _| Ok(()));
     actor
         .signer
         .expect_send()
         .times(1)
         .return_once(|_| Err(std::io::Error::other("signer channel closed")));
-    let handle = UnsealedPayloadHandle {
-        payload_id: Default::default(),
-        attributes_with_parent: OpAttributesWithParent::new(
+
+    let error = actor.publish(sealed_block(crate::test_payload(0))).await.unwrap_err();
+    assert!(matches!(&error, ActorError::Signer(_)));
+    assert_eq!(error.to_string(), "signer channel closed");
+}
+
+/// A sealed block, built on the default unsafe head, that the conductor has not committed.
+fn sealed_block(payload: OpExecutionPayloadEnvelope) -> SealedBlock {
+    SealedBlock {
+        payload,
+        attributes: OpAttributesWithParent::new(
             Default::default(),
             Default::default(),
             None,
             false,
         ),
+        committed: false,
+    }
+}
+
+/// A conductor that rejects every commit.
+fn rejecting_conductor() -> MockConductor {
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().returning(|_| {
+        Err(ConductorError::Rpc(alloy_transport::TransportErrorKind::custom_str("not leader")))
+    });
+    conductor
+}
+
+/// A block the conductor does not commit is neither made canonical nor gossiped, and is kept to
+/// commit again a second later.
+#[tokio::test(start_paused = true)]
+async fn a_block_the_conductor_rejects_is_kept_unpublished() {
+    let (mut actor, _, _) = test_actor_with_config(true, Some(rejecting_conductor()));
+    actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    actor.engine_client.expect_canonicalize_block().times(0);
+    actor.signer.expect_send().times(0);
+    let payload = crate::test_payload(1);
+    let sealed = payload.clone();
+    actor.engine_client.expect_seal_block().times(1).return_once(move |_, _| Ok(sealed));
+
+    let last = actor.build(started(unix_now(), Duration::ZERO)).await.unwrap();
+    let LastBuild::Sealed { block, at } = &last else { panic!("kept nothing: {last:?}") };
+    assert_eq!((&block.payload, block.committed, *at), (&payload, false, Instant::now()));
+    // The next attempt is due a second later.
+    assert!(!next_build_within(true, &last, Duration::from_millis(900)).await);
+    assert!(next_build_within(true, &last, Duration::from_secs(1)).await);
+}
+
+/// A kept block is committed, made canonical and gossiped once the conductor takes it, and only
+/// then does the next block start.
+#[tokio::test(start_paused = true)]
+async fn a_kept_block_is_published_once_the_conductor_commits_it() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(1).returning(|_| Ok(()));
+    let (mut actor, _, _) = test_actor_with_config(true, Some(conductor));
+    let payload = crate::test_payload(1);
+    let mut sequence = mockall::Sequence::new();
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(|| Ok(L2BlockInfo::default()));
+    let canonical = payload.clone();
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .withf(move |payload, _| *payload == canonical)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(()));
+    let gossiped = payload.clone();
+    actor
+        .signer
+        .expect_send()
+        .withf(move |payload| *payload == gossiped)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(|_| Ok(()));
+    // Starting the next block stops at a temporary error.
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(|| Ok(L2BlockInfo::default()));
+    actor.origin.expect_next().times(1).return_once(|_| Ok(BlockInfo::default()));
+    actor.attributes_builder = TestAttributesBuilder {
+        attributes: vec![Err(PipelineErrorKind::Temporary(
+            BuilderError::Custom(String::new()).into(),
+        ))],
     };
 
-    let error = actor.seal_and_commit_payload_if_applicable(&handle).await.unwrap_err();
-    assert!(matches!(&error, ActorError::Signer(_)));
-    assert_eq!(error.to_string(), "signer channel closed");
+    let kept = LastBuild::Sealed { block: Box::new(sealed_block(payload)), at: Instant::now() };
+    assert_eq!(actor.build(kept).await.unwrap(), LastBuild::NothingStarted);
+}
+
+/// A kept block the unsafe head has moved past is dropped without being committed.
+#[tokio::test(start_paused = true)]
+async fn a_kept_block_the_unsafe_head_moved_past_is_dropped() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(0);
+    let (mut actor, _, _) = test_actor_with_config(true, Some(conductor));
+    let mut moved = L2BlockInfo::default();
+    moved.block_info.number = 1;
+    actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || Ok(moved));
+    actor.engine_client.expect_canonicalize_block().times(0);
+
+    let publication = actor.publish(sealed_block(crate::test_payload(1))).await.unwrap();
+    assert!(matches!(publication, Publication::Dropped));
+}
+
+/// A committed block the engine fails to make canonical is tried again as it is, without being
+/// committed again. One the engine can never make canonical is dropped.
+#[rstest]
+#[case::temporary(
+    InsertTaskError::InsertFailed(alloy_transport::TransportErrorKind::custom_str("down")),
+    true
+)]
+#[case::rejected(
+    InsertTaskError::UnexpectedPayloadStatus(alloy_rpc_types_engine::PayloadStatusEnum::Invalid {
+        validation_error: String::new()
+    }),
+    false
+)]
+#[tokio::test]
+async fn a_committed_block_that_fails_to_become_canonical(
+    #[case] error: InsertTaskError,
+    #[case] retried: bool,
+) {
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(1).returning(|_| Ok(()));
+    let (mut actor, _, _) = test_actor_with_config(true, Some(conductor));
+    actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    actor.engine_client.expect_canonicalize_block().times(1).return_once(move |_, _| {
+        Err(EngineClientError::SealError(SealTaskError::PayloadInsertionFailed(Box::new(error))))
+    });
+    actor.signer.expect_send().times(0);
+
+    match actor.publish(sealed_block(crate::test_payload(1))).await.unwrap() {
+        Publication::Retry(block) => assert!(retried && block.committed),
+        Publication::Dropped => assert!(!retried),
+        Publication::Published => panic!("published a block that is not canonical"),
+    }
 }
 
 /// A full signer queue, for example during a signer outage, pauses block building without
@@ -280,10 +404,11 @@ async fn build_seals_the_block_the_last_build_started() {
     let payload = sealed.clone();
     actor
         .engine_client
-        .expect_seal_and_canonicalize_block()
+        .expect_seal_block()
         .withf(|payload_id, _| *payload_id == PayloadId::new([1; 8]))
         .times(1)
         .return_once(move |_, _| Ok(payload));
+    actor.engine_client.expect_canonicalize_block().times(1).return_once(|_, _| Ok(()));
     actor
         .signer
         .expect_send()

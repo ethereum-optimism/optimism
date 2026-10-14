@@ -51,7 +51,7 @@ impl SequencerEngineClient for Engine {
         })
     }
 
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
@@ -66,6 +66,17 @@ impl SequencerEngineClient for Engine {
                     info!(target: "sequencer", ?err, "Seal failed.");
                 }
             })
+    }
+
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<()> {
+        trace!(target: "sequencer", "Sending canonicalize request to engine.");
+        self.handle.canonicalize(payload, attributes).await.inspect_err(|err| {
+            info!(target: "sequencer", ?err, "Canonicalize failed.");
+        })
     }
 
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {

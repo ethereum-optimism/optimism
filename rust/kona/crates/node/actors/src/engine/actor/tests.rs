@@ -706,7 +706,7 @@ async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
 
 /// Sends a seal request and returns the reply.
 async fn seal(
-    actor: &mut Actor,
+    actor: &Actor,
     payload_id: PayloadId,
     attributes: OpAttributesWithParent,
 ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
@@ -715,16 +715,15 @@ async fn seal(
     result_rx.await.unwrap()
 }
 
-/// A sealed block is published before the reply, because the sequencer builds the next block on
-/// the unsafe head as soon as it gets the reply.
+/// A seal returns the sealed payload without importing it: the sequencer decides whether it becomes
+/// canonical.
 #[tokio::test]
-async fn seal_publishes_the_new_unsafe_head_before_replying() {
+async fn seal_returns_the_payload_without_importing_it() {
     let (payload, config) = genesis_payload();
-    let OpExecutionPayloadEnvelope::V1(payload_v1) = payload else {
+    let OpExecutionPayloadEnvelope::V1(payload_v1) = payload.clone() else {
         unreachable!("the genesis payload is a V1 payload")
     };
     let (clients, l2) = clients(config.clone());
-    let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     l2.expect(
         "engine_getPayloadV2",
         ExecutionPayloadEnvelopeV2 {
@@ -732,6 +731,34 @@ async fn seal_publishes_the_new_unsafe_head_before_replying() {
             block_value: Default::default(),
         },
     );
+    let attributes = TestAttributesBuilder::new().build();
+    let state = TestEngineStateBuilder::new().with_unsafe_head(attributes.parent).build();
+    let (actor, state_rx) = actor(clients, config, state, Arc::new(NoopBlockSink));
+
+    assert_eq!(seal(&actor, PayloadId::new([1; 8]), attributes).await.unwrap(), payload);
+    assert!(!state_rx.has_changed().unwrap());
+    assert_eq!(actor.state, state);
+    l2.assert_finished();
+}
+
+/// Sends a canonicalize request and returns the reply.
+async fn canonicalize(
+    actor: &mut Actor,
+    payload: OpExecutionPayloadEnvelope,
+    attributes: OpAttributesWithParent,
+) -> Result<(), SealTaskError> {
+    let (result_tx, result_rx) = oneshot::channel();
+    actor.handle_canonicalize(CanonicalizeRequest { payload, attributes, result_tx }).await;
+    result_rx.await.unwrap()
+}
+
+/// A canonicalized block is published before the reply, because the sequencer builds the next
+/// block on the unsafe head as soon as it gets the reply.
+#[tokio::test]
+async fn canonicalize_publishes_the_new_unsafe_head_before_replying() {
+    let (payload, config) = genesis_payload();
+    let (clients, l2) = clients(config.clone());
+    let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     l2.expect("engine_newPayloadV1", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
     let attributes = TestAttributesBuilder::new().build();
@@ -739,13 +766,29 @@ async fn seal_publishes_the_new_unsafe_head_before_replying() {
     let (mut actor, state_rx) = actor(clients, config.clone(), state, Arc::new(NoopBlockSink));
 
     let (result_tx, mut result_rx) = oneshot::channel();
-    actor
-        .handle_seal(SealRequest { payload_id: PayloadId::new([1; 8]), attributes, result_tx })
-        .await;
+    actor.handle_canonicalize(CanonicalizeRequest { payload, attributes, result_tx }).await;
     result_rx.try_recv().unwrap().unwrap();
-    // The seal handler published the new unsafe head itself, before replying.
+    // The handler published the new unsafe head itself, before replying.
     assert!(state_rx.has_changed().unwrap());
     assert_eq!(state_rx.borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
+    l2.assert_finished();
+}
+
+/// A block whose parent is no longer the unsafe head, because another block took its place, is not
+/// imported.
+#[tokio::test]
+async fn canonicalize_rejects_a_block_whose_parent_is_not_the_unsafe_head() {
+    let (payload, config) = genesis_payload();
+    let (clients, l2) = clients(config.clone());
+    let attributes = TestAttributesBuilder::new().build();
+    let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(7)).build();
+    let (mut actor, _) = actor(clients, config, state, Arc::new(NoopBlockSink));
+
+    assert!(matches!(
+        canonicalize(&mut actor, payload, attributes).await,
+        Err(SealTaskError::UnsafeHeadChangedSinceBuild)
+    ));
+    assert_eq!(actor.state, state);
     l2.assert_finished();
 }
 
@@ -809,7 +852,7 @@ async fn unsafe_head_check_variants(
     let (mut actor, _) = actor(clients, cfg, state, Arc::new(NoopBlockSink));
 
     let result = match sealing {
-        Sealing::Request => seal(&mut actor, payload_id, attributes).await,
+        Sealing::Request => seal(&actor, payload_id, attributes).await,
         Sealing::Reorg => match actor.build_and_seal(attributes, true).await {
             Err(ConsolidateTaskError::SealTaskFailed(err)) => Err(err),
             other => panic!("unexpected build and seal result: {other:?}"),

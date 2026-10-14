@@ -6,7 +6,9 @@ use super::{
     FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, ImportedBlockSink, InsertTaskError,
     SealTaskError, SynchronizeTaskError,
     attributes::AttributesMatch,
-    handle::{BuildRequest, ConsolidateRequest, Message, ResetRequest, SealRequest},
+    handle::{
+        BuildRequest, CanonicalizeRequest, ConsolidateRequest, Message, ResetRequest, SealRequest,
+    },
     sync::find_starting_forkchoice,
 };
 use crate::{Metrics, l1};
@@ -168,6 +170,10 @@ impl Actor {
                     self.handle_seal(*request).await;
                     Ok(())
                 }
+                Message::Canonicalize(request) => {
+                    self.handle_canonicalize(*request).await;
+                    Ok(())
+                }
                 Message::Consolidate(request) => {
                     let ConsolidateRequest { attributes, result_tx } = *request;
                     self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
@@ -261,32 +267,71 @@ impl Actor {
         let _ = result_tx.send(result);
     }
 
-    /// Seals a build, makes it the unsafe head, and replies with the payload or failure; the caller
-    /// decides whether to retry.
+    /// Seals a build without importing it, and replies with the payload or failure; the caller
+    /// decides whether to retry, and whether the block becomes canonical.
     ///
     /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head moved since
     /// the build started.
-    async fn handle_seal(&mut self, request: SealRequest) {
+    async fn handle_seal(&self, request: SealRequest) {
         let SealRequest { payload_id, attributes, result_tx } = request;
-
-        let unsafe_head = self.state.unsafe_head().block_info;
-        let parent = attributes.parent.block_info;
-        let result = if unsafe_head.id() == parent.id() {
-            self.seal_payload(payload_id, attributes, false).await
-        } else {
-            info!(
-                target: "engine",
-                unsafe_block_info = ?unsafe_head,
-                parent_block_info = ?parent,
-                "Seal attributes parent does not match unsafe head, returning rebuild error"
-            );
-            Err(SealTaskError::UnsafeHeadChangedSinceBuild)
+        let result = match self.check_parent(&attributes) {
+            Ok(()) => {
+                let timestamp = attributes.attributes().payload_attributes.timestamp;
+                self.client.get_payload(payload_id, timestamp).await.map_err(|e| {
+                    error!(target: "engine", "Payload fetch failed: {e}");
+                    SealTaskError::GetPayloadFailed(e)
+                })
+            }
+            Err(error) => Err(error),
         };
-
-        // The sequencer builds the next block on the unsafe head as soon as it gets the reply.
-        self.publish_state();
         // A caller that stopped waiting does not cancel the seal.
         let _ = result_tx.send(record(Metrics::SEAL_TASK_LABEL, result));
+    }
+
+    /// Imports a sealed block and makes it the unsafe head, and replies with the failure, if any;
+    /// the caller decides whether to retry.
+    ///
+    /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head is no longer
+    /// the block's parent. A block the execution layer rejects is not replaced with a
+    /// deposits-only block, unlike a derived one: the sequencer may have committed it to its
+    /// conductor.
+    async fn handle_canonicalize(&mut self, request: CanonicalizeRequest) {
+        let CanonicalizeRequest { payload, attributes, result_tx } = request;
+        let result = match self.check_parent(&attributes) {
+            Ok(()) => self
+                .insert_payload(payload, false)
+                .await
+                .map(|block| {
+                    info!(
+                        target: "engine",
+                        l2_number = block.block_info.number,
+                        l2_time = block.block_info.timestamp,
+                        "Built and imported new unsafe block"
+                    );
+                })
+                .map_err(|e| SealTaskError::PayloadInsertionFailed(Box::new(e))),
+            Err(error) => Err(error),
+        };
+        // The sequencer builds the next block on the unsafe head as soon as it gets the reply.
+        self.publish_state();
+        // A caller that stopped waiting does not cancel the import.
+        let _ = result_tx.send(record(Metrics::INSERT_TASK_LABEL, result));
+    }
+
+    /// Checks that the attributes' parent is still the unsafe head.
+    fn check_parent(&self, attributes: &OpAttributesWithParent) -> Result<(), SealTaskError> {
+        let unsafe_head = self.state.unsafe_head().block_info;
+        let parent = attributes.parent.block_info;
+        if unsafe_head.id() == parent.id() {
+            return Ok(());
+        }
+        info!(
+            target: "engine",
+            unsafe_block_info = ?unsafe_head,
+            parent_block_info = ?parent,
+            "Attributes parent does not match unsafe head, returning rebuild error"
+        );
+        Err(SealTaskError::UnsafeHeadChangedSinceBuild)
     }
 
     /// Inserts an unsafe payload received from gossip or the admin API.

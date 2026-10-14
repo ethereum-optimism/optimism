@@ -23,8 +23,10 @@ pub(super) enum Message {
     InsertUnsafeBlock(Box<OpExecutionPayloadEnvelope>),
     /// Reset the forkchoice, replying with the new engine state once the reset succeeds.
     Reset(ResetRequest),
-    /// Seal a block.
+    /// Seal a block, without importing it.
     Seal(Box<SealRequest>),
+    /// Import a sealed block and make it the unsafe head.
+    Canonicalize(Box<CanonicalizeRequest>),
 }
 
 /// A request to start building a block.
@@ -67,7 +69,7 @@ pub struct Consolidation {
     pub flush: bool,
 }
 
-/// A request to seal and canonicalize a block.
+/// A request to seal a block, without importing it.
 #[derive(Debug)]
 pub(super) struct SealRequest {
     /// The payload ID returned when the build started.
@@ -76,6 +78,17 @@ pub(super) struct SealRequest {
     pub(super) attributes: OpAttributesWithParent,
     /// Receives the sealed payload or the reason sealing failed.
     pub(super) result_tx: oneshot::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+}
+
+/// A request to import a sealed block and make it the unsafe head.
+#[derive(Debug)]
+pub(super) struct CanonicalizeRequest {
+    /// The sealed block.
+    pub(super) payload: OpExecutionPayloadEnvelope,
+    /// The attributes the block was built from.
+    pub(super) attributes: OpAttributesWithParent,
+    /// Receives the reason the block did not become the unsafe head, if it did not.
+    pub(super) result_tx: oneshot::Sender<Result<(), SealTaskError>>,
 }
 
 /// Published engine state and the engine's request queue.
@@ -147,7 +160,12 @@ impl Handle {
         Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 
-    /// Seals and canonicalizes a block started with [`Self::start_build`].
+    /// Seals a block started with [`Self::start_build`], without importing it. The caller makes it
+    /// canonical with [`Self::canonicalize`], once it may: a sequencer behind op-conductor first
+    /// commits it to the conductor.
+    ///
+    /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head moved since the
+    /// build started.
     pub async fn seal(
         &self,
         payload_id: PayloadId,
@@ -156,6 +174,27 @@ impl Handle {
         let (result_tx, result_rx) = oneshot::channel();
         self.send(Message::Seal(Box::new(SealRequest { payload_id, attributes, result_tx })))
             .await?;
+        Ok(result_rx.await.map_err(|_| response_closed())??)
+    }
+
+    /// Imports a block sealed with [`Self::seal`] and makes it the unsafe head.
+    ///
+    /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head is no longer
+    /// the block's parent, and with [`SealTaskError::PayloadInsertionFailed`] if importing it
+    /// fails. A block the execution layer rejects is not replaced: once committed to a conductor,
+    /// the block is the only one at its height the sequencer may publish.
+    pub async fn canonicalize(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<()> {
+        let (result_tx, result_rx) = oneshot::channel();
+        self.send(Message::Canonicalize(Box::new(CanonicalizeRequest {
+            payload,
+            attributes,
+            result_tx,
+        })))
+        .await?;
         Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 

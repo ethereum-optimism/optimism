@@ -135,11 +135,19 @@ mod tests {
             panic!("a full signer queue must pause building")
         }
 
-        async fn seal_and_canonicalize_block(
+        async fn seal_block(
             &self,
             _payload_id: PayloadId,
             _attributes: OpAttributesWithParent,
         ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
+            panic!("a full signer queue must pause building")
+        }
+
+        async fn canonicalize_block(
+            &self,
+            _payload: OpExecutionPayloadEnvelope,
+            _attributes: OpAttributesWithParent,
+        ) -> EngineClientResult<()> {
             panic!("a full signer queue must pause building")
         }
 

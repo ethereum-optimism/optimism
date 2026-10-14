@@ -79,11 +79,19 @@ impl SequencerEngineClient for ForwardingEngine {
         self.request(EngineRequest::Build).await
     }
 
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         _payload_id: PayloadId,
         _attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
+        panic!("no block is built before the sequencer stops")
+    }
+
+    async fn canonicalize_block(
+        &self,
+        _payload: OpExecutionPayloadEnvelope,
+        _attributes: OpAttributesWithParent,
+    ) -> EngineClientResult<()> {
         panic!("no block is built before the sequencer stops")
     }
 

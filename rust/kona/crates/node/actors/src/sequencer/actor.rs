@@ -24,7 +24,7 @@ use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::OpPayloadAttributes;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 use std::{
     future::{Future, pending},
     sync::Arc,
@@ -111,15 +111,34 @@ struct UnsealedPayloadHandle {
     attributes_with_parent: OpAttributesWithParent,
 }
 
-/// The return payload of the `seal_last_and_start_next` function. This allows the sequencer
-/// to make an informed decision about when to seal and build the next block.
-#[derive(Debug)]
-struct SealLastStartNextResult {
-    /// The [`UnsealedPayloadHandle`] that was built.
-    unsealed_payload_handle: Option<UnsealedPayloadHandle>,
-    /// How long it took to execute the seal operation.
-    seal_duration: Duration,
+/// A sealed block on its way to the chain: committed to the conductor, if there is one, then made
+/// canonical, then gossiped, in that order.
+#[derive(Debug, PartialEq, Eq)]
+struct SealedBlock {
+    /// The sealed block.
+    payload: OpExecutionPayloadEnvelope,
+    /// The attributes it was built from.
+    attributes: OpAttributesWithParent,
+    /// Whether the conductor committed it.
+    committed: bool,
 }
+
+/// What became of a sealed block.
+#[derive(Debug)]
+enum Publication {
+    /// It is canonical, and queued for gossip.
+    Published,
+    /// It must wait: the conductor did not commit it, or the engine failed temporarily to make it
+    /// canonical.
+    Retry(Box<SealedBlock>),
+    /// It can never be published: the unsafe head moved past its parent, or the execution layer
+    /// rejected it.
+    Dropped,
+}
+
+/// How long a sealed block the conductor did not commit, or the engine did not make canonical,
+/// waits before trying again.
+const PUBLISH_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 /// The [`Actor`] is responsible for building L2 blocks on top of the current unsafe head
 /// and handing them to the [`Signer`] to be signed
@@ -168,6 +187,13 @@ enum LastBuild {
     },
     /// The engine refused to start a block at this instant.
     Refused(Instant),
+    /// It sealed this block, which could not be published yet at this instant.
+    Sealed {
+        /// The sealed block.
+        block: Box<SealedBlock>,
+        /// When publishing it last failed.
+        at: Instant,
+    },
 }
 
 impl<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
@@ -211,63 +237,96 @@ where
         self.is_active_tx.send_replace(self.is_active);
     }
 
-    /// Seals and commits the last pending block, if one exists and starts the build job for the
-    /// next L2 block, on top of the current unsafe head.
-    ///
-    /// If a new block was started, it will return the associated [`UnsealedPayloadHandle`] so
-    /// that it may be sealed and committed in a future call to this function.
-    async fn seal_last_and_start_next(
-        &mut self,
-        payload_to_seal: Option<&UnsealedPayloadHandle>,
-    ) -> Result<SealLastStartNextResult, ActorError> {
-        let seal_duration = match payload_to_seal {
-            Some(to_seal) => {
-                let seal_start = Instant::now();
-                self.seal_and_commit_payload_if_applicable(to_seal).await?;
-                seal_start.elapsed()
-            }
-            None => Duration::default(),
+    /// Seals and publishes the block the last build started, if any, and starts the next on the
+    /// unsafe head, returning what it left behind. A sealed block that cannot be published yet is
+    /// left behind instead, and nothing new starts.
+    async fn seal_last_and_start_next(&mut self, last: LastBuild) -> Result<LastBuild, ActorError> {
+        let seal_start = Instant::now();
+        let sealed = match last {
+            LastBuild::Started { block, .. } => Some(self.seal(*block).await?),
+            LastBuild::Sealed { block, .. } => Some(*block),
+            LastBuild::NothingStarted | LastBuild::Refused(_) => None,
         };
+        if let Some(sealed) = sealed {
+            match self.publish(sealed).await? {
+                Publication::Retry(block) => {
+                    return Ok(LastBuild::Sealed { block, at: Instant::now() });
+                }
+                Publication::Published | Publication::Dropped => {}
+            }
+        }
+        let seal_duration = seal_start.elapsed();
 
-        let unsealed_payload_handle = self.build_unsealed_payload().await?;
-
-        Ok(SealLastStartNextResult { unsealed_payload_handle, seal_duration })
+        let started = self.build_unsealed_payload().await?;
+        Ok(started.map_or(LastBuild::NothingStarted, |block| LastBuild::Started {
+            block: Box::new(block),
+            seal_duration,
+        }))
     }
 
-    /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
-    /// gossiping the resulting block, if one is built.
-    async fn seal_and_commit_payload_if_applicable(
-        &self,
-        unsealed_payload_handle: &UnsealedPayloadHandle,
-    ) -> Result<(), ActorError> {
+    /// Seals a started block, without making it canonical.
+    async fn seal(&self, block: UnsealedPayloadHandle) -> Result<SealedBlock, ActorError> {
         let seal_request_start = Instant::now();
-
-        // Send the seal request to the engine to seal the unsealed block.
         let payload = self
             .engine_client
-            .seal_and_canonicalize_block(
-                unsealed_payload_handle.payload_id,
-                unsealed_payload_handle.attributes_with_parent.clone(),
-            )
+            .seal_block(block.payload_id, block.attributes_with_parent.clone())
             .await?;
-
         update_seal_duration_metrics(seal_request_start.elapsed());
+        Ok(SealedBlock { payload, attributes: block.attributes_with_parent, committed: false })
+    }
 
-        let payload_transaction_count =
-            unsealed_payload_handle.attributes_with_parent.count_transactions();
-        update_total_transactions_sequenced(payload_transaction_count);
-
-        // If the conductor is available, commit the payload to it.
-        if let Some(conductor) = &self.conductor {
-            let _conductor_commitment_start = Instant::now();
-            if let Err(err) = conductor.commit_unsafe_payload(&payload).await {
-                error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
+    /// Publishes a sealed block: commits it to the conductor, if there is one and it has not yet,
+    /// then makes it canonical, then queues it for gossip. A block the conductor did not commit is
+    /// neither made canonical nor gossiped, so a sequencer that lost leadership cannot fork the
+    /// chain.
+    async fn publish(&self, mut block: SealedBlock) -> Result<Publication, ActorError> {
+        if !block.committed {
+            if let Some(conductor) = &self.conductor {
+                // A block left behind earlier may have been overtaken since: committing it would
+                // put a block that cannot become canonical in the conductor's log.
+                let unsafe_head = self.engine_client.get_unsafe_head().await?;
+                if unsafe_head.block_info.id() != block.attributes.parent.block_info.id() {
+                    warn!(target: "sequencer", ?unsafe_head, "Dropping a sealed block the unsafe head moved past");
+                    return Ok(Publication::Dropped);
+                }
+                let commitment_start = Instant::now();
+                let result = conductor.commit_unsafe_payload(&block.payload).await;
+                update_conductor_commitment_duration_metrics(commitment_start.elapsed());
+                if let Err(err) = result {
+                    warn!(target: "sequencer", ?err, "The conductor did not commit the sealed block; retrying");
+                    return Ok(Publication::Retry(Box::new(block)));
+                }
             }
-
-            update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
+            block.committed = true;
         }
 
-        self.signer.send(payload).await.map_err(|error| ActorError::Signer(error.to_string()))
+        match self
+            .engine_client
+            .canonicalize_block(block.payload.clone(), block.attributes.clone())
+            .await
+        {
+            Ok(()) => {}
+            Err(EngineClientError::SealError(err)) => {
+                if is_seal_task_err_fatal(&err) {
+                    error!(target: "sequencer", ?err, "Critical error making a sealed block canonical");
+                    return Err(ActorError::EngineError(EngineClientError::SealError(err)));
+                }
+                if is_canonicalize_err_temporary(&err) {
+                    warn!(target: "sequencer", ?err, "Failed to make the sealed block canonical; retrying");
+                    return Ok(Publication::Retry(Box::new(block)));
+                }
+                warn!(target: "sequencer", ?err, "Dropping a sealed block that cannot become canonical");
+                return Ok(Publication::Dropped);
+            }
+            Err(err) => return Err(err.into()),
+        }
+
+        update_total_transactions_sequenced(block.attributes.count_transactions());
+        self.signer
+            .send(block.payload)
+            .await
+            .map_err(|error| ActorError::Signer(error.to_string()))?;
+        Ok(Publication::Published)
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -490,7 +549,14 @@ where
             select! {
                 // Prioritize messages over block building.
                 biased;
-                Some(message) = self.messages_rx.recv() => self.handle_message(message).await,
+                Some(message) = self.messages_rx.recv() => {
+                    self.handle_message(message).await;
+                    // A stopped sequencer drops what it built: once started again, possibly after
+                    // another sequencer led, it builds afresh on the unsafe head.
+                    if !self.is_active {
+                        last = LastBuild::NothingStarted;
+                    }
+                }
                 ready = Self::next_build(self.is_active, &self.signer, &last, block_time) => {
                     ready.map_err(|error| ActorError::Signer(error.to_string()))?;
                     last = self.build(last).await?;
@@ -562,6 +628,8 @@ where
             }
             // The engine may keep refusing until its state changes, so wait a block time.
             LastBuild::Refused(at) => *at + block_time,
+            // The conductor or the engine may take a moment to accept the block.
+            LastBuild::Sealed { at, .. } => *at + PUBLISH_RETRY_DELAY,
         };
         // The deadline is absolute, so waiting for room and then for it ends at whichever of the
         // two comes later.
@@ -574,17 +642,8 @@ where
     /// left behind.
     async fn build(&mut self, last: LastBuild) -> Result<LastBuild, ActorError> {
         info!(target: "sequencer", "Sequencing tick, building block");
-        let to_seal = match last {
-            LastBuild::Started { block, .. } => Some(*block),
-            LastBuild::NothingStarted | LastBuild::Refused(_) => None,
-        };
-        match self.seal_last_and_start_next(to_seal.as_ref()).await {
-            Ok(res) => Ok(match res.unsealed_payload_handle {
-                Some(block) => {
-                    LastBuild::Started { block: Box::new(block), seal_duration: res.seal_duration }
-                }
-                None => LastBuild::NothingStarted,
-            }),
+        match self.seal_last_and_start_next(last).await {
+            Ok(last) => Ok(last),
             Err(ActorError::EngineError(EngineClientError::SealError(err))) => {
                 if is_seal_task_err_fatal(&err) {
                     error!(target: "sequencer", err=?err, "Critical seal task error occurred");
@@ -605,6 +664,22 @@ where
                 Err(other_err)
             }
         }
+    }
+}
+
+// Determines whether making a sealed block canonical failed temporarily, so the same block may be
+// tried again. A block whose parent is no longer the unsafe head, or that the execution layer
+// rejects, never becomes canonical.
+const fn is_canonicalize_err_temporary(err: &SealTaskError) -> bool {
+    match err {
+        SealTaskError::PayloadInsertionFailed(insert_err) => matches!(
+            &**insert_err,
+            InsertTaskError::InsertFailed(_) |
+                InsertTaskError::ForkchoiceUpdateFailed(
+                    SynchronizeTaskError::ForkchoiceUpdateFailed(_)
+                )
+        ),
+        _ => false,
     }
 }
 

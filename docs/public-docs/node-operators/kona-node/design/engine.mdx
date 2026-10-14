@@ -37,19 +37,20 @@ This allows operations to signal different recovery strategies based on the erro
 
 ## Operations
 
-The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineApi`, which talks only to the Engine API; a reset also asks the L1 actor's handle whether L1 origins are canonical. Tests supply a mock transport to the same client, and a test L1 chain to the handle.
+The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a canonicalization, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds, seals and canonicalizations return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineApi`, which talks only to the Engine API; a reset also asks the L1 actor's handle whether L1 origins are canonical. Tests supply a mock transport to the same client, and a test L1 chain to the handle.
 
 Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
 - **`insert_unsafe_block`** inserts an unsafe payload, received from gossip or the admin API, with `engine_newPayload`, then makes it the unsafe head. A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped.
 - **`start_build`** starts building a block from payload attributes for the sequencer, and returns the payload ID. Its failures are returned to the caller instead of being retried by the actor; the sequencer retries a failed build on its next block-time tick.
-- **`seal`** retrieves a started block with the version-specific `engine_getPayload` call, inserts it, and makes it the unsafe head. It fails if the unsafe head moved since the build started.
+- **`seal`** retrieves a started block with the version-specific `engine_getPayload` call, without importing it. It fails if the unsafe head moved since the build started.
+- **`canonicalize`** imports a sealed block and makes it the unsafe head. It fails if the unsafe head is no longer the block's parent. A block the execution layer rejects is not replaced, because the sequencer may already have committed it to its conductor.
 - **`consolidate`** advances the safe chain with attributes derived from L1. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the actor builds and seals the attributes, reorging the unsafe chain. Attributes that do not extend the safe head are skipped.
 - **`follow_safe_head`** follows a safe head supplied by the derivation delegate when derivation is delegated. If the unsafe block at that height matches it, that block becomes safe; otherwise it becomes the unsafe and safe head.
 - **`finalize`** finalizes an L2 block identified by number or hash. A request for a block above the safe head, which a reset can leave behind, is dropped.
 - **`reset`** finds a plausible sync starting point: it walks the unsafe head back until its L1 origin is the canonical L1 block at that height, or is after the L1 actor's head, where it may yet be. An origin L1 reorged out does not count, though L1 may still serve it by hash. The reset reorgs the execution layer to it, publishes the reset, and replies with the engine state. **`reset_if_el_synced`** first sends the current forkchoice again, and does the same only if the execution layer answers VALID; otherwise it is refused with `EngineClientError::ElSyncing`, so a reset never points a syncing execution layer back at its own stale heads. A forkchoice the execution layer rejects lets the reset proceed, because the reset replaces it. Before the engine has any heads, there is no forkchoice to send, and the reset is refused. Derivation starts with this reset.
 
-After Holocene, a sealed payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the consolidation's reply tells derivation to flush its channel.
+After Holocene, a derived payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the consolidation's reply tells derivation to flush its channel.
 
 ## Engine State Management
 
@@ -104,11 +105,13 @@ tokio::spawn(actor);
 
 ### Performing Operations
 
-`engine::Handle` has one method per operation: `insert_unsafe_block`, `start_build`, `seal`, `consolidate`, `follow_safe_head`, `finalize`, `reset`, and `reset_if_el_synced`. Builds, seals, consolidations, and resets reply with the operation's result; the sequencer classifies a failed build by its error.
+`engine::Handle` has one method per operation: `insert_unsafe_block`, `start_build`, `seal`, `canonicalize`, `consolidate`, `follow_safe_head`, `finalize`, `reset`, and `reset_if_el_synced`. Builds, seals, canonicalizations, consolidations, and resets reply with the operation's result; the sequencer classifies a failed build by its error.
 
 ```rust
 let payload_id = handle.start_build(attributes.clone()).await?;
-let payload = handle.seal(payload_id, attributes).await?;
+let payload = handle.seal(payload_id, attributes.clone()).await?;
+// A sequencer behind op-conductor commits the payload to its conductor here.
+handle.canonicalize(payload, attributes).await?;
 ```
 
 ## Error Handling and Recovery
