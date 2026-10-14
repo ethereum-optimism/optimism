@@ -14006,6 +14006,7 @@ dependencies = [
  "reth-trie-common",
  "reth-trie-db",
  "revm",
+ "rstest",
  "serde",
  "serde_json",
  "tokio",

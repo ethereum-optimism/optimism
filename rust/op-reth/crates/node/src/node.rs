@@ -39,7 +39,7 @@ use reth_node_builder::{
         RethRpcMiddleware, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
 };
-use reth_node_core::args::RpcStateCacheArgs;
+use reth_node_core::args::{EngineArgs, RpcStateCacheArgs};
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
@@ -396,6 +396,19 @@ impl OpNode {
     }
 }
 
+/// Rejects a nonzero state masking window, which op-reth does not support.
+///
+/// op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches callers
+/// that build a `NodeConfig` without that CLI. The window is read through
+/// [`EngineArgs::num_state_masking_blocks`], which is 0 whenever the persistence threshold is 0.
+fn ensure_no_state_masking(engine: &EngineArgs) -> eyre::Result<()> {
+    eyre::ensure!(
+        engine.num_state_masking_blocks() == 0,
+        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
+    );
+    Ok(())
+}
+
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
@@ -403,12 +416,7 @@ pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
 ) -> eyre::Result<(), ErrReport> {
-    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
-    // callers that build a `NodeConfig` without that CLI.
-    eyre::ensure!(
-        builder.config().engine.num_state_masking_blocks() == 0,
-        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
-    );
+    ensure_no_state_masking(&builder.config().engine)?;
 
     let builder = if node.args.proofs_history {
         // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
@@ -1930,7 +1938,13 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 mod tests {
     use super::*;
     use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+    use reth_db::{ClientVersion, init_db, mdbx::DatabaseArguments, test_utils::tempdir_path};
+    use reth_node_builder::NodeConfig;
+    use reth_node_core::args::DatadirArgs;
+    use reth_optimism_chainspec::OP_SEPOLIA;
     use reth_rpc_api::IntoEngineApiRpcModule;
+    use reth_tasks::Runtime;
+    use rstest::rstest;
 
     /// Lets a plain [`RpcModule`] stand in for the engine API when building an [`AuthRpcModule`].
     struct TestEngineModule(RpcModule<()>);
@@ -1981,6 +1995,42 @@ mod tests {
 
         let cache = RpcStateCacheArgs { cache_computed_bals: true, ..Default::default() };
         assert!(ensure_no_computed_bals(&cache).is_err());
+    }
+
+    fn engine_args(num_state_masking_blocks: u64) -> EngineArgs {
+        EngineArgs { num_state_masking_blocks, ..Default::default() }
+    }
+
+    fn without_persistence(engine: EngineArgs) -> EngineArgs {
+        EngineArgs { persistence_threshold: 0, ..engine }
+    }
+
+    #[rstest]
+    #[case::masking_off(engine_args(0), true)]
+    #[case::masking_on(engine_args(30), false)]
+    #[case::masking_on_without_persistence(without_persistence(engine_args(30)), true)]
+    fn state_masking_guard(#[case] engine: EngineArgs, #[case] accepted: bool) {
+        assert_eq!(ensure_no_state_masking(&engine).is_ok(), accepted);
+    }
+
+    /// The guard runs before `launch_node` reaches its first await, so a masked config fails
+    /// synchronously, naming the flag, without the node ever starting.
+    #[test]
+    fn launch_node_rejects_state_masking() {
+        let datadir = DatadirArgs { datadir: tempdir_path().into(), ..Default::default() };
+        let mut config = NodeConfig::new(OP_SEPOLIA.clone()).with_datadir_args(datadir);
+        config.engine.num_state_masking_blocks = 30;
+        let db = init_db(config.datadir().db(), DatabaseArguments::new(ClientVersion::default()))
+            .unwrap();
+        let builder =
+            NodeBuilder::new(config).with_database(db).with_launch_context(Runtime::test());
+
+        let outcome = launch_node(builder, OpNode::default())
+            .now_or_never()
+            .expect("the guard rejects the config before the launch's first await");
+
+        let err = outcome.unwrap_err().to_string();
+        assert!(err.contains("--engine.num-state-masking-blocks must be 0 on op-reth"), "{err}");
     }
 
     #[test]
