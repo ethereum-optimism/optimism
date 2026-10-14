@@ -262,9 +262,9 @@ func (n *OpReth) Stop() {
 	n.sub = nil
 }
 
-// StopUngracefully ends the op-reth process with SIGKILL, the way a crash or a power loss would,
-// so whatever it had not yet written to its datadir is lost. Start brings the node back on the
-// same datadir.
+// StopUngracefully ends the op-reth process with SIGKILL, the way a crash would, so whatever it
+// had not yet handed to the OS for its datadir is lost. Start brings the node back on the same
+// datadir.
 func (n *OpReth) StopUngracefully() {
 	n.mu.Lock()
 	defer n.mu.Unlock()

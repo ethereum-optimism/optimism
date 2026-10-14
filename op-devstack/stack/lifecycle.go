@@ -13,8 +13,9 @@ type ControlledLifecycle interface {
 	Running() bool
 }
 
-// UngracefulLifecycle is implemented by components that can be stopped the way a crash or a
-// power loss would stop them: without a shutdown, so whatever they held only in memory is lost.
+// UngracefulLifecycle is implemented by components that can be stopped the way a process crash
+// would stop them: no shutdown runs, so state held only in process memory is lost. Writes already
+// handed to the OS survive, so this does not model a power loss.
 type UngracefulLifecycle interface {
 	StopUngracefully()
 }

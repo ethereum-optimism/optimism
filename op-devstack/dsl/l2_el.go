@@ -512,9 +512,8 @@ func (el *L2ELNode) Stop() {
 	lifecycle.Stop()
 }
 
-// StopUngracefully ends the node's process without a shutdown, the way a crash or a power loss
-// would, so whatever it had not yet written to disk is lost. Start brings it back on the same
-// data directory.
+// StopUngracefully ends the node's process without a shutdown, the way a crash would, so state
+// it held only in memory is lost. Start brings the node back.
 func (el *L2ELNode) StopUngracefully() {
 	el.log.Info("Stopping ungracefully", "name", el.inner.Name())
 	lifecycle, ok := el.inner.(stack.UngracefulLifecycle)
