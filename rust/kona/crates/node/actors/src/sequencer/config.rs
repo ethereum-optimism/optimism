@@ -1,6 +1,7 @@
 //! Sequencer configuration.
 
 use kona_sources::BlockSigner;
+use std::time::Duration;
 use url::Url;
 
 /// Sequencer configuration.
@@ -13,6 +14,8 @@ pub struct SequencerConfig {
     pub signer: BlockSigner,
     /// The [`Url`] for the conductor RPC endpoint. If [`Some`], enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
+    /// How long a conductor request may take before it fails.
+    pub conductor_rpc_timeout: Duration,
     /// The confirmation delay for the sequencer.
     pub l1_conf_delay: u64,
 }

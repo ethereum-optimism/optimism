@@ -128,6 +128,7 @@ A node run with `--sequencer.enabled` can sequence. It requires a block signer: 
 | `--sequencer.signer.tls.key <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_KEY` | Private key of the client certificate. Requires `--sequencer.signer.tls.cert` | - |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.conductor-url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
+| `--sequencer.conductor-timeout-ms <MS>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS` | How long a conductor request may take before it fails and the sequencer tries again later | `1000` |
 
 ## RPC Response Verification
 

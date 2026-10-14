@@ -235,8 +235,12 @@ mod tests {
             IdleEngine,
             UnusedOrigin,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
-            conductor_enabled
-                .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),
+            conductor_enabled.then(|| {
+                ConductorClient::new_http(
+                    "http://localhost:1".parse().unwrap(),
+                    Duration::from_secs(1),
+                )
+            }),
             PausedSigner,
         );
         (handle, task)

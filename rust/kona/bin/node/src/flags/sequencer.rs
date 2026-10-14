@@ -7,6 +7,7 @@
 use super::signer::{BLOCK_SIGNER, SignerArgs, SignerKeyError};
 use clap::{ArgAction, Parser};
 use kona_node_service::SequencerConfig;
+use std::time::Duration;
 use url::Url;
 
 /// The id of `--sequencer.enabled`, which every other sequencer flag requires.
@@ -56,6 +57,16 @@ pub struct SequencerArgs {
         requires = SEQUENCER_ENABLED
     )]
     pub conductor_url: Option<Url>,
+
+    /// How long a conductor request may take, in milliseconds, before it fails and the sequencer
+    /// tries again later. op-node's `--conductor.rpc-timeout` defaults to the same second.
+    #[arg(
+        long = "sequencer.conductor-timeout-ms",
+        default_value = "1000",
+        env = "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS",
+        requires = SEQUENCER_ENABLED
+    )]
+    pub conductor_timeout_ms: u64,
 }
 
 impl Default for SequencerArgs {
@@ -80,6 +91,7 @@ impl SequencerArgs {
         Ok(Some(SequencerConfig {
             signer,
             conductor_rpc_url: self.conductor_url,
+            conductor_rpc_timeout: Duration::from_millis(self.conductor_timeout_ms),
             l1_conf_delay: self.l1_confs,
         }))
     }
@@ -105,7 +117,7 @@ mod tests {
     /// Each sequencer flag other than `--sequencer.enabled`, with a valid value, whether it
     /// requires `--sequencer.enabled` itself rather than through another flag, and the flags that
     /// complete it.
-    const SEQUENCER_FLAGS: [(&str, &str, bool, &[&str]); 9] = [
+    const SEQUENCER_FLAGS: [(&str, &str, bool, &[&str]); 10] = [
         ("sequencer.signer.key.path", "/key", true, &["--sequencer.enabled"]),
         ("sequencer.signer.url", "http://127.0.0.1:8080", true, &REMOTE),
         ("sequencer.signer.address", ADDRESS, false, &REMOTE),
@@ -141,6 +153,7 @@ mod tests {
         ),
         ("sequencer.l1-confs", "2", true, &LOCAL),
         ("sequencer.conductor-url", "http://127.0.0.1:4", true, &LOCAL),
+        ("sequencer.conductor-timeout-ms", "500", true, &LOCAL),
     ];
 
     fn parse(args: &[&str]) -> Result<SequencerArgs, clap::Error> {

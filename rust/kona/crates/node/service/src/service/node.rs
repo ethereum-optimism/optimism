@@ -328,7 +328,10 @@ impl RollupNode {
                 adapters::Engine::new(engine.clone()),
                 origin,
                 self.chain.rollup_config.clone(),
-                config.conductor_rpc_url.clone().map(ConductorClient::new_http),
+                config
+                    .conductor_rpc_url
+                    .clone()
+                    .map(|url| ConductorClient::new_http(url, config.conductor_rpc_timeout)),
                 adapters::Signer(signer_handle),
             );
             (sequencer_actor, origin_actor)
