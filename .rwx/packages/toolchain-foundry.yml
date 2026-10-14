@@ -14,8 +14,12 @@ tasks:
           mise install uv
           PATH="$(mise bin-paths | paste -sd: -):$PATH"
           export PATH
-          mise install pipx:semgrep
+          # The pinned Semgrep's MCP dependency imports a Pydantic private API
+          # removed in later releases. Keep this constraint in its own tool env.
+          semgrep_version="$(mise tool pipx:semgrep --requested)"
+          mise install "pipx:semgrep[uvx_args=--with pydantic==2.11.10]@$semgrep_version"
           printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
+          mise exec -- semgrep --version
           ;;
         *) echo "Unknown Foundry tool mode: $FOUNDRY_TOOL_MODE" >&2; exit 1 ;;
       esac
