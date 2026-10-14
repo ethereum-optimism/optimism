@@ -90,7 +90,8 @@ func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State,
 
 	block := l2Genesis.ToBlock()
 	header := block.Header()
-	isIsthmus := l2Genesis.Config.IsOptimismIsthmus(header.Time)
+	isthmusTime := config.IsthmusTime(header.Time)
+	isIsthmus := isthmusTime != nil && *isthmusTime <= header.Time
 	if !isIsthmus || header.WithdrawalsHash == nil {
 		return genesisOutput{}, fmt.Errorf(
 			"chain %s: genesis output root computation requires an Isthmus withdrawals root",
