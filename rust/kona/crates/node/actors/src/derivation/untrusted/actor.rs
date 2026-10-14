@@ -391,6 +391,7 @@ mod tests {
     use super::*;
     use crate::{
         derivation::untrusted::{Builder, Handle, actor::Channels},
+        engine::Safety,
         l1::{
             self,
             test_utils::{TestChain, block as l1_block},
@@ -615,7 +616,7 @@ mod tests {
     /// for any retries.
     async fn run_until_out_of_data(actor: &mut TestActor, handle: &Handle, safe_head: L2BlockInfo) {
         let script = async {
-            handle.reset(safe_head).await.unwrap();
+            handle.clone().reset(safe_head).await.unwrap();
             time::sleep(Duration::from_secs(60)).await;
         };
         assert!(run_during(actor, script).await.is_none(), "the actor stopped");
@@ -671,7 +672,7 @@ mod tests {
         let origin = BlockInfo { number: 4, ..Default::default() };
         let later_origin = BlockInfo { number: 2, ..Default::default() };
         let (mut actor, publishers) = actor(TestPipeline::new());
-        let handle = &publishers.handle;
+        let mut handle = publishers.handle.clone();
 
         let stopped = run_during(&mut actor, async {
             settle().await;
@@ -740,7 +741,7 @@ mod tests {
         let (mut actor, publishers) = actor(pipeline);
 
         let stopped = run_during(&mut actor, async {
-            publishers.handle.reset(block(0)).await.unwrap();
+            publishers.handle.clone().reset(block(0)).await.unwrap();
             time::sleep(Duration::from_secs(60)).await;
         })
         .await;
@@ -758,7 +759,7 @@ mod tests {
     async fn reset_interrupts_a_step_in_progress() {
         let pipeline = TestPipeline { hang: true, ..TestPipeline::new() };
         let (mut actor, publishers) = actor(pipeline);
-        let handle = &publishers.handle;
+        let mut handle = publishers.handle.clone();
 
         run_during(&mut actor, async {
             handle.reset(block(0)).await.unwrap();
@@ -797,7 +798,7 @@ mod tests {
             ..TestPipeline::new()
         };
         let (mut actor, publishers) = actor(pipeline);
-        let handle = &publishers.handle;
+        let mut handle = publishers.handle.clone();
 
         run_during(&mut actor, async {
             handle.reset(block(3)).await.unwrap();
@@ -820,7 +821,7 @@ mod tests {
         let (mut actor, publishers) = actor(pipeline);
 
         let stopped = run_during(&mut actor, async {
-            publishers.handle.reset(block(3)).await.unwrap();
+            publishers.handle.clone().reset(block(3)).await.unwrap();
             future::pending().await
         })
         .await;
@@ -856,15 +857,15 @@ mod tests {
 
         let stopped = run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
-            let derived = handle.derive(L2BlockInfo::default()).await.unwrap();
+            let derived = handle.next(L2BlockInfo::default()).await.unwrap();
             assert_eq!(derived, Derived::Attributes(attributes(L2BlockInfo::default())));
             // Asking again returns the same attributes.
-            assert_eq!(handle.derive(L2BlockInfo::default()).await.unwrap(), derived);
+            assert_eq!(handle.next(L2BlockInfo::default()).await.unwrap(), derived);
             if replaced {
                 handle.flush().await.unwrap();
             }
             // The engine adopted the attributes as block 1.
-            let next = time::timeout(Duration::from_secs(10), handle.derive(block(1))).await;
+            let next = time::timeout(Duration::from_secs(10), handle.next(block(1))).await;
             assert!(next.is_err(), "the pipeline ran out of data");
         })
         .await;
@@ -930,7 +931,7 @@ mod tests {
 
         run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
-            let next = handle.derive(L2BlockInfo::default()).await.unwrap();
+            let next = handle.next(L2BlockInfo::default()).await.unwrap();
             match unsafe_block {
                 Unsafe::Matching | Unsafe::MatchingAfterFailures => {
                     let block =
@@ -961,7 +962,7 @@ mod tests {
         run_during(&mut actor, async {
             handle.reset(block(0)).await.unwrap();
             // The engine asks on another safe head while the first step hangs, then resets.
-            let stale = time::timeout(Duration::from_secs(1), handle.derive(block(5))).await;
+            let stale = time::timeout(Duration::from_secs(1), handle.next(block(5))).await;
             assert!(stale.is_err());
             handle.reset(block(3)).await.unwrap();
             settle().await;
@@ -981,11 +982,11 @@ mod tests {
 
         run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
-            handle.derive(L2BlockInfo::default()).await.unwrap();
+            handle.next(L2BlockInfo::default()).await.unwrap();
             handle.reset(L2BlockInfo::default()).await.unwrap();
             // The pipeline prepared nothing more since.
             let derived =
-                time::timeout(Duration::from_secs(10), handle.derive(L2BlockInfo::default())).await;
+                time::timeout(Duration::from_secs(10), handle.next(L2BlockInfo::default())).await;
             assert!(derived.is_err());
         })
         .await;
@@ -996,7 +997,7 @@ mod tests {
     async fn blocks_l1_adds_wake_derivation() {
         let (mut actor, publishers) = actor(TestPipeline::new());
         actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
-        let handle = &publishers.handle;
+        let mut handle = publishers.handle.clone();
 
         let stopped = run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
@@ -1028,9 +1029,9 @@ mod tests {
 
         run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
-            handle.derive(L2BlockInfo::default()).await.unwrap();
+            handle.next(L2BlockInfo::default()).await.unwrap();
             publishers.l1.set_head(&[l1_child(1, 1, 1)]);
-            let next = time::timeout(Duration::from_secs(10), handle.derive(block(1))).await;
+            let next = time::timeout(Duration::from_secs(10), handle.next(block(1))).await;
             assert!(next.is_err(), "the pipeline ran out of data");
         })
         .await;
@@ -1044,7 +1045,7 @@ mod tests {
     async fn a_reorged_origin_resets_the_pipeline() {
         let (mut actor, publishers) = actor(TestPipeline::new());
         actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
-        let handle = &publishers.handle;
+        let mut handle = publishers.handle.clone();
 
         let stopped = run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
@@ -1086,7 +1087,7 @@ mod tests {
         actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
 
         let stopped = run_during(&mut actor, async {
-            publishers.handle.reset(L2BlockInfo::default()).await.unwrap();
+            publishers.handle.clone().reset(L2BlockInfo::default()).await.unwrap();
             time::sleep(STEP_RETRY_INTERVAL * 10).await;
         })
         .await;
@@ -1099,7 +1100,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn a_stopped_l1_actor_is_fatal() {
         let (mut actor, publishers) = actor(TestPipeline::new());
-        let Publishers { l1, handle, .. } = publishers;
+        let Publishers { l1, mut handle, .. } = publishers;
         drop(l1);
 
         let stopped = run_during(&mut actor, async {
