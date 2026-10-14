@@ -45,7 +45,6 @@ async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
     // Block building must not run while the stop is queued.
     actor.signer.expect_ready().times(0);
     assert_eq!(handle.is_active().unwrap(), !already_stopped);
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     let (tx, rx) = oneshot::channel();
     commands.send(Message::StopSequencer(tx)).await.unwrap();
     let task = tokio::spawn(actor.run());
@@ -131,7 +130,6 @@ async fn handle_reads_published_state_after_commands() {
         })
     });
     assert!(!handle.is_active().unwrap());
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     // The signer never has room, so no block is built.
     let (signer, _queued) = tokio::sync::mpsc::channel(1);
     signer.try_send(crate::test_payload(0)).unwrap();
@@ -162,19 +160,4 @@ async fn state_updates_without_rpc_subscribers() {
     command(&mut actor, Message::StartSequencer).await.unwrap();
     let handle = Handle::new(actor.is_active_tx.subscribe(), commands);
     assert!(handle.is_active().unwrap());
-}
-
-#[tokio::test(start_paused = true)]
-async fn failed_startup_does_not_apply_a_queued_command() {
-    let (mut actor, commands, handle) = test_actor_with_config(false, None);
-    let observed_state = handle.clone();
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(move || {
-        assert!(!observed_state.is_active().unwrap());
-        Err(EngineClientError::RequestError("startup reset failed".to_string()))
-    });
-    let (tx, mut rx) = oneshot::channel();
-    commands.send(Message::StartSequencer(tx)).await.unwrap();
-    assert!(actor.run().await.is_err());
-    assert!(matches!(handle.is_active(), Err(HandleError::RequestError(_))));
-    assert!(matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
 }

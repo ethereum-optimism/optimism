@@ -1,7 +1,5 @@
 use crate::{
-    derivation::{
-        ActorError, Builder, DerivationDelegateProvider, DerivationStatus, Engine, reset_engine,
-    },
+    derivation::{ActorError, Builder, DerivationDelegateProvider, DerivationStatus, Engine},
     engine::FinalizeBlockId,
 };
 use alloy_primitives::BlockHash;
@@ -84,9 +82,10 @@ where
         }
     }
 
-    /// Resets the engine once the execution layer is synced, then follows the delegate.
+    /// Waits for the engine's first reset, which it makes once the execution layer is synced, then
+    /// follows the delegate.
     async fn run(mut self) -> Result<(), ActorError> {
-        reset_engine(&self.engine).await?;
+        self.engine.next_reset().await?;
         info!(target: "derivation", "Engine reset; following the derivation delegate");
         loop {
             self.delegated_derivation_ticker.tick().await;
@@ -258,9 +257,9 @@ mod tests {
         }
     }
 
-    /// The actor resets the engine before it follows the delegate.
+    /// The actor waits for the engine's first reset before it follows the delegate.
     #[tokio::test(start_paused = true)]
-    async fn resets_the_engine_before_following_the_delegate() {
+    async fn follows_the_delegate_from_the_engines_first_reset() {
         let current = BlockInfo { number: 7, ..Default::default() };
         let delegate = TestDelegate(Mutex::new(VecDeque::from([sync_status(current)])));
         let mut provider = TestChainProvider::default();
@@ -269,7 +268,11 @@ mod tests {
         let engine = TestEngine::new([Ok(EngineState::default())]);
         let (status, mut progress) = watch::channel(DerivationStatus::default());
         let actor = tokio::spawn(Actor::new(engine.clone(), status, delegate, provider).run());
+        time::sleep(time::Duration::from_secs(10)).await;
+        assert!(engine.requests().is_empty());
+        assert_eq!(progress.borrow().current_l1, None);
 
+        engine.start();
         time::timeout(
             time::Duration::from_secs(10),
             progress.wait_for(|progress| progress.current_l1 == Some(current)),
@@ -280,7 +283,7 @@ mod tests {
         actor.abort();
         assert!(matches!(
             engine.requests()[..],
-            [Request::Reset, Request::FollowSafeHead(_), Request::Finalize(_)]
+            [Request::FollowSafeHead(_), Request::Finalize(_)]
         ));
     }
 

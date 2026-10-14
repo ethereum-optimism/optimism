@@ -77,7 +77,7 @@ impl SequencerEngineClient for Engine {
 impl derivation::Engine for Engine {
     async fn reset(&self) -> EngineClientResult<EngineState> {
         info!(target: "derivation", "Sending reset request to engine.");
-        self.handle.reset_if_el_synced().await.inspect(
+        self.handle.reset().await.inspect(
             |state| info!(target: "derivation", safe_head = ?state.safe_head(), "Engine reset successfully."),
         )
     }

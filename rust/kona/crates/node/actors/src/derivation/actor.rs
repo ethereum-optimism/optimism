@@ -53,8 +53,8 @@ impl Builder {
 
 /// Derives payload attributes from L1, and consolidates the engine's safe head with each.
 ///
-/// It resets the engine once the execution layer is synced, and resets the pipeline onto the
-/// engine's safe head whenever the engine resets.
+/// It starts from the engine's first reset, which the engine makes once the execution layer is
+/// synced, and resets the pipeline onto the engine's safe head whenever the engine resets.
 #[derive(Debug)]
 struct Actor<Engine_, PipelineSignalReceiver, L1_> {
     /// The engine, which derivation drives.
@@ -70,7 +70,11 @@ where
     L1_: L1,
 {
     async fn run(&mut self) -> Result<(), ActorError> {
-        reset_engine(&self.engine).await?;
+        // The engine resets itself once the execution layer is synced, and derivation starts from
+        // that reset's safe head.
+        let state = self.engine.next_reset().await?;
+        info!(target: "derivation", safe_head = ?state.safe_head(), "The engine reset; deriving from its safe head");
+        self.reset_pipeline(state.safe_head()).await?;
         loop {
             self.step().await?;
         }
@@ -296,7 +300,6 @@ where
 mod tests {
     use super::*;
     use crate::{
-        EngineClientError,
         derivation::engine::{Request, TestEngine},
         engine::{EngineState, HeadsUpdate},
         l1::{
@@ -455,9 +458,11 @@ mod tests {
         status: watch::Receiver<DerivationStatus>,
     }
 
-    /// Creates an actor with the publishers it reads from. L1 holds only the default block, the
-    /// origin of the test safe heads, so the pipeline has derived from all of L1.
+    /// Creates an actor with the publishers it reads from, and makes the engine's first reset. L1
+    /// holds only the default block, the origin of the test safe heads, so the pipeline has derived
+    /// from all of L1.
     fn actor(engine: TestEngine, pipeline: TestPipeline) -> (TestActor, Publishers) {
+        engine.start();
         let l1 = TestChain::new(&[BlockInfo::default()]);
         let (status_tx, status) = watch::channel(DerivationStatus::default());
         let actor = Actor { engine, deriver: Deriver::new(pipeline, l1.handle(), status_tx) };
@@ -546,17 +551,13 @@ mod tests {
         drop(task);
     }
 
-    /// Derivation starts by resetting the engine, asking again while the execution layer syncs,
-    /// and resets its pipeline onto the engine's safe head, then onto the safe head of each later
-    /// reset, including one another actor makes.
+    /// Derivation starts from the engine's first reset, which the engine makes itself, and resets
+    /// its pipeline onto the engine's safe head, then onto the safe head of each later reset.
     #[tokio::test(start_paused = true)]
     async fn resets_the_pipeline_whenever_the_engine_resets() {
         let origin = BlockInfo { number: 4, ..Default::default() };
         let later_origin = BlockInfo { number: 2, ..Default::default() };
-        let engine = TestEngine::new([
-            Err(EngineClientError::ElSyncing),
-            Ok(engine_state(safe_head(origin))),
-        ]);
+        let engine = TestEngine::new([Ok(engine_state(safe_head(origin)))]);
         let (mut actor, publishers) = actor(engine.clone(), TestPipeline::new());
 
         let stopped = run_during(&mut actor, async {
@@ -569,7 +570,7 @@ mod tests {
         .await;
 
         assert!(stopped.is_none());
-        assert_eq!(engine.requests(), [Request::Reset, Request::Reset]);
+        assert_eq!(engine.requests(), []);
         assert_eq!(
             actor.deriver.pipeline.signals,
             [reset(safe_head(origin)), reset(safe_head(later_origin))]
@@ -594,18 +595,14 @@ mod tests {
         assert_eq!(actor.deriver.pipeline.signals, [reset(block(3)), reset(block(3))]);
     }
 
-    /// A pipeline that asks for a reset resets the engine, asking again while the execution layer
-    /// syncs, and derivation resets the pipeline onto the engine's new safe head.
+    /// A pipeline that asks for a reset resets the engine, and derivation resets the pipeline onto
+    /// the engine's new safe head.
     #[rstest]
     #[case::interop_inactive(None)]
     #[case::interop_active(Some(0))]
     #[tokio::test(start_paused = true)]
     async fn pipeline_reset_resets_the_engine(#[case] lagoon_time: Option<u64>) {
-        let engine = TestEngine::new([
-            Ok(engine_state(block(0))),
-            Err(EngineClientError::ElSyncing),
-            Ok(engine_state(block(3))),
-        ]);
+        let engine = TestEngine::new([Ok(engine_state(block(0))), Ok(engine_state(block(3)))]);
         let mut pipeline = TestPipeline::new();
         pipeline.rollup_config = Arc::new(RollupConfig {
             hardforks: HardForkConfig { lagoon_time, ..Default::default() },
@@ -616,7 +613,7 @@ mod tests {
 
         run_until_out_of_data(&mut actor).await;
 
-        assert_eq!(engine.requests(), [Request::Reset, Request::Reset, Request::Reset]);
+        assert_eq!(engine.requests(), [Request::Reset]);
         assert_eq!(actor.deriver.pipeline.signals, [reset(block(0)), reset(block(3))]);
         assert_eq!(actor.deriver.pipeline.stepped_on.last(), Some(&block(3)));
     }
@@ -690,7 +687,7 @@ mod tests {
 
         run_until_out_of_data(&mut actor).await;
 
-        assert_eq!(engine.requests(), [Request::Reset, Request::Reset]);
+        assert_eq!(engine.requests(), [Request::Reset]);
         assert_eq!(actor.deriver.pipeline.signals, [reset(block(2))]);
     }
 
@@ -828,14 +825,14 @@ mod tests {
         let stopped = run_during(&mut actor, async {
             publishers.l1.set_head(&[l1_child(1, 1, 1)]);
             settle().await;
-            assert_eq!(engine.requests(), [Request::Reset]);
+            assert_eq!(engine.requests(), []);
             publishers.l1.set_head(&[l1_child(1, 2, 2), l1_child(2, 2, 2)]);
             settle().await;
         })
         .await;
 
         assert!(stopped.is_none());
-        assert_eq!(engine.requests(), [Request::Reset, Request::Reset]);
+        assert_eq!(engine.requests(), [Request::Reset]);
         assert_eq!(
             actor.deriver.pipeline.signals,
             [reset(L2BlockInfo::default()), reset(block(2))]

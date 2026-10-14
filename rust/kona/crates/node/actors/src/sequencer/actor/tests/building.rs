@@ -131,7 +131,6 @@ async fn sealing_propagates_signer_errors() {
 #[tokio::test(start_paused = true)]
 async fn full_signer_queue_pauses_building_but_admin_queries_are_answered() {
     let (mut actor, _, handle) = test_actor_with_config(true, None);
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     // No block is built while the queue is full.
     actor.engine_client.expect_start_build_block().times(0);
     actor
@@ -156,7 +155,6 @@ async fn full_signer_queue_pauses_building_but_admin_queries_are_answered() {
 async fn building_starts_as_soon_as_the_signer_queue_drains() {
     // The handle and command sender are dropped, so the actor gets no commands.
     let (mut actor, _, _) = test_actor_with_config(true, None);
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     actor
         .engine_client
         .expect_get_unsafe_head()

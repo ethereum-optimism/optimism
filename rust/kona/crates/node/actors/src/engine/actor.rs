@@ -2,11 +2,11 @@
 
 use super::{
     ActorError, BuildTaskError, ConsolidateTaskError, Consolidation, EngineBuildError,
-    EngineClientError, EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity,
-    FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, ImportedBlockSink, InsertTaskError,
-    SealTaskError, SynchronizeTaskError,
+    EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTaskError, Handle, HeadsUpdate, ImportedBlockSink, InsertTaskError, SealTaskError,
+    SynchronizeTaskError,
     attributes::AttributesMatch,
-    handle::{BuildRequest, ConsolidateRequest, Message, ResetRequest, SealRequest},
+    handle::{BuildRequest, ConsolidateRequest, Message, SealRequest},
     sync::find_starting_forkchoice,
 };
 use crate::{Metrics, l1};
@@ -23,8 +23,8 @@ use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
-    sync::{mpsc, watch},
-    time::{self, Duration, Instant},
+    sync::{mpsc, oneshot, watch},
+    time::{self, Duration, Instant, MissedTickBehavior},
 };
 
 #[cfg(test)]
@@ -86,6 +86,8 @@ const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 /// How long an operation may keep failing temporarily before it is abandoned and the engine reset.
 const TASK_RETRY_TIMEOUT: Duration = Duration::from_secs(60);
+/// How often the engine asks the execution layer whether it synced, until its first reset.
+const EL_SYNC_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 /// One attempt at an operation, boxed so the actor's future stays `Send`.
 type Attempt<'a, E> = Pin<Box<dyn Future<Output = Result<(), E>> + Send + 'a>>;
@@ -118,8 +120,9 @@ impl Backoff {
 /// An operation that keeps failing for [`TASK_RETRY_TIMEOUT`] is abandoned and the engine is
 /// reset; a reset retries until it succeeds.
 ///
-/// From its first reset, the engine also follows L1: whenever the L1 head or the L1 blocks its
-/// heads rest on change, it resets if L1 reorged out one of those blocks.
+/// The engine resets itself once the execution layer has synced, and from that first reset it
+/// follows L1: whenever the L1 head or the L1 blocks its heads rest on change, it resets if L1
+/// reorged out one of those blocks.
 #[derive(Debug)]
 struct Actor {
     /// The Engine API client.
@@ -178,11 +181,21 @@ impl Actor {
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
+        let mut el_sync_poll = time::interval(EL_SYNC_POLL_INTERVAL);
+        el_sync_poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
             tokio::select! {
-                // Check L1 before more requests, which could otherwise delay it for as long as
-                // they keep coming.
+                // Poll and check L1 before more requests, which could otherwise delay them for as
+                // long as they keep coming.
                 biased;
+                // Resetting while the execution layer syncs would point it back at its own stale
+                // heads, away from the chain it is syncing, so the first reset waits for it.
+                _ = el_sync_poll.tick(), if !self.follows_l1 => {
+                    if self.el_synced().await {
+                        info!(target: "engine", "The execution layer synced; resetting the engine");
+                        self.reset().await?;
+                    }
+                }
                 checked = Self::next_l1_check(&self.l1, self.state, self.l1_checked), if self.follows_l1 => {
                     let L1Check { head, reorged } = checked.map_err(|_| ActorError::L1Stopped)?;
                     if let Some(block) = reorged {
@@ -272,7 +285,7 @@ impl Actor {
                 })
                 .await
                 .map(|_| ()),
-            Message::Reset(request) => self.handle_reset(request).await,
+            Message::Reset(result_tx) => self.handle_reset(result_tx).await,
         };
         // Publish the state even if the request failed: it can update the state before a
         // later step fails.
@@ -281,22 +294,15 @@ impl Actor {
     }
 
     /// Resets the engine and replies with the state afterwards.
-    ///
-    /// A request that asks for a synced execution layer is refused unless the execution layer
-    /// validates the current forkchoice.
-    async fn handle_reset(&mut self, request: ResetRequest) -> Result<(), ActorError> {
-        let ResetRequest { only_if_el_synced, result_tx } = request;
-        if only_if_el_synced && !self.el_synced().await {
-            debug!(target: "engine", "Refusing a reset while the execution layer syncs");
-            let _ = result_tx.send(Err(EngineClientError::ElSyncing));
-            return Ok(());
-        }
-
+    async fn handle_reset(
+        &mut self,
+        result_tx: oneshot::Sender<EngineState>,
+    ) -> Result<(), ActorError> {
         warn!(target: "engine", "Received reset request");
         self.reset().await?;
         // The reply's state must match the published one.
         self.publish_state();
-        let _ = result_tx.send(Ok(self.state));
+        let _ = result_tx.send(self.state);
         Ok(())
     }
 

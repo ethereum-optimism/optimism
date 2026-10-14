@@ -12,10 +12,6 @@ pub trait Engine: Debug + Send + Sync {
     /// Resets the engine onto a starting point found from the execution layer's heads, and returns
     /// the engine state afterwards. The engine publishes the reset, for [`Self::next_reset`],
     /// before it replies.
-    ///
-    /// Fails with [`EngineClientError::ElSyncing`] while the execution layer may be syncing.
-    ///
-    /// [`EngineClientError::ElSyncing`]: crate::EngineClientError::ElSyncing
     async fn reset(&self) -> EngineClientResult<EngineState>;
 
     /// Consolidates the safe head with attributes derived from L1, and returns the engine state
@@ -92,7 +88,8 @@ mod test_engine {
     }
 
     impl TestEngine {
-        /// Creates an engine that replies to resets with the given results, in order.
+        /// Creates an engine that replies to resets with the given results, in order. The first is
+        /// the engine's own first reset, once [`Self::start`] makes it.
         pub(crate) fn new(
             resets: impl IntoIterator<Item = EngineClientResult<EngineState>>,
         ) -> Self {
@@ -109,6 +106,13 @@ mod test_engine {
             reply: impl FnOnce(&watch::Sender<EngineState>) -> Consolidation + Send + 'static,
         ) {
             self.script.consolidations.lock().unwrap().push_back(Box::new(reply));
+        }
+
+        /// Makes the engine's first reset, which it makes itself once the execution layer synced,
+        /// with the first scripted reset.
+        pub(crate) fn start(&self) {
+            let first = self.script.resets.lock().unwrap().pop_front().expect("unscripted reset");
+            self.publish_reset(first.expect("the first reset succeeds"));
         }
 
         /// Publishes a reset another actor made.

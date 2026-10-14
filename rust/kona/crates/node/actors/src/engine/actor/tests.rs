@@ -1,6 +1,5 @@
 use super::*;
 use crate::{
-    EngineClientError,
     engine::{
         NoopBlockSink, SyncStartError,
         test_utils::{TestAttributesBuilder, test_block_info},
@@ -218,8 +217,8 @@ async fn reset_recovers_and_completes_original_request(#[case] read_delay: Durat
 }
 
 /// The engine starts from the execution layer's heads and publishes them before its first request.
-/// It has chosen no forkchoice yet, so it takes the execution layer to be syncing until it sends
-/// one, and its first reset sends the forkchoice even when it settles on the same heads.
+/// It has chosen no forkchoice yet, so its first reset sends the forkchoice even when it settles on
+/// the same heads.
 #[tokio::test(start_paused = true)]
 async fn starts_from_the_execution_layers_heads() {
     let config = config();
@@ -239,47 +238,41 @@ async fn starts_from_the_execution_layers_heads() {
     expect_reset(&l2, Duration::ZERO);
     let (handle, actor) = spawn(clients, config, state);
     assert_eq!(*handle.state().borrow(), state);
-    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
     assert_eq!(handle.reset().await.unwrap(), state);
     actor.abort();
     l2.assert_finished();
 }
 
-/// A reset that asks for a synced execution layer sends the current forkchoice again, and is
-/// refused unless the execution layer validates it. A rejected forkchoice lets the reset proceed,
-/// because the reset replaces it.
+/// The engine resets itself once the execution layer has synced: until then it asks it every
+/// second, by sending the current forkchoice again, from the first forkchoice it sends. A
+/// forkchoice the execution layer rejects counts as synced, because the reset replaces it.
+#[rstest]
+#[case::valid(PayloadStatusEnum::Valid)]
+#[case::rejected(PayloadStatusEnum::Invalid { validation_error: "invalid block".into() })]
 #[tokio::test(start_paused = true)]
-async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
+async fn resets_itself_once_the_execution_layer_synced(#[case] verdict: PayloadStatusEnum) {
     let config = config();
     let (clients, l2) = clients(config.clone());
     let forkchoice_updated = |status| ForkchoiceUpdated::new(PayloadStatus::from_status(status));
-    let invalid = PayloadStatusEnum::Invalid { validation_error: "invalid block".into() };
-    // The execution layer syncs, and still syncs when the engine asks.
+    // The execution layer syncs to the safe head the engine sends, and still syncs when the engine
+    // next asks.
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
-    // It finished syncing when the engine asks again, so the reset proceeds.
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
-    expect_reset(&l2, Duration::ZERO);
-    // It validates a later forkchoice, then falls back into syncing.
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
-    // It rejects the forkchoice, so the reset proceeds.
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(invalid));
+    // It has synced when the engine asks again, so the engine resets.
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(verdict));
     expect_reset(&l2, Duration::ZERO);
     let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
+    let mut resets = handle.resets();
 
-    let resets = handle.resets();
     // No forkchoice has been sent, so there is none to ask with.
-    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
-    // A refused reset is not published.
+    time::sleep(Duration::from_secs(10)).await;
     assert!(!resets.has_changed().unwrap());
+
     handle.follow_safe_head(test_block_info(1)).await.unwrap();
-    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
-    let state = handle.reset_if_el_synced().await.unwrap();
-    assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
-    handle.follow_safe_head(test_block_info(1)).await.unwrap();
-    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
-    handle.reset_if_el_synced().await.unwrap();
+    time::timeout(Duration::from_secs(10), resets.changed()).await.unwrap().unwrap();
+    assert_eq!(resets.borrow().safe_head().block_info.hash, config.genesis.l2.hash);
+    // The engine asks no more once it reset.
+    time::sleep(Duration::from_secs(10)).await;
     actor.abort();
     l2.assert_finished();
 }

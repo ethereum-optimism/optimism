@@ -457,17 +457,6 @@ where
         // above.
         true
     }
-
-    /// Schedules the initial engine reset request and waits for the unsafe head to be updated.
-    async fn schedule_initial_reset(&self) -> Result<(), ActorError> {
-        // Reset the engine, in order to initialize the engine state.
-        // NB: this call waits for confirmation that the reset succeeded and we can proceed with
-        // post-reset logic.
-        self.engine_client.reset_engine_forkchoice().await.map_err(|err| {
-            error!(target: "sequencer", ?err, "Failed to send reset request to engine");
-            err.into()
-        })
-    }
 }
 
 impl<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
@@ -482,8 +471,6 @@ where
     async fn run(mut self) -> Result<(), ActorError> {
         // Publish the initial state and metrics before beginning block building.
         self.update_state();
-        // Reset the engine state prior to beginning block building.
-        self.schedule_initial_reset().await?;
         let block_time = Duration::from_secs(self.rollup_config.block_time);
         let mut last = LastBuild::NothingStarted;
         loop {

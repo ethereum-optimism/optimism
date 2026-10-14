@@ -4,10 +4,10 @@
 //! actors: [`Builder::build`] derives payload attributes from L1 with a derivation pipeline, and
 //! [`Builder::build_delegated`] follows the safe head of an external derivation delegate.
 //!
-//! Derivation drives the engine: it starts by resetting the engine once the execution layer is
-//! synced, and it learns every result from the engine's replies and published resets. The engine
-//! only replies to requests and publishes its state and resets. Whenever the engine resets, by
-//! any actor's request, derivation resets its pipeline onto the engine's safe head.
+//! Derivation drives the engine: it starts from the engine's first reset, which the engine makes
+//! once the execution layer is synced, and it learns every result from the engine's replies and
+//! published resets. The engine only replies to requests and publishes its state and resets.
+//! Whenever the engine resets, derivation resets its pipeline onto the engine's safe head.
 
 mod actor;
 
@@ -33,14 +33,7 @@ mod handle;
 mod status;
 pub use status::DerivationStatus;
 
-use crate::EngineClientError;
-use tokio::{
-    sync::watch,
-    time::{self, Duration},
-};
-
-/// How long to wait before asking the engine to reset again while the execution layer syncs.
-const ENGINE_RESET_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+use tokio::sync::watch;
 
 /// Constructs the handle and one of the derivation actors.
 #[derive(Debug)]
@@ -74,21 +67,10 @@ pub struct Handle {
     status: watch::Receiver<DerivationStatus>,
 }
 
-/// Resets the engine, asking again while the execution layer syncs. The engine publishes the
-/// reset before it replies.
+/// Resets the engine. The engine publishes the reset before it replies.
 async fn reset_engine(engine: &impl Engine) -> Result<(), ActorError> {
-    loop {
-        match engine.reset().await.map(|_| ()) {
-            Err(EngineClientError::ElSyncing) => {
-                debug!(target: "derivation", "Waiting for the execution layer to sync");
-                time::sleep(ENGINE_RESET_RETRY_INTERVAL).await;
-            }
-            result => {
-                return result.map_err(|err| {
-                    error!(target: "derivation", ?err, "Failed to reset the engine");
-                    err.into()
-                });
-            }
-        }
-    }
+    engine.reset().await.map(|_| ()).map_err(|err| {
+        error!(target: "derivation", ?err, "Failed to reset the engine");
+        err.into()
+    })
 }

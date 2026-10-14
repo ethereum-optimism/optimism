@@ -22,7 +22,7 @@ pub(super) enum Message {
     /// Insert an unsafe L2 block.
     InsertUnsafeBlock(Box<OpExecutionPayloadEnvelope>),
     /// Reset the forkchoice, replying with the new engine state once the reset succeeds.
-    Reset(ResetRequest),
+    Reset(oneshot::Sender<EngineState>),
     /// Seal a block.
     Seal(Box<SealRequest>),
 }
@@ -43,15 +43,6 @@ pub(super) struct ConsolidateRequest {
     pub(super) attributes: OpAttributesWithParent,
     /// Receives how the engine consolidated the attributes.
     pub(super) result_tx: oneshot::Sender<Consolidation>,
-}
-
-/// A request to reset the forkchoice.
-#[derive(Debug)]
-pub(super) struct ResetRequest {
-    /// Whether to refuse the reset unless the execution layer validated the latest forkchoice.
-    pub(super) only_if_el_synced: bool,
-    /// Receives the engine state after the reset, or why the engine refused it.
-    pub(super) result_tx: oneshot::Sender<EngineClientResult<EngineState>>,
 }
 
 /// The engine's reply to a consolidation.
@@ -115,24 +106,9 @@ impl Handle {
     ///
     /// Waits until the reset succeeds. The engine retains the reset across temporary failures.
     pub async fn reset(&self) -> EngineClientResult<EngineState> {
-        self.request_reset(false).await
-    }
-
-    /// Resets the engine forkchoice like [`Self::reset`], but only if the execution layer is
-    /// synced: the engine sends it the current forkchoice again, and refuses the reset with
-    /// [`EngineClientError::ElSyncing`] unless the execution layer validates it. The caller may
-    /// try again later.
-    ///
-    /// Resetting while the execution layer syncs would point it at its own stale heads, away from
-    /// the chain it is syncing.
-    pub async fn reset_if_el_synced(&self) -> EngineClientResult<EngineState> {
-        self.request_reset(true).await
-    }
-
-    async fn request_reset(&self, only_if_el_synced: bool) -> EngineClientResult<EngineState> {
         let (result_tx, result_rx) = oneshot::channel();
-        self.send(Message::Reset(ResetRequest { only_if_el_synced, result_tx })).await?;
-        result_rx.await.map_err(|_| response_closed())?
+        self.send(Message::Reset(result_tx)).await?;
+        result_rx.await.map_err(|_| response_closed())
     }
 
     /// Starts building a block and returns the payload ID to seal it with.
@@ -249,9 +225,8 @@ mod tests {
         let reply = tokio::select! {
             result = &mut reset => panic!("reset returned before it was received: {result:?}"),
             message = receiver.recv() => {
-                let Some(Message::Reset(request)) = message else { panic!("expected reset") };
-                assert!(!request.only_if_el_synced);
-                request.result_tx
+                let Some(Message::Reset(result_tx)) = message else { panic!("expected reset") };
+                result_tx
             }
         };
         // Receiving the request is insufficient: the actor must complete the reset.
@@ -261,18 +236,8 @@ mod tests {
             _ = ready(()) => {}
         }
         let state = EngineState::default();
-        reply.send(Ok(state)).unwrap();
+        reply.send(state).unwrap();
         assert_eq!(reset.await.unwrap(), state);
-
-        // A reset that asks for a synced execution layer can be refused.
-        let (result, ()) = tokio::join!(handle.reset_if_el_synced(), async {
-            let Message::Reset(request) = receiver.recv().await.unwrap() else {
-                panic!("expected reset");
-            };
-            assert!(request.only_if_el_synced);
-            request.result_tx.send(Err(EngineClientError::ElSyncing)).unwrap();
-        });
-        assert!(matches!(result, Err(EngineClientError::ElSyncing)));
 
         let (result, ()) = tokio::join!(handle.consolidate(attributes()), async {
             let Message::Consolidate(request) = receiver.recv().await.unwrap() else {
