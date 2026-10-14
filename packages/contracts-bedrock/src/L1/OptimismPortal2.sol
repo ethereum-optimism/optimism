@@ -17,6 +17,7 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -28,6 +29,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -252,9 +254,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_DisputeGameNotInvalidated();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.11.0
+    /// @custom:semver 5.12.0
     function version() public pure virtual returns (string memory) {
-        return "5.11.0";
+        return "5.12.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -780,6 +782,24 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
     }
+
+    /// @notice Placeholder for the bridge hook getter.
+    function bridgeHook() external view returns (IBridgeHook) { }
+
+    /// @notice Placeholder for the bridge hook setter.
+    function setBridgeHook(IBridgeHook _hook) external { }
+
+    /// @notice Placeholder for the held deposits getter.
+    function heldDeposits(bytes32 _id) external view returns (bool) { }
+
+    /// @notice Placeholder for the held withdrawals getter.
+    function heldWithdrawals(bytes32 _withdrawalHash) external view returns (bool) { }
+
+    /// @notice Placeholder for completing a held deposit.
+    function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable { }
+
+    /// @notice Placeholder for completing a held withdrawal.
+    function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
     /// @return bool True if the ETHLockbox feature is enabled.

@@ -28,6 +28,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "bridgeHook",
+    "outputs": [
+      {
+        "internalType": "contract IBridgeHook",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -43,6 +56,146 @@
     "name": "checkWithdrawal",
     "outputs": [],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum BridgeHookTypes.Direction",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum BridgeHookTypes.Asset",
+            "name": "asset",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "aliased",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2Value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCreation",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct BridgeHookTypes.Item",
+        "name": "_item",
+        "type": "tuple"
+      }
+    ],
+    "name": "completeDepositTransaction",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum BridgeHookTypes.Direction",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum BridgeHookTypes.Asset",
+            "name": "asset",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "aliased",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2Value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCreation",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct BridgeHookTypes.Item",
+        "name": "_item",
+        "type": "tuple"
+      }
+    ],
+    "name": "completeWithdrawalTransaction",
+    "outputs": [],
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -283,6 +436,44 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "heldDeposits",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_withdrawalHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "heldWithdrawals",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -634,6 +825,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IBridgeHook",
+        "name": "_hook",
+        "type": "address"
+      }
+    ],
+    "name": "setBridgeHook",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

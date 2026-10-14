@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Types } from "src/libraries/Types.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import { GameType } from "src/dispute/lib/LibUDT.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -10,6 +11,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error ContentLengthMismatch();
@@ -116,6 +118,12 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function respectedGameTypeUpdatedAt() external view returns (uint64);
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
+    function bridgeHook() external view returns (IBridgeHook);
+    function setBridgeHook(IBridgeHook _hook) external;
+    function heldDeposits(bytes32 _id) external view returns (bool);
+    function heldWithdrawals(bytes32 _withdrawalHash) external view returns (bool);
+    function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable;
+    function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable;
 
     function __constructor__(uint256 _proofMaturityDelaySeconds) external;
 }
