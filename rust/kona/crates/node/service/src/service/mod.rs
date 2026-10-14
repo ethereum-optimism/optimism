@@ -1,7 +1,4 @@
-//! Core [`RollupNode`] service, composing the available [`NodeActor`]s into various modes of
-//! operation.
-//!
-//! [`NodeActor`]: crate::NodeActor
+//! Core [`RollupNode`] service, composing the node's actors into various modes of operation.
 
 mod adapters;
 
