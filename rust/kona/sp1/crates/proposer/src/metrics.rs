@@ -1,12 +1,18 @@
 //! Prometheus metrics for the proposer.
 
+use std::time::Duration;
+
 use alloy_primitives::{Address, U256};
+use alloy_rpc_types_eth::TransactionReceipt;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use metrics::{counter, describe_counter, describe_gauge, gauge};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter};
 
-use crate::proving::{PROOF_REQUEST_KINDS, PROOF_REQUEST_STATES, ProofRequestCounts};
+use crate::{
+    proving::{PROOF_REQUEST_KINDS, PROOF_REQUEST_STATES, ProofRequestCounts},
+    tx_sender::PUBLISH_ERROR_REASONS,
+};
 
 /// All proposer metrics gauges.
 #[derive(Debug, Clone, Copy, Display, EnumIter, EnumMessage)]
@@ -183,6 +189,19 @@ pub enum ProposerGauge {
         message = "Duration of the most recent successful game proving run in seconds"
     )]
     ProvingDurationSeconds,
+    /// Duration of the most recent L1 send that got a receipt, from the start of the send
+    /// through confirmation, in seconds.
+    #[strum(
+        serialize = "op_zk_proposer_tx_send_duration_seconds",
+        message = "Duration of the most recent L1 send that reached the required confirmations, in seconds"
+    )]
+    TxSendDurationSeconds,
+    /// Total L1 fees (`gas_used * effective_gas_price`) of confirmed or reverted sends, in ETH.
+    #[strum(
+        serialize = "op_zk_proposer_tx_fees_eth",
+        message = "Total L1 fees paid by confirmed or reverted sends, in ETH"
+    )]
+    TxFeesEth,
     /// Total number of times a proving deadline was observed approaching
     /// (within half of `maxProveDuration` for defense tasks, half of
     /// `maxChallengeDuration` for fast finality tasks).
@@ -254,6 +273,12 @@ impl MetricsGauge for ProposerGauge {}
 const DEADLINE_PASSED: &str = "op_zk_proposer_deadline_passed_total";
 const PROOF_REQUESTS: &str = "op_zk_proposer_proof_requests";
 const SPN_REQUESTER: &str = "op_zk_proposer_spn_requester_info";
+const TX_SENDS: &str = "op_zk_proposer_tx_sends_total";
+const TX_PUBLISH_ERRORS: &str = "op_zk_proposer_tx_publish_errors_total";
+const TX_FEE_BUMPS: &str = "op_zk_proposer_tx_fee_bumps_total";
+
+/// Outcomes of an L1 send: confirmed with status 1, confirmed with status 0, or no receipt.
+const TX_SEND_OUTCOMES: [&str; 3] = ["confirmed", "reverted", "failed"];
 
 /// Registers metrics after installing the recorder, without treating unread balances as zero.
 pub fn register_metrics(network: bool) {
@@ -282,6 +307,19 @@ pub fn register_metrics(network: bool) {
         "SPN proof requests of games being proven, by request kind and state"
     );
     record_proof_requests(&ProofRequestCounts::new());
+    describe_counter!(TX_SENDS, "L1 sends by outcome: confirmed, reverted or failed (no receipt)");
+    for outcome in TX_SEND_OUTCOMES {
+        counter!(TX_SENDS, "outcome" => outcome).increment(0);
+    }
+    describe_counter!(
+        TX_PUBLISH_ERRORS,
+        "L1 publishes that returned an error or no answer, by reason; no_response may still have reached the pool"
+    );
+    for reason in PUBLISH_ERROR_REASONS {
+        counter!(TX_PUBLISH_ERRORS, "reason" => reason).increment(0);
+    }
+    describe_counter!(TX_FEE_BUMPS, "Fee bumps that signed a replacement L1 transaction");
+    counter!(TX_FEE_BUMPS).increment(0);
 }
 
 /// Publishes the SPN requester address as a label so dashboards can link to its requests.
@@ -303,6 +341,28 @@ pub(crate) fn record_proof_requests(counts: &ProofRequestCounts) {
 pub(crate) fn record_deadline_passed(is_defense: bool) {
     let window = if is_defense { "defense" } else { "fast_finality" };
     counter!(DEADLINE_PASSED, "window" => window).increment(1);
+}
+
+/// Records the result of one L1 send. `elapsed` covers the whole send.
+pub(crate) fn record_tx_send(result: &anyhow::Result<TransactionReceipt>, elapsed: Duration) {
+    let Ok(receipt) = result else {
+        counter!(TX_SENDS, "outcome" => "failed").increment(1);
+        return;
+    };
+    let outcome = if receipt.status() { "confirmed" } else { "reverted" };
+    counter!(TX_SENDS, "outcome" => outcome).increment(1);
+    ProposerGauge::TxSendDurationSeconds.set(elapsed.as_secs_f64());
+    let fee = U256::from(receipt.gas_used) * U256::from(receipt.effective_gas_price);
+    ProposerGauge::TxFeesEth.increment(token_balance(fee));
+}
+
+/// `reason` is one of [`PUBLISH_ERROR_REASONS`].
+pub(crate) fn record_tx_publish_error(reason: &'static str) {
+    counter!(TX_PUBLISH_ERRORS, "reason" => reason).increment(1);
+}
+
+pub(crate) fn record_tx_fee_bump() {
+    counter!(TX_FEE_BUMPS).increment(1);
 }
 
 /// Converts an 18-decimal ETH or PROVE balance to whole tokens.

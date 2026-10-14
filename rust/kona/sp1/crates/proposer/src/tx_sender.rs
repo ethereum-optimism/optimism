@@ -17,6 +17,8 @@
 //! - Aborts on "nonce too low" with txmgr's rules: at once if nothing was published, after 3
 //!   otherwise, never while a version is mined.
 //! - Bounds every RPC and signer call by 10s and the whole send by the caller's timeout.
+//! - Records each send's outcome, duration and fees, plus publish errors and fee bumps, in the
+//!   `op_zk_proposer_tx_*` metrics.
 //!
 //! Not supported from txmgr, to keep the sender limited to what the proposer needs:
 //! - Configurable fee-limit multiplier and threshold; txmgr's defaults are fixed.
@@ -29,7 +31,9 @@
 //! - Blob transactions.
 //! - Concurrent sends (`SendAsync`, `Queue`, cached nonces); callers serialize through
 //!   `SignerLock`.
-//! - Waiting for a mined transaction on shutdown, runtime reconfiguration and metrics.
+//! - Waiting for a mined transaction on shutdown, and runtime reconfiguration.
+//! - txmgr's other metrics: base fee and tip gauges, RPC error, pending transaction and nonce
+//!   counts (the proposer exports signer nonces itself), transaction type and fee histogram.
 
 use std::{collections::HashSet, future::IntoFuture, time::Duration};
 
@@ -43,7 +47,7 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use parking_lot::Mutex;
 use tokio::time::{Instant, MissedTickBehavior, interval_at, timeout};
 
-use crate::signer::Signer;
+use crate::{metrics, signer::Signer};
 
 /// Number of L1 confirmations required before a transaction is considered included.
 pub const NUM_CONFIRMATIONS: u64 = 3;
@@ -203,9 +207,13 @@ pub(crate) async fn send_transaction<P: Provider>(
     send_timeout: Duration,
     caps: FeeCaps,
 ) -> Result<TransactionReceipt> {
-    timeout(send_timeout, send(provider, signer, request, caps))
+    let start = Instant::now();
+    let result = timeout(send_timeout, send(provider, signer, request, caps))
         .await
-        .map_err(|_| anyhow!("transaction not confirmed within {}s", send_timeout.as_secs()))?
+        .map_err(|_| anyhow!("transaction not confirmed within {}s", send_timeout.as_secs()))
+        .and_then(|result| result);
+    metrics::record_tx_send(&result, start.elapsed());
+    result
 }
 
 async fn send<P: Provider>(
@@ -283,6 +291,26 @@ enum PublishError {
     Unknown(String),
 }
 
+/// Every label [`PublishError::reason`] returns, so the metric series start at 0.
+pub(crate) const PUBLISH_ERROR_REASONS: [&str; 4] =
+    ["underpriced", "nonce_too_low", "no_response", "rejected"];
+
+impl PublishError {
+    /// Metrics label for a publish that returned an error or no answer; `None` for "already
+    /// known", which is not an error.
+    fn reason(&self) -> Option<&'static str> {
+        match self {
+            Self::Unknown(_) => Some("no_response"),
+            Self::Rejected(error) if error.contains("already known") => None,
+            Self::Rejected(error) if error.contains("transaction underpriced") => {
+                Some("underpriced")
+            }
+            Self::Rejected(error) if error.contains("nonce too low") => Some("nonce_too_low"),
+            Self::Rejected(_) => Some("rejected"),
+        }
+    }
+}
+
 /// The unsigned request and its latest signed version.
 struct Publisher<'a, P> {
     provider: &'a P,
@@ -313,7 +341,11 @@ impl<P: Provider> Publisher<'_, P> {
                     }
                 }
             }
-            match self.send_raw().await {
+            let result = self.send_raw().await;
+            if let Some(reason) = result.as_ref().err().and_then(PublishError::reason) {
+                metrics::record_tx_publish_error(reason);
+            }
+            match result {
                 Err(PublishError::Rejected(error))
                     if !bump_failed && error.contains("transaction underpriced") =>
                 {
@@ -391,6 +423,7 @@ impl<P: Provider> Publisher<'_, P> {
         );
         self.tx = sign(self.signer, &self.request, fees).await?;
         self.fees = fees;
+        metrics::record_tx_fee_bump();
         Ok(())
     }
 }
