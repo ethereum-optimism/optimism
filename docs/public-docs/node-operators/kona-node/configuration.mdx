@@ -103,10 +103,13 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 
 <Unreleased component="kona-node" />
 
+The node serves RPC only with `--rpc.enabled`. A sequencer requires it: its sequencer starts stopped, and is started through the admin API. The address and port apply only while RPC is enabled.
+
 The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin), which can stop the sequencer and reset the node. Keep the RPC port off untrusted networks.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
+| `--rpc.enabled[=<BOOL>]` | `KONA_NODE_RPC_ENABLED` | Serve the RPC API, including the admin API. The flag alone means `true` | `false` |
 | `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address. Set it to `0.0.0.0` to reach the RPC from outside a container | `127.0.0.1` |
 | `--rpc.port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
 
@@ -114,7 +117,7 @@ The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin
 
 <Unreleased component="kona-node" />
 
-A node run with `--sequencer.enabled` can sequence. It requires a block signer: `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. The other sequencer flags apply only with `--sequencer.enabled`, and are ignored without it, so `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
+A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled` and a block signer: `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. The other sequencer flags apply only with `--sequencer.enabled`, and are ignored without it, so `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
@@ -166,8 +169,8 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
 - The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
   to receive block gossip. The `discv5` discovery service runs on
   UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `127.0.0.1:9545`. Websocket connections
-  are disabled by default.
+- No RPC is served. Enable it with `--rpc.enabled`; it is then served at
+  `127.0.0.1:9545`, configurable via the `--rpc.addr` and `--rpc.port` flags.
 - Logs are disabled. Enable them with `--logs.enabled`; they are then
   printed to stdout.
 - Prometheus metrics are disabled. Enable them with the

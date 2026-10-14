@@ -21,9 +21,9 @@ use tracing::{debug, error, info};
 /// # Sequencing
 ///
 /// A node run with `--sequencer.enabled` can sequence. It needs a block signer:
-/// `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`.
-/// Its sequencer starts stopped; start it with `admin_startSequencer`. A node without
-/// `--sequencer.enabled` follows the chain only.
+/// `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`,
+/// and `--rpc.enabled`: its sequencer starts stopped; start it with `admin_startSequencer`. A node
+/// without `--sequencer.enabled` follows the chain only.
 ///
 /// # Configuration Sources
 ///
@@ -44,6 +44,7 @@ use tracing::{debug, error, info};
 ///
 /// # Run a node that can sequence a custom chain
 /// kona-node node --sequencer.enabled \
+///                --rpc.enabled \
 ///                --chain.rollup-config /path/to/rollup.json \
 ///                --l1.eth-url http://localhost:8545 \
 ///                --l1.beacon-url http://localhost:5052 \
@@ -151,6 +152,10 @@ impl NodeCommand {
     /// flags name if it does not exist yet, but does no network I/O: the node checks the engine
     /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
+        // A sequencer starts stopped, and is started through the admin API.
+        if self.sequencer_flags.enabled && !self.rpc_flags.enabled {
+            anyhow::bail!("--sequencer.enabled requires --rpc.enabled");
+        }
         let chain = self.chain.chain_spec()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
@@ -299,6 +304,7 @@ mod tests {
         let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
+            "--rpc.enabled",
             "--sequencer.enabled",
             "--sequencer.signer.key.path",
             key.path().to_str().unwrap(),
@@ -339,9 +345,25 @@ mod tests {
 
     #[test]
     fn test_sequencer_requires_a_block_signer() {
-        let (command, _jwt) = parse_node(&["--chain", "optimism", "--sequencer.enabled"]);
+        let (command, _jwt) =
+            parse_node(&["--chain", "optimism", "--rpc.enabled", "--sequencer.enabled"]);
 
         assert!(command.config().unwrap_err().to_string().contains("requires a block signer"));
+    }
+
+    /// A sequencer starts stopped, and is started through the admin API.
+    #[test]
+    fn test_sequencer_requires_the_rpc() {
+        let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
+        let (command, _jwt) = parse_node(&[
+            "--chain",
+            "optimism",
+            "--sequencer.enabled",
+            "--sequencer.signer.key.path",
+            key.path().to_str().unwrap(),
+        ]);
+
+        assert!(command.config().unwrap_err().to_string().contains("requires --rpc.enabled"));
     }
 
     #[test]

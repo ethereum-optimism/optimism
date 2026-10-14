@@ -2,13 +2,28 @@
 //!
 //! Flags for configuring the RPC server.
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use std::net::{IpAddr, SocketAddr};
 
 /// RPC CLI Arguments
+///
+/// The address and port apply only with `--rpc.enabled`, and are ignored otherwise.
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 #[command(next_help_heading = "RPC")]
 pub struct RpcArgs {
+    /// Serve the RPC API, including the admin API. Disabled by default. A sequencer requires it,
+    /// since it starts stopped and is started through the admin API.
+    #[arg(
+        id = "rpc_enabled",
+        long = "rpc.enabled",
+        env = "KONA_NODE_RPC_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true"
+    )]
+    pub enabled: bool,
     /// RPC listening address.
     ///
     /// Defaults to `127.0.0.1`, because the server always serves the admin API, which can stop
@@ -30,9 +45,9 @@ impl Default for RpcArgs {
 }
 
 impl RpcArgs {
-    /// Returns the address the RPC server listens on.
-    pub const fn addr(&self) -> SocketAddr {
-        SocketAddr::new(self.listen_addr, self.listen_port)
+    /// Returns the address the RPC server listens on, or `None` if the node serves no RPC.
+    pub const fn addr(&self) -> Option<SocketAddr> {
+        if self.enabled { Some(SocketAddr::new(self.listen_addr, self.listen_port)) } else { None }
     }
 }
 
@@ -51,6 +66,26 @@ mod tests {
         let mut expected = RpcArgs::default();
         mutate(&mut expected);
         assert_eq!(cli, expected);
+    }
+
+    #[test]
+    fn serves_no_rpc_by_default() {
+        assert_eq!(RpcArgs::default().addr(), None);
+    }
+
+    #[test]
+    fn serves_on_the_address_and_port_given_while_enabled() {
+        let args = RpcArgs::parse_from([
+            "kona-node",
+            "--rpc.enabled",
+            "--rpc.addr",
+            "1.1.1.1",
+            "--rpc.port",
+            "1",
+        ]);
+        assert_eq!(args.addr(), Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 1)));
+        let args = RpcArgs::parse_from(["kona-node", "--rpc.enabled=false", "--rpc.port", "1"]);
+        assert_eq!(args.addr(), None);
     }
 
     #[test]

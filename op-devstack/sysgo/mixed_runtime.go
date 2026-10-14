@@ -569,6 +569,7 @@ func startMixedKonaNode(
 		"KONA_NODE_CHAIN_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_CHAIN_L1_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
+		"KONA_NODE_RPC_ENABLED=true",
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		"KONA_NODE_LOGS_ENABLED=true",

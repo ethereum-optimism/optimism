@@ -16,12 +16,13 @@ Sequencing is an advanced configuration primarily used by rollup operators. Most
 
 ## Basic Sequencer Setup
 
-To run a Kona node that can sequence, pass `--sequencer.enabled` and a block signer:
+To run a Kona node that can sequence, pass `--sequencer.enabled`, `--rpc.enabled` and a block signer:
 
 ```bash
 kona-node node \
   --logs.enabled \
   --sequencer.enabled \
+  --rpc.enabled \
   --l1.eth-url=http://l1-node:8545 \
   --l1.beacon-url=http://l1-beacon:5052 \
   --l2.engine.url=http://l2-execution:8551 \
@@ -45,7 +46,7 @@ A conductor can issue the start request for managed sequencers.
 <Warning>
 **Required Configuration**
 
-A sequencer requires all standard node arguments plus `--sequencer.enabled` and a block signer. Missing any required argument will prevent the node from starting.
+A sequencer requires all standard node arguments plus `--sequencer.enabled`, `--rpc.enabled` and a block signer. Missing any required argument will prevent the node from starting.
 </Warning>
 
 | Argument | Flag | Environment Variable | Description |
@@ -56,6 +57,7 @@ A sequencer requires all standard node arguments plus `--sequencer.enabled` and 
 | **JWT Secret** | `--l2.engine.jwt-secret` | `KONA_NODE_L2_ENGINE_JWT_SECRET` | Path to JWT secret file |
 | **Rollup Config** | `--chain.rollup-config` or `--chain` | `KONA_NODE_CHAIN_ROLLUP_CONFIG` or `KONA_NODE_CHAIN` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
 | **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The variable takes `true` or `false` |
+| **RPC** | `--rpc.enabled` | `KONA_NODE_RPC_ENABLED` | Serves the RPC API, through which the stopped sequencer is started |
 | **Block Signer** | `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH`, `KONA_NODE_SEQUENCER_SIGNER_URL`, `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
 
 ## Sequencer-Specific Flags
@@ -74,6 +76,7 @@ The full flag catalogue, including the standard node arguments every node takes,
 kona-node node \
   --logs.enabled \
   --sequencer.enabled \
+  --rpc.enabled \
   --l1.eth-url=http://localhost:8545 \
   --l1.beacon-url=http://localhost:5052 \
   --l2.engine.url=http://localhost:8551 \
@@ -87,6 +90,7 @@ kona-node node \
 kona-node node \
   --logs.enabled \
   --sequencer.enabled \
+  --rpc.enabled \
   --sequencer.conductor-url=http://conductor:8080 \
   --sequencer.l1-confs=6 \
   --l1.eth-url=http://l1-node:8545 \

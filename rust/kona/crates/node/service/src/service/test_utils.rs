@@ -49,7 +49,7 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
             }),
         },
         p2p_config,
-        rpc_addr: (Ipv4Addr::LOCALHOST, 0).into(),
+        rpc_addr: Some((Ipv4Addr::LOCALHOST, 0).into()),
         sequencer: None,
     }
 }

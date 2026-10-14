@@ -15,9 +15,9 @@ pub struct RollupNodeConfig {
     pub chain: ChainSpec,
     /// The [`NetworkConfig`].
     pub p2p_config: NetworkConfig,
-    /// The address the RPC server listens on. It serves the admin API, so keep it off untrusted
-    /// networks.
-    pub rpc_addr: SocketAddr,
+    /// The address the RPC server listens on, or `None` for a node that serves no RPC. It serves
+    /// the admin API, so keep it off untrusted networks.
+    pub rpc_addr: Option<SocketAddr>,
     /// The [`SequencerConfig`] of a node that can sequence; `None` for a node that only follows
     /// the chain.
     ///

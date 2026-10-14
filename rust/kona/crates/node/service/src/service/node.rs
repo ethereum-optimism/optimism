@@ -56,8 +56,8 @@ pub struct RollupNode {
     /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
     /// config.
     pub(crate) engine_api: Arc<EngineApi>,
-    /// The address the RPC server listens on.
-    pub(crate) rpc_addr: SocketAddr,
+    /// The address the RPC server listens on, or `None` for a node that serves no RPC.
+    pub(crate) rpc_addr: Option<SocketAddr>,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] of a node that can sequence.
@@ -348,70 +348,84 @@ impl RollupNode {
         });
 
         // ─── RPC ────────────────────────────────────────────────────────────────────────────
-        let mut modules = RpcModule::new(());
-        modules.merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone()))).map_err(
-            |e| RollupNodeError::Startup(format!("Failed to register healthz module: {e:?}")),
-        )?;
-        modules.merge(p2p_rpc.into_rpc()).map_err(|e| {
-            RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
-        })?;
-        modules.merge(AdminRpc::new(engine.clone()).into_rpc()).map_err(|e| {
-            RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
-        })?;
-        // A node that cannot sequence does not serve the sequencer's methods, so calls to them
-        // fail with "method not found".
-        if let Some(sequencer_admin_rpc) = sequencer_admin_rpc {
-            modules.merge(sequencer_admin_rpc.into_rpc()).map_err(|e| {
-                RollupNodeError::Startup(format!(
-                    "Failed to register sequencer admin module: {e:?}"
-                ))
-            })?;
-        }
-        modules
-            .merge(
-                RollupRpc::new(
-                    self.version.clone(),
-                    self.chain.rollup_config.clone(),
-                    engine.state(),
-                    self.clients.l2.clone(),
-                    l1,
-                    derivation.status(),
-                )
-                .into_rpc(),
-            )
-            .map_err(|e| {
-                RollupNodeError::Startup(format!("Failed to register rollup module: {e:?}"))
-            })?;
+        // A node run without an RPC address serves no RPC.
+        let rpc = match self.rpc_addr {
+            None => None,
+            Some(rpc_addr) => {
+                let mut modules = RpcModule::new(());
+                modules
+                    .merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone())))
+                    .map_err(|e| {
+                        RollupNodeError::Startup(format!(
+                            "Failed to register healthz module: {e:?}"
+                        ))
+                    })?;
+                modules.merge(p2p_rpc.into_rpc()).map_err(|e| {
+                    RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
+                })?;
+                modules.merge(AdminRpc::new(engine.clone()).into_rpc()).map_err(|e| {
+                    RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
+                })?;
+                // A node that cannot sequence does not serve the sequencer's methods, so calls to
+                // them fail with "method not found".
+                if let Some(sequencer_admin_rpc) = sequencer_admin_rpc {
+                    modules.merge(sequencer_admin_rpc.into_rpc()).map_err(|e| {
+                        RollupNodeError::Startup(format!(
+                            "Failed to register sequencer admin module: {e:?}"
+                        ))
+                    })?;
+                }
+                modules
+                    .merge(
+                        RollupRpc::new(
+                            self.version.clone(),
+                            self.chain.rollup_config.clone(),
+                            engine.state(),
+                            self.clients.l2.clone(),
+                            l1,
+                            derivation.status(),
+                        )
+                        .into_rpc(),
+                    )
+                    .map_err(|e| {
+                        RollupNodeError::Startup(format!("Failed to register rollup module: {e:?}"))
+                    })?;
 
-        let middleware = tower::ServiceBuilder::new()
-            .layer(
-                ProxyGetRequestLayer::new([("/healthz", "healthz")])
-                    .expect("Critical: Failed to build GET method proxy"),
-            )
-            .timeout(Duration::from_secs(2));
-        let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
-        let rpc_middleware = RpcServiceBuilder::new()
-            .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
-        let server = Server::builder()
-            .set_config(
-                ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
-            )
-            .set_http_middleware(middleware)
-            .set_rpc_middleware(rpc_middleware)
-            .build(self.rpc_addr)
-            .await
-            .map_err(|e: std::io::Error| {
-                RollupNodeError::Startup(format!("Failed to launch rpc server: {e:?}"))
-            })?;
-        if let Ok(addr) = server.local_addr() {
-            info!(target: "rpc", addr = ?addr, "RPC server bound to address");
-        } else {
-            error!(target: "rpc", "Failed to get local address for RPC server");
-        }
-        let rpc = supervise_rpc_server(server.start(modules));
+                let middleware = tower::ServiceBuilder::new()
+                    .layer(
+                        ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                            .expect("Critical: Failed to build GET method proxy"),
+                    )
+                    .timeout(Duration::from_secs(2));
+                let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+                let rpc_middleware = RpcServiceBuilder::new()
+                    .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
+                let server = Server::builder()
+                    .set_config(
+                        ServerConfig::builder()
+                            .max_response_body_size(max_response_body_size)
+                            .build(),
+                    )
+                    .set_http_middleware(middleware)
+                    .set_rpc_middleware(rpc_middleware)
+                    .build(rpc_addr)
+                    .await
+                    .map_err(|e: std::io::Error| {
+                        RollupNodeError::Startup(format!("Failed to launch rpc server: {e:?}"))
+                    })?;
+                if let Ok(addr) = server.local_addr() {
+                    info!(target: "rpc", addr = ?addr, "RPC server bound to address");
+                } else {
+                    error!(target: "rpc", "Failed to get local address for RPC server");
+                }
+                Some(supervise_rpc_server(server.start(modules)))
+            }
+        };
 
         let mut supervisor = Supervisor::new();
-        supervisor.spawn("rpc", rpc);
+        if let Some(rpc) = rpc {
+            supervisor.spawn("rpc", rpc);
+        }
         if let Some((sequencer, origin)) = sequencer_actors {
             supervisor.spawn("sequencer", sequencer);
             supervisor.spawn("origin", origin);
