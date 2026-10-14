@@ -76,8 +76,11 @@ impl SequencerAdminApiServer for SequencerAdminRpc {
         self.sequencer.is_active().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
-    async fn admin_start_sequencer(&self) -> RpcResult<()> {
-        self.sequencer.start().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    async fn admin_start_sequencer(&self, unsafe_head: B256) -> RpcResult<()> {
+        // op-conductor reads the error message, so it is passed on.
+        self.sequencer.start(unsafe_head).await.map_err(|error| {
+            ErrorObject::owned(ErrorCode::InternalError.code(), error.to_string(), None::<()>)
+        })
     }
 
     async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
@@ -245,7 +248,7 @@ mod tests {
         // Queue a command without running the actor, leaving the mailbox full.
         tokio::select! {
             biased;
-            result = handle.start() => panic!("command completed before startup: {result:?}"),
+            result = handle.start(B256::ZERO) => panic!("command completed before startup: {result:?}"),
             _ = ready(()) => {}
         }
         let rpc = SequencerAdminRpc::new(handle, true);
@@ -291,13 +294,16 @@ mod tests {
             rpc.admin_override_leader().await.unwrap_err().code(),
             ErrorCode::InternalError.code()
         );
-        rpc.admin_start_sequencer().await.unwrap();
+        // The sequencer starts only on its own unsafe head, and says why it refuses otherwise.
+        let refusal = rpc.admin_start_sequencer(B256::ZERO).await.unwrap_err();
+        assert!(refusal.message().contains("block hash does not match"));
+        rpc.admin_start_sequencer(B256::repeat_byte(42)).await.unwrap();
         assert!(rpc.admin_sequencer_active().await.unwrap());
 
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
         assert_eq!(
-            rpc.admin_start_sequencer().await.unwrap_err().code(),
+            rpc.admin_start_sequencer(B256::ZERO).await.unwrap_err().code(),
             ErrorCode::InternalError.code()
         );
     }

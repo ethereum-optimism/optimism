@@ -21,6 +21,9 @@ pub trait Conductor: Debug + Send + Sync {
 
     /// Override the leader of the conductor.
     async fn override_leader(&self) -> Result<(), ConductorError>;
+
+    /// Returns whether the conductor leads the cluster.
+    async fn leader(&self) -> Result<bool, ConductorError>;
 }
 
 /// A client for communicating with the conductor service via RPC
@@ -44,6 +47,11 @@ impl Conductor for ConductorClient {
     async fn override_leader(&self) -> Result<(), ConductorError> {
         self.rpc.request("conductor_overrideLeader", ()).await.map_err(Into::into)
     }
+
+    /// Check if the node is a leader of the conductor.
+    async fn leader(&self) -> Result<bool, ConductorError> {
+        self.rpc.request("conductor_leader", ()).await.map_err(Into::into)
+    }
 }
 
 impl ConductorClient {
@@ -52,11 +60,6 @@ impl ConductorClient {
     pub fn new_http(url: Url) -> Self {
         let rpc = ClientBuilder::default().layer(RpcClientLayer::new("conductor")).http(url);
         Self { rpc }
-    }
-
-    /// Check if the node is a leader of the conductor.
-    pub async fn leader(&self) -> Result<bool, ConductorError> {
-        self.rpc.request("conductor_leader", ()).await.map_err(Into::into)
     }
 
     /// Check if the conductor is active.

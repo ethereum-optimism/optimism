@@ -4,6 +4,7 @@ use crate::{
     engine::{BuildTaskError, EngineBuildError},
     sequencer::{ActorError, Builder, HandleError, MockSigner},
 };
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_derive::test_utils::TestAttributesBuilder;
@@ -41,6 +42,10 @@ impl Conductor for PendingConductor {
     async fn override_leader(&self) -> Result<(), ConductorError> {
         self.0.notify_one();
         pending().await
+    }
+
+    async fn leader(&self) -> Result<bool, ConductorError> {
+        Ok(true)
     }
 }
 
@@ -175,7 +180,7 @@ async fn sequencing_continues_without_command_handles() {
         None::<MockConductor>,
         signer,
     ));
-    handle.start().await.unwrap();
+    handle.start(B256::ZERO).await.unwrap();
     drop(handle);
     time::timeout(Duration::from_secs(5), reached_builds.notified()).await.unwrap();
     task.abort();
@@ -208,7 +213,7 @@ async fn stopped_actor_without_command_handles_stays_pending() {
 async fn failed_startup_rejects_a_previously_queued_command() {
     let builder = Builder::new();
     let handle = builder.handle();
-    let command = handle.start();
+    let command = handle.start(B256::ZERO);
     tokio::pin!(command);
     tokio::select! {
         biased;
@@ -254,7 +259,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
         panic!("expected initial reset");
     };
     reset.send(Ok(())).unwrap();
-    handle.start().await.unwrap();
+    handle.start(B256::ZERO).await.unwrap();
     let EngineRequest::Build(build) = requests.recv().await.unwrap() else {
         panic!("expected block build");
     };

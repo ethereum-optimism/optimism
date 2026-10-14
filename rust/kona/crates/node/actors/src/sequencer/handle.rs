@@ -5,8 +5,8 @@ use tokio::sync::{mpsc, oneshot, watch};
 /// State-changing admin commands executed by the sequencer actor.
 #[derive(Debug)]
 pub(super) enum Message {
-    /// Start sequencing.
-    StartSequencer(oneshot::Sender<Result<(), HandleError>>),
+    /// Start sequencing on the unsafe head with this hash.
+    StartSequencer(B256, oneshot::Sender<Result<(), HandleError>>),
     /// Stop sequencing and return the current unsafe block hash.
     StopSequencer(oneshot::Sender<Result<B256, HandleError>>),
     /// Override the conductor leader.
@@ -40,9 +40,13 @@ impl Handle {
         Ok(*self.is_active.borrow())
     }
 
-    /// Starts sequencing.
-    pub async fn start(&self) -> Result<(), HandleError> {
-        self.command(Message::StartSequencer).await
+    /// Starts sequencing on the unsafe head with hash `unsafe_head`.
+    ///
+    /// A sequencer behind op-conductor starts only while its conductor reports leadership, and any
+    /// sequencer only on its own unsafe head, so that it cannot fork the chain. A sequencer that is
+    /// already running stays running.
+    pub async fn start(&self, unsafe_head: B256) -> Result<(), HandleError> {
+        self.command(|reply| Message::StartSequencer(unsafe_head, reply)).await
     }
 
     /// Stops sequencing and returns the unsafe head hash.
@@ -82,6 +86,23 @@ pub enum HandleError {
     /// Error overriding leader.
     #[error("Error overriding leader: {0}.")]
     LeaderOverrideError(String),
+
+    /// The conductor does not report leadership, so the sequencer did not start.
+    #[error("sequencer is not the leader, aborting")]
+    NotLeader,
+
+    /// The conductor's leadership could not be read, so the sequencer did not start.
+    #[error("sequencer leader check failed: {0}")]
+    LeaderCheckFailed(String),
+
+    /// The unsafe head to start on is not the sequencer's, so the sequencer did not start.
+    #[error("block hash does not match: head {local}, received {requested}")]
+    UnsafeHeadMismatch {
+        /// The sequencer's unsafe head.
+        local: B256,
+        /// The unsafe head the caller asked to start on.
+        requested: B256,
+    },
 }
 
 #[cfg(test)]
@@ -94,7 +115,7 @@ mod tests {
         let (published, state) = watch::channel(initial);
         let (commands, _receiver) = mpsc::channel(1);
         let (reply, _) = oneshot::channel();
-        commands.send(Message::StartSequencer(reply)).await.unwrap();
+        commands.send(Message::StartSequencer(B256::ZERO, reply)).await.unwrap();
         let handle = Handle::new(state, commands);
         assert_eq!(handle.is_active().unwrap(), initial);
 
@@ -127,11 +148,11 @@ mod tests {
             reply.send(Err(HandleError::LeaderOverrideError("unavailable".to_owned()))).unwrap();
         });
         assert!(matches!(result, Err(HandleError::LeaderOverrideError(_))));
-        let (result, ()) = tokio::join!(handle.start(), async {
+        let (result, ()) = tokio::join!(handle.start(B256::ZERO), async {
             drop(receiver.recv().await.unwrap());
         });
         assert!(matches!(result, Err(HandleError::RequestError(_))));
         drop(receiver);
-        assert!(matches!(handle.start().await, Err(HandleError::RequestError(_))));
+        assert!(matches!(handle.start(B256::ZERO).await, Err(HandleError::RequestError(_))));
     }
 }

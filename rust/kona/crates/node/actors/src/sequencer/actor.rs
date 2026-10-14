@@ -20,6 +20,7 @@ use crate::{
         origin::Origin,
     },
 };
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
 use kona_genesis::RollupConfig;
@@ -568,10 +569,9 @@ where
     async fn handle_message(&mut self, message: Message) {
         // A dropped RPC response receiver does not cancel an accepted command.
         match message {
-            Message::StartSequencer(tx) => {
-                self.is_active = true;
-                self.update_state();
-                let _ = tx.send(Ok(()));
+            Message::StartSequencer(unsafe_head, tx) => {
+                let result = self.start(unsafe_head).await;
+                let _ = tx.send(result);
             }
             Message::StopSequencer(tx) => {
                 // Publish before awaiting the unsafe head: sequencing is stopped even if that read
@@ -599,6 +599,35 @@ where
                 let _ = tx.send(result);
             }
         }
+    }
+
+    /// Starts sequencing on the unsafe head with hash `unsafe_head`, unless it is already running.
+    /// Behind op-conductor, it starts only while the conductor reports leadership; and only on its
+    /// own unsafe head, as op-node.
+    async fn start(&mut self, unsafe_head: B256) -> Result<(), HandleError> {
+        if self.is_active {
+            return Ok(());
+        }
+        if let Some(conductor) = &self.conductor {
+            match conductor.leader().await {
+                Ok(true) => {}
+                Ok(false) => return Err(HandleError::NotLeader),
+                Err(error) => return Err(HandleError::LeaderCheckFailed(error.to_string())),
+            }
+        }
+        let local = self
+            .engine_client
+            .get_unsafe_head()
+            .await
+            .map_err(|error| HandleError::RequestError(error.to_string()))?
+            .block_info
+            .hash;
+        if local != unsafe_head {
+            return Err(HandleError::UnsafeHeadMismatch { local, requested: unsafe_head });
+        }
+        self.is_active = true;
+        self.update_state();
+        Ok(())
     }
 
     /// Waits until the next build may start: never while sequencing is stopped, and otherwise once
