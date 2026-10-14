@@ -236,10 +236,10 @@ mod tests {
             UnusedOrigin,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
             conductor_enabled.then(|| {
-                ConductorClient::new_http(
+                ConductorClient::new(kona_sources::conductor_rpc(
                     "http://localhost:1".parse().unwrap(),
                     Duration::from_secs(1),
-                )
+                ))
             }),
             PausedSigner,
         );

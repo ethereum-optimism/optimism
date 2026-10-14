@@ -14,7 +14,7 @@ mod metrics;
 pub use metrics::Metrics;
 
 mod providers;
-pub use providers::{l1_provider, l2_provider};
+pub use providers::{conductor_rpc, l1_provider, l2_provider};
 
 mod rpc_client;
 pub use rpc_client::{RpcClientLayer, RpcClientService};
