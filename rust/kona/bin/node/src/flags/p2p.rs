@@ -27,7 +27,7 @@ use tokio::time::Duration;
 ///
 /// For DNS hostnames, this performs synchronous DNS resolution and returns the first
 /// resolved IP address.
-fn resolve_host(host: &str) -> Result<IpAddr, String> {
+fn resolve_host(host: &str) -> Result<IpAddr> {
     // First, try to parse as a direct IP address
     if let Ok(ip) = host.parse::<IpAddr>() {
         return Ok(ip);
@@ -40,8 +40,8 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
         Ok(mut addrs) => addrs
             .next()
             .map(|addr| addr.ip())
-            .ok_or_else(|| format!("DNS resolution for '{host}' returned no addresses")),
-        Err(e) => Err(format!("Failed to resolve '{host}': {e}")),
+            .ok_or_else(|| anyhow::anyhow!("DNS resolution for '{host}' returned no addresses")),
+        Err(e) => Err(anyhow::anyhow!("Failed to resolve '{host}': {e}")),
     }
 }
 
@@ -76,13 +76,19 @@ pub struct P2PArgs {
     /// IP address or DNS hostname to advertise to external peers from Discv5.
     /// Optional argument. Use the `p2p.listen.addr` if not set.
     /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
-    /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
+    /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup, and only with
+    /// `--p2p.enabled`.
     ///
     /// Technical note: if this argument is set, the dynamic ENR updates from the discovery layer
     /// will be disabled. This is to allow the advertised IP to be static (to use in a network
     /// behind a NAT for instance).
-    #[arg(long = "p2p.advertise.addr", env = "KONA_NODE_P2P_ADVERTISE_ADDR", value_parser = resolve_host, hide = true)]
-    pub advertise_ip: Option<IpAddr>,
+    #[arg(
+        id = "p2p_advertise_addr",
+        long = "p2p.advertise.addr",
+        env = "KONA_NODE_P2P_ADVERTISE_ADDR",
+        hide = true
+    )]
+    pub advertise_addr: Option<String>,
     /// TCP port to advertise to external peers from the discovery layer. Same as
     /// `p2p.listen.tcp-port` if set to zero.
     #[arg(long = "p2p.advertise.tcp-port", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT", hide = true)]
@@ -94,9 +100,16 @@ pub struct P2PArgs {
 
     /// IP address or DNS hostname to bind LibP2P/Discv5 to.
     /// Accepts either an IP address (e.g., "0.0.0.0") or a DNS hostname (e.g.,
-    /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
-    #[arg(long = "p2p.listen.addr", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_ADDR", value_parser = resolve_host, hide = true)]
-    pub listen_ip: IpAddr,
+    /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup, and only with
+    /// `--p2p.enabled`.
+    #[arg(
+        id = "p2p_listen_addr",
+        long = "p2p.listen.addr",
+        default_value = "0.0.0.0",
+        env = "KONA_NODE_P2P_LISTEN_ADDR",
+        hide = true
+    )]
+    pub listen_addr: String,
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
     #[arg(
         long = "p2p.listen.tcp-port",
@@ -345,11 +358,16 @@ impl P2PArgs {
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
+        let listen_ip = resolve_host(&self.listen_addr).context("--p2p.listen.addr")?;
+
         // Fallback to the listen ip if the advertise ip is not specified
-        let advertise_ip = self.advertise_ip.unwrap_or(self.listen_ip);
+        let advertise_ip = match &self.advertise_addr {
+            Some(host) => resolve_host(host).context("--p2p.advertise.addr")?,
+            None => listen_ip,
+        };
 
         // If the advertise ip is set, we will disable the dynamic ENR updates.
-        let static_ip = self.advertise_ip.is_some();
+        let static_ip = self.advertise_addr.is_some();
 
         // If the advertise tcp port is null, use the listen tcp port
         let advertise_tcp_port = match self.advertise_tcp_port {
@@ -394,11 +412,11 @@ impl P2PArgs {
             ban_threshold: self.ban_threshold as f64,
         });
 
-        let discovery_listening_address = SocketAddr::new(self.listen_ip, self.listen_udp_port);
+        let discovery_listening_address = SocketAddr::new(listen_ip, self.listen_udp_port);
         let discovery_config =
             NetworkConfig::discv5_config(discovery_listening_address.into(), static_ip);
 
-        let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
+        let mut gossip_address = libp2p::Multiaddr::from(listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
         let bootstore = self.bootstore_file(config);
@@ -570,10 +588,12 @@ mod tests {
     }
 
     #[test]
-    fn test_p2p_args_listen_ip() {
+    fn test_p2p_args_listen_addr() {
         let args = MockCommand::parse_from(["test", "--p2p.listen.addr", "127.0.0.1"]);
+        let config = args.p2p.config(&RollupConfig::default()).unwrap();
         let expected: IpAddr = "127.0.0.1".parse().unwrap();
-        assert_eq!(args.p2p.listen_ip, expected);
+        assert_eq!(config.discovery_address.ip, expected);
+        assert!(config.enr_update);
     }
 
     #[test]
@@ -663,26 +683,34 @@ mod tests {
     }
 
     #[test]
-    fn test_p2p_args_listen_ip_dns_resolution() {
+    fn test_p2p_args_listen_addr_dns_resolution() {
         // Test that DNS hostnames are resolved to IP addresses
         // Using localhost which should resolve reliably
         let args = MockCommand::parse_from(["test", "--p2p.listen.addr", "localhost"]);
+        let config = args.p2p.config(&RollupConfig::default()).unwrap();
         // localhost typically resolves to 127.0.0.1 or ::1
-        assert!(
-            args.p2p.listen_ip == "127.0.0.1".parse::<IpAddr>().unwrap() ||
-                args.p2p.listen_ip == "::1".parse::<IpAddr>().unwrap()
-        );
+        assert!(config.discovery_address.ip.is_loopback());
     }
 
     #[test]
-    fn test_p2p_args_advertise_ip_dns_resolution() {
-        // Test that DNS hostnames are resolved to IP addresses for advertise_ip
+    fn test_p2p_args_advertise_addr_dns_resolution() {
+        // Test that DNS hostnames are resolved to IP addresses for the advertised address
         let args = MockCommand::parse_from(["test", "--p2p.advertise.addr", "localhost"]);
+        let config = args.p2p.config(&RollupConfig::default()).unwrap();
         // localhost typically resolves to 127.0.0.1 or ::1
-        let ip = args.p2p.advertise_ip.unwrap();
-        assert!(
-            ip == "127.0.0.1".parse::<IpAddr>().unwrap() || ip == "::1".parse::<IpAddr>().unwrap()
-        );
+        assert!(config.discovery_address.ip.is_loopback());
+        assert!(!config.enr_update);
+    }
+
+    /// Hosts are resolved only when the node builds its P2P config, so an unresolvable host is
+    /// harmless while P2P is off.
+    #[test]
+    fn an_unresolvable_host_is_an_error_only_when_resolved() {
+        let host = "this-hostname-definitely-does-not-exist.invalid";
+        for flag in ["--p2p.listen.addr", "--p2p.advertise.addr"] {
+            let args = MockCommand::try_parse_from(["test", flag, host]).unwrap();
+            assert!(args.p2p.config(&RollupConfig::default()).is_err(), "{flag}");
+        }
     }
 
     #[test]

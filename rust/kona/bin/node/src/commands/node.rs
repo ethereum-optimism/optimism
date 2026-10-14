@@ -122,8 +122,8 @@ impl NodeCommand {
                 (
                     CliMetrics::P2P_ADVERTISE_IP,
                     self.p2p_flags
-                        .advertise_ip
-                        .map(|ip| ip.to_string())
+                        .advertise_addr
+                        .clone()
                         .unwrap_or_else(|| String::from("0.0.0.0"))
                 ),
                 (
