@@ -109,9 +109,12 @@ const fn fee_cap_for(tip: u128, base_fee: u128) -> u128 {
     tip.saturating_add(base_fee.saturating_mul(2))
 }
 
-/// `ceil(x * 1.1)`, the minimum replacement price geth accepts (Go txmgr `calcThresholdValue`).
+/// The minimum replacement price geth accepts: `ceil(x * 1.1)` (Go txmgr `calcThresholdValue`),
+/// and at least `x + 1`, since geth requires a strictly higher price and `ceil(0 * 1.1)` is 0.
 const fn bump_threshold(x: u128) -> u128 {
-    x.saturating_mul(110).saturating_add(99) / 100
+    let ceil = x.saturating_mul(110).saturating_add(99) / 100;
+    let next = x.saturating_add(1);
+    if ceil > next { ceil } else { next }
 }
 
 /// Go txmgr `updateFees`: the lowest fees that satisfy the replacement rule for `old` while
@@ -228,26 +231,17 @@ async fn send<P: Provider>(
     let start = Instant::now();
     let mut resubmit = interval_at(start + RESUBMISSION_INTERVAL, RESUBMISSION_INTERVAL);
     resubmit.set_missed_tick_behavior(MissedTickBehavior::Delay);
-    let poll_interval = provider.client().poll_interval();
-    let mut poll = interval_at(start + poll_interval, poll_interval);
-    poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    // Receipts are polled for the whole send, alongside publishing and the resubmission tick
+    // (Go txmgr polls from separate goroutines), so a slow publish never delays a confirmation
+    // and a slow receipt query never delays a publish.
+    let confirmed = poll_receipts(provider, &state, start);
+    tokio::pin!(confirmed);
     let mut bump = false;
     loop {
-        // Receipts are polled while a version is published, so a publish slowed by RPC
-        // timeouts cannot hide a confirmation (Go txmgr polls from separate goroutines).
-        let publish = publisher.publish(&state, bump);
-        tokio::pin!(publish);
-        loop {
-            tokio::select! {
-                () = &mut publish => break,
-                _ = poll.tick() => {
-                    if let Some(receipt) = query_receipts(provider, &state).await {
-                        return Ok(receipt);
-                    }
-                }
-            }
+        tokio::select! {
+            () = publisher.publish(&state, bump) => {}
+            receipt = &mut confirmed => return Ok(receipt),
         }
-
         loop {
             state.lock().critical_error()?;
             tokio::select! {
@@ -256,14 +250,28 @@ async fn send<P: Provider>(
                         break;
                     }
                 }
-                _ = poll.tick() => {
-                    if let Some(receipt) = query_receipts(provider, &state).await {
-                        return Ok(receipt);
-                    }
-                }
+                receipt = &mut confirmed => return Ok(receipt),
             }
         }
         bump = true;
+    }
+}
+
+/// Polls every sent version at the RPC client's poll interval until one has
+/// [`NUM_CONFIRMATIONS`] confirmations.
+async fn poll_receipts<P: Provider>(
+    provider: &P,
+    state: &Mutex<SendState>,
+    start: Instant,
+) -> TransactionReceipt {
+    let interval = provider.client().poll_interval();
+    let mut poll = interval_at(start + interval, interval);
+    poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    loop {
+        poll.tick().await;
+        if let Some(receipt) = query_receipts(provider, state).await {
+            return receipt;
+        }
     }
 }
 
@@ -479,6 +487,8 @@ mod tests {
     const TIP: u128 = 1_000_000_000;
     const BASE_FEE: u64 = 10_000_000_000;
     const LATEST_NONCE: u64 = 7;
+    /// Not 1, which alloy uses when a request has no chain id.
+    const CHAIN_ID: u64 = 11_155_111;
     const HEAD: u64 = 100;
     const SEND_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -517,7 +527,7 @@ mod tests {
         /// `None` leaves the request unanswered.
         fn respond(&mut self, method: &str, params: &Value) -> Option<Result<Value, String>> {
             let value = match method {
-                "eth_chainId" => json!("0x1"),
+                "eth_chainId" => json!(format!("{CHAIN_ID:#x}")),
                 "eth_getTransactionCount" => {
                     assert_eq!(params[1], "latest");
                     json!(format!("{LATEST_NONCE:#x}"))
@@ -694,6 +704,7 @@ mod tests {
         let chain = chain.lock();
         assert_eq!(chain.sent.len(), 2);
         assert_eq!(chain.sent[0].nonce(), LATEST_NONCE);
+        assert!(chain.sent.iter().all(|tx| tx.chain_id() == Some(CHAIN_ID)));
         assert_replaces(&chain.sent[0], &chain.sent[1]);
         assert_eq!(receipt.transaction_hash, *chain.sent[1].tx_hash());
     }
@@ -759,6 +770,26 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn hung_receipt_queries_do_not_delay_the_resubmission() {
+        let chain = chain(|_| {});
+        let handle = tokio::spawn(send(chain.clone()));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        {
+            let mut chain = chain.lock();
+            let stale = *chain.sent[0].tx_hash();
+            chain.hung_receipts.insert(stale);
+        }
+        tokio::time::sleep(RESUBMISSION_INTERVAL).await;
+        {
+            let mut chain = chain.lock();
+            assert_eq!(chain.sent.len(), 2, "resubmission waited on a receipt query");
+            chain.mine(1, HEAD - 2);
+        }
+        let receipt = handle.await.unwrap().unwrap();
+        assert_eq!(receipt.transaction_hash, *chain.lock().sent[1].tx_hash());
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn hung_receipt_queries_do_not_delay_a_confirmed_replacement() {
         let chain = chain(|_| {});
         let handle = tokio::spawn(send(chain.clone()));
@@ -821,6 +852,31 @@ mod tests {
         chain.lock().head = HEAD + NUM_CONFIRMATIONS - 1;
         let receipt = handle.await.unwrap().unwrap();
         assert_eq!(receipt.block_number, Some(HEAD));
+    }
+
+    /// A mined version below the confirmation depth pauses fee bumps; once a reorg drops it,
+    /// bumping resumes.
+    #[tokio::test(start_paused = true)]
+    async fn mined_version_pauses_bumps_until_reorged_out() {
+        let chain = chain(|_| {});
+        let handle = tokio::spawn(send(chain.clone()));
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        chain.lock().mine(0, HEAD);
+        tokio::time::sleep(RESUBMISSION_INTERVAL * 2).await;
+        {
+            let mut chain = chain.lock();
+            assert_eq!(chain.sent.len(), 1, "replaced a mined transaction");
+            let reorged = *chain.sent[0].tx_hash();
+            chain.mined.remove(&reorged);
+        }
+        tokio::time::sleep(RESUBMISSION_INTERVAL).await;
+        {
+            let mut chain = chain.lock();
+            assert_eq!(chain.sent.len(), 2, "did not bump after the reorg");
+            chain.mine(1, HEAD - 2);
+        }
+        let receipt = handle.await.unwrap().unwrap();
+        assert_eq!(receipt.transaction_hash, *chain.lock().sent[1].tx_hash());
     }
 
     #[tokio::test(start_paused = true)]
@@ -944,8 +1000,8 @@ mod tests {
     }
 
     #[test]
-    fn bump_threshold_rounds_up() {
-        assert_eq!(bump_threshold(0), 0);
+    fn bump_threshold_rounds_up_and_always_increases() {
+        assert_eq!(bump_threshold(0), 1);
         assert_eq!(bump_threshold(1), 2);
         assert_eq!(bump_threshold(100), 110);
         assert_eq!(bump_threshold(101), 112);

@@ -188,8 +188,7 @@ impl SignerLock {
         self.cached_address
     }
 
-    /// Sends a transaction through [`tx_sender`], holding the lock for the whole send so
-    /// concurrent callers never share a nonce. `timeout` bounds the send including fee bumps.
+    /// Sends `request` through [`tx_sender`] while holding the signer lock.
     pub async fn send_transaction<P: Provider>(
         &self,
         provider: &P,
@@ -206,9 +205,75 @@ impl SignerLock {
 mod tests {
     use std::{env, path::Path};
 
+    use alloy_eips::Encodable2718;
+    use alloy_network::{Ethereum, EthereumWallet, NetworkTransactionBuilder};
+    use alloy_primitives::{Bytes, TxKind, U256};
+    use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+    use alloy_signer_local::PrivateKeySigner;
+    use httpmock::{MockServer, prelude::POST};
+    use serde_json::json;
     use serial_test::serial;
 
     use super::{Address, Signer};
+
+    /// op-signer receives every field it needs to sign, with calldata in `data`, and its
+    /// envelope comes back decoded.
+    #[tokio::test]
+    async fn web3_signer_requests_a_complete_transaction() {
+        let key = PrivateKeySigner::random();
+        let to = Address::repeat_byte(0x11);
+        let request = TransactionRequest {
+            from: Some(key.address()),
+            to: Some(TxKind::Call(to)),
+            value: Some(U256::from(5)),
+            input: TransactionInput::new(Bytes::from_static(&[0xab, 0xcd])),
+            nonce: Some(7),
+            gas: Some(100_000),
+            chain_id: Some(1),
+            max_fee_per_gas: Some(21_000_000_000),
+            max_priority_fee_per_gas: Some(1_000_000_000),
+            ..Default::default()
+        };
+        let signed = <TransactionRequest as NetworkTransactionBuilder<Ethereum>>::build(
+            request.clone(),
+            &EthereumWallet::new(key.clone()),
+        )
+        .await
+        .unwrap();
+
+        let server = MockServer::start_async().await;
+        let op_signer = server
+            .mock_async(|when, then| {
+                when.method(POST).json_body_includes(
+                    json!({
+                        "method": "eth_signTransaction",
+                        "params": [{
+                            "from": key.address(),
+                            "to": to,
+                            "value": "0x5",
+                            "data": "0xabcd",
+                            "nonce": "0x7",
+                            "gas": "0x186a0",
+                            "chainId": "0x1",
+                            "maxFeePerGas": "0x4e3b29200",
+                            "maxPriorityFeePerGas": "0x3b9aca00",
+                        }],
+                    })
+                    .to_string(),
+                );
+                let raw = Bytes::from(signed.encoded_2718());
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(json!({"jsonrpc": "2.0", "id": 0, "result": raw}).to_string());
+            })
+            .await;
+
+        let signer =
+            Signer::new_web3_signer(server.url("/").parse().unwrap(), key.address(), None).unwrap();
+        let envelope = signer.sign_transaction(request).await.unwrap();
+        op_signer.assert_async().await;
+        assert_eq!(envelope, signed);
+    }
 
     fn clear_signer_env() {
         for suffix in [

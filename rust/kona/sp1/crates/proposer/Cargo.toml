@@ -60,6 +60,7 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 alloy-json-rpc.workspace = true
 alloy-transport.workspace = true
+httpmock.workspace = true
 metrics-exporter-prometheus.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 tempfile.workspace = true
