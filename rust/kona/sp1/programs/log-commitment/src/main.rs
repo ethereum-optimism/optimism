@@ -9,6 +9,8 @@ use kona_sp1_client_utils::log_commitment::log_commitment_public_values;
 
 /// Entrypoint to the log-commitment program.
 pub fn main() {
+    println!("{}", kona_sp1_build_info::BUILD_MARKER);
+
     let receipts_roots = sp1_zkvm::io::read::<Vec<B256>>();
     let witness = sp1_zkvm::io::read_vec();
     sp1_zkvm::io::commit_slice(&log_commitment_public_values(&receipts_roots, &witness));

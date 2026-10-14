@@ -327,7 +327,7 @@ jobs:
             if [ -n "<< parameters.features >>" ]; then
               EXPECTED="${EXPECTED}-test"
             fi
-            for ELF in super-range-elf super-aggregation-elf; do
+            for ELF in log-commitment-elf super-range-elf super-aggregation-elf; do
               PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
               set +e
               FOUND=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "${PATH_TO_ELF}" | sort -u)

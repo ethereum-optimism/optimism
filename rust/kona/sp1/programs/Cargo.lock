@@ -1943,6 +1943,7 @@ name = "kona-sp1-log-commitment"
 version = "0.0.1"
 dependencies = [
  "alloy-primitives",
+ "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "sp1-zkvm",
 ]

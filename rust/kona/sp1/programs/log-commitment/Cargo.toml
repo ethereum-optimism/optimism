@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 alloy-primitives.workspace = true
+kona-sp1-build-info.workspace = true
 kona-sp1-client-utils.workspace = true
 sp1-zkvm.workspace = true
 

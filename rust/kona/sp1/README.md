@@ -30,8 +30,7 @@ Supporting libraries for the SP1 fault proof system:
 
 - **`bls12-381-check`** (test-only): EIP-2537 reference oracle, case corpus, host differential
   tests, and the zkVM check runner (`just check-bls12-381-zkvm`)
-- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest except
-  `log-commitment`
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
@@ -101,8 +100,8 @@ infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop a
 
 #### Build provenance
 
-Every guest except `log-commitment` embeds the commit it was built from, so a guest ELF identifies
-its own source without a manifest, a lookup table, or executing it:
+Every guest embeds the commit it was built from, so a guest ELF identifies its own source
+without a manifest, a lookup table, or executing it:
 
 ```bash
 grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' elf/super-aggregation-elf | sort -u
@@ -120,16 +119,12 @@ aggregator must come from the same commit, not merely the same code. The marker 
 not attested: it records what an honest build embedded and proves nothing against a rewritten
 artifact.
 
-`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so the
-marked guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so all
+guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
 `KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
 describe. Builds outside the justfile record `unknown`.
 Each build recipe checks its own ELF; CI (`kona-build-sp1-elfs`) additionally pins the natively
 built ELFs to the commit under test.
-
-The `log-commitment` guest embeds no marker and ignores `KONA_CUSTOM_CONFIGS_DIR`, so its vkey
-changes only when the guest's code, a locked dependency, or the SP1 toolchain changes. Its build
-fails if the ELF contains a marker.
 
 Custom chains and devnets can compile separate SP1 artifacts with custom kona
 registry inputs:
@@ -139,8 +134,8 @@ KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
 ```
 
 The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
-Those files are compiled into the kona crates used by the `super-range` and `super-aggregation`
-guests, so custom configs produce different ELFs and verification-key hashes for them.
+Those files are compiled into the kona crates used by the guest programs, so
+custom configs produce different ELFs and verification-key hashes.
 
 ## Releases
 
