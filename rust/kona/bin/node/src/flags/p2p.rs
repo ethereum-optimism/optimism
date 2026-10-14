@@ -77,7 +77,7 @@ pub struct P2PArgs {
     /// Optional argument. Use the `p2p.listen.addr` if not set.
     /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
     /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup, and only with
-    /// `--p2p.enabled`.
+    /// `--p2p.discovery.enabled`, which alone advertises it.
     ///
     /// Technical note: if this argument is set, the dynamic ENR updates from the discovery layer
     /// will be disabled. This is to allow the advertised IP to be static (to use in a network
@@ -359,10 +359,13 @@ impl P2PArgs {
 
         let listen_ip = resolve_host(&self.listen_addr).context("--p2p.listen.addr")?;
 
-        // Fallback to the listen ip if the advertise ip is not specified
+        // Fallback to the listen ip if the advertise ip is not specified. Only discovery
+        // advertises the address, so resolve it only with discovery.
         let advertise_ip = match &self.advertise_addr {
-            Some(host) => resolve_host(host).context("--p2p.advertise.addr")?,
-            None => listen_ip,
+            Some(host) if self.discovery_enabled => {
+                resolve_host(host).context("--p2p.advertise.addr")?
+            }
+            _ => listen_ip,
         };
 
         // If the advertise ip is set, we will disable the dynamic ENR updates.
@@ -694,22 +697,32 @@ mod tests {
     #[test]
     fn test_p2p_args_advertise_addr_dns_resolution() {
         // Test that DNS hostnames are resolved to IP addresses for the advertised address
-        let args = MockCommand::parse_from(["test", "--p2p.advertise.addr", "localhost"]);
+        let args = MockCommand::parse_from([
+            "test",
+            "--p2p.discovery.enabled",
+            "--p2p.advertise.addr",
+            "localhost",
+        ]);
         let config = args.p2p.config(&RollupConfig::default()).unwrap();
         // localhost typically resolves to 127.0.0.1 or ::1
         assert!(config.discovery_address.ip.is_loopback());
         assert!(!config.enr_update);
     }
 
-    /// Hosts are resolved only when the node builds its P2P config, so an unresolvable host is
-    /// harmless while P2P is off.
+    /// Hosts are resolved only when the node builds its P2P config, and the advertised one only
+    /// with discovery, so an unresolvable host is harmless while its feature is off.
     #[test]
     fn an_unresolvable_host_is_an_error_only_when_resolved() {
         let host = "this-hostname-definitely-does-not-exist.invalid";
-        for flag in ["--p2p.listen.addr", "--p2p.advertise.addr"] {
-            let args = MockCommand::try_parse_from(["test", flag, host]).unwrap();
-            assert!(args.p2p.config(&RollupConfig::default()).is_err(), "{flag}");
-        }
+        let config = |args: &[&str]| {
+            let args =
+                MockCommand::try_parse_from(std::iter::once("test").chain(args.iter().copied()))
+                    .unwrap();
+            args.p2p.config(&RollupConfig::default())
+        };
+        assert!(config(&["--p2p.listen.addr", host]).is_err());
+        assert!(config(&["--p2p.discovery.enabled", "--p2p.advertise.addr", host]).is_err());
+        assert!(config(&["--p2p.advertise.addr", host]).is_ok());
     }
 
     #[test]

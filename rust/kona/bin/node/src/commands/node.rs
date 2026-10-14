@@ -340,6 +340,27 @@ mod tests {
         assert!(config.p2p_config.is_none());
     }
 
+    /// The P2P flags apply only with `--p2p.enabled`: without it, none is resolved or parsed
+    /// beyond its syntax.
+    #[test]
+    fn test_p2p_flags_are_ignored_without_p2p() {
+        let (command, _jwt) = parse_node(&[
+            "--chain",
+            "optimism",
+            "--p2p.enabled=false",
+            "--p2p.listen.addr",
+            "this-hostname-definitely-does-not-exist.invalid",
+            "--p2p.advertise.addr",
+            "this-hostname-definitely-does-not-exist.invalid",
+            "--p2p.discovery.enabled",
+            "--p2p.discovery.bootnodes",
+            "enode://malformed",
+            "--p2p.discovery.bootstore.enabled",
+        ]);
+
+        assert!(command.config().unwrap().p2p_config.is_none());
+    }
+
     #[test]
     fn test_config_without_a_block_signer_cannot_sequence() {
         let (command, _jwt) = parse_node(&["--chain", "optimism"]);
