@@ -1,23 +1,19 @@
 //! The providers the node reads L1 and L2 through.
 
-use crate::Metrics;
-use alloy_json_rpc::{RequestPacket, ResponsePacket};
+use crate::{RpcClientLayer, rpc_client::RequestTimedOut};
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::JwtSecret;
-use alloy_transport::{TransportError, TransportErrorKind, TransportFut};
+use alloy_transport::{TransportErrorKind, TransportFut};
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
 };
 use http_body_util::Full;
 use op_alloy_network::Optimism;
-use std::{
-    task::{Context, Poll},
-    time::{Duration, Instant},
-};
-use tower::{Layer, Service, ServiceBuilder, util::MapFutureLayer};
+use std::time::Duration;
+use tower::{ServiceBuilder, util::MapFutureLayer};
 use url::Url;
 
 /// Deadline for each request a provider sends.
@@ -35,120 +31,33 @@ fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
     Box::pin(async move {
         tokio::time::timeout(RPC_TIMEOUT, request)
             .await
-            .map_err(|_| TransportErrorKind::custom_str("RPC request timed out"))?
+            .map_err(|_| TransportErrorKind::custom(RequestTimedOut))?
     })
 }
 
-/// Records how long each request to the L2 execution layer takes, labeled by its JSON-RPC method,
-/// in the [`Metrics::ENGINE_METHOD_REQUEST_DURATION`] histogram. Failed requests are recorded too.
-#[derive(Debug, Clone, Copy)]
-struct RequestDurationLayer;
-
-impl<S> Layer<S> for RequestDurationLayer {
-    type Service = RequestDuration<S>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        RequestDuration(inner)
-    }
-}
-
-/// The transport service that a [`RequestDurationLayer`] wraps.
-#[derive(Debug, Clone)]
-struct RequestDuration<S>(S);
-
-impl<S> Service<RequestPacket> for RequestDuration<S>
-where
-    S: Service<RequestPacket, Response = ResponsePacket, Error = TransportError>,
-    S::Future: Send + 'static,
-{
-    type Response = ResponsePacket;
-    type Error = TransportError;
-    type Future = TransportFut<'static>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.0.poll_ready(cx)
-    }
-
-    fn call(&mut self, request: RequestPacket) -> Self::Future {
-        let method = match &request {
-            RequestPacket::Single(request) => request.method().to_string(),
-            RequestPacket::Batch(_) => "batch".to_string(),
-        };
-        let response = self.0.call(request);
-        Box::pin(async move {
-            let start = Instant::now();
-            let response = response.await;
-            metrics::histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, "method" => method)
-                .record(start.elapsed().as_secs_f64());
-            response
-        })
-    }
-}
-
-/// Returns a provider for the L1 execution layer's RPC at `url`. Each request has a deadline.
+/// Returns a provider for the L1 execution layer's RPC at `url`. Each request has a deadline, and
+/// [`RpcClientLayer`] records it as client `l1`.
 pub fn l1_provider(url: Url) -> RootProvider {
-    RootProvider::new(ClientBuilder::default().layer(MapFutureLayer::new(with_deadline)).http(url))
+    RootProvider::new(
+        ClientBuilder::default()
+            .layer(RpcClientLayer::new("l1"))
+            .layer(MapFutureLayer::new(with_deadline))
+            .http(url),
+    )
 }
 
 /// Returns a provider for the L2 execution layer's authenticated RPC at `url`, which also serves
-/// the Engine API, authenticated with `jwt`. Each request has a deadline and records its duration.
+/// the Engine API, authenticated with `jwt`. Each request has a deadline, and [`RpcClientLayer`]
+/// records it as client `l2`.
 pub fn l2_provider(url: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
     let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
     let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
     let http_hyper = Http::with_client(HyperClient::with_service(service), url);
     let rpc_client = ClientBuilder::default()
-        .layer(RequestDurationLayer)
+        .layer(RpcClientLayer::new("l2"))
         .layer(MapFutureLayer::new(with_deadline))
         .transport(http_hyper, false);
     RootProvider::new(rpc_client)
-}
-
-#[cfg(test)]
-mod request_duration_tests {
-    use super::*;
-    use alloy_json_rpc::{Id, Request, Response, ResponsePayload};
-    use metrics_exporter_prometheus::PrometheusBuilder;
-    use serde_json::value::RawValue;
-
-    /// Sends one request for `method` through a [`RequestDurationLayer`] over a transport that
-    /// answers with `response`.
-    fn send(method: &'static str, response: Result<ResponsePacket, TransportError>) {
-        let request = Request::new(method, Id::Number(1), ()).serialize().unwrap();
-        let mut response = Some(response);
-        let mut service = RequestDurationLayer.layer(tower::service_fn(move |_| {
-            let response = response.take().expect("the transport is called once");
-            async move { response }
-        }));
-        let call = service.call(RequestPacket::Single(request));
-        let _ = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(call);
-    }
-
-    #[test]
-    fn records_successful_and_failed_requests_by_method() {
-        let recorder = PrometheusBuilder::new().build_recorder();
-        let metrics = recorder.handle();
-        metrics::with_local_recorder(&recorder, || {
-            send(
-                "engine_newPayloadV3",
-                Ok(ResponsePacket::Single(Response {
-                    id: Id::Number(1),
-                    payload: ResponsePayload::Success(
-                        RawValue::from_string("null".into()).unwrap(),
-                    ),
-                })),
-            );
-            send("engine_getPayloadV3", Err(TransportErrorKind::custom_str("unreachable")));
-        });
-
-        let rendered = metrics.render();
-        for method in ["engine_newPayloadV3", "engine_getPayloadV3"] {
-            let count = format!(
-                "{}_count{{method=\"{method}\"}} 1",
-                Metrics::ENGINE_METHOD_REQUEST_DURATION
-            );
-            assert!(rendered.contains(&count), "missing {count} in:\n{rendered}");
-        }
-    }
 }
 
 #[cfg(test)]
