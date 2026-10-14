@@ -23,10 +23,9 @@ use discv5::Enr;
 use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
-use kona_node_service::{EngineClientResult, NetworkConfig, discovery, network};
+use kona_node_service::{NetworkConfig, discovery, network};
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::Multiaddr;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{
     collections::HashSet,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -38,27 +37,6 @@ use tokio::sync::{
 };
 use tracing::error;
 use tracing_subscriber::EnvFilter;
-
-#[derive(Debug)]
-struct ForwardingEngine {
-    block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
-}
-
-#[async_trait]
-impl network::Engine for ForwardingEngine {
-    async fn insert_unsafe_block(
-        &self,
-        block: OpExecutionPayloadEnvelope,
-    ) -> EngineClientResult<()> {
-        let _ = self
-            .block_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-
-        Ok(())
-    }
-}
 
 /// Passes the peers discovery finds to the network actor.
 #[derive(Debug)]
@@ -151,8 +129,7 @@ impl GossipCommand {
             }
         });
 
-        let network_actor = network_builder
-            .build(ForwardingEngine { block_tx: unsafe_blocks_tx }, BanningDiscovery(discovery));
+        let network_actor = network_builder.build(unsafe_blocks_tx, BanningDiscovery(discovery));
         tokio::spawn(async move {
             if let Err(e) = network_actor.await {
                 error!(target: "gossip", "Network actor error: {e:?}");

@@ -3,7 +3,10 @@ use crate::{EngineClientError, EngineClientResult};
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{
+    mpsc::{self, error::TrySendError},
+    oneshot, watch,
+};
 
 /// Work executed by the engine actor.
 #[derive(Debug)]
@@ -194,6 +197,18 @@ impl Handle {
         block: OpExecutionPayloadEnvelope,
     ) -> EngineClientResult<()> {
         self.send(Message::InsertUnsafeBlock(Box::new(block))).await
+    }
+
+    /// Queues an unsafe block for insertion without waiting for room in the queue.
+    ///
+    /// Success means the block was queued, not that it was inserted.
+    pub fn try_insert_unsafe_block(
+        &self,
+        block: OpExecutionPayloadEnvelope,
+    ) -> Result<(), TrySendError<()>> {
+        self.messages
+            .try_send(Message::InsertUnsafeBlock(Box::new(block)))
+            .map_err(crate::without_value)
     }
 
     async fn send(&self, message: Message) -> EngineClientResult<()> {

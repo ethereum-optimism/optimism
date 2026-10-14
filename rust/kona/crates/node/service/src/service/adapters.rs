@@ -116,14 +116,13 @@ impl finality::Engine for Engine {
     }
 }
 
-#[async_trait]
 impl network::Engine for Engine {
-    async fn insert_unsafe_block(
+    fn try_insert_unsafe_block(
         &self,
         block: OpExecutionPayloadEnvelope,
-    ) -> EngineClientResult<()> {
+    ) -> Result<(), TrySendError<()>> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
-        self.handle.insert_unsafe_block(block).await
+        self.handle.try_insert_unsafe_block(block)
     }
 }
 

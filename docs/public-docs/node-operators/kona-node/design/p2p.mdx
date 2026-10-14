@@ -160,7 +160,8 @@ address the swarm listens on.
 
 - The **network actor** owns the `GossipDriver`. It polls the
   swarm, passes each valid block it receives to the engine
-  actor, publishes the blocks the signer actor signs, dials the
+  actor, dropping the block if the engine's queue is full so
+  that a backed-up engine never stops the swarm, publishes the blocks the signer actor signs, dials the
   peers the discovery actor finds, and disconnects peers whose
   score falls below the ban threshold. `network::Builder::new`
   takes the listening gossip driver and publishes its state, so

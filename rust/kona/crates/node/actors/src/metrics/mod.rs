@@ -46,6 +46,10 @@ impl Metrics {
     pub const SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED: &str =
         "kona_node_sequencer_total_transactions_sequenced";
 
+    /// Counter for the unsafe blocks received over gossip that the network dropped because the
+    /// engine's queue was full.
+    pub const NETWORK_UNSAFE_BLOCKS_DROPPED: &str = "kona_node_network_unsafe_blocks_dropped_total";
+
     /// Initializes metrics for the node service.
     ///
     /// This does two things:
@@ -111,6 +115,12 @@ impl Metrics {
             metrics::Unit::Count,
             "Total count of sequenced transactions"
         );
+
+        metrics::describe_counter!(
+            Self::NETWORK_UNSAFE_BLOCKS_DROPPED,
+            metrics::Unit::Count,
+            "Unsafe blocks received over gossip and dropped because the engine was backed up"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -124,5 +134,7 @@ impl Metrics {
 
         // Sequencer: reset total transactions sequenced
         metrics::counter!(Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED).absolute(0);
+
+        metrics::counter!(Self::NETWORK_UNSAFE_BLOCKS_DROPPED).absolute(0);
     }
 }

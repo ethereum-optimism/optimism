@@ -5063,7 +5063,6 @@ dependencies = [
  "kona-node-service",
  "kona-registry",
  "libp2p",
- "op-alloy-rpc-types-engine",
  "tokio",
  "tracing",
  "tracing-subscriber",

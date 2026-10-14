@@ -9,11 +9,15 @@ use discv5::Enr;
 use kona_gossip::{
     ConnectionGate, ConnectionGater, GossipDriver, GossipState, PEER_SCORE_INSPECT_FREQUENCY,
 };
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashSet, future::Future, sync::Arc};
 use thiserror::Error;
 use tokio::{
     select,
-    sync::{mpsc, watch},
+    sync::{
+        mpsc::{self, error::TrySendError},
+        watch,
+    },
     time::{self, Interval},
 };
 
@@ -129,13 +133,8 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
                         error!(target: "node::p2p", "The gossip swarm stream has ended");
                         ActorError::SwarmEnded
                     })?;
-                    // The swarm is not polled while the engine's queue is full, so a backed-up
-                    // engine slows the network instead of growing a queue without bound.
-                    if let Some(block) = self.gossip.handle_event(event) &&
-                        self.engine.insert_unsafe_block(block).await.is_err()
-                    {
-                        warn!(target: "network", "Failed to forward unsafe block to engine");
-                        return Err(ActorError::EngineClosed);
+                    if let Some(block) = self.gossip.handle_event(event) {
+                        forward(&self.engine, block)?;
                     }
                     None
                 }
@@ -290,10 +289,38 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
     }
 }
 
+/// Passes an unsafe block received over gossip to the engine.
+///
+/// The block is dropped while the engine's queue is full, so that a backed-up engine does not
+/// stop the network from serving its peers. The gap it leaves is filled later:
+///
+/// - The engine inserts a later block whose parent it lacks: the execution layer answers that it is
+///   syncing, and the forkchoice update that follows has it sync the gap from its own peers. An
+///   execution layer without peers cannot, and the engine resets when derivation next needs a
+///   missing block.
+/// - An execution layer that accepts the later block without syncing leaves the gap until
+///   derivation reaches it.
+/// - No later block follows a dropped tip, so it is not inserted until derivation reaches it.
+fn forward(engine: &impl Engine, block: OpExecutionPayloadEnvelope) -> Result<(), ActorError> {
+    let (number, hash) = (block.block_number(), block.block_hash());
+    match engine.try_insert_unsafe_block(block) {
+        Ok(()) => Ok(()),
+        Err(TrySendError::Full(())) => {
+            debug!(target: "network", number, %hash, "Dropping an unsafe block: the engine is backed up");
+            metrics::counter!(crate::Metrics::NETWORK_UNSAFE_BLOCKS_DROPPED).increment(1);
+            Ok(())
+        }
+        Err(TrySendError::Closed(())) => {
+            warn!(target: "network", "Failed to forward unsafe block to engine");
+            Err(ActorError::EngineClosed)
+        }
+    }
+}
+
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
-    use crate::{EngineClientResult, discovery::HandleError};
+    use crate::discovery::HandleError;
     use alloy_primitives::Address;
     use kona_genesis::RollupConfig;
     use libp2p::{Multiaddr, identity::Keypair};
@@ -320,12 +347,11 @@ pub(super) mod tests {
     #[derive(Debug)]
     struct UnusedEngine;
 
-    #[async_trait::async_trait]
     impl Engine for UnusedEngine {
-        async fn insert_unsafe_block(
+        fn try_insert_unsafe_block(
             &self,
             _block: OpExecutionPayloadEnvelope,
-        ) -> EngineClientResult<()> {
+        ) -> Result<(), TrySendError<()>> {
             panic!("no block is gossiped")
         }
     }
@@ -380,5 +406,18 @@ pub(super) mod tests {
         assert!(task.await.unwrap_err().is_cancelled());
         assert!(state.has_changed().is_err());
         assert_eq!(handle.unprotect_peer(id).await, Err(super::super::HandleError));
+    }
+
+    #[test]
+    fn drops_blocks_while_the_engine_is_backed_up_and_stops_once_it_closes() {
+        let (engine, mut queued) = mpsc::channel(1);
+        forward(&engine, crate::test_payload(1)).unwrap();
+        // The queue is full: the block is dropped, and the network carries on.
+        forward(&engine, crate::test_payload(2)).unwrap();
+        assert_eq!(queued.try_recv().unwrap(), crate::test_payload(1));
+        assert!(queued.try_recv().is_err());
+
+        drop(queued);
+        assert!(matches!(forward(&engine, crate::test_payload(3)), Err(ActorError::EngineClosed)));
     }
 }
