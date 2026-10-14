@@ -34,13 +34,6 @@ impl Engine {
 
 #[async_trait]
 impl SequencerEngineClient for Engine {
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
-        info!(target: "sequencer", "Sending reset request to engine.");
-        let state = self.handle.reset().await?;
-        info!(target: "sequencer", safe_head = ?state.safe_head(), "Engine reset successfully.");
-        Ok(())
-    }
-
     async fn start_build_block(
         &self,
         attributes: OpAttributesWithParent,

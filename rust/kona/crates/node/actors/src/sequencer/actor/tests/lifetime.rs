@@ -44,38 +44,22 @@ impl Conductor for PendingConductor {
     }
 }
 
-/// An engine request the test answers, or holds to observe the sequencer abandoning it.
-#[derive(Debug)]
-enum EngineRequest {
-    Build(oneshot::Sender<EngineClientResult<PayloadId>>),
-}
+/// A build request, which the test answers, or holds to observe the sequencer abandoning it.
+type BuildRequest = oneshot::Sender<EngineClientResult<PayloadId>>;
 
-/// Forwards the sequencer's engine requests to the test.
+/// Forwards the sequencer's build requests to the test.
 #[derive(Debug)]
-struct ForwardingEngine(mpsc::Sender<EngineRequest>);
-
-impl ForwardingEngine {
-    async fn request<T>(
-        &self,
-        request: impl FnOnce(oneshot::Sender<EngineClientResult<T>>) -> EngineRequest,
-    ) -> EngineClientResult<T> {
-        let (tx, rx) = oneshot::channel();
-        self.0.send(request(tx)).await.unwrap();
-        rx.await.unwrap()
-    }
-}
+struct ForwardingEngine(mpsc::Sender<BuildRequest>);
 
 #[async_trait]
 impl SequencerEngineClient for ForwardingEngine {
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
-        panic!("the sequencer resets the engine only on errors these tests do not cause")
-    }
-
     async fn start_build_block(
         &self,
         _attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId> {
-        self.request(EngineRequest::Build).await
+        let (tx, rx) = oneshot::channel();
+        self.0.send(tx).await.unwrap();
+        rx.await.unwrap()
     }
 
     async fn seal_and_canonicalize_block(
@@ -188,7 +172,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
         signer,
     ));
     handle.start().await.unwrap();
-    let EngineRequest::Build(build) = requests.recv().await.unwrap();
+    let build = requests.recv().await.unwrap();
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
     assert!(build.is_closed());

@@ -277,7 +277,7 @@ where
     ) -> Result<Option<UnsealedPayloadHandle>, ActorError> {
         let unsafe_head = self.engine_client.get_unsafe_head().await?;
 
-        let Some(l1_origin) = self.get_next_payload_l1_origin(unsafe_head).await? else {
+        let Some(l1_origin) = self.get_next_payload_l1_origin(unsafe_head)? else {
             // Temporary error - retry on next tick.
             return Ok(None);
         };
@@ -313,7 +313,10 @@ where
 
     /// Determines and validates the L1 origin block for the provided L2 unsafe head.
     /// Returns `Ok(None)` for temporary errors that should be retried.
-    async fn get_next_payload_l1_origin(
+    ///
+    /// L1 reorging out the unsafe head's L1 origin is one: the engine resets for it once it checks
+    /// the L1 head.
+    fn get_next_payload_l1_origin(
         &self,
         unsafe_head: L2BlockInfo,
     ) -> Result<Option<BlockInfo>, ActorError> {
@@ -323,9 +326,8 @@ where
                 warn!(
                     target: "sequencer",
                     ?origin,
-                    "L1 reorged out the unsafe head's L1 origin, resetting engine"
+                    "L1 reorged out the unsafe head's L1 origin; waiting for the engine to reset"
                 );
-                self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);
             }
             Err(OriginError::Unavailable) => {
@@ -343,9 +345,8 @@ where
                 l1_origin = ?l1_origin,
                 unsafe_head_hash = %unsafe_head.l1_origin.hash,
                 unsafe_head_l1_origin = ?unsafe_head.l1_origin,
-                "Cannot build new L2 block on inconsistent L1 origin, resetting engine"
+                "Cannot build new L2 block on inconsistent L1 origin; retrying"
             );
-            self.engine_client.reset_engine_forkchoice().await?;
             return Ok(None);
         }
         Ok(Some(l1_origin))
@@ -368,16 +369,10 @@ where
                 // Temporary error - retry on next tick.
                 return Ok(None);
             }
-            Err(PipelineErrorKind::Reset(_)) => {
-                if let Err(err) = self.engine_client.reset_engine_forkchoice().await {
-                    error!(target: "sequencer", ?err, "Failed to reset engine");
-                    return Err(ActorError::ChannelClosed);
-                }
-
-                warn!(
-                    target: "sequencer",
-                    "Resetting engine due to pipeline error while preparing payload attributes"
-                );
+            Err(PipelineErrorKind::Reset(err)) => {
+                // Typically an L1 reorg under the origin, for which the engine resets once it
+                // checks the L1 head.
+                warn!(target: "sequencer", ?err, "Failed to prepare payload attributes; retrying");
                 return Ok(None);
             }
             Err(err @ PipelineErrorKind::Critical(_)) => {

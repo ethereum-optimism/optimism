@@ -118,16 +118,12 @@ mod tests {
         time::Duration,
     };
 
-    /// Completes the sequencer's startup reset and reports a fixed unsafe head.
+    /// Reports a fixed unsafe head.
     #[derive(Debug)]
     struct IdleEngine;
 
     #[async_trait]
     impl SequencerEngineClient for IdleEngine {
-        async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
-            Ok(())
-        }
-
         async fn start_build_block(
             &self,
             _attributes: OpAttributesWithParent,

@@ -7,9 +7,6 @@ pub enum ActorError {
     /// An error occurred while building payload attributes.
     #[error(transparent)]
     AttributesBuilder(#[from] PipelineErrorKind),
-    /// A channel was unexpectedly closed.
-    #[error("Channel closed unexpectedly")]
-    ChannelClosed,
     /// The origin actor stopped.
     #[error("the origin actor stopped")]
     OriginStopped,
