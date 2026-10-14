@@ -10,13 +10,13 @@ use super::{
     sync::find_starting_forkchoice,
 };
 use crate::{Metrics, l1};
-use alloy_eips::BlockId;
+use alloy_eips::{BlockId, BlockNumHash};
 use alloy_rpc_types_engine::{
     ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
 };
 use alloy_rpc_types_eth::Block as RpcBlock;
 use kona_genesis::RollupConfig;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_sources::EngineApi;
 use op_alloy_consensus::OpBlock;
 use op_alloy_rpc_types::Transaction;
@@ -117,11 +117,15 @@ impl Backoff {
 /// temporary failures in place with backoff, so later requests wait in the handle's bounded queue.
 /// An operation that keeps failing for [`TASK_RETRY_TIMEOUT`] is abandoned and the engine is
 /// reset; a reset retries until it succeeds.
+///
+/// From its first reset, the engine also follows L1: whenever the L1 head or the L1 blocks its
+/// heads rest on change, it resets if L1 reorged out one of those blocks.
 #[derive(Debug)]
 struct Actor {
     /// The Engine API client.
     client: Arc<EngineApi>,
-    /// The L1 chain, which a reset checks to find a plausible forkchoice.
+    /// The L1 chain, which a reset checks to find a plausible forkchoice, and which the engine
+    /// follows for reorgs.
     l1: l1::Handle,
     /// The rollup configuration.
     config: Arc<RollupConfig>,
@@ -132,6 +136,12 @@ struct Actor {
     /// Whether the engine has sent the execution layer a forkchoice. It starts from the execution
     /// layer's own heads, which it has not chosen until it sends them.
     forkchoice_sent: bool,
+    /// Whether the engine follows L1 reorgs. It does from its first reset, which checks the
+    /// execution layer's heads it starts from against L1.
+    follows_l1: bool,
+    /// The latest L1 head the engine checked its heads against, and the L1 blocks they rested on
+    /// then. Once its heads rest on other blocks, the engine checks them again.
+    l1_checked: Option<L1Checked>,
     /// Publishes the state to handles.
     state_tx: watch::Sender<EngineState>,
     /// Publishes the state after each reset to handles.
@@ -159,6 +169,8 @@ impl Actor {
             block_sink,
             state,
             forkchoice_sent: false,
+            follows_l1: false,
+            l1_checked: None,
             state_tx,
             resets_tx,
             messages_rx,
@@ -167,57 +179,105 @@ impl Actor {
 
     async fn run(mut self) -> Result<(), ActorError> {
         loop {
-            let message = self.messages_rx.recv().await.ok_or(ActorError::ChannelClosed)?;
-            let result = match message {
-                Message::Build(request) => {
-                    self.handle_build(*request).await;
-                    Ok(())
+            tokio::select! {
+                // Check L1 before more requests, which could otherwise delay it for as long as
+                // they keep coming.
+                biased;
+                checked = Self::next_l1_check(&self.l1, self.state, self.l1_checked), if self.follows_l1 => {
+                    let L1Check { head, reorged } = checked.map_err(|_| ActorError::L1Stopped)?;
+                    if let Some(block) = reorged {
+                        warn!(target: "engine", ?block, l1_head = ?head.id(), "L1 reorged out a block the engine's heads rest on; resetting");
+                        self.reset().await?;
+                    }
+                    self.l1_checked = Some(L1Checked { head, rested_on: rests_on(&self.state) });
                 }
-                Message::Seal(request) => {
-                    self.handle_seal(*request).await;
-                    Ok(())
+                message = self.messages_rx.recv() => {
+                    let message = message.ok_or(ActorError::ChannelClosed)?;
+                    self.handle_message(message).await?;
                 }
-                Message::Consolidate(request) => {
-                    let ConsolidateRequest { attributes, result_tx } = *request;
-                    self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
-                        Box::pin(actor.handle_consolidate(attributes.clone()))
-                    })
-                    .await
-                    .map(|recovery| {
-                        // The reply's state must match the published one.
-                        self.publish_state();
-                        // A caller that stopped waiting does not undo the consolidation.
-                        let _ = result_tx.send(Consolidation {
-                            state: self.state,
-                            flush: recovery == Recovery::Flushed,
-                        });
-                    })
-                }
-                Message::FollowSafeHead(safe_head) => self
-                    .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
-                        Box::pin(actor.handle_follow_safe_head(*safe_head))
-                    })
-                    .await
-                    .map(|_| ()),
-                Message::Finalize(block_id) => self
-                    .retry(Metrics::FINALIZE_TASK_LABEL, |actor| {
-                        Box::pin(actor.handle_finalize(*block_id))
-                    })
-                    .await
-                    .map(|_| ()),
-                Message::InsertUnsafeBlock(payload) => self
-                    .retry(Metrics::INSERT_TASK_LABEL, |actor| {
-                        Box::pin(actor.handle_insert((*payload).clone()))
-                    })
-                    .await
-                    .map(|_| ()),
-                Message::Reset(request) => self.handle_reset(request).await,
-            };
-            // Publish the state even if the request failed: it can update the state before a
-            // later step fails.
-            self.publish_state();
-            result?;
+            }
         }
+    }
+
+    /// Checks the L1 blocks the heads of `state` rest on, which [`rests_on`] lists, against the L1
+    /// head: at once if they are not the blocks `checked` checked, and otherwise once the L1 head
+    /// changes.
+    ///
+    /// A block after the L1 head cannot be checked yet; a later L1 head checks it. A block before
+    /// the finalized L1 block cannot reorg any more, and is not checked again. Cancelling the check
+    /// loses nothing.
+    async fn next_l1_check(
+        l1: &l1::Handle,
+        state: EngineState,
+        checked: Option<L1Checked>,
+    ) -> Result<L1Check, l1::HandleError> {
+        let blocks = rests_on(&state);
+        let head = match checked {
+            Some(checked) if checked.rested_on == blocks => l1.next_head(checked.head).await?,
+            _ => l1.status()?.head,
+        };
+        let finalized = l1.status()?.finalized.number;
+        // The L1 actor reads blocks before the finalized block over RPC.
+        for block in blocks.into_iter().filter(|block| block.number >= finalized) {
+            let canonical = l1.canonical(block.number).await?;
+            if canonical.is_some_and(|canonical| canonical.hash != block.hash) {
+                return Ok(L1Check { head, reorged: Some(block) });
+            }
+        }
+        Ok(L1Check { head, reorged: None })
+    }
+
+    /// Handles a request, and publishes the state afterwards.
+    async fn handle_message(&mut self, message: Message) -> Result<(), ActorError> {
+        let result = match message {
+            Message::Build(request) => {
+                self.handle_build(*request).await;
+                Ok(())
+            }
+            Message::Seal(request) => {
+                self.handle_seal(*request).await;
+                Ok(())
+            }
+            Message::Consolidate(request) => {
+                let ConsolidateRequest { attributes, result_tx } = *request;
+                self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
+                    Box::pin(actor.handle_consolidate(attributes.clone()))
+                })
+                .await
+                .map(|recovery| {
+                    // The reply's state must match the published one.
+                    self.publish_state();
+                    // A caller that stopped waiting does not undo the consolidation.
+                    let _ = result_tx.send(Consolidation {
+                        state: self.state,
+                        flush: recovery == Recovery::Flushed,
+                    });
+                })
+            }
+            Message::FollowSafeHead(safe_head) => self
+                .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
+                    Box::pin(actor.handle_follow_safe_head(*safe_head))
+                })
+                .await
+                .map(|_| ()),
+            Message::Finalize(block_id) => self
+                .retry(Metrics::FINALIZE_TASK_LABEL, |actor| {
+                    Box::pin(actor.handle_finalize(*block_id))
+                })
+                .await
+                .map(|_| ()),
+            Message::InsertUnsafeBlock(payload) => self
+                .retry(Metrics::INSERT_TASK_LABEL, |actor| {
+                    Box::pin(actor.handle_insert((*payload).clone()))
+                })
+                .await
+                .map(|_| ()),
+            Message::Reset(request) => self.handle_reset(request).await,
+        };
+        // Publish the state even if the request failed: it can update the state before a
+        // later step fails.
+        self.publish_state();
+        result
     }
 
     /// Resets the engine and replies with the state afterwards.
@@ -564,6 +624,7 @@ impl Actor {
         }
         // The reset's safe head was not derived from a known L1 block.
         self.state = self.state.with_safe_head_source(None);
+        self.follows_l1 = true;
         // Readers that follow the engine's chain start over from the reset's safe head. The reset
         // is published before the reply to the request that caused it, and after the state, so a
         // reader that sees the reset finds no older state left to read.
@@ -975,6 +1036,32 @@ impl Actor {
 
         Ok(true)
     }
+}
+
+/// Returns the L1 blocks the heads of `state` rest on: the unsafe head's L1 origin, and the L1
+/// block the safe head was derived from, or the safe head's L1 origin where that is unknown.
+fn rests_on(state: &EngineState) -> [BlockNumHash; 2] {
+    let safe =
+        state.safe_head_source().map_or_else(|| state.safe_head().l1_origin, |source| source.id());
+    [state.unsafe_head().l1_origin, safe]
+}
+
+/// An L1 head the engine checked its heads against, and the L1 blocks they rested on.
+#[derive(Debug, Clone, Copy)]
+struct L1Checked {
+    /// The L1 head checked against.
+    head: BlockInfo,
+    /// The L1 blocks the heads rested on, as [`rests_on`] lists them.
+    rested_on: [BlockNumHash; 2],
+}
+
+/// What checking the engine's heads against an L1 head found.
+#[derive(Debug)]
+struct L1Check {
+    /// The L1 head checked against.
+    head: BlockInfo,
+    /// The block the heads rest on that L1 reorged out, if any.
+    reorged: Option<BlockNumHash>,
 }
 
 /// How an operation completed after [`Actor::retry`].

@@ -33,6 +33,9 @@ pub enum ActorError {
     /// Closed channel error.
     #[error("a channel has been closed unexpectedly")]
     ChannelClosed,
+    /// The L1 actor stopped.
+    #[error("the L1 actor stopped")]
+    L1Stopped,
     /// Engine reset error.
     #[error(transparent)]
     EngineReset(#[from] EngineResetError),

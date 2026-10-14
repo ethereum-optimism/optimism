@@ -37,7 +37,7 @@ This allows operations to signal different recovery strategies based on the erro
 
 ## Operations
 
-The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineApi`, which talks only to the Engine API; a reset also asks the L1 actor's handle whether L1 origins are canonical. Tests supply a mock transport to the same client, and a test L1 chain to the handle.
+The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering among requests. They use the concrete `EngineApi`, which talks only to the Engine API; a reset, and following L1, also ask the L1 actor's handle whether L1 blocks are canonical. Tests supply a mock transport to the same client, and a test L1 chain to the handle.
 
 Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
@@ -50,6 +50,10 @@ Each operation updates the execution layer's forkchoice state with `engine_forkc
 - **`reset`** finds a plausible sync starting point: it walks the unsafe head back until its L1 origin is the canonical L1 block at that height, or is after the L1 actor's head, where it may yet be. An origin L1 reorged out does not count, though L1 may still serve it by hash. The reset reorgs the execution layer to it, publishes the reset, and replies with the engine state. **`reset_if_el_synced`** first sends the current forkchoice again, and does the same only if the execution layer answers VALID; otherwise it is refused with `EngineClientError::ElSyncing`, so a reset never points a syncing execution layer back at its own stale heads. A forkchoice the execution layer rejects lets the reset proceed, because the reset replaces it. Before the engine has sent any forkchoice, there is none to send again, and the reset is refused. Derivation starts with this reset.
 
 After Holocene, a sealed payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the consolidation's reply tells derivation to flush its channel.
+
+### Following L1
+
+From its first reset, the engine follows L1 reorgs itself. It checks the L1 blocks its heads rest on against the L1 head: the unsafe head's L1 origin, and the L1 block the safe head was derived from, or the safe head's L1 origin where that is unknown. It checks them whenever the L1 actor's head changes, and at once whenever its heads come to rest on other L1 blocks, such as a safe head derived from data read before an L1 reorg. If L1 has another block at the height of either, the engine resets. An L1 origin after the L1 head cannot be checked yet, and a later L1 head checks it; a block before the finalized L1 block cannot reorg any more, and is not checked again. Before its first reset, the engine's heads are the execution layer's own, unchecked, and the first reset checks them against L1. The engine checks L1 before further requests; a request that arrives while a check waits on L1 runs first, and the check is done again after it.
 
 ## Engine State Management
 
@@ -98,8 +102,9 @@ let state = engine::execution_layer_state(&rollup_config, &client).await?;
 let builder = engine::Builder::new(state);
 let handle = builder.handle();
 
-// Supply the dependencies and spawn the actor's lifetime future. A reset asks the L1 actor,
-// through `l1`, whether L1 origins are canonical to find a plausible sync starting point.
+// Supply the dependencies and spawn the actor's lifetime future. The engine asks the L1 actor,
+// through `l1`, whether L1 blocks are canonical, to find a plausible sync starting point on a
+// reset and to follow L1 reorgs.
 let actor = builder.build(Arc::new(client), l1, rollup_config, block_sink);
 tokio::spawn(actor);
 ```

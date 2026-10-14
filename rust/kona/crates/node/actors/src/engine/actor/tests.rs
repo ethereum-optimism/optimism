@@ -5,7 +5,10 @@ use crate::{
         NoopBlockSink, SyncStartError,
         test_utils::{TestAttributesBuilder, test_block_info},
     },
-    l1::{self, test_utils::TestChain},
+    l1::{
+        self,
+        test_utils::{TestChain, descendants},
+    },
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, FixedBytes, b256};
@@ -78,8 +81,13 @@ fn clients(config: Arc<RollupConfig>) -> (Clients, RpcMock) {
 /// Returns an actor's clients, with the scripted L2 transport behind them, and an L1 chain of
 /// `l1`, oldest first; the oldest is finalized.
 fn clients_on_l1(config: Arc<RollupConfig>, l1: &[BlockInfo]) -> (Clients, RpcMock) {
+    clients_with_l1(config, TestChain::fixed(l1))
+}
+
+/// Returns an actor's clients, with the scripted L2 transport behind them, and `l1`.
+fn clients_with_l1(config: Arc<RollupConfig>, l1: l1::Handle) -> (Clients, RpcMock) {
     let (engine, l2) = test_engine_api(config);
-    (Clients { engine, l1: TestChain::fixed(l1) }, l2)
+    (Clients { engine, l1 }, l2)
 }
 
 /// Returns an actor that is not running, for calling its methods directly, with the receiver of
@@ -94,10 +102,9 @@ fn actor(
     let (resets_tx, _) = watch::channel(state);
     let (_, messages_rx) = mpsc::channel(1);
     let Clients { engine, l1 } = clients;
-    (
-        Actor::new(Arc::new(engine), l1, config, block_sink, state_tx, resets_tx, messages_rx),
-        state_rx,
-    )
+    let actor =
+        Actor::new(Arc::new(engine), l1, config, block_sink, state_tx, resets_tx, messages_rx);
+    (actor, state_rx)
 }
 
 /// Spawns an actor with the initial engine state and returns its handle and task.
@@ -106,10 +113,21 @@ fn spawn(
     config: Arc<RollupConfig>,
     state: EngineState,
 ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
+    spawn_with(clients, config, state, false)
+}
+
+/// Spawns an actor with the initial engine state, following L1 from the start if `follows_l1`,
+/// as after its first reset, and returns its handle and task.
+fn spawn_with(
+    clients: Clients,
+    config: Arc<RollupConfig>,
+    state: EngineState,
+    follows_l1: bool,
+) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
     let (resets_tx, resets_rx) = watch::channel(state);
-    let actor = Actor::new(
+    let mut actor = Actor::new(
         Arc::new(clients.engine),
         clients.l1,
         config,
@@ -118,6 +136,7 @@ fn spawn(
         resets_tx,
         messages_rx,
     );
+    actor.follows_l1 = follows_l1;
     (Handle::new(messages, state_rx, resets_rx), tokio::spawn(actor.run()))
 }
 
@@ -581,11 +600,154 @@ async fn reset_forgets_the_safe_head_source() {
     let (mut actor, _) = actor(clients, config, EngineState::default(), Arc::new(NoopBlockSink));
 
     actor.reset().await.unwrap();
+    // From its first reset, the engine follows L1.
+    assert!(actor.follows_l1);
     actor.state =
         actor.state.with_safe_head_source(Some(BlockInfo { number: 1, ..Default::default() }));
     actor.reset().await.unwrap();
 
     assert_eq!(actor.state.safe_head_source(), None);
+    l2.assert_finished();
+}
+
+/// Which block of an engine state's heads an L1 block is.
+#[derive(Debug, Clone, Copy)]
+enum RestsOn {
+    /// The unsafe head's L1 origin.
+    UnsafeOrigin,
+    /// The L1 block the safe head was derived from.
+    SafeSource,
+    /// The safe head's L1 origin, whose source is unknown.
+    SafeOrigin,
+}
+
+/// Returns an engine state whose heads rest on `block` as `rests_on` says, and otherwise on the
+/// default L1 block.
+fn resting_on(block: BlockInfo, rests_on: RestsOn) -> EngineState {
+    let on = |origin: BlockInfo| L2BlockInfo { l1_origin: origin.id(), ..Default::default() };
+    let state = TestEngineStateBuilder::new()
+        .with_safe_head(L2BlockInfo::default())
+        .with_finalized_head(L2BlockInfo::default());
+    match rests_on {
+        RestsOn::UnsafeOrigin => state.with_unsafe_head(on(block)).build(),
+        RestsOn::SafeSource => state.build().with_safe_head_source(Some(block)),
+        RestsOn::SafeOrigin => state.with_safe_head(on(block)).build(),
+    }
+}
+
+/// Lets the actor handle what changed.
+async fn settle() {
+    time::sleep(Duration::from_secs(1)).await;
+}
+
+/// Waits for the engine's next reset, and returns its state.
+async fn next_reset(resets: &mut watch::Receiver<EngineState>) -> EngineState {
+    time::timeout(Duration::from_secs(10), resets.changed()).await.unwrap().unwrap();
+    *resets.borrow_and_update()
+}
+
+/// From its first reset, the engine resets when L1 reorgs out a block its heads rest on.
+#[rstest]
+#[case::unsafe_origin(RestsOn::UnsafeOrigin)]
+#[case::safe_source(RestsOn::SafeSource)]
+#[case::safe_origin(RestsOn::SafeOrigin)]
+#[tokio::test(start_paused = true)]
+async fn resets_when_l1_reorgs_out_a_block_its_heads_rest_on(#[case] rests_on: RestsOn) {
+    let config = config();
+    let first = descendants(&BlockInfo::default(), 3, 1);
+    let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first].concat());
+    let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
+    let (handle, actor) = spawn_with(clients, config.clone(), resting_on(first[1], rests_on), true);
+    let mut resets = handle.resets();
+    settle().await;
+    assert!(!resets.has_changed().unwrap());
+
+    // L1 replaces the block, and the engine resets onto the default L2 block.
+    let second = descendants(&first[0], 3, 2);
+    expect_reset(&l2, Duration::ZERO);
+    l1.set_head(&second);
+    let reset = next_reset(&mut resets).await;
+    assert_eq!(reset.unsafe_head().block_info.hash, config.genesis.l2.hash);
+    actor.abort();
+    l2.assert_finished();
+}
+
+/// Heads that come to rest on an L1 block L1 already reorged out, such as a safe head derived from
+/// data read before the reorg, are checked at once, without waiting for another L1 head.
+#[tokio::test(start_paused = true)]
+async fn checks_heads_that_change_between_l1_heads() {
+    let config = config();
+    let first = descendants(&BlockInfo::default(), 3, 1);
+    let second = descendants(&first[0], 2, 2);
+    let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first[..1], &second].concat());
+    let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
+    let (handle, actor) = spawn_with(clients, config.clone(), EngineState::default(), true);
+    let mut resets = handle.resets();
+    settle().await;
+
+    // A safe head on the replaced block.
+    let safe_head = L2BlockInfo {
+        block_info: BlockInfo { number: 1, ..Default::default() },
+        l1_origin: first[1].id(),
+        seq_num: 0,
+    };
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
+    expect_reset(&l2, Duration::ZERO);
+    handle.follow_safe_head(safe_head).await.unwrap();
+    let reset = next_reset(&mut resets).await;
+    assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
+    actor.abort();
+    l2.assert_finished();
+}
+
+/// An L1 origin after the L1 head cannot be checked yet. The engine checks it once L1 reaches its
+/// height, and resets if L1 has another block there.
+#[tokio::test(start_paused = true)]
+async fn checks_an_l1_origin_after_the_l1_head_once_l1_reaches_it() {
+    let config = config();
+    let first = descendants(&BlockInfo::default(), 4, 1);
+    let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first[..3]].concat());
+    let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
+    let state = resting_on(first[3], RestsOn::UnsafeOrigin);
+    let (handle, actor) = spawn_with(clients, config, state, true);
+    let mut resets = handle.resets();
+    settle().await;
+
+    // L1 reaches the origin.
+    l1.set_head(&first[3..]);
+    settle().await;
+    assert!(!resets.has_changed().unwrap());
+
+    // L1 replaces the origin.
+    let second = descendants(&first[2], 2, 2);
+    expect_reset(&l2, Duration::ZERO);
+    l1.set_head(&second);
+    next_reset(&mut resets).await;
+    actor.abort();
+    l2.assert_finished();
+}
+
+/// The engine follows L1 only from its first reset. Until then its heads are the execution layer's
+/// own, unchecked, and the first reset checks them against L1.
+#[tokio::test(start_paused = true)]
+async fn follows_l1_only_from_its_first_reset() {
+    let config = config();
+    let first = descendants(&BlockInfo::default(), 3, 1);
+    let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first].concat());
+    let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
+    let state = resting_on(first[1], RestsOn::UnsafeOrigin);
+    let (handle, actor) = spawn(clients, config, state);
+    let resets = handle.resets();
+
+    // L1 replaces the unsafe head's origin, which the engine does not check yet.
+    let second = descendants(&first[0], 3, 2);
+    l1.set_head(&second);
+    time::sleep(Duration::from_secs(60)).await;
+    assert!(!resets.has_changed().unwrap());
+    actor.abort();
     l2.assert_finished();
 }
 
