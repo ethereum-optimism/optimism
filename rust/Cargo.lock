@@ -7504,6 +7504,7 @@ dependencies = [
  "anyhow",
  "clap",
  "enr 0.14.0",
+ "humantime",
  "kona-cli",
  "kona-derive",
  "kona-disc",

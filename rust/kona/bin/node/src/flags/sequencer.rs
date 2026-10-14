@@ -45,14 +45,15 @@ pub struct SequencerArgs {
     #[arg(long = "sequencer.conductor.url", env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL")]
     pub conductor_url: Option<Url>,
 
-    /// How long a conductor request may take, in milliseconds, before it fails and the sequencer
-    /// tries again later. op-node's `--conductor.rpc-timeout` defaults to the same second.
+    /// How long a conductor request may take before it fails and the sequencer tries again later,
+    /// such as `500ms` or `2s`. op-node's `--conductor.rpc-timeout` defaults to the same second.
     #[arg(
-        long = "sequencer.conductor-timeout-ms",
-        default_value = "1000",
-        env = "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS"
+        long = "sequencer.conductor.timeout",
+        default_value = "1s",
+        env = "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT",
+        value_parser = humantime::parse_duration
     )]
-    pub conductor_timeout_ms: u64,
+    pub conductor_timeout: Duration,
 }
 
 impl Default for SequencerArgs {
@@ -88,7 +89,7 @@ impl SequencerArgs {
         Ok(Some(SequencerConfig {
             signer,
             conductor_rpc_url: self.conductor_url,
-            conductor_rpc_timeout: Duration::from_millis(self.conductor_timeout_ms),
+            conductor_rpc_timeout: self.conductor_timeout,
             l1_conf_delay: self.l1_confs,
         }))
     }
@@ -147,7 +148,7 @@ mod tests {
         ),
         ("sequencer.l1-confs", "2", &LOCAL),
         ("sequencer.conductor.url", "http://127.0.0.1:4", &LOCAL),
-        ("sequencer.conductor-timeout-ms", "500", &LOCAL),
+        ("sequencer.conductor.timeout", "500ms", &LOCAL),
     ];
 
     fn parse(args: &[&str]) -> Result<SequencerArgs, clap::Error> {
@@ -201,6 +202,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!((config.conductor_rpc_url, config.l1_conf_delay), (None, 4));
+        assert_eq!(config.conductor_rpc_timeout, Duration::from_secs(1));
 
         let config = parse(&[
             "--sequencer.enabled",
@@ -210,11 +212,14 @@ mod tests {
             "2",
             "--sequencer.conductor.url",
             "http://127.0.0.1:4",
+            "--sequencer.conductor.timeout",
+            "250ms",
         ])
         .unwrap()
         .config()
         .unwrap()
         .unwrap();
+        assert_eq!(config.conductor_rpc_timeout, Duration::from_millis(250));
         assert_eq!(config.conductor_rpc_url, Some("http://127.0.0.1:4".parse().unwrap()));
         assert_eq!(config.l1_conf_delay, 2);
     }

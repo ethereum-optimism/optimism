@@ -115,7 +115,10 @@ impl NodeCommand {
                     self.p2p_flags.peer_redial.unwrap_or(0).to_string()
                 ),
                 (CliMetrics::P2P_FLOOD_PUBLISH, self.p2p_flags.gossip_flood_publish.to_string()),
-                (CliMetrics::P2P_DISCOVERY_INTERVAL, self.p2p_flags.discovery_interval.to_string()),
+                (
+                    CliMetrics::P2P_DISCOVERY_INTERVAL,
+                    humantime::format_duration(self.p2p_flags.discovery_interval).to_string()
+                ),
                 (
                     CliMetrics::P2P_ADVERTISE_IP,
                     self.p2p_flags
@@ -139,7 +142,10 @@ impl NodeCommand {
                 (CliMetrics::P2P_GOSSIP_MESH_D_LO, self.p2p_flags.gossip_mesh_dlo.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D_HI, self.p2p_flags.gossip_mesh_dhi.to_string()),
                 (CliMetrics::P2P_GOSSIP_MESH_D_LAZY, self.p2p_flags.gossip_mesh_dlazy.to_string()),
-                (CliMetrics::P2P_BAN_DURATION, self.p2p_flags.ban_duration.to_string()),
+                (
+                    CliMetrics::P2P_BAN_DURATION,
+                    humantime::format_duration(self.p2p_flags.ban_duration).to_string()
+                ),
             ]
         )
         .set(1);

@@ -45,6 +45,7 @@ url.workspace = true
 enr.workspace = true
 libp2p.workspace = true
 anyhow.workspace = true
+humantime.workspace = true
 metrics.workspace = true
 reqwest.workspace = true
 tracing.workspace = true

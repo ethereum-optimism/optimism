@@ -13,6 +13,8 @@ This document lists all CLI flags for the `kona-node node` subcommand, grouped b
 For more details on each flag, see the inline help (`kona-node node --help`) or the source code.
 </Note>
 
+Flags that take a duration accept a number and a unit, such as `500ms`, `5s`, `30m` or `1h`.
+
 ## Default Ports
 
 <KonaNodePorts />
@@ -88,14 +90,14 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
 | `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
-| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `60` |
-| `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
+| `--p2p.ban.duration <DURATION>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `1h` |
+| `--p2p.discovery.interval <DURATION>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5s` |
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
-| `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
+| `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `1h` |
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
-| `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
+| `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
 
 ## RPC Arguments
 
@@ -131,7 +133,7 @@ A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled` 
 | `--sequencer.signer.tls.key-path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_KEY_PATH` | Private key of the client certificate. Requires `--sequencer.signer.tls.cert-path` | - |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.conductor.url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
-| `--sequencer.conductor-timeout-ms <MS>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS` | How long a conductor request may take before it fails and the sequencer tries again later | `1000` |
+| `--sequencer.conductor.timeout <DURATION>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT` | How long a conductor request may take before it fails and the sequencer tries again later | `1s` |
 
 ## Logging Arguments
 

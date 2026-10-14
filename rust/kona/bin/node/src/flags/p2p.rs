@@ -143,21 +143,26 @@ pub struct P2PArgs {
     #[arg(long = "p2p.ban.threshold", default_value = "-100", env = "KONA_NODE_P2P_BAN_THRESHOLD")]
     pub ban_threshold: i64,
 
-    /// The duration in minutes to ban a peer for.
+    /// How long to ban a peer for, such as `30m` or `1h`.
     ///
     /// For peers to be banned, the `p2p.ban.peers` flag must be set to `true`.
     /// By default peers are banned for 1 hour. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L131-L138>`.
-    #[arg(long = "p2p.ban.duration", default_value = "60", env = "KONA_NODE_P2P_BAN_DURATION")]
-    pub ban_duration: u64,
+    #[arg(
+        long = "p2p.ban.duration",
+        default_value = "1h",
+        env = "KONA_NODE_P2P_BAN_DURATION",
+        value_parser = humantime::parse_duration
+    )]
+    pub ban_duration: Duration,
 
-    /// The interval in seconds to find peers using the discovery service.
-    /// Defaults to 5 seconds.
+    /// How often to find peers using the discovery service, such as `5s`.
     #[arg(
         long = "p2p.discovery.interval",
-        default_value = "5",
-        env = "KONA_NODE_P2P_DISCOVERY_INTERVAL"
+        default_value = "5s",
+        env = "KONA_NODE_P2P_DISCOVERY_INTERVAL",
+        value_parser = humantime::parse_duration
     )]
-    pub discovery_interval: u64,
+    pub discovery_interval: Duration,
     /// The directory to store the bootstore.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
@@ -170,11 +175,16 @@ pub struct P2PArgs {
     #[arg(long = "p2p.redial", env = "KONA_NODE_P2P_REDIAL", default_value = "500")]
     pub peer_redial: Option<u64>,
 
-    /// The duration in minutes of the peer dial period.
+    /// The peer dial period, such as `1h`.
     /// When the last time a peer was dialed is longer than the dial period, the number of peer
     /// dials is reset to 0, allowing the peer to be dialed again.
-    #[arg(long = "p2p.redial.period", env = "KONA_NODE_P2P_REDIAL_PERIOD", default_value = "60")]
-    pub redial_period: u64,
+    #[arg(
+        long = "p2p.redial.period",
+        env = "KONA_NODE_P2P_REDIAL_PERIOD",
+        default_value = "1h",
+        value_parser = humantime::parse_duration
+    )]
+    pub redial_period: Duration,
 
     /// An optional list of bootnode ENRs or node records to start the node with.
     #[arg(long = "p2p.bootnodes", value_delimiter = ',', env = "KONA_NODE_P2P_BOOTNODES")]
@@ -199,12 +209,16 @@ pub struct P2PArgs {
 
     /// An optional flag to remove random peers from discovery to rotate the peer set.
     ///
-    /// This is the number of seconds to wait before removing a peer from the discovery
-    /// service. By default, peers are not removed from the discovery service.
+    /// This is how long to wait before removing a peer from the discovery service, such as `30s`.
+    /// By default, peers are not removed from the discovery service.
     ///
     /// This is useful for discovering a wider set of peers.
-    #[arg(long = "p2p.discovery.randomize", env = "KONA_NODE_P2P_DISCOVERY_RANDOMIZE")]
-    pub discovery_randomize: Option<u64>,
+    #[arg(
+        long = "p2p.discovery.randomize",
+        env = "KONA_NODE_P2P_DISCOVERY_RANDOMIZE",
+        value_parser = humantime::parse_duration
+    )]
+    pub discovery_randomize: Option<Duration>,
 }
 
 impl Default for P2PArgs {
@@ -295,7 +309,7 @@ impl P2PArgs {
             .build()?;
 
         let monitor_peers = self.ban_enabled.then_some(PeerMonitoring {
-            ban_duration: Duration::from_secs(60 * self.ban_duration),
+            ban_duration: self.ban_duration,
             ban_threshold: self.ban_threshold as f64,
         });
 
@@ -317,9 +331,9 @@ impl P2PArgs {
 
         Ok(NetworkConfig {
             discovery_config,
-            discovery_interval: Duration::from_secs(self.discovery_interval),
+            discovery_interval: self.discovery_interval,
             discovery_address,
-            discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
+            discovery_randomize: self.discovery_randomize,
             enr_update: !static_ip,
             gossip_address,
             keypair,
@@ -330,7 +344,7 @@ impl P2PArgs {
             topic_scoring: self.topic_scoring,
             gater_config: GaterConfig {
                 peer_redialing: self.peer_redial,
-                dial_period: Duration::from_secs(60 * self.redial_period),
+                dial_period: self.redial_period,
             },
             bootnodes,
             rollup_config: config.clone(),
@@ -459,8 +473,8 @@ mod tests {
 
     #[test]
     fn test_p2p_args_randomized() {
-        let args = MockCommand::parse_from(["test", "--p2p.discovery.randomize", "10"]);
-        assert_eq!(args.p2p.discovery_randomize, Some(10));
+        let args = MockCommand::parse_from(["test", "--p2p.discovery.randomize", "10s"]);
+        assert_eq!(args.p2p.discovery_randomize, Some(Duration::from_secs(10)));
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p.discovery_randomize, None);
     }
