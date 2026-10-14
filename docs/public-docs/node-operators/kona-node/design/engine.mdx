@@ -88,14 +88,12 @@ The engine actor receives all state-mutating input through its handle: payload a
 ### Basic Engine Setup
 
 ```rust
-// Create the concrete engine client through `EngineClientBuilder`.
-let client = EngineClientBuilder {
-    l2: l2_engine_url,
-    l2_jwt: jwt_secret,
-    l1_rpc: l1_rpc_url,
-    cfg: rollup_config.clone(),
-}
-.build();
+// Create the concrete engine client from an authenticated Engine API provider.
+let client = EngineClient::new(
+    l1_provider,
+    EngineClient::rpc_client(l2_engine_url, jwt_secret),
+    rollup_config.clone(),
+);
 
 // Create the request queue and state publisher, and hand out handles.
 let builder = engine::Builder::new(capacity);

@@ -272,31 +272,6 @@ impl Provider<Optimism> for EngineClient {
     }
 }
 
-/// Connection settings for an [`EngineClient`].
-#[derive(Debug, Clone)]
-pub struct EngineClientBuilder {
-    /// The L2 Engine API endpoint URL.
-    pub l2: Url,
-    /// The L2 JWT secret.
-    pub l2_jwt: JwtSecret,
-    /// The L1 RPC URL.
-    pub l1_rpc: Url,
-    /// The rollup configuration.
-    pub cfg: Arc<RollupConfig>,
-}
-
-impl EngineClientBuilder {
-    /// Connects to the authenticated L2 engine and unauthenticated L1 RPC. Each request has a
-    /// deadline.
-    pub fn build(self) -> EngineClient {
-        let engine = EngineClient::rpc_client(self.l2, self.l2_jwt);
-        let l1_provider = RootProvider::new(
-            ClientBuilder::default().layer(MapFutureLayer::new(with_deadline)).http(self.l1_rpc),
-        );
-        EngineClient::new(l1_provider, engine, self.cfg)
-    }
-}
-
 #[cfg(test)]
 mod request_duration_tests {
     use super::*;
@@ -348,6 +323,8 @@ mod request_duration_tests {
 #[cfg(test)]
 mod deadline_tests {
     use super::*;
+    use alloy_rpc_client::RpcClient;
+    use alloy_transport::mock::Asserter;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -401,26 +378,20 @@ mod deadline_tests {
         b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"
     )]
     #[tokio::test]
-    async fn stalled_engine_and_l1_requests_have_a_deadline(#[case] response: &'static [u8]) {
+    async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let client = Arc::new(
-            EngineClientBuilder {
-                l2: stalled_endpoint(response, answered_tx.clone()).await,
-                l2_jwt: JwtSecret::random(),
-                l1_rpc: stalled_endpoint(response, answered_tx).await,
-                cfg: Arc::new(RollupConfig::default()),
-            }
-            .build(),
+        let engine = EngineClient::rpc_client(
+            stalled_endpoint(response, answered_tx).await,
+            JwtSecret::random(),
+        );
+        let client = EngineClient::new(
+            RootProvider::new(RpcClient::mocked(Asserter::new())),
+            engine,
+            Arc::new(RollupConfig::default()),
         );
 
-        let engine = client.clone();
         fails_at_deadline(
-            async move { engine.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
-            &mut answered,
-        )
-        .await;
-        fails_at_deadline(
-            async move { client.get_l1_block(BlockId::latest()).await.is_err() },
+            async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
             &mut answered,
         )
         .await;
