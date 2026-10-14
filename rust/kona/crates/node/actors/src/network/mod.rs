@@ -25,5 +25,4 @@ mod error;
 pub use error::StartError;
 
 mod handle;
-pub use crate::capacity::{Capacity, InvalidCapacity};
 pub use handle::{Handle, HandleError};

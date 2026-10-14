@@ -16,8 +16,6 @@ pub use error::{ListenProtocol, RollupNodeError};
 
 mod middleware;
 
-pub use kona_node_actors::NodeMode;
-
 mod node;
 pub use node::RollupNode;
 

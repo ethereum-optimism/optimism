@@ -78,6 +78,10 @@ impl Metrics {
     /// Identifier for the counter that tracks the number of times the engine has been reset.
     pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";
 
+    /// Counter for the unsafe blocks received over gossip that the network dropped because the
+    /// engine's queue was full.
+    pub const NETWORK_UNSAFE_BLOCKS_DROPPED: &str = "kona_node_network_unsafe_blocks_dropped_total";
+
     /// Initializes metrics for the node service.
     ///
     /// This does two things:
@@ -157,6 +161,12 @@ impl Metrics {
             metrics::Unit::Count,
             "Engine reset count"
         );
+
+        metrics::describe_counter!(
+            Self::NETWORK_UNSAFE_BLOCKS_DROPPED,
+            metrics::Unit::Count,
+            "Unsafe blocks received over gossip and dropped because the engine was backed up"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -188,5 +198,6 @@ impl Metrics {
 
         // Engine reset count
         metrics::counter!(Self::ENGINE_RESET_COUNT).absolute(0);
+        metrics::counter!(Self::NETWORK_UNSAFE_BLOCKS_DROPPED).absolute(0);
     }
 }

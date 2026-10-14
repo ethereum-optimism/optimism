@@ -162,7 +162,10 @@ address the swarm listens on.
   swarm, passes each valid block it receives to the engine
   actor, publishes the blocks the signer actor signs, dials the
   peers the discovery actor finds, and disconnects peers whose
-  score falls below the ban threshold. `network::Builder::new`
+  score falls below the ban threshold. It never waits on another
+  actor, so that the swarm is always served: it drops a block
+  while the engine's queue is full, and skips asking discovery
+  to ban a disconnected peer while discovery's queue is full. `network::Builder::new`
   takes the listening gossip driver and publishes its state, so
   `network::Handle` is ready before the actor is built. The P2P
   RPC reads the published gossip state and makes changes, such
@@ -170,7 +173,8 @@ address the swarm listens on.
   once the state that follows it is published.
 - The **discovery actor** owns the `discv5` service. It passes
   every valid peer it finds to the network actor, dropping the
-  peer if the network's queue is full, and keeps the bootstore
+  peer if the network's queue is full, passes it the peers in
+  the bootstore at startup, newest first, and keeps the bootstore
   on disk up to date. The P2P RPC queries it, and the network
   actor asks it to ban the addresses of the peers it
   disconnects, through `discovery::Handle`.

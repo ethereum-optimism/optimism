@@ -1,4 +1,6 @@
 mod actor;
 
 mod client;
-pub use client::{DerivationDelegateClientError, DerivationDelegateProvider};
+pub use client::{
+    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
+};

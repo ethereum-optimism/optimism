@@ -16,6 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::RpcClientLayer;
 use alloy_rpc_client::{ClientBuilder, RpcClient};
 use alloy_transport_http::{
     Http,
@@ -226,21 +227,25 @@ impl ReloadingRpcClient {
     /// watching it for changes.
     ///
     /// With a `request_timeout`, each request fails if it does not complete, including reading
-    /// the response, within that time. Clients rebuilt for new TLS files keep it.
+    /// the response, within that time. Every client, including those rebuilt for new TLS files,
+    /// records its requests through `layer`.
     pub fn new(
+        layer: RpcClientLayer,
         endpoint: Url,
         tls: TlsPaths,
         headers: HeaderMap,
         request_timeout: Option<Duration>,
     ) -> Result<Self, ReloadingRpcClientError> {
-        if !tls.is_configured() {
-            let client = build_rpc_client(&endpoint, &tls, &headers, request_timeout)?;
+        let log_endpoint = redacted_url(&endpoint);
+        let settings = ClientSettings { layer, endpoint, tls, headers, request_timeout };
+        if !settings.tls.is_configured() {
+            let client = settings.build()?;
             return Ok(Self { client: Arc::new(RwLock::new(client)), watcher: None });
         }
+        let tls = &settings.tls;
 
         // Like certman, watch before the first load so that a change during the load queues a
         // reload instead of being missed. Events queue in the channel until the thread starts.
-        let log_endpoint = redacted_url(&endpoint);
         let dirs = tls.watch_dirs();
         let names = tls.watched_names();
         let (tx, rx) = mpsc::channel::<()>();
@@ -270,23 +275,12 @@ impl ReloadingRpcClient {
             watcher.watch(dir, RecursiveMode::NonRecursive)?;
         }
 
-        let client =
-            Arc::new(RwLock::new(build_rpc_client(&endpoint, &tls, &headers, request_timeout)?));
+        let client = Arc::new(RwLock::new(settings.build()?));
         let reload_client = Arc::clone(&client);
         let thread_endpoint = log_endpoint.clone();
         std::thread::Builder::new()
             .name("tls-reload".into())
-            .spawn(move || {
-                run_reload_thread(
-                    &rx,
-                    &reload_client,
-                    &endpoint,
-                    &tls,
-                    &headers,
-                    request_timeout,
-                    &thread_endpoint,
-                )
-            })
+            .spawn(move || run_reload_thread(&rx, &reload_client, &settings, &thread_endpoint))
             .map_err(ReloadingRpcClientError::ReloadThread)?;
         tracing::info!(target: "signer", endpoint = %log_endpoint, dirs = ?dirs, "Starting certificate watcher for automatic TLS reload");
 
@@ -315,22 +309,31 @@ pub fn redacted_url(url: &Url) -> String {
     url.to_string()
 }
 
-/// Builds a JSON-RPC client from the current TLS files.
-fn build_rpc_client(
-    endpoint: &Url,
-    tls: &TlsPaths,
-    headers: &HeaderMap,
+/// What a [`ReloadingRpcClient`] builds each of its clients from.
+#[derive(Debug)]
+struct ClientSettings {
+    layer: RpcClientLayer,
+    endpoint: Url,
+    tls: TlsPaths,
+    headers: HeaderMap,
     request_timeout: Option<Duration>,
-) -> Result<RpcClient, ReloadingRpcClientError> {
-    let mut builder = reqwest::Client::builder().default_headers(headers.clone());
-    if let Some(timeout) = request_timeout {
-        builder = builder.timeout(timeout);
+}
+
+impl ClientSettings {
+    /// Builds a JSON-RPC client from the current TLS files.
+    fn build(&self) -> Result<RpcClient, ReloadingRpcClientError> {
+        let mut builder = reqwest::Client::builder().default_headers(self.headers.clone());
+        if let Some(timeout) = self.request_timeout {
+            builder = builder.timeout(timeout);
+        }
+        if self.tls.is_configured() {
+            builder = builder.tls_backend_preconfigured(self.tls.client_config()?);
+        }
+        let http = builder.build()?;
+        Ok(ClientBuilder::default()
+            .layer(self.layer)
+            .transport(Http::with_client(http, self.endpoint.clone()), false))
     }
-    if tls.is_configured() {
-        builder = builder.tls_backend_preconfigured(tls.client_config()?);
-    }
-    let http = builder.build()?;
-    Ok(ClientBuilder::default().transport(Http::with_client(http, endpoint.clone()), false))
 }
 
 /// Whether a watcher event should trigger a reload.
@@ -353,14 +356,11 @@ fn is_reload_trigger(event: &Event, names: &BTreeSet<OsString>) -> bool {
 fn run_reload_thread(
     rx: &Receiver<()>,
     client: &RwLock<RpcClient>,
-    endpoint: &Url,
-    tls: &TlsPaths,
-    headers: &HeaderMap,
-    request_timeout: Option<Duration>,
+    settings: &ClientSettings,
     log_endpoint: &str,
 ) {
     while panic::catch_unwind(AssertUnwindSafe(|| {
-        reload_loop(rx, client, endpoint, tls, headers, request_timeout, log_endpoint);
+        reload_loop(rx, client, settings, log_endpoint);
     }))
     .is_err()
     {
@@ -377,10 +377,7 @@ fn run_reload_thread(
 fn reload_loop(
     rx: &Receiver<()>,
     client: &RwLock<RpcClient>,
-    endpoint: &Url,
-    tls: &TlsPaths,
-    headers: &HeaderMap,
-    request_timeout: Option<Duration>,
+    settings: &ClientSettings,
     log_endpoint: &str,
 ) {
     // When a failure was last logged; set while rebuilds are failing.
@@ -400,7 +397,7 @@ fn reload_loop(
         }
 
         tracing::debug!(target: "signer:certificate-watcher", endpoint = %log_endpoint, "Reloading TLS configuration");
-        match build_rpc_client(endpoint, tls, headers, request_timeout) {
+        match settings.build() {
             Ok(new) => {
                 *client.write().unwrap_or_else(PoisonError::into_inner) = new;
                 failure_logged_at = None;
@@ -615,6 +612,7 @@ mod tests {
             publish(mount, "gen1", "client-a", None, None);
 
             let client = ReloadingRpcClient::new(
+                RpcClientLayer::new("test"),
                 format!("https://127.0.0.1:{port}").parse().unwrap(),
                 TlsPaths {
                     ca_cert: Some(mount.join("ca.crt")),

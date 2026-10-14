@@ -1,6 +1,5 @@
 //! Sequencer construction and execution.
 
-use super::Capacity;
 use crate::{
     SequencerEngineClient,
     engine::{
@@ -29,12 +28,12 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::{
     future::{Future, pending},
     sync::Arc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     select,
     sync::{mpsc, watch},
-    time::Interval,
+    time::{self, Instant},
 };
 
 /// Constructs the handle and task.
@@ -47,8 +46,10 @@ pub struct Builder {
 
 impl Builder {
     /// Creates the builder with its initial state.
-    pub fn new(capacity: Capacity) -> Self {
-        let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
+    ///
+    /// The command queue holds one command: each command waits for its reply anyway.
+    pub fn new() -> Self {
+        let (messages_tx, messages_rx) = mpsc::channel(1);
         let (is_active_tx, is_active_rx) = watch::channel(false);
         Self { handle: Handle::new(is_active_rx, messages_tx), messages_rx, is_active_tx }
     }
@@ -95,8 +96,14 @@ impl Builder {
     }
 }
 
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The handle to a block that has been started but not sealed.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct UnsealedPayloadHandle {
     /// The [`PayloadId`] of the unsealed payload.
     payload_id: PayloadId,
@@ -144,13 +151,23 @@ where
     rollup_config: Arc<RollupConfig>,
     /// Queues built payloads for signing.
     signer: Signer_,
+}
 
-    /// Ticker that paces block-building attempts.
-    build_ticker: Interval,
-    /// The handle for the payload built on the previous tick that is waiting to be sealed.
-    next_payload_to_seal: Option<UnsealedPayloadHandle>,
-    /// Duration of the most recent seal operation, used to back-pressure the build ticker.
-    last_seal_duration: Duration,
+/// What a build left behind for the next one: the block to seal, and what to time it from.
+#[derive(Debug, PartialEq, Eq)]
+enum LastBuild {
+    /// It left no block to seal.
+    NothingStarted,
+    /// It started this block, which the next build seals. Sealing the block before it took
+    /// `seal_duration`.
+    Started {
+        /// The started block.
+        block: Box<UnsealedPayloadHandle>,
+        /// How long sealing the block before it took.
+        seal_duration: Duration,
+    },
+    /// The engine refused to start a block at this instant.
+    Refused(Instant),
 }
 
 impl<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
@@ -174,7 +191,6 @@ where
         signer: Signer_,
     ) -> Self {
         let is_active = *is_active_tx.borrow();
-        let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         Self {
             messages_rx,
             is_active,
@@ -185,9 +201,6 @@ where
             origin,
             rollup_config,
             signer,
-            build_ticker,
-            next_payload_to_seal: None,
-            last_seal_duration: Duration::ZERO,
         }
     }
 
@@ -471,14 +484,17 @@ where
         self.update_state();
         // Reset the engine state prior to beginning block building.
         self.schedule_initial_reset().await?;
+        let block_time = Duration::from_secs(self.rollup_config.block_time);
+        let mut last = LastBuild::NothingStarted;
         loop {
             select! {
                 // Prioritize messages over block building.
                 biased;
                 Some(message) = self.messages_rx.recv() => self.handle_message(message).await,
-                _ = self.build_ticker.tick(), if self.is_active => self.build().await?,
-                // A stopped actor with no command handles stays pending until dropped.
-                else => pending().await,
+                ready = Self::next_build(self.is_active, &self.signer, &last, block_time) => {
+                    ready.map_err(|error| ActorError::Signer(error.to_string()))?;
+                    last = self.build(last).await?;
+                }
             }
         }
     }
@@ -519,26 +535,62 @@ where
         }
     }
 
-    async fn build(&mut self) -> Result<(), ActorError> {
-        if !self.signer.has_capacity() {
-            warn!(target: "sequencer", "Sequencing tick, signer queue full, not building a block");
-            return Ok(());
+    /// Waits until the next build may start: never while sequencing is stopped, and otherwise once
+    /// both the signer has room for the build's payload and the build is due.
+    ///
+    /// This is the whole of the sequencer's timing. It keeps no state, so it can be dropped at any
+    /// point without losing anything: the signer's `ready` reserves nothing, and the deadline is
+    /// worked out afresh from `last` on every call.
+    async fn next_build(
+        active: bool,
+        signer: &Signer_,
+        last: &LastBuild,
+        block_time: Duration,
+    ) -> Result<(), Signer_::Error> {
+        if !active {
+            return pending().await;
         }
-        info!(target: "sequencer", "Sequencing tick, building block");
-        // Move the pending payload out of self so the &mut self call below doesn't conflict
-        // with the &self read of self.next_payload_to_seal.
-        let pending = self.next_payload_to_seal.take();
-        match self.seal_last_and_start_next(pending.as_ref()).await {
-            Ok(res) => {
-                self.next_payload_to_seal = res.unsealed_payload_handle;
-                self.last_seal_duration = res.seal_duration;
+        let due = match last {
+            // Nothing waits to be sealed, so the next block starts at once.
+            LastBuild::NothingStarted => Instant::now(),
+            // The started block is sealed when its time comes, as early as the last seal took.
+            LastBuild::Started { block, seal_duration } => {
+                let parent_timestamp = block.attributes_with_parent.parent().block_info.timestamp;
+                let timestamp = parent_timestamp.saturating_add(block_time.as_secs());
+                let due = UNIX_EPOCH + Duration::from_secs(timestamp) - *seal_duration;
+                Instant::now() + due.duration_since(SystemTime::now()).unwrap_or_default()
             }
+            // The engine may keep refusing until its state changes, so wait a block time.
+            LastBuild::Refused(at) => *at + block_time,
+        };
+        // The deadline is absolute, so waiting for room and then for it ends at whichever of the
+        // two comes later.
+        signer.ready().await?;
+        time::sleep_until(due).await;
+        Ok(())
+    }
+
+    /// Seals the block the last build started, if any, and starts the next, returning what it
+    /// left behind.
+    async fn build(&mut self, last: LastBuild) -> Result<LastBuild, ActorError> {
+        info!(target: "sequencer", "Sequencing tick, building block");
+        let to_seal = match last {
+            LastBuild::Started { block, .. } => Some(*block),
+            LastBuild::NothingStarted | LastBuild::Refused(_) => None,
+        };
+        match self.seal_last_and_start_next(to_seal.as_ref()).await {
+            Ok(res) => Ok(match res.unsealed_payload_handle {
+                Some(block) => {
+                    LastBuild::Started { block: Box::new(block), seal_duration: res.seal_duration }
+                }
+                None => LastBuild::NothingStarted,
+            }),
             Err(ActorError::EngineError(EngineClientError::SealError(err))) => {
                 if is_seal_task_err_fatal(&err) {
                     error!(target: "sequencer", err=?err, "Critical seal task error occurred");
                     return Err(ActorError::EngineError(EngineClientError::SealError(err)));
                 }
-                self.next_payload_to_seal = None;
+                Ok(LastBuild::NothingStarted)
             }
             Err(ActorError::EngineError(EngineClientError::StartBuildError(err))) => {
                 if is_build_task_err_fatal(&err) {
@@ -546,36 +598,13 @@ where
                     return Err(ActorError::EngineError(EngineClientError::StartBuildError(err)));
                 }
                 warn!(target: "sequencer", err=?err, "Failed to start building a block");
-                self.next_payload_to_seal = None;
-                // Wait a block time instead of retrying immediately: the engine may keep rejecting
-                // the build until its state changes.
-                self.build_ticker.reset();
-                return Ok(());
+                Ok(LastBuild::Refused(Instant::now()))
             }
             Err(other_err) => {
                 error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
-                return Err(other_err);
+                Err(other_err)
             }
         }
-
-        if let Some(payload) = self.next_payload_to_seal.as_ref() {
-            let next_block_seconds = payload
-                .attributes_with_parent
-                .parent()
-                .block_info
-                .timestamp
-                .saturating_add(self.rollup_config.block_time);
-            // next block time is last + block_time - time it takes to seal.
-            let next_block_time =
-                UNIX_EPOCH + Duration::from_secs(next_block_seconds) - self.last_seal_duration;
-            match next_block_time.duration_since(SystemTime::now()) {
-                Ok(duration) => self.build_ticker.reset_after(duration),
-                Err(_) => self.build_ticker.reset_immediately(),
-            };
-        } else {
-            self.build_ticker.reset_immediately();
-        }
-        Ok(())
     }
 }
 

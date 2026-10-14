@@ -16,7 +16,6 @@ pub use error::{
 };
 
 mod handle;
-pub use crate::capacity::{Capacity, InvalidCapacity};
 pub use handle::{Consolidation, Handle};
 
 mod input;

@@ -6,7 +6,6 @@ use crate::NetworkConfig;
 use backon::{ExponentialBuilder, Retryable};
 use kona_sources::EngineApi;
 use libp2p::multiaddr::Protocol;
-use op_alloy_provider::ext::engine::OpEngineApi;
 use std::net::{IpAddr, SocketAddr, TcpListener, UdpSocket};
 
 /// Returns whether `error`, or an error it was caused by, is the engine rejecting the JWT.
@@ -176,7 +175,7 @@ mod tests {
     /// An Engine API client whose Engine API is `server`.
     fn engine(server: &httpmock::MockServer) -> EngineApi {
         EngineApi::new(
-            EngineApi::rpc_client(
+            kona_sources::l2_provider(
                 server.url("/").parse().unwrap(),
                 JwtSecret::from_hex(JWT_HEX).unwrap(),
             ),

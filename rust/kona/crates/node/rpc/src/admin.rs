@@ -1,6 +1,6 @@
 //! Admin RPC Module
 
-use crate::AdminApiServer;
+use crate::{AdminApiServer, SequencerAdminApiServer};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadError;
 use async_trait::async_trait;
@@ -14,23 +14,13 @@ use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 /// The admin RPC server.
 #[derive(Debug)]
 pub struct AdminRpc {
-    sequencer: Option<Handle>,
-    conductor_enabled: bool,
     engine: engine::Handle,
 }
 
 impl AdminRpc {
     /// Constructs the admin RPC server.
-    pub const fn new(
-        sequencer: Option<Handle>,
-        conductor_enabled: bool,
-        engine: engine::Handle,
-    ) -> Self {
-        Self { sequencer, conductor_enabled, engine }
-    }
-
-    fn sequencer(&self) -> RpcResult<&Handle> {
-        self.sequencer.as_ref().ok_or_else(|| ErrorObject::from(ErrorCode::MethodNotFound))
+    pub const fn new(engine: engine::Handle) -> Self {
+        Self { engine }
     }
 }
 
@@ -57,35 +47,51 @@ impl AdminApiServer for AdminRpc {
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
-    async fn admin_sequencer_active(&self) -> RpcResult<bool> {
-        self.sequencer()?.is_active().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-    }
-
-    async fn admin_start_sequencer(&self) -> RpcResult<()> {
-        self.sequencer()?.start().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-    }
-
-    async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
-        self.sequencer()?.stop().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-    }
-
-    async fn admin_conductor_enabled(&self) -> RpcResult<bool> {
-        self.sequencer()?;
-        Ok(self.conductor_enabled)
-    }
-
-    async fn admin_override_leader(&self) -> RpcResult<()> {
-        self.sequencer()?
-            .override_leader()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-    }
-
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
         self.engine
             .reset()
             .await
             .map(|_| ())
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
+}
+
+/// The sequencer's admin RPC server.
+#[derive(Debug)]
+pub struct SequencerAdminRpc {
+    sequencer: Handle,
+    conductor_enabled: bool,
+}
+
+impl SequencerAdminRpc {
+    /// Constructs the sequencer's admin RPC server.
+    pub const fn new(sequencer: Handle, conductor_enabled: bool) -> Self {
+        Self { sequencer, conductor_enabled }
+    }
+}
+
+#[async_trait]
+impl SequencerAdminApiServer for SequencerAdminRpc {
+    async fn admin_sequencer_active(&self) -> RpcResult<bool> {
+        self.sequencer.is_active().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
+
+    async fn admin_start_sequencer(&self) -> RpcResult<()> {
+        self.sequencer.start().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
+
+    async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
+        self.sequencer.stop().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
+
+    async fn admin_conductor_enabled(&self) -> RpcResult<bool> {
+        Ok(self.conductor_enabled)
+    }
+
+    async fn admin_override_leader(&self) -> RpcResult<()> {
+        self.sequencer
+            .override_leader()
+            .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 }
@@ -147,7 +153,7 @@ mod tests {
 
     /// Returns a handle to an engine that never runs.
     fn idle_engine() -> engine::Handle {
-        engine::Builder::new(engine::Capacity::try_from(1).unwrap()).handle()
+        engine::Builder::new().handle()
     }
 
     /// Returns an engine whose execution client completes one reset, on an L1 chain that holds
@@ -173,7 +179,7 @@ mod tests {
                 .retrying(Duration::from_secs(1)),
             BlockInfo::default(),
         );
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let builder = engine::Builder::new();
         let handle = builder.handle();
         let engine = builder.build(Arc::new(client), l1.handle(), config, Arc::new(NoopBlockSink));
         // The L1 chain lasts as long as the engine.
@@ -194,8 +200,8 @@ mod tests {
             panic!("a full signer queue must pause building")
         }
 
-        fn has_capacity(&self) -> bool {
-            false
+        async fn ready(&self) -> Result<(), Self::Error> {
+            std::future::pending().await
         }
     }
 
@@ -211,7 +217,7 @@ mod tests {
     fn sequencer(
         conductor_enabled: bool,
     ) -> (Handle, impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static) {
-        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
+        let builder = sequencer::Builder::new();
         let handle = builder.handle();
         let task = builder.build(
             TestAttributesBuilder { attributes: vec![] },
@@ -234,7 +240,7 @@ mod tests {
             result = handle.start() => panic!("command completed before startup: {result:?}"),
             _ = ready(()) => {}
         }
-        let rpc = AdminRpc::new(Some(handle), true, idle_engine());
+        let rpc = SequencerAdminRpc::new(handle, true);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(rpc.admin_conductor_enabled().await.unwrap());
 
@@ -246,17 +252,24 @@ mod tests {
         assert!(rpc.admin_conductor_enabled().await.unwrap());
     }
 
-    #[tokio::test]
-    async fn sequencer_methods_are_unavailable_on_validators() {
-        let rpc = AdminRpc::new(None, false, idle_engine());
-        for result in [
-            rpc.admin_sequencer_active().await.map(|_| ()),
-            rpc.admin_conductor_enabled().await.map(|_| ()),
-            rpc.admin_start_sequencer().await,
-            rpc.admin_stop_sequencer().await.map(|_| ()),
-            rpc.admin_override_leader().await,
-        ] {
-            assert_eq!(result.unwrap_err().code(), ErrorCode::MethodNotFound.code());
+    #[test]
+    fn sequencer_methods_are_a_separate_module_in_the_admin_namespace() {
+        const SEQUENCER_METHODS: [&str; 5] = [
+            "admin_sequencerActive",
+            "admin_startSequencer",
+            "admin_stopSequencer",
+            "admin_conductorEnabled",
+            "admin_overrideLeader",
+        ];
+        let mut admin = AdminRpc::new(idle_engine()).into_rpc();
+        for method in SEQUENCER_METHODS {
+            assert!(admin.method(method).is_none(), "{method} is served without a sequencer");
+        }
+
+        let builder = sequencer::Builder::new();
+        admin.merge(SequencerAdminRpc::new(builder.handle(), false).into_rpc()).unwrap();
+        for method in SEQUENCER_METHODS {
+            assert!(admin.method(method).is_some(), "{method} is not served with a sequencer");
         }
     }
 
@@ -264,7 +277,7 @@ mod tests {
     async fn commands_return_actor_results_and_map_failures() {
         let (handle, task) = sequencer(false);
         let task = tokio::spawn(task);
-        let rpc = AdminRpc::new(Some(handle), false, idle_engine());
+        let rpc = SequencerAdminRpc::new(handle, false);
         assert_eq!(rpc.admin_stop_sequencer().await.unwrap(), B256::repeat_byte(42));
         assert_eq!(
             rpc.admin_override_leader().await.unwrap_err().code(),
@@ -283,41 +296,29 @@ mod tests {
 
     #[tokio::test]
     async fn reads_initial_state_before_build() {
-        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
-        let rpc = AdminRpc::new(Some(builder.handle()), false, idle_engine());
+        let builder = sequencer::Builder::new();
+        let rpc = SequencerAdminRpc::new(builder.handle(), false);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(!rpc.admin_conductor_enabled().await.unwrap());
     }
 
     #[tokio::test]
-    async fn resets_engine_on_sequencers_and_validators_and_waits_for_acknowledgement() {
-        for is_sequencer in [true, false] {
-            let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
-            let handle = builder.handle();
-            // Reset must bypass even a full sequencer command queue.
-            tokio::select! {
-                biased;
-                result = handle.start() => panic!("command completed before startup: {result:?}"),
-                _ = ready(()) => {}
-            }
-            let sequencer = is_sequencer.then_some(handle);
-            let (engine, engine_task) = resetting_engine();
-            let rpc = AdminRpc::new(sequencer, false, engine).into_rpc();
-            let reset =
-                rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);
-            tokio::pin!(reset);
-            // The reset is queued, but the engine has not performed it.
-            assert!(tokio::time::timeout(Duration::from_millis(10), &mut reset).await.is_err());
-            let engine_task = tokio::spawn(engine_task);
-            reset.await.unwrap();
-            engine_task.abort();
-        }
+    async fn resets_engine_and_waits_for_acknowledgement() {
+        let (engine, engine_task) = resetting_engine();
+        let rpc = AdminRpc::new(engine).into_rpc();
+        let reset = rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]);
+        tokio::pin!(reset);
+        // The reset is queued, but the engine has not performed it.
+        assert!(tokio::time::timeout(Duration::from_millis(10), &mut reset).await.is_err());
+        let engine_task = tokio::spawn(engine_task);
+        reset.await.unwrap();
+        engine_task.abort();
     }
 
     #[tokio::test]
     async fn maps_closed_engine_channels() {
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
-        let rpc = AdminRpc::new(None, false, builder.handle());
+        let builder = engine::Builder::new();
+        let rpc = AdminRpc::new(builder.handle());
         // The engine stops with the reset queued.
         let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
             drop(builder);
@@ -332,8 +333,8 @@ mod tests {
     #[tokio::test]
     async fn validates_payloads_before_queueing_them_on_the_engine() {
         // The engine never runs, so its one-slot queue fills with the first queued payload.
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
-        let rpc = AdminRpc::new(None, false, builder.handle());
+        let builder = engine::Builder::new();
+        let rpc = AdminRpc::new(builder.handle());
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),
             fee_recipient: Default::default(),

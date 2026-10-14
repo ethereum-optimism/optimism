@@ -4,7 +4,6 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use crate::flags::SignerArgs;
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
@@ -51,6 +50,7 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
+#[command(next_help_heading = "P2P")]
 pub struct P2PArgs {
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after
@@ -73,11 +73,11 @@ pub struct P2PArgs {
     pub advertise_ip: Option<IpAddr>,
     /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
     /// if set to zero.
-    #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT")]
+    #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP")]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer.
     /// Same as `p2p.listen.udp` if set to zero.
-    #[arg(long = "p2p.advertise.udp", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT")]
+    #[arg(long = "p2p.advertise.udp", env = "KONA_NODE_P2P_ADVERTISE_UDP")]
     pub advertise_udp_port: Option<u16>,
 
     /// IP address or DNS hostname to bind LibP2P/Discv5 to.
@@ -86,10 +86,10 @@ pub struct P2PArgs {
     #[arg(long = "p2p.listen.ip", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_IP", value_parser = resolve_host)]
     pub listen_ip: IpAddr,
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
-    #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP_PORT")]
+    #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP")]
     pub listen_tcp_port: u16,
     /// UDP port to bind Discv5 to. Same as TCP port if left 0.
-    #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
+    #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP")]
     pub listen_udp_port: u16,
     /// Configure `GossipSub` topic stable mesh target count.
     /// Aka: The desired outbound degree (numbers of peers to gossip to).
@@ -97,7 +97,7 @@ pub struct P2PArgs {
     pub gossip_mesh_d: usize,
     /// Configure `GossipSub` topic stable mesh low watermark.
     /// Aka: The lower bound of outbound degree.
-    #[arg(long = "p2p.gossip.mesh.lo", default_value = "6", env = "KONA_NODE_P2P_GOSSIP_MESH_DLO")]
+    #[arg(long = "p2p.gossip.mesh.lo", default_value = "6", env = "KONA_NODE_P2P_GOSSIP_MESH_LO")]
     pub gossip_mesh_dlo: usize,
     /// Configure `GossipSub` topic stable mesh high watermark.
     /// Aka: The upper bound of outbound degree (additional peers will not receive gossip).
@@ -121,7 +121,7 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.gossip.mesh.floodpublish",
         default_value = "false",
-        env = "KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH"
+        env = "KONA_NODE_P2P_GOSSIP_MESH_FLOODPUBLISH"
     )]
     pub gossip_flood_publish: bool,
     /// Sets the peer scoring strategy for the P2P stack.
@@ -205,11 +205,6 @@ pub struct P2PArgs {
     /// This is useful for discovering a wider set of peers.
     #[arg(long = "p2p.discovery.randomize", env = "KONA_NODE_P2P_DISCOVERY_RANDOMIZE")]
     pub discovery_randomize: Option<u64>,
-
-    /// Specify optional remote signer configuration. Note that this argument is mutually exclusive
-    /// with `p2p.sequencer.key` that specifies a local sequencer signer.
-    #[command(flatten)]
-    pub signer: SignerArgs,
 }
 
 impl Default for P2PArgs {
@@ -339,7 +334,6 @@ impl P2PArgs {
             },
             bootnodes,
             rollup_config: config.clone(),
-            gossip_signer: self.signer.config()?,
         })
     }
 
@@ -486,17 +480,6 @@ mod tests {
         ]);
         let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
         assert_eq!(args.p2p.private_key, Some(key));
-    }
-
-    #[test]
-    fn test_p2p_args_sequencer_key() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.sequencer.key",
-            "bcc617ea05150ff60490d3c6058630ba94ae9f12a02a87efd291349ca0e54e0a",
-        ]);
-        let key = b256!("bcc617ea05150ff60490d3c6058630ba94ae9f12a02a87efd291349ca0e54e0a");
-        assert_eq!(args.p2p.signer.sequencer_key, Some(key));
     }
 
     #[test]

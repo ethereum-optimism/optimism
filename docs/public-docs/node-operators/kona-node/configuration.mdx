@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import KonaNodePorts from "/snippets/kona-node-ports.mdx"
+import { Unreleased } from "/snippets/unreleased.mdx"
 
 This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
 
@@ -18,24 +19,35 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 
 ## Core Node Arguments
 
+<Unreleased component="kona-node" />
+
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--mode <validator/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | No | `validator` |
-| `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
-| `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
-| `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
-| `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | Yes | - |
+| `--l1.eth-url <URL>` | `KONA_NODE_L1_ETH_URL` | URL of the L1 execution client RPC API | Yes | - |
+| `--l1.beacon-url <URL>` | `KONA_NODE_L1_BEACON_URL` | URL of the L1 beacon API | Yes | - |
+| `--l2.engine.url <URL>` | `KONA_NODE_L2_ENGINE_URL` | URL of the engine API endpoint of an L2 execution client | Yes | - |
+| `--l2.engine.jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_JWT_SECRET` | Path to file containing the hex-encoded JWT secret for the execution client | Yes | - |
+| `--l2.cl-url <URL>` | `KONA_NODE_L2_CL_URL` | URL of an OP Stack L2 consensus-layer node to follow instead of deriving the chain from L1. Its RPC must serve `optimism_syncStatus` | No | - |
 
 ## Chain Arguments
 
+<Unreleased component="kona-node" />
+
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--chain <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string) to load the rollup config for from the superchain registry | One of these two | - |
-| `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to an L2 rollup configuration file, for a chain that is not in the superchain registry | One of these two | - |
+| `--chain <ID/NAME>` | `KONA_NODE_CHAIN` | L2 chain ID (numeric) or chain name (string) to load the rollup config for from the superchain registry | One of these two | - |
+| `--chain.rollup-config <PATH>` | `KONA_NODE_CHAIN_ROLLUP_CONFIG` | Path to an L2 rollup configuration file, for a chain that is not in the superchain registry | One of these two | - |
+| `--chain.l1-config <PATH>` | `KONA_NODE_CHAIN_L1_CONFIG` | Path to the L1 chain config, or to an L1 genesis file whose `config` field holds it | No | Looked up by the rollup config's L1 chain ID |
+| `--chain.dependency-set <PATH>` | `KONA_NODE_CHAIN_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain, like op-node's `--interop.dependency-set`. Required when the rollup config schedules the Lagoon hardfork for a chain outside the superchain registry | No | The registry's set for the chain, or else a set containing only this chain |
+| `--chain.hardfork.<NAME> <TIMESTAMP>` | `KONA_NODE_CHAIN_HARDFORK_<NAME>` | Overrides a hardfork's activation timestamp: `canyon`, `delta`, `ecotone`, `fjord`, `granite`, `holocene`, `pectra-blob-schedule`, `isthmus`, `jovian`, `karst` or `lagoon` | No | - |
+| `--chain.keep-karst-upgrade-gas <BOOL>` | `KONA_NODE_CHAIN_KEEP_KARST_UPGRADE_GAS` | Overrides the rollup config's `keep_karst_upgrade_gas` | No | - |
+
+`kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
+flag group.
 
 ### Chain ID Support
 
-The `--chain` flag (alias `--l2-chain-id`) supports flexible chain identification using the `alloy_chains` crate:
+The `--chain` flag supports flexible chain identification using the `alloy_chains` crate:
 
 **Numeric Chain IDs:**
 ```bash
@@ -49,13 +61,12 @@ kona-node node --chain optimism [args...]
 kona-node node --chain base [args...]
 ```
 
-**Short Flag and Environment Variable:**
+**Environment Variable:**
 ```bash
-kona-node node -c optimism [args...]
-export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
+export KONA_NODE_CHAIN=optimism && kona-node node [args...]
 ```
 
-Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`). The chain must be in the superchain registry; for a custom network, use `--l2-config-file` instead.
+Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`). The chain must be in the superchain registry; for a custom network, use `--chain.rollup-config` instead.
 
 ## P2P Arguments
 
@@ -64,16 +75,16 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
-| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
-| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
+| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP` | TCP port to advertise | `0` |
+| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP` | UDP port to advertise | `0` |
 | `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
-| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
-| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
+| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP` | TCP port to bind LibP2P to | `9222` |
+| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP` | UDP port to bind Discv5 to | `9223` |
 | `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
-| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLO` | GossipSub mesh low watermark | `6` |
+| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_LO` | GossipSub mesh low watermark | `6` |
 | `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
 | `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target | `6` |
-| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH` | Publish to all known peers | `false` |
+| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_MESH_FLOODPUBLISH` | Publish to all known peers | `false` |
 | `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
 | `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
@@ -85,45 +96,44 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
-| `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A sequencer needs this, `--p2p.sequencer.key.path`, or a remote signer | - |
-| `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
-| `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
-| `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
 
 ## RPC Arguments
 
 The RPC server starts once. If it stops unexpectedly, the node shuts down with an error.
 
+<Unreleased component="kona-node" />
+
+The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin), which can stop the sequencer and reset the node. Keep the RPC port off untrusted networks.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
-| `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address. Set it to `0.0.0.0` to reach the RPC from outside a container | `127.0.0.1` |
+| `--rpc.port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
 
 ## Sequencer Arguments
 
-Sequencers start stopped. Enable the admin API with `--rpc.enable-admin` and call `admin_startSequencer` to begin block production.
+<Unreleased component="kona-node" />
+
+A node run with `--sequencer.enabled` can sequence. It requires a block signer: `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. Every other sequencer flag requires `--sequencer.enabled`: the node refuses to start if one is given without it.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
+| `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Run the sequencer. Requires a block signer. The environment variable must be `true` or unset | - |
+| `--sequencer.signer.key.path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH` | Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The file must exist | - |
+| `--sequencer.signer.url <URL>` | `KONA_NODE_SEQUENCER_SIGNER_URL` | Remote op-signer that signs the sequencer's blocks, instead of a local key. Requires `--sequencer.signer.address` | - |
+| `--sequencer.signer.address <ADDRESS>` | `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Address of the remote op-signer's key | - |
+| `--sequencer.signer.header <NAME=VALUE>` | `KONA_NODE_SEQUENCER_SIGNER_HEADER` | Header to send to the remote op-signer. Pass the flag once per header; the environment variable sets a single header | - |
+| `--sequencer.signer.tls.ca <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_CA` | CA certificates that verify the remote op-signer | - |
+| `--sequencer.signer.tls.cert <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_CERT` | Client certificate presented to the remote op-signer. Requires `--sequencer.signer.tls.key` | - |
+| `--sequencer.signer.tls.key <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_KEY` | Private key of the client certificate. Requires `--sequencer.signer.tls.cert` | - |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
-| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
-
-## Interop Arguments
-
-| Flag | Env | Description | Default |
-|------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork for a chain outside the superchain registry. | The registry's set for the chain, or else a set containing only this chain |
-
-`kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
-flag group. `--interop.dependency-set` is the node's only interop flag.
+| `--sequencer.conductor-url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
 
 ## RPC Response Verification
 
 `kona-node` does not trust the L1 RPC: every L1 header and block it fetches by hash is checked
 to hash to the hash it asked for, so an RPC cannot serve different block contents under a
-requested hash. It trusts the L2 execution client given by `--l2-engine-rpc`, which should be
+requested hash. It trusts the L2 execution client given by `--l2.engine.url`, which should be
 the node's own, authenticated with the JWT secret. Neither behavior is configurable.
 
 ## Default Behavior
@@ -133,22 +143,23 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
 - The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
   to receive block gossip. The `discv5` discovery service runs on
   UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `0.0.0.0:9545`. Websocket connections
+- An RPC server is exposed at `127.0.0.1:9545`. Websocket connections
   are disabled by default.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
-  configurable via the `--metrics.port` and `--metrics.addr` flags.
+  configurable via the `--metrics.port` and `--metrics.addr` flags, which
+  require `--metrics.enabled`.
 
 ## Rollup Configuration Loading
 
 The rollup config comes from exactly one of two sources:
 
 - `--chain` loads it from the [superchain registry][scr].
-- `--l2-config-file` loads it from a file, for a chain that is not in the registry.
+- `--chain.rollup-config` loads it from a file, for a chain that is not in the registry.
 
 `kona-node` exits with an error if neither or both are set.
 
-Override flags (for example `--canyon-override`) change values in
+Override flags (`--chain.hardfork.<NAME>` and `--chain.keep-karst-upgrade-gas`) change values in
 the rollup config from either source. They can be viewed in the help
 menu by running `kona-node node --help`. They override hardfork
 activation timestamps, in seconds, and `keep_karst_upgrade_gas`.

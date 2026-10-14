@@ -6,7 +6,6 @@ use kona_disc::{Discv5Builder, Discv5Driver, LocalNode};
 use kona_genesis::RollupConfig;
 use kona_gossip::{ConnectionGater, GaterConfig, GossipDriver, GossipDriverBuilder};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use std::net::{IpAddr, SocketAddr};
 use tokio::{sync::watch, time::Duration};
@@ -45,9 +44,6 @@ pub struct NetworkConfig {
     pub bootnodes: BootNodes,
     /// The [`RollupConfig`].
     pub rollup_config: RollupConfig,
-    /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It configures the
-    /// signer actor, whose input is exposed through [`signer::Handle`](crate::signer::Handle).
-    pub gossip_signer: Option<BlockSigner>,
 }
 
 impl NetworkConfig {
@@ -96,7 +92,6 @@ impl NetworkConfig {
             scoring: Default::default(),
             topic_scoring: Default::default(),
             monitor_peers: Default::default(),
-            gossip_signer: Default::default(),
         }
     }
 

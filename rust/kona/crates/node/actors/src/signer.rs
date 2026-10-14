@@ -12,8 +12,6 @@ use tokio::sync::{
     watch,
 };
 
-pub use crate::capacity::{Capacity, InvalidCapacity};
-
 /// Queues unsigned payloads for signing and gossip.
 ///
 /// Payloads are signed in order. Transient signing failures are retried, allowing the bounded
@@ -24,21 +22,23 @@ pub struct Handle {
 }
 
 impl Handle {
-    /// Queues a payload, waiting for capacity when the signer is backed up.
+    /// Queues a payload, waiting for room when the signer is backed up.
     ///
     /// Success means the payload was queued, not that it was signed or gossiped.
-    pub async fn send(
-        &self,
-        payload: OpExecutionPayloadEnvelope,
-    ) -> Result<(), mpsc::error::SendError<OpExecutionPayloadEnvelope>> {
-        self.payloads.send(payload).await
+    pub async fn send(&self, payload: OpExecutionPayloadEnvelope) -> Result<(), Stopped> {
+        self.payloads.send(payload).await.map_err(|_| Stopped)
     }
 
-    /// Whether the input queue currently has room for another payload.
-    pub fn has_capacity(&self) -> bool {
-        self.payloads.capacity() > 0
+    /// Waits until the queue has room for another payload.
+    pub async fn ready(&self) -> Result<(), Stopped> {
+        self.payloads.reserve().await.map(drop).map_err(|_| Stopped)
     }
 }
+
+/// The signer has stopped, so it takes no more payloads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[error("the signer has stopped")]
+pub struct Stopped;
 
 /// Constructs the handle and task.
 #[derive(Debug)]
@@ -49,8 +49,11 @@ pub struct Builder {
 
 impl Builder {
     /// Creates the builder.
-    pub fn new(capacity: Capacity) -> Self {
-        let (payloads_tx, payloads) = mpsc::channel(capacity.get());
+    ///
+    /// The queue holds one payload, so the sequencer stops building once the signer falls a
+    /// payload behind.
+    pub fn new() -> Self {
+        let (payloads_tx, payloads) = mpsc::channel(1);
         Self { handle: Handle { payloads: payloads_tx }, payloads }
     }
 
@@ -73,6 +76,12 @@ impl Builder {
         let actor =
             Actor { signer, chain_id, unsafe_block_signer, payloads: self.payloads, network };
         actor.run()
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -175,17 +184,8 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    use tokio::sync::Semaphore;
 
     const CHAIN_ID: u64 = 10;
-
-    fn payload(number: u64) -> OpExecutionPayloadEnvelope {
-        let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
-        block.header.number = number;
-        OpExecutionPayloadEnvelope::V1(alloy_rpc_types_engine::ExecutionPayloadV1::from_block_slow(
-            &block,
-        ))
-    }
 
     fn signature(key: &PrivateKeySigner, payload: &OpExecutionPayloadEnvelope) -> Signature {
         key.sign_hash_sync(&payload.payload_hash().signature_message(CHAIN_ID)).unwrap()
@@ -241,7 +241,7 @@ mod tests {
     }
 
     fn harness(signer: BlockSignerHandler, unsafe_block_signer: Address) -> Harness {
-        let builder = Builder::new(Capacity::try_from(8).unwrap());
+        let builder = Builder::new();
         let payloads = builder.handle();
         let (signed_tx, signed) = mpsc::channel(8);
         let task = tokio::spawn(builder.build(
@@ -251,16 +251,6 @@ mod tests {
             signed_tx,
         ));
         Harness { payloads, signed, task }
-    }
-
-    #[test]
-    fn capacity_parsing_enforces_channel_bounds() {
-        for value in [1, Semaphore::MAX_PERMITS] {
-            assert_eq!(Capacity::try_from(value).map(Capacity::get), Ok(value));
-        }
-        for value in [0, Semaphore::MAX_PERMITS + 1, usize::MAX] {
-            assert!(Capacity::try_from(value).is_err());
-        }
     }
 
     #[test]
@@ -310,11 +300,11 @@ mod tests {
         let key = PrivateKeySigner::random();
         let mut h = harness(BlockSignerHandler::Local(key.clone()), key.address());
         for number in 1..=3 {
-            h.payloads.send(payload(number)).await.unwrap();
+            h.payloads.send(crate::test_payload(number)).await.unwrap();
         }
         for number in 1..=3 {
             let signed = h.signed.recv().await.unwrap();
-            assert_eq!(signed.payload, payload(number));
+            assert_eq!(signed.payload, crate::test_payload(number));
             assert_eq!(signed.signature, signature(&key, &signed.payload));
         }
     }
@@ -325,7 +315,7 @@ mod tests {
         let (signer, calls, _server) = remote_signer(&key).await;
         // `SystemConfig` names a different signer than the remote signer holds.
         let mut h = harness(signer, Address::repeat_byte(1));
-        h.payloads.send(payload(1)).await.unwrap();
+        h.payloads.send(crate::test_payload(1)).await.unwrap();
         assert!(matches!(
             (&mut h.task).await.unwrap(),
             Err(ActorError::Signing(BlockSignerError::Remote(
@@ -338,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn closing_input_is_fatal() {
-        let builder = Builder::new(Capacity::try_from(8).unwrap());
+        let builder = Builder::new();
         let handle = builder.handle();
         let key = PrivateKeySigner::random();
         let address = key.address();
@@ -356,7 +346,7 @@ mod tests {
 
     #[tokio::test]
     async fn dropping_lifetime_closes_a_full_output_queue() {
-        let builder = Builder::new(Capacity::try_from(2).unwrap());
+        let builder = Builder::new();
         let handle = builder.handle();
         let key = PrivateKeySigner::random();
         let address = key.address();
@@ -367,14 +357,31 @@ mod tests {
             watch::channel(address).1,
             signed_tx,
         ));
-        handle.send(payload(1)).await.unwrap();
-        handle.send(payload(2)).await.unwrap();
-
+        // The first payload fills the output queue.
+        handle.send(crate::test_payload(1)).await.unwrap();
         assert!(futures::poll!(task.as_mut()).is_pending());
         assert_eq!(signed_rx.len(), 1);
-        assert_eq!(handle.payloads.capacity(), 2);
+        // The second is taken from the input queue, and waits for room in the output queue.
+        handle.send(crate::test_payload(2)).await.unwrap();
+        assert!(futures::poll!(task.as_mut()).is_pending());
+        assert!(futures::poll!(Box::pin(handle.ready())).is_ready());
         drop(task);
-        assert_eq!(signed_rx.recv().await.unwrap().payload, payload(1));
+        assert_eq!(signed_rx.recv().await.unwrap().payload, crate::test_payload(1));
         assert!(signed_rx.recv().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn ready_waits_for_room_and_fails_once_the_signer_stops() {
+        let builder = Builder::new();
+        let handle = builder.handle();
+        handle.send(crate::test_payload(1)).await.unwrap();
+        let ready = handle.ready();
+        tokio::pin!(ready);
+        assert!(futures::poll!(ready.as_mut()).is_pending());
+
+        // Dropping the builder drops the signer's end of the queue.
+        drop(builder);
+        assert_eq!(ready.await, Err(Stopped));
+        assert_eq!(handle.send(crate::test_payload(2)).await, Err(Stopped));
     }
 }

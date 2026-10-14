@@ -5054,7 +5054,6 @@ name = "example-gossip"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap",
  "discv5 0.12.0",
  "enr 0.14.0",
@@ -5063,7 +5062,6 @@ dependencies = [
  "kona-node-service",
  "kona-registry",
  "libp2p",
- "op-alloy-rpc-types-engine",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -7525,7 +7523,6 @@ dependencies = [
  "reqwest 0.13.2",
  "rstest",
  "serde_json",
- "strum",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -7551,6 +7548,7 @@ dependencies = [
  "alloy-signer 2.5.0",
  "alloy-signer-local 2.4.2",
  "alloy-transport",
+ "alloy-transport-http",
  "arbitrary",
  "async-trait",
  "derive_more 2.1.1",
@@ -7580,7 +7578,6 @@ dependencies = [
  "rand 0.9.4",
  "rstest",
  "serde_json",
- "strum",
  "thiserror 2.0.18",
  "tokio",
  "tower 0.5.3",
@@ -7598,12 +7595,10 @@ dependencies = [
  "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-provider",
- "alloy-rpc-client",
  "alloy-rpc-types-engine",
  "alloy-signer 2.5.0",
  "alloy-signer-local 2.4.2",
  "alloy-transport",
- "alloy-transport-http",
  "anyhow",
  "arbitrary",
  "async-trait",
@@ -7611,7 +7606,6 @@ dependencies = [
  "derive_more 2.1.1",
  "discv5 0.12.0",
  "enr 0.14.0",
- "http-body-util",
  "httpmock",
  "jsonrpsee",
  "kona-derive",
@@ -7917,7 +7911,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "url",
 ]
 
 [[package]]

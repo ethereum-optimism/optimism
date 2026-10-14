@@ -1,13 +1,10 @@
 //! Configs for the service's tests.
 
-use crate::{
-    ChainSpec, NetworkConfig, NodeMode, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig,
-};
+use crate::{ChainSpec, NetworkConfig, RollupNodeConfig, RollupNodeEndpoints};
 use alloy_rpc_types_engine::JwtSecret;
 use kona_disc::LocalNode;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::{ChainDependency, DependencySet};
-use kona_rpc::RpcBuilder;
 use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{
     collections::BTreeMap,
@@ -38,7 +35,7 @@ pub(crate) fn network_config(tcp_port: u16, udp_port: u16) -> NetworkConfig {
     config
 }
 
-/// A validator's node config with the given P2P config.
+/// A config for a node that does not sequence, with the given P2P config.
 #[allow(clippy::zero_sized_map_values)] // `DependencySet` is a map to `ChainDependency {}`.
 pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
     RollupNodeConfig {
@@ -51,14 +48,9 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
                 override_message_expiry_window: None,
             }),
         },
-        mode: NodeMode::Validator,
         p2p_config,
-        rpc_config: RpcBuilder {
-            socket: (Ipv4Addr::LOCALHOST, 0).into(),
-            enable_admin: false,
-            admin_persistence: None,
-        },
-        sequencer_config: SequencerConfig::default(),
+        rpc_addr: (Ipv4Addr::LOCALHOST, 0).into(),
+        sequencer: None,
     }
 }
 

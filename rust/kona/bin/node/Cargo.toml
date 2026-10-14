@@ -42,7 +42,6 @@ alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 
 # general
 url.workspace = true
-strum.workspace = true
 enr.workspace = true
 libp2p.workspace = true
 anyhow.workspace = true

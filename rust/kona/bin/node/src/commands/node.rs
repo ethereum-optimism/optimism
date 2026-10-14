@@ -10,67 +10,52 @@ use crate::{
 use clap::Parser;
 use kona_cli::{LogArgs, LogConfig, MetricsArgs};
 use kona_node_service::{
-    NodeMode, RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
+    RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
-use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
 /// Command-line interface for running a Kona rollup node.
 ///
 /// The `NodeCommand` struct defines all the configuration options needed to start and run
-/// a rollup node in the Kona ecosystem. It supports multiple node modes including validator
-/// and sequencer modes, and provides comprehensive networking and RPC configuration options.
+/// a rollup node in the Kona ecosystem, including its networking and RPC configuration options.
 ///
-/// # Node Modes
+/// # Sequencing
 ///
-/// The node can operate in different modes:
-/// - **Validator**: Validates L2 blocks and participates in consensus
-/// - **Sequencer**: Sequences transactions and produces L2 blocks
+/// A node run with `--sequencer.enabled` can sequence. It needs a block signer:
+/// `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`.
+/// Its sequencer starts stopped; start it with `admin_startSequencer`. A node without
+/// `--sequencer.enabled` follows the chain only.
 ///
 /// # Configuration Sources
 ///
 /// Configuration can be provided through:
 /// - Command-line arguments
-/// - Environment variables (prefixed with `KONA_NODE_`)
+/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_LOGS_` and `KONA_METRICS_` for the
+///   logging and metrics flags)
 /// - Configuration files (for rollup config)
 ///
 /// # Examples
 ///
 /// ```bash
-/// # Run as validator on OP Mainnet with default settings
+/// # Follow OP Mainnet with default settings
 /// kona-node node --chain optimism \
-///                --l1-eth-rpc http://localhost:8545 \
-///                --l1-beacon http://localhost:5052 \
-///                --l2-engine-rpc http://localhost:8551 \
-///                --l2-engine-jwt-secret /path/to/jwt.hex
+///                --l1.eth-url http://localhost:8545 \
+///                --l1.beacon-url http://localhost:5052 \
+///                --l2.engine.url http://localhost:8551 \
+///                --l2.engine.jwt-secret /path/to/jwt.hex
 ///
-/// # Run as sequencer for a custom chain
-/// kona-node node --mode sequencer \
-///                --l2-config-file /path/to/rollup.json \
-///                --l1-eth-rpc http://localhost:8545 \
-///                --l1-beacon http://localhost:5052 \
-///                --l2-engine-rpc http://localhost:8551 \
-///                --l2-engine-jwt-secret /path/to/jwt.hex \
-///                --p2p.sequencer.key.path /path/to/p2p-sequencer.key
+/// # Run a node that can sequence a custom chain
+/// kona-node node --sequencer.enabled \
+///                --chain.rollup-config /path/to/rollup.json \
+///                --l1.eth-url http://localhost:8545 \
+///                --l1.beacon-url http://localhost:5052 \
+///                --l2.engine.url http://localhost:8551 \
+///                --l2.engine.jwt-secret /path/to/jwt.hex \
+///                --sequencer.signer.key.path /path/to/sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
 pub struct NodeCommand {
-    /// The mode to run the node in.
-    #[arg(
-        long = "mode",
-        default_value_t = NodeMode::Validator,
-        env = "KONA_NODE_MODE",
-        help = format!(
-            "The mode to run the node in. Supported modes are: {}",
-            NodeMode::iter()
-                .map(|mode| format!("\"{}\"", mode.to_string()))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    )]
-    pub node_mode: NodeMode,
-
     /// L1 RPC CLI arguments.
     #[clap(flatten)]
     pub l1_rpc_args: L1ClientArgs,
@@ -116,7 +101,7 @@ impl NodeCommand {
 
     /// Initializes CLI metrics for the Node subcommand.
     pub fn init_cli_metrics(&self) -> anyhow::Result<()> {
-        if !self.metrics.enabled {
+        if !self.metrics.is_enabled() {
             debug!("CLI metrics are disabled");
             return Ok(());
         }
@@ -171,10 +156,9 @@ impl NodeCommand {
         let chain = self.chain.chain_spec()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
-            mode: self.node_mode,
             p2p_config: self.p2p_flags.clone().config(&chain.rollup_config)?,
-            rpc_config: self.rpc_flags.clone().into(),
-            sequencer_config: self.sequencer_flags.config(),
+            rpc_addr: self.rpc_flags.addr(),
+            sequencer: self.sequencer_flags.clone().config()?,
             chain,
         })
     }
@@ -183,11 +167,11 @@ impl NodeCommand {
     /// secret file.
     pub fn endpoints(&self) -> anyhow::Result<RollupNodeEndpoints> {
         Ok(RollupNodeEndpoints {
-            l1_rpc: self.l1_rpc_args.l1_eth_rpc.clone(),
-            l1_beacon: self.l1_rpc_args.l1_beacon.clone(),
-            l2_engine: self.l2_client_args.l2_engine_rpc.clone(),
+            l1_rpc: self.l1_rpc_args.eth_url.clone(),
+            l1_beacon: self.l1_rpc_args.beacon_url.clone(),
+            l2_engine: self.l2_client_args.engine_url.clone(),
             l2_jwt_secret: self.l2_client_args.jwt_secret()?,
-            derivation_delegate: self.derivation_delegate_args.l2_follow_source.clone(),
+            derivation_delegate: self.derivation_delegate_args.cl_url.clone(),
         })
     }
 
@@ -208,7 +192,7 @@ impl NodeCommand {
         );
 
         // If metrics are enabled, initialize the global cli metrics.
-        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.chain.rollup_config));
+        self.metrics.is_enabled().then(|| init_rollup_config_metrics(&config.chain.rollup_config));
 
         let clients = RollupNodeClients::connect(&endpoints)?;
         let Err(error) = RollupNode::new(config, clients).start().await else {
@@ -217,7 +201,7 @@ impl NodeCommand {
         if matches!(error, RollupNodeError::JwtRejected) {
             error!(
                 target: "rollup_node",
-                "Check that --l2-engine-jwt-secret holds the engine's JWT secret, and that the \
+                "Check that --l2.engine.jwt-secret holds the engine's JWT secret, and that the \
                  node's and the engine's clocks agree"
             );
         }
@@ -238,13 +222,13 @@ mod tests {
         &[
             "--chain",
             "10",
-            "--l1-eth-rpc",
+            "--l1.eth-url",
             "http://localhost:8545",
-            "--l1-beacon",
+            "--l1.beacon-url",
             "http://localhost:5052",
-            "--l2-engine-rpc",
+            "--l2.engine.url",
             "http://localhost:8551",
-            "--l2-engine-jwt-secret",
+            "--l2.engine.jwt-secret",
             "/path/to/jwt.hex",
         ]
     }
@@ -254,42 +238,42 @@ mod tests {
         let args = NodeCommand::parse_from(
             std::iter::once(&"node").chain(default_flags().iter()).copied(),
         );
-        assert_eq!(args.node_mode, NodeMode::Validator);
+        assert_eq!(args.sequencer_flags, SequencerArgs::default());
     }
 
     #[test]
-    fn test_node_cli_missing_l1_eth_rpc() {
+    fn test_node_cli_missing_l1_eth_url() {
         let err = NodeCommand::try_parse_from(["node"]).unwrap_err();
-        assert!(err.to_string().contains("--l1-eth-rpc"));
+        assert!(err.to_string().contains("--l1.eth-url"));
     }
 
     #[test]
-    fn test_node_cli_missing_l1_beacon() {
-        let err = NodeCommand::try_parse_from(["node", "--l1-eth-rpc", "http://localhost:8545"])
+    fn test_node_cli_missing_l1_beacon_url() {
+        let err = NodeCommand::try_parse_from(["node", "--l1.eth-url", "http://localhost:8545"])
             .unwrap_err();
-        assert!(err.to_string().contains("--l1-beacon"));
+        assert!(err.to_string().contains("--l1.beacon-url"));
     }
 
     #[test]
-    fn test_node_cli_missing_l2_engine_rpc() {
+    fn test_node_cli_missing_l2_engine_url() {
         let err = NodeCommand::try_parse_from([
             "node",
-            "--l1-eth-rpc",
+            "--l1.eth-url",
             "http://localhost:8545",
-            "--l1-beacon",
+            "--l1.beacon-url",
             "http://localhost:5052",
         ])
         .unwrap_err();
-        assert!(err.to_string().contains("--l2-engine-rpc"));
+        assert!(err.to_string().contains("--l2.engine.url"));
     }
 
     /// Required flags whose URLs nothing listens on, so that any network I/O fails.
     const UNREACHABLE_FLAGS: [&str; 6] = [
-        "--l1-eth-rpc",
+        "--l1.eth-url",
         "http://127.0.0.1:1",
-        "--l1-beacon",
+        "--l1.beacon-url",
         "http://127.0.0.1:2",
-        "--l2-engine-rpc",
+        "--l2.engine.url",
         "http://127.0.0.1:3",
     ];
 
@@ -304,7 +288,7 @@ mod tests {
         let command = NodeCommand::try_parse_from(
             std::iter::once("node")
                 .chain(UNREACHABLE_FLAGS)
-                .chain(["--l2-engine-jwt-secret", &jwt_path])
+                .chain(["--l2.engine.jwt-secret", &jwt_path])
                 .chain(args.iter().copied()),
         )
         .unwrap();
@@ -313,12 +297,14 @@ mod tests {
 
     #[test]
     fn test_config_for_a_registry_chain() {
+        let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
         let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
-            "--mode",
-            "sequencer",
-            "--conductor.rpc",
+            "--sequencer.enabled",
+            "--sequencer.signer.key.path",
+            key.path().to_str().unwrap(),
+            "--sequencer.conductor-url",
             "http://127.0.0.1:4",
         ]);
 
@@ -327,23 +313,40 @@ mod tests {
 
         assert_eq!(config.chain.rollup_config.l2_chain_id.id(), 10);
         assert_eq!(config.chain.l1_config.chain_id, 1);
-        assert_eq!(config.mode, NodeMode::Sequencer);
         assert_eq!(endpoints.l1_rpc.as_str(), "http://127.0.0.1:1/");
         assert_eq!(endpoints.l1_beacon.as_str(), "http://127.0.0.1:2/");
         assert_eq!(endpoints.l2_engine.as_str(), "http://127.0.0.1:3/");
         assert_eq!(endpoints.l2_jwt_secret, JwtSecret::from_hex(JWT_HEX).unwrap());
         assert_eq!(endpoints.derivation_delegate, None);
-        assert_eq!(
-            config.sequencer_config.conductor_rpc_url,
-            Some("http://127.0.0.1:4".parse().unwrap())
-        );
+        let sequencer = config.sequencer.unwrap();
+        assert_eq!(sequencer.conductor_rpc_url, Some("http://127.0.0.1:4".parse().unwrap()));
+        assert_eq!(sequencer.l1_conf_delay, 4);
         assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 10 }));
+    }
+
+    #[test]
+    fn test_config_without_a_block_signer_cannot_sequence() {
+        let (command, _jwt) = parse_node(&["--chain", "optimism"]);
+
+        assert!(command.config().unwrap().sequencer.is_none());
+    }
+
+    #[test]
+    fn test_sequencer_flags_require_a_block_signer() {
+        let error = NodeCommand::try_parse_from(
+            std::iter::once("node")
+                .chain(default_flags().iter().copied())
+                .chain(["--sequencer.conductor-url", "http://127.0.0.1:4"]),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.kind(), clap::error::ErrorKind::MissingRequiredArgument);
     }
 
     #[test]
     fn test_endpoints_with_a_follow_source() {
         let (command, _jwt) =
-            parse_node(&["--chain", "optimism", "--l2-follow-source", "http://127.0.0.1:5"]);
+            parse_node(&["--chain", "optimism", "--l2.cl-url", "http://127.0.0.1:5"]);
 
         let endpoints = command.endpoints().unwrap();
 
@@ -363,9 +366,9 @@ mod tests {
         serde_json::to_writer(&mut l1_file, &serde_json::json!({"chainId": 900})).unwrap();
 
         let (command, _jwt) = parse_node(&[
-            "--l2-config-file",
+            "--chain.rollup-config",
             rollup_file.path().to_str().unwrap(),
-            "--l1-config-file",
+            "--chain.l1-config",
             l1_file.path().to_str().unwrap(),
         ]);
 

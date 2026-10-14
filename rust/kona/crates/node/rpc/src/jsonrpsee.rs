@@ -120,6 +120,8 @@ pub trait OpP2PApi {
 }
 
 /// The admin namespace for the consensus node.
+///
+/// The sequencer's methods in this namespace are in [`SequencerAdminApi`].
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "admin"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
 #[async_trait]
@@ -129,6 +131,16 @@ pub trait AdminApi {
     async fn admin_post_unsafe_payload(&self, payload: OpExecutionPayloadEnvelope)
     -> RpcResult<()>;
 
+    /// Resets the derivation pipeline.
+    #[method(name = "resetDerivationPipeline")]
+    async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()>;
+}
+
+/// The sequencer's methods in the admin namespace, served only by a node that can sequence.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "admin"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
+#[async_trait]
+pub trait SequencerAdminApi {
     /// Checks if the sequencer is active.
     #[method(name = "sequencerActive")]
     async fn admin_sequencer_active(&self) -> RpcResult<bool>;
@@ -148,10 +160,6 @@ pub trait AdminApi {
     /// Overrides the leader in the conductor.
     #[method(name = "overrideLeader")]
     async fn admin_override_leader(&self) -> RpcResult<()>;
-
-    /// Resets the derivation pipeline.
-    #[method(name = "resetDerivationPipeline")]
-    async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()>;
 }
 
 /// The admin namespace for the consensus node.

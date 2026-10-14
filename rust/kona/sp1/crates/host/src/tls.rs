@@ -4,7 +4,7 @@ use std::{env, path::PathBuf};
 
 use alloy_transport_http::reqwest::{Url, header::HeaderMap};
 use anyhow::{Context, Result, bail};
-use kona_sources::{ClientCert, ReloadingRpcClient, TlsPaths};
+use kona_sources::{ClientCert, ReloadingRpcClient, RpcClientLayer, TlsPaths};
 
 use crate::prefixed_env_var;
 
@@ -45,9 +45,11 @@ impl ClientTls {
 
     /// Builds a JSON-RPC client over mutual TLS; see [`ReloadingRpcClient`] for reloading.
     ///
-    /// Only the configured CA is trusted to verify the server.
+    /// Only the configured CA is trusted to verify the server. Both callers reach a signer, so the
+    /// client's requests are recorded as the client `signer`.
     pub fn rpc_client(&self, endpoint: Url) -> Result<ReloadingRpcClient> {
         ReloadingRpcClient::new(
+            RpcClientLayer::new("signer"),
             endpoint,
             TlsPaths {
                 ca_cert: Some(self.ca.clone()),

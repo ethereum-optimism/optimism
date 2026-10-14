@@ -5,32 +5,38 @@ use url::Url;
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
+#[command(next_help_heading = "L1")]
 pub struct L1ClientArgs {
-    /// URL of the L1 execution client RPC API.
-    #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
-    pub l1_eth_rpc: Url,
+    /// URL of the L1 execution client's RPC API.
+    #[arg(long = "l1.eth-url", env = "KONA_NODE_L1_ETH_URL", value_name = "URL")]
+    pub eth_url: Url,
     /// URL of the L1 beacon API.
-    #[arg(long, visible_alias = "l1.beacon", env = "KONA_NODE_L1_BEACON")]
-    pub l1_beacon: Url,
+    #[arg(long = "l1.beacon-url", env = "KONA_NODE_L1_BEACON_URL", value_name = "URL")]
+    pub beacon_url: Url,
 }
 
 /// L2 client arguments.
 #[derive(Clone, Debug, clap::Args)]
+#[command(next_help_heading = "L2 Engine")]
 pub struct L2ClientArgs {
-    /// URI of the engine API endpoint of an L2 execution client.
-    #[arg(long, visible_alias = "l2", env = "KONA_NODE_L2_ENGINE_RPC")]
-    pub l2_engine_rpc: Url,
+    /// URL of the L2 execution client's engine API.
+    #[arg(long = "l2.engine.url", env = "KONA_NODE_L2_ENGINE_URL", value_name = "URL")]
+    pub engine_url: Url,
     /// Path to a file containing the hex-encoded JWT secret for the execution client's
     /// authenticated engine API. The secret is only accepted from a file, so that it stays out of
     /// the process's command line.
-    #[arg(long, visible_alias = "l2.jwt-secret", env = "KONA_NODE_L2_ENGINE_AUTH")]
-    pub l2_engine_jwt_secret: PathBuf,
+    #[arg(
+        long = "l2.engine.jwt-secret",
+        env = "KONA_NODE_L2_ENGINE_JWT_SECRET",
+        value_name = "PATH"
+    )]
+    pub engine_jwt_secret: PathBuf,
 }
 
 impl L2ClientArgs {
-    /// Returns the engine API's JWT secret, read from the `--l2-engine-jwt-secret` file.
+    /// Returns the engine API's JWT secret, read from the `--l2.engine.jwt-secret` file.
     pub fn jwt_secret(&self) -> Result<JwtSecret> {
-        let path = &self.l2_engine_jwt_secret;
+        let path = &self.engine_jwt_secret;
         let hex = std::fs::read_to_string(path)
             .map_err(|e| anyhow!("Failed to read the JWT secret file {path:?}: {e}"))?;
         JwtSecret::from_hex(hex)
@@ -40,10 +46,12 @@ impl L2ClientArgs {
 
 /// L2 derivation delegate connection arguments.
 #[derive(Clone, Debug, Default, clap::Args)]
+#[command(next_help_heading = "Derivation Delegate")]
 pub struct DerivationDelegateArgs {
-    /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus`.
-    #[arg(long, visible_alias = "l2.follow.source", env = "KONA_NODE_L2_FOLLOW_SOURCE")]
-    pub l2_follow_source: Option<Url>,
+    /// URL of an OP Stack L2 consensus-layer node to follow, instead of deriving the chain from
+    /// L1. Its RPC must serve `optimism_syncStatus`.
+    #[arg(long = "l2.cl-url", env = "KONA_NODE_L2_CL_URL", value_name = "URL")]
+    pub cl_url: Option<Url>,
 }
 
 #[cfg(test)]
@@ -62,7 +70,7 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<L2ClientArgs, clap::Error> {
         TestCli::try_parse_from(
-            ["test", "--l2-engine-rpc", "http://localhost:8551"].iter().chain(args),
+            ["test", "--l2.engine.url", "http://localhost:8551"].iter().chain(args),
         )
         .map(|cli| cli.l2)
     }
@@ -72,13 +80,13 @@ mod tests {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         writeln!(file, "{JWT_HEX}").unwrap();
 
-        let args = parse(&["--l2-engine-jwt-secret", file.path().to_str().unwrap()]).unwrap();
+        let args = parse(&["--l2.engine.jwt-secret", file.path().to_str().unwrap()]).unwrap();
         assert_eq!(args.jwt_secret().unwrap(), JwtSecret::from_hex(JWT_HEX).unwrap());
     }
 
     #[test]
     fn jwt_secret_errors_on_a_missing_file() {
-        let args = parse(&["--l2-engine-jwt-secret", "/nonexistent/jwt.hex"]).unwrap();
+        let args = parse(&["--l2.engine.jwt-secret", "/nonexistent/jwt.hex"]).unwrap();
         assert!(args.jwt_secret().is_err());
     }
 
@@ -89,7 +97,7 @@ mod tests {
 
     #[test]
     fn jwt_secret_not_accepted_on_the_command_line() {
-        let err = parse(&["--l2-engine-jwt-secret", "jwt.hex", "--l2-engine-jwt-encoded", JWT_HEX])
+        let err = parse(&["--l2.engine.jwt-secret", "jwt.hex", "--l2-engine-jwt-encoded", JWT_HEX])
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::UnknownArgument);
     }

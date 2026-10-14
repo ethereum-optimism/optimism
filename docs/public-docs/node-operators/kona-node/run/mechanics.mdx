@@ -98,8 +98,8 @@ remaining actors when one exits or the node shuts down.
 
 The [`RollupNode` service][node] builds and spawns a fixed set of
 actors covering derivation, the execution engine and its read-only
-engine RPC, L1 polling and signer updates, P2P networking, and, in
-sequencer mode, block building. It runs the node's RPC server alongside
+engine RPC, L1 polling and signer updates, P2P networking, and, on a node
+that can sequence, block building. It runs the node's RPC server alongside
 them, and stops if the server stops.
 
 The [Node Design section](/node-operators/kona-node/design/intro) is

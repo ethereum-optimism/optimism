@@ -4,6 +4,8 @@ description: Learn how to configure consensus clients (op-node, kona-node) for y
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 The consensus client (also called the rollup node) builds, relays, and verifies the canonical chain of blocks.
 This guide covers configuration for the most popular consensus client implementations.
 
@@ -78,14 +80,17 @@ Choose the consensus client that best fits your needs:
 
     ### Basic configuration
 
+    <Unreleased component="kona-node" />
+
     kona-node follows a similar configuration pattern to op-node:
 
     ```bash
-    kona-node \
-      --l1-rpc-url=https://ethereum-rpc-endpoint.example.com \
-      --l2-rpc-url=http://localhost:8551 \
-      --jwt-secret=/path/to/jwt-secret.txt \
-      --network=op-mainnet
+    kona-node node \
+      --chain=optimism \
+      --l1.eth-url=https://ethereum-rpc-endpoint.example.com \
+      --l1.beacon-url=https://ethereum-beacon-endpoint.example.com \
+      --l2.engine.url=http://localhost:8551 \
+      --l2.engine.jwt-secret=/path/to/jwt-secret.txt
     ```
 
     ### Additional resources

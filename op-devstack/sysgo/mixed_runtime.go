@@ -562,23 +562,20 @@ func startMixedKonaNode(
 	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o640))
 
 	envVars := []string{
-		"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
-		"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
-		"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
-		"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
-		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
-		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
+		"KONA_NODE_L1_ETH_URL=" + l1EL.UserRPC(),
+		"KONA_NODE_L1_BEACON_URL=" + l1CL.beaconHTTPAddr,
+		"KONA_NODE_L2_ENGINE_URL=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
+		"KONA_NODE_L2_ENGINE_JWT_SECRET=" + l2EL.JWTPath(),
+		"KONA_NODE_CHAIN_ROLLUP_CONFIG=" + tempRollupCfgPath,
+		"KONA_NODE_CHAIN_L1_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
-		// kona only registers when admin is enabled. op-node's devstack node enables it too.
-		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
-		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
-		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
+		propagateEnvVarOrDefault("KONA_LOGS_LEVEL", "info"),
+		propagateEnvVarOrDefault("KONA_LOGS_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
-		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP", "0"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP", "0"),
 	}
 
 	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop
@@ -589,7 +586,7 @@ func startMixedKonaNode(
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
-		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
+		envVars = append(envVars, "KONA_NODE_CHAIN_DEPENDENCY_SET="+tempDepSetPath)
 	}
 
 	if isSequencer {
@@ -599,12 +596,10 @@ func startMixedKonaNode(
 		tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
 		t.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o640))
 		envVars = append(envVars,
-			"KONA_NODE_P2P_SEQUENCER_KEY_PATH="+tempSeqKeyPath,
+			"KONA_NODE_SEQUENCER_ENABLED=true",
+			"KONA_NODE_SEQUENCER_SIGNER_KEY_PATH="+tempSeqKeyPath,
 			"KONA_NODE_SEQUENCER_L1_CONFS=2",
-			"KONA_NODE_MODE=Sequencer",
 		)
-	} else {
-		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 	envVars = append(envVars, extraEnv...)
 

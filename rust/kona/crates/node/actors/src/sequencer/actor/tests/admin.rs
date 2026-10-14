@@ -43,7 +43,7 @@ async fn stop_sequencer(#[values(true, false)] already_stopped: bool) {
         })
     });
     // Block building must not run while the stop is queued.
-    actor.signer.expect_has_capacity().times(0);
+    actor.signer.expect_ready().times(0);
     assert_eq!(handle.is_active().unwrap(), !already_stopped);
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     let (tx, rx) = oneshot::channel();
@@ -132,7 +132,10 @@ async fn handle_reads_published_state_after_commands() {
     });
     assert!(!handle.is_active().unwrap());
     actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-    actor.signer.expect_has_capacity().return_const(false);
+    // The signer never has room, so no block is built.
+    let (signer, _queued) = tokio::sync::mpsc::channel(1);
+    signer.try_send(crate::test_payload(0)).unwrap();
+    let actor = super::with_signer(actor, super::QueueSigner(signer));
     let task = tokio::spawn(actor.run());
     handle.start().await.unwrap();
     assert!(handle.is_active().unwrap());

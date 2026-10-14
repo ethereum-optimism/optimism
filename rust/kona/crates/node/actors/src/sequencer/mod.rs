@@ -31,7 +31,6 @@ pub use engine_client::MockSequencerEngineClient;
 pub use origin::MockOrigin;
 
 mod handle;
-pub use crate::capacity::{Capacity, InvalidCapacity};
 pub use handle::{Handle, HandleError};
 
 mod signer;

@@ -164,7 +164,7 @@ impl ImportedBlockSink for RecordingSink {
 fn construction_and_build_do_not_require_a_runtime() {
     let config = Arc::new(RollupConfig::default());
     let (clients, _) = clients(config.clone());
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    let builder = Builder::new();
     let handle = builder.handle();
     let task = builder.build(Arc::new(clients.engine), clients.l1, config, Arc::new(NoopBlockSink));
     assert_eq!(*handle.state().borrow(), EngineState::default());

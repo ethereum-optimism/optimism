@@ -72,13 +72,7 @@ impl From<LogArgs> for LogConfig {
 impl LogConfig {
     /// Creates a new `LogConfig` from `LogArgs`.
     pub fn new(args: LogArgs) -> Self {
-        let level = match args.level {
-            1 => LevelFilter::ERROR,
-            2 => LevelFilter::WARN,
-            3 => LevelFilter::INFO,
-            4 => LevelFilter::DEBUG,
-            _ => LevelFilter::TRACE,
-        };
+        let level = args.level.into();
 
         let stdout_logs = if args.stdout_quiet {
             None

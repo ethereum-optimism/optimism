@@ -1,6 +1,7 @@
-use alloy_rpc_client::ReqwestClient;
+use alloy_rpc_client::{ClientBuilder, RpcClient};
 use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
+use kona_sources::RpcClientLayer;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::fmt::Debug;
 use url::Url;
@@ -26,7 +27,7 @@ pub trait Conductor: Debug + Send + Sync {
 #[derive(Debug, Clone)]
 pub struct ConductorClient {
     /// The inner RPC provider
-    rpc: ReqwestClient,
+    rpc: RpcClient,
 }
 
 #[async_trait]
@@ -46,9 +47,10 @@ impl Conductor for ConductorClient {
 }
 
 impl ConductorClient {
-    /// Creates a new conductor client using HTTP transport
+    /// Creates a new conductor client using HTTP transport. Its requests are recorded as the
+    /// client `conductor`.
     pub fn new_http(url: Url) -> Self {
-        let rpc = ReqwestClient::new_http(url);
+        let rpc = ClientBuilder::default().layer(RpcClientLayer::new("conductor")).http(url);
         Self { rpc }
     }
 

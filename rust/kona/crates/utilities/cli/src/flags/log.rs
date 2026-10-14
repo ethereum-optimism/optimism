@@ -2,33 +2,25 @@
 
 use std::path::PathBuf;
 
-use clap::{ArgAction, Args};
+use clap::{Args, ValueEnum};
 use serde::{Deserialize, Serialize};
+use tracing::level_filters::LevelFilter;
 
 use crate::{LogFormat, LogRotation};
 
 /// Global configuration arguments.
 #[derive(Args, Debug, Default, Serialize, Deserialize, Clone)]
+#[command(next_help_heading = "Logging")]
 pub struct LogArgs {
-    /// Verbosity level (1-5).
-    /// By default, the verbosity level is set to 3 (info level).
-    ///
-    /// This verbosity level is shared by both stdout and file logging (if enabled).
-    #[arg(
-        short = 'v',
-        global = true,
-        default_value = "3",
-        env = "KONA_LOG_LEVEL",
-        action = ArgAction::Count,
-    )]
-    pub level: u8,
+    /// The most detailed level to log, for both stdout and file logging.
+    #[arg(long = "logs.level", global = true, default_value = "info", env = "KONA_LOGS_LEVEL")]
+    pub level: LogLevel,
     /// If set, no logs are printed to stdout.
     #[arg(
         long = "logs.stdout.quiet",
-        short = 'q',
         global = true,
         default_value = "false",
-        env = "KONA_STDOUT_LOG_QUIET"
+        env = "KONA_LOGS_STDOUT_QUIET"
     )]
     pub stdout_quiet: bool,
     /// The format of the logs printed to stdout. One of: full, json, pretty, compact, logfmt.
@@ -38,11 +30,11 @@ pub struct LogArgs {
     /// pretty: The logs are printed in a pretty, human readable format.
     /// compact: The logs are printed in a compact format.
     /// logfmt: The logs are printed in logfmt key=value format.
-    #[arg(long = "logs.stdout.format", default_value = "full", env = "KONA_LOG_STDOUT_FORMAT")]
+    #[arg(long = "logs.stdout.format", default_value = "full", env = "KONA_LOGS_STDOUT_FORMAT")]
     pub stdout_format: LogFormat,
     /// The directory to store the log files.
     /// If not set, no logs are printed to files.
-    #[arg(long = "logs.file.directory", env = "KONA_LOG_FILE_DIRECTORY")]
+    #[arg(long = "logs.file.directory", env = "KONA_LOGS_FILE_DIRECTORY")]
     pub file_directory: Option<PathBuf>,
     /// The format of the logs printed to log files. One of: full, json, pretty, compact, logfmt.
     ///
@@ -51,12 +43,42 @@ pub struct LogArgs {
     /// pretty: The logs are printed in a pretty, human readable format.
     /// compact: The logs are printed in a compact format.
     /// logfmt: The logs are printed in logfmt key=value format.
-    #[arg(long = "logs.file.format", default_value = "full", env = "KONA_LOG_FILE_FORMAT")]
+    #[arg(long = "logs.file.format", default_value = "full", env = "KONA_LOGS_FILE_FORMAT")]
     pub file_format: LogFormat,
     /// The rotation of the log files. One of: hourly, daily, weekly, monthly, never.
     /// If set, new log files will be created every interval.
-    #[arg(long = "logs.file.rotation", default_value = "never", env = "KONA_LOG_FILE_ROTATION")]
+    #[arg(long = "logs.file.rotation", default_value = "never", env = "KONA_LOGS_FILE_ROTATION")]
     pub file_rotation: LogRotation,
+}
+
+/// A level to log at, from the least detailed to the most.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[clap(rename_all = "lowercase")]
+pub enum LogLevel {
+    /// Errors only.
+    Error,
+    /// Warnings and errors.
+    Warn,
+    /// Informational messages, warnings and errors.
+    #[default]
+    Info,
+    /// Debugging messages and everything above.
+    Debug,
+    /// Every message.
+    Trace,
+}
+
+impl From<LogLevel> for LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Error => Self::ERROR,
+            LogLevel::Warn => Self::WARN,
+            LogLevel::Info => Self::INFO,
+            LogLevel::Debug => Self::DEBUG,
+            LogLevel::Trace => Self::TRACE,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -72,23 +94,24 @@ mod tests {
     }
 
     #[test]
-    fn test_default_verbosity_level() {
+    fn logs_at_info_by_default() {
         let cli = TestCli::parse_from(["test_app"]);
-        assert_eq!(
-            cli.global.level, 3,
-            "Default verbosity should be 3 when no -v flag is present."
-        );
+        assert_eq!(cli.global.level, LogLevel::Info);
     }
 
     #[test]
-    fn test_verbosity_count() {
-        let cli_v1 = TestCli::parse_from(["test_app", "-v"]);
-        assert_eq!(cli_v1.global.level, 1, "Verbosity with a single -v should be 1.");
-
-        let cli_v3 = TestCli::parse_from(["test_app", "-vvv"]);
-        assert_eq!(cli_v3.global.level, 3, "Verbosity with -vvv should be 3.");
-
-        let cli_v5 = TestCli::parse_from(["test_app", "-vvvvv"]);
-        assert_eq!(cli_v5.global.level, 5, "Verbosity with -vvvvv should be 5.");
+    fn parses_each_level_by_name() {
+        for (name, level) in [
+            ("error", LogLevel::Error),
+            ("warn", LogLevel::Warn),
+            ("info", LogLevel::Info),
+            ("debug", LogLevel::Debug),
+            ("trace", LogLevel::Trace),
+        ] {
+            let cli = TestCli::parse_from(["test_app", "--logs.level", name]);
+            assert_eq!(cli.global.level, level, "{name}");
+        }
+        assert!(TestCli::try_parse_from(["test_app", "--logs.level", "3"]).is_err());
+        assert!(TestCli::try_parse_from(["test_app", "-v"]).is_err());
     }
 }

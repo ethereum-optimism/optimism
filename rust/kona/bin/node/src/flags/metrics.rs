@@ -11,7 +11,7 @@ use metrics::gauge;
 /// This function should be called at the beginning of the program.
 pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
     args.init_metrics()?;
-    if args.enabled {
+    if args.is_enabled() {
         kona_gossip::Metrics::init();
         kona_disc::Metrics::init();
         kona_sources::Metrics::init();
@@ -53,22 +53,23 @@ mod tests {
     #[test]
     fn test_metrics_args_listen_enabled() {
         let args = MockCommand::parse_from(["test", "--metrics.enabled"]);
-        assert!(args.metrics.enabled);
+        assert!(args.metrics.is_enabled());
 
         let args = MockCommand::parse_from(["test"]);
-        assert!(!args.metrics.enabled);
+        assert!(!args.metrics.is_enabled());
     }
 
     #[test]
     fn test_metrics_args_listen_ip() {
-        let args = MockCommand::parse_from(["test", "--metrics.addr", "127.0.0.1"]);
+        let args =
+            MockCommand::parse_from(["test", "--metrics.enabled", "--metrics.addr", "127.0.0.1"]);
         let expected: IpAddr = "127.0.0.1".parse().unwrap();
         assert_eq!(args.metrics.addr, expected);
     }
 
     #[test]
     fn test_metrics_args_listen_port() {
-        let args = MockCommand::parse_from(["test", "--metrics.port", "1234"]);
+        let args = MockCommand::parse_from(["test", "--metrics.enabled", "--metrics.port", "1234"]);
         assert_eq!(args.metrics.port, 1234);
     }
 }
