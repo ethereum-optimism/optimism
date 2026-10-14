@@ -546,10 +546,12 @@ L1-pinned live-network view. One process owns one network and one artifact URL.
 It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
 and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
 (`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
-pin is an input error. Finalized supernode responses are assumed immutable for a timestamp. An
-identical successful fingerprint is not re-executed; a correctness failure receives one
-confirmation attempt. The next selection is scheduled only after the prior attempt and its
-cadence plus bounded jitter have completed.
+pin is an input error. The pin and required L1 block identities are checked against the L1 RPC's
+canonical blocks. `CurrentL1` is used by number to bound the pin and verify processing progress;
+its hash is not independently validated. Finalized supernode responses are assumed immutable for
+a timestamp. An identical successful fingerprint is not re-executed; a correctness failure
+receives one confirmation attempt. The next selection is scheduled only after the prior attempt
+and its cadence plus bounded jitter have completed.
 
 The canary always uses SP1 CPU `execute` mode. This runs the real RISC-V ELF and returns an
 `ExecutionReport`, but it never invokes a proving API, submits work to the Succinct Prover Network,
