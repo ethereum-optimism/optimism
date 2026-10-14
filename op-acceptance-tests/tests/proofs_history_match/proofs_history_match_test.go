@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
@@ -132,6 +133,12 @@ func deployBlockRecorder(t devtest.T, deployer *dsl.EOA) common.Address {
 	return receipt.ContractAddress
 }
 
+func includedBlock(t devtest.T, tx *txplan.PlannedTx) uint64 {
+	receipt, err := tx.Included.Eval(t.Ctx())
+	t.Require().NoError(err, "transaction must be included")
+	return bigs.Uint64Strict(receipt.BlockNumber)
+}
+
 // TestProofsHistoryFollowerServesMatchingHistoricalProofs runs transfers and contract writes
 // against a sequencer that serves eth_getProof from its own historical state, then sweeps every
 // block of a proofs-history follower's window: each of the follower's proofs must verify against
@@ -142,17 +149,18 @@ func TestProofsHistoryFollowerServesMatchingHistoricalProofs(gt *testing.T) {
 		t.Run(c.name(), func(t devtest.T) {
 			t.Parallel()
 			if c.stateMaskingBlocks != 0 {
-				t.Skipf("state masking is compiled out of the reth 2.5.2 on develop and #23046 rejects a nonzero --engine.num-state-masking-blocks; re-enable with ethereum-optimism/protocol-team#457")
+				t.Skipf("state masking is compiled out of reth 2.5.2 on develop and #23046 rejects a nonzero --engine.num-state-masking-blocks; re-enable with ethereum-optimism/protocol-team#457")
 			}
 			sys := newProofsHistorySystem(t, c)
 
 			alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 			bob := sys.FunderL2.NewFundedEOA(eth.OneEther)
 			recorder := deployBlockRecorder(t, alice)
+			var lastWorkloadBlock uint64
 			for range workloadRounds {
 				alice.Transfer(bob.Address(), eth.OneHundredthEther)
 				bob.Transfer(alice.Address(), eth.OneHundredthEther)
-				alice.Transact(alice.Plan(), txplan.WithTo(&recorder))
+				lastWorkloadBlock = includedBlock(t, alice.Transact(alice.Plan(), txplan.WithTo(&recorder)))
 			}
 
 			sys.ProofsFollower.VerifyHistoricalProofsMatch(sys.Reference, func(opts *dsl.HistoricalProofsOpts) {
@@ -161,6 +169,7 @@ func TestProofsHistoryFollowerServesMatchingHistoricalProofs(gt *testing.T) {
 					{Address: bob.Address()},
 					{Address: recorder, StorageKeys: []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}},
 				}
+				opts.LastBlock = lastWorkloadBlock
 			})
 		})
 	}

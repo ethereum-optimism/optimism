@@ -224,13 +224,18 @@ func (el *L2ELNode) awaitHeaderByNumber(number uint64, timeout time.Duration) et
 func (el *L2ELNode) awaitProof(header eth.BlockInfo, account ProofAccount, timeout time.Duration) *eth.AccountResult {
 	ctx, cancel := context.WithTimeout(el.ctx, timeout)
 	defer cancel()
+	// A nil key list encodes as JSON null, which op-reth rejects where op-geth accepts it.
+	storageKeys := account.StorageKeys
+	if storageKeys == nil {
+		storageKeys = []common.Hash{}
+	}
 	var proof *eth.AccountResult
 	var lastErr error
 	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
-		result, err := el.inner.L2EthClient().GetProof(ctx, account.Address, account.StorageKeys, header.Hash().String())
+		result, err := el.inner.L2EthClient().GetProof(ctx, account.Address, storageKeys, header.Hash().String())
 		if err != nil {
 			lastErr = err
-			el.log.Debug("eth_getProof failed; will retry", "name", el.inner.Name(), "block", header.NumberU64(),
+			el.log.Warn("eth_getProof failed; will retry", "name", el.inner.Name(), "block", header.NumberU64(),
 				"account", account.Address, "err", err)
 			return false, nil
 		}
