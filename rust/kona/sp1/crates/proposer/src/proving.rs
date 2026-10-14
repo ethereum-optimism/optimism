@@ -769,6 +769,7 @@ async fn prove_chunk_inner(
         &synthesized.range_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
+        None,
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
@@ -785,6 +786,7 @@ async fn prove_chunk_inner(
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
+        None,
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;

@@ -38,7 +38,9 @@ use kona_sp1_ethereum_client_utils::{
     chain_config::ChainConfigs, super_consolidation::build_consolidation_outputs,
     super_range::build_range_outputs,
 };
-use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
+use kona_sp1_host_utils::witness_generation::{
+    BLOB_WITNESS_BYTES, OnlineBlobStore, PreimageWitnessCollector, WitnessSizeLimit,
+};
 use serde::Deserialize;
 use sp1_sdk::{Elf, Prover, ProverClient, SP1PublicValues, SP1Stdin};
 
@@ -48,6 +50,46 @@ pub const EXIT_VALID: u8 = 0;
 pub const EXIT_INVALID: u8 = 1;
 /// Exit code signalling an infrastructure failure before a verdict was reached.
 pub const EXIT_INFRA: u8 = 2;
+
+/// Largest witness archive the guest's 32-bit-offset rkyv format can hold.
+pub const MAX_ARCHIVED_WITNESS_BYTES: u64 = i32::MAX as u64;
+
+/// A span's witness cannot be proven in one child proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WitnessTooLarge {
+    /// Distinct preimage and blob bytes exceeded the collection limit.
+    Collected {
+        /// Witness bytes counted when collection stopped.
+        bytes: u64,
+        /// The collection limit.
+        limit: u64,
+    },
+    /// rkyv could not archive the witness (32-bit relative offsets).
+    Archive {
+        /// The rkyv error or panic message.
+        error: String,
+    },
+}
+
+impl fmt::Display for WitnessTooLarge {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Collected { bytes, limit } => {
+                write!(f, "witness reached {bytes} bytes, above the {limit}-byte collection limit")
+            }
+            Self::Archive { error } => {
+                write!(f, "witness does not fit an rkyv archive with 32-bit offsets: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for WitnessTooLarge {}
+
+/// Returns true when `err`'s chain contains a [`WitnessTooLarge`].
+pub fn is_witness_too_large(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| cause.is::<WitnessTooLarge>())
+}
 
 /// CLI/runtime configuration for one super-range execution.
 #[derive(Clone, Debug)]
@@ -190,6 +232,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.range_inputs,
         &preloaded_preimages,
         Some(&configs),
+        None,
     )
     .await?;
 
@@ -248,6 +291,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.consolidation_inputs,
         &preloaded_preimages,
         Some(&configs),
+        None,
     )
     .await?;
 
@@ -510,9 +554,31 @@ fn build_super_interop_stdin(
 ) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
     stdin.write(&inputs);
-    let witness_bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?;
+    let witness_bytes = archive_witness(&witness)?;
     stdin.write_slice(&witness_bytes);
     Ok(stdin)
+}
+
+/// Archives `witness` with rkyv.
+///
+/// rkyv 0.8 panics, rather than returning an error, when a relative offset does not fit 32 bits
+/// ("out of range integral type conversion attempted"), so the panic is caught here. For a
+/// preimage map plus blob vectors, offset overflow is the only reachable failure, so every
+/// failure is classified as [`WitnessTooLarge::Archive`].
+fn archive_witness(witness: &DefaultWitnessData) -> Result<rkyv::util::AlignedVec> {
+    let archived = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        rkyv::to_bytes::<rkyv::rancor::Error>(witness)
+    }));
+    let error = match archived {
+        Ok(Ok(bytes)) => return Ok(bytes),
+        Ok(Err(err)) => err.to_string(),
+        Err(payload) => payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+            .unwrap_or_else(|| "rkyv serialization panicked".to_string()),
+    };
+    Err(anyhow::Error::new(WitnessTooLarge::Archive { error }))
 }
 
 /// Decodes the public output committed by the super-range guest.
@@ -704,13 +770,17 @@ fn ensure_consolidation_outputs_match_inputs(
 }
 
 /// Collects a range-mode witness and the natively computed range outputs.
+///
+/// With `size_limit`, collection stops with [`WitnessTooLarge::Collected`] once the witness
+/// exceeds that many bytes.
 pub async fn collect_range_witness(
     host: InteropHost,
     inputs: &SuperRangeInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     configs: Option<&ChainConfigs>,
+    size_limit: Option<u64>,
 ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, beacon| {
+    collect_witness(preloaded_preimages, host, size_limit, |oracle, beacon| {
         let inputs = inputs.clone();
         async move { build_range_outputs(inputs, oracle, beacon, configs).await }
     })
@@ -718,13 +788,17 @@ pub async fn collect_range_witness(
 }
 
 /// Collects a consolidation-mode witness and the natively computed consolidation outputs.
+///
+/// With `size_limit`, collection stops with [`WitnessTooLarge::Collected`] once the witness
+/// exceeds that many bytes.
 pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     configs: Option<&ChainConfigs>,
+    size_limit: Option<u64>,
 ) -> Result<(DefaultWitnessData, SuperConsolidationOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, _beacon| {
+    collect_witness(preloaded_preimages, host, size_limit, |oracle, _beacon| {
         let inputs = inputs.clone();
         async move { build_consolidation_outputs(inputs, oracle, configs).await }
     })
@@ -743,9 +817,14 @@ impl Drop for AbortOnDrop {
 ///
 /// Preloaded preimages seed the oracle before host hinting; the returned witness bundles
 /// every preimage and blob the native pass touched, alongside the native outputs.
+///
+/// With `size_limit`, the native pass is cancelled as soon as the distinct preimage bytes
+/// exceed the limit, and the call returns [`WitnessTooLarge::Collected`]. Blob bytes are
+/// added once at the end, since the L1 blobs a span references bound them.
 pub async fn collect_witness<T, F, Fut>(
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     host: InteropHost,
+    size_limit: Option<u64>,
     run_native: F,
 ) -> Result<(DefaultWitnessData, T)>
 where
@@ -753,14 +832,18 @@ where
         Arc<PreimageWitnessCollector<SeededOracleBase>>,
         OnlineBlobStore<OracleBlobProvider<SeededOracleBase>>,
     ) -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
+    Fut: Future<Output = Result<T>>,
 {
     let preimage = BidirectionalChannel::new()?;
     let hint = BidirectionalChannel::new()?;
+    let size_limit = size_limit.map(|limit| Arc::new(WitnessSizeLimit::new(limit)));
 
     let mut seeded_store = PreimageStore::default();
     for (key, value) in preloaded_preimages {
         seeded_store.save_preimage(*key, value.clone())?;
+        if let Some(limit) = &size_limit {
+            limit.record(*key, value.len());
+        }
     }
 
     let preimage_witness_store = Arc::new(Mutex::new(seeded_store.clone()));
@@ -772,7 +855,7 @@ where
     let oracle = Arc::new(PreimageWitnessCollector {
         preimage_oracle: preimage_oracle.clone(),
         preimage_witness_store: preimage_witness_store.clone(),
-        size_limit: None,
+        size_limit: size_limit.clone(),
     });
     let beacon = OnlineBlobStore {
         provider: OracleBlobProvider::new(preimage_oracle),
@@ -781,10 +864,26 @@ where
 
     let server_task = host.start_server(hint.host, preimage.host).await?;
     let _server_guard = AbortOnDrop(server_task.abort_handle());
-    let native_outputs = run_native(oracle, beacon).await;
+    let native_outputs = match &size_limit {
+        Some(limit) => tokio::select! {
+            biased;
+            () = limit.exceeded() => None,
+            outputs = run_native(oracle, beacon) => Some(outputs),
+        },
+        None => Some(run_native(oracle, beacon).await),
+    };
     server_task.abort();
     let server_result = server_task.await;
-    let native_outputs = native_outputs?;
+    // A tripped limit wins over the native result: the retained witness is incomplete.
+    if let Some(limit) = &size_limit &&
+        (limit.is_exceeded() || native_outputs.is_none())
+    {
+        return Err(anyhow::Error::new(WitnessTooLarge::Collected {
+            bytes: limit.bytes(),
+            limit: limit.limit(),
+        }));
+    }
+    let native_outputs = native_outputs.context("native witness pass was cancelled")??;
     match server_result {
         Ok(Ok(())) => {}
         Ok(Err(error)) => return Err(error.into()),
@@ -792,12 +891,23 @@ where
         Err(error) => return Err(error.into()),
     }
 
+    let blob_data =
+        blob_data.lock().map_err(|_| anyhow!("failed to acquire blob data lock"))?.clone();
+    if let Some(limit) = &size_limit {
+        let bytes = limit.bytes() + blob_data.blobs.len() as u64 * BLOB_WITNESS_BYTES;
+        if bytes > limit.limit() {
+            return Err(anyhow::Error::new(WitnessTooLarge::Collected {
+                bytes,
+                limit: limit.limit(),
+            }));
+        }
+    }
     let witness = DefaultWitnessData::from_parts(
         preimage_witness_store
             .lock()
             .map_err(|_| anyhow!("failed to acquire preimage witness store lock"))?
             .clone(),
-        blob_data.lock().map_err(|_| anyhow!("failed to acquire blob data lock"))?.clone(),
+        blob_data,
     );
     Ok((witness, native_outputs))
 }
