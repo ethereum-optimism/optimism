@@ -58,7 +58,8 @@ func L2CLFollowSource(source string) L2CLOption {
 }
 
 // L2CLVerifierSyncMode sets the sync mode a verifier runs: CL sync has op-node fill unsafe gaps
-// from its peers, EL sync hands the forkchoice target to the EL and lets it sync from its own.
+// from its peers, EL sync hands the forkchoice target to the EL and lets it sync from its own
+// peers.
 func L2CLVerifierSyncMode(mode nodeSync.Mode) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.VerifierSyncMode = mode

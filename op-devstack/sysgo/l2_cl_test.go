@@ -9,7 +9,7 @@ import (
 )
 
 func TestL2CLVerifierSyncMode(t *testing.T) {
-	cfg := DefaultL2CLConfig()
+	cfg := &L2CLConfig{SequencerSyncMode: nodeSync.CLSync, VerifierSyncMode: nodeSync.CLSync}
 	L2CLVerifierSyncMode(nodeSync.ELSync).Apply(nil, ComponentTarget{}, cfg)
 
 	require.Equal(t, nodeSync.ELSync, cfg.VerifierSyncMode)

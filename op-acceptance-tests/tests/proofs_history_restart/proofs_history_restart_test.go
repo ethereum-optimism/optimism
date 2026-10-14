@@ -15,8 +15,6 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/core/vm/program"
 )
 
 const (
@@ -27,21 +25,21 @@ const (
 	// explicitly, like the persistence threshold, so the gap the kill opens between the proofs
 	// store and reth's datadir does not depend on reth's defaults.
 	memoryBlockBufferTarget = 5
-	// referenceEthProofWindow lets the sequencer answer eth_getProof for every block of the run
-	// from reth's own historical state; reth's default window of zero rejects them all.
-	referenceEthProofWindow = 1_000_000
 	// postRestartTrafficBlocks is how far past the head the chain is driven once the follower has
 	// caught up, so the sweep also covers blocks the proofs store indexed after coming back.
 	postRestartTrafficBlocks = 10
+	// referenceEthProofWindow lets the sequencer answer eth_getProof for every block of the run
+	// from reth's own historical state; reth's default window of zero rejects them all.
+	referenceEthProofWindow = 1_000_000
 
+	// rebuildAttempts bounds how long the restarted sequencer may take to rebuild the heights it
+	// lost with different contents.
+	rebuildAttempts = 30
+	// resyncAttempts bounds how long the restarted follower may take to catch up with the
+	// sequencer. A follower whose op-reth crash-loops never does.
+	resyncAttempts = 60
 	// storeCatchUpTimeout bounds the wait for a proofs store flush before the kill.
 	storeCatchUpTimeout = 60 * time.Second
-	// resyncAttempts bounds, in 2s polls, how long the restarted follower may take to catch up with
-	// the sequencer. A follower whose op-reth crash-loops never does.
-	resyncAttempts = 60
-	// rebuildAttempts bounds, in 2s polls, how long the restarted sequencer may take to rebuild the
-	// heights it lost with different contents.
-	rebuildAttempts = 30
 )
 
 // killPoint says where, relative to the proofs store's flush cadence, the follower is killed.
@@ -60,9 +58,7 @@ const (
 type restartCase struct {
 	killPoint            killPoint
 	persistenceThreshold uint64
-	// storeFlushBeforeKill is the proofs store tip the kill waits for. It leaves reth's persisted
-	// tip behind it: at threshold 7 reth persists every few blocks, at 50 it has persisted
-	// exactly once by block 60 and holds the rest in memory.
+	// storeFlushBeforeKill is the proofs store tip the kill waits for.
 	storeFlushBeforeKill uint64
 	syncMode             nodeSync.Mode
 	verificationInterval uint64
@@ -95,7 +91,9 @@ func (c restartCase) followerArgs() []string {
 
 // restartMatrix pairs the kill point with the persistence threshold rather than crossing them:
 // the small threshold gets the mid-buffer kill, where both reth and the store lose blocks, the
-// large one the after-flush kill, where the store's lead over reth is largest.
+// large one the after-flush kill, where the store's lead over reth is largest. The kill heights
+// leave reth's datadir behind the store: at threshold 7 reth persists every few blocks, at 50 it
+// has persisted once by block 60 (down to block 46) and holds the rest in memory.
 func restartMatrix() []restartCase {
 	var cases []restartCase
 	for _, schedule := range []struct {
@@ -183,43 +181,32 @@ func newRestartSystem(t devtest.T, c restartCase) *restartSystem {
 	return sys
 }
 
-// traffic changes state in nearly every block: alice and bob transfer back and forth and bob
+// workload changes state in nearly every block: alice and bob transfer back and forth and bob
 // writes to a contract, so every block an unclean stop loses carries balance and storage changes
 // that a rebuilt block would not repeat.
-type traffic struct {
+type workload struct {
 	alice    *dsl.EOA
 	bob      *dsl.EOA
 	recorder common.Address
-	t        devtest.T
+	// setupBlock is the block that completed the funding and the contract deployment; a rebuilt
+	// chain must start below it or the workload's accounts no longer exist.
+	setupBlock uint64
+	t          devtest.T
 }
 
-func newTraffic(t devtest.T, funder *dsl.FunderEOA) *traffic {
-	alice := funder.NewFundedEOA(eth.OneEther)
-	return &traffic{
-		alice:    alice,
-		bob:      funder.NewFundedEOA(eth.OneEther),
-		recorder: deployBlockRecorder(t, alice),
-		t:        t,
+func newWorkload(t devtest.T, funder *dsl.FunderEOA) *workload {
+	w := &workload{
+		alice: funder.NewFundedEOA(eth.OneEther),
+		bob:   funder.NewFundedEOA(eth.OneEther),
+		t:     t,
 	}
-}
-
-// deployBlockRecorder deploys a contract that writes the block number to slot 0 and the block
-// timestamp to slot 1 on every call, so every call changes its storage.
-func deployBlockRecorder(t devtest.T, deployer *dsl.EOA) common.Address {
-	runtimeCode := program.New().
-		Op(vm.NUMBER).Push(0).Op(vm.SSTORE).
-		Op(vm.TIMESTAMP).Push(1).Op(vm.SSTORE).
-		Bytes()
-	initCode := program.New().ReturnViaCodeCopy(runtimeCode).Bytes()
-
-	tx := deployer.Transact(deployer.Plan(), txplan.WithData(initCode))
-	receipt, err := tx.Included.Eval(t.Ctx())
-	t.Require().NoError(err, "block recorder deployment must be included")
-	return receipt.ContractAddress
+	w.recorder = w.alice.DeployBlockRecorder()
+	w.setupBlock = includedBlock(t, w.alice.Transact(w.alice.Plan(), txplan.WithTo(&w.recorder)))
+	return w
 }
 
 // accounts are the accounts the proofs sweep proves at every block.
-func (w *traffic) accounts() []dsl.ProofAccount {
+func (w *workload) accounts() []dsl.ProofAccount {
 	return []dsl.ProofAccount{
 		{Address: w.alice.Address()},
 		{Address: w.bob.Address()},
@@ -229,7 +216,7 @@ func (w *traffic) accounts() []dsl.ProofAccount {
 
 // driveUntilBlock sends transactions one after another until one lands in a block at or past
 // target, and returns that block.
-func (w *traffic) driveUntilBlock(target uint64) uint64 {
+func (w *workload) driveUntilBlock(target uint64) uint64 {
 	for {
 		w.alice.Transfer(w.bob.Address(), eth.OneHundredthEther)
 		w.bob.Transfer(w.alice.Address(), eth.OneHundredthEther)
@@ -253,23 +240,26 @@ type uncleanStop struct {
 	storeTip eth.L2BlockRef
 }
 
-// killFollower drives traffic until the follower's proofs store has flushed the case's target
-// block, kills the follower's op-reth at the case's kill point and then stops its CL.
-func killFollower(t devtest.T, sys *restartSystem, w *traffic, c restartCase) uncleanStop {
+// killFollower drives the workload until the follower's proofs store has flushed the case's target
+// block and kills the follower's op-reth at the case's kill point. Its CL is left to the caller,
+// so a test that kills the sequencer too can do so right away.
+func killFollower(t devtest.T, sys *restartSystem, w *workload, c restartCase) uncleanStop {
 	// Stop sending transactions two blocks short of the flush: close enough that the last
 	// transactions sit above reth's persisted tip, yet with no transaction in flight to delay the
 	// kill once the flush is observed.
 	w.driveUntilBlock(c.storeFlushBeforeKill - 2)
 	window := sys.Follower.WaitForProofsStoreBlock(c.storeFlushBeforeKill, storeCatchUpTimeout)
-	storeTip := sys.Follower.BlockRefByNumber(*window.Latest)
 	if c.killPoint == killMidStoreBuffer {
-		sys.Follower.WaitForBlockNumber(storeTip.Number + 2)
+		sys.Follower.WaitForBlockNumber(*window.Latest + 2)
 	}
+	// Read the store tip again right before the kill: a flush since the wait would have moved it.
+	window, err := sys.Follower.ProofsSyncStatus()
+	t.Require().NoError(err, "debug_proofsSyncStatus must answer before the kill")
+	storeTip := sys.Follower.BlockRefByNumber(*window.Latest)
 	head := sys.Follower.BlockRefByLabel(eth.Unsafe)
 	t.Logger().Info("Killing the follower", "head", head, "proofs_store_tip", storeTip, "kill_point", c.killPoint)
 
 	sys.Follower.StopUngracefully()
-	sys.FollowerCL.Stop()
 	return uncleanStop{head: head, storeTip: storeTip}
 }
 
@@ -304,9 +294,10 @@ func TestProofsHistoryFollowerRecoversFromUncleanShutdown(gt *testing.T) {
 			t.Parallel()
 			skipUnsupportedCell(t, c)
 			sys := newRestartSystem(t, c)
-			w := newTraffic(t, sys.FunderL2)
+			w := newWorkload(t, sys.FunderL2)
 
 			stop := killFollower(t, sys, w, c)
+			sys.FollowerCL.Stop()
 			persistedTip := restartFollower(t, sys, stop)
 
 			sys.Follower.InSync(sys.Sequencer, safety.LocalUnsafe, resyncAttempts)
@@ -336,20 +327,26 @@ func TestProofsHistoryFollowerServesRebuiltBlocksAfterUncleanShutdown(gt *testin
 			// Blocks that reached L1 would be derived back as they were; blocks that never did
 			// are re-sequenced, which is the rebuild this test needs.
 			sys.Batcher.Stop()
-			w := newTraffic(t, sys.FunderL2)
+			w := newWorkload(t, sys.FunderL2)
 
+			// Both op-reths die back to back, so the sequencer still holds the blocks the
+			// follower's store flushed; the CLs follow once the processes are gone.
 			stop := killFollower(t, sys, w, c)
-
 			sys.Sequencer.StopUngracefully()
+			sys.FollowerCL.Stop()
 			sys.SequencerCL.Stop()
+
 			sys.Sequencer.Start()
 			sys.Sequencer.WaitForOnline()
 			sequencerPersistedTip := sys.Sequencer.BlockRefByLabel(eth.Unsafe)
 			t.Logger().Info("Sequencer op-reth is back on its datadir", "persisted_tip", sequencerPersistedTip,
-				"follower_proofs_store_tip", stop.storeTip)
+				"follower_proofs_store_tip", stop.storeTip, "workload_setup_block", w.setupBlock)
 			t.Require().Lessf(sequencerPersistedTip.Number, stop.storeTip.Number,
 				"the sequencer must rebuild blocks the follower's proofs store holds, but its datadir tip %d is not below the store tip %d",
 				sequencerPersistedTip.Number, stop.storeTip.Number)
+			t.Require().LessOrEqualf(w.setupBlock, sequencerPersistedTip.Number,
+				"the workload's funding and contract (block %d) must survive the sequencer's crash, but its datadir tip is %d",
+				w.setupBlock, sequencerPersistedTip.Number)
 			sys.SequencerCL.Start()
 			sys.Sequencer.ReorgTriggered(stop.storeTip, rebuildAttempts)
 

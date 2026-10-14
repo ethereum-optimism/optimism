@@ -22,6 +22,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/vm/program"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -250,6 +252,21 @@ func (u *EOA) DeployEventLogger() common.Address {
 	eventLoggerAddress := res.ContractAddress
 	u.log.Info("deployed EventLogger", "chainID", tx.ChainID.Value(), "address", eventLoggerAddress)
 	return eventLoggerAddress
+}
+
+// DeployBlockRecorder deploys a contract that writes the block number to storage slot 0 and the
+// block timestamp to slot 1 on every call, so every call to it changes its storage.
+func (u *EOA) DeployBlockRecorder() common.Address {
+	runtimeCode := program.New().
+		Op(vm.NUMBER).Push(0).Op(vm.SSTORE).
+		Op(vm.TIMESTAMP).Push(1).Op(vm.SSTORE).
+		Bytes()
+	initCode := program.New().ReturnViaCodeCopy(runtimeCode).Bytes()
+	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(initCode))
+	res, err := tx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "failed to deploy block recorder")
+	u.log.Info("deployed block recorder", "chainID", tx.ChainID.Value(), "address", res.ContractAddress)
+	return res.ContractAddress
 }
 
 func (u *EOA) DeployWETH() common.Address {
