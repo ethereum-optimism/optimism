@@ -3,7 +3,10 @@ use enr::NodeId;
 use libp2p::Multiaddr;
 use std::{collections::HashSet, time::Duration};
 use thiserror::Error;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{
+    mpsc::{self, error::TrySendError},
+    oneshot,
+};
 
 /// Queries and bans executed by the discovery actor.
 #[derive(Debug)]
@@ -59,15 +62,16 @@ impl Handle {
         self.request(Message::TableInfos).await
     }
 
-    /// Queues a ban of the routing table's nodes at any of `addrs` for `duration`.
+    /// Queues a ban of the routing table's nodes at any of `addrs` for `duration`, without
+    /// waiting for room in the queue.
     ///
     /// Success means the ban was queued, not that it was applied.
-    pub async fn ban(
+    pub fn try_ban(
         &self,
         addrs: HashSet<Multiaddr>,
         duration: Duration,
-    ) -> Result<(), HandleError> {
-        self.messages.send(Message::Ban { addrs, duration }).await.map_err(|_| HandleError)
+    ) -> Result<(), TrySendError<()>> {
+        self.messages.try_send(Message::Ban { addrs, duration }).map_err(crate::without_value)
     }
 
     async fn request<T>(
@@ -103,7 +107,9 @@ mod tests {
         assert_eq!(count, Ok(3));
 
         let addrs = HashSet::from(["/ip4/192.0.2.1/tcp/9000".parse().unwrap()]);
-        handle.ban(addrs.clone(), Duration::from_secs(5)).await.unwrap();
+        handle.try_ban(addrs.clone(), Duration::from_secs(5)).unwrap();
+        // The queue holds one message, so a second ban finds it full instead of waiting.
+        assert_eq!(handle.try_ban(addrs.clone(), Duration::ZERO), Err(TrySendError::Full(())));
         assert!(matches!(
             receiver.recv().await.unwrap(),
             Message::Ban { addrs: banned, duration } if banned == addrs && duration == Duration::from_secs(5)
@@ -117,6 +123,6 @@ mod tests {
 
         drop(receiver);
         assert_eq!(handle.local_enr().await.map(|_| ()), Err(HandleError));
-        assert_eq!(handle.ban(HashSet::new(), Duration::ZERO).await, Err(HandleError));
+        assert_eq!(handle.try_ban(HashSet::new(), Duration::ZERO), Err(TrySendError::Closed(())));
     }
 }

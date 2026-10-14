@@ -5054,7 +5054,6 @@ name = "example-gossip"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap",
  "discv5 0.12.0",
  "enr 0.14.0",

@@ -1,7 +1,7 @@
 //! Network construction and execution.
 
 use super::{
-    Capacity, Discovery, Engine, Handle,
+    Discovery, Engine, Handle,
     handle::{Applied, Message},
 };
 use crate::signer;
@@ -21,9 +21,11 @@ use tokio::{
     time::{self, Interval},
 };
 
-/// How many signed payloads can wait to be published. The signer waits while the queue is full,
-/// and the sequencer then stops building once the signer's own queue fills.
-const PAYLOAD_QUEUE_CAPACITY: usize = 16;
+/// How many peers discovery can queue for the network to dial. Discovery finds peers in bursts and
+/// drops those that find the queue full: at startup it dials its stored peers, newest first, of
+/// which the default bootnodes alone number 25, and each lookup returns up to 16. An entry is a
+/// few hundred bytes.
+const DIAL_QUEUE_CAPACITY: usize = 64;
 
 /// Constructs the handle and task.
 #[derive(Debug)]
@@ -40,12 +42,14 @@ impl Builder {
     /// Creates the builder around a gossip driver whose swarm is listening, as
     /// [`NetworkConfig::start`](super::NetworkConfig::start) leaves it, and publishes its state.
     ///
-    /// The message queue and the queue of peers to dial each hold `capacity` entries.
-    pub fn new(capacity: Capacity, gossip: GossipDriver<ConnectionGater>) -> Self {
+    /// The message queue holds one change, which waits to be applied anyway, and the queue of
+    /// signed payloads to publish holds one payload, so the signer waits while the network falls
+    /// a payload behind.
+    pub fn new(gossip: GossipDriver<ConnectionGater>) -> Self {
         let (state, state_rx) = watch::channel(Arc::new(gossip.snapshot()));
-        let (messages_tx, messages) = mpsc::channel(capacity.get());
-        let (peers_tx, peers) = mpsc::channel(capacity.get());
-        let (payloads_tx, payloads) = mpsc::channel(PAYLOAD_QUEUE_CAPACITY);
+        let (messages_tx, messages) = mpsc::channel(1);
+        let (peers_tx, peers) = mpsc::channel(DIAL_QUEUE_CAPACITY);
+        let (payloads_tx, payloads) = mpsc::channel(1);
         Self {
             handle: Handle::new(state_rx, messages_tx, peers_tx, payloads_tx),
             gossip,
@@ -144,7 +148,7 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
                     None
                 }
                 _ = self.peer_score_inspector.tick(), if self.gossip.peer_monitoring.is_some() => {
-                    self.ban_low_scoring_peers().await;
+                    self.ban_low_scoring_peers();
                     None
                 }
                 Some(message) = self.messages.recv(), if !self.messages.is_closed() => {
@@ -232,7 +236,7 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
 
     /// Disconnects the peers whose score is below the ban threshold, and asks discovery to ban
     /// their addresses.
-    async fn ban_low_scoring_peers(&mut self) {
+    fn ban_low_scoring_peers(&mut self) {
         let Some(ban_peers) = self.gossip.peer_monitoring.as_ref() else {
             return;
         };
@@ -283,8 +287,16 @@ impl<Engine_: Engine, Discovery_: Discovery> Actor<Engine_, Discovery_> {
             return;
         }
 
-        if let Err(err) = self.discovery.ban(addrs_to_ban, ban_peers.ban_duration).await {
-            warn!(?err, "Failed to ask discovery to ban the addresses of low-scoring peers");
+        // The peers are already disconnected: a ban only keeps discovery from finding them again,
+        // so it is skipped rather than waited for while discovery is busy.
+        match self.discovery.try_ban(addrs_to_ban, ban_peers.ban_duration) {
+            Ok(()) => {}
+            Err(TrySendError::Full(())) => {
+                warn!("Discovery is busy: not banning the addresses of low-scoring peers")
+            }
+            Err(TrySendError::Closed(())) => {
+                warn!("Failed to ask discovery to ban the addresses of low-scoring peers")
+            }
         }
     }
 }
@@ -320,7 +332,6 @@ fn forward(engine: &impl Engine, block: OpExecutionPayloadEnvelope) -> Result<()
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
-    use crate::discovery::HandleError;
     use alloy_primitives::Address;
     use kona_genesis::RollupConfig;
     use libp2p::{Multiaddr, identity::Keypair};
@@ -359,22 +370,19 @@ pub(super) mod tests {
     #[derive(Debug)]
     struct UnusedDiscovery;
 
-    #[async_trait::async_trait]
     impl Discovery for UnusedDiscovery {
-        type Error = HandleError;
-
-        async fn ban(
+        fn try_ban(
             &self,
             _addrs: HashSet<Multiaddr>,
             _duration: Duration,
-        ) -> Result<(), Self::Error> {
+        ) -> Result<(), TrySendError<()>> {
             panic!("peer monitoring is off")
         }
     }
 
     #[tokio::test]
     async fn publishes_state_from_construction_until_the_builder_or_actor_stops() {
-        let builder = Builder::new(Capacity::try_from(1).unwrap(), gossip());
+        let builder = Builder::new(gossip());
         let state = builder.handle().state();
         assert!(state.borrow().connected_peers.is_empty());
         assert!(state.has_changed().is_ok());
@@ -385,7 +393,7 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn a_change_returns_once_the_state_that_follows_it_is_published() {
-        let builder = Builder::new(Capacity::try_from(1).unwrap(), gossip());
+        let builder = Builder::new(gossip());
         let handle = builder.handle();
         let task = tokio::spawn(builder.build(UnusedEngine, UnusedDiscovery));
         let state = handle.state();

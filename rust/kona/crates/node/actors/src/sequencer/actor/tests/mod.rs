@@ -1,10 +1,12 @@
 use super::Actor;
 use crate::{
     MockConductor, MockOriginSelector, MockSequencerEngineClient,
-    sequencer::{Handle, MockSigner, handle::Message},
+    sequencer::{Handle, MockSigner, Signer, handle::Message},
 };
+use async_trait::async_trait;
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
@@ -45,3 +47,38 @@ fn test_actor_with_config(
 }
 
 mod lifetime;
+
+/// A signer that queues payloads on a channel, and has room exactly when the channel does.
+#[derive(Debug)]
+struct QueueSigner(mpsc::Sender<OpExecutionPayloadEnvelope>);
+
+#[async_trait]
+impl Signer for QueueSigner {
+    type Error = std::io::Error;
+
+    async fn send(&self, payload: OpExecutionPayloadEnvelope) -> Result<(), Self::Error> {
+        self.0.send(payload).await.map_err(std::io::Error::other)
+    }
+
+    async fn ready(&self) -> Result<(), Self::Error> {
+        self.0.reserve().await.map(drop).map_err(std::io::Error::other)
+    }
+}
+
+/// Replaces the actor's signer.
+fn with_signer<S: Signer>(
+    actor: TestActor,
+    signer: S,
+) -> Actor<TestAttributesBuilder, MockConductor, MockOriginSelector, MockSequencerEngineClient, S> {
+    Actor {
+        messages_rx: actor.messages_rx,
+        is_active: actor.is_active,
+        is_active_tx: actor.is_active_tx,
+        attributes_builder: actor.attributes_builder,
+        conductor: actor.conductor,
+        engine_client: actor.engine_client,
+        origin_selector: actor.origin_selector,
+        rollup_config: actor.rollup_config,
+        signer,
+    }
+}

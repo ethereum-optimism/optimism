@@ -78,7 +78,7 @@ impl DiscCommand {
         )
         .with_interval(Duration::from_secs(self.interval))
         .build()?;
-        let builder = discovery::Builder::new(discovery::Capacity::try_from(1024)?);
+        let builder = discovery::Builder::new();
         let handle = builder.handle();
         let (peers_tx, mut peers) = mpsc::channel(1024);
         let mut actor = tokio::spawn(builder.build(driver, peers_tx));

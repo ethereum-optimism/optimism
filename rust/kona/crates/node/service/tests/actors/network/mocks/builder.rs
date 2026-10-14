@@ -110,11 +110,9 @@ impl TestNetworkBuilder {
         };
         let (gossip, discovery_driver) =
             config.start(watch::channel(self.unsafe_block_signer).1).await.expect("start network");
-        let discovery_builder =
-            discovery::Builder::new(discovery::Capacity::try_from(1024).unwrap());
+        let discovery_builder = discovery::Builder::new();
         let discovery = discovery_builder.handle();
-        let network_builder =
-            network::Builder::new(network::Capacity::try_from(1024).unwrap(), gossip);
+        let network_builder = network::Builder::new(gossip);
         let network = network_builder.handle();
         let discovery_actor = discovery_builder.build(discovery_driver, Network(network.clone()));
         tokio::spawn(async move {
@@ -124,7 +122,7 @@ impl TestNetworkBuilder {
         });
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let signer_builder = signer::Builder::new(signer::Capacity::try_from(256).unwrap());
+        let signer_builder = signer::Builder::new();
         let signer_handle = signer_builder.handle();
 
         let network_actor = network_builder
@@ -177,11 +175,12 @@ impl signer::Network for Network {
 #[derive(Debug)]
 struct BanningDiscovery(discovery::Handle);
 
-#[async_trait]
 impl network::Discovery for BanningDiscovery {
-    type Error = discovery::HandleError;
-
-    async fn ban(&self, addrs: HashSet<Multiaddr>, duration: Duration) -> Result<(), Self::Error> {
-        self.0.ban(addrs, duration).await
+    fn try_ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), TrySendError<()>> {
+        self.0.try_ban(addrs, duration)
     }
 }

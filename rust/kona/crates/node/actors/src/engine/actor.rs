@@ -1,7 +1,7 @@
 //! Engine construction and execution.
 
 use super::{
-    ActorError, BuildTaskError, Capacity, ConsolidateTaskError, Consolidation, EngineBuildError,
+    ActorError, BuildTaskError, ConsolidateTaskError, Consolidation, EngineBuildError,
     EngineClientError, EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity,
     FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, InsertTaskError, SealTaskError,
     SynchronizeTaskError,
@@ -40,8 +40,11 @@ pub struct Builder {
 
 impl Builder {
     /// Creates the builder with the default engine state.
-    pub fn new(capacity: Capacity) -> Self {
-        let (messages_tx, messages_rx) = mpsc::channel(capacity.get());
+    ///
+    /// The request queue holds one request: a sender waits for room in it, and the network drops
+    /// the unsafe blocks it receives over gossip while it is full.
+    pub fn new() -> Self {
+        let (messages_tx, messages_rx) = mpsc::channel(1);
         let (state_tx, state_rx) = watch::channel(EngineState::default());
         let (resets_tx, resets_rx) = watch::channel(EngineState::default());
         Self {
@@ -70,6 +73,12 @@ impl Builder {
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
         Actor::new(client, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

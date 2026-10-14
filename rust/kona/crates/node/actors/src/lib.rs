@@ -11,8 +11,6 @@ extern crate tracing;
 
 use async_trait::async_trait;
 
-mod capacity;
-
 pub mod engine;
 pub use engine::{EngineClientError, EngineClientResult};
 

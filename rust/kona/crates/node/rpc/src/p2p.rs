@@ -434,7 +434,7 @@ mod tests {
     /// Returns a handle to a discovery actor with an empty routing table, on a free loopback
     /// port, or to a stopped one.
     fn discovery(running: bool) -> discovery::Handle {
-        let builder = discovery::Builder::new(discovery::Capacity::try_from(8).unwrap());
+        let builder = discovery::Builder::new();
         let handle = builder.handle();
         if running {
             let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
@@ -464,9 +464,7 @@ mod tests {
     fn fixture(discovery_running: bool) -> Fixture {
         let driver = gossip_driver();
         let (state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
-        let network =
-            network::Builder::new(network::Capacity::try_from(1).unwrap(), gossip_driver())
-                .handle();
+        let network = network::Builder::new(gossip_driver()).handle();
         let rpc = P2pRpc::new(state_rx, network, discovery(discovery_running), 10);
         Fixture { rpc, state_tx, driver }
     }

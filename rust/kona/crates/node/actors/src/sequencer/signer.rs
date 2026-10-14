@@ -11,11 +11,13 @@ pub trait Signer: Debug + Send + Sync {
     /// An error queuing a payload.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Queues a payload, waiting for capacity if needed.
+    /// Queues a payload, waiting for room if needed.
     ///
     /// Success means the payload was queued, not that it was signed or gossiped.
     async fn send(&self, payload: OpExecutionPayloadEnvelope) -> Result<(), Self::Error>;
 
-    /// Returns whether the signer currently has room for another payload.
-    fn has_capacity(&self) -> bool;
+    /// Waits until the signer has room for another payload, and fails once it has stopped.
+    ///
+    /// The sequencer is the signer's only sender, so the room is still there when it sends.
+    async fn ready(&self) -> Result<(), Self::Error>;
 }

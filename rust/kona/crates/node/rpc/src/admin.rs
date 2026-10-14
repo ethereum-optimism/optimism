@@ -151,7 +151,7 @@ mod tests {
 
     /// Returns a handle to an engine that never runs.
     fn idle_engine() -> engine::Handle {
-        engine::Builder::new(engine::Capacity::try_from(1).unwrap()).handle()
+        engine::Builder::new().handle()
     }
 
     /// Returns an engine whose execution and L1 clients complete one reset.
@@ -174,7 +174,7 @@ mod tests {
             "engine_forkchoiceUpdatedV3",
             ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
         );
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let builder = engine::Builder::new();
         let handle = builder.handle();
         let task = builder.build(Arc::new(client), config, Arc::new(NoopBlockSink));
         (handle, task)
@@ -191,8 +191,8 @@ mod tests {
             panic!("a full signer queue must pause building")
         }
 
-        fn has_capacity(&self) -> bool {
-            false
+        async fn ready(&self) -> Result<(), Self::Error> {
+            std::future::pending().await
         }
     }
 
@@ -212,7 +212,7 @@ mod tests {
     fn sequencer(
         conductor_enabled: bool,
     ) -> (Handle, impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static) {
-        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
+        let builder = sequencer::Builder::new();
         let handle = builder.handle();
         let task = builder.build(
             TestAttributesBuilder { attributes: vec![] },
@@ -261,7 +261,7 @@ mod tests {
             assert!(admin.method(method).is_none(), "{method} is served without a sequencer");
         }
 
-        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
+        let builder = sequencer::Builder::new();
         admin.merge(SequencerAdminRpc::new(builder.handle(), false).into_rpc()).unwrap();
         for method in SEQUENCER_METHODS {
             assert!(admin.method(method).is_some(), "{method} is not served with a sequencer");
@@ -291,7 +291,7 @@ mod tests {
 
     #[tokio::test]
     async fn reads_initial_state_before_build() {
-        let builder = sequencer::Builder::new(sequencer::Capacity::try_from(1).unwrap());
+        let builder = sequencer::Builder::new();
         let rpc = SequencerAdminRpc::new(builder.handle(), false);
         assert!(!rpc.admin_sequencer_active().await.unwrap());
         assert!(!rpc.admin_conductor_enabled().await.unwrap());
@@ -312,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn maps_closed_engine_channels() {
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let builder = engine::Builder::new();
         let rpc = AdminRpc::new(builder.handle());
         // The engine stops with the reset queued.
         let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
@@ -328,7 +328,7 @@ mod tests {
     #[tokio::test]
     async fn validates_payloads_before_queueing_them_on_the_engine() {
         // The engine never runs, so its one-slot queue fills with the first queued payload.
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let builder = engine::Builder::new();
         let rpc = AdminRpc::new(builder.handle());
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),

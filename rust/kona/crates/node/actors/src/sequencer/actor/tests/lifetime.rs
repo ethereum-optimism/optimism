@@ -1,7 +1,8 @@
 use crate::{
     Conductor, ConductorError, EngineClientError, EngineClientResult, MockConductor,
     MockOriginSelector, MockSequencerEngineClient, SequencerEngineClient,
-    sequencer::{ActorError, Builder, Capacity, HandleError, MockSigner},
+    engine::{BuildTaskError, EngineBuildError},
+    sequencer::{ActorError, Builder, HandleError, MockSigner},
 };
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
@@ -93,7 +94,7 @@ impl SequencerEngineClient for ForwardingEngine {
 
 #[test]
 fn construction_and_build_do_not_require_a_runtime() {
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    let builder = Builder::new();
     let handle = builder.handle();
     let initial = false;
     assert_eq!(handle.is_active().unwrap(), initial);
@@ -112,7 +113,7 @@ fn construction_and_build_do_not_require_a_runtime() {
 
 #[tokio::test]
 async fn aborting_lifetime_interrupts_a_pending_initial_reset() {
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    let builder = Builder::new();
     let handle = builder.handle();
     let (engine, mut requests) = mpsc::channel(1);
     let task = tokio::spawn(builder.build(
@@ -136,40 +137,49 @@ async fn aborting_lifetime_interrupts_a_pending_initial_reset() {
 async fn sequencing_continues_without_command_handles() {
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-    let ticks = Arc::new(AtomicUsize::new(0));
-    let observed_ticks = ticks.clone();
-    let reached_ticks = Arc::new(Notify::new());
-    let notify_after_ticks = reached_ticks.clone();
-    let mut signer = MockSigner::new();
-    signer.expect_has_capacity().times(3).returning(move || {
-        if observed_ticks.fetch_add(1, Ordering::Relaxed) == 2 {
-            notify_after_ticks.notify_one();
+    engine.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    let builds = Arc::new(AtomicUsize::new(0));
+    let observed_builds = builds.clone();
+    let reached_builds = Arc::new(Notify::new());
+    let notify_after_builds = reached_builds.clone();
+    // The engine is syncing, so each build waits a block time for the next.
+    engine.expect_start_build_block().returning(move |_| {
+        if observed_builds.fetch_add(1, Ordering::Relaxed) == 2 {
+            notify_after_builds.notify_one();
         }
-        false
+        Err(EngineClientError::StartBuildError(BuildTaskError::EngineBuildError(
+            EngineBuildError::EngineSyncing,
+        )))
     });
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    let mut origin = MockOriginSelector::new();
+    origin.expect_next_l1_origin().returning(|_| Ok(Default::default()));
+    // The actor may build again before it is aborted.
+    let attributes = (0..10).map(|_| Ok(Default::default())).collect();
+    let mut signer = MockSigner::new();
+    signer.expect_ready().returning(|| Ok(()));
+    let builder = Builder::new();
     let handle = builder.handle();
     let task = tokio::spawn(builder.build(
-        TestAttributesBuilder { attributes: vec![] },
+        TestAttributesBuilder { attributes },
         engine,
-        MockOriginSelector::new(),
+        origin,
         config(),
         None::<MockConductor>,
         signer,
     ));
     handle.start().await.unwrap();
     drop(handle);
-    time::timeout(Duration::from_secs(5), reached_ticks.notified()).await.unwrap();
+    time::timeout(Duration::from_secs(5), reached_builds.notified()).await.unwrap();
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
-    assert_eq!(ticks.load(Ordering::Relaxed), 3);
+    assert!(builds.load(Ordering::Relaxed) >= 3);
 }
 
 #[tokio::test]
 async fn stopped_actor_without_command_handles_stays_pending() {
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-    let task = Builder::new(Capacity::try_from(1).unwrap()).build(
+    let task = Builder::new().build(
         TestAttributesBuilder { attributes: vec![] },
         engine,
         MockOriginSelector::new(),
@@ -188,7 +198,7 @@ async fn stopped_actor_without_command_handles_stays_pending() {
 
 #[tokio::test]
 async fn failed_startup_rejects_a_previously_queued_command() {
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    let builder = Builder::new();
     let handle = builder.handle();
     let command = handle.start();
     tokio::pin!(command);
@@ -221,8 +231,8 @@ async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
     let mut origin = MockOriginSelector::new();
     origin.expect_next_l1_origin().times(1).return_once(|_| Ok(Default::default()));
     let mut signer = MockSigner::new();
-    signer.expect_has_capacity().times(1).return_const(true);
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    signer.expect_ready().times(1).returning(|| Ok(()));
+    let builder = Builder::new();
     let handle = builder.handle();
     let task = tokio::spawn(builder.build(
         TestAttributesBuilder { attributes: vec![Ok(Default::default())] },
@@ -248,7 +258,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
 #[tokio::test]
 async fn aborting_lifetime_interrupts_an_in_flight_message() {
     let started = Arc::new(Notify::new());
-    let builder = Builder::new(Capacity::try_from(1).unwrap());
+    let builder = Builder::new();
     let handle = builder.handle();
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));

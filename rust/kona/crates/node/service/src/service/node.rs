@@ -164,31 +164,17 @@ impl RollupNode {
         // actor request channels
         let derivation_builder = derivation::Builder::new();
         let derivation = derivation_builder.handle();
-        let engine_builder = engine::Builder::new(
-            engine::Capacity::try_from(1024)
-                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
-        );
+        let engine_builder = engine::Builder::new();
         let engine = engine_builder.handle();
-        let sequencer_capacity = sequencer::Capacity::try_from(1024)
-            .map_err(|error| RollupNodeError::Startup(error.to_string()))?;
-        let sequencer = self
-            .sequencer
-            .as_ref()
-            .map(|config| (config, sequencer::Builder::new(sequencer_capacity)));
+        let sequencer = self.sequencer.as_ref().map(|config| (config, sequencer::Builder::new()));
         let sequencer_admin_rpc = sequencer.as_ref().map(|(config, builder)| {
             SequencerAdminRpc::new(builder.handle(), config.conductor_rpc_url.is_some())
         });
-        let discovery_builder = discovery::Builder::new(
-            discovery::Capacity::try_from(1024)
-                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
-        );
+        let discovery_builder = discovery::Builder::new();
         let discovery = discovery_builder.handle();
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
-        // network actor. While signing stalls, a full sequencer queue pauses block production.
-        let signer_builder = signer::Builder::new(
-            signer::Capacity::try_from(32)
-                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
-        );
+        // network actor. While signing or publishing stalls, the sequencer pauses block production.
+        let signer_builder = signer::Builder::new();
         let signer_handle = signer_builder.handle();
 
         // ─── engine ─────────────────────────────────────────────────────────────────────────
@@ -276,11 +262,7 @@ impl RollupNode {
             .start(signer_rx.clone())
             .await
             .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e}")))?;
-        let network_builder = network::Builder::new(
-            network::Capacity::try_from(1024)
-                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
-            gossip,
-        );
+        let network_builder = network::Builder::new(gossip);
         let network = network_builder.handle();
         let discovery_actor =
             discovery_builder.build(discovery_driver, adapters::Network(network.clone()));

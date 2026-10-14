@@ -1,6 +1,6 @@
 //! Discovery construction and execution.
 
-use super::{Capacity, Handle, Network, handle::Message};
+use super::{Handle, Network, handle::Message};
 use discv5::{Discv5, Enr, Event, QueryError};
 use enr::NodeId;
 use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
@@ -30,8 +30,10 @@ pub struct Builder {
 
 impl Builder {
     /// Creates the builder.
-    pub fn new(capacity: Capacity) -> Self {
-        let (messages_tx, messages) = mpsc::channel(capacity.get());
+    ///
+    /// The message queue holds one message: the actor handles each without waiting.
+    pub fn new() -> Self {
+        let (messages_tx, messages) = mpsc::channel(1);
         Self { handle: Handle::new(messages_tx), messages }
     }
 
@@ -51,6 +53,12 @@ impl Builder {
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let messages = self.messages;
         async move { Actor::start(driver, messages, network).await?.run().await }
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -97,7 +105,9 @@ struct Actor<N> {
 
 impl<N: Network> Actor<N> {
     /// Starts the discv5 service, bootstraps its table, and asks the network to dial the valid
-    /// peers in the bootstore.
+    /// peers in the bootstore, newest first, so that those the network has no room for are the
+    /// stalest. Bootnodes are in the routing table regardless, and are dialed once discv5
+    /// establishes a session with them.
     async fn start(
         driver: Discv5Driver,
         messages: mpsc::Receiver<Message>,
@@ -132,7 +142,7 @@ impl<N: Network> Actor<N> {
             store_interval: time::interval(store_interval),
             remove_interval: remove_interval.map(time::interval),
         };
-        for enr in actor.store.valid_peers_with_chain_id(chain_id) {
+        for enr in actor.store.valid_peers_with_chain_id(chain_id).into_iter().rev() {
             dial(&actor.network, enr.clone())?;
         }
         Ok(actor)
@@ -337,7 +347,7 @@ mod tests {
     ) -> (Handle, Enr, JoinHandle<Result<(), ActorError>>) {
         let driver = driver(0, bootnodes);
         let local_enr = driver.disc.local_enr();
-        let builder = Builder::new(Capacity::try_from(8).unwrap());
+        let builder = Builder::new();
         let handle = builder.handle();
         (handle, local_enr, tokio::spawn(builder.build(driver, network)))
     }
@@ -364,7 +374,7 @@ mod tests {
         let (handle, _, _task) = spawn(vec![banned.clone(), kept.clone()], network);
 
         let addrs = HashSet::from([enr_to_multiaddr(&banned).unwrap()]);
-        handle.ban(addrs, Duration::from_secs(60)).await.unwrap();
+        handle.try_ban(addrs, Duration::from_secs(60)).unwrap();
         assert_eq!(handle.table_enrs().await.unwrap(), vec![kept]);
     }
 

@@ -13,7 +13,6 @@ mod actor;
 pub use actor::{ActorError, Builder};
 
 mod handle;
-pub use crate::capacity::{Capacity, InvalidCapacity};
 pub use handle::{Handle, HandleError};
 
 mod network;

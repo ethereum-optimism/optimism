@@ -17,7 +17,6 @@
 
 #![warn(unused_crate_dependencies)]
 
-use async_trait::async_trait;
 use clap::Parser;
 use discv5::Enr;
 use enr::CombinedKey;
@@ -52,12 +51,13 @@ impl discovery::Network for DialingNetwork {
 #[derive(Debug)]
 struct BanningDiscovery(discovery::Handle);
 
-#[async_trait]
 impl network::Discovery for BanningDiscovery {
-    type Error = discovery::HandleError;
-
-    async fn ban(&self, addrs: HashSet<Multiaddr>, duration: Duration) -> Result<(), Self::Error> {
-        self.0.ban(addrs, duration).await
+    fn try_ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), TrySendError<()>> {
+        self.0.try_ban(addrs, duration)
     }
 }
 
@@ -118,9 +118,9 @@ impl GossipCommand {
             ..NetworkConfig::new(rollup_config.clone(), disc_addr, gossip_addr)
         };
         let (gossip, discovery_driver) = network_config.start(watch::channel(signer).1).await?;
-        let discovery_builder = discovery::Builder::new(discovery::Capacity::try_from(1024)?);
+        let discovery_builder = discovery::Builder::new();
         let discovery = discovery_builder.handle();
-        let network_builder = network::Builder::new(network::Capacity::try_from(1024)?, gossip);
+        let network_builder = network::Builder::new(gossip);
         let discovery_actor =
             discovery_builder.build(discovery_driver, DialingNetwork(network_builder.handle()));
         tokio::spawn(async move {

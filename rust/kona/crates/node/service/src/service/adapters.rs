@@ -129,12 +129,13 @@ impl network::Engine for Engine {
 #[derive(Debug, Clone)]
 pub(super) struct Discovery(pub(super) discovery::Handle);
 
-#[async_trait]
 impl network::Discovery for Discovery {
-    type Error = discovery::HandleError;
-
-    async fn ban(&self, addrs: HashSet<Multiaddr>, duration: Duration) -> Result<(), Self::Error> {
-        self.0.ban(addrs, duration).await
+    fn try_ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), TrySendError<()>> {
+        self.0.try_ban(addrs, duration)
     }
 }
 
@@ -161,14 +162,14 @@ pub(super) struct Signer(pub(super) signer::Handle);
 
 #[async_trait]
 impl sequencer::Signer for Signer {
-    type Error = tokio::sync::mpsc::error::SendError<OpExecutionPayloadEnvelope>;
+    type Error = signer::Stopped;
 
     async fn send(&self, payload: OpExecutionPayloadEnvelope) -> Result<(), Self::Error> {
         self.0.send(payload).await
     }
 
-    fn has_capacity(&self) -> bool {
-        self.0.has_capacity()
+    async fn ready(&self) -> Result<(), Self::Error> {
+        self.0.ready().await
     }
 }
 
@@ -181,7 +182,7 @@ mod tests {
 
     #[tokio::test]
     async fn engine_reports_a_closed_queue() {
-        let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
+        let builder = engine::Builder::new();
         let mut engine = Engine::new(builder.handle());
         drop(builder);
         assert!(matches!(
@@ -196,7 +197,7 @@ mod tests {
 
     #[tokio::test]
     async fn signer_preserves_backpressure_and_reports_closed_channels() {
-        let builder = signer::Builder::new(signer::Capacity::try_from(1).unwrap());
+        let builder = signer::Builder::new();
         let signer = Signer(builder.handle());
         let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
             parent_hash: Default::default(),
@@ -214,9 +215,15 @@ mod tests {
             block_hash: Default::default(),
             transactions: vec![],
         });
-        assert!(signer.has_capacity());
+        signer.ready().await.unwrap();
         signer.send(payload.clone()).await.unwrap();
-        assert!(!signer.has_capacity());
+        let waiting = signer.ready();
+        tokio::pin!(waiting);
+        tokio::select! {
+            biased;
+            result = &mut waiting => panic!("a full queue reported room: {result:?}"),
+            _ = ready(()) => {}
+        }
 
         let send = signer.send(payload.clone());
         tokio::pin!(send);
@@ -226,6 +233,7 @@ mod tests {
             _ = ready(()) => {}
         }
         drop(builder);
-        assert_eq!(send.await.unwrap_err().0, payload);
+        assert_eq!(send.await, Err(signer::Stopped));
+        assert_eq!(waiting.await, Err(signer::Stopped));
     }
 }
