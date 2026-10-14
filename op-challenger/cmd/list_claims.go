@@ -91,16 +91,16 @@ type claimsReport struct {
 // zkGameReport is the structured, machine-readable view of a ZK dispute game. ZK games have a
 // single proposal and no claim tree, and their sequence numbers are super-root timestamps.
 type zkGameReport struct {
-	Status                     string `json:"status"`
-	ResolutionTime             string `json:"resolutionTime,omitempty"` // RFC3339, when resolved
-	ProposalStatus             string `json:"proposalStatus"`
-	ParentIndex                uint32 `json:"parentIndex"`
-	RootClaim                  string `json:"rootClaim"`
-	StartingSuperRootTimestamp uint64 `json:"startingSuperRootTimestamp"`
-	ProposalSuperRootTimestamp uint64 `json:"proposalSuperRootTimestamp"`
-	Challenger                 string `json:"challenger"`
-	Prover                     string `json:"prover"`
-	Deadline                   string `json:"deadline"` // RFC3339
+	Status                string `json:"status"`
+	ResolutionTime        string `json:"resolutionTime,omitempty"` // RFC3339, when resolved
+	ProposalStatus        string `json:"proposalStatus"`
+	ParentIndex           uint32 `json:"parentIndex"`
+	RootClaim             string `json:"rootClaim"`
+	L2StartSequenceNumber uint64 `json:"l2StartSequenceNumber"`
+	L2EndSequenceNumber   uint64 `json:"l2EndSequenceNumber"`
+	Challenger            string `json:"challenger"`
+	Prover                string `json:"prover"`
+	Deadline              string `json:"deadline"` // RFC3339
 }
 
 func ListClaims(ctx *cli.Context) error {
@@ -305,15 +305,15 @@ func buildZKGameReport(ctx context.Context, game contracts.ZKDisputeGameContract
 		return zkGameReport{}, fmt.Errorf("failed to retrieve game range: %w", err)
 	}
 	report := zkGameReport{
-		Status:                     status.String(),
-		ProposalStatus:             metadata.ProposalStatus.String(),
-		ParentIndex:                metadata.ParentIndex,
-		RootClaim:                  metadata.ProposedRoot.Hex(),
-		StartingSuperRootTimestamp: startTimestamp,
-		ProposalSuperRootTimestamp: metadata.L2SequenceNumber,
-		Challenger:                 metadata.Challenger.Hex(),
-		Prover:                     metadata.Prover.Hex(),
-		Deadline:                   metadata.Deadline.Format(time.RFC3339),
+		Status:                status.String(),
+		ProposalStatus:        metadata.ProposalStatus.String(),
+		ParentIndex:           metadata.ParentIndex,
+		RootClaim:             metadata.ProposedRoot.Hex(),
+		L2StartSequenceNumber: startTimestamp,
+		L2EndSequenceNumber:   metadata.L2SequenceNumber,
+		Challenger:            metadata.Challenger.Hex(),
+		Prover:                metadata.Prover.Hex(),
+		Deadline:              metadata.Deadline.Format(time.RFC3339),
 	}
 	if status != gameTypes.GameStatusInProgress {
 		resolutionTime, err := game.GetResolvedAt(ctx, rpcblock.Latest)
@@ -377,10 +377,10 @@ func renderZKText(out io.Writer, report zkGameReport) error {
 	if report.ParentIndex == math.MaxUint32 {
 		parent = "anchor"
 	}
-	_, err := fmt.Fprintf(out, "Status: %v • Proposal Status: %v • Deadline: %v\nParent Index: %v • Root Claim: %v\nSuper Root Timestamps: %v to %v\nChallenger: %v • Prover: %v\n",
+	_, err := fmt.Fprintf(out, "Status: %v • Proposal Status: %v • Deadline: %v\nParent Index: %v • Root Claim: %v\nL2 Sequence: %v to %v\nChallenger: %v • Prover: %v\n",
 		statusStr, report.ProposalStatus, report.Deadline,
 		parent, report.RootClaim,
-		report.StartingSuperRootTimestamp, report.ProposalSuperRootTimestamp,
+		report.L2StartSequenceNumber, report.L2EndSequenceNumber,
 		report.Challenger, report.Prover)
 	return err
 }
