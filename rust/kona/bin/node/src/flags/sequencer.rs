@@ -4,7 +4,6 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/flags.go#L233-L265
 
-use super::signer::{SignerArgs, SignerError};
 use clap::{ArgAction, Parser};
 use kona_node_service::SequencerConfig;
 use std::time::Duration;
@@ -12,14 +11,15 @@ use url::Url;
 
 /// Sequencer CLI Flags
 ///
-/// `--sequencer.enabled` makes the node able to sequence, and then requires a block signer. The
-/// other flags here configure that sequencer, and are ignored without it, so that setting
-/// `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
+/// `--sequencer.enabled` makes the node able to sequence. The other flags here configure that
+/// sequencer, and are ignored without it, so that setting `--sequencer.enabled=false` turns a
+/// sequencer into a follower without unsetting them. A sequencer that gossips its blocks also
+/// needs a block signer: see [`SignerArgs`](super::SignerArgs).
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 #[command(next_help_heading = "Sequencer")]
 pub struct SequencerArgs {
-    /// Run the sequencer. It starts stopped: start it with `admin_startSequencer`. Requires a
-    /// block signer. Disabled by default.
+    /// Run the sequencer. It starts stopped: start it with `admin_startSequencer`. Requires
+    /// `--rpc.enabled`, and with `--p2p.enabled` a block signer. Disabled by default.
     #[arg(
         id = "sequencer_enabled",
         long = "sequencer.enabled",
@@ -31,10 +31,6 @@ pub struct SequencerArgs {
         default_missing_value = "true"
     )]
     pub enabled: bool,
-
-    /// The sequencer's block signer.
-    #[command(flatten)]
-    pub signer: SignerArgs,
 
     /// Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1
     /// origin.
@@ -64,54 +60,26 @@ impl Default for SequencerArgs {
     }
 }
 
-/// An error in the sequencer's flags.
-#[derive(Debug, thiserror::Error)]
-pub enum SequencerFlagsError {
-    /// The node was run with `--sequencer.enabled` but without a block signer.
-    #[error(
-        "--sequencer.enabled requires a block signer: --sequencer.signer.key-path, or \
-         --sequencer.signer.url with --sequencer.signer.address"
-    )]
-    NoBlockSigner,
-    /// The block signer's flags are inconsistent, or its key could not be read.
-    #[error(transparent)]
-    Signer(#[from] SignerError),
-}
-
 impl SequencerArgs {
     /// Creates the [`SequencerConfig`] of a node run with `--sequencer.enabled`, or `None` for a
     /// node that cannot sequence.
-    pub fn config(self) -> Result<Option<SequencerConfig>, SequencerFlagsError> {
-        if !self.enabled {
-            return Ok(None);
-        }
-        let signer = self.signer.config()?.ok_or(SequencerFlagsError::NoBlockSigner)?;
-        Ok(Some(SequencerConfig {
-            signer,
+    pub fn config(self) -> Option<SequencerConfig> {
+        self.enabled.then_some(SequencerConfig {
             conductor_rpc_url: self.conductor_url,
             conductor_rpc_timeout: self.conductor_timeout,
             l1_conf_delay: self.l1_confs,
-        }))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::flags::signer::test_utils::{KEY, key_file};
     use clap::{CommandFactory, error::ErrorKind};
     use std::collections::BTreeSet;
 
-    const ADDRESS: &str = "0x0000000000000000000000000000000000000001";
     /// Each sequencer flag other than `--sequencer.enabled`, with a valid value.
-    const SEQUENCER_FLAGS: [(&str, &str); 10] = [
-        ("sequencer.signer.key-path", "/key"),
-        ("sequencer.signer.url", "http://127.0.0.1:8080"),
-        ("sequencer.signer.address", ADDRESS),
-        ("sequencer.signer.header", "a=b"),
-        ("sequencer.signer.tls.ca-path", "/ca.pem"),
-        ("sequencer.signer.tls.cert-path", "/cert.pem"),
-        ("sequencer.signer.tls.key-path", "/key.pem"),
+    const SEQUENCER_FLAGS: [(&str, &str); 3] = [
         ("sequencer.l1-confs", "2"),
         ("sequencer.conductor.url", "http://127.0.0.1:4"),
         ("sequencer.conductor.timeout", "500ms"),
@@ -121,8 +89,8 @@ mod tests {
         SequencerArgs::try_parse_from(std::iter::once("node").chain(args.iter().copied()))
     }
 
-    /// The sequencer's flags apply only with `--sequencer.enabled`: without it, they are not
-    /// checked, alone or together, and the node cannot sequence.
+    /// The sequencer's flags apply only with `--sequencer.enabled`: without it, the node cannot
+    /// sequence.
     #[test]
     fn sequencer_flags_are_ignored_without_the_sequencer() {
         let command = SequencerArgs::command();
@@ -141,38 +109,23 @@ mod tests {
         for args in args.iter().map(std::slice::from_ref).chain([&args[..]]) {
             let args: Vec<_> = args.iter().flatten().map(String::as_str).collect();
             let sequencer = parse(&args).unwrap_or_else(|error| panic!("{args:?}: {error}"));
-            assert!(sequencer.config().unwrap().is_none(), "{args:?}");
+            assert!(sequencer.config().is_none(), "{args:?}");
         }
     }
 
     #[test]
-    fn the_sequencer_requires_a_block_signer() {
-        let error = parse(&["--sequencer.enabled"]).unwrap().config().unwrap_err();
-        assert!(matches!(error, SequencerFlagsError::NoBlockSigner));
-    }
-
-    #[test]
     fn config_is_none_without_the_sequencer() {
-        assert!(parse(&[]).unwrap().config().unwrap().is_none());
+        assert!(parse(&[]).unwrap().config().is_none());
     }
 
     #[test]
     fn config_carries_the_sequencer_flags() {
-        let key = key_file(KEY);
-        let key_path = key.path().to_str().unwrap();
-
-        let config = parse(&["--sequencer.enabled", "--sequencer.signer.key-path", key_path])
-            .unwrap()
-            .config()
-            .unwrap()
-            .unwrap();
+        let config = parse(&["--sequencer.enabled"]).unwrap().config().unwrap();
         assert_eq!((config.conductor_rpc_url, config.l1_conf_delay), (None, 4));
         assert_eq!(config.conductor_rpc_timeout, Duration::from_secs(1));
 
         let config = parse(&[
             "--sequencer.enabled",
-            "--sequencer.signer.key-path",
-            key_path,
             "--sequencer.l1-confs",
             "2",
             "--sequencer.conductor.url",
@@ -182,7 +135,6 @@ mod tests {
         ])
         .unwrap()
         .config()
-        .unwrap()
         .unwrap();
         assert_eq!(config.conductor_rpc_timeout, Duration::from_millis(250));
         assert_eq!(config.conductor_rpc_url, Some("http://127.0.0.1:4".parse().unwrap()));
@@ -191,12 +143,7 @@ mod tests {
 
     #[test]
     fn the_switch_takes_true_or_false() {
-        let key = key_file(KEY);
-        let key_path = key.path().to_str().unwrap();
-        let config = |enabled| {
-            parse(&[enabled, "--sequencer.signer.key-path", key_path])
-                .map(|args| args.config().unwrap().is_some())
-        };
+        let config = |enabled| parse(&[enabled]).map(|args| args.config().is_some());
         assert!(config("--sequencer.enabled=true").unwrap());
         assert!(!config("--sequencer.enabled=false").unwrap());
         assert_eq!(config("--sequencer.enabled=yes").unwrap_err().kind(), ErrorKind::InvalidValue);
@@ -204,19 +151,16 @@ mod tests {
 
     #[test]
     fn the_environment_variable_takes_true_or_false() {
-        let key = key_file(KEY);
-        let key_path = key.path().to_str().unwrap();
-
         // SAFETY: nextest runs each test in its own process.
         unsafe { std::env::set_var("KONA_NODE_SEQUENCER_ENABLED", "true") };
-        let enabled = parse(&["--sequencer.signer.key-path", key_path]);
+        let enabled = parse(&[]);
         // SAFETY: as above.
         unsafe { std::env::set_var("KONA_NODE_SEQUENCER_ENABLED", "false") };
-        let disabled = parse(&["--sequencer.signer.key-path", key_path]);
+        let disabled = parse(&[]);
         // SAFETY: as above.
         unsafe { std::env::remove_var("KONA_NODE_SEQUENCER_ENABLED") };
 
-        assert!(enabled.unwrap().config().unwrap().is_some());
-        assert!(disabled.unwrap().config().unwrap().is_none());
+        assert!(enabled.unwrap().config().is_some());
+        assert!(disabled.unwrap().config().is_none());
     }
 }

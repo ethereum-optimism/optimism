@@ -19,7 +19,7 @@ mod metrics;
 pub use metrics::{MetricsArgs, init_unified_metrics};
 
 mod sequencer;
-pub use sequencer::{SequencerArgs, SequencerFlagsError};
+pub use sequencer::SequencerArgs;
 
 mod signer;
 #[cfg(test)]

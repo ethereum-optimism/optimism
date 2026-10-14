@@ -29,7 +29,7 @@ kona-node node \
   --l1.beacon-url=http://l1-beacon:5052 \
   --l2.engine.url=http://l2-execution:8551 \
   --l2.engine.jwt-secret-path=./jwt.hex \
-  --sequencer.signer.key-path=./sequencer.key \
+  --signer.key-path=./sequencer.key \
   --chain.rollup-config-path=./rollup.json
 ```
 
@@ -48,7 +48,7 @@ A conductor can issue the start request for managed sequencers.
 <Warning>
 **Required Configuration**
 
-A sequencer requires all standard node arguments plus `--sequencer.enabled`, `--rpc.enabled` and a block signer. Missing any required argument will prevent the node from starting.
+A sequencer requires all standard node arguments plus `--sequencer.enabled` and `--rpc.enabled`, and, to gossip its blocks with `--p2p.enabled`, a block signer. Missing any required argument will prevent the node from starting.
 </Warning>
 
 | Argument | Flag | Environment Variable | Description |
@@ -60,7 +60,7 @@ A sequencer requires all standard node arguments plus `--sequencer.enabled`, `--
 | **Rollup Config** | `--chain.rollup-config-path` or `--chain` | `KONA_NODE_CHAIN_ROLLUP_CONFIG_PATH` or `KONA_NODE_CHAIN` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
 | **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The variable takes `true` or `false` |
 | **RPC** | `--rpc.enabled` | `KONA_NODE_RPC_ENABLED` | Serves the RPC API, through which the stopped sequencer is started |
-| **Block Signer** | `--sequencer.signer.key-path`, or `--sequencer.signer.url` with `--sequencer.signer.address` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH`, `KONA_NODE_SEQUENCER_SIGNER_URL`, `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
+| **Block Signer** | `--signer.key-path`, or `--signer.url` with `--signer.address` | `KONA_NODE_SIGNER_KEY_PATH`, `KONA_NODE_SIGNER_URL`, `KONA_NODE_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer. Used and required only with `--p2p.enabled` |
 
 ## Sequencer-Specific Flags
 
@@ -85,7 +85,7 @@ kona-node node \
   --l1.beacon-url=http://localhost:5052 \
   --l2.engine.url=http://localhost:8551 \
   --l2.engine.jwt-secret-path=./jwt.hex \
-  --sequencer.signer.key-path=./sequencer.key \
+  --signer.key-path=./sequencer.key \
   --chain.rollup-config-path=./rollup.json
 ```
 
@@ -103,7 +103,7 @@ kona-node node \
   --l1.beacon-url=http://l1-beacon:5052 \
   --l2.engine.url=http://l2-execution:8551 \
   --l2.engine.jwt-secret-path=./jwt.hex \
-  --sequencer.signer.key-path=./sequencer.key \
+  --signer.key-path=./sequencer.key \
   --chain.rollup-config-path=./rollup.json
 ```
 

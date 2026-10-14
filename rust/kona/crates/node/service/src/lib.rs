@@ -23,3 +23,5 @@ pub use kona_node_actors::{
 };
 
 pub use kona_node_actors::Metrics;
+
+pub use kona_sources::BlockSigner;

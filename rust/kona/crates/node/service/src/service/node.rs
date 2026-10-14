@@ -25,7 +25,7 @@ use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
     RollupNodeApiServer, RollupRpc, SequencerAdminApiServer, SequencerAdminRpc,
 };
-use kona_sources::{EngineApi, UntrustedRpc};
+use kona_sources::{BlockSigner, EngineApi, UntrustedRpc};
 use std::{
     convert::Infallible, future::Future, net::SocketAddr, pin::Pin, sync::Arc, time::Duration,
 };
@@ -62,6 +62,8 @@ pub struct RollupNode {
     pub(crate) p2p_config: Option<NetworkConfig>,
     /// The [`SequencerConfig`] of a node that can sequence.
     pub(crate) sequencer: Option<SequencerConfig>,
+    /// The block signer, which a node that can sequence and has P2P signs its blocks with.
+    pub(crate) signer: Option<BlockSigner>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
@@ -95,6 +97,7 @@ impl RollupNode {
             rpc_addr: config.rpc_addr,
             p2p_config: config.p2p_config,
             sequencer: config.sequencer,
+            signer: config.signer,
             l2_block_buffer,
         }
     }
@@ -130,6 +133,8 @@ impl RollupNode {
     /// ## Errors
     ///
     /// Before starting any actor, this fails with:
+    /// - [`RollupNodeError::NoBlockSigner`] if the node can sequence and has P2P, but no block
+    ///   signer;
     /// - [`RollupNodeError::ListenAddressUnavailable`] if a P2P listen address cannot be bound;
     /// - [`RollupNodeError::JwtRejected`] if the engine rejects the node's JWT;
     /// - [`RollupNodeError::EngineCapabilityExchange`] if the capability exchange that checks the
@@ -145,6 +150,9 @@ impl RollupNode {
     /// cleanly, and [`RollupNodeError::Stopped`] if it failed.
     pub async fn start(&self) -> Result<(), RollupNodeError> {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
+        if self.sequencer.is_some() && self.p2p_config.is_some() && self.signer.is_none() {
+            return Err(RollupNodeError::NoBlockSigner);
+        }
         if let Some(p2p_config) = &self.p2p_config {
             startup::check_listen_ports(p2p_config)?;
         }
@@ -270,8 +278,8 @@ impl RollupNode {
 
             // Start the sequencer's block signer before the network, so a misconfigured or
             // unreachable remote signer fails before the node binds its p2p ports.
-            let block_signer = match &self.sequencer {
-                Some(config) => Some(config.signer.clone().start().await.map_err(|e| {
+            let block_signer = match self.signer.as_ref().filter(|_| self.sequencer.is_some()) {
+                Some(signer) => Some(signer.clone().start().await.map_err(|e| {
                     RollupNodeError::Startup(format!("Failed to start block signer: {e}"))
                 })?),
                 None => None,

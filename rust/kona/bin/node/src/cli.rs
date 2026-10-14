@@ -29,6 +29,12 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Checks how the flags combine where clap cannot: see [`NodeCommand::check`].
+    pub fn check(&self) -> Result<(), clap::Error> {
+        let Commands::Node(node) = &self.subcommand;
+        node.check()
+    }
+
     /// Runs the CLI.
     pub fn run(self) -> Result<()> {
         let Commands::Node(node) = self.subcommand;

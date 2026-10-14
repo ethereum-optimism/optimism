@@ -28,7 +28,9 @@ The sequencer uses the same core derivation pipeline as validator nodes but oper
 
 <Unreleased component="kona-node" />
 
-Whether a node can sequence is the `sequencer` of its `RollupNodeConfig`, an `Option<SequencerConfig>`. A node with a `SequencerConfig` runs the sequencer actor and the block signer, and serves the sequencer's admin RPC methods (`admin_startSequencer`, `admin_stopSequencer`, `admin_sequencerActive`, `admin_conductorEnabled` and `admin_overrideLeader`). A node without one follows the chain only, and calls to those methods fail with "method not found".
+Whether a node can sequence is the `sequencer` of its `RollupNodeConfig`, an `Option<SequencerConfig>`. A node with a `SequencerConfig` runs the sequencer actor, and serves the sequencer's admin RPC methods (`admin_startSequencer`, `admin_stopSequencer`, `admin_sequencerActive`, `admin_conductorEnabled` and `admin_overrideLeader`). A node without one follows the chain only, and calls to those methods fail with "method not found".
+
+A sequencer with P2P gossips the blocks it builds, signed by the `signer` of its `RollupNodeConfig`, an `Option<BlockSigner>`: a local key or a remote op-signer. Such a node fails to start without one, with `RollupNodeError::NoBlockSigner`. Any other node ignores the signer, and neither signs nor gossips the blocks it builds.
 
 ### `SequencerActor`
 
@@ -55,10 +57,10 @@ Sequencers start stopped. Issue `admin_startSequencer` to begin block production
 
 ```rust
 pub struct SequencerConfig {
-    /// Signs the sequencer's blocks for gossip.
-    pub signer: BlockSigner,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
+    /// How long a conductor request may take before it fails.
+    pub conductor_rpc_timeout: Duration,
     /// The confirmation delay for the sequencer.
     pub l1_conf_delay: u64,
 }
@@ -70,7 +72,7 @@ pub struct SequencerConfig {
 
 <Unreleased component="kona-node" />
 
-To configure a Kona node programmatically to sequence, give its `RollupNodeConfig` a `SequencerConfig`:
+To configure a Kona node programmatically to sequence, give its `RollupNodeConfig` a `SequencerConfig`, and, with P2P, a `BlockSigner`:
 
 ```rust
 use kona_node_service::{
@@ -79,10 +81,10 @@ use kona_node_service::{
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
-    signer,                             // A `BlockSigner`: a local key or a remote op-signer
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
     ),
+    conductor_rpc_timeout: Duration::from_secs(1),
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
@@ -94,6 +96,7 @@ let config = RollupNodeConfig {
     p2p_config,
     rpc_addr,
     sequencer: Some(sequencer_config),
+    signer: Some(signer),               // A `BlockSigner`: a local key or a remote op-signer
 };
 // Where the L1 and L2 endpoints are. Pass your own `RollupNodeClients`
 // to `RollupNode::new` instead to connect to them differently.

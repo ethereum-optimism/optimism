@@ -123,21 +123,30 @@ The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin
 
 <Unreleased component="kona-node" />
 
-A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled` and a block signer: `--sequencer.signer.key-path`, or `--sequencer.signer.url` with `--sequencer.signer.address`. Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. The other sequencer flags apply only with `--sequencer.enabled`, and are ignored without it, so `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
+A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled`, and with `--p2p.enabled` a block signer: see [Signer Arguments](#signer-arguments). Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. The other sequencer flags apply only with `--sequencer.enabled`, and are ignored without it, so `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.enabled[=<BOOL>]` | `KONA_NODE_SEQUENCER_ENABLED` | Run the sequencer. Requires a block signer. The flag alone means `true` | `false` |
-| `--sequencer.signer.key-path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH` | Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The file must exist | - |
-| `--sequencer.signer.url <URL>` | `KONA_NODE_SEQUENCER_SIGNER_URL` | Remote op-signer that signs the sequencer's blocks, instead of a local key. Requires `--sequencer.signer.address` | - |
-| `--sequencer.signer.address <ADDRESS>` | `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Address of the remote op-signer's key | - |
-| `--sequencer.signer.header <NAME=VALUE>` | `KONA_NODE_SEQUENCER_SIGNER_HEADER` | Header to send to the remote op-signer. Pass the flag once per header; the environment variable sets a single header | - |
-| `--sequencer.signer.tls.ca-path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_CA_PATH` | CA certificates that verify the remote op-signer | - |
-| `--sequencer.signer.tls.cert-path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_CERT_PATH` | Client certificate presented to the remote op-signer. Requires `--sequencer.signer.tls.key-path` | - |
-| `--sequencer.signer.tls.key-path <PATH>` | `KONA_NODE_SEQUENCER_SIGNER_TLS_KEY_PATH` | Private key of the client certificate. Requires `--sequencer.signer.tls.cert-path` | - |
+| `--sequencer.enabled[=<BOOL>]` | `KONA_NODE_SEQUENCER_ENABLED` | Run the sequencer. Requires `--rpc.enabled`, and with `--p2p.enabled` a block signer. The flag alone means `true` | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.conductor.url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
 | `--sequencer.conductor.timeout <DURATION>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT` | How long a conductor request may take before it fails and the sequencer tries again later | `1s` |
+
+## Signer Arguments
+
+<Unreleased component="kona-node" />
+
+The block signer signs the blocks a sequencer builds, so that it can gossip them. A node uses and requires one only when `--sequencer.enabled` and `--p2p.enabled`: give `--signer.key-path`, or `--signer.url` with `--signer.address`. Any other node ignores the signer flags, and does not check them.
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--signer.key-path <PATH>` | `KONA_NODE_SIGNER_KEY_PATH` | Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The file must exist. Give this or `--signer.url` | - |
+| `--signer.url <URL>` | `KONA_NODE_SIGNER_URL` | Remote op-signer that signs the sequencer's blocks. Give this or `--signer.key-path` | - |
+| `--signer.address <ADDRESS>` | `KONA_NODE_SIGNER_ADDRESS` | Address of the remote op-signer's key. Requires `--signer.url` | - |
+| `--signer.header <NAME=VALUE>` | `KONA_NODE_SIGNER_HEADER` | Header to send to the remote op-signer. Pass the flag once per header; the environment variable sets a single header. Requires `--signer.url` | - |
+| `--signer.tls.ca-path <PATH>` | `KONA_NODE_SIGNER_TLS_CA_PATH` | CA certificates that verify the remote op-signer. Requires `--signer.url` | - |
+| `--signer.tls.cert-path <PATH>` | `KONA_NODE_SIGNER_TLS_CERT_PATH` | Client certificate presented to the remote op-signer. Requires `--signer.url` and `--signer.tls.key-path` | - |
+| `--signer.tls.key-path <PATH>` | `KONA_NODE_SIGNER_TLS_KEY_PATH` | Private key of the client certificate. Requires `--signer.url` and `--signer.tls.cert-path` | - |
 
 ## Logging Arguments
 

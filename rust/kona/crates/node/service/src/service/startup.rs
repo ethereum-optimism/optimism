@@ -183,6 +183,23 @@ mod tests {
         );
     }
 
+    /// A sequencer with P2P signs the blocks it gossips, so it cannot start without a signer:
+    /// it fails before anything waits on the unreachable L1 and L2 endpoints.
+    #[tokio::test]
+    async fn a_sequencer_with_p2p_needs_a_block_signer() {
+        let mut config = node_config(network_config(free_tcp_port(), 0));
+        config.sequencer = Some(crate::SequencerConfig {
+            conductor_rpc_url: None,
+            conductor_rpc_timeout: Duration::from_secs(1),
+            l1_conf_delay: 0,
+        });
+        let clients = RollupNodeClients::connect(&endpoints(None)).unwrap();
+
+        let err = RollupNode::new(config, clients).start().await.unwrap_err();
+
+        assert!(matches!(err, RollupNodeError::NoBlockSigner), "{err}");
+    }
+
     /// An Engine API client whose Engine API is `server`.
     fn engine(server: &httpmock::MockServer) -> EngineApi {
         EngineApi::new(

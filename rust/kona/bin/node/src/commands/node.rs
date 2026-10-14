@@ -4,10 +4,10 @@ use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
         ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, LogArgs, MetricsArgs,
-        P2PArgs, RpcArgs, SequencerArgs,
+        P2PArgs, RpcArgs, SequencerArgs, SignerArgs, SignerError,
     },
 };
-use clap::Parser;
+use clap::{CommandFactory, Parser, error::ErrorKind};
 use kona_node_service::{
     RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
@@ -20,10 +20,10 @@ use tracing::{debug, error, info};
 ///
 /// # Sequencing
 ///
-/// A node run with `--sequencer.enabled` can sequence. It needs a block signer:
-/// `--sequencer.signer.key-path`, or `--sequencer.signer.url` with `--sequencer.signer.address`,
-/// and `--rpc.enabled`: its sequencer starts stopped; start it with `admin_startSequencer`. A node
-/// without `--sequencer.enabled` follows the chain only.
+/// A node run with `--sequencer.enabled` can sequence. It needs `--rpc.enabled`: its sequencer
+/// starts stopped; start it with `admin_startSequencer`. With `--p2p.enabled`, it gossips the
+/// blocks it builds, and needs a block signer to sign them: `--signer.key-path`, or `--signer.url`
+/// with `--signer.address`. A node without `--sequencer.enabled` follows the chain only.
 ///
 /// # Configuration Sources
 ///
@@ -50,7 +50,8 @@ use tracing::{debug, error, info};
 ///                --l1.beacon-url http://localhost:5052 \
 ///                --l2.engine.url http://localhost:8551 \
 ///                --l2.engine.jwt-secret-path /path/to/jwt.hex \
-///                --sequencer.signer.key-path /path/to/sequencer.key
+///                --p2p.enabled \
+///                --signer.key-path /path/to/sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
@@ -79,6 +80,9 @@ pub struct NodeCommand {
     /// SEQUENCER CLI arguments.
     #[command(flatten)]
     pub sequencer_flags: SequencerArgs,
+    /// Block signer CLI arguments.
+    #[command(flatten)]
+    pub signer_flags: SignerArgs,
     /// Logging CLI arguments.
     #[command(flatten)]
     pub log_args: LogArgs,
@@ -153,16 +157,56 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Resolves the flags into the node's configuration.
+    /// Checks how the flags combine where clap cannot, because the rule depends on whether
+    /// features are enabled. The errors are clap's, so they read and exit like clap's own.
+    ///
+    /// - `--sequencer.enabled` requires `--rpc.enabled`: a sequencer starts stopped, and is started
+    ///   through the admin API.
+    /// - With `--sequencer.enabled` and `--p2p.enabled`, the signer flags must choose exactly one
+    ///   complete block signer. Otherwise they are ignored.
+    ///
+    /// This reads no files: [`Self::config`] reads them.
+    pub fn check(&self) -> Result<(), clap::Error> {
+        if self.sequencer_flags.enabled && !self.rpc_flags.enabled {
+            return Err(Self::error(
+                ErrorKind::MissingRequiredArgument,
+                "--sequencer.enabled requires --rpc.enabled",
+            ));
+        }
+        if self.signs_blocks() {
+            self.signer_flags.check().map_err(|error| {
+                let kind = match error {
+                    SignerError::TwoSigners => ErrorKind::ArgumentConflict,
+                    _ => ErrorKind::MissingRequiredArgument,
+                };
+                Self::error(kind, error)
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Returns a clap error for the node subcommand, which carries its usage.
+    fn error(kind: ErrorKind, message: impl std::fmt::Display) -> clap::Error {
+        let mut cli = crate::cli::Cli::command();
+        cli.build();
+        cli.find_subcommand_mut("node")
+            .expect("the CLI has the node subcommand")
+            .error(kind, message)
+    }
+
+    /// Whether the node signs the blocks it builds, which it does only to gossip them: when it
+    /// can sequence and runs P2P.
+    const fn signs_blocks(&self) -> bool {
+        self.sequencer_flags.enabled && self.p2p_flags.enabled
+    }
+
+    /// Resolves the flags into the node's configuration, after [checking](Self::check) them.
     ///
     /// This reads the configuration and key files the flags name, and creates a P2P key file the
     /// flags name if it does not exist yet, but does no network I/O: the node checks the engine
     /// and its P2P ports, and reads its chain state from L1, when it starts.
     pub fn config(&self) -> anyhow::Result<RollupNodeConfig> {
-        // A sequencer starts stopped, and is started through the admin API.
-        if self.sequencer_flags.enabled && !self.rpc_flags.enabled {
-            anyhow::bail!("--sequencer.enabled requires --rpc.enabled");
-        }
+        self.check()?;
         let chain = self.chain.chain_spec()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
@@ -172,7 +216,8 @@ impl NodeCommand {
                 .then(|| self.p2p_flags.clone().config(&chain.rollup_config))
                 .transpose()?,
             rpc_addr: self.rpc_flags.addr(),
-            sequencer: self.sequencer_flags.clone().config()?,
+            sequencer: self.sequencer_flags.clone().config(),
+            signer: self.signs_blocks().then(|| self.signer_flags.clone().config()).transpose()?,
             chain,
         })
     }
@@ -311,14 +356,11 @@ mod tests {
 
     #[test]
     fn test_config_for_a_registry_chain() {
-        let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
         let (command, _jwt) = parse_node(&[
             "--chain",
             "optimism",
             "--rpc.enabled",
             "--sequencer.enabled",
-            "--sequencer.signer.key-path",
-            key.path().to_str().unwrap(),
             "--sequencer.conductor.url",
             "http://127.0.0.1:4",
         ]);
@@ -376,27 +418,87 @@ mod tests {
         assert!(command.config().unwrap().sequencer.is_none());
     }
 
+    /// A node signs blocks only to gossip the blocks it builds, so it needs a signer only with
+    /// both the sequencer and P2P, and ignores the signer flags, unchecked and unread, otherwise.
     #[test]
-    fn test_sequencer_requires_a_block_signer() {
-        let (command, _jwt) =
-            parse_node(&["--chain", "optimism", "--rpc.enabled", "--sequencer.enabled"]);
+    fn test_a_signer_is_used_and_required_only_with_the_sequencer_and_p2p() {
+        let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
+        let key_path = key.path().to_str().unwrap();
+        let signers: [(&[&str], Option<ErrorKind>); 4] = [
+            (&[], Some(ErrorKind::MissingRequiredArgument)),
+            (&["--signer.key-path", key_path], None),
+            (
+                &["--signer.key-path", key_path, "--signer.url", "http://a"],
+                Some(ErrorKind::MissingRequiredArgument),
+            ),
+            (
+                &[
+                    "--signer.key-path",
+                    key_path,
+                    "--signer.url",
+                    "http://a",
+                    "--signer.address",
+                    "0x0000000000000000000000000000000000000001",
+                ],
+                Some(ErrorKind::ArgumentConflict),
+            ),
+        ];
+        for sequencer in [false, true] {
+            for p2p in [false, true] {
+                for (signer, error) in &signers {
+                    let switches = [
+                        "--chain",
+                        "optimism",
+                        "--rpc.enabled",
+                        if sequencer { "--sequencer.enabled" } else { "--sequencer.enabled=false" },
+                        if p2p { "--p2p.enabled" } else { "--p2p.enabled=false" },
+                    ];
+                    let (command, _jwt) = parse_node(&[&switches[..], signer].concat());
+                    let case = format!("sequencer {sequencer}, p2p {p2p}, {signer:?}");
 
-        assert!(command.config().unwrap_err().to_string().contains("requires a block signer"));
+                    if !(sequencer && p2p) {
+                        command.check().unwrap_or_else(|e| panic!("{case}: {e}"));
+                        assert!(command.config().unwrap().signer.is_none(), "{case}");
+                        continue;
+                    }
+                    match error {
+                        Some(kind) => {
+                            assert_eq!(command.check().unwrap_err().kind(), *kind, "{case}")
+                        }
+                        None => assert!(command.config().unwrap().signer.is_some(), "{case}"),
+                    }
+                }
+            }
+        }
+    }
+
+    /// The signer's key file is read when the node is configured, not when its flags are checked.
+    #[test]
+    fn test_a_missing_signer_key_file_fails_the_config() {
+        let (command, _jwt) = parse_node(&[
+            "--chain",
+            "optimism",
+            "--rpc.enabled",
+            "--sequencer.enabled",
+            "--p2p.enabled",
+            "--signer.key-path",
+            "/nonexistent/sequencer.key",
+        ]);
+
+        command.check().unwrap();
+        assert!(command.config().is_err());
     }
 
     /// A sequencer starts stopped, and is started through the admin API.
     #[test]
     fn test_sequencer_requires_the_rpc() {
-        let key = crate::flags::signer_test_utils::key_file(crate::flags::signer_test_utils::KEY);
-        let (command, _jwt) = parse_node(&[
-            "--chain",
-            "optimism",
-            "--sequencer.enabled",
-            "--sequencer.signer.key-path",
-            key.path().to_str().unwrap(),
-        ]);
+        let (command, _jwt) = parse_node(&["--chain", "optimism", "--sequencer.enabled"]);
 
-        assert!(command.config().unwrap_err().to_string().contains("requires --rpc.enabled"));
+        let error = command.check().unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument);
+        assert!(error.to_string().contains("--sequencer.enabled requires --rpc.enabled"));
+        assert!(error.to_string().contains("Usage: kona-node node"), "{error}");
+        assert!(command.config().is_err());
     }
 
     #[test]
