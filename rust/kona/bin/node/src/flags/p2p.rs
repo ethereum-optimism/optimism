@@ -4,7 +4,7 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{ArgAction, Parser};
 use enr::k256;
 use kona_disc::LocalNode;
@@ -402,13 +402,7 @@ impl P2PArgs {
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
         let bootstore = self.bootstore_file(config);
-
-        let bootnodes = self
-            .bootnodes
-            .iter()
-            .map(|bootnode| BootNode::parse_bootnode(bootnode))
-            .collect::<Vec<BootNode>>()
-            .into();
+        let bootnodes = self.bootnodes()?.into();
 
         Ok(NetworkConfig {
             discovery_config,
@@ -433,10 +427,21 @@ impl P2PArgs {
         })
     }
 
-    /// Returns the bootstore file to use for the rollup's L2 chain, or `None` if the bootstore is
-    /// disabled.
+    /// Returns the bootnodes given, or none without discovery, which alone dials them.
+    fn bootnodes(&self) -> Result<Vec<BootNode>> {
+        if !self.discovery_enabled {
+            return Ok(Vec::new());
+        }
+        self.bootnodes
+            .iter()
+            .map(|raw| raw.parse().with_context(|| format!("invalid bootnode {raw}")))
+            .collect()
+    }
+
+    /// Returns the bootstore file to use for the rollup's L2 chain, or `None` if the bootstore or
+    /// discovery, which alone reads and writes it, is disabled.
     fn bootstore_file(&self, config: &RollupConfig) -> Option<BootStoreFile> {
-        if !self.bootstore_enabled {
+        if !self.discovery_enabled || !self.bootstore_enabled {
             return None;
         }
         let chain_id = config.l2_chain_id.id();
@@ -516,7 +521,11 @@ mod tests {
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p.bootstore_file(&config), None);
 
-        let args = MockCommand::parse_from(["test", "--p2p.discovery.bootstore.enabled"]);
+        let args = MockCommand::parse_from([
+            "test",
+            "--p2p.discovery.enabled",
+            "--p2p.discovery.bootstore.enabled",
+        ]);
         assert_eq!(
             args.p2p.bootstore_file(&config),
             Some(BootStoreFile::Default { chain_id: 8453 })
@@ -524,6 +533,7 @@ mod tests {
 
         let args = MockCommand::parse_from([
             "test",
+            "--p2p.discovery.enabled",
             "--p2p.discovery.bootstore.enabled",
             "--p2p.discovery.bootstore.path",
             "/tmp/bootstore.json",
@@ -538,6 +548,10 @@ mod tests {
             "--p2p.discovery.bootstore.path",
             "/tmp/bootstore.json",
         ]);
+        assert_eq!(args.p2p.bootstore_file(&config), None);
+
+        // Only discovery reads and writes the bootstore.
+        let args = MockCommand::parse_from(["test", "--p2p.discovery.bootstore.enabled"]);
         assert_eq!(args.p2p.bootstore_file(&config), None);
     }
 
@@ -588,13 +602,11 @@ mod tests {
             ]
         );
 
-        // Parse the bootnodes.
-        let bootnodes = args
-            .p2p
-            .bootnodes
-            .iter()
-            .map(|bootnode| BootNode::parse_bootnode(bootnode))
-            .collect::<Vec<BootNode>>();
+        // Bootnodes are parsed only with discovery.
+        assert_eq!(args.p2p.bootnodes().unwrap(), vec![]);
+        let mut p2p = args.p2p;
+        p2p.discovery_enabled = true;
+        let bootnodes = p2p.bootnodes().unwrap();
 
         // Otherwise, attempt to use the Node Record format.
         let record = NodeRecord::from_str(
@@ -602,6 +614,21 @@ mod tests {
         let expected_bootnode = vec![BootNode::from_unsigned(record).unwrap()];
 
         assert_eq!(bootnodes, expected_bootnode);
+    }
+
+    #[test]
+    fn a_malformed_bootnode_is_an_error_only_with_discovery() {
+        let args =
+            MockCommand::parse_from(["test", "--p2p.discovery.bootnodes", "enode://malformed"]);
+        assert_eq!(args.p2p.bootnodes().unwrap(), vec![]);
+
+        let args = MockCommand::parse_from([
+            "test",
+            "--p2p.discovery.enabled",
+            "--p2p.discovery.bootnodes",
+            "enode://malformed",
+        ]);
+        assert!(args.p2p.bootnodes().is_err());
     }
 
     #[test]
