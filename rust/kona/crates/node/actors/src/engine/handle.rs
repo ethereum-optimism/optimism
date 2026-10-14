@@ -181,8 +181,9 @@ impl Handle {
     ///
     /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head is no longer
     /// the block's parent, and with [`SealTaskError::PayloadInsertionFailed`] if importing it
-    /// fails. A block the execution layer rejects is not replaced: once committed to a conductor,
-    /// the block is the only one at its height the sequencer may publish.
+    /// fails. Unlike a derived block, one the execution layer rejects is not replaced with a
+    /// deposits-only block: the conductor has not committed the replacement. The sequencer drops
+    /// the block and builds another at its height.
     pub async fn canonicalize(
         &self,
         payload: OpExecutionPayloadEnvelope,

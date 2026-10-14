@@ -78,6 +78,8 @@ impl Metrics {
     pub const BUILD_TASK_LABEL: &str = "build";
     /// Seal task label.
     pub const SEAL_TASK_LABEL: &str = "seal";
+    /// Canonicalize task label: the import of a block the sequencer sealed.
+    pub const CANONICALIZE_TASK_LABEL: &str = "canonicalize";
     /// Finalize task label.
     pub const FINALIZE_TASK_LABEL: &str = "finalize";
 

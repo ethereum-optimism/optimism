@@ -292,9 +292,9 @@ impl Actor {
     /// the caller decides whether to retry.
     ///
     /// Fails with [`SealTaskError::UnsafeHeadChangedSinceBuild`] if the unsafe head is no longer
-    /// the block's parent. A block the execution layer rejects is not replaced with a
-    /// deposits-only block, unlike a derived one: the sequencer may have committed it to its
-    /// conductor.
+    /// the block's parent. Unlike a derived block, one the execution layer rejects is not replaced
+    /// with a deposits-only block: the conductor has not committed the replacement. The sequencer
+    /// drops the block and builds another at its height.
     async fn handle_canonicalize(&mut self, request: CanonicalizeRequest) {
         let CanonicalizeRequest { payload, attributes, result_tx } = request;
         let result = match self.check_parent(&attributes) {
@@ -315,7 +315,7 @@ impl Actor {
         // The sequencer builds the next block on the unsafe head as soon as it gets the reply.
         self.publish_state();
         // A caller that stopped waiting does not cancel the import.
-        let _ = result_tx.send(record(Metrics::INSERT_TASK_LABEL, result));
+        let _ = result_tx.send(record(Metrics::CANONICALIZE_TASK_LABEL, result));
     }
 
     /// Checks that the attributes' parent is still the unsafe head.
