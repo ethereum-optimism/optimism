@@ -6,7 +6,7 @@ use alloy_provider::Network;
 use alloy_transport::TransportResult;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use kona_sources::EngineClient;
+use kona_sources::EngineApi;
 use op_alloy_network::Optimism;
 
 /// An unsafe, safe, and finalized [`L2BlockInfo`] returned by the
@@ -28,15 +28,12 @@ impl L2ForkchoiceState {
     /// - The safe block may not always be available. If it is not, we fall back to the finalized
     ///   block.
     /// - The unsafe block is always assumed to be available.
-    pub async fn current(
-        cfg: &RollupConfig,
-        engine_client: &EngineClient,
-    ) -> Result<Self, SyncStartError> {
+    pub async fn current(cfg: &RollupConfig, engine: &EngineApi) -> Result<Self, SyncStartError> {
         let finalized = {
             let rpc_block =
-                match get_block_compat(engine_client, BlockNumberOrTag::Finalized.into()).await {
+                match get_block_compat(engine, BlockNumberOrTag::Finalized.into()).await {
                     Ok(Some(block)) => block,
-                    Ok(None) => engine_client
+                    Ok(None) => engine
                         .get_l2_block(cfg.genesis.l2.number.into())
                         .full()
                         .await?
@@ -47,7 +44,7 @@ impl L2ForkchoiceState {
 
             L2BlockInfo::from_block_and_genesis(&rpc_block, &cfg.genesis)?
         };
-        let safe = match get_block_compat(engine_client, BlockNumberOrTag::Safe.into()).await {
+        let safe = match get_block_compat(engine, BlockNumberOrTag::Safe.into()).await {
             Ok(Some(block)) => {
                 L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?
             }
@@ -55,7 +52,7 @@ impl L2ForkchoiceState {
             Err(e) => return Err(e.into()),
         };
         let un_safe = {
-            let rpc_block = get_block_compat(engine_client, BlockNumberOrTag::Latest.into())
+            let rpc_block = get_block_compat(engine, BlockNumberOrTag::Latest.into())
                 .await?
                 .ok_or(SyncStartError::BlockNotFound(BlockNumberOrTag::Latest.into()))?;
             L2BlockInfo::from_block_and_genesis(&rpc_block.into_consensus(), &cfg.genesis)?
@@ -65,15 +62,15 @@ impl L2ForkchoiceState {
     }
 }
 
-/// Wrapper function around [`EngineClient::get_l2_block`] to handle compatibility issues with geth
+/// Wrapper function around [`EngineApi::get_l2_block`] to handle compatibility issues with geth
 /// and erigon. When serving a block-by-number request, these clients will return non-standard
 /// errors for the safe and finalized heads when the chain has just started and nothing is marked as
 /// safe or finalized yet.
 async fn get_block_compat(
-    engine_client: &EngineClient,
+    engine: &EngineApi,
     block_id: BlockId,
 ) -> TransportResult<Option<<Optimism as Network>::BlockResponse>> {
-    match engine_client.get_l2_block(block_id).full().await {
+    match engine.get_l2_block(block_id).full().await {
         Err(e) => {
             let err_str = e.to_string();
             if err_str.contains("block not found") || err_str.contains("Unknown block") {

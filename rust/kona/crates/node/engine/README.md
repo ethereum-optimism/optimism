@@ -4,7 +4,7 @@ An extensible implementation of the [OP Stack][op-stack] rollup node engine clie
 
 ## Overview
 
-The `kona-engine` crate provides the building blocks a rollup node uses to drive an execution layer through the Engine API. The engine actor in `kona-node-actors` performs the engine operations with them, through the `EngineClient` in `kona-sources`.
+The `kona-engine` crate provides the building blocks a rollup node uses to drive an execution layer through the Engine API. The engine actor in `kona-node-actors` performs the engine operations with them, through the `EngineApi` in `kona-sources`.
 
 ## Key Components
 

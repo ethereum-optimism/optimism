@@ -16,7 +16,7 @@ use alloy_rpc_types_eth::Block as RpcBlock;
 use kona_engine::{AttributesMatch, ImportedBlockSink, Metrics, find_starting_forkchoice};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use kona_sources::EngineClient;
+use kona_sources::EngineApi;
 use op_alloy_consensus::OpBlock;
 use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -64,7 +64,7 @@ impl Builder {
     /// Dropping the future stops the actor.
     pub fn build(
         self,
-        client: Arc<EngineClient>,
+        client: Arc<EngineApi>,
         l1: RootProvider,
         rollup: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -114,7 +114,7 @@ impl Backoff {
 #[derive(Debug)]
 struct Actor {
     /// The Engine API client.
-    client: Arc<EngineClient>,
+    client: Arc<EngineApi>,
     /// The L1 provider, which a reset reads to find a plausible forkchoice.
     l1: RootProvider,
     /// The rollup configuration.
@@ -134,7 +134,7 @@ struct Actor {
 impl Actor {
     /// Creates the actor, starting from the state that `state_tx` holds.
     fn new(
-        client: Arc<EngineClient>,
+        client: Arc<EngineApi>,
         l1: RootProvider,
         config: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,

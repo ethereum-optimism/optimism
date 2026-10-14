@@ -8,7 +8,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod engine;
-pub use engine::{EngineClient, EngineClientError};
+pub use engine::{EngineApi, EngineApiError};
 
 mod metrics;
 pub use metrics::Metrics;

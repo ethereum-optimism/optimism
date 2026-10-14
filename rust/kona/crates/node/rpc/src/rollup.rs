@@ -235,7 +235,7 @@ mod tests {
     use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
     use kona_node_actors::engine::HeadsUpdate;
     use kona_protocol::{BlockInfo, L2BlockInfo};
-    use kona_sources::test_utils::{RpcMock, test_engine_client};
+    use kona_sources::test_utils::{RpcMock, test_engine_api};
     use op_alloy_rpc_types::Transaction;
     use serde_json::json;
 
@@ -346,7 +346,7 @@ mod tests {
     #[tokio::test]
     async fn reads_config_and_published_actor_state() {
         let config = Arc::new(RollupConfig { block_time: 11, ..Default::default() });
-        let (client, l2) = test_engine_client(config.clone());
+        let (client, l2) = test_engine_api(config.clone());
         let (state_tx, state_rx) = watch::channel(EngineState::default());
         let (head_tx, head_rx) = watch::channel(BlockInfo::default());
         let (safe_tx, safe_rx) = watch::channel(BlockInfo::default());
@@ -434,7 +434,7 @@ mod tests {
     #[tokio::test]
     async fn returns_configured_version() {
         let config = Arc::new(RollupConfig::default());
-        let (client, l2) = test_engine_client(config.clone());
+        let (client, l2) = test_engine_api(config.clone());
         let (_, state_rx) = watch::channel(EngineState::default());
         let (_head_tx, head_rx) = watch::channel(BlockInfo::default());
         let (_safe_tx, safe_rx) = watch::channel(BlockInfo::default());

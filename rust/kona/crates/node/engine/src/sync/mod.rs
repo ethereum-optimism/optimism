@@ -12,7 +12,7 @@ pub use error::SyncStartError;
 use tracing::info;
 
 use alloy_provider::Provider;
-use kona_sources::EngineClient;
+use kona_sources::EngineApi;
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///
@@ -28,10 +28,10 @@ use kona_sources::EngineClient;
 /// height in the L1 chain, and the same holds for all its ancestors.
 pub async fn find_starting_forkchoice(
     cfg: &RollupConfig,
-    engine_client: &EngineClient,
+    engine: &EngineApi,
     l1: &impl Provider,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
-    let mut current_fc = L2ForkchoiceState::current(cfg, engine_client).await?;
+    let mut current_fc = L2ForkchoiceState::current(cfg, engine).await?;
     info!(
         target: "sync_start",
         unsafe = %current_fc.un_safe.block_info.number,
@@ -62,7 +62,7 @@ pub async fn find_starting_forkchoice(
             }
             None => {
                 let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
-                let l2_parent = engine_client
+                let l2_parent = engine
                     .get_l2_block(l2_parent_hash)
                     .full()
                     .await?
@@ -102,7 +102,7 @@ pub async fn find_starting_forkchoice(
             current_fc.safe = safe_cursor;
             break;
         }
-        let block = engine_client
+        let block = engine
             .get_l2_block(safe_cursor.block_info.parent_hash.into())
             .full()
             .await?

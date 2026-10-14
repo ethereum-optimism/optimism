@@ -13,7 +13,7 @@ use kona_engine::{
 };
 use kona_genesis::ChainGenesis;
 use kona_protocol::BlockInfo;
-use kona_sources::test_utils::{RpcMock, test_engine_client};
+use kona_sources::test_utils::{RpcMock, test_engine_api};
 use op_alloy_consensus::OpTxType;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use rstest::rstest;
@@ -62,13 +62,13 @@ type L2Block = <op_alloy_network::Optimism as alloy_provider::Network>::BlockRes
 
 /// The clients an actor talks to the execution layer and L1 with.
 struct Clients {
-    engine: EngineClient,
+    engine: EngineApi,
     l1: RootProvider,
 }
 
 /// Returns an actor's clients, with the scripted L1 and L2 transports behind them.
 fn clients(config: Arc<RollupConfig>) -> (Clients, RpcMock, RpcMock) {
-    let (engine, l2) = test_engine_client(config);
+    let (engine, l2) = test_engine_api(config);
     let l1 = RpcMock::default();
     (Clients { engine, l1: l1.provider() }, l1, l2)
 }
@@ -640,7 +640,7 @@ async fn build_variants(
     let unsafe_block = test_block_info(1);
     let attributes_timestamp = unsafe_block.block_info.timestamp;
 
-    // The engine client selects the forkchoice method version, and is tested for it.
+    // The Engine API client selects the forkchoice method version, and is tested for it.
     let mut cfg = RollupConfig::default();
     cfg.hardforks.ecotone_time = Some(0);
     let cfg = Arc::new(cfg);

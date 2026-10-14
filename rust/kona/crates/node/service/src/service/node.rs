@@ -27,7 +27,7 @@ use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
-use kona_sources::{BlockSignerHandler, EngineClient};
+use kona_sources::{BlockSignerHandler, EngineApi};
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
@@ -53,7 +53,7 @@ pub struct RollupNode {
     pub(crate) clients: RollupNodeClients,
     /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
     /// config.
-    pub(crate) engine_client: Arc<EngineClient>,
+    pub(crate) engine_api: Arc<EngineApi>,
     /// The mode of operation for the node.
     pub(crate) mode: NodeMode,
     /// The RPC server's configuration.
@@ -85,13 +85,13 @@ impl RollupNode {
             IMPORTED_BLOCK_BUFFER_SIZE,
             0,
         );
-        let engine_client =
-            Arc::new(EngineClient::new(clients.engine.clone(), config.chain.rollup_config.clone()));
+        let engine_api =
+            Arc::new(EngineApi::new(clients.engine.clone(), config.chain.rollup_config.clone()));
         Self {
             version: config.version,
             chain: config.chain,
             clients,
-            engine_client,
+            engine_api,
             mode: config.mode,
             rpc_builder: config.rpc_config,
             p2p_config: config.p2p_config,
@@ -161,7 +161,7 @@ impl RollupNode {
     fn build_engine(
         &self,
         builder: engine::Builder,
-        client: Arc<EngineClient>,
+        client: Arc<EngineApi>,
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
@@ -264,7 +264,7 @@ impl RollupNode {
     #[allow(clippy::too_many_arguments)]
     async fn build_rpc(
         &self,
-        l2_query_client: EngineClient,
+        l2_query_client: EngineApi,
         engine_state: watch::Receiver<engine::EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
@@ -376,7 +376,7 @@ impl RollupNode {
     pub async fn start(&self) -> Result<(), RollupNodeError> {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
         startup::check_listen_ports(&self.p2p_config)?;
-        startup::validate_engine_jwt(&self.engine_client, ExponentialBuilder::default()).await?;
+        startup::validate_engine_jwt(&self.engine_api, ExponentialBuilder::default()).await?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         let head_builder = l1::Builder::new(BlockInfo::default());
@@ -424,9 +424,9 @@ impl RollupNode {
         let signer_handle = signer_builder.handle();
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let engine_client = self.engine_client.clone();
-        let l2_query_client = engine_client.as_ref().clone();
-        let engine_actor = self.build_engine(engine_builder, engine_client);
+        let engine_api = self.engine_api.clone();
+        let l2_query_client = engine_api.as_ref().clone();
+        let engine_actor = self.build_engine(engine_builder, engine_api);
 
         let derivation_actor = self
             .build_derivation(derivation_builder, engine.clone(), head.clone())

@@ -35,7 +35,7 @@ use thiserror::Error;
 use tower::{Layer, Service, ServiceBuilder, util::MapFutureLayer};
 use url::Url;
 
-/// Deadline for each request the engine client sends to the Engine API.
+/// Deadline for each request the client sends to the Engine API.
 ///
 /// It bounds one request, never an operation made of many requests, such as the block traversal
 /// of a reset, so a long but healthy operation is not cut off.
@@ -100,9 +100,9 @@ where
     }
 }
 
-/// An error that occurred in the [`EngineClient`].
+/// An error that occurred in the [`EngineApi`].
 #[derive(Error, Debug)]
-pub enum EngineClientError {
+pub enum EngineApiError {
     /// An RPC error occurred
     #[error("An RPC error occurred: {0}")]
     RpcError(#[from] RpcError<TransportErrorKind>),
@@ -111,12 +111,12 @@ pub enum EngineClientError {
 /// use the same client with a mock transport. [`Self::forkchoice_updated`], [`Self::get_payload`]
 /// and [`Self::new_payload`] select the Engine API method version.
 #[derive(Clone, Debug)]
-pub struct EngineClient {
+pub struct EngineApi {
     engine: RootProvider<Optimism>,
     cfg: Arc<RollupConfig>,
 }
 
-impl EngineClient {
+impl EngineApi {
     /// Creates a client from an existing Engine API provider.
     pub const fn new(engine: RootProvider<Optimism>, cfg: Arc<RollupConfig>) -> Self {
         Self { engine, cfg }
@@ -236,7 +236,7 @@ impl EngineClient {
     pub async fn l2_block_by_label(
         &self,
         numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
+    ) -> Result<Option<Block<Transaction>>, EngineApiError> {
         Ok(self.engine.get_block_by_number(numtag).full().await?)
     }
 
@@ -254,7 +254,7 @@ impl EngineClient {
 }
 
 /// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
-impl Provider<Optimism> for EngineClient {
+impl Provider<Optimism> for EngineApi {
     fn root(&self) -> &RootProvider<Optimism> {
         &self.engine
     }
@@ -366,11 +366,11 @@ mod deadline_tests {
     #[tokio::test]
     async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let engine = EngineClient::rpc_client(
+        let engine = EngineApi::rpc_client(
             stalled_endpoint(response, answered_tx).await,
             JwtSecret::random(),
         );
-        let client = EngineClient::new(engine, Arc::new(RollupConfig::default()));
+        let client = EngineApi::new(engine, Arc::new(RollupConfig::default()));
 
         fails_at_deadline(
             async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
@@ -383,7 +383,7 @@ mod deadline_tests {
 #[cfg(test)]
 mod version_tests {
     use super::*;
-    use crate::test_utils::test_engine_client;
+    use crate::test_utils::test_engine_api;
     use alloy_primitives::B256;
     use alloy_rpc_types_engine::{
         ExecutionPayloadEnvelopeV2, ExecutionPayloadV2, ExecutionPayloadV3, PayloadAttributes,
@@ -417,7 +417,7 @@ mod version_tests {
         #[case] timestamp: Option<u64>,
         #[case] method: &'static str,
     ) {
-        let (client, l2) = test_engine_client(config());
+        let (client, l2) = test_engine_api(config());
         let state = ForkchoiceState::default();
         let attributes = timestamp.map(|timestamp| OpPayloadAttributes {
             payload_attributes: PayloadAttributes { timestamp, ..Default::default() },
@@ -487,7 +487,7 @@ mod version_tests {
         #[case] call: (OpExecutionPayloadEnvelope, &'static str, serde_json::Value),
     ) {
         let (envelope, method, params) = call;
-        let (client, l2) = test_engine_client(config());
+        let (client, l2) = test_engine_api(config());
         l2.expect_params(method, params, valid());
 
         assert_eq!(client.new_payload(envelope).await.unwrap(), valid());
@@ -507,7 +507,7 @@ mod version_tests {
         #[case] timestamp: u64,
         #[case] method: &'static str,
     ) {
-        let (client, l2) = test_engine_client(config());
+        let (client, l2) = test_engine_api(config());
         let id = PayloadId::new([1; 8]);
         let params = json!([id]);
         let root = B256::repeat_byte(0x42);

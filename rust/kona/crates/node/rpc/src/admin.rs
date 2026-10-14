@@ -104,7 +104,7 @@ mod tests {
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
-    use kona_sources::test_utils::{RpcMock, test_engine_client};
+    use kona_sources::test_utils::{RpcMock, test_engine_api};
     use std::{
         future::{Future, ready},
         sync::Arc,
@@ -157,7 +157,7 @@ mod tests {
         let mut config = RollupConfig::default();
         config.genesis.l2.hash = block.header.inner.hash_slow();
         let config = Arc::new(config);
-        let (client, l2) = test_engine_client(config.clone());
+        let (client, l2) = test_engine_api(config.clone());
         let l1 = RpcMock::default();
         for _ in 0..3 {
             l2.expect("eth_getBlockByNumber", &block);
