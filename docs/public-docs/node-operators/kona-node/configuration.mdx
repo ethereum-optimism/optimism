@@ -80,12 +80,12 @@ The other P2P flags apply only with `--p2p.enabled`.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.enabled[=<BOOL>]` | `KONA_NODE_P2P_ENABLED` | Receive and gossip blocks over P2P. Without it, the node follows the chain by deriving it from L1, and a sequencer's blocks are not gossiped | `false` |
+| `--p2p.enabled[=<BOOL>]` | `KONA_NODE_P2P_ENABLED` | Receive and gossip blocks over P2P. Without it, the node follows the chain by deriving it from L1, and a sequencer neither signs nor gossips its blocks | `false` |
 | `--p2p.priv-path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.advertise.addr <IP>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP to advertise to external peers | - |
-| `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
-| `--p2p.advertise.udp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
-| `--p2p.listen.addr <IP>` | `KONA_NODE_P2P_LISTEN_ADDR` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
+| `--p2p.advertise.addr <HOST>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP address or DNS name to advertise to external peers | The listen address |
+| `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | The listen TCP port |
+| `--p2p.advertise.udp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | The listen UDP port |
+| `--p2p.listen.addr <HOST>` | `KONA_NODE_P2P_LISTEN_ADDR` | IP address or DNS name to bind LibP2P/Discv5 to | `0.0.0.0` |
 | `--p2p.listen.tcp-port <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
 | `--p2p.listen.udp-port <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
 | `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
@@ -103,7 +103,7 @@ The other P2P flags apply only with `--p2p.enabled`.
 | `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
 | `--p2p.discovery.bootstore.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_ENABLED` | Keep the peers discovery finds in a bootstore, to find them again after a restart | `false` |
 | `--p2p.discovery.bootstore.path <PATH>` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH` | The bootstore's file | `~/.kona/<CHAIN_ID>/bootstore.json` |
-| `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | Peer redialing threshold | `500` |
+| `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | How many times to redial a peer that disconnects; `0` redials it indefinitely | `500` |
 | `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `1h` |
 | `--p2p.topic-scoring.enabled[=<BOOL>]` | `KONA_NODE_P2P_TOPIC_SCORING_ENABLED` | Enable topic scoring | `false` |
 

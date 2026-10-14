@@ -22,6 +22,6 @@ JSON-RPC methods are grouped into namespaces, which are listed below:
 
 ### Interacting with the RPC
 
-Kona enables these RPC methods by default.
+With `--rpc.enabled`, Kona serves these namespaces, except `p2p`, which it serves only with `--p2p.enabled` as well.
 
 You can interact with the RPC using any JSON-RPC client, such as `curl`, `httpie`, or a custom client in your preferred programming language.

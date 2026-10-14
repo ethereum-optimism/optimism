@@ -89,12 +89,12 @@ pub struct P2PArgs {
         hide = true
     )]
     pub advertise_addr: Option<String>,
-    /// TCP port to advertise to external peers from the discovery layer. Same as
-    /// `p2p.listen.tcp-port` if set to zero.
+    /// TCP port to advertise to external peers from the discovery layer. Defaults to
+    /// `p2p.listen.tcp-port`.
     #[arg(long = "p2p.advertise.tcp-port", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT", hide = true)]
     pub advertise_tcp_port: Option<u16>,
-    /// UDP port to advertise to external peers from the discovery layer.
-    /// Same as `p2p.listen.udp-port` if set to zero.
+    /// UDP port to advertise to external peers from the discovery layer. Defaults to
+    /// `p2p.listen.udp-port`.
     #[arg(long = "p2p.advertise.udp-port", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT", hide = true)]
     pub advertise_udp_port: Option<u16>,
 
@@ -274,8 +274,7 @@ pub struct P2PArgs {
         hide = true
     )]
     pub bootstore: Option<PathBuf>,
-    /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
-    /// disconnects. By default, peers are *not* redialed. If set to 0, the peer will be
+    /// The maximum number of times to redial a peer that disconnects. If set to 0, the peer is
     /// redialed indefinitely.
     #[arg(
         long = "p2p.redial.max-attempts",
