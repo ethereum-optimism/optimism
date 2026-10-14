@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -24,9 +27,10 @@ type OpRethConfig struct {
 	// (any binary that accepts every op-reth subcommand/flag, plus optionally its own additive
 	// flags) may be selected via OpRethWithBinary.
 	Binary string
-	// DisableProofsHistory skips the proofs-history init + runtime flags for this node. The mixed
-	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
-	// reject --proofs-history in the mode under test.
+	// DisableProofsHistory builds the node without a seeded proofs-history store and without the
+	// proofs-history runtime flags, until InitProofsHistory seeds the store. The mixed runtime
+	// otherwise enables proofs history on every op-reth node; some CLI-superset binaries reject
+	// --proofs-history in the mode under test.
 	DisableProofsHistory bool
 	// ProofsHistoryWindow is the number of blocks the proofs-history store keeps. Zero keeps the
 	// mixed runtime's default window.
@@ -84,9 +88,9 @@ func OpRethWithBinary(binary string) OpRethOption {
 	})
 }
 
-// OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
-// enables proofs-history on every op-reth node by default; use this for a CLI-superset binary that
-// rejects --proofs-history in the mode under test.
+// OpRethWithoutProofsHistory builds the node without proofs history, which InitProofsHistory can
+// turn on later. The mixed runtime enables it on every op-reth node by default; use this for a
+// CLI-superset binary that rejects --proofs-history in the mode under test.
 func OpRethWithoutProofsHistory() OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.DisableProofsHistory = true
@@ -134,9 +138,22 @@ type OpReth struct {
 	userProxy *tcpproxy.Proxy
 
 	execPath string
-	args     []string
+	// args are the `node` arguments without the proofs-history flags, which Start appends while
+	// proofsHistoryEnabled is set.
+	args []string
 	// Each entry is of the form "key=value".
 	env []string
+
+	chainConfigPath string
+	dataDirPath     string
+
+	// proofsHistoryEnabled says the store at proofsHistoryStoragePath is seeded, so the node runs
+	// with proofs history from its next start.
+	proofsHistoryEnabled     bool
+	proofsHistoryStoragePath string
+	// proofsHistoryWindow is the window proofs init backfills and the node keeps; zero means the
+	// mixed runtime's default.
+	proofsHistoryWindow uint64
 
 	p devtest.T
 
@@ -150,9 +167,10 @@ type OpReth struct {
 }
 
 var (
-	_ L2ELNode                  = (*OpReth)(nil)
-	_ stack.LogRecorder         = (*OpReth)(nil)
-	_ stack.UngracefulLifecycle = (*OpReth)(nil)
+	_ L2ELNode                       = (*OpReth)(nil)
+	_ stack.LogRecorder              = (*OpReth)(nil)
+	_ stack.ProofsHistoryInitializer = (*OpReth)(nil)
+	_ stack.UngracefulLifecycle      = (*OpReth)(nil)
 )
 
 // RecordLogLines returns a record of every line op-reth writes to stdout or stderr from now on,
@@ -245,7 +263,7 @@ func (n *OpReth) Start() {
 	})
 	n.sub = NewSubProcess(n.p, stdOutLogs, stdErrLogs)
 
-	err := n.sub.Start(n.execPath, n.args, n.env)
+	err := n.sub.Start(n.execPath, n.nodeArgs(), n.env)
 	n.p.Require().NoError(err, "Must start")
 
 	var userRPCAddr, authRPCAddr string
@@ -290,6 +308,83 @@ func (n *OpReth) StopUngracefully() {
 	n.clearProxyUpstreams()
 	n.p.Require().NoError(n.sub.Kill(), "Must kill")
 	n.sub = nil
+}
+
+// nodeArgs are the `node` arguments of the next start. Callers must hold n.mu.
+func (n *OpReth) nodeArgs() []string {
+	if !n.proofsHistoryEnabled {
+		return n.args
+	}
+	args := append([]string{}, n.args...)
+	return append(args, proofsHistoryNodeArgs(n.proofsHistoryWindow, n.proofsHistoryStoragePath)...)
+}
+
+// InitProofsHistory runs `op-reth proofs init` against this node's datadir and, when it succeeds,
+// makes the next Start run with proofs history on the seeded store. It does not stop the node:
+// what init does to a datadir the node is still writing to is the caller's concern.
+func (n *OpReth) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHistoryInitReport, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	window := n.proofsHistoryWindow
+	if init.Window != 0 {
+		window = init.Window
+	}
+	args := proofsHistoryInitArgs(n.chainConfigPath, n.dataDirPath, n.proofsHistoryStoragePath, window, init.PlainBackfill)
+	logger := n.p.Logger().New("name", n.name, "chain", n.chainID, "running", n.sub != nil)
+	logger.Info("Running op-reth proofs init", "cmd", n.execPath, "args", args)
+	started := time.Now()
+	output, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
+	report := stack.ProofsHistoryInitReport{Duration: time.Since(started), Output: string(output)}
+	if err != nil {
+		logger.Warn("op-reth proofs init failed", "duration", report.Duration, "err", err, "output", report.Output)
+		return report, fmt.Errorf("op-reth proofs init failed after %s: %w\n%s", report.Duration, err, report.Output)
+	}
+	n.proofsHistoryEnabled = true
+	n.proofsHistoryWindow = window
+	logger.Info("op-reth proofs init succeeded; proofs history is on from the next start",
+		"duration", report.Duration, "window", resolveProofsHistoryWindow(window), "storage_path", n.proofsHistoryStoragePath)
+	logger.Debug("op-reth proofs init output", "output", report.Output)
+	return report, nil
+}
+
+// defaultMixedProofsHistoryWindow is the proofs-history window an op-reth node gets unless
+// OpRethWithProofsHistoryWindow or a ProofsHistoryInit overrides it.
+const defaultMixedProofsHistoryWindow uint64 = 10_000
+
+func resolveProofsHistoryWindow(window uint64) uint64 {
+	if window == 0 {
+		return defaultMixedProofsHistoryWindow
+	}
+	return window
+}
+
+// proofsHistoryNodeArgs returns the node flags that enable proofs history on the store at
+// storagePath.
+func proofsHistoryNodeArgs(window uint64, storagePath string) []string {
+	return []string{
+		"--proofs-history",
+		"--proofs-history.storage-path=" + storagePath,
+		"--proofs-history.window=" + strconv.FormatUint(resolveProofsHistoryWindow(window), 10),
+	}
+}
+
+// proofsHistoryInitArgs returns the `proofs init` invocation that seeds the store at storagePath
+// from the datadir and backfills it window blocks behind the datadir's tip. op-reth backfills
+// through a trie-state snapshot unless told not to, so the snapshot path gets the operator's
+// invocation with no flag.
+func proofsHistoryInitArgs(chainConfigPath, dataDirPath, storagePath string, window uint64, plainBackfill bool) []string {
+	args := []string{
+		"proofs",
+		"init",
+		"--chain=" + chainConfigPath,
+		"--datadir=" + dataDirPath,
+		"--proofs-history.storage-path=" + storagePath,
+		"--proofs-history.window=" + strconv.FormatUint(resolveProofsHistoryWindow(window), 10),
+	}
+	if plainBackfill {
+		args = append(args, "--proofs-history.use-snapshot=false")
+	}
+	return args
 }
 
 // Callers must hold n.mu.

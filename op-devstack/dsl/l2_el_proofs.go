@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -105,6 +106,73 @@ func (el *L2ELNode) WaitForProofsStoreBlock(target uint64, timeout time.Duration
 	el.require.NoErrorf(err, "proofs store on %s did not index block %d within %s; last window %s; last error: %v",
 		el.inner.Name(), target, timeout, lastStatus, lastErr)
 	return lastStatus
+}
+
+// WaitForProofsStorePrunedPast waits until this node's proofs-history store no longer serves
+// block, because pruning moved the store's earliest block past it. The store prunes to its
+// window behind the latest block it indexed, so the chain has to be more than a window past
+// block first.
+func (el *L2ELNode) WaitForProofsStorePrunedPast(block uint64, timeout time.Duration) ProofsSyncStatus {
+	ctx, cancel := context.WithTimeout(el.ctx, timeout)
+	defer cancel()
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "block", block, "timeout", timeout)
+	logger.Info("Waiting for proofs store to prune past block")
+
+	var lastStatus ProofsSyncStatus
+	var lastErr error
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		status, err := el.ProofsSyncStatus()
+		if err != nil {
+			lastErr = err
+			logger.Warn("debug_proofsSyncStatus failed; will retry", "err", err)
+			return false, nil
+		}
+		lastStatus, lastErr = status, nil
+		if status.Earliest != nil && *status.Earliest > block {
+			logger.Info("Proofs store pruned past block", "window", status)
+			return true, nil
+		}
+		logger.Info("Proofs store still serves block", "window", status)
+		return false, nil
+	})
+	el.require.NoErrorf(err, "proofs store on %s did not prune past block %d within %s; last window %s; last error: %v",
+		el.inner.Name(), block, timeout, lastStatus, lastErr)
+	return lastStatus
+}
+
+// InitProofsHistory seeds this node's proofs-history store from its datadir with
+// `op-reth proofs init`, the way an operator does for a node that synced without proofs history,
+// and makes the node run with proofs history from its next Start. It fails the test if the node
+// is running or the init fails; InitProofsHistoryRaw does neither.
+func (el *L2ELNode) InitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) stack.ProofsHistoryInitReport {
+	if control, ok := el.inner.(stack.ControlledLifecycle); ok {
+		el.require.Falsef(control.Running(), "stop %s before seeding its proofs-history store", el.inner.Name())
+	}
+	report, err := el.InitProofsHistoryRaw(opts...)
+	el.require.NoErrorf(err, "proofs init on %s must seed the store", el.inner.Name())
+	return report
+}
+
+// InitProofsHistoryRaw runs `op-reth proofs init` against this node's datadir whether or not the
+// node is running and returns the outcome, failure included, for the test to assert on. The
+// options start from op-reth's defaults: a backfill through a trie-state snapshot and the node's
+// configured window.
+func (el *L2ELNode) InitProofsHistoryRaw(opts ...func(*stack.ProofsHistoryInit)) (stack.ProofsHistoryInitReport, error) {
+	initializer, ok := el.inner.(stack.ProofsHistoryInitializer)
+	el.require.Truef(ok, "L2EL node %s cannot seed a proofs-history store", el.inner.Name())
+	var init stack.ProofsHistoryInit
+	for _, opt := range opts {
+		opt(&init)
+	}
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "plain_backfill", init.PlainBackfill)
+	logger.Info("Seeding the proofs-history store from the datadir")
+	report, err := initializer.InitProofsHistory(init)
+	if err != nil {
+		logger.Warn("Proofs init did not seed the store", "duration", report.Duration)
+		return report, err
+	}
+	logger.Info("Proofs init seeded the store", "duration", report.Duration)
+	return report, nil
 }
 
 // VerifyHistoricalProofsMatch sweeps the blocks this node's proofs-history store serves and, at

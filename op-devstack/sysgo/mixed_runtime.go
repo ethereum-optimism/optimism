@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -19,6 +18,7 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -374,25 +374,9 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
-// defaultMixedProofsHistoryWindow is the proofs-history window an op-reth node gets unless
-// OpRethWithProofsHistoryWindow overrides it.
-const defaultMixedProofsHistoryWindow uint64 = 10_000
-
-// proofsHistoryNodeArgs returns the node flags that enable proofs history on the store at
-// storagePath.
-func proofsHistoryNodeArgs(cfg *OpRethConfig, storagePath string) []string {
-	window := cfg.ProofsHistoryWindow
-	if window == 0 {
-		window = defaultMixedProofsHistoryWindow
-	}
-	return []string{
-		"--proofs-history",
-		"--proofs-history.storage-path=" + storagePath,
-		"--proofs-history.window=" + strconv.FormatUint(window, 10),
-	}
-}
-
-// buildMixedOpRethNode constructs an OpReth node without starting it.
+// buildMixedOpRethNode constructs an OpReth node without starting it. Unless the options disable
+// proofs history, its store is seeded from the genesis datadir so the node runs with proofs
+// history from its first start.
 func buildMixedOpRethNode(
 	t devtest.T,
 	l2Net *L2Network,
@@ -477,25 +461,9 @@ func buildMixedOpRethNode(
 	err = exec.Command(execPath, initArgs...).Run()
 	t.Require().NoError(err, "must init op-reth node")
 
-	if !opRethCfg.DisableProofsHistory {
-		proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-		initProofsArgs := []string{
-			"proofs",
-			"init",
-			"--datadir=" + dataDirPath,
-			"--chain=" + chainConfigPath,
-			"--proofs-history.storage-path=" + proofHistoryDir,
-		}
-		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
-
-		args = append(args, proofsHistoryNodeArgs(opRethCfg, proofHistoryDir)...)
-	}
-
 	args = append(args, opRethCfg.ExtraArgs...)
 
-	return &OpReth{
+	node := &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -507,7 +475,17 @@ func buildMixedOpRethNode(
 		env:                []string{},
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
+
+		chainConfigPath:          chainConfigPath,
+		dataDirPath:              dataDirPath,
+		proofsHistoryStoragePath: filepath.Join(tempDir, "proof-history"),
+		proofsHistoryWindow:      opRethCfg.ProofsHistoryWindow,
 	}
+	if !opRethCfg.DisableProofsHistory {
+		_, err = node.InitProofsHistory(stack.ProofsHistoryInit{})
+		t.Require().NoError(err, "must init op-reth proof history")
+	}
+	return node
 }
 
 func startMixedOpRethNode(
