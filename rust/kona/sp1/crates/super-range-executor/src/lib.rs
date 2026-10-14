@@ -6,7 +6,7 @@
 //! `super-range` SP1 ELF.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{self, Debug},
     path::PathBuf,
     str::FromStr,
@@ -26,7 +26,10 @@ use kona_preimage::{
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
-    log_commitment::{BlockReceipts, log_commitment_witness},
+    log_commitment::{
+        BlockReceipts, LogCommitmentInputs, LogCommitmentTable, LogOpening, VerifiedLogCommitments,
+        log_commitment_witness,
+    },
     super_root::{
         SuperConsolidationInputs, SuperConsolidationOutputs, SuperConsolidationTransitionInput,
         SuperInteropInputs, SuperInteropOutputs, SuperOptimisticBlock, SuperOutputRoot,
@@ -41,7 +44,17 @@ use kona_sp1_ethereum_client_utils::{
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
 use serde::Deserialize;
-use sp1_sdk::{Elf, Prover, ProverClient, SP1PublicValues, SP1Stdin};
+use sp1_sdk::{
+    Elf, Prover, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin,
+    SP1VerifyingKey,
+};
+
+mod log_commitments;
+pub use log_commitments::MissingLogCommitment;
+use log_commitments::{NativeConsolidation, run_native_consolidation};
+
+#[cfg(test)]
+mod consolidation_tests;
 
 /// Exit code signalling a valid super-range claim.
 pub const EXIT_VALID: u8 = 0;
@@ -244,19 +257,22 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         synthesized.current_super_root,
         config.end_timestamp,
     )?;
-    let (consolidation_witness, native_consolidation_outputs) = collect_consolidation_witness(
+    let consolidation = collect_consolidation_witness(
         consolidation_host,
         &synthesized.consolidation_inputs,
         &preloaded_preimages,
         Some(&configs),
+        &[],
     )
     .await?;
+    let native_consolidation_outputs = consolidation.outputs;
 
     let replayed_consolidation_outputs = match replay_consolidation(
         config.native_core,
         config.report,
         &synthesized.consolidation_inputs,
-        consolidation_witness,
+        consolidation.witness,
+        &LogCommitmentInputs::default(),
         super_range_elf,
         Some(&configs),
     )
@@ -497,12 +513,71 @@ pub fn build_super_range_stdin(
     build_super_interop_stdin(SuperInteropInputs::Range(inputs.clone()), witness)
 }
 
-/// Encodes consolidation-mode SP1 stdin as typed inputs followed by rkyv witness bytes.
+/// Compressed batch proofs of the `log-commitment` program, with its verifying key.
+#[derive(Clone)]
+pub struct LogCommitmentProofs {
+    /// The `log-commitment` program's verifying key.
+    pub vk: SP1VerifyingKey,
+    /// The batch proofs, in the order of the batches they commit.
+    pub proofs: Vec<SP1ProofWithPublicValues>,
+}
+
+impl Debug for LogCommitmentProofs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LogCommitmentProofs").field("proofs", &self.proofs.len()).finish()
+    }
+}
+
+impl LogCommitmentProofs {
+    /// The public values of each proof: the batches of [`LogCommitmentInputs`].
+    pub fn batches(&self) -> Vec<Vec<u8>> {
+        self.proofs.iter().map(|proof| proof.public_values.to_vec()).collect()
+    }
+}
+
+/// Encodes consolidation-mode SP1 stdin: typed inputs, rkyv witness bytes, and the encoded
+/// `log_commitments`. `proofs` go to the proof stream; each must be compressed and commit the
+/// batch at its position. Without `proofs`, only execution with the deferred-proof check off can
+/// use batches.
 pub fn build_super_consolidation_stdin(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
+    proofs: Option<&LogCommitmentProofs>,
 ) -> Result<SP1Stdin> {
-    build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)
+    LogCommitmentTable::from_batches(&log_commitments.batches)?;
+    let mut opened = BTreeSet::new();
+    for opening in &log_commitments.openings {
+        ensure!(
+            opened.insert((opening.receipts_root, opening.index)),
+            "second opening of log {} under receipts root {}",
+            opening.index,
+            opening.receipts_root,
+        );
+        ensure!(opening.siblings.len() <= usize::from(u8::MAX), "opening has too many siblings");
+    }
+    let mut stdin =
+        build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)?;
+    stdin.write_vec(log_commitments.encode());
+    if let Some(LogCommitmentProofs { vk, proofs }) = proofs {
+        ensure!(
+            proofs.len() == log_commitments.batches.len(),
+            "{} log-commitment proofs for {} batches",
+            proofs.len(),
+            log_commitments.batches.len(),
+        );
+        for (index, (proof, batch)) in proofs.iter().zip(&log_commitments.batches).enumerate() {
+            ensure!(
+                proof.public_values.as_slice() == batch.as_slice(),
+                "log-commitment proof {index} does not commit its batch",
+            );
+            let SP1Proof::Compressed(recursion_proof) = &proof.proof else {
+                bail!("log-commitment proof {index} is not compressed");
+            };
+            stdin.write_proof((**recursion_proof).clone(), vk.vk.clone());
+        }
+    }
+    Ok(stdin)
 }
 
 /// Encodes log-commitment SP1 stdin for `blocks`. Fails if receipts do not hash to their root.
@@ -600,10 +675,11 @@ async fn execute_sp1_range(
 async fn execute_sp1_consolidation(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
     super_range_elf: Arc<[u8]>,
     report: bool,
 ) -> Result<SuperConsolidationOutputs> {
-    let stdin = build_super_consolidation_stdin(inputs, witness)?;
+    let stdin = build_super_consolidation_stdin(inputs, witness, log_commitments, None)?;
     let mut public_values = execute_sp1("consolidation", stdin, super_range_elf, report).await?;
     decode_super_consolidation_public_values(&mut public_values)
 }
@@ -634,6 +710,7 @@ async fn replay_consolidation(
     report: bool,
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
     super_range_elf: Option<Arc<[u8]>>,
     configs: Option<&ChainConfigs>,
 ) -> Result<SuperConsolidationOutputs> {
@@ -641,13 +718,16 @@ async fn replay_consolidation(
         return execute_sp1_consolidation(
             inputs,
             witness,
+            log_commitments,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
             report,
         )
         .await;
     }
     let (oracle, _) = witness.get_oracle_and_blob_provider().await?;
-    build_consolidation_outputs(inputs.clone(), oracle, configs).await
+    // The guest's source; the native replay has no proof to verify.
+    let log_commitments = VerifiedLogCommitments::new(log_commitments.clone(), &[0; 8], |_, _| {});
+    build_consolidation_outputs(inputs.clone(), oracle, configs, Arc::new(log_commitments)).await
 }
 
 /// Flips a bit in the first claimed transition's optimistic output root.
@@ -735,18 +815,37 @@ pub async fn collect_range_witness(
     .await
 }
 
+/// A consolidation witness with what the native run that collected it computed.
+#[derive(Debug)]
+pub struct CollectedConsolidation {
+    /// The witness.
+    pub witness: DefaultWitnessData,
+    /// The natively computed consolidation outputs.
+    pub outputs: SuperConsolidationOutputs,
+    /// The openings of the logs that the entry table served, for [`LogCommitmentInputs`].
+    pub openings: Vec<LogOpening>,
+    /// The blocks below the local safe heads that had no entry, so the witness holds their
+    /// receipts.
+    pub missing: Vec<MissingLogCommitment>,
+}
+
 /// Collects a consolidation-mode witness and the natively computed consolidation outputs.
+///
+/// `batches` are the public values of the log-commitment batch proofs that the consolidation
+/// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
 pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     configs: Option<&ChainConfigs>,
-) -> Result<(DefaultWitnessData, SuperConsolidationOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, _beacon| {
-        let inputs = inputs.clone();
-        async move { build_consolidation_outputs(inputs, oracle, configs).await }
+    batches: &[Vec<u8>],
+) -> Result<CollectedConsolidation> {
+    let (witness, native) = collect_witness(preloaded_preimages, host, |oracle, _beacon| {
+        run_native_consolidation(oracle, inputs.clone(), configs, batches)
     })
-    .await
+    .await?;
+    let NativeConsolidation { outputs, openings, missing } = native;
+    Ok(CollectedConsolidation { witness, outputs, openings, missing })
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);

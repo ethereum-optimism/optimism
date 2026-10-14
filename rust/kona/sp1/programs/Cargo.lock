@@ -1949,6 +1949,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-log-commitment-vkey"
+version = "0.0.1"
+
+[[package]]
 name = "kona-sp1-range-vkeys"
 version = "0.0.1"
 
@@ -1975,9 +1979,11 @@ dependencies = [
  "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
+ "kona-sp1-log-commitment-vkey",
  "revm",
  "rkyv",
  "serde_json",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 

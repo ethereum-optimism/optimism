@@ -35,6 +35,8 @@ Supporting libraries for the SP1 fault proof system:
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
 - **`host`**: Host-side logging, metrics, prover-network configuration, and witness-generation utilities
+- **`log-commitment-vkey`**: Compile-time `log-commitment` guest verification key, embedded from
+  generated `elf/vkeys.toml` and used by `super-range` to verify log-commitment batch proofs
 - **`range-vkeys`**: Compile-time `super-range` guest verification key, embedded from generated
   `elf/vkeys.toml` and used by `super-aggregation`. The crate retains its historical name because
   it authenticates the shipping super-range child program.
@@ -84,9 +86,10 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 
 In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
 ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
-on linux/amd64 with `just build-elfs`; it builds `log-commitment`, then the `super-range` leaf,
-generates its vkey, and then builds `super-aggregation` with that vkey embedded through
-`kona-sp1-range-vkeys`. Use
+on linux/amd64 with `just build-elfs`; it builds `log-commitment` and generates its vkey, then
+builds `super-range` with that vkey embedded through `kona-sp1-log-commitment-vkey`, generates its
+vkey, and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`.
+So the `super-range` and `super-aggregation` vkeys depend on the `log-commitment` ELF. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
 because paths and other environment details are embedded. The daily reproducibility job

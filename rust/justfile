@@ -235,14 +235,16 @@ check-no-self-embed:
   #!/usr/bin/env bash
   set -euo pipefail
   cd kona/sp1
-  # The leaf guest must not depend on the range-vkey crate: it would embed its own vkey
-  # (SUPER_RANGE_VKEY = f(super-range ELF)), closing a build cycle.
-  f=programs/super-range/Cargo.toml
-  test -f "$f"
-  if grep -q kona-sp1-range-vkeys "$f"; then
-    echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
-    exit 1
-  fi
+  # A guest must not depend on the crate that embeds its own vkey (SUPER_RANGE_VKEY =
+  # f(super-range ELF), LOG_COMMITMENT_VKEY = f(log-commitment ELF)): that closes a build cycle.
+  for pair in super-range:kona-sp1-range-vkeys log-commitment:kona-sp1-log-commitment-vkey; do
+    f="programs/${pair%%:*}/Cargo.toml"
+    test -f "$f"
+    if grep -q "${pair#*:}" "$f"; then
+      echo "error: $f must not depend on ${pair#*:} (build cycle)" >&2
+      exit 1
+    fi
+  done
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
 # --locked was passed" error.
@@ -335,12 +337,17 @@ lint-clippy-sp1-guest:
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --locked -p kona-sp1-super-range --all-targets --no-default-features -- -D warnings
 
-# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
-# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
-check-range-vkeys:
-  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
-  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
-  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
+# fmt-check + clippy + test the standalone vkey crates (in neither workspace, so nothing else
+# covers them). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-vkey-crates:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for crate in range-vkeys log-commitment-vkey; do
+    manifest="kona/sp1/crates/${crate}/Cargo.toml"
+    cargo +{{NIGHTLY}} fmt --manifest-path "$manifest" --all -- --check
+    cargo clippy --manifest-path "$manifest" --all-targets --locked -- -D warnings
+    cargo test --manifest-path "$manifest" --locked
+  done
 
 # Lint Rust documentation
 lint-docs:
