@@ -4,11 +4,12 @@ import "time"
 
 // ProofsHistoryInit is one run of `op-reth proofs init` against a node's datadir: it anchors a
 // proofs-history store at the datadir's tip, backfills the store Window blocks behind the anchor,
-// and makes the node run with proofs history from its next Start on.
+// and makes the node run with proofs history from its next Start on. The zero value is the
+// operator's plain invocation.
 type ProofsHistoryInit struct {
-	// UseSnapshot backfills through a trie-state snapshot, as op-reth does by default; false reads
-	// every backfilled block's changes from reth's database instead.
-	UseSnapshot bool
+	// PlainBackfill reads every backfilled block's changes from reth's database instead of going
+	// through the trie-state snapshot op-reth builds by default.
+	PlainBackfill bool
 	// Window is the number of blocks the backfill extends behind the anchor and the window the
 	// node keeps once proofs history is on. Zero keeps the window the node was configured with.
 	Window uint64

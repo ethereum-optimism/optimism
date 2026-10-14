@@ -28,9 +28,9 @@ type OpRethConfig struct {
 	// flags) may be selected via OpRethWithBinary.
 	Binary string
 	// DisableProofsHistory builds the node without a seeded proofs-history store and without the
-	// proofs-history runtime flags. The mixed runtime otherwise enables proofs history on every
-	// op-reth node; some CLI-superset binaries reject --proofs-history in the mode under test, and
-	// a test of the operator path seeds the store later with InitProofsHistory.
+	// proofs-history runtime flags, until InitProofsHistory seeds the store. The mixed runtime
+	// otherwise enables proofs history on every op-reth node; some CLI-superset binaries reject
+	// --proofs-history in the mode under test.
 	DisableProofsHistory bool
 	// ProofsHistoryWindow is the number of blocks the proofs-history store keeps. Zero keeps the
 	// mixed runtime's default window.
@@ -88,10 +88,9 @@ func OpRethWithBinary(binary string) OpRethOption {
 	})
 }
 
-// OpRethWithoutProofsHistory builds the node without proofs history. The mixed runtime enables it
-// on every op-reth node by default; use this for a CLI-superset binary that rejects
-// --proofs-history in the mode under test, or for a node whose store a test seeds later with
-// InitProofsHistory.
+// OpRethWithoutProofsHistory builds the node without proofs history, which InitProofsHistory can
+// turn on later. The mixed runtime enables it on every op-reth node by default; use this for a
+// CLI-superset binary that rejects --proofs-history in the mode under test.
 func OpRethWithoutProofsHistory() OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.DisableProofsHistory = true
@@ -330,11 +329,11 @@ func (n *OpReth) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHi
 	if init.Window != 0 {
 		window = init.Window
 	}
-	args := proofsHistoryInitArgs(n.chainConfigPath, n.dataDirPath, n.proofsHistoryStoragePath, window, init.UseSnapshot)
+	args := proofsHistoryInitArgs(n.chainConfigPath, n.dataDirPath, n.proofsHistoryStoragePath, window, init.PlainBackfill)
 	logger := n.p.Logger().New("name", n.name, "chain", n.chainID, "running", n.sub != nil)
 	logger.Info("Running op-reth proofs init", "cmd", n.execPath, "args", args)
 	started := time.Now()
-	output, err := exec.Command(n.execPath, args...).CombinedOutput()
+	output, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
 	report := stack.ProofsHistoryInitReport{Duration: time.Since(started), Output: string(output)}
 	if err != nil {
 		logger.Warn("op-reth proofs init failed", "duration", report.Duration, "err", err, "output", report.Output)
@@ -373,7 +372,7 @@ func proofsHistoryNodeArgs(window uint64, storagePath string) []string {
 // from the datadir and backfills it window blocks behind the datadir's tip. op-reth backfills
 // through a trie-state snapshot unless told not to, so the snapshot path gets the operator's
 // invocation with no flag.
-func proofsHistoryInitArgs(chainConfigPath, dataDirPath, storagePath string, window uint64, useSnapshot bool) []string {
+func proofsHistoryInitArgs(chainConfigPath, dataDirPath, storagePath string, window uint64, plainBackfill bool) []string {
 	args := []string{
 		"proofs",
 		"init",
@@ -382,7 +381,7 @@ func proofsHistoryInitArgs(chainConfigPath, dataDirPath, storagePath string, win
 		"--proofs-history.storage-path=" + storagePath,
 		"--proofs-history.window=" + strconv.FormatUint(resolveProofsHistoryWindow(window), 10),
 	}
-	if !useSnapshot {
+	if plainBackfill {
 		args = append(args, "--proofs-history.use-snapshot=false")
 	}
 	return args
