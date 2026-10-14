@@ -510,6 +510,33 @@ hack-tests-default partition="" shuffle="false" seed="default":
 
   cargo hack check --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
 
+# Run each crate's doc tests in isolation with default features only.
+# `hack-tests-default` never reaches doc tests: they are not a cargo target, so
+# neither `check` nor `--tests` compiles them, and `test-docs` runs the whole
+# workspace at once, where feature unification can mask a doc example that
+# uses a feature its crate never declares. Doc tests have no `--no-run`, so
+# this builds each crate's lib and runs its doc tests.
+# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
+hack-doctests-default partition="" shuffle="false" seed="default":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{partition}}" != "" ]; then
+    echo "Running cargo hack (doc tests, default-features) with partition {{partition}}"
+  else
+    echo "Running cargo hack (doc tests, default-features) without partition"
+  fi
+
+  PKG_FLAGS=""
+  if [ "{{shuffle}}" = "true" ]; then
+    PKGS=$(cargo metadata --no-deps --format-version 1 \
+      | jq -r '.packages[].name' \
+      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
+    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
+    echo "Shuffled package order (seed={{seed}}): $PKGS"
+  fi
+
+  cargo hack test --doc $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+
 ########################### Release #################################
 
 # Release crates at the given version.

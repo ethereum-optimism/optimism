@@ -239,6 +239,16 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
           command: <<parameters.command>>
+      # Run each crate's doc tests in isolation with default features. The
+      # workspace-wide step above unifies features across crates, so a doc
+      # example that uses a feature its crate never declares still compiles
+      # there. Neither cargo-hack step in `rust-cargo-hack` reaches doc tests:
+      # they are not a cargo target, so `check --tests` skips them.
+      - run:
+          name: Run cargo hack (doc tests)
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          command: just hack-doctests-default
       - rust-save-build-cache: *doctest-cache-args
 
   # Shared cargo tests job
