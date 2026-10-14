@@ -7,29 +7,43 @@ The derivation system in kona-node is responsible for transforming L1 data into 
 
 ## Overview
 
-The derivation subsystem in kona-node is built around the derivation actor in `kona_node_actors::derivation`, which manages the derivation pipeline lifecycle and coordinates with other node components. The actor uses the trait-abstracted [`kona-derive`][kd] pipeline to continuously process L1 data and produce L2 payload attributes.
+The derivation subsystem in kona-node decides the engine's safe head. Its actors live in `kona_node_actors::derivation`: `derivation::untrusted` runs the trait-abstracted [`kona-derive`][kd] pipeline to derive L2 payload attributes from L1 data, and `derivation::trusted` follows the heads an external derivation delegate reports. The engine drives whichever one the node runs.
 
 ### Key Components
 
-- **Derivation actor**: The main actor responsible for running the derivation pipeline, built with `derivation::Builder` and reached through `derivation::Handle`
+- **Untrusted derivation actor**: Runs the derivation pipeline, built with `derivation::untrusted::Builder` and driven through `derivation::untrusted::Handle`
+- **Trusted derivation actor**: Follows a derivation delegate, built with `derivation::trusted::Builder` and read through `derivation::trusted::Handle`
 - **OnlinePipeline**: A concrete implementation of the derivation pipeline using online providers
 - **Signal System**: Handles pipeline resets, hardfork activations, and error conditions
 
 ## Architecture
 
-### Builder, Handle, and Actor
+### The Engine Drives Derivation
 
-`derivation::Builder::new` creates the actor's `DerivationStatus` publisher before any dependencies exist, so the node can hand the status to the RPC layer before building either actor. The builder then builds one of two actors, each returning its lifetime future:
+The engine drives derivation, and derivation never asks anything of the engine. From its first reset, which it makes itself once the execution layer is synced, the engine repeatedly asks the `engine::Safety` trait's `next` for what to make safe next on top of its safe head:
 
-- `Builder::build` takes the engine, the derivation pipeline, and the L1 actor's handle, and derives payload attributes from L1.
-- `Builder::build_delegated` takes the engine, the derivation delegate, and an L1 provider, and follows the delegate's safe head instead. It also starts from the engine's first reset, which the engine makes once the execution layer is synced.
+- `Derived::Attributes`: payload attributes derived from L1, which the engine consolidates into the next safe block, as described in [the engine's operations](/node-operators/kona-node/design/engine#driving-safety-and-finality). If the execution layer rejected the block, a deposits-only block replaces it, and the engine calls `flush` so derivation drops the rest of its channel.
+- `Derived::Safe`: a block the execution layer has, and the L1 block it was derived from, which the engine makes safe as it is.
 
-Derivation drives the engine; the engine only replies to requests and publishes its state and resets. Derivation starts from the engine's first reset, which the engine makes itself once the execution layer is synced. It then consolidates each set of derived attributes and waits for the reply, which carries the engine state and whether to flush the channel of a block the engine replaced. The engine publishes each reset, whichever actor asked for it, before replying to the request that caused it; derivation resets its pipeline onto the safe head of every reset it sees, including one that left the safe head where it was. Derivation reaches the engine only through the `derivation::Engine` trait, whose `next_reset` waits for the engine's next reset. `Handle::status` subscribes to the published `DerivationStatus`. Derivation follows L1 through the `derivation::L1` trait, which the L1 actor's handle implements.
+After each of its resets, whatever caused it, the engine calls `reset` with its new safe head. It also gives the `engine::Finality` trait each safe head whose source it knows, and finalizes the blocks finality decides. The node's `Safety` and `Finality` adapters, in the service's `adapters` module, put the actors behind the traits: the untrusted handle implements `Safety`, the finality actor's handle implements `Finality`, and the trusted handle implements `Finality` and, through the adapter, which needs no resets or flushes from it, `Safety`.
 
-The actor publishes `DerivationStatus` through a watch channel after pipeline steps and signals. Its `current_l1` is the pipeline's current origin, so observing a newer L1 head does not advance this field until derivation processes it. Resets can move the published origin backwards. In delegated mode, the actor publishes the delegate's current L1 block only after validating the reported L1 information against the canonical chain.
+### Untrusted Derivation
 
-The actor coordinates with several other node components:
-- **Engine Actor**: Consolidates payload attributes and replies with the outcome, resets on request, and publishes its state
+`derivation::untrusted::Builder::new` creates the actor's request queue and published values before any dependencies exist. `Builder::build` takes the derivation pipeline and the L1 actor's handle, and returns the actor's lifetime future. The handle drives the actor:
+
+- `derive(safe_head)` publishes the engine's safe head and waits for the attributes the actor derives on top of it. The attributes stay published until a newer safe head replaces them, so cancelling the wait loses nothing.
+- `reset(safe)` restarts derivation from the safe head. The actor discards the attributes it derived before, and its pipeline resets onto the safe head before it derives again. The reply comes once the actor has taken the reset; the pipeline resets in the actor's own time, so the engine never waits on L1 for it.
+- `flush` flushes the channel of the last block derived.
+- `current_l1` returns the pipeline's origin, the L1 block derivation has read up to, which may not be fully derived yet. Observing a newer L1 head does not advance it until derivation reaches it, and resets can move it backwards. It is the default block until derivation starts.
+
+The actor follows L1 through the `derivation::L1` trait, which the L1 actor's handle implements.
+
+### Trusted Derivation
+
+`derivation::trusted::Builder::build` takes the derivation delegate and an L1 provider. The actor polls the delegate every four seconds, checks the L1 blocks its sync status reports against the canonical chain, and publishes the delegate's safe and finalized heads only once they pass. The delegate reports no source for its safe head, so the L1 block it has derived up to stands in for it: that block is at or after the source. The handle's `next_safe` returns the delegate's latest safe head once it differs from the one it last returned, or from the engine's, such as after an engine reset; its `Finality::next` returns the delegate's finalized head once it differs from the one it last returned. Each clone remembers what it returned, so the engine reads safe and finalized heads through separate clones. Its `current_l1` returns the delegate's current L1 block.
+
+The actors coordinate with several other node components:
+- **Engine Actor**: Drives derivation and finality, makes safe and final what they decide, resets itself, and publishes its state
 - **L1 Actor**: Holds the canonical L1 chain, which both the pipeline and derivation read
 
 ### Pipeline Construction
@@ -65,28 +79,31 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 
 ### Main Processing Loop
 
-The derivation actor waits for the engine's first reset and resets the pipeline onto its safe head, then repeatedly selects, in this order of priority:
+The untrusted actor derives nothing until the engine first resets it. It then repeatedly selects, in this order of priority:
 
-1. **Engine reset**: When the engine resets, by any actor's request, derivation resets the pipeline onto the engine's safe head. A pipeline reset that fails temporarily is retried, onto the safe head of the latest engine reset, until it succeeds. A pipeline that cannot reset onto the safe head, such as one whose ancestors an L1 reorg replaced, asks the engine to reset. A critical failure stops the actor
-2. **Derivation**: Otherwise, it steps the pipeline on the safe head until it produces attributes, and consolidates the engine's safe head with them. When a step fails temporarily and L1 has no block after the pipeline's origin, it waits for L1 to extend the origin and steps again; if L1 reorgs out the origin instead, derivation asks the engine to reset. If L1 already has a block after the origin, something else failed, and it steps again after an interval. When the pipeline asks for a reset, derivation asks the engine to reset, and the engine's reset then resets the pipeline
+1. **Requests**: A reset discards the attributes derived before it, and makes the pipeline reset onto the reset's safe head before it derives again; it interrupts derivation in progress. A flush signals the pipeline to flush its channel.
+2. **A new safe head**: Once the attributes on the safe head are published, the safe head the engine gives next becomes the one derivation derives on.
+3. **Derivation**: Otherwise, it resets the pipeline if a reset asked for it, then steps the pipeline on the safe head until it produces attributes, and publishes them. A pipeline reset that fails, other than critically, is retried after an interval until it succeeds; a pipeline that cannot reset onto the safe head, such as one whose L1 origin an L1 reorg replaced, retries too, since the engine resets for such a reorg. When a step fails temporarily and L1 has no block after the pipeline's origin, it waits for L1 to extend the origin and steps again; if L1 reorgs out the origin instead, the pipeline resets onto the safe head. If L1 already has a block after the origin, something else failed, and it steps again after an interval. When the pipeline asks for a reset, it resets onto the safe head. A critical failure stops the actor
 
-An engine reset interrupts a pipeline step in progress. The pipeline reset that follows rebuilds every stage from the safe head's L1 origin, so the interrupted step leaves nothing behind. Nothing else interrupts a step. A block L1 adds while deriving is found once the pipeline next fails to advance, so it resumes derivation.
+A reset interrupts a pipeline step in progress. The pipeline reset that follows rebuilds every stage from the safe head's L1 origin, so the interrupted step leaves nothing behind. Nothing else interrupts a step: the engine flushes and gives the next safe head only after adopting the published attributes. A block L1 adds while deriving is found once the pipeline next fails to advance, so it resumes derivation.
+
+When L1 reorgs out blocks the engine's heads rest on, the engine finds it while checking L1 and resets, which resets derivation. A reorg that leaves the engine's heads alone only resets the pipeline.
 
 ### Finality
 
-The finality actor in `kona_node_actors::finality`, not derivation, finalizes derived blocks. It follows the engine's published state, which records the L1 block each safe head was derived from, and the L1 actor's finalized block. When an L1 block finalizes, it asks the engine to finalize the highest safe head it recorded whose source that L1 block covers. The published state coalesces, so the actor may miss some safe heads; it then finalizes the highest one it saw, and catches up when the next L1 block finalizes. Each reset the engine publishes drops the safe heads recorded before it, whose sources an L1 reorg may have replaced. Delegated derivation runs no finality actor: it finalizes the delegate's finalized blocks itself.
+The finality actor in `kona_node_actors::finality`, not derivation, decides which derived blocks to finalize. The engine drives it through its handle, which implements `engine::Finality`: the handle's `next` gives the actor the engine's safe head with the L1 block it was derived from, and waits for a block to finalize other than the one it last returned. The engine gives it a safe head only once it knows its source, so not between a reset and the next block it makes safe. The actor records the highest safe head derived from each L1 block, follows the L1 actor's finalized block, and decides the highest recorded safe head whose source that block covers. The engine's safe head only moves forward except when it resets, so a safe head at or below one recorded follows a reset, which an L1 reorg may have caused: the actor forgets the safe heads from its height up. Those below are its ancestors, older than any reorg the reset walked back from. Safe heads given faster than the actor reads them coalesce, so it may miss some; it then finalizes the highest one it saw. The engine finalizes a decided block only if it is past its finalized head and not past its safe head. Trusted derivation runs no finality actor: its handle reports the delegate's finalized heads.
 
 ### Stepping Logic
 
-The core derivation logic is implemented in `Deriver::derive()`, which owns the pipeline, the safe head it derives on, and the L1 chain it waits on:
+The core derivation logic is implemented in the untrusted actor's `Deriver::step()`, which owns the pipeline, the safe head it derives on, and the L1 chain it waits on:
 
 ```rust
-async fn derive(&mut self) -> Result<Derived, ActorError>
+async fn step(&mut self) -> Result<Stepped, ActorError>
 ```
 
 This method continuously steps the pipeline until payload attributes are produced or the pipeline needs a reset, waiting after each temporary failure until stepping again may succeed:
 
-1. **Step the pipeline** with the engine's safe head from the latest consolidation or reset
+1. **Step the pipeline** with the safe head the engine last gave, or reset onto
 2. **Handle step results**:
    - `PreparedAttributes`: Attributes are ready to be consumed
    - `AdvancedOrigin`: Pipeline advanced to next L1 block
@@ -95,15 +112,15 @@ This method continuously steps the pipeline until payload attributes are produce
 
 ### Error Handling
 
-The derivation actor handles three categories of pipeline errors:
+The untrusted derivation actor handles three categories of pipeline errors:
 
 #### Temporary Errors
 - `PipelineError::NotEnoughData`: Continue stepping, more data may become available
-- Any other temporary error: If L1 has no block after the pipeline's origin, the pipeline has derived from all of L1: wait until L1 has a canonical child of the origin, or ask the engine to reset if L1 reorged out the origin, incrementing the `L1_REORG_COUNT` metric. Otherwise step again after an interval
+- Any other temporary error: If L1 has no block after the pipeline's origin, the pipeline has derived from all of L1: wait until L1 has a canonical child of the origin, or reset the pipeline onto the safe head if L1 reorged out the origin, incrementing the `L1_REORG_COUNT` metric. Otherwise step again after an interval
 
 #### Reset Errors  
 - `ResetError::HoloceneActivation`: Send an `ActivationSignal` to the pipeline and keep stepping
-- Any other reset error, including `ResetError::ReorgDetected`: Ask the engine to reset; the engine's published reset then resets the pipeline. `ReorgDetected` additionally increments the `L1_REORG_COUNT` metric.
+- Any other reset error, including `ResetError::ReorgDetected`: Reset the pipeline onto the safe head. `ReorgDetected` additionally increments the `L1_REORG_COUNT` metric.
 
 #### Critical Errors
 - Unrecoverable errors that terminate the derivation process
@@ -117,7 +134,7 @@ The pipeline supports several signal types for coordination:
 - **ActivationSignal**: Handles hardfork activations (e.g., Holocene)
 - **FlushChannel**: Invalidates current channel data for deposit-only blocks
 
-Derivation sends these signals to its own pipeline, in response to the engine's replies and published resets.
+Derivation sends these signals to its own pipeline, in response to the engine's resets and flushes, and to the pipeline's own errors.
 
 ## Configuration
 
@@ -140,13 +157,13 @@ Runtime configuration includes:
 
 ### With Engine Actor
 
-The derivation actor produces `OpAttributesWithParent` and consolidates the engine's safe head with them through the `derivation::Engine` interface:
+The engine asks derivation what to make safe next on top of its safe head, through the `engine::Safety` trait:
 
 ```rust
-let Consolidation { state, flush } = self.engine.consolidate(attributes).await?;
+let derived = safety.next(state.safe_head()).await?;
 ```
 
-The engine actor executes these attributes, updates the L2 safe head, and replies with its state, which lets derivation derive the next attributes, or reset if the engine reset. When derivation is delegated, the delegated derivation actor sends the delegate's safe head with `follow_safe_head` instead.
+The engine consolidates the attributes the untrusted actor derives into its next safe block, and asks again on top of the new safe head. It makes the safe heads the trusted actor reports safe as they are.
 
 ### With the L1 Actor
 
@@ -154,11 +171,11 @@ The L1 actor holds the canonical L1 chain from the latest finalized block to the
 
 ### With RPC Layer
 
-The RPC layer can query derivation status and potentially trigger pipeline operations through the standard node RPC interface.
+The rollup RPC reads `current_l1` for `optimism_syncStatus` through the `kona_rpc::Derivation` trait, which the node's `Safety` adapter implements for both actors.
 
 ## Metrics and Observability
 
-The derivation actor exposes several metrics for monitoring:
+The untrusted derivation actor exposes several metrics for monitoring:
 
 - `DERIVATION_L1_ORIGIN`: Current L1 origin block number
 - `DERIVATION_CRITICAL_ERROR`: Count of critical derivation errors  

@@ -1,108 +1,87 @@
-use crate::{
-    derivation::{ActorError, Builder, DerivationDelegateProvider, DerivationStatus, Engine},
-    engine::FinalizeBlockId,
-};
+//! The actor that follows a derivation delegate.
+
+use super::{DerivationDelegateProvider, Reported};
+use crate::engine::Safe;
 use alloy_primitives::BlockHash;
 use kona_derive::ChainProvider;
-use kona_protocol::SyncStatus;
-use std::future::Future;
+use kona_protocol::{BlockInfo, SyncStatus};
+use std::convert::Infallible;
 use thiserror::Error;
 use tokio::{sync::watch, time};
 
-impl Builder {
-    /// Supplies the dependencies of the derivation actor that follows an external derivation
-    /// delegate, and produces its lifetime future without spawning it.
-    ///
-    /// Runtime work begins when the future is polled. Dropping the future stops the actor.
-    pub fn build_delegated<Engine_, DelegateProvider, L1Provider>(
-        self,
-        engine: Engine_,
-        derivation_delegate_provider: DelegateProvider,
-        l1_provider: L1Provider,
-    ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
-    where
-        Engine_: Engine + 'static,
-        DelegateProvider: DerivationDelegateProvider + 'static,
-        L1Provider: ChainProvider + Send + 'static,
-    {
-        let Self { handle: _, status_tx } = self;
-        async move {
-            Actor::new(engine, status_tx, derivation_delegate_provider, l1_provider).run().await
-        }
-    }
-}
-
 /// Polls an external derivation delegate for its sync status, validates the status's L1 blocks
-/// against the canonical L1 chain, and sends the validated safe and finalized L2 heads to the
-/// engine actor.
+/// against the canonical L1 chain, and publishes the validated safe and finalized L2 heads.
 #[derive(Debug)]
-struct Actor<Engine_, DelegateProvider, L1Provider>
-where
-    Engine_: Engine,
-    DelegateProvider: DerivationDelegateProvider,
-    L1Provider: ChainProvider,
-{
-    /// The Engine client used to interact with the engine.
-    engine: Engine_,
-
-    /// Validated progress published to RPC readers.
-    status: watch::Sender<DerivationStatus>,
-
-    /// Derivation delegate provider.
-    derivation_delegate_provider: DelegateProvider,
+pub(super) struct Actor<Delegate, L1Provider> {
+    /// The derivation delegate.
+    delegate: Delegate,
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
-
-    /// Ticker driving periodic polls of the derivation delegate provider.
-    delegated_derivation_ticker: time::Interval,
+    /// Publishes the validated heads.
+    reported: watch::Sender<Option<Reported>>,
+    /// Publishes the L1 block the delegate has derived up to.
+    current_l1: watch::Sender<BlockInfo>,
 }
 
-impl<Engine_, DelegateProvider, L1Provider> Actor<Engine_, DelegateProvider, L1Provider>
+impl<Delegate, L1Provider> Actor<Delegate, L1Provider>
 where
-    Engine_: Engine + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
-    L1Provider: ChainProvider + Send + 'static,
+    Delegate: DerivationDelegateProvider,
+    L1Provider: ChainProvider + Send,
 {
-    /// Creates the actor. Its poll timer needs a Tokio runtime.
-    fn new(
-        engine: Engine_,
-        status: watch::Sender<DerivationStatus>,
-        derivation_delegate_provider: DelegateProvider,
+    /// How often the actor polls the delegate.
+    const POLL_INTERVAL: time::Duration = time::Duration::from_secs(4);
+
+    /// Creates the actor.
+    pub(super) const fn new(
+        delegate: Delegate,
         l1_provider: L1Provider,
+        reported: watch::Sender<Option<Reported>>,
+        current_l1: watch::Sender<BlockInfo>,
     ) -> Self {
-        let mut delegated_derivation_ticker =
-            time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
-        delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-        Self {
-            status,
-            engine,
-            derivation_delegate_provider,
-            l1_provider,
-            delegated_derivation_ticker,
-        }
+        Self { delegate, l1_provider, reported, current_l1 }
     }
 
-    /// Waits for the engine's first reset, which it makes once the execution layer is synced, then
-    /// follows the delegate.
-    async fn run(mut self) -> Result<(), ActorError> {
-        self.engine.next_reset().await?;
-        info!(target: "derivation", "Engine reset; following the derivation delegate");
+    /// Polls the delegate for as long as the actor runs.
+    pub(super) async fn run(mut self) -> Infallible {
+        let mut ticker = time::interval(Self::POLL_INTERVAL);
+        ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         loop {
-            self.delegated_derivation_ticker.tick().await;
-            self.fetch_and_apply_delegate_safe_head().await?;
+            ticker.tick().await;
+            self.poll().await;
         }
     }
-}
 
-impl<Engine_, DelegateProvider, L1Provider> Actor<Engine_, DelegateProvider, L1Provider>
-where
-    Engine_: Engine + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
-    L1Provider: ChainProvider + 'static,
-{
-    /// Hardcoded poll interval for Derivation Delegation
-    const DERIVATION_DELEGATE_POLL_INTERVAL: std::time::Duration =
-        std::time::Duration::from_secs(4);
+    /// Fetches the delegate's sync status, validates it, and publishes it.
+    async fn poll(&mut self) {
+        let sync_status = match self.delegate.fetch_sync_status().await {
+            Ok(status) => status,
+            Err(_) => {
+                warn!(target: "derivation", "Failed to fetch sync status from delegate");
+                return;
+            }
+        };
+
+        // Validation failures here are expected to be transient, so the actor skips this sync
+        // status and keeps polling.
+        if !self.validate_sync_status(&sync_status).await {
+            return;
+        }
+
+        self.current_l1.send_replace(sync_status.current_l1);
+        // The delegate reports no source for its safe head. The L1 block it has derived up to is
+        // at or after the source.
+        let reported = Reported {
+            safe: Safe { head: sync_status.safe_l2, source: sync_status.current_l1 },
+            finalized: sync_status.finalized_l2,
+        };
+        self.reported.send_if_modified(|published| published.replace(reported) != Some(reported));
+        debug!(
+            target: "derivation",
+            safe_l2 = ?sync_status.safe_l2,
+            finalized_l2 = ?sync_status.finalized_l2,
+            "Processed sync status from delegate"
+        );
+    }
 
     /// Validates a single L1 block height and hash against the canonical L1 chain.
     async fn validate_l1_block(
@@ -154,44 +133,6 @@ where
         }
         true
     }
-
-    /// Fetches, validates, and applies sync status from the derivation delegate.
-    async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), ActorError> {
-        let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
-            Ok(status) => status,
-            Err(_) => {
-                warn!(target: "derivation", "Failed to fetch sync status from delegate");
-                return Ok(());
-            }
-        };
-
-        if !self.validate_sync_status(&sync_status).await {
-            // Validation failures here are expected to be transient, so we skip processing
-            // this sync status and continue delegating derivation instead of treating it as
-            // fatal.
-            return Ok(());
-        }
-
-        self.status.send_replace(DerivationStatus { current_l1: Some(sync_status.current_l1) });
-
-        self.engine.follow_safe_head(sync_status.safe_l2).await?;
-
-        // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
-        // finalizes the specific block we were asked to, not whatever it happens to have at the
-        // same height.
-        self.engine
-            .finalize(FinalizeBlockId::ByHash(sync_status.finalized_l2.block_info.id()))
-            .await?;
-
-        debug!(
-            target: "derivation",
-            safe_l2 = ?sync_status.safe_l2,
-            finalized_l2 = ?sync_status.finalized_l2,
-            "Processed sync status from delegate"
-        );
-
-        Ok(())
-    }
 }
 
 #[derive(Error, Debug)]
@@ -208,13 +149,11 @@ enum DerivationDelegationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        derivation::{
-            DerivationDelegateClientError,
-            engine::{Request, TestEngine},
-        },
-        engine::EngineState,
+    use crate::derivation::{
+        DerivationDelegateClientError,
+        trusted::{Builder, Handle},
     };
+    use alloy_primitives::B256;
     use async_trait::async_trait;
     use kona_derive::test_utils::TestChainProvider;
     use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -231,18 +170,15 @@ mod tests {
 
     /// Building needs no runtime: the actor creates its poll timer when it starts running.
     #[test]
-    fn build_delegated_does_not_require_a_runtime() {
-        let builder = Builder::new();
-        let task = builder.build_delegated(
-            TestEngine::new([]),
-            TestDelegate(Mutex::new(VecDeque::new())),
-            TestChainProvider::default(),
-        );
+    fn build_does_not_require_a_runtime() {
+        let task = Builder::new()
+            .build(TestDelegate(Mutex::new(VecDeque::new())), TestChainProvider::default());
         drop(task);
     }
 
-    /// Returns a delegate sync status whose L1 blocks are the given current L1 block and genesis.
-    fn sync_status(current: BlockInfo) -> SyncStatus {
+    /// Returns a delegate sync status whose L1 blocks are the given current L1 block and genesis,
+    /// with the given safe head.
+    fn sync_status(current: BlockInfo, safe: L2BlockInfo) -> SyncStatus {
         // Fill the delegate's unused sync fields with zero values.
         SyncStatus {
             current_l1: current,
@@ -252,68 +188,79 @@ mod tests {
             finalized_l1: BlockInfo::default(),
             unsafe_l2: L2BlockInfo::default(),
             local_safe_l2: L2BlockInfo::default(),
-            safe_l2: L2BlockInfo::default(),
+            safe_l2: safe,
             finalized_l2: L2BlockInfo::default(),
         }
     }
 
-    /// The actor waits for the engine's first reset before it follows the delegate.
-    #[tokio::test(start_paused = true)]
-    async fn follows_the_delegate_from_the_engines_first_reset() {
-        let current = BlockInfo { number: 7, ..Default::default() };
-        let delegate = TestDelegate(Mutex::new(VecDeque::from([sync_status(current)])));
-        let mut provider = TestChainProvider::default();
-        provider.insert_block(0, BlockInfo::default());
-        provider.insert_block(current.number, current);
-        let engine = TestEngine::new([Ok(EngineState::default())]);
-        let (status, mut progress) = watch::channel(DerivationStatus::default());
-        let actor = tokio::spawn(Actor::new(engine.clone(), status, delegate, provider).run());
-        time::sleep(time::Duration::from_secs(10)).await;
-        assert!(engine.requests().is_empty());
-        assert_eq!(progress.borrow().current_l1, None);
-
-        engine.start();
-        time::timeout(
-            time::Duration::from_secs(10),
-            progress.wait_for(|progress| progress.current_l1 == Some(current)),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        actor.abort();
-        assert!(matches!(
-            engine.requests()[..],
-            [Request::FollowSafeHead(_), Request::Finalize(_)]
-        ));
-    }
-
-    #[tokio::test(start_paused = true)]
+    /// The actor publishes only the delegate's progress that L1 confirms, with the L1 block the
+    /// delegate derived up to standing in for its safe head's source.
+    #[tokio::test]
     async fn publishes_only_validated_delegate_progress() {
-        let current = BlockInfo {
-            number: 7,
-            hash: alloy_primitives::B256::repeat_byte(1),
+        let current = BlockInfo { number: 7, hash: B256::repeat_byte(1), ..Default::default() };
+        let safe = L2BlockInfo {
+            block_info: BlockInfo { number: 3, ..Default::default() },
             ..Default::default()
         };
-        let status = sync_status(current);
+        let status = sync_status(current, safe);
         let mut invalid = status.clone();
-        invalid.current_l1.hash = alloy_primitives::B256::repeat_byte(2);
+        invalid.current_l1.hash = B256::repeat_byte(2);
         let delegate = TestDelegate(Mutex::new(VecDeque::from([invalid.clone(), status, invalid])));
         let mut provider = TestChainProvider::default();
         provider.insert_block(0, BlockInfo::default());
         provider.insert_block(current.number, current);
-        let engine = TestEngine::new([]);
-        let (status, progress) = watch::channel(DerivationStatus::default());
-        let mut actor = Actor::new(engine.clone(), status, delegate, provider);
-        actor.fetch_and_apply_delegate_safe_head().await.unwrap();
-        assert_eq!(progress.borrow().current_l1, None);
-        actor.fetch_and_apply_delegate_safe_head().await.unwrap();
-        assert_eq!(progress.borrow().current_l1, Some(current));
-        actor.fetch_and_apply_delegate_safe_head().await.unwrap();
-        assert_eq!(progress.borrow().current_l1, Some(current));
-        // Only the validated progress reaches the engine.
-        assert!(matches!(
-            engine.requests()[..],
-            [Request::FollowSafeHead(_), Request::Finalize(_)]
-        ));
+        let (reported_tx, reported) = watch::channel(None);
+        let (current_l1_tx, current_l1) = watch::channel(BlockInfo::default());
+        let mut actor = Actor::new(delegate, provider, reported_tx, current_l1_tx);
+
+        actor.poll().await;
+        assert_eq!(*current_l1.borrow(), BlockInfo::default());
+        assert_eq!(*reported.borrow(), None);
+        let expected = Reported {
+            safe: Safe { head: safe, source: current },
+            finalized: L2BlockInfo::default(),
+        };
+        actor.poll().await;
+        assert_eq!(*current_l1.borrow(), current);
+        assert_eq!(*reported.borrow(), Some(expected));
+        actor.poll().await;
+        assert_eq!(*current_l1.borrow(), current);
+        assert_eq!(*reported.borrow(), Some(expected));
+    }
+
+    /// The handle returns the delegate's safe head once it is new, or differs from the engine's,
+    /// such as after the engine reset, and its finalized head once it is new.
+    #[tokio::test(start_paused = true)]
+    async fn handle_returns_heads_the_engine_has_not_adopted() {
+        let (reported_tx, reported) = watch::channel(None);
+        let (_current_l1_tx, current_l1) = watch::channel(BlockInfo::default());
+        let mut handle = Handle::new(reported, current_l1);
+        let block = |number| L2BlockInfo {
+            block_info: BlockInfo { number, ..Default::default() },
+            ..Default::default()
+        };
+        let safe = Safe { head: block(2), source: BlockInfo::default() };
+        let heads = Reported { safe, finalized: block(1) };
+        let wait = time::Duration::from_secs(10);
+
+        // Nothing reported yet.
+        assert!(time::timeout(wait, handle.next_safe(block(0))).await.is_err());
+        assert!(time::timeout(wait, handle.next_finalized()).await.is_err());
+        reported_tx.send_replace(Some(heads));
+        assert_eq!(handle.next_safe(block(0)).await.unwrap(), safe);
+        assert_eq!(handle.next_finalized().await.unwrap(), block(1));
+        // The engine adopted them.
+        assert!(time::timeout(wait, handle.next_safe(block(2))).await.is_err());
+        assert!(time::timeout(wait, handle.next_finalized()).await.is_err());
+        // The engine reset onto another safe head.
+        assert_eq!(handle.next_safe(block(1)).await.unwrap(), safe);
+        // Only the finalized head moves.
+        reported_tx.send_replace(Some(Reported { finalized: block(2), ..heads }));
+        assert!(time::timeout(wait, handle.next_safe(block(2))).await.is_err());
+        assert_eq!(handle.next_finalized().await.unwrap(), block(2));
+
+        drop(reported_tx);
+        assert!(handle.next_safe(block(2)).await.is_err());
+        assert!(handle.next_finalized().await.is_err());
     }
 }

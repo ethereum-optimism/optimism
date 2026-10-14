@@ -15,11 +15,11 @@ pub use error::{
     FinalizeTaskError, InsertTaskError, SealTaskError, SynchronizeTaskError,
 };
 
-mod handle;
-pub use handle::{Consolidation, Handle};
+mod derivation;
+pub use derivation::{Derived, Finality, Safe, Safety};
 
-mod input;
-pub use input::FinalizeBlockId;
+mod handle;
+pub use handle::Handle;
 
 mod state;
 pub use state::{EngineState, HeadsUpdate};

@@ -68,7 +68,8 @@ pub struct RollupNode {
 }
 
 /// The lifetime future of whichever derivation actor the node is configured to run.
-type DerivationTask = Pin<Box<dyn Future<Output = Result<(), derivation::ActorError>> + Send>>;
+type DerivationTask =
+    Pin<Box<dyn Future<Output = Result<(), derivation::untrusted::ActorError>> + Send>>;
 
 /// The lifetime future of the finality actor.
 type FinalityTask = Pin<Box<dyn Future<Output = Result<(), finality::ActorError>> + Send>>;
@@ -170,8 +171,6 @@ impl RollupNode {
         let signer_updater_builder = l1_signer_updater::Builder::new(initial_signer);
         let signer_rx = signer_updater_builder.handle();
         // actor request channels
-        let derivation_builder = derivation::Builder::new();
-        let derivation = derivation_builder.handle();
         let engine_builder = engine::Builder::new(engine_state);
         let engine = engine_builder.handle();
         let sequencer = self.sequencer.as_ref().map(|config| (config, sequencer::Builder::new()));
@@ -185,77 +184,72 @@ impl RollupNode {
         let signer_builder = signer::Builder::new();
         let signer_handle = signer_builder.handle();
 
+        // ─── derivation and finality ────────────────────────────────────────────────────────
+        // A node that delegates derivation follows the delegate's safe and finalized heads, so it
+        // neither derives from L1 nor runs the finality actor.
+        let (safety, finality, derivation_actor, finality_actor): (
+            adapters::Safety,
+            adapters::Finality,
+            DerivationTask,
+            Option<FinalityTask>,
+        ) = if let Some(provider) = self.clients.derivation_delegate.clone() {
+            // L1 Provider for sanity checking Derivation Delegation
+            let l1_provider =
+                AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
+            let builder = derivation::trusted::Builder::new();
+            let safety = adapters::Safety::Trusted(Box::new(builder.handle()));
+            let finality = adapters::Finality::Trusted(Box::new(builder.handle()));
+            let actor = builder.build(provider, l1_provider);
+            // The actor runs until it is dropped: its output, `Infallible`, never exists.
+            (safety, finality, Box::pin(async move { match actor.await {} }), None)
+        } else {
+            // Create the caching L1/L2 EL providers for derivation. The pipeline reads L1
+            // heights from the L1 actor.
+            let l1_derivation_provider = derivation::L1ChainProvider::new(
+                l1.clone(),
+                AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE),
+            );
+            let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
+                self.l2_block_buffer.clone(),
+                AlloyL2ChainProvider::new(
+                    self.clients.l2.clone(),
+                    self.chain.rollup_config.clone(),
+                    DERIVATION_PROVIDER_CACHE_SIZE,
+                ),
+            );
+            let blob_provider = OnlineBlobProvider::init(self.clients.l1_beacon.clone())
+                .await
+                .map_err(|error| {
+                    RollupNodeError::Startup(format!(
+                        "Failed to initialize L1 blob provider: {error}"
+                    ))
+                })?;
+            let pipeline = OnlinePipeline::new_polled(
+                self.chain.rollup_config.clone(),
+                self.chain.l1_config.clone(),
+                blob_provider,
+                l1_derivation_provider,
+                l2_derivation_provider,
+                Some(self.chain.dependency_set.clone()),
+            );
+            let builder = derivation::untrusted::Builder::new();
+            let safety = adapters::Safety::Untrusted(builder.handle());
+            let actor = builder.build(pipeline, l1.clone());
+            let finality_builder = finality::Builder::new();
+            let finality = adapters::Finality::Untrusted(finality_builder.handle());
+            let finality_actor = finality_builder.build(adapters::L1::new(l1.clone()));
+            (safety, finality, Box::pin(actor), Some(Box::pin(finality_actor)))
+        };
+
         // ─── engine ─────────────────────────────────────────────────────────────────────────
         let engine_actor = engine_builder.build(
             self.engine_api.clone(),
             l1.clone(),
             self.chain.rollup_config.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
+            safety.clone(),
+            finality,
         );
-
-        // ─── derivation and finality ────────────────────────────────────────────────────────
-        // A node that delegates derivation follows the delegate's safe and finalized heads, so it
-        // neither derives from L1 nor finalizes.
-        let (derivation_actor, finality_actor): (DerivationTask, Option<FinalityTask>) =
-            if let Some(provider) = self.clients.derivation_delegate.clone() {
-                // L1 Provider for sanity checking Derivation Delegation
-                let l1_provider = AlloyChainProvider::new(
-                    self.clients.l1.clone(),
-                    DERIVATION_PROVIDER_CACHE_SIZE,
-                );
-                let derivation = derivation_builder.build_delegated(
-                    adapters::Engine::new(engine.clone()),
-                    provider,
-                    l1_provider,
-                );
-                (Box::pin(derivation), None)
-            } else {
-                // Create the caching L1/L2 EL providers for derivation. The pipeline reads L1
-                // heights from the L1 actor.
-                let l1_derivation_provider = derivation::L1ChainProvider::new(
-                    l1.clone(),
-                    AlloyChainProvider::new(
-                        self.clients.l1.clone(),
-                        DERIVATION_PROVIDER_CACHE_SIZE,
-                    ),
-                );
-                let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-                    self.l2_block_buffer.clone(),
-                    AlloyL2ChainProvider::new(
-                        self.clients.l2.clone(),
-                        self.chain.rollup_config.clone(),
-                        DERIVATION_PROVIDER_CACHE_SIZE,
-                    ),
-                );
-                let blob_provider = OnlineBlobProvider::init(self.clients.l1_beacon.clone())
-                    .await
-                    .map_err(|error| {
-                        RollupNodeError::Startup(format!(
-                            "Failed to initialize L1 blob provider: {error}"
-                        ))
-                    })?;
-                let pipeline = OnlinePipeline::new_polled(
-                    self.chain.rollup_config.clone(),
-                    self.chain.l1_config.clone(),
-                    blob_provider,
-                    l1_derivation_provider,
-                    l2_derivation_provider,
-                    Some(self.chain.dependency_set.clone()),
-                );
-                let derivation = derivation_builder.build(
-                    adapters::Engine::new(engine.clone()),
-                    pipeline,
-                    l1.clone(),
-                );
-                let (engine_state, resets) = (engine.state(), engine.resets());
-                let finality = finality::build(
-                    adapters::Engine::new(engine.clone()),
-                    engine_state,
-                    resets,
-                    adapters::L1::new(l1.clone()),
-                );
-                (Box::pin(derivation), Some(Box::pin(finality)))
-            };
 
         // ─── block signer ───────────────────────────────────────────────────────────────────
         // Start the sequencer's block signer before the network, so a misconfigured or
@@ -370,7 +364,7 @@ impl RollupNode {
                     engine.state(),
                     self.clients.l2.clone(),
                     l1,
-                    derivation.status(),
+                    safety,
                 )
                 .into_rpc(),
             )

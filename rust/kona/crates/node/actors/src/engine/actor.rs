@@ -1,16 +1,16 @@
 //! Engine construction and execution.
 
 use super::{
-    ActorError, BuildTaskError, ConsolidateTaskError, Consolidation, EngineBuildError,
-    EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
-    FinalizeTaskError, Handle, HeadsUpdate, ImportedBlockSink, InsertTaskError, SealTaskError,
+    ActorError, BuildTaskError, ConsolidateTaskError, Derived, EngineBuildError, EngineResetError,
+    EngineState, EngineTaskError, EngineTaskErrorSeverity, Finality, FinalizeTaskError, Handle,
+    HeadsUpdate, ImportedBlockSink, InsertTaskError, Safe, Safety, SealTaskError,
     SynchronizeTaskError,
     attributes::AttributesMatch,
-    handle::{BuildRequest, ConsolidateRequest, Message, SealRequest},
+    handle::{BuildRequest, Message, SealRequest},
     sync::find_starting_forkchoice,
 };
 use crate::{Metrics, l1};
-use alloy_eips::{BlockId, BlockNumHash};
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::{
     ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
 };
@@ -65,18 +65,25 @@ impl Builder {
 
     /// Supplies dependencies and produces the actor's lifetime future without spawning it.
     ///
+    /// From its first reset, the engine makes safe what `safety` decides, and finalizes what
+    /// `finality` decides.
+    ///
     /// The caller must retain a handle to keep the request channel open.
     /// Runtime work begins when the future is polled.
     /// Dropping the future stops the actor.
-    pub fn build(
+    pub fn build<S: Safety, F: Finality>(
         self,
         client: Arc<EngineApi>,
         l1: l1::Handle,
         rollup: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
+        safety: S,
+        finality: F,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
-        Actor::new(client, l1, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
+        let dependencies =
+            Dependencies { client, l1, config: rollup, block_sink, safety, finality };
+        Actor::new(dependencies, state_tx, resets_tx, messages_rx).run()
     }
 }
 
@@ -112,6 +119,23 @@ impl Backoff {
     }
 }
 
+/// What the engine actor talks to.
+#[derive(Debug)]
+struct Dependencies<S, F> {
+    /// The Engine API client.
+    client: Arc<EngineApi>,
+    /// The L1 chain.
+    l1: l1::Handle,
+    /// The rollup configuration.
+    config: Arc<RollupConfig>,
+    /// Where to hand every block the engine makes canonical.
+    block_sink: Arc<dyn ImportedBlockSink>,
+    /// What decides the safe head.
+    safety: S,
+    /// What decides the finalized head.
+    finality: F,
+}
+
 /// Performs the operations sent to the execution layer's Engine API, one request at a time in the
 /// order they arrive, and publishes the engine state after each request and before replying.
 ///
@@ -124,7 +148,7 @@ impl Backoff {
 /// follows L1: whenever the L1 head or the L1 blocks its heads rest on change, it resets if L1
 /// reorged out one of those blocks.
 #[derive(Debug)]
-struct Actor {
+struct Actor<S, F> {
     /// The Engine API client.
     client: Arc<EngineApi>,
     /// The L1 chain, which a reset checks to find a plausible forkchoice, and which the engine
@@ -134,6 +158,10 @@ struct Actor {
     config: Arc<RollupConfig>,
     /// Where to hand every block the engine makes canonical.
     block_sink: Arc<dyn ImportedBlockSink>,
+    /// What decides the safe head, which the engine drives from its first reset.
+    safety: S,
+    /// What decides the finalized head, which the engine drives from its first reset.
+    finality: F,
     /// The state of the engine. Operations update it, and it is published after every request.
     state: EngineState,
     /// Whether the engine has sent the execution layer a forkchoice. It starts from the execution
@@ -153,23 +181,23 @@ struct Actor {
     messages_rx: mpsc::Receiver<Message>,
 }
 
-impl Actor {
+impl<S: Safety, F: Finality> Actor<S, F> {
     /// Creates the actor, starting from the state that `state_tx` holds.
     fn new(
-        client: Arc<EngineApi>,
-        l1: l1::Handle,
-        config: Arc<RollupConfig>,
-        block_sink: Arc<dyn ImportedBlockSink>,
+        dependencies: Dependencies<S, F>,
         state_tx: watch::Sender<EngineState>,
         resets_tx: watch::Sender<EngineState>,
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
+        let Dependencies { client, l1, config, block_sink, safety, finality } = dependencies;
         let state = *state_tx.borrow();
         Self {
             client,
             l1,
             config,
             block_sink,
+            safety,
+            finality,
             state,
             forkchoice_sent: false,
             follows_l1: false,
@@ -184,6 +212,7 @@ impl Actor {
         let mut el_sync_poll = time::interval(EL_SYNC_POLL_INTERVAL);
         el_sync_poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
+            let safe = self.safe();
             tokio::select! {
                 // Poll and check L1 before more requests, which could otherwise delay them for as
                 // long as they keep coming.
@@ -208,8 +237,77 @@ impl Actor {
                     let message = message.ok_or(ActorError::ChannelClosed)?;
                     self.handle_message(message).await?;
                 }
+                // Safety starts with the engine's first reset, which resets it.
+                derived = self.safety.next(self.state.safe_head()), if self.follows_l1 => {
+                    let derived = derived.map_err(|_| ActorError::SafetyStopped)?;
+                    let result = self.adopt(derived).await;
+                    // Publish the state even if adopting failed: it can update the state before a
+                    // later step fails.
+                    self.publish_state();
+                    result?;
+                }
+                // Finality learns each safe head whose source the engine knows: none since a
+                // reset until the engine makes another block safe.
+                finalized = self.finality.next(safe), if self.follows_l1 && self.state.safe_head_source().is_some() => {
+                    let finalized = finalized.map_err(|_| ActorError::FinalityStopped)?;
+                    let result = self.adopt_finalized(finalized).await;
+                    self.publish_state();
+                    result?;
+                }
             }
         }
+    }
+
+    /// Returns the safe head and the L1 block it was derived from, or the default block where that
+    /// is unknown.
+    fn safe(&self) -> Safe {
+        Safe {
+            head: self.state.safe_head(),
+            source: self.state.safe_head_source().unwrap_or_default(),
+        }
+    }
+
+    /// Makes safe what safety decided: builds the next safe block from attributes, or makes a
+    /// block the execution layer has safe.
+    async fn adopt(&mut self, derived: Derived) -> Result<(), ActorError> {
+        match derived {
+            Derived::Attributes(attributes) => {
+                let recovery = self
+                    .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
+                        Box::pin(actor.handle_consolidate(attributes.clone()))
+                    })
+                    .await?;
+                if recovery == Recovery::Flushed {
+                    self.safety.flush().await.map_err(|_| ActorError::SafetyStopped)?;
+                }
+            }
+            Derived::Safe(Safe { head, source }) => {
+                if head != self.state.safe_head() {
+                    let recovery = self
+                        .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
+                            Box::pin(actor.handle_follow_safe_head(head))
+                        })
+                        .await?;
+                    // A reset replaced the safe head.
+                    if recovery == Recovery::Reset {
+                        return Ok(());
+                    }
+                }
+                self.state = self.state.with_safe_head_source(Some(source));
+            }
+        }
+        Ok(())
+    }
+
+    /// Finalizes what finality decided, if it is past the finalized head.
+    async fn adopt_finalized(&mut self, finalized: L2BlockInfo) -> Result<(), ActorError> {
+        if finalized.block_info.number <= self.state.finalized_head().block_info.number {
+            return Ok(());
+        }
+        let block = finalized.block_info.id();
+        self.retry(Metrics::FINALIZE_TASK_LABEL, |actor| Box::pin(actor.handle_finalize(block)))
+            .await?;
+        Ok(())
     }
 
     /// Checks the L1 blocks the heads of `state` rest on, which [`rests_on`] lists, against the L1
@@ -251,34 +349,6 @@ impl Actor {
                 self.handle_seal(*request).await;
                 Ok(())
             }
-            Message::Consolidate(request) => {
-                let ConsolidateRequest { attributes, result_tx } = *request;
-                self.retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
-                    Box::pin(actor.handle_consolidate(attributes.clone()))
-                })
-                .await
-                .map(|recovery| {
-                    // The reply's state must match the published one.
-                    self.publish_state();
-                    // A caller that stopped waiting does not undo the consolidation.
-                    let _ = result_tx.send(Consolidation {
-                        state: self.state,
-                        flush: recovery == Recovery::Flushed,
-                    });
-                })
-            }
-            Message::FollowSafeHead(safe_head) => self
-                .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
-                    Box::pin(actor.handle_follow_safe_head(*safe_head))
-                })
-                .await
-                .map(|_| ()),
-            Message::Finalize(block_id) => self
-                .retry(Metrics::FINALIZE_TASK_LABEL, |actor| {
-                    Box::pin(actor.handle_finalize(*block_id))
-                })
-                .await
-                .map(|_| ()),
             Message::InsertUnsafeBlock(payload) => self
                 .retry(Metrics::INSERT_TASK_LABEL, |actor| {
                     Box::pin(actor.handle_insert((*payload).clone()))
@@ -389,24 +459,12 @@ impl Actor {
     /// is ahead of the safe head, the unsafe block at the attributes' height becomes safe if it
     /// matches them. Otherwise the attributes are built and sealed, reorging the unsafe chain.
     ///
-    /// Attributes whose parent is not the safe head were derived before a reset, and are skipped.
-    /// Otherwise, the L1 block the attributes were derived from becomes the safe head's source.
+    /// The L1 block the attributes were derived from becomes the safe head's source.
     async fn handle_consolidate(
         &mut self,
         attributes: OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
         let safe_head = self.state.safe_head().block_info;
-        let parent = attributes.parent.block_info;
-        if parent.id() != safe_head.id() {
-            warn!(
-                target: "engine",
-                safe_head = ?safe_head,
-                parent = ?parent,
-                "Skipping attributes that do not extend the safe head"
-            );
-            return Ok(());
-        }
-
         if safe_head.number < self.state.unsafe_head().block_info.number {
             let block = self.fetch_unsafe_block(attributes.block_number()).await?;
             let matches = AttributesMatch::check(&self.config, &attributes, &block).is_match();
@@ -485,51 +543,32 @@ impl Actor {
         Ok(())
     }
 
-    /// Fetches the [`L2BlockInfo`] identified by `block_id`, makes it the finalized head, and
-    /// dispatches a forkchoice update to finalize the block. A request for a block that is not
-    /// safe is dropped.
-    async fn handle_finalize(
-        &mut self,
-        block_id: FinalizeBlockId,
-    ) -> Result<(), FinalizeTaskError> {
-        let block_number = block_id.number();
-
-        // Only a safe block can be finalized. A reset can move the safe head back after the
-        // request was sent; finality asks again once the next L1 block finalizes.
+    /// Makes the L2 block `block` the finalized head, and dispatches a forkchoice update to
+    /// finalize it. A block that is not safe, or that the execution layer's canonical chain does
+    /// not hold, such as one finality decided on before a reset replaced it, is not finalized.
+    async fn handle_finalize(&mut self, block: BlockNumHash) -> Result<(), FinalizeTaskError> {
+        // Only a safe block can be finalized. A reset can move the safe head back; finality
+        // decides again from the safe heads after it.
         let safe_head = self.state.safe_head().block_info.number;
-        if safe_head < block_number {
-            warn!(target: "engine", block_number, safe_head, "Dropping a request to finalize a block that is not safe");
+        if safe_head < block.number {
+            warn!(target: "engine", block_number = block.number, safe_head, "Not finalizing a block that is not safe");
             return Ok(());
         }
 
-        // Look up by hash when the caller pinned a specific hash (delegated polling supplies
-        // `(number, hash)`); otherwise look up by number. Finalization is irreversible, so a stale
-        // hash must produce a hard error, not silently finalize whatever the engine has at the
-        // same height.
-        let lookup: BlockId = match block_id {
-            FinalizeBlockId::ByHash(id) => id.hash.into(),
-            FinalizeBlockId::ByNumber(n) => n.into(),
-        };
-
-        let block = self
+        // The canonical block at a safe height is an ancestor of the safe head.
+        let canonical = self
             .client
-            .get_l2_block(lookup)
+            .get_l2_block(block.number.into())
             .full()
             .await
             .map_err(FinalizeTaskError::TransportError)?
-            .ok_or(FinalizeTaskError::BlockNotFound(block_number))?
+            .ok_or(FinalizeTaskError::BlockNotFound(block.number))?
             .into_consensus();
-        let block_info = L2BlockInfo::from_block_and_genesis(&block, &self.config.genesis)
+        let block_info = L2BlockInfo::from_block_and_genesis(&canonical, &self.config.genesis)
             .map_err(FinalizeTaskError::FromBlock)?;
-
-        // For ByHash, also assert the returned block's height matches the caller's claim. The
-        // engine should never serve a block at a different height for a given hash, but a height
-        // mismatch indicates either an upstream protocol bug or a misuse of the API and must
-        // never lead to silent finalization.
-        if let FinalizeBlockId::ByHash(id) = block_id &&
-            block_info.block_info.number != id.number
-        {
-            return Err(FinalizeTaskError::BlockNotFound(id.number));
+        if block_info.block_info.hash != block.hash {
+            warn!(target: "engine", ?block, canonical = ?block_info.block_info.id(), "Not finalizing a block the canonical chain does not hold");
+            return Ok(());
         }
 
         // Dispatch a forkchoice update.
@@ -637,7 +676,8 @@ impl Actor {
         self.publish_state();
         self.resets_tx.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
-        Ok(())
+        // Safety starts over from the reset's safe head.
+        self.safety.reset(self.state.safe_head()).await.map_err(|_| ActorError::SafetyStopped)
     }
 
     /// Applies a heads update and sends the resulting forkchoice to the execution layer with

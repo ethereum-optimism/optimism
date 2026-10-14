@@ -36,6 +36,12 @@ pub enum ActorError {
     /// The L1 actor stopped.
     #[error("the L1 actor stopped")]
     L1Stopped,
+    /// Safety stopped.
+    #[error("safety stopped")]
+    SafetyStopped,
+    /// Finality stopped.
+    #[error("finality stopped")]
+    FinalityStopped,
     /// Engine reset error.
     #[error(transparent)]
     EngineReset(#[from] EngineResetError),

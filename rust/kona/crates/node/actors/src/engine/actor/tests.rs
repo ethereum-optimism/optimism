@@ -89,6 +89,116 @@ fn clients_with_l1(config: Arc<RollupConfig>, l1: l1::Handle) -> (Clients, RpcMo
     (Clients { engine, l1 }, l2)
 }
 
+/// What the engine did with a [`TestSafety`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Driven {
+    /// The engine reset safety onto its safe head.
+    Reset(L2BlockInfo),
+    /// The engine flushed the last block made safe.
+    Flush,
+}
+
+/// Safety that returns what the test sends it, and records how the engine drove it.
+#[derive(Debug)]
+struct TestSafety {
+    derived: mpsc::UnboundedReceiver<Derived>,
+    driven: Arc<Mutex<Vec<Driven>>>,
+}
+
+/// Finality that returns the blocks the test sends it, and records the safe heads it was given.
+#[derive(Debug)]
+struct TestFinality {
+    finalized: mpsc::UnboundedReceiver<L2BlockInfo>,
+    given: Arc<Mutex<Vec<Safe>>>,
+}
+
+/// The test's side of a [`TestSafety`] and a [`TestFinality`].
+#[derive(Debug)]
+struct Scripts {
+    derived: mpsc::UnboundedSender<Derived>,
+    driven: Arc<Mutex<Vec<Driven>>>,
+    finalized: mpsc::UnboundedSender<L2BlockInfo>,
+    given: Arc<Mutex<Vec<Safe>>>,
+}
+
+impl Scripts {
+    /// Makes safety return `derived`, once the engine asks.
+    fn derive(&self, derived: Derived) {
+        self.derived.send(derived).unwrap();
+    }
+
+    /// Makes finality return `finalized`, once the engine asks.
+    fn finalize(&self, finalized: L2BlockInfo) {
+        self.finalized.send(finalized).unwrap();
+    }
+
+    /// Returns how the engine drove safety so far.
+    fn driven(&self) -> Vec<Driven> {
+        self.driven.lock().unwrap().clone()
+    }
+
+    /// Returns the safe heads the engine gave finality so far.
+    fn given(&self) -> Vec<Safe> {
+        self.given.lock().unwrap().clone()
+    }
+}
+
+/// Returns safety and finality that do nothing until the test sends them something.
+fn scripted() -> (TestSafety, TestFinality, Scripts) {
+    let (derived_tx, derived) = mpsc::unbounded_channel();
+    let (finalized_tx, finalized) = mpsc::unbounded_channel();
+    let driven = Arc::new(Mutex::default());
+    let given = Arc::new(Mutex::default());
+    (
+        TestSafety { derived, driven: driven.clone() },
+        TestFinality { finalized, given: given.clone() },
+        Scripts { derived: derived_tx, driven, finalized: finalized_tx, given },
+    )
+}
+
+#[async_trait::async_trait]
+impl Safety for TestSafety {
+    type Error = std::convert::Infallible;
+
+    async fn next(&mut self, _safe_head: L2BlockInfo) -> Result<Derived, Self::Error> {
+        match self.derived.recv().await {
+            Some(derived) => Ok(derived),
+            None => std::future::pending().await,
+        }
+    }
+
+    async fn reset(&mut self, safe: L2BlockInfo) -> Result<(), Self::Error> {
+        self.driven.lock().unwrap().push(Driven::Reset(safe));
+        Ok(())
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        self.driven.lock().unwrap().push(Driven::Flush);
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Finality for TestFinality {
+    type Error = std::convert::Infallible;
+
+    async fn next(&mut self, safe: Safe) -> Result<L2BlockInfo, Self::Error> {
+        {
+            let mut given = self.given.lock().unwrap();
+            if given.last() != Some(&safe) {
+                given.push(safe);
+            }
+        }
+        match self.finalized.recv().await {
+            Some(finalized) => Ok(finalized),
+            None => std::future::pending().await,
+        }
+    }
+}
+
+/// The actor the tests run.
+type TestActor = Actor<TestSafety, TestFinality>;
+
 /// Returns an actor that is not running, for calling its methods directly, with the receiver of
 /// its published state.
 fn actor(
@@ -96,14 +206,15 @@ fn actor(
     config: Arc<RollupConfig>,
     state: EngineState,
     block_sink: Arc<dyn ImportedBlockSink>,
-) -> (Actor, watch::Receiver<EngineState>) {
+) -> (TestActor, watch::Receiver<EngineState>) {
     let (state_tx, state_rx) = watch::channel(state);
     let (resets_tx, _) = watch::channel(state);
     let (_, messages_rx) = mpsc::channel(1);
     let Clients { engine, l1 } = clients;
-    let actor =
-        Actor::new(Arc::new(engine), l1, config, block_sink, state_tx, resets_tx, messages_rx);
-    (actor, state_rx)
+    let (safety, finality, _) = scripted();
+    let dependencies =
+        Dependencies { client: Arc::new(engine), l1, config, block_sink, safety, finality };
+    (Actor::new(dependencies, state_tx, resets_tx, messages_rx), state_rx)
 }
 
 /// Spawns an actor with the initial engine state and returns its handle and task.
@@ -112,31 +223,30 @@ fn spawn(
     config: Arc<RollupConfig>,
     state: EngineState,
 ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
-    spawn_with(clients, config, state, false)
+    let (handle, task, _) = spawn_with(clients, config, state, false);
+    (handle, task)
 }
 
-/// Spawns an actor with the initial engine state, following L1 from the start if `follows_l1`,
-/// as after its first reset, and returns its handle and task.
+/// Spawns an actor with the initial engine state, following L1 and driving safety and finality
+/// from the start if `started`, as after its first reset, and returns its handle, its task, and
+/// the test's side of its safety and finality.
 fn spawn_with(
     clients: Clients,
     config: Arc<RollupConfig>,
     state: EngineState,
-    follows_l1: bool,
-) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>) {
+    started: bool,
+) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>, Scripts) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
     let (resets_tx, resets_rx) = watch::channel(state);
-    let mut actor = Actor::new(
-        Arc::new(clients.engine),
-        clients.l1,
-        config,
-        Arc::new(NoopBlockSink),
-        state_tx,
-        resets_tx,
-        messages_rx,
-    );
-    actor.follows_l1 = follows_l1;
-    (Handle::new(messages, state_rx, resets_rx), tokio::spawn(actor.run()))
+    let (safety, finality, scripts) = scripted();
+    let Clients { engine, l1 } = clients;
+    let block_sink = Arc::new(NoopBlockSink);
+    let dependencies =
+        Dependencies { client: Arc::new(engine), l1, config, block_sink, safety, finality };
+    let mut actor = Actor::new(dependencies, state_tx, resets_tx, messages_rx);
+    actor.follows_l1 = started;
+    (Handle::new(messages, state_rx, resets_rx), tokio::spawn(actor.run()), scripts)
 }
 
 /// Returns a rollup configuration whose genesis is the default L2 block.
@@ -184,7 +294,15 @@ fn construction_and_build_do_not_require_a_runtime() {
     let (clients, _) = clients(config.clone());
     let builder = Builder::new(EngineState::default());
     let handle = builder.handle();
-    let task = builder.build(Arc::new(clients.engine), clients.l1, config, Arc::new(NoopBlockSink));
+    let (safety, finality, _) = scripted();
+    let task = builder.build(
+        Arc::new(clients.engine),
+        clients.l1,
+        config,
+        Arc::new(NoopBlockSink),
+        safety,
+        finality,
+    );
     assert_eq!(*handle.state().borrow(), EngineState::default());
     drop(task);
 }
@@ -245,32 +363,42 @@ async fn starts_from_the_execution_layers_heads() {
 
 /// The engine resets itself once the execution layer has synced: until then it asks it every
 /// second, by sending the current forkchoice again, from the first forkchoice it sends. A
-/// forkchoice the execution layer rejects counts as synced, because the reset replaces it.
+/// forkchoice the execution layer rejects counts as synced, because the reset replaces it. The
+/// reset starts derivation onto the reset's heads.
 #[rstest]
 #[case::valid(PayloadStatusEnum::Valid)]
 #[case::rejected(PayloadStatusEnum::Invalid { validation_error: "invalid block".into() })]
 #[tokio::test(start_paused = true)]
 async fn resets_itself_once_the_execution_layer_synced(#[case] verdict: PayloadStatusEnum) {
-    let config = config();
+    let (payload, config) = genesis_payload();
     let (clients, l2) = clients(config.clone());
     let forkchoice_updated = |status| ForkchoiceUpdated::new(PayloadStatus::from_status(status));
-    // The execution layer syncs to the safe head the engine sends, and still syncs when the engine
-    // next asks.
+    // The execution layer syncs to the unsafe block the engine inserts, and still syncs when the
+    // engine next asks.
+    l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
-    // It has synced when the engine asks again, so the engine resets.
+    // It has synced when the engine asks again, so the engine resets onto the inserted block.
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(verdict));
-    expect_reset(&l2, Duration::ZERO);
-    let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
+    let block: OpBlock = payload.clone().try_into_block().unwrap();
+    let block: RpcBlock<op_alloy_rpc_types::Transaction> =
+        RpcBlock::new(RpcHeader::new(block.header), BlockTransactions::Full(vec![]));
+    for _ in 0..3 {
+        l2.expect("eth_getBlockByNumber", block.clone());
+    }
+    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
+    let (handle, actor, scripts) =
+        spawn_with(clients, config.clone(), EngineState::default(), false);
     let mut resets = handle.resets();
 
     // No forkchoice has been sent, so there is none to ask with.
     time::sleep(Duration::from_secs(10)).await;
     assert!(!resets.has_changed().unwrap());
 
-    handle.follow_safe_head(test_block_info(1)).await.unwrap();
-    time::timeout(Duration::from_secs(10), resets.changed()).await.unwrap().unwrap();
-    assert_eq!(resets.borrow().safe_head().block_info.hash, config.genesis.l2.hash);
+    handle.insert_unsafe_block(payload).await.unwrap();
+    let reset = next_reset(&mut resets).await;
+    assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
+    assert_eq!(scripts.driven(), [Driven::Reset(reset.safe_head())]);
     // The engine asks no more once it reset.
     time::sleep(Duration::from_secs(10)).await;
     actor.abort();
@@ -460,12 +588,11 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
             l2.expect("engine_newPayloadV3", invalid());
         }
     }
-    let (handle, actor) = spawn(clients, config.clone(), state);
+    let (handle, actor, scripts) = spawn_with(clients, config.clone(), state, true);
 
-    let consolidation = handle.consolidate(attributes).await;
+    scripts.derive(Derived::Attributes(attributes));
 
     if verdicts == Verdicts::BothRejected {
-        assert!(consolidation.is_err(), "the engine stops without replying");
         let result = time::timeout(Duration::from_secs(10), actor).await.unwrap().unwrap();
         assert!(matches!(
             result,
@@ -474,19 +601,26 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
             )))
         ));
     } else {
-        let Consolidation { state, flush } = consolidation.unwrap();
-        assert_eq!(flush, verdicts == Verdicts::Replaced);
-        assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
+        let mut states = handle.state();
+        let made_safe =
+            |state: &EngineState| state.safe_head().block_info.hash == config.genesis.l2.hash;
+        let state = *time::timeout(Duration::from_secs(10), states.wait_for(made_safe))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(state.safe_head_source(), Some(source));
+        // Derivation flushes the channel of a replaced block.
+        let flushed = if verdicts == Verdicts::Replaced { vec![Driven::Flush] } else { vec![] };
+        assert_eq!(scripts.driven(), flushed);
         actor.abort();
     }
     l2.assert_finished();
 }
 
-/// A consolidation the engine abandons for a reset publishes the reset, then replies with the
-/// state after it.
+/// Derived attributes the engine abandons for a reset reset derivation onto the reset's heads,
+/// after the engine publishes the reset.
 #[tokio::test(start_paused = true)]
-async fn consolidation_that_resets_replies_with_the_reset_state() {
+async fn abandoned_attributes_reset_derivation() {
     let config = config();
     let (clients, l2) = clients(config.clone());
     // The unsafe block at the attributes' height is missing, which needs a reset.
@@ -497,45 +631,18 @@ async fn consolidation_that_resets_replies_with_the_reset_state() {
         .with_safe_head(L2BlockInfo::default())
         .with_finalized_head(L2BlockInfo::default())
         .build();
-    let (handle, actor) = spawn(clients, config.clone(), state);
-    let resets = handle.resets();
+    let (handle, actor, scripts) = spawn_with(clients, config.clone(), state, true);
+    let mut resets = handle.resets();
 
     let attributes = TestAttributesBuilder::new().with_parent(L2BlockInfo::default()).build();
-    let Consolidation { state, flush } = handle.consolidate(attributes).await.unwrap();
+    scripts.derive(Derived::Attributes(attributes));
 
-    assert!(!flush);
-    // The reset is published before the reply.
-    assert!(resets.has_changed().unwrap());
-    assert_eq!(*resets.borrow(), state);
+    let reset = next_reset(&mut resets).await;
     // The reset's safe head was not derived from a known L1 block.
-    assert_eq!(state.safe_head_source(), None);
-    assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
-    assert_eq!(*handle.state().borrow(), state);
-    actor.abort();
-    l2.assert_finished();
-}
-
-/// Attributes derived before a reset do not extend the reset's safe head, so the engine skips
-/// them and replies with the reset's state.
-#[tokio::test(start_paused = true)]
-async fn consolidation_skips_attributes_derived_before_a_reset() {
-    let config = config();
-    let (clients, l2) = clients(config.clone());
-    expect_reset(&l2, Duration::ZERO);
-    let safe_head = test_block_info(1);
-    let state = TestEngineStateBuilder::new()
-        .with_unsafe_head(test_block_info(2))
-        .with_safe_head(safe_head)
-        .with_finalized_head(L2BlockInfo::default())
-        .build();
-    let (handle, actor) = spawn(clients, config, state);
-
-    // The reset is queued before the consolidation.
-    let attributes = TestAttributesBuilder::new().with_parent(safe_head).build();
-    let (reset, consolidation) = tokio::join!(handle.reset(), handle.consolidate(attributes));
-
-    let reset = reset.unwrap();
-    assert_eq!(consolidation.unwrap(), Consolidation { state: reset, flush: false });
+    assert_eq!(reset.safe_head_source(), None);
+    assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
+    settle().await;
+    assert_eq!(scripts.driven(), [Driven::Reset(reset.safe_head())]);
     actor.abort();
     l2.assert_finished();
 }
@@ -650,7 +757,8 @@ async fn resets_when_l1_reorgs_out_a_block_its_heads_rest_on(#[case] rests_on: R
     let first = descendants(&BlockInfo::default(), 3, 1);
     let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first].concat());
     let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
-    let (handle, actor) = spawn_with(clients, config.clone(), resting_on(first[1], rests_on), true);
+    let (handle, actor, _) =
+        spawn_with(clients, config.clone(), resting_on(first[1], rests_on), true);
     let mut resets = handle.resets();
     settle().await;
     assert!(!resets.has_changed().unwrap());
@@ -674,12 +782,13 @@ async fn checks_heads_that_change_between_l1_heads() {
     let second = descendants(&first[0], 2, 2);
     let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first[..1], &second].concat());
     let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
-    let (handle, actor) = spawn_with(clients, config.clone(), EngineState::default(), true);
+    let (handle, actor, scripts) =
+        spawn_with(clients, config.clone(), EngineState::default(), true);
     let mut resets = handle.resets();
     settle().await;
 
-    // A safe head on the replaced block.
-    let safe_head = L2BlockInfo {
+    // A safe head derived from the replaced block.
+    let safe = L2BlockInfo {
         block_info: BlockInfo { number: 1, ..Default::default() },
         l1_origin: first[1].id(),
         seq_num: 0,
@@ -689,9 +798,40 @@ async fn checks_heads_that_change_between_l1_heads() {
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
     );
     expect_reset(&l2, Duration::ZERO);
-    handle.follow_safe_head(safe_head).await.unwrap();
+    scripts.derive(Derived::Safe(Safe { head: safe, source: first[1] }));
     let reset = next_reset(&mut resets).await;
     assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
+    actor.abort();
+    l2.assert_finished();
+}
+
+/// The engine gives finality each safe head whose source it knows, none since its last reset
+/// until it makes another block safe, and finalizes only a block past its finalized head.
+#[tokio::test(start_paused = true)]
+async fn drives_finality_with_safe_heads_whose_source_it_knows() {
+    let config = config();
+    let (clients, l2) = clients(config.clone());
+    let (safe_head, finalized) = (test_block_info(6), test_block_info(5));
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(10))
+        .with_safe_head(safe_head)
+        .with_finalized_head(finalized)
+        .build();
+    let (handle, actor, scripts) = spawn_with(clients, config, state, true);
+    settle().await;
+    assert_eq!(scripts.given(), []);
+
+    // Safety reports the safe head the engine has, with its source.
+    let safe = Safe { head: safe_head, source: BlockInfo { number: 3, ..Default::default() } };
+    scripts.derive(Derived::Safe(safe));
+    settle().await;
+    assert_eq!(handle.state().borrow().safe_head_source(), Some(safe.source));
+    assert_eq!(scripts.given(), [safe]);
+
+    // A block at or before the finalized head is not finalized again.
+    scripts.finalize(test_block_info(4));
+    settle().await;
+    assert_eq!(handle.state().borrow().finalized_head(), finalized);
     actor.abort();
     l2.assert_finished();
 }
@@ -705,7 +845,7 @@ async fn checks_an_l1_origin_after_the_l1_head_once_l1_reaches_it() {
     let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first[..3]].concat());
     let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
     let state = resting_on(first[3], RestsOn::UnsafeOrigin);
-    let (handle, actor) = spawn_with(clients, config, state, true);
+    let (handle, actor, _) = spawn_with(clients, config, state, true);
     let mut resets = handle.resets();
     settle().await;
 
@@ -889,7 +1029,7 @@ async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
 
 /// Sends a seal request and returns the reply.
 async fn seal(
-    actor: &mut Actor,
+    actor: &mut TestActor,
     payload_id: PayloadId,
     attributes: OpAttributesWithParent,
 ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
@@ -1137,57 +1277,36 @@ async fn finalize_drops_a_block_that_is_not_safe() {
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(2)).build();
     let (mut actor, _) = actor(clients, config, state, Arc::new(NoopBlockSink));
 
-    actor.handle_finalize(FinalizeBlockId::ByNumber(3)).await.unwrap();
+    actor.handle_finalize(BlockNumHash { number: 3, ..Default::default() }).await.unwrap();
 
     assert_eq!(actor.state, state);
     l2.assert_finished();
 }
 
-/// When the engine receives a `ByHash` finalize request for a block hash it doesn't have,
-/// finalization must fail with [`FinalizeTaskError::BlockNotFound`] rather than silently
-/// finalize whatever it happens to have at the same height.
+/// The engine finalizes only the block the execution layer's canonical chain holds at the
+/// finalized block's height: another, such as one finality decided on before a reset replaced it,
+/// is skipped rather than finalized, and the engine keeps running.
 ///
-/// Assert the exact by-hash RPC lookup, so a by-number lookup cannot silently finalize a
-/// different canonical block at the same height.
+/// Assert the exact by-number RPC lookup, so a by-hash lookup cannot finalize a block that is not
+/// an ancestor of the safe head.
 #[tokio::test]
-async fn finalize_by_hash_errors_when_engine_lacks_hash() {
-    const N: u64 = 10;
-    let hash_a = b256!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    let hash_b = b256!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-
-    let cfg = Arc::new(RollupConfig::default());
+async fn finalize_skips_a_block_the_canonical_chain_does_not_hold() {
+    let header = RpcHeader::new(alloy_consensus::Header::default());
+    let canonical_hash = header.hash;
+    let block: RpcBlock<op_alloy_rpc_types::Transaction> =
+        RpcBlock::new(header, BlockTransactions::Full(vec![]));
+    // Pin genesis to the canonical block, so its L2BlockInfo needs no L1-info deposit.
+    let mut cfg = RollupConfig::default();
+    cfg.genesis.l2 = BlockNumHash { number: 0, hash: canonical_hash };
+    let cfg = Arc::new(cfg);
     let (clients, l2) = clients(cfg.clone());
-    l2.expect_params(
-        "eth_getBlockByHash",
-        serde_json::json!([hash_b, true]),
-        Option::<alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction>>::None,
-    );
-
-    // Place the safe head at N so the sanity check (`safe_head.number >= block_id.number`) passes
-    // and `execute()` reaches the lookup we care about.
-    let safe_head = L2BlockInfo {
-        block_info: BlockInfo {
-            number: N,
-            hash: hash_a,
-            parent_hash: Default::default(),
-            timestamp: N * 2,
-        },
-        l1_origin: BlockNumHash::default(),
-        seq_num: 0,
-    };
-    let state =
-        TestEngineStateBuilder::new().with_unsafe_head(safe_head).with_safe_head(safe_head).build();
+    l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
+    let state = TestEngineStateBuilder::new().build();
     let (mut actor, _) = actor(clients, cfg, state, Arc::new(NoopBlockSink));
 
-    let result = actor
-        .handle_finalize(FinalizeBlockId::ByHash(BlockNumHash { number: N, hash: hash_b }))
-        .await;
+    let other = b256!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    actor.handle_finalize(BlockNumHash { number: 0, hash: other }).await.unwrap();
 
-    assert!(
-        matches!(result, Err(FinalizeTaskError::BlockNotFound(n)) if n == N),
-        "expected BlockNotFound({N}) — got {result:?}. The by-hash lookup must fail loudly when \
-         the engine lacks the requested hash; instead, finalization either succeeded (finalizing the \
-         wrong block) or surfaced a different error."
-    );
+    assert_eq!(actor.state, state);
     l2.assert_finished();
 }

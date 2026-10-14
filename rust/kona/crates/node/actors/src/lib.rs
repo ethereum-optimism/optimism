@@ -44,8 +44,6 @@ pub use sequencer::{MockConductor, MockOrigin, MockSequencerEngineClient};
 mod metrics;
 pub use metrics::Metrics;
 
-pub use derivation::DerivationStatus;
-
 /// Drops the value a [`TrySendError`](tokio::sync::mpsc::error::TrySendError) returns, for
 /// handles whose callers have no use for it.
 pub(crate) fn without_value<T>(

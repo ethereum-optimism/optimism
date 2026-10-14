@@ -1,110 +1,97 @@
 //! The finality actor.
 
-use super::{ActorError, Engine, L1};
-use crate::engine::{EngineState, FinalizeBlockId};
-use kona_protocol::BlockInfo;
-use std::{collections::BTreeMap, future::Future};
+use super::{ActorError, L1};
+use crate::engine::Safe;
+use kona_protocol::{BlockInfo, L2BlockInfo};
+use std::collections::BTreeMap;
 use tokio::sync::watch;
-
-/// Supplies the finality actor's dependencies, and produces its lifetime future without spawning
-/// it.
-///
-/// The actor records the safe heads in `engine_state` with the L1 blocks they were derived from,
-/// forgets them when the engine `resets`, and asks `engine` to finalize them as `l1` finalizes the
-/// blocks they were derived from. Initial engine snapshots do not trigger processing. Runtime work
-/// begins when the future is polled. Dropping the future stops the actor.
-pub fn build<Engine_, L1_>(
-    engine: Engine_,
-    engine_state: watch::Receiver<EngineState>,
-    resets: watch::Receiver<EngineState>,
-    l1: L1_,
-) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
-where
-    Engine_: Engine + 'static,
-    L1_: L1 + 'static,
-{
-    Actor { engine, engine_state, resets, l1, safe_heads: BTreeMap::new() }.run()
-}
 
 /// An L1 block number.
 type L1BlockNumber = u64;
 
-/// An L2 block number.
-type L2BlockNumber = u64;
-
 /// Finalizes L2 blocks once the L1 blocks they were derived from finalize.
 ///
-/// The engine's published state coalesces, so the actor may miss some safe heads. It then
-/// finalizes the highest one it saw, and catches up when the next L1 block finalizes.
+/// The engine's safe heads coalesce, so the actor may miss some. It then finalizes the highest one
+/// it saw, and catches up when the next L1 block finalizes.
 #[derive(Debug)]
-struct Actor<Engine_, L1_> {
-    /// The engine, which finalizes blocks.
-    engine: Engine_,
-    /// The engine's published state, whose safe head and its source the actor records.
-    engine_state: watch::Receiver<EngineState>,
-    /// The engine's published resets.
-    resets: watch::Receiver<EngineState>,
+pub(super) struct Actor<L1_> {
+    /// The engine's latest safe head, which handles publish.
+    safe_rx: watch::Receiver<Option<Safe>>,
+    /// Publishes the block to finalize.
+    finalized_tx: watch::Sender<Option<L2BlockInfo>>,
     /// The L1 chain, whose finalized blocks the actor follows.
     l1: L1_,
     /// The highest safe L2 block derived from each L1 block, awaiting finalization.
-    safe_heads: BTreeMap<L1BlockNumber, L2BlockNumber>,
+    safe_heads: BTreeMap<L1BlockNumber, L2BlockInfo>,
+    /// The latest finalized L1 block.
+    l1_finalized: Option<BlockInfo>,
 }
 
-impl<Engine_: Engine, L1_: L1> Actor<Engine_, L1_> {
-    async fn run(mut self) -> Result<(), ActorError> {
+impl<L1_: L1> Actor<L1_> {
+    /// Creates the actor.
+    pub(super) const fn new(
+        safe_rx: watch::Receiver<Option<Safe>>,
+        finalized_tx: watch::Sender<Option<L2BlockInfo>>,
+        l1: L1_,
+    ) -> Self {
+        Self { safe_rx, finalized_tx, l1, safe_heads: BTreeMap::new(), l1_finalized: None }
+    }
+
+    pub(super) async fn run(mut self) -> Result<(), ActorError> {
         loop {
-            // The engine publishes at most once per request, so its state cannot keep the
-            // finalized L1 block waiting.
             tokio::select! {
-                biased;
-                result = self.resets.changed() => {
-                    result.map_err(|_| ActorError::EngineResetsClosed)?;
-                    // An L1 reorg may have replaced the sources of the recorded safe heads.
-                    self.safe_heads.clear();
-                }
-                result = self.engine_state.changed() => {
-                    result.map_err(|_| ActorError::EngineStateClosed)?;
-                    let state = *self.engine_state.borrow_and_update();
-                    self.record(state);
+                changed = self.safe_rx.changed() => {
+                    changed.map_err(|_| ActorError::HandlesDropped)?;
+                    let safe = *self.safe_rx.borrow_and_update();
+                    if let Some(safe) = safe {
+                        self.record(safe);
+                    }
                 }
                 finalized = self.l1.next_finalized() => {
-                    let finalized = finalized.ok_or(ActorError::L1Stopped)?;
-                    self.finalize(finalized).await?;
+                    self.l1_finalized = Some(finalized.ok_or(ActorError::L1Stopped)?);
                 }
             }
+            self.finalize();
         }
     }
 
     /// Records the safe head and the L1 block it was derived from.
-    fn record(&mut self, state: EngineState) {
-        if let Some(source) = state.safe_head_source() {
-            let safe_head = state.safe_head().block_info.number;
-            let highest = self.safe_heads.entry(source.number).or_insert(safe_head);
-            *highest = (*highest).max(safe_head);
+    ///
+    /// The engine's safe head only moves forward, except when the engine resets. So a safe head at
+    /// or below one recorded follows a reset, which an L1 reorg may have caused: the actor forgets
+    /// the safe heads from its height up. Those below it are its ancestors, older than any reorg
+    /// the reset walked back from.
+    fn record(&mut self, safe: Safe) {
+        let number = safe.head.block_info.number;
+        if self.safe_heads.values().any(|head| head.block_info.number >= number) {
+            self.safe_heads.retain(|_, head| head.block_info.number < number);
+        }
+        let highest = self.safe_heads.entry(safe.source.number).or_insert(safe.head);
+        if highest.block_info.number < number {
+            *highest = safe.head;
         }
     }
 
-    /// Finalizes the highest recorded safe head whose source the finalized L1 block covers, and
+    /// Publishes the highest recorded safe head whose source the finalized L1 block covers, and
     /// forgets the safe heads it covers.
-    async fn finalize(&mut self, finalized: BlockInfo) -> Result<(), ActorError> {
-        let covered = self.safe_heads.range(..=finalized.number).next_back();
-        let Some((_, &safe_head)) = covered else {
-            return Ok(());
-        };
-        self.safe_heads.retain(|&source, _| source > finalized.number);
-        // Finalize by number against the engine's canonical chain.
-        self.engine.finalize(FinalizeBlockId::ByNumber(safe_head)).await?;
-        Ok(())
+    fn finalize(&mut self) {
+        let Some(l1_finalized) = self.l1_finalized else { return };
+        let covered = self.safe_heads.range(..=l1_finalized.number).next_back();
+        let Some((_, &finalized)) = covered else { return };
+        self.safe_heads.retain(|&source, _| source > l1_finalized.number);
+        self.finalized_tx.send_replace(Some(finalized));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EngineClientError, EngineClientResult, engine::HeadsUpdate};
+    use crate::{
+        engine::Finality,
+        finality::{Builder, Handle},
+    };
     use async_trait::async_trait;
-    use kona_protocol::L2BlockInfo;
-    use std::sync::{Arc, Mutex};
+    use std::future::Future;
     use tokio::time::{self, Duration};
 
     #[async_trait]
@@ -115,208 +102,97 @@ mod tests {
         }
     }
 
-    /// An engine that records the blocks it is asked to finalize, or fails if asked to.
-    #[derive(Debug, Default)]
-    struct TestEngine {
-        finalized: Mutex<Vec<FinalizeBlockId>>,
-        fails: bool,
-    }
-
-    #[async_trait]
-    impl Engine for Arc<TestEngine> {
-        async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
-            if self.fails {
-                return Err(EngineClientError::RequestError("closed".to_string()));
-            }
-            self.finalized.lock().unwrap().push(block_id);
-            Ok(())
-        }
-    }
-
-    /// The publishers the actor reads from.
-    struct Publishers {
-        engine_state: watch::Sender<EngineState>,
-        resets: watch::Sender<EngineState>,
-        finalized: watch::Sender<BlockInfo>,
-    }
-
-    /// Runs the actor against `engine` while `script` publishes to it. Returns the actor's error if
-    /// it stops first.
-    async fn run_during(
-        engine: Arc<TestEngine>,
-        script: impl AsyncFnOnce(&Publishers),
+    /// Runs an actor while `script` drives it through its handle and the finalized L1 block, and
+    /// returns the actor's error if it stops first.
+    async fn run_during<Script: Future<Output = ()>>(
+        script: impl FnOnce(Handle, watch::Sender<BlockInfo>) -> Script,
     ) -> Option<ActorError> {
-        let (engine_state, engine_state_rx) = watch::channel(EngineState::default());
-        let (resets, resets_rx) = watch::channel(EngineState::default());
+        let builder = Builder::new();
+        let handle = builder.handle();
         let (finalized, finalized_rx) = watch::channel(BlockInfo::default());
-        let publishers = Publishers { engine_state, resets, finalized };
         tokio::select! {
-            result = build(engine, engine_state_rx, resets_rx, finalized_rx) => {
-                Some(result.unwrap_err())
-            }
-            () = async {
-                script(&publishers).await;
-                settle().await;
-            } => None,
+            result = builder.build(finalized_rx) => Some(result.unwrap_err()),
+            () = script(handle, finalized) => None,
         }
-    }
-
-    /// Runs the actor while `script` publishes to it, and returns the blocks it finalized.
-    async fn finalized_during(script: impl AsyncFnOnce(&Publishers)) -> Vec<FinalizeBlockId> {
-        let engine = Arc::new(TestEngine::default());
-        assert!(run_during(engine.clone(), script).await.is_none(), "the actor stopped");
-        engine.finalized.lock().unwrap().clone()
-    }
-
-    /// Lets the actor handle what was published.
-    async fn settle() {
-        time::sleep(Duration::from_secs(1)).await;
     }
 
     fn l1_block(number: u64) -> BlockInfo {
         BlockInfo { number, ..Default::default() }
     }
 
-    /// Returns an engine state whose safe head is the L2 block with the given number, derived from
-    /// the L1 block with the given number.
-    fn state(safe_head: u64, source: Option<u64>) -> EngineState {
-        let safe_head = L2BlockInfo { block_info: l1_block(safe_head), ..Default::default() };
-        EngineState::default()
-            .apply_update(HeadsUpdate { safe_head: Some(safe_head), ..Default::default() })
-            .with_safe_head_source(source.map(l1_block))
+    fn l2_block(number: u64) -> L2BlockInfo {
+        L2BlockInfo { block_info: l1_block(number), ..Default::default() }
+    }
+
+    /// Returns the L2 block with the given number as a safe head, derived from the L1 block with
+    /// the given number.
+    fn safe(head: u64, source: u64) -> Safe {
+        Safe { head: l2_block(head), source: l1_block(source) }
+    }
+
+    /// Gives the actor `safe`, and returns the block it decides to finalize, if any within a while.
+    async fn next(handle: &mut Handle, safe: Safe) -> Option<L2BlockInfo> {
+        time::timeout(Duration::from_secs(10), handle.next(safe)).await.ok().map(Result::unwrap)
     }
 
     /// Each finalized L1 block finalizes the highest safe head derived from it or an earlier L1
     /// block, once.
     #[tokio::test(start_paused = true)]
     async fn finalizes_the_highest_safe_head_a_finalized_l1_block_covers() {
-        let finalized = finalized_during(async |publishers| {
-            for (safe_head, source) in [(10, 5), (12, 6), (13, 6), (15, 8)] {
-                publishers.engine_state.send_replace(state(safe_head, Some(source)));
-                settle().await;
+        let stopped = run_during(async |mut handle, finalized| {
+            for (head, source) in [(10, 5), (12, 6), (13, 6)] {
+                assert_eq!(next(&mut handle, safe(head, source)).await, None);
             }
-            for l1 in [4, 6, 7, 8] {
-                publishers.finalized.send_replace(l1_block(l1));
-                settle().await;
-            }
+            finalized.send_replace(l1_block(4));
+            assert_eq!(next(&mut handle, safe(15, 8)).await, None);
+            finalized.send_replace(l1_block(6));
+            assert_eq!(next(&mut handle, safe(15, 8)).await, Some(l2_block(13)));
+            finalized.send_replace(l1_block(7));
+            assert_eq!(next(&mut handle, safe(15, 8)).await, None);
+            finalized.send_replace(l1_block(8));
+            assert_eq!(next(&mut handle, safe(15, 8)).await, Some(l2_block(15)));
         })
         .await;
-
-        assert_eq!(finalized, [FinalizeBlockId::ByNumber(13), FinalizeBlockId::ByNumber(15)]);
+        assert!(stopped.is_none());
     }
 
-    /// Safe heads published faster than the actor reads them coalesce, so only the latest is
-    /// recorded.
+    /// A safe head at or below one recorded follows an engine reset: the actor forgets the safe
+    /// heads from its height up.
     #[tokio::test(start_paused = true)]
-    async fn coalesced_safe_heads_finalize_the_latest() {
-        let finalized = finalized_during(async |publishers| {
-            publishers.engine_state.send_replace(state(10, Some(5)));
-            publishers.engine_state.send_replace(state(12, Some(6)));
-            settle().await;
-            for l1 in [5, 6] {
-                publishers.finalized.send_replace(l1_block(l1));
-                settle().await;
-            }
+    async fn a_safe_head_moving_back_forgets_the_safe_heads_above_it() {
+        let stopped = run_during(async |mut handle, finalized| {
+            assert_eq!(next(&mut handle, safe(8, 4)).await, None);
+            assert_eq!(next(&mut handle, safe(10, 5)).await, None);
+            // The engine reset to block 8, and derived block 9 from L1 block 6.
+            assert_eq!(next(&mut handle, safe(9, 6)).await, None);
+            finalized.send_replace(l1_block(5));
+            assert_eq!(next(&mut handle, safe(9, 6)).await, Some(l2_block(8)));
+            finalized.send_replace(l1_block(6));
+            assert_eq!(next(&mut handle, safe(9, 6)).await, Some(l2_block(9)));
         })
         .await;
-
-        assert_eq!(finalized, [FinalizeBlockId::ByNumber(12)]);
+        assert!(stopped.is_none());
     }
 
-    /// Safe heads without a known source, such as a reset's, are not recorded.
-    #[tokio::test(start_paused = true)]
-    async fn ignores_safe_heads_without_a_source() {
-        let finalized = finalized_during(async |publishers| {
-            publishers.engine_state.send_replace(state(10, None));
-            settle().await;
-            publishers.finalized.send_replace(l1_block(9));
-        })
-        .await;
-
-        assert_eq!(finalized, []);
-    }
-
-    /// A reset drops the safe heads recorded before it, even when it is published together with a
-    /// finalized L1 block, but not the safe heads published with it.
-    #[tokio::test(start_paused = true)]
-    async fn reset_drops_safe_heads_recorded_before_it() {
-        let finalized = finalized_during(async |publishers| {
-            publishers.engine_state.send_replace(state(10, Some(5)));
-            settle().await;
-            publishers.resets.send_replace(state(8, None));
-            publishers.engine_state.send_replace(state(8, None));
-            publishers.finalized.send_replace(l1_block(5));
-            settle().await;
-            publishers.resets.send_replace(state(8, None));
-            publishers.engine_state.send_replace(state(9, Some(6)));
-            publishers.finalized.send_replace(l1_block(6));
-        })
-        .await;
-
-        assert_eq!(finalized, [FinalizeBlockId::ByNumber(9)]);
-    }
-
-    /// The engine publishes its state after a reset before the reset itself, so a safe head
-    /// published before the reset and not yet read is replaced before the actor clears.
-    #[tokio::test(start_paused = true)]
-    async fn safe_head_unread_at_a_reset_is_not_recorded() {
-        let finalized = finalized_during(async |publishers| {
-            publishers.engine_state.send_replace(state(10, Some(5)));
-            publishers.engine_state.send_replace(state(8, None));
-            publishers.resets.send_replace(state(8, None));
-            publishers.finalized.send_replace(l1_block(5));
-        })
-        .await;
-
-        assert_eq!(finalized, []);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn failed_finalization_stops_the_actor() {
-        let engine = Arc::new(TestEngine { fails: true, ..Default::default() });
-        let error = run_during(engine, async |publishers| {
-            publishers.engine_state.send_replace(state(10, Some(5)));
-            settle().await;
-            publishers.finalized.send_replace(l1_block(5));
-            settle().await;
-        })
-        .await;
-
-        assert!(matches!(error, Some(ActorError::Engine(_))));
-    }
-
-    /// A publisher the actor reads from.
-    #[derive(Debug, Clone, Copy)]
-    enum Publisher {
-        EngineState,
-        Resets,
-        Finalized,
-    }
-
+    /// The actor stops once every handle is dropped, or the L1 actor stops.
     #[rstest::rstest]
-    #[case::engine_state(Publisher::EngineState)]
-    #[case::resets(Publisher::Resets)]
-    #[case::finalized(Publisher::Finalized)]
+    #[case::handles(true)]
+    #[case::l1(false)]
     #[tokio::test]
-    async fn closed_publisher_stops_the_actor(#[case] closed: Publisher) {
-        let (engine_state, engine_state_rx) = watch::channel(EngineState::default());
-        let (resets, resets_rx) = watch::channel(EngineState::default());
+    async fn stops_when_its_publishers_stop(#[case] handles: bool) {
+        let builder = Builder::new();
+        let handle = builder.handle();
         let (finalized, finalized_rx) = watch::channel(BlockInfo::default());
-        match closed {
-            Publisher::EngineState => drop(engine_state),
-            Publisher::Resets => drop(resets),
-            Publisher::Finalized => drop(finalized),
+        if handles {
+            drop(handle);
+        } else {
+            drop(finalized);
         }
-
-        let engine = Arc::new(TestEngine::default());
-        let result = build(engine, engine_state_rx, resets_rx, finalized_rx).await;
-
-        match closed {
-            Publisher::EngineState => {
-                assert!(matches!(result, Err(ActorError::EngineStateClosed)))
-            }
-            Publisher::Resets => assert!(matches!(result, Err(ActorError::EngineResetsClosed))),
-            Publisher::Finalized => assert!(matches!(result, Err(ActorError::L1Stopped))),
+        let result = builder.build(finalized_rx).await;
+        if handles {
+            assert!(matches!(result, Err(ActorError::HandlesDropped)));
+        } else {
+            assert!(matches!(result, Err(ActorError::L1Stopped)));
         }
     }
 }

@@ -147,6 +147,36 @@ mod tests {
         }
     }
 
+    /// Makes nothing safe, and finalizes nothing.
+    #[derive(Debug)]
+    struct Idle;
+
+    #[async_trait]
+    impl engine::Safety for Idle {
+        type Error = std::convert::Infallible;
+
+        async fn next(&mut self, _safe_head: L2BlockInfo) -> Result<engine::Derived, Self::Error> {
+            std::future::pending().await
+        }
+
+        async fn reset(&mut self, _safe: L2BlockInfo) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        async fn flush(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl engine::Finality for Idle {
+        type Error = std::convert::Infallible;
+
+        async fn next(&mut self, _safe: engine::Safe) -> Result<L2BlockInfo, Self::Error> {
+            std::future::pending().await
+        }
+    }
+
     /// Returns a handle to an engine that never runs.
     fn idle_engine() -> engine::Handle {
         engine::Builder::new(engine::EngineState::default()).handle()
@@ -177,7 +207,14 @@ mod tests {
         );
         let builder = engine::Builder::new(engine::EngineState::default());
         let handle = builder.handle();
-        let engine = builder.build(Arc::new(client), l1.handle(), config, Arc::new(NoopBlockSink));
+        let engine = builder.build(
+            Arc::new(client),
+            l1.handle(),
+            config,
+            Arc::new(NoopBlockSink),
+            Idle,
+            Idle,
+        );
         // The L1 chain lasts as long as the engine.
         (handle, async move {
             let _l1 = l1;

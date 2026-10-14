@@ -1,7 +1,7 @@
-use super::{BuildTaskError, EngineState, FinalizeBlockId, SealTaskError};
+use super::{BuildTaskError, EngineState, SealTaskError};
 use crate::{EngineClientError, EngineClientResult};
 use alloy_rpc_types_engine::PayloadId;
-use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::{
     mpsc::{self, error::TrySendError},
@@ -13,12 +13,6 @@ use tokio::sync::{
 pub(super) enum Message {
     /// Start building a block.
     Build(Box<BuildRequest>),
-    /// Consolidate the safe head with attributes derived from L1.
-    Consolidate(Box<ConsolidateRequest>),
-    /// Follow a safe head supplied by the derivation delegate.
-    FollowSafeHead(Box<L2BlockInfo>),
-    /// Finalize an L2 block.
-    Finalize(Box<FinalizeBlockId>),
     /// Insert an unsafe L2 block.
     InsertUnsafeBlock(Box<OpExecutionPayloadEnvelope>),
     /// Reset the forkchoice, replying with the new engine state once the reset succeeds.
@@ -34,28 +28,6 @@ pub(super) struct BuildRequest {
     pub(super) attributes: OpAttributesWithParent,
     /// Receives the payload ID once the build starts, or the reason it could not start.
     pub(super) result_tx: oneshot::Sender<Result<PayloadId, BuildTaskError>>,
-}
-
-/// A request to consolidate the safe head with derived attributes.
-#[derive(Debug)]
-pub(super) struct ConsolidateRequest {
-    /// The attributes derived from L1.
-    pub(super) attributes: OpAttributesWithParent,
-    /// Receives how the engine consolidated the attributes.
-    pub(super) result_tx: oneshot::Sender<Consolidation>,
-}
-
-/// The engine's reply to a consolidation.
-///
-/// The engine publishes its state before replying, so the state matches the published one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Consolidation {
-    /// The engine state after the consolidation. If the engine reset before or during the
-    /// consolidation, it published the reset before replying.
-    pub state: EngineState,
-    /// Whether the execution layer rejected the attributes' block, and a deposits-only block built
-    /// from the same attributes replaced it, so derivation must flush its channel.
-    pub flush: bool,
 }
 
 /// A request to seal and canonicalize a block.
@@ -135,36 +107,6 @@ impl Handle {
         Ok(result_rx.await.map_err(|_| response_closed())??)
     }
 
-    /// Consolidates the safe head with attributes derived from L1, and returns the engine state
-    /// afterwards.
-    ///
-    /// The engine retries temporary failures, so this waits until the consolidation completes.
-    /// Attributes whose parent is not the engine's safe head are stale, typically because the
-    /// engine reset since they were derived; the engine skips them and replies with its state.
-    pub async fn consolidate(
-        &self,
-        attributes: OpAttributesWithParent,
-    ) -> EngineClientResult<Consolidation> {
-        let (result_tx, result_rx) = oneshot::channel();
-        self.send(Message::Consolidate(Box::new(ConsolidateRequest { attributes, result_tx })))
-            .await?;
-        result_rx.await.map_err(|_| response_closed())
-    }
-
-    /// Queues a safe head supplied by the derivation delegate, for the engine to follow.
-    ///
-    /// Success means the safe head was queued, not that it was processed.
-    pub async fn follow_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
-        self.send(Message::FollowSafeHead(Box::new(safe_head))).await
-    }
-
-    /// Queues finalization of an L2 block.
-    ///
-    /// Success means the block was queued, not that it was finalized.
-    pub async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
-        self.send(Message::Finalize(Box::new(block_id))).await
-    }
-
     /// Queues an unsafe block for insertion.
     ///
     /// Success means the block was queued, not that it was inserted.
@@ -203,7 +145,6 @@ fn response_closed() -> EngineClientError {
 mod tests {
     use super::*;
     use crate::engine::EngineBuildError;
-    use kona_protocol::L2BlockInfo;
     use std::future::ready;
 
     fn attributes() -> OpAttributesWithParent {
@@ -238,15 +179,6 @@ mod tests {
         let state = EngineState::default();
         reply.send(state).unwrap();
         assert_eq!(reset.await.unwrap(), state);
-
-        let (result, ()) = tokio::join!(handle.consolidate(attributes()), async {
-            let Message::Consolidate(request) = receiver.recv().await.unwrap() else {
-                panic!("expected consolidate");
-            };
-            assert_eq!(request.attributes, attributes());
-            request.result_tx.send(Consolidation { state, flush: true }).unwrap();
-        });
-        assert_eq!(result.unwrap(), Consolidation { state, flush: true });
 
         let payload_id = PayloadId::new([1; 8]);
         let (result, ()) = tokio::join!(handle.start_build(attributes()), async {
@@ -289,18 +221,6 @@ mod tests {
     #[tokio::test]
     async fn queued_requests_send_their_message() {
         let (handle, mut receiver) = handle();
-        let head = L2BlockInfo::default();
-        handle.follow_safe_head(head).await.unwrap();
-        assert!(matches!(
-            receiver.recv().await.unwrap(),
-            Message::FollowSafeHead(block) if *block == head
-        ));
-        let block_id = FinalizeBlockId::ByNumber(1);
-        handle.finalize(block_id).await.unwrap();
-        assert!(matches!(
-            receiver.recv().await.unwrap(),
-            Message::Finalize(id) if *id == block_id
-        ));
         let block = OpExecutionPayloadEnvelope::V1(
             alloy_rpc_types_engine::ExecutionPayloadV1::from_block_slow(&alloy_consensus::Block::<
                 op_alloy_consensus::OpTxEnvelope,
@@ -328,9 +248,5 @@ mod tests {
 
         drop(receiver);
         assert!(matches!(handle.reset().await, Err(EngineClientError::RequestError(_))));
-        assert!(matches!(
-            handle.finalize(FinalizeBlockId::ByNumber(1)).await,
-            Err(EngineClientError::RequestError(_))
-        ));
     }
 }
