@@ -1,7 +1,7 @@
 //! The engine state that the engine actor publishes.
 
+use crate::Metrics;
 use alloy_rpc_types_engine::ForkchoiceState;
-use kona_engine::Metrics;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 
 /// The engine's view of the L2 chain: its heads at each safety level.

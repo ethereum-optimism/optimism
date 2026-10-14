@@ -50,7 +50,7 @@ Kona provides OP Stack types, components, and services built in Rust, organized 
 
 ### Node (`crates/node/`)
 - **`service`**: OP Stack rollup node service implementation
-- **`engine`**: Extensible rollup node engine client
+- **`actors`**: The rollup node's actors, including the engine actor that drives the execution layer
 - **`rpc`**: OP Stack RPC types and extensions
 - **`peers`**: P2P peer management
 - **`sources`**: Data source types and utilities

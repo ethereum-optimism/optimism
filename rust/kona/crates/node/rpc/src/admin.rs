@@ -103,13 +103,14 @@ mod tests {
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
     };
     use kona_derive::test_utils::TestAttributesBuilder;
-    use kona_engine::{NoopBlockSink, test_utils::test_engine_client};
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
         EngineClientResult, L1OriginSelectorError, OriginSelector, SequencerEngineClient,
+        engine::NoopBlockSink,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+    use kona_sources::test_utils::{RpcMock, test_engine_api};
     use std::{
         future::{Future, ready},
         sync::Arc,
@@ -162,7 +163,8 @@ mod tests {
         let mut config = RollupConfig::default();
         config.genesis.l2.hash = block.header.inner.hash_slow();
         let config = Arc::new(config);
-        let (client, l1, l2) = test_engine_client(config.clone());
+        let (client, l2) = test_engine_api(config.clone());
+        let l1 = RpcMock::default();
         for _ in 0..3 {
             l2.expect("eth_getBlockByNumber", &block);
         }
@@ -176,7 +178,7 @@ mod tests {
         );
         let builder = engine::Builder::new();
         let handle = builder.handle();
-        let task = builder.build(Arc::new(client), config, Arc::new(NoopBlockSink));
+        let task = builder.build(Arc::new(client), l1.provider(), config, Arc::new(NoopBlockSink));
         (handle, task)
     }
 

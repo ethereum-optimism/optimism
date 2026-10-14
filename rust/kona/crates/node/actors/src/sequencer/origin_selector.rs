@@ -259,7 +259,7 @@ mod test {
     #[tokio::test]
     async fn confirmation_delay_tracks_published_heads() {
         use alloy_rpc_types_eth::Block;
-        use kona_engine::test_utils::RpcMock;
+        use kona_sources::test_utils::RpcMock;
         use serde_json::json;
 
         let mock = RpcMock::default();
@@ -287,7 +287,7 @@ mod test {
     #[tokio::test]
     async fn confirmation_delay_preserves_undelayed_lookups() {
         use alloy_rpc_types_eth::Block;
-        use kona_engine::test_utils::RpcMock;
+        use kona_sources::test_utils::RpcMock;
         use serde_json::json;
 
         let mock = RpcMock::default();

@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 # workspace
 kona-node-actors.workspace = true
-kona-engine.workspace = true
 kona-providers-local = { workspace = true, features = ["metrics"] }
 op-alloy-consensus.workspace = true
 kona-sources.workspace = true
@@ -23,15 +22,13 @@ kona-derive = { workspace = true, features = ["metrics"] }
 kona-interop.workspace = true
 kona-protocol.workspace = true
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
-kona-rpc = { workspace = true, features = ["client"] }
+kona-rpc.workspace = true
 
 # alloy
 alloy-primitives.workspace = true
-alloy-rpc-client.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
 alloy-transport.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
 
 # op-alloy
 op-alloy-network.workspace = true
@@ -44,10 +41,9 @@ discv5.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
-jsonrpsee = { workspace = true, features = ["server", "http-client"] }
+jsonrpsee = { workspace = true, features = ["server"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
-http-body-util.workspace = true
 
 metrics.workspace = true
 thiserror.workspace = true
@@ -55,6 +51,7 @@ backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 op-alloy-provider.workspace = true
 
 [dev-dependencies]
+jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 httpmock.workspace = true
 alloy-eips.workspace = true
 kona-gossip.workspace = true
@@ -67,7 +64,6 @@ alloy-signer-local.workspace = true
 metrics-exporter-prometheus.workspace = true
 alloy-json-rpc.workspace = true
 serde_json.workspace = true
-kona-engine = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }
 enr.workspace = true
 rstest.workspace = true

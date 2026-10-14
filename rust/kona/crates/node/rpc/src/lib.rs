@@ -30,8 +30,3 @@ pub use rollup::{OutputError, OutputProvider, OutputResponse, RollupRpc};
 
 mod health;
 pub use health::{HealthzResponse, HealthzRpc};
-
-#[cfg(feature = "client")]
-mod delegate;
-#[cfg(feature = "client")]
-pub use delegate::DerivationDelegateClient;

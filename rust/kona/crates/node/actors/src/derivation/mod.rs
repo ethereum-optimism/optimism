@@ -12,7 +12,9 @@
 mod actor;
 
 mod delegated;
-pub use delegated::{DerivationDelegateClientError, DerivationDelegateProvider};
+pub use delegated::{
+    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
+};
 
 mod engine;
 pub use engine::Engine;

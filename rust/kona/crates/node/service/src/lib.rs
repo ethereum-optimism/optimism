@@ -17,12 +17,11 @@ pub use service::{
 
 pub use kona_node_actors::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider,
-    DerivationDelegateClientError, DerivationDelegateProvider, EngineClientError,
-    EngineClientResult, L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider,
-    NetworkConfig, NodeActor, OriginSelector, RpcActor, RpcActorError, SequencerConfig,
+    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
+    EngineClientError, EngineClientResult, L1OriginSelector, L1OriginSelectorError,
+    L1OriginSelectorProvider, NetworkConfig, OriginSelector, SequencerConfig,
     SequencerEngineClient, derivation, discovery, engine, l1, l1_signer_updater, network,
     sequencer, signer,
 };
 
 pub use kona_node_actors::Metrics;
-pub use kona_rpc::DerivationDelegateClient;

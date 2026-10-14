@@ -20,7 +20,6 @@ kona-node-actors.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 kona-gossip.workspace = true
 kona-peers.workspace = true
-kona-engine.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
 
 # OP Alloy
@@ -35,7 +34,6 @@ alloy-rpc-types-engine = { workspace = true, features = ["serde", "std"] }
 alloy-primitives = { workspace = true, features = ["map", "rlp", "serde", "std"] }
 
 # Misc
-url = { workspace = true, optional = true }
 libp2p = { workspace = true, features = ["metrics"] }
 tracing.workspace = true
 thiserror.workspace = true
@@ -69,14 +67,13 @@ kona-derive = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
 op-alloy-rpc-types.workspace = true
 serde_json.workspace = true
-kona-engine = { workspace = true, features = ["test-utils"] }
+kona-sources = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []
 reqwest = [ "client", "dep:alloy-rpc-client" ]
 client = [
-    "dep:url",
 	"jsonrpsee/async-client",
 	"jsonrpsee/client",
 	"op-alloy-rpc-jsonrpsee/client",

@@ -544,7 +544,7 @@ release TARGET VERSION MODE="dry" *ARGS="":
     # rate limit of 30, so we publish in two topologically-ordered batches.
     # When adding a new crate under rust/kona/, append it to whichever batch
     # leaves both <= 30 (preserving topo order: deps before dependents).
-    KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-safedb kona-engine kona-executor kona-hardforks"
+    KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-safedb kona-executor kona-hardforks"
     KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-driver kona-providers-local kona-providers-alloy kona-node-actors kona-rpc kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
 
     ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select((.manifest_path | contains("/rust/kona/")) and (.manifest_path | contains("/rust/kona/sp1/") | not)) | .name' | sort -u)
