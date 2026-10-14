@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -61,12 +61,12 @@ func TestResyncing(gt *testing.T) {
 	})
 	require.NoError(gt, err, "Validator L2 CL failed to resync to latest block")
 
-	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), blockNumbers[len(blockNumbers)-1])
+	sys.L2ELValidatorNode().WaitForProofsStoreBlock(blockNumbers[len(blockNumbers)-1], dsl.DefaultProofsCatchUpTimeout)
 
 	t.Logf("Fetching and verifying proofs for transactions produced while node was down")
 	// verify the proofs for the transactions produced while the node was down
 	for _, blockNumber := range blockNumbers {
-		utils.FetchAndVerifyProofs(t, sys, bob.Address(), []common.Hash{}, blockNumber)
-		utils.FetchAndVerifyProofs(t, sys, alice.Address(), []common.Hash{}, blockNumber)
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), blockNumber, dsl.ProofAccount{Address: bob.Address()})
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), blockNumber, dsl.ProofAccount{Address: alice.Address()})
 	}
 }
