@@ -5,7 +5,6 @@ use super::{
     EngineState, EngineTaskError, EngineTaskErrorSeverity, Finality, FinalizeTaskError, Handle,
     HeadsUpdate, ImportedBlockSink, InsertTaskError, Safe, Safety, SealTaskError,
     SynchronizeTaskError,
-    attributes::AttributesMatch,
     handle::{BuildRequest, Message, SealRequest},
     sync::find_starting_forkchoice,
 };
@@ -274,7 +273,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
             Derived::Attributes(attributes) => {
                 let recovery = self
                     .retry(Metrics::CONSOLIDATE_TASK_LABEL, |actor| {
-                        Box::pin(actor.handle_consolidate(attributes.clone()))
+                        Box::pin(actor.build_and_seal(attributes.clone(), true))
                     })
                     .await?;
                 if recovery == Recovery::Flushed {
@@ -453,51 +452,25 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         }
     }
 
-    /// Advances the safe head with attributes derived from L1.
+    /// Makes safe a block safety reported: one derivation matched against the unsafe chain, or a
+    /// trusted source's safe head.
     ///
-    /// The derivation and engine actors coordinate the safe and unsafe heads. While the unsafe head
-    /// is ahead of the safe head, the unsafe block at the attributes' height becomes safe if it
-    /// matches them. Otherwise the attributes are built and sealed, reorging the unsafe chain.
-    ///
-    /// The L1 block the attributes were derived from becomes the safe head's source.
-    async fn handle_consolidate(
-        &mut self,
-        attributes: OpAttributesWithParent,
-    ) -> Result<(), ConsolidateTaskError> {
-        let safe_head = self.state.safe_head().block_info;
-        if safe_head.number < self.state.unsafe_head().block_info.number {
-            let block = self.fetch_unsafe_block(attributes.block_number()).await?;
-            let matches = AttributesMatch::check(&self.config, &attributes, &block).is_match();
-            if !matches {
-                debug!(
-                    target: "engine",
-                    ?attributes,
-                    block_hash = %block.header.hash,
-                    "ConsolidateInput mismatch! Initiating reorg",
-                );
-            }
-            // Only issue a forkchoice update if the attributes are the last in the span batch.
-            // This is an optimization to avoid sending a FCU call for every block in the span
-            // batch.
-            if matches && self.try_make_unsafe_block_safe(block, attributes.is_last_in_span).await?
-            {
-                self.state = self.state.with_safe_head_source(attributes.derived_from);
-                return Ok(());
-            }
-        }
-
-        self.build_and_seal(attributes, true).await
-    }
-
-    /// Follows a safe head supplied by the derivation delegate.
-    ///
-    /// The safe head is not coordinated with the engine actor's safe and unsafe heads. If the
-    /// unsafe block at its height matches it, that block becomes safe. Otherwise, including when
-    /// the safe head is not behind the unsafe head, it becomes the unsafe and safe head.
+    /// If the unsafe block at its height is that block, it becomes safe, with a forkchoice update.
+    /// Otherwise, including when the safe head is ahead of the unsafe head, it becomes the unsafe
+    /// and safe head.
     async fn handle_follow_safe_head(
         &mut self,
         safe_head: L2BlockInfo,
     ) -> Result<(), ConsolidateTaskError> {
+        // The unsafe head itself went to the block sink when it was inserted.
+        if safe_head == self.state.unsafe_head() {
+            let update = HeadsUpdate {
+                safe_head: Some(safe_head),
+                local_safe_head: Some(safe_head),
+                ..Default::default()
+            };
+            return Ok(self.synchronize(update).await?);
+        }
         if safe_head.block_info.number < self.state.unsafe_head().block_info.number {
             let block = self.fetch_unsafe_block(safe_head.block_info.number).await?;
             let matches = block.header.hash == safe_head.block_info.hash;
@@ -509,7 +482,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
                     "ConsolidateInput mismatch! Initiating reorg",
                 );
             }
-            if matches && self.try_make_unsafe_block_safe(block, false).await? {
+            if matches && self.try_make_unsafe_block_safe(block).await? {
                 return Ok(());
             }
         }
@@ -1027,16 +1000,12 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         }
     }
 
-    /// Promotes an unsafe block that matches the safe head to safe, and hands it to the block
-    /// sink.
-    ///
-    /// Sends a forkchoice update only if `send_forkchoice` is set; otherwise the safe head is
-    /// updated in the engine state alone. Returns `false`, changing nothing, if the block's info
-    /// cannot be constructed.
+    /// Promotes an unsafe block that matches the safe head to safe with a forkchoice update, and
+    /// hands it to the block sink. Returns `false`, changing nothing, if the block's info cannot be
+    /// constructed.
     async fn try_make_unsafe_block_safe(
         &mut self,
         block: RpcBlock<Transaction>,
-        send_forkchoice: bool,
     ) -> Result<bool, ConsolidateTaskError> {
         trace!(
             target: "engine",
@@ -1051,7 +1020,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         ) {
             Ok(block_info) => block_info,
             Err(e) => {
-                warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, proceeding to build");
+                warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, not making it safe");
                 return Ok(false);
             }
         };
@@ -1064,20 +1033,15 @@ impl<S: Safety, F: Finality> Actor<S, F> {
             local_safe_head: Some(block_info),
             ..Default::default()
         };
-        if send_forkchoice {
-            self.synchronize(update)
-                .await
-                .inspect_err(|e| warn!(target: "engine", ?e, "Consolidation failed"))?;
-        } else {
-            // Apply a transient update to the safe head.
-            self.state = self.state.apply_update(update);
-        }
+        self.synchronize(update)
+            .await
+            .inspect_err(|e| warn!(target: "engine", ?e, "Making the unsafe block safe failed"))?;
 
         info!(
             target: "engine",
             hash = %block_info.block_info.hash,
             number = block_info.block_info.number,
-            "Updated safe head via L1 consolidation"
+            "Made the unsafe block safe"
         );
 
         Ok(true)

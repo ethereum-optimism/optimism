@@ -52,8 +52,8 @@ The engine resets itself once the execution layer has synced, and safety and fin
 
 From its first reset, the engine drives what decides its safe and finalized heads, through the `engine::Safety` and `engine::Finality` traits, which `engine::Builder::build` takes. It asks `Safety::next` what to make safe next on top of its safe head, makes it safe, and asks again on top of the new safe head, between requests:
 
-- **`Derived::Attributes`**: the engine consolidates the attributes, derived from L1, into its next safe block. If the unsafe block at that height matches them, it becomes safe; otherwise the engine builds and seals the attributes, reorging the unsafe chain. The L1 block they were derived from becomes the safe head's source.
-- **`Derived::Safe`**: the engine makes safe a block the execution layer has: if the unsafe block at its height matches it, that block becomes safe; otherwise it becomes the unsafe and safe head. The L1 block it was derived from becomes the safe head's source.
+- **`Derived::Attributes`**: attributes derived from L1 that no unsafe block matches. The engine builds and seals them into its next safe block, reorging any unsafe chain past the safe head. The L1 block they were derived from becomes the safe head's source.
+- **`Derived::Safe`**: a block the execution layer has, such as the unsafe block derivation found matching the attributes it derived. If it is the unsafe head, or the unsafe block at its height, it becomes safe; otherwise it becomes the unsafe and safe head. Either way the engine sends a forkchoice update. The L1 block it was derived from becomes the safe head's source.
 
 After Holocene, a sealed payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the engine calls `flush`, so derivation drops the rest of the block's channel. After each of its resets, whatever caused it, the engine calls `Safety::reset` with its new safe head; the first reset starts safety.
 

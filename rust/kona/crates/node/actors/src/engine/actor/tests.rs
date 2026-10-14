@@ -20,7 +20,7 @@ use kona_genesis::ChainGenesis;
 use kona_protocol::BlockInfo;
 use kona_sources::test_utils::{RpcMock, test_engine_api};
 use op_alloy_consensus::OpTxType;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use rstest::rstest;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
@@ -103,6 +103,7 @@ enum Driven {
 struct TestSafety {
     derived: mpsc::UnboundedReceiver<Derived>,
     driven: Arc<Mutex<Vec<Driven>>>,
+    asked: Arc<Mutex<Vec<L2BlockInfo>>>,
 }
 
 /// Finality that returns the blocks the test sends it, and records the safe heads it was given.
@@ -119,9 +120,15 @@ struct Scripts {
     driven: Arc<Mutex<Vec<Driven>>>,
     finalized: mpsc::UnboundedSender<L2BlockInfo>,
     given: Arc<Mutex<Vec<Safe>>>,
+    asked: Arc<Mutex<Vec<L2BlockInfo>>>,
 }
 
 impl Scripts {
+    /// Returns the safe heads the engine asked safety to derive on so far, each once in a row.
+    fn asked(&self) -> Vec<L2BlockInfo> {
+        self.asked.lock().unwrap().clone()
+    }
+
     /// Makes safety return `derived`, once the engine asks.
     fn derive(&self, derived: Derived) {
         self.derived.send(derived).unwrap();
@@ -149,10 +156,11 @@ fn scripted() -> (TestSafety, TestFinality, Scripts) {
     let (finalized_tx, finalized) = mpsc::unbounded_channel();
     let driven = Arc::new(Mutex::default());
     let given = Arc::new(Mutex::default());
+    let asked = Arc::new(Mutex::default());
     (
-        TestSafety { derived, driven: driven.clone() },
+        TestSafety { derived, driven: driven.clone(), asked: asked.clone() },
         TestFinality { finalized, given: given.clone() },
-        Scripts { derived: derived_tx, driven, finalized: finalized_tx, given },
+        Scripts { derived: derived_tx, driven, finalized: finalized_tx, given, asked },
     )
 }
 
@@ -160,7 +168,13 @@ fn scripted() -> (TestSafety, TestFinality, Scripts) {
 impl Safety for TestSafety {
     type Error = std::convert::Infallible;
 
-    async fn next(&mut self, _safe_head: L2BlockInfo) -> Result<Derived, Self::Error> {
+    async fn next(&mut self, safe_head: L2BlockInfo) -> Result<Derived, Self::Error> {
+        {
+            let mut asked = self.asked.lock().unwrap();
+            if asked.last() != Some(&safe_head) {
+                asked.push(safe_head);
+            }
+        }
         match self.derived.recv().await {
             Some(derived) => Ok(derived),
             None => std::future::pending().await,
@@ -495,7 +509,7 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     l2.assert_finished();
 }
 
-/// How the execution layer treats the blocks a consolidation builds.
+/// How the execution layer treats the blocks the engine builds from derived attributes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Verdicts {
     /// It accepts the block derived from the attributes.
@@ -506,19 +520,19 @@ enum Verdicts {
     BothRejected,
 }
 
-/// A consolidation that cannot make an unsafe block safe builds and seals the derived attributes,
-/// and the L1 block they were derived from becomes the safe head's source.
+/// Derived attributes are built and sealed into the next safe block, and the L1 block they were
+/// derived from becomes the safe head's source.
 ///
 /// After Holocene, a derived payload the execution layer rejects is replaced by a deposits-only
-/// block built from the same attributes, without retrying the consolidation. If the replacement is
-/// accepted, the engine replies that derivation must flush its channel, with the replacement as
-/// the safe head. If it is rejected too, the engine actor stops.
+/// block built from the same attributes, without retrying. If the replacement is accepted, the
+/// engine flushes safety, with the replacement as the safe head. If it is rejected too, the engine
+/// actor stops.
 #[rstest]
 #[case::accepted(Verdicts::Accepted)]
 #[case::replaced(Verdicts::Replaced)]
 #[case::both_rejected(Verdicts::BothRejected)]
 #[tokio::test(start_paused = true)]
-async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Verdicts) {
+async fn builds_and_seals_derived_attributes(#[case] verdicts: Verdicts) {
     let root = B256::repeat_byte(0x42);
     let payload = OpExecutionPayloadEnvelopeV3 {
         execution_payload: ExecutionPayloadV3::from_block_slow(&alloy_consensus::Block::<
@@ -609,6 +623,9 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
             .unwrap()
             .unwrap();
         assert_eq!(state.safe_head_source(), Some(source));
+        // Safety is asked on top of the new safe head next.
+        settle().await;
+        assert_eq!(scripts.asked().last(), Some(&state.safe_head()));
         // Derivation flushes the channel of a replaced block.
         let flushed = if verdicts == Verdicts::Replaced { vec![Driven::Flush] } else { vec![] };
         assert_eq!(scripts.driven(), flushed);
@@ -617,13 +634,13 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
     l2.assert_finished();
 }
 
-/// Derived attributes the engine abandons for a reset reset derivation onto the reset's heads,
-/// after the engine publishes the reset.
+/// A safe block the engine abandons for a reset, here one its execution layer is missing, resets
+/// safety onto the reset's safe head, after the engine publishes the reset.
 #[tokio::test(start_paused = true)]
-async fn abandoned_attributes_reset_derivation() {
+async fn abandoning_a_safe_block_resets_safety() {
     let config = config();
     let (clients, l2) = clients(config.clone());
-    // The unsafe block at the attributes' height is missing, which needs a reset.
+    // The unsafe block at the safe block's height is missing, which needs a reset.
     l2.expect("eth_getBlockByNumber", Option::<RpcBlock<op_alloy_rpc_types::Transaction>>::None);
     expect_reset(&l2, Duration::ZERO);
     let state = TestEngineStateBuilder::new()
@@ -634,8 +651,7 @@ async fn abandoned_attributes_reset_derivation() {
     let (handle, actor, scripts) = spawn_with(clients, config.clone(), state, true);
     let mut resets = handle.resets();
 
-    let attributes = TestAttributesBuilder::new().with_parent(L2BlockInfo::default()).build();
-    scripts.derive(Derived::Attributes(attributes));
+    scripts.derive(Derived::Safe(Safe { head: test_block_info(1), source: BlockInfo::default() }));
 
     let reset = next_reset(&mut resets).await;
     // The reset's safe head was not derived from a known L1 block.
@@ -1143,10 +1159,10 @@ async fn unsafe_head_check_variants(
 }
 
 #[tokio::test]
-async fn consolidated_blocks_are_handed_to_the_block_sink() {
-    // Consolidation reads the unsafe block in full to compare it against the safe head; the next
+async fn blocks_made_safe_are_handed_to_the_block_sink() {
+    // Making an unsafe block safe reads it in full to compare it against the safe head; the next
     // attributes built ask for this same block's system config, so it must reach the sink rather
-    // than being dropped. Derived attributes and delegated safe heads share this step.
+    // than being dropped.
     let header = RpcHeader::new(alloy_consensus::Header::default());
     let block_hash = header.hash;
     let block: RpcBlock<op_alloy_rpc_types::Transaction> =
@@ -1162,11 +1178,16 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
     });
     let (clients, l2) = clients(cfg.clone());
     l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
     let safe_l2 = L2BlockInfo {
         block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
         ..Default::default()
     };
-    // The unsafe head is ahead of the safe block, so it is consolidated rather than applied.
+    // The unsafe head is ahead of the safe block, so the safe block is compared rather than
+    // applied.
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(1)).build();
     let sink = Arc::new(RecordingSink::default());
     let (mut actor, _) = actor(clients, cfg, state, sink.clone());
@@ -1174,56 +1195,6 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
     actor.handle_follow_safe_head(safe_l2).await.unwrap();
 
     assert_eq!(sink.0.lock().unwrap().as_slice(), &[(block_hash, 0)]);
-    l2.assert_finished();
-}
-
-/// A consolidation whose attributes match the unsafe block at their height makes that block safe,
-/// with the attributes' L1 block as its source. Only the last attributes of a span send a
-/// forkchoice update.
-#[rstest]
-#[case::last_in_span(true)]
-#[case::within_a_span(false)]
-#[tokio::test]
-async fn consolidation_makes_a_matching_unsafe_block_safe(#[case] is_last_in_span: bool) {
-    let header = RpcHeader::new(alloy_consensus::Header::default());
-    let block_hash = header.hash;
-    let block: RpcBlock<op_alloy_rpc_types::Transaction> =
-        RpcBlock::new(header, BlockTransactions::Full(vec![]));
-    // Pin genesis to this block so its L2BlockInfo needs no L1-info deposit.
-    let cfg = Arc::new(RollupConfig {
-        genesis: ChainGenesis {
-            l2: BlockNumHash { hash: block_hash, number: 0 },
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-    let (clients, l2) = clients(cfg.clone());
-    l2.expect("eth_getBlockByNumber", block);
-    if is_last_in_span {
-        l2.expect(
-            "engine_forkchoiceUpdatedV3",
-            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
-        );
-    }
-    let state = TestEngineStateBuilder::new()
-        .with_unsafe_head(test_block_info(1))
-        .with_safe_head(L2BlockInfo::default())
-        .with_finalized_head(L2BlockInfo::default())
-        .build();
-    let (mut actor, _) = actor(clients, cfg, state, Arc::new(NoopBlockSink));
-    let source = BlockInfo { number: 7, ..Default::default() };
-    // Attributes that match the default block.
-    let attributes = OpAttributesWithParent::new(
-        OpPayloadAttributes { gas_limit: Some(0), ..Default::default() },
-        L2BlockInfo::default(),
-        Some(source),
-        is_last_in_span,
-    );
-
-    actor.handle_consolidate(attributes).await.unwrap();
-
-    assert_eq!(actor.state.safe_head().block_info.hash, block_hash);
-    assert_eq!(actor.state.safe_head_source(), Some(source));
     l2.assert_finished();
 }
 

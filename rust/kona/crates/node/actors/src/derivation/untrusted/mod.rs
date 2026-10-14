@@ -1,10 +1,14 @@
 //! Derivation from L1.
 //!
-//! The actor steps a derivation pipeline on the safe head the engine gives it, and publishes the
-//! payload attributes it derives for the engine to make the next safe block from. The engine drives
+//! The actor steps a derivation pipeline on the safe head the engine gives it, and compares the
+//! payload attributes it derives with the unsafe chain's block at their height. It publishes the
+//! block, if it matches them, for the engine to make safe, and otherwise the attributes, for the
+//! engine to build the next safe block from. The engine drives
 //! it through the [`Handle`], which implements [`engine::Safety`](crate::engine::Safety).
 
 mod actor;
+
+mod attributes;
 
 mod handle;
 pub use handle::Handle;
@@ -12,11 +16,15 @@ pub use handle::Handle;
 mod l1;
 pub use l1::L1;
 
+mod l2;
+pub use l2::L2;
+
 mod chain_provider;
 pub use chain_provider::{L1ChainProvider, L1ChainProviderError};
 
+use crate::engine::Derived;
 use kona_derive::{Pipeline, PipelineErrorKind, SignalReceiver};
-use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::{BlockInfo, L2BlockInfo};
 use std::future::Future;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -50,7 +58,7 @@ pub struct Builder {
     handle: Handle,
     messages_rx: mpsc::Receiver<Message>,
     safe_head_rx: watch::Receiver<Option<L2BlockInfo>>,
-    derived_tx: watch::Sender<Option<OpAttributesWithParent>>,
+    derived_tx: watch::Sender<Option<(L2BlockInfo, Derived)>>,
     current_l1_tx: watch::Sender<BlockInfo>,
 }
 
@@ -75,20 +83,23 @@ impl Builder {
     /// The actor derives nothing until the engine first resets it. Whenever the pipeline fails
     /// temporarily and L1 has no child of the pipeline's origin, the actor waits on `l1` for one,
     /// and resets the pipeline if the origin is reorged out instead. The pipeline should read L1
-    /// heights from the same L1 actor, through an [`L1ChainProvider`]. Runtime work begins when the
-    /// future is polled. Dropping the future stops the actor.
-    pub fn build<Pipeline_, L1_>(
+    /// heights from the same L1 actor, through an [`L1ChainProvider`]. The actor reads the unsafe
+    /// chain's blocks from `l2`. Runtime work begins when the future is polled. Dropping the future
+    /// stops the actor.
+    pub fn build<Pipeline_, L1_, L2_>(
         self,
         pipeline: Pipeline_,
         l1: L1_,
+        l2: L2_,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static
     where
         Pipeline_: Pipeline + SignalReceiver + Send + Sync + 'static,
         L1_: L1 + 'static,
+        L2_: L2 + 'static,
     {
         let Self { handle: _, messages_rx, safe_head_rx, derived_tx, current_l1_tx } = self;
-        let mut actor =
-            actor::Actor::new(pipeline, l1, messages_rx, safe_head_rx, derived_tx, current_l1_tx);
+        let channels = actor::Channels { messages_rx, safe_head_rx, derived_tx, current_l1_tx };
+        let mut actor = actor::Actor::new(pipeline, l1, l2, channels);
         async move { actor.run().await }
     }
 }

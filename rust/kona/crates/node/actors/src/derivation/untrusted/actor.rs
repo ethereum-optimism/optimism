@@ -1,8 +1,9 @@
 //! The actor that derives payload attributes from L1.
 
-use super::{ActorError, L1, Message};
+use super::{ActorError, L1, L2, Message, attributes::AttributesMatch};
 use crate::{
     Metrics,
+    engine::{Derived, Safe},
     l1::{Child, HandleError},
 };
 use kona_derive::{
@@ -23,6 +24,9 @@ const PIPELINE_RESET_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 /// blocks after the pipeline's origin.
 const STEP_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
+/// How long to wait before reading the unsafe chain again after the read failed.
+const L2_READ_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
 /// Derives payload attributes from L1 on the safe head the engine gives it, and publishes them.
 ///
 /// It derives nothing until the engine first resets it. A reset discards the attributes derived
@@ -30,37 +34,41 @@ const STEP_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 /// actor derives the attributes on top of the safe head the engine last gave it, publishes them,
 /// and waits for the engine to give it the next safe head.
 #[derive(Debug)]
-pub(super) struct Actor<Pipeline_, L1_> {
+pub(super) struct Actor<Pipeline_, L1_, L2_> {
     /// The pipeline, and the safe head it derives on.
-    deriver: Deriver<Pipeline_, L1_>,
+    deriver: Deriver<Pipeline_, L1_, L2_>,
     /// Receives requests from handles.
     messages_rx: mpsc::Receiver<Message>,
     /// The engine's safe head, which handles publish.
     safe_head_rx: watch::Receiver<Option<L2BlockInfo>>,
-    /// Publishes the attributes derived on the safe head.
-    derived_tx: watch::Sender<Option<OpAttributesWithParent>>,
+    /// Publishes what was derived on the safe head, with the safe head.
+    derived_tx: watch::Sender<Option<(L2BlockInfo, Derived)>>,
 }
 
-impl<Pipeline_, L1_> Actor<Pipeline_, L1_>
+/// The actor's end of the channels to its handles.
+#[derive(Debug)]
+pub(super) struct Channels {
+    /// Receives requests from handles.
+    pub(super) messages_rx: mpsc::Receiver<Message>,
+    /// The engine's safe head, which handles publish.
+    pub(super) safe_head_rx: watch::Receiver<Option<L2BlockInfo>>,
+    /// Publishes what was derived on the safe head, with the safe head.
+    pub(super) derived_tx: watch::Sender<Option<(L2BlockInfo, Derived)>>,
+    /// Publishes the pipeline's origin.
+    pub(super) current_l1_tx: watch::Sender<BlockInfo>,
+}
+
+impl<Pipeline_, L1_, L2_> Actor<Pipeline_, L1_, L2_>
 where
     Pipeline_: Pipeline + SignalReceiver + Send + Sync,
     L1_: L1,
+    L2_: L2,
 {
     /// Creates the actor, and publishes the pipeline's origin.
-    pub(super) fn new(
-        pipeline: Pipeline_,
-        l1: L1_,
-        messages_rx: mpsc::Receiver<Message>,
-        safe_head_rx: watch::Receiver<Option<L2BlockInfo>>,
-        derived_tx: watch::Sender<Option<OpAttributesWithParent>>,
-        current_l1_tx: watch::Sender<BlockInfo>,
-    ) -> Self {
-        Self {
-            deriver: Deriver::new(pipeline, l1, current_l1_tx),
-            messages_rx,
-            safe_head_rx,
-            derived_tx,
-        }
+    pub(super) fn new(pipeline: Pipeline_, l1: L1_, l2: L2_, channels: Channels) -> Self {
+        let Channels { messages_rx, safe_head_rx, derived_tx, current_l1_tx } = channels;
+        let deriver = Deriver::new(pipeline, l1, l2, current_l1_tx);
+        Self { deriver, messages_rx, safe_head_rx, derived_tx }
     }
 
     pub(super) async fn run(&mut self) -> Result<(), ActorError> {
@@ -105,27 +113,29 @@ where
                         derived = false;
                     }
                 }
-                attributes = Self::derive(&mut self.deriver, resetting), if started && !derived => {
-                    let attributes = attributes?;
-                    trace!(target: "derivation", ?attributes, "Derived payload attributes");
-                    self.derived_tx.send_replace(Some(attributes));
+                next = Self::derive(&mut self.deriver, resetting), if started && !derived => {
+                    let next = next?;
+                    trace!(target: "derivation", ?next, "Derived what to make safe next");
+                    self.derived_tx.send_replace(Some((self.deriver.safe_head, next)));
                     (resetting, derived) = (false, true);
                 }
             }
         }
     }
 
-    /// Resets the pipeline onto the safe head if `resetting`, then derives the attributes on it.
+    /// Resets the pipeline onto the safe head if `resetting`, then derives the attributes on it,
+    /// and returns what to make safe next.
     ///
     /// Cancelling it can leave a step half done, so only a pipeline reset may follow.
     async fn derive(
-        deriver: &mut Deriver<Pipeline_, L1_>,
+        deriver: &mut Deriver<Pipeline_, L1_, L2_>,
         resetting: bool,
-    ) -> Result<OpAttributesWithParent, ActorError> {
+    ) -> Result<Derived, ActorError> {
         if resetting {
             deriver.reset_onto(deriver.safe_head).await?;
         }
-        deriver.next_attributes().await
+        let attributes = deriver.next_attributes().await?;
+        Ok(deriver.compare_with_unsafe_chain(attributes).await)
     }
 }
 
@@ -139,29 +149,69 @@ enum Stepped {
     ResetNeeded,
 }
 
-/// The derivation pipeline, the safe head it derives on, and the L1 chain it waits on.
+/// The derivation pipeline, the safe head it derives on, the L1 chain it waits on, and the L2
+/// execution layer whose unsafe chain it compares attributes with.
 #[derive(Debug)]
-struct Deriver<Pipeline_, L1_> {
+struct Deriver<Pipeline_, L1_, L2_> {
     /// The derivation pipeline.
     pipeline: Pipeline_,
     /// The engine's safe head, which the next attributes extend.
     safe_head: L2BlockInfo,
     /// The L1 chain, which wakes derivation once it extends the pipeline's origin.
     l1: L1_,
+    /// The L2 execution layer.
+    l2: L2_,
     /// Publishes the pipeline's origin to RPC readers.
     current_l1: watch::Sender<BlockInfo>,
 }
 
-impl<Pipeline_, L1_> Deriver<Pipeline_, L1_>
+impl<Pipeline_, L1_, L2_> Deriver<Pipeline_, L1_, L2_>
 where
     Pipeline_: Pipeline + SignalReceiver + Send + Sync,
     L1_: L1,
+    L2_: L2,
 {
     /// Creates the deriver and publishes the pipeline's origin.
-    fn new(pipeline: Pipeline_, l1: L1_, current_l1: watch::Sender<BlockInfo>) -> Self {
-        let deriver = Self { pipeline, safe_head: L2BlockInfo::default(), l1, current_l1 };
+    fn new(pipeline: Pipeline_, l1: L1_, l2: L2_, current_l1: watch::Sender<BlockInfo>) -> Self {
+        let deriver = Self { pipeline, safe_head: L2BlockInfo::default(), l1, l2, current_l1 };
         deriver.publish_current_l1();
         deriver
+    }
+
+    /// Returns what to make safe from `attributes`: the unsafe chain's block at their height, if
+    /// the execution layer has one that matches them, and otherwise the attributes, for the engine
+    /// to build the block from. A failed read is retried: building the block would truncate the
+    /// unsafe chain after it.
+    async fn compare_with_unsafe_chain(&self, attributes: OpAttributesWithParent) -> Derived {
+        let Some(source) = attributes.derived_from else {
+            return Derived::Attributes(attributes);
+        };
+        let block = loop {
+            match self.l2.block(attributes.block_number()).await {
+                Ok(block) => break block,
+                Err(err) => {
+                    warn!(target: "derivation", ?err, "Failed to read the unsafe block; retrying");
+                    time::sleep(L2_READ_RETRY_INTERVAL).await;
+                }
+            }
+        };
+        let Some(block) = block else {
+            return Derived::Attributes(attributes);
+        };
+        let config = self.pipeline.rollup_config();
+        let matched = AttributesMatch::check(config, &attributes, &block);
+        if !matched.is_match() {
+            debug!(target: "derivation", ?matched, block_hash = %block.header.hash, "The unsafe block does not match the derived attributes");
+            return Derived::Attributes(attributes);
+        }
+        let block = block.into_consensus().map_transactions(|tx| tx.inner.inner.into_inner());
+        match L2BlockInfo::from_block_and_genesis(&block, &config.genesis) {
+            Ok(head) => Derived::Safe(Safe { head, source }),
+            Err(err) => {
+                warn!(target: "derivation", ?err, "Failed to read the unsafe block's info; building the derived block");
+                Derived::Attributes(attributes)
+            }
+        }
     }
 
     /// Derives the attributes on the safe head, resetting the pipeline onto the safe head
@@ -323,22 +373,26 @@ where
 mod tests {
     use super::*;
     use crate::{
-        derivation::untrusted::{Builder, Handle},
+        derivation::untrusted::{Builder, Handle, actor::Channels},
         l1::{
             self,
             test_utils::{TestChain, block as l1_block},
         },
     };
     use alloy_primitives::B256;
+    use alloy_rpc_types_eth::{Block, BlockTransactions, Header as RpcHeader};
+    use alloy_transport::{TransportError, TransportErrorKind};
     use async_trait::async_trait;
     use kona_derive::PipelineResult;
     use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::BlockInfo;
+    use op_alloy_rpc_types::Transaction;
+    use op_alloy_rpc_types_engine::OpPayloadAttributes;
     use rstest::rstest;
     use std::{
-        collections::VecDeque,
+        collections::{HashMap, VecDeque},
         future::{self, Future},
-        sync::Arc,
+        sync::{Arc, Mutex},
     };
 
     /// A pipeline stub that advances its origin along L1, prepares attributes, runs out of data,
@@ -472,24 +526,45 @@ mod tests {
         }
     }
 
-    type TestActor = Actor<TestPipeline, l1::Handle>;
+    /// An L2 execution layer whose canonical blocks the test sets, and which fails as many reads
+    /// as the test asks first.
+    #[derive(Debug, Clone, Default)]
+    struct TestL2(Arc<Mutex<HashMap<u64, Block<Transaction>>>>, Arc<Mutex<usize>>);
 
-    /// The L1 chain an actor follows, and the handle that drives it.
+    #[async_trait]
+    impl L2 for TestL2 {
+        async fn block(&self, number: u64) -> Result<Option<Block<Transaction>>, TransportError> {
+            let mut failures = self.1.lock().unwrap();
+            if *failures > 0 {
+                *failures -= 1;
+                return Err(TransportErrorKind::custom_str("unavailable"));
+            }
+            Ok(self.0.lock().unwrap().get(&number).cloned())
+        }
+    }
+
+    type TestActor = Actor<TestPipeline, l1::Handle, TestL2>;
+
+    /// The L1 chain an actor follows, the L2 execution layer it reads, and the handle that drives
+    /// it.
     struct Publishers {
         l1: TestChain,
+        l2: TestL2,
         handle: Handle,
     }
 
     /// Creates an actor with the publishers it reads from. L1 holds only the default block, the
-    /// origin of the test safe heads, so the pipeline has derived from all of L1.
+    /// origin of the test safe heads, so the pipeline has derived from all of L1. The L2 execution
+    /// layer has no blocks.
     fn actor(pipeline: TestPipeline) -> (TestActor, Publishers) {
         let builder = Builder::new();
         let handle = builder.handle();
         let Builder { handle: _, messages_rx, safe_head_rx, derived_tx, current_l1_tx } = builder;
         let l1 = TestChain::new(&[BlockInfo::default()]);
-        let actor =
-            Actor::new(pipeline, l1.handle(), messages_rx, safe_head_rx, derived_tx, current_l1_tx);
-        (actor, Publishers { l1, handle })
+        let l2 = TestL2::default();
+        let channels = Channels { messages_rx, safe_head_rx, derived_tx, current_l1_tx };
+        let actor = Actor::new(pipeline, l1.handle(), l2.clone(), channels);
+        (actor, Publishers { l1, l2, handle })
     }
 
     /// Returns L1 block `number` of the chain `fork`, whose parent is block `number - 1` of the
@@ -562,7 +637,7 @@ mod tests {
         let handle = builder.handle();
         let l1 = TestChain::new(&[BlockInfo::default()]);
         let pipeline = TestPipeline { origin: Some(origin), ..TestPipeline::new() };
-        let task = builder.build(pipeline, l1.handle());
+        let task = builder.build(pipeline, l1.handle(), TestL2::default());
         assert_eq!(handle.current_l1(), origin);
         drop(task);
     }
@@ -724,7 +799,7 @@ mod tests {
         let stopped = run_during(&mut actor, async {
             handle.reset(L2BlockInfo::default()).await.unwrap();
             let derived = handle.derive(L2BlockInfo::default()).await.unwrap();
-            assert_eq!(derived, attributes(L2BlockInfo::default()));
+            assert_eq!(derived, Derived::Attributes(attributes(L2BlockInfo::default())));
             // Asking again returns the same attributes.
             assert_eq!(handle.derive(L2BlockInfo::default()).await.unwrap(), derived);
             if replaced {
@@ -740,6 +815,78 @@ mod tests {
         let flushed = if replaced { vec![Signal::FlushChannel] } else { vec![] };
         assert_eq!(actor.deriver.pipeline.signals[1..], flushed);
         assert_eq!(actor.deriver.pipeline.stepped_on.last(), Some(&block(1)));
+    }
+
+    /// How the unsafe chain's block at the derived attributes' height compares with them.
+    #[derive(Debug, Clone, Copy)]
+    enum Unsafe {
+        /// The execution layer has no block there.
+        Missing,
+        /// Its block matches the attributes.
+        Matching,
+        /// Its block matches them, once reads stop failing.
+        MatchingAfterFailures,
+        /// Its block does not match them.
+        Mismatching,
+    }
+
+    /// Derivation compares the attributes it derives with the unsafe chain: a block that matches
+    /// them is made safe as it is, with the L1 block the attributes were derived from, and
+    /// otherwise the engine builds the attributes. A failed read is retried rather than built,
+    /// which would truncate the unsafe chain.
+    #[rstest]
+    #[case::missing(Unsafe::Missing)]
+    #[case::matching(Unsafe::Matching)]
+    #[case::matching_after_failures(Unsafe::MatchingAfterFailures)]
+    #[case::mismatching(Unsafe::Mismatching)]
+    #[tokio::test(start_paused = true)]
+    async fn compares_attributes_with_the_unsafe_chain(#[case] unsafe_block: Unsafe) {
+        let header = RpcHeader::new(alloy_consensus::Header::default());
+        let block_hash = header.hash;
+        let block: Block<Transaction> = Block::new(header, BlockTransactions::Full(vec![]));
+        // Attributes that match the default block, which is genesis, so its info needs no L1-info
+        // deposit.
+        let source = BlockInfo { number: 7, ..Default::default() };
+        let gas_limit = match unsafe_block {
+            Unsafe::Mismatching => 1,
+            Unsafe::Missing | Unsafe::Matching | Unsafe::MatchingAfterFailures => 0,
+        };
+        let derived = OpAttributesWithParent::new(
+            OpPayloadAttributes { gas_limit: Some(gas_limit), ..Default::default() },
+            L2BlockInfo::default(),
+            Some(source),
+            false,
+        );
+        let mut pipeline = TestPipeline::preparing([derived.clone()]);
+        let mut config = RollupConfig::default();
+        config.genesis.l2 = alloy_eips::BlockNumHash { number: 0, hash: block_hash };
+        pipeline.rollup_config = Arc::new(config.clone());
+        let (mut actor, publishers) = actor(pipeline);
+        if !matches!(unsafe_block, Unsafe::Missing) {
+            publishers.l2.0.lock().unwrap().insert(derived.block_number(), block.clone());
+        }
+        if matches!(unsafe_block, Unsafe::MatchingAfterFailures) {
+            *publishers.l2.1.lock().unwrap() = 3;
+        }
+        let mut handle = publishers.handle.clone();
+
+        run_during(&mut actor, async {
+            handle.reset(L2BlockInfo::default()).await.unwrap();
+            let next = handle.derive(L2BlockInfo::default()).await.unwrap();
+            match unsafe_block {
+                Unsafe::Matching | Unsafe::MatchingAfterFailures => {
+                    let block =
+                        block.into_consensus().map_transactions(|tx| tx.inner.inner.into_inner());
+                    let head =
+                        L2BlockInfo::from_block_and_genesis(&block, &config.genesis).unwrap();
+                    assert_eq!(next, Derived::Safe(Safe { head, source }));
+                }
+                Unsafe::Missing | Unsafe::Mismatching => {
+                    assert_eq!(next, Derived::Attributes(derived));
+                }
+            }
+        })
+        .await;
     }
 
     /// A safe head the engine published before a reset is stale: derivation does not move onto it
@@ -894,7 +1041,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn a_stopped_l1_actor_is_fatal() {
         let (mut actor, publishers) = actor(TestPipeline::new());
-        let Publishers { l1, handle } = publishers;
+        let Publishers { l1, handle, .. } = publishers;
         drop(l1);
 
         let stopped = run_during(&mut actor, async {

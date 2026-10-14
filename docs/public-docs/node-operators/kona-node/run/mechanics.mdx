@@ -68,9 +68,11 @@ The `kona-node` syncs the L2 chain in two main phases:
    onto the synced chain, and the node transitions to consensus layer
    (CL) sync. In this phase, `kona-node` begins
    deriving new L2 payload attributes from the L1 chain, following
-   the rollup derivation process. `OpAttributesWithParent` values
-   derived this way are consolidated by the engine, which submits
-   the payloads to the execution engine for validation and execution.
+   the rollup derivation process. Derivation compares each
+   `OpAttributesWithParent` it derives with the unsafe block at its
+   height: the engine makes a matching block safe, and otherwise
+   builds the attributes into a block, which it submits to the
+   execution engine for validation and execution.
 
 <Note>
 - `kona-node` does **not** support historical CL sync or backfilling

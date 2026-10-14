@@ -6,7 +6,7 @@ use crate::{
     engine::{Derived, Safety},
 };
 use async_trait::async_trait;
-use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use kona_protocol::{BlockInfo, L2BlockInfo};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -15,7 +15,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 pub struct Handle {
     messages: mpsc::Sender<Message>,
     safe_head: Arc<watch::Sender<Option<L2BlockInfo>>>,
-    derived: watch::Receiver<Option<OpAttributesWithParent>>,
+    derived: watch::Receiver<Option<(L2BlockInfo, Derived)>>,
     current_l1: watch::Receiver<BlockInfo>,
 }
 
@@ -24,7 +24,7 @@ impl Handle {
     pub(super) fn new(
         messages: mpsc::Sender<Message>,
         safe_head: watch::Sender<Option<L2BlockInfo>>,
-        derived: watch::Receiver<Option<OpAttributesWithParent>>,
+        derived: watch::Receiver<Option<(L2BlockInfo, Derived)>>,
         current_l1: watch::Receiver<BlockInfo>,
     ) -> Self {
         Self { messages, safe_head: Arc::new(safe_head), derived, current_l1 }
@@ -36,23 +36,20 @@ impl Handle {
         *self.current_l1.borrow()
     }
 
-    /// Waits for the payload attributes derived on top of `safe_head`.
+    /// Waits for what to make safe next on top of `safe_head`: the unsafe chain's block at the
+    /// next height, if it matches the attributes derived, and otherwise the attributes.
     ///
-    /// The actor derives on the latest safe head given. Cancelling the wait loses nothing: the
-    /// attributes stay published until a newer safe head replaces them.
-    pub async fn derive(
-        &mut self,
-        safe_head: L2BlockInfo,
-    ) -> Result<OpAttributesWithParent, Stopped> {
+    /// The actor derives on the latest safe head given. Cancelling the wait loses nothing: what
+    /// it derived stays published until a newer safe head replaces it.
+    pub async fn derive(&mut self, safe_head: L2BlockInfo) -> Result<Derived, Stopped> {
         self.safe_head.send_if_modified(|current| current.replace(safe_head) != Some(safe_head));
         let derived = self
             .derived
-            .wait_for(|derived| {
-                derived.as_ref().is_some_and(|attributes| attributes.parent == safe_head)
-            })
+            .wait_for(|derived| derived.as_ref().is_some_and(|(on, _)| *on == safe_head))
             .await
             .map_err(|_| Stopped)?;
-        Ok(derived.clone().expect("the attributes were derived on the safe head"))
+        let (_, derived) = derived.clone().expect("derived on the safe head");
+        Ok(derived)
     }
 
     /// Restarts derivation from `safe`, interrupting any derivation in progress: the attributes
@@ -78,7 +75,7 @@ impl Safety for Handle {
     type Error = Stopped;
 
     async fn next(&mut self, safe_head: L2BlockInfo) -> Result<Derived, Stopped> {
-        Self::derive(self, safe_head).await.map(Derived::Attributes)
+        Self::derive(self, safe_head).await
     }
 
     async fn reset(&mut self, safe: L2BlockInfo) -> Result<(), Stopped> {

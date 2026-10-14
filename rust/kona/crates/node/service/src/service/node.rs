@@ -234,7 +234,7 @@ impl RollupNode {
             );
             let builder = derivation::untrusted::Builder::new();
             let safety = adapters::Safety::Untrusted(builder.handle());
-            let actor = builder.build(pipeline, l1.clone());
+            let actor = builder.build(pipeline, l1.clone(), self.clients.l2.clone());
             let finality_builder = finality::Builder::new();
             let finality = adapters::Finality::Untrusted(finality_builder.handle());
             let finality_actor = finality_builder.build(adapters::L1::new(l1.clone()));

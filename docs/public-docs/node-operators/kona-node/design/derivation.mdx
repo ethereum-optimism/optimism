@@ -22,16 +22,16 @@ The derivation subsystem in kona-node decides the engine's safe head. Its actors
 
 The engine drives derivation, and derivation never asks anything of the engine. From its first reset, which it makes itself once the execution layer is synced, the engine repeatedly asks the `engine::Safety` trait's `next` for what to make safe next on top of its safe head:
 
-- `Derived::Attributes`: payload attributes derived from L1, which the engine consolidates into the next safe block, as described in [the engine's operations](/node-operators/kona-node/design/engine#driving-safety-and-finality). If the execution layer rejected the block, a deposits-only block replaces it, and the engine calls `flush` so derivation drops the rest of its channel.
+- `Derived::Attributes`: payload attributes derived from L1 that no unsafe block matches, which the engine builds into the next safe block, as described in [the engine's operations](/node-operators/kona-node/design/engine#driving-safety-and-finality). If the execution layer rejected the block, a deposits-only block replaces it, and the engine calls `flush` so derivation drops the rest of its channel.
 - `Derived::Safe`: a block the execution layer has, and the L1 block it was derived from, which the engine makes safe as it is.
 
 After each of its resets, whatever caused it, the engine calls `reset` with its new safe head. It also gives the `engine::Finality` trait each safe head whose source it knows, and finalizes the blocks finality decides. The node's `Safety` and `Finality` adapters, in the service's `adapters` module, put the actors behind the traits: the untrusted handle implements `Safety`, the finality actor's handle implements `Finality`, and the trusted handle implements `Finality` and, through the adapter, which needs no resets or flushes from it, `Safety`.
 
 ### Untrusted Derivation
 
-`derivation::untrusted::Builder::new` creates the actor's request queue and published values before any dependencies exist. `Builder::build` takes the derivation pipeline and the L1 actor's handle, and returns the actor's lifetime future. The handle drives the actor:
+`derivation::untrusted::Builder::new` creates the actor's request queue and published values before any dependencies exist. `Builder::build` takes the derivation pipeline, the L1 actor's handle, and the L2 execution layer, and returns the actor's lifetime future. The actor compares each set of attributes it derives with the unsafe chain: it reads the execution layer's block at their height through the read-only `derivation::untrusted::L2` trait, and checks it against them. A block that matches is what to make safe next, with the L1 block the attributes were derived from; otherwise, or if the block cannot be read, the attributes are, for the engine to build. Only the engine uses the Engine API. The handle drives the actor:
 
-- `derive(safe_head)` publishes the engine's safe head and waits for the attributes the actor derives on top of it. The attributes stay published until a newer safe head replaces them, so cancelling the wait loses nothing.
+- `derive(safe_head)` publishes the engine's safe head and waits for what the actor derives on top of it. That stays published until a newer safe head replaces it, so cancelling the wait loses nothing.
 - `reset(safe)` restarts derivation from the safe head. The actor discards the attributes it derived before, and its pipeline resets onto the safe head before it derives again. The reply comes once the actor has taken the reset; the pipeline resets in the actor's own time, so the engine never waits on L1 for it.
 - `flush` flushes the channel of the last block derived.
 - `current_l1` returns the pipeline's origin, the L1 block derivation has read up to, which may not be fully derived yet. Observing a newer L1 head does not advance it until derivation reaches it, and resets can move it backwards. It is the default block until derivation starts.
@@ -163,7 +163,7 @@ The engine asks derivation what to make safe next on top of its safe head, throu
 let derived = safety.next(state.safe_head()).await?;
 ```
 
-The engine consolidates the attributes the untrusted actor derives into its next safe block, and asks again on top of the new safe head. It makes the safe heads the trusted actor reports safe as they are.
+The engine builds the attributes the untrusted actor derives into its next safe block, or makes safe the unsafe block that matched them, and asks again on top of the new safe head. It makes the safe heads the trusted actor reports safe as they are.
 
 ### With the L1 Actor
 

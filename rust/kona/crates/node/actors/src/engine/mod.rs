@@ -3,8 +3,6 @@
 mod actor;
 pub use actor::Builder;
 
-mod attributes;
-
 mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
