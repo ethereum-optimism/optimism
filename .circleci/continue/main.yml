@@ -1718,10 +1718,14 @@ jobs:
       # fetches (tests of dependencies, lookups of op-geth-only packages) don't
       # affect the result and may fail. To refresh the list, run the check
       # with an empty module cache and compare what it adds to the shared one.
+      # The fallback restores the upstream modules across go.mod changes that
+      # rarely touch them; an old go-ethereum version then lingers in the cache
+      # until c-go-cache-version is bumped.
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
             - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
       - run:
           name: Check op-geth-only API uses against the allowlist
           command: |
