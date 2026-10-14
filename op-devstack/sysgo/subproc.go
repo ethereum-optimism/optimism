@@ -142,6 +142,40 @@ func (sp *SubProcess) stop(ctx context.Context, interrupt bool, interruptWait ti
 	return sp.completeStopLocked(interrupt, sp.waitErr)
 }
 
+// Kill ends the process with SIGKILL, so it runs none of its shutdown logic, and waits for it to
+// exit. It is the unclean counterpart of Stop: whatever the process held only in its own memory
+// is lost, while writes it had already handed to the OS survive, so this is a crash, not a
+// power loss.
+func (sp *SubProcess) Kill() error {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if sp.cmd == nil {
+		return nil // already stopped
+	}
+
+	select {
+	case <-sp.exited:
+		// A process that died on its own is a different event from the kill a caller asked for.
+		sp.p.Logger().Warn("Sub-process exited before it could be killed", "exit", sp.waitErr)
+		sp.releaseLocked()
+		return nil
+	default:
+	}
+
+	sp.p.Logger().Info("Killing sub-process", "pid", sp.cmd.Process.Pid)
+	// The process may have exited between the check and the signal, which Kill reports as
+	// ErrProcessDone; the wait below then returns at once.
+	if err := sp.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return fmt.Errorf("failed to kill sub-process: %w", err)
+	}
+	if !waitProcess(context.Background(), sp.exited, controlledKillWait) {
+		return fmt.Errorf("sub-process did not exit within %s of SIGKILL", controlledKillWait)
+	}
+	sp.p.Logger().Info("Sub-process killed", "exit", sp.waitErr)
+	sp.releaseLocked()
+	return nil
+}
+
 func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 	var exitErr *exec.ExitError
 	if waitErr != nil && !(interrupt && errors.As(waitErr, &exitErr)) {
@@ -151,7 +185,12 @@ func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 	} else {
 		sp.p.Logger().Info("Sub-process gracefully exited")
 	}
+	sp.releaseLocked()
+	return nil
+}
 
+// releaseLocked closes the log pipes and forgets the exited process so Start can run a new one.
+func (sp *SubProcess) releaseLocked() {
 	if sp.stdOutProc != nil {
 		_ = sp.stdOutProc.Close()
 		sp.stdOutProc = nil
@@ -161,7 +200,6 @@ func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 		sp.stdErrProc = nil
 	}
 	sp.cmd = nil
-	return nil
 }
 
 func waitProcess(ctx context.Context, exited <-chan struct{}, timeout time.Duration) bool {

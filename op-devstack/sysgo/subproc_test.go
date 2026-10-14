@@ -85,6 +85,43 @@ func TestSubProcessConcurrentStop(gt *testing.T) {
 	require.NoError(gt, sp.Stop(false))
 }
 
+func newTestSubProcess(gt *testing.T) (*SubProcess, *testlog.CapturingHandler) {
+	tLog := testlog.Logger(gt, log.LevelInfo)
+	logger, capt := testlog.CaptureLogger(gt, log.LevelInfo)
+	p := devtest.NewP(context.Background(), logger, func(bool) { panic("fail") }, func() { panic("skip") })
+	gt.Cleanup(p.Close)
+	logCallback := logpipe.LogCallback(func(line []byte) {
+		logger.Info(string(line))
+		tLog.Info("Sub-process logged message", "line", string(line))
+	})
+	return NewSubProcess(p, logCallback, logCallback), capt
+}
+
+func TestSubProcessKillEndsProcessThatIgnoresInterrupts(gt *testing.T) {
+	sp, capt := newTestSubProcess(gt)
+	require.NoError(gt, sp.Start("/bin/sh", []string{"-c", "trap '' INT TERM; exec /bin/sleep 10000000000"}, []string{}))
+
+	require.NoError(gt, sp.Kill())
+
+	require.Nil(gt, capt.FindLog(testlog.NewMessageFilter("Sending interrupt")), "Kill must not interrupt first")
+	require.NotNil(gt, capt.FindLog(testlog.NewMessageFilter("Sub-process killed")))
+
+	require.NoError(gt, sp.Start("/bin/echo", []string{"restart ok"}, []string{}), "the sub-process must restart after a kill")
+	require.NoError(gt, sp.Stop(false))
+	require.NotNil(gt, capt.FindLog(testlog.NewMessageFilter("restart ok")))
+}
+
+func TestSubProcessKillOfExitedProcess(gt *testing.T) {
+	sp, capt := newTestSubProcess(gt)
+	require.NoError(gt, sp.Start("/bin/echo", []string{"done"}, []string{}))
+	<-sp.Exited()
+
+	require.NoError(gt, sp.Kill())
+	require.NotNil(gt, capt.FindLog(testlog.NewMessageFilter("Sub-process exited before it could be killed")))
+	require.Nil(gt, capt.FindLog(testlog.NewMessageFilter("Sub-process killed")), "an exit of its own must not read as a kill")
+	require.NoError(gt, sp.Kill(), "a second kill is a no-op")
+}
+
 // testEcho tests that we can handle a sub-process that completes on its own
 func testEcho(gt *testing.T, capt *testlog.CapturingHandler, sp *SubProcess) {
 	require.NoError(gt, sp.Start("/bin/echo", []string{"hello world"}, []string{}))
