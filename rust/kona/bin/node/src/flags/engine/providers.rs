@@ -50,7 +50,11 @@ impl L2ClientArgs {
 pub struct DerivationDelegateArgs {
     /// URL of an OP Stack L2 consensus-layer node to follow, instead of deriving the chain from
     /// L1. Its RPC must serve `optimism_syncStatus`.
-    #[arg(long = "l2.cl-url", env = "KONA_NODE_L2_CL_URL", value_name = "URL")]
+    #[arg(
+        long = "derivation-trusted-l2-cl-url",
+        env = "KONA_NODE_DERIVATION_TRUSTED_L2_CL_URL",
+        value_name = "URL"
+    )]
     pub cl_url: Option<Url>,
 }
 

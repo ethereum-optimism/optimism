@@ -504,8 +504,12 @@ mod tests {
 
     #[test]
     fn test_endpoints_with_a_follow_source() {
-        let (command, _jwt) =
-            parse_node(&["--chain", "optimism", "--l2.cl-url", "http://127.0.0.1:5"]);
+        let (command, _jwt) = parse_node(&[
+            "--chain",
+            "optimism",
+            "--derivation-trusted-l2-cl-url",
+            "http://127.0.0.1:5",
+        ]);
 
         let endpoints = command.endpoints().unwrap();
 
