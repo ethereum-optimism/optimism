@@ -47,6 +47,9 @@ pub enum RollupNodeError {
     /// retries, such as the engine being unreachable or answering with an error.
     #[error("the engine capability exchange that checks the JWT secret failed")]
     EngineCapabilityExchange(#[source] TransportError),
+    /// The finalized L1 block, where the node's view of L1 starts, could not be read.
+    #[error("failed to read the finalized L1 block")]
+    L1FinalizedBlock(#[source] TransportError),
     /// The unsafe block signer could not be read from L1.
     #[error("failed to read the unsafe block signer from L1")]
     UnsafeBlockSigner(#[source] TransportError),

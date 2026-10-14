@@ -127,12 +127,12 @@ impl<P: Provider<Optimism>> OutputProvider for P {
 /// The latest L1 blocks the node observed, as [`RollupRpc`] reads them.
 pub trait L1Status: Send + Sync {
     /// Returns the latest L1 blocks, or `None` once they are no longer tracked.
-    fn l1_status(&self) -> impl Future<Output = Option<l1::Status>> + Send;
+    fn l1_status(&self) -> Option<l1::Status>;
 }
 
 impl L1Status for l1::Handle {
-    async fn l1_status(&self) -> Option<l1::Status> {
-        self.status().await.ok()
+    fn l1_status(&self) -> Option<l1::Status> {
+        self.status().ok()
     }
 }
 
@@ -175,7 +175,7 @@ impl<L2, L1: L1Status> RollupRpc<L2, L1> {
             .has_changed()
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
         let l1::Status { head: head_l1, safe: safe_l1, finalized: finalized_l1 } =
-            self.l1.l1_status().await.ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?;
+            self.l1.l1_status().ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?;
         let l2_sync_status = *self.engine_state.borrow();
         let derivation_status = *self.derivation_status.borrow();
 
@@ -234,7 +234,7 @@ mod tests {
     use serde_json::json;
 
     impl L1Status for watch::Receiver<l1::Status> {
-        async fn l1_status(&self) -> Option<l1::Status> {
+        fn l1_status(&self) -> Option<l1::Status> {
             self.has_changed().ok()?;
             Some(*self.borrow())
         }

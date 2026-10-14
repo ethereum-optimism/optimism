@@ -237,7 +237,7 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
         let delayed = number != 0 && self.confirmation_depth != 0;
-        if delayed && number + self.confirmation_depth > self.l1.status().await?.head.number {
+        if delayed && number + self.confirmation_depth > self.l1.status()?.head.number {
             return Ok(None);
         }
         Ok(Provider::get_block_by_number(&self.inner, number.into()).await?.map(Into::into))
@@ -247,6 +247,7 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::l1::test_utils::{TestChain, chain};
     use alloy_eips::NumHash;
     use rstest::rstest;
     use std::collections::HashSet;
@@ -258,10 +259,9 @@ mod test {
         use serde_json::json;
 
         let mock = RpcMock::default();
-        let (published, status) = tokio::sync::watch::channel(l1::Status::default());
-        let provider =
-            DelayedL1OriginSelectorProvider::new(mock.provider(), l1::Handle::reporting(status), 2);
-        let publish = |number| published.send_modify(|status| status.head.number = number);
+        let l1 = TestChain::new(&chain(0..=0, 1));
+        let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), l1.handle(), 2);
+        let publish = |number| l1.set_head(&chain(number..=number, 1));
         let mut block: Block = Block::default();
         block.header.inner.number = 8;
         block.header.hash = block.header.inner.hash_slow();
@@ -269,7 +269,7 @@ mod test {
 
         // The initial head enforces the delay before the first observation.
         assert_eq!(provider.get_block_by_number(8).await.unwrap(), None);
-        publish(9);
+        l1.set_head(&chain(1..=9, 1));
         assert_eq!(provider.get_block_by_number(8).await.unwrap(), None);
         publish(10);
         mock.expect_params("eth_getBlockByNumber", json!(["0x8", false]), &block);
@@ -288,8 +288,8 @@ mod test {
         use serde_json::json;
 
         let mock = RpcMock::default();
-        let (_published, status) = tokio::sync::watch::channel(l1::Status::default());
-        let l1 = l1::Handle::reporting(status);
+        let chain = TestChain::new(&chain(0..=0, 1));
+        let l1 = chain.handle();
         let provider = DelayedL1OriginSelectorProvider::new(mock.provider(), l1.clone(), 2);
         let mut block: Block = Block::default();
         block.header.hash = block.header.inner.hash_slow();

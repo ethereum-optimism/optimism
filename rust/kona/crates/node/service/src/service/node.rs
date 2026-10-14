@@ -367,6 +367,7 @@ impl RollupNode {
     /// - [`RollupNodeError::JwtRejected`] if the engine rejects the node's JWT;
     /// - [`RollupNodeError::EngineCapabilityExchange`] if the capability exchange that checks the
     ///   JWT secret still fails after the retries;
+    /// - [`RollupNodeError::L1FinalizedBlock`] if the finalized L1 block cannot be read;
     /// - [`RollupNodeError::UnsafeBlockSigner`] if the unsafe block signer cannot be read from L1.
     ///
     /// Any other component that fails to start is a [`RollupNodeError::Startup`]. Once the actors
@@ -378,10 +379,10 @@ impl RollupNode {
         startup::validate_engine_jwt(&self.engine_client, ExponentialBuilder::default()).await?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
-        let l1_builder = l1::Builder::new(
-            l1::Capacity::try_from(1024)
-                .map_err(|error| RollupNodeError::Startup(error.to_string()))?,
-        );
+        let l1_finalized = l1::finalized_block(&self.clients.l1)
+            .await
+            .map_err(RollupNodeError::L1FinalizedBlock)?;
+        let l1_builder = l1::Builder::new(self.clients.l1.clone(), l1_finalized);
         let l1 = l1_builder.handle();
         let initial_signer = l1_signer_updater::signer_at_l1_head(
             &self.clients.l1,
@@ -473,13 +474,10 @@ impl RollupNode {
             self.chain.rollup_config.l1_system_config_address,
             adapters::L1::new(l1.clone()),
         );
-        let l1_actor = l1_builder.build(
-            self.clients.l1.clone(),
-            l1::Config {
-                head_interval: Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-                finalized_interval: Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
-            },
-        );
+        let l1_actor = l1_builder.build(l1::Config {
+            head_interval: Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
+            finalized_interval: Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
+        });
 
         let sequencer_actor = sequencer_builder.map(|builder| {
             self.build_sequencer(engine.clone(), signer_handle, l1.clone(), builder)

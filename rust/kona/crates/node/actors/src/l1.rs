@@ -1,10 +1,11 @@
 //! Tracks the canonical L1 chain.
 //!
-//! The actor polls the L1 head, safe and finalized blocks, and holds the canonical chain from
-//! about the finalized block to the head. Each consumer keeps a cursor, the last L1 block it
-//! processed, and asks the actor what changed since: the blocks that extend the cursor, or, after a
-//! reorg, the common ancestor to roll back to. Every consumer sees the actor's one view of L1. The
-//! actor never waits on a consumer, and answers requests while it fetches blocks from L1.
+//! The actor polls the L1 head, safe and finalized blocks, and holds the canonical chain from the
+//! latest finalized block to the head. Consumers ask its [`Handle`] precise questions: what the
+//! latest blocks are, which block is canonical at a height, and what follows a block they
+//! processed, its canonical child, or the news that it was reorged out. Every consumer sees the
+//! actor's one view of L1. Blocks before the finalized block cannot reorg, so the handle reads them
+//! from L1.
 
 mod actor;
 pub use actor::ActorError;
@@ -12,18 +13,13 @@ pub use actor::ActorError;
 mod builder;
 pub use builder::{Builder, Config};
 
+mod chain;
+
 mod handle;
-pub use handle::{Handle, HandleError, Status, Update};
-
-mod follower;
-
-mod non_empty;
+pub use handle::{Child, Handle, HandleError, Status};
 
 mod rpc;
-
-mod view;
+pub use rpc::finalized_block;
 
 #[cfg(test)]
-mod test_utils;
-
-pub use crate::capacity::{Capacity, InvalidCapacity};
+pub(crate) mod test_utils;
