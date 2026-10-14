@@ -46,7 +46,6 @@ derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
-http-body-util.workspace = true
 
 metrics.workspace = true
 thiserror.workspace = true

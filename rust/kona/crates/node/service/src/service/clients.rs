@@ -1,21 +1,14 @@
 //! The clients a [`RollupNode`](crate::RollupNode) talks to other services with.
 
 use crate::{DerivationDelegateClient, DerivationDelegateClientError};
-use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::JwtSecret;
-use alloy_transport_http::{
-    AuthLayer, Http, HyperClient,
-    hyper_util::{client::legacy::Client, rt::TokioExecutor},
-    reqwest,
-};
-use http_body_util::Full;
+use alloy_transport_http::reqwest;
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_sources::EngineApi;
 use op_alloy_network::Optimism;
 use std::time::Duration;
-use tower::ServiceBuilder;
 use url::Url;
 
 /// Where the node's L1 and L2 endpoints are, which [`RollupNodeClients::connect`] builds the
@@ -46,15 +39,12 @@ pub struct RollupNodeClients {
     pub l1: RootProvider,
     /// The L1 beacon API.
     pub l1_beacon: OnlineBeaconClient,
-    /// The L2 execution layer's RPC, authenticated with the engine's JWT secret. Derivation reads
-    /// L2 blocks through it.
-    pub l2: RootProvider<Optimism>,
-    /// The L2 execution layer's Engine API, authenticated with the engine's JWT secret. It must
-    /// reach the same execution layer as [`Self::l2`].
+    /// The L2 execution layer's authenticated RPC, which also serves the Engine API. Derivation
+    /// reads L2 blocks through it.
     ///
-    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineApi`] from it and
-    /// the config's rollup config, so the engine follows the same chain as the rest of the node.
-    pub engine: RootProvider<Optimism>,
+    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineApi`] from it and the
+    /// config's rollup config, so the engine follows the same chain as the rest of the node.
+    pub l2: RootProvider<Optimism>,
     /// The consensus layer the node follows instead of deriving. The node derives the safe chain
     /// itself when this is `None`.
     pub derivation_delegate: Option<DerivationDelegateClient>,
@@ -74,21 +64,12 @@ impl RollupNodeClients {
             RootProvider::new(RpcClient::new_http_with_client(l1_http, endpoints.l1_rpc.clone()));
         let l1_beacon = OnlineBeaconClient::new_http(endpoints.l1_beacon.to_string());
 
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-        let service = ServiceBuilder::new()
-            .layer(AuthLayer::new(endpoints.l2_jwt_secret))
-            .service(hyper_client);
-        let l2 = RootProvider::<Optimism>::new(RpcClient::new(
-            Http::with_client(HyperClient::with_service(service), endpoints.l2_engine.clone()),
-            false,
-        ));
-
-        let engine = EngineApi::rpc_client(endpoints.l2_engine.clone(), endpoints.l2_jwt_secret);
+        let l2 = EngineApi::rpc_client(endpoints.l2_engine.clone(), endpoints.l2_jwt_secret);
 
         let derivation_delegate =
             endpoints.derivation_delegate.clone().map(DerivationDelegateClient::new).transpose()?;
 
-        Ok(Self { l1, l1_beacon, l2, engine, derivation_delegate })
+        Ok(Self { l1, l1_beacon, l2, derivation_delegate })
     }
 }
 

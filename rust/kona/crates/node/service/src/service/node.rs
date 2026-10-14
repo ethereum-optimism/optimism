@@ -86,7 +86,7 @@ impl RollupNode {
             0,
         );
         let engine_api =
-            Arc::new(EngineApi::new(clients.engine.clone(), config.chain.rollup_config.clone()));
+            Arc::new(EngineApi::new(clients.l2.clone(), config.chain.rollup_config.clone()));
         Self {
             version: config.version,
             chain: config.chain,
