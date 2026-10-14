@@ -128,7 +128,7 @@ class RustTargetCacheTest(unittest.TestCase):
         os.utime(self.source, ns=(old, old))
         self.run_phase('prepare')
         self.assertGreater(self.source.stat().st_mtime_ns, old)
-        self.assertEqual(toolchain.stat().st_mtime_ns, toolchain_stamp)
+        self.assertEqual(toolchain.stat().st_mtime_ns, CACHE.whole_seconds(toolchain_stamp))
         self.assertTrue(binary.exists())
         self.assertFalse((self.target / '.rwx-source-fingerprint.json').exists())
 
@@ -137,6 +137,53 @@ class RustTargetCacheTest(unittest.TestCase):
         stamp = self.source.stat().st_mtime_ns
         os.utime(self.source, ns=(1000000000, 1000000000))
         self.run_phase('prepare')
+        self.assertEqual(self.source.stat().st_mtime_ns, CACHE.whole_seconds(stamp))
+
+    def test_restore_rounds_recorded_mtimes_down_to_whole_seconds(self):
+        self.run_phase('prepare'); self.run_phase('commit')
+        state = self.target / '.rwx-source-fingerprint.json'
+        recorded = json.loads(state.read_text())
+        recorded['files']['rust/src/lib.rs']['mtime_ns'] = 1234567890123456789
+        state.write_text(json.dumps(recorded))
+        self.run_phase('prepare')
+        self.assertEqual(self.source.stat().st_mtime_ns, 1234567890000000000)
+
+    def test_changed_inputs_use_next_second_and_wait_strictly_past_it(self):
+        name = CACHE.GENERATED_SOURCES[0]
+        with (self.root / '.git/info/exclude').open('a') as f: f.write(name + '\n')
+        archive = self.root / name; archive.parent.mkdir(parents=True)
+        archive.write_bytes(b'original generated input')
+        self.run_phase('prepare'); self.run_phase('commit')
+        self.source.write_text('pub fn changed() {}')
+        archive.write_bytes(b'changed generated input')
+        base = CACHE.whole_seconds(self.source.stat().st_mtime_ns) + 10**9
+        stamp = base + 10**9
+        with patch.object(CACHE.time, 'time_ns', side_effect=[base + 123456789, base + 500000000, stamp, stamp + 1]), \
+                patch.object(CACHE.time, 'sleep') as sleep:
+            self.run_phase('prepare')
+        self.assertEqual(self.source.stat().st_mtime_ns, stamp)
+        self.assertEqual(archive.stat().st_mtime_ns, stamp)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.500000001, 0.000000001])
+        pending = json.loads((self.target / '.rwx-source-pending.json').read_text())
+        self.assertEqual(pending['files']['rust/src/lib.rs']['mtime_ns'], stamp)
+        self.assertEqual(pending['generated_files'][name]['mtime_ns'], stamp)
+
+    def test_unchanged_inputs_do_not_wait_for_unused_next_second(self):
+        self.run_phase('prepare'); self.run_phase('commit')
+        stamp = self.source.stat().st_mtime_ns
+        with patch.object(CACHE.time, 'time_ns', return_value=stamp + 10**9), \
+                patch.object(CACHE.time, 'sleep') as sleep:
+            self.run_phase('prepare')
+        sleep.assert_not_called()
+        self.assertEqual(self.source.stat().st_mtime_ns, stamp)
+
+    def test_restored_inputs_wait_after_a_backwards_clock_adjustment(self):
+        self.run_phase('prepare'); self.run_phase('commit')
+        stamp = self.source.stat().st_mtime_ns
+        with patch.object(CACHE.time, 'time_ns', side_effect=[stamp - 1, stamp - 1, stamp + 1]), \
+                patch.object(CACHE.time, 'sleep') as sleep:
+            self.run_phase('prepare')
+        sleep.assert_called_once_with(0.000000002)
         self.assertEqual(self.source.stat().st_mtime_ns, stamp)
 
     def test_failed_build_retries_refresh_source_again(self):
@@ -174,7 +221,7 @@ class RustTargetCacheTest(unittest.TestCase):
         self.assertEqual(state['generated_files'][name]['mtime_ns'], stamp)
         self.assertEqual(archive.stat().st_mtime_ns, stamp)
         self.run_phase('prepare')
-        self.assertEqual(archive.stat().st_mtime_ns, stamp)
+        self.assertEqual(archive.stat().st_mtime_ns, CACHE.whole_seconds(stamp))
 
     def test_commit_detaches_incremental_metadata_without_changing_bytes_or_mtime(self):
         metadata = self.target / 'debug/deps/liblocal.rmeta'
@@ -216,7 +263,7 @@ class RustTargetCacheTest(unittest.TestCase):
         state = json.loads((self.target / '.rwx-source-fingerprint.json').read_text())
         self.assertEqual(state['version'], 3)
         self.run_phase('prepare')
-        self.assertEqual(self.source.stat().st_mtime_ns, stamp)
+        self.assertEqual(self.source.stat().st_mtime_ns, CACHE.whole_seconds(stamp))
 
     def test_added_deleted_and_reintroduced_files_preserve_other_timestamps(self):
         self.run_phase('prepare'); self.run_phase('commit')
@@ -233,7 +280,7 @@ class RustTargetCacheTest(unittest.TestCase):
         os.utime(new, ns=(added, added))
         self.run_phase('prepare')
         self.assertGreater(new.stat().st_mtime_ns, added)
-        self.assertEqual(self.source.stat().st_mtime_ns, original)
+        self.assertEqual(self.source.stat().st_mtime_ns, CACHE.whole_seconds(original))
 
     def test_commit_rejects_source_changed_during_build(self):
         self.run_phase('prepare')
@@ -258,7 +305,7 @@ class RustTargetCacheTest(unittest.TestCase):
         bundle.write_text('new embedded payload'); os.utime(bundle, ns=(old, old))
         self.run_phase('prepare')
         self.assertGreater(bundle.stat().st_mtime_ns, old)
-        self.assertEqual(self.source.stat().st_mtime_ns, source_stamp)
+        self.assertEqual(self.source.stat().st_mtime_ns, CACHE.whole_seconds(source_stamp))
         self.assertNotEqual(before, json.loads((self.target / '.rwx-source-pending.json').read_text())['source_sha256'])
         bundle.write_text('changed while building')
         with self.assertRaises(ValueError): self.run_phase('commit')
@@ -324,6 +371,16 @@ class RustTargetCacheTest(unittest.TestCase):
                     CACHE.manage('prepare', self.root, target)
                     build()
                     CACHE.manage('commit', self.root, target)
+                def restore_whole_second_targets():
+                    for path in target.rglob('*'):
+                        if path.is_file() and not path.is_symlink():
+                            rounded = CACHE.whole_seconds(path.stat().st_mtime_ns)
+                            os.utime(path, ns=(rounded, rounded))
+                restore_whole_second_targets()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    CACHE.manage('prepare', self.root, target)
+                    self.assertTrue(all(build().values()), 'unchanged restored targets must stay fresh')
+                    CACHE.manage('commit', self.root, target)
                 stamp = unrelated.stat().st_mtime_ns
                 old = provider.stat().st_mtime_ns
                 # Reproduce normalized checkout mtimes, including a changed file
@@ -338,8 +395,13 @@ class RustTargetCacheTest(unittest.TestCase):
                 self.assertFalse(artifacts['provider'])
                 self.assertFalse(artifacts['consumer'])
                 self.assertTrue(artifacts['unrelated'])
-                self.assertEqual(unrelated.stat().st_mtime_ns, stamp)
+                self.assertEqual(unrelated.stat().st_mtime_ns, CACHE.whole_seconds(stamp))
                 self.assertEqual(subprocess.check_output([str(target / 'debug/consumer')], text=True), '12')
+                restore_whole_second_targets()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    CACHE.manage('prepare', self.root, target)
+                    self.assertTrue(all(build().values()), 'changed targets must stay fresh on the next restore')
+                    CACHE.manage('commit', self.root, target)
 
     @unittest.skipUnless(shutil.which('cargo'), 'Cargo required for cache freshness reproduction')
     def test_cargo_rebuilds_changed_dependency_with_older_checkout_mtime(self):

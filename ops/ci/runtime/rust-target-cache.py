@@ -14,6 +14,21 @@ import time
 GENERATED_SOURCES = ('rust/op-reth/crates/chainspec/res/superchain-configs.tar',)
 
 
+def whole_seconds(mtime_ns):
+    # Cache restores can quantize target/ mtimes to whole-second resolution.
+    return mtime_ns // 10**9 * 10**9
+
+
+def wait_until_after(stamp):
+    # Cargo's build timestamps must not precede a refreshed input. Recheck the
+    # wall clock after sleeping, including an early wake or a clock adjustment.
+    while True:
+        remaining = stamp - time.time_ns()
+        if remaining < 0:
+            return
+        time.sleep((remaining + 1) / 10**9)
+
+
 def generated_sources(root):
     # prepare-superchain/build.rs own checksum verification and materialization.
     # Cargo declares this ignored archive as a build-script input. Its timestamp
@@ -176,7 +191,9 @@ def manage(phase, root, target):
         changed = previous.get('source_sha256') != digest or not reusable
         changed |= {name: row['sha256'] for name, row in old_generated.items()} != {
             name: row['sha256'] for name, row in generated.items()}
-        stamp = time.time_ns()
+        # A restored target may have lost its subsecond timestamp. Put changed
+        # inputs strictly into the next second so Cargo observes the change.
+        stamp = whole_seconds(time.time_ns()) + 10**9
         restored = 0
         restored_generated = 0
         refreshed_generated = 0
@@ -185,7 +202,7 @@ def manage(phase, root, target):
             for name, entry in current.items():
                 old = old_files.get(name, {})
                 if old.get('sha256') == entry['sha256'] and type(old.get('mtime_ns')) is int:
-                    entry['mtime_ns'] = old['mtime_ns']
+                    entry['mtime_ns'] = whole_seconds(old['mtime_ns'])
                     if current is entries: restored += 1
                     else: restored_generated += 1
                 elif current is generated and not old:
@@ -198,6 +215,10 @@ def manage(phase, root, target):
                     entry['mtime_ns'] = stamp
                     if current is generated: refreshed_generated += 1
                 os.utime(root / name, ns=(entry['mtime_ns'], entry['mtime_ns']))
+        # Unchanged inputs normally need no wait. Include their restored stamps
+        # too so a backwards clock adjustment cannot start Cargo before them.
+        wait_until_after(max(entry['mtime_ns'] for current in (entries, generated)
+                             for entry in current.values()))
         if changed:
             state.unlink(missing_ok=True)
         # Commit this per-file map only after the caller completes its build.

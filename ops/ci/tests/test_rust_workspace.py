@@ -629,7 +629,7 @@ pub fn compile_only() {}
             freshness = json.loads((root / '.ci/rust-workspace/tests-build/cache-source.json').read_text())
             self.assertTrue(freshness['source_changed'])
             self.assertEqual(freshness['restored_generated_files'], 1)
-            self.assertEqual(bundle.stat().st_mtime_ns, bundle_stamp)
+            self.assertEqual(bundle.stat().st_mtime_ns, bundle_stamp // 10**9 * 10**9)
             self.assertIn('Compiling kona-providers-alloy',
                           (root / '.ci/rust-workspace/tests-build/archive.log').read_text())
             # First runtime receives only the current compiler artifact. Its own

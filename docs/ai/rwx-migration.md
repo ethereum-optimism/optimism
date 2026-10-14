@@ -183,6 +183,24 @@ build script. Its producer still owns checksum verification. A cold build may
 materialize it after preparation; successful compilation records its actual
 timestamp. Later restores preserve that timestamp when its bytes are unchanged.
 
+Raw target restores can quantize mtimes to whole seconds. Preparation rounds
+unchanged input timestamps down to the same resolution and stamps changed inputs
+with the next whole second. It waits until the wall clock is strictly past every
+prepared input timestamp before returning to Cargo. Unchanged inputs normally
+return immediately; the clock check also handles an early wake or a backwards
+clock adjustment. Newly materialized generated assets keep their producer-owned
+timestamps until their next restore.
+
+CLI validation of this helper on `fd722f0900` with uploaded CI changes passed the
+[full Rust test workload](https://cloud.rwx.com/optimism/runs/01a13ae1ed257f0a9061db6cfe987fd5):
+3,314 passes, 17 existing doctest skips and 10 policy-excluded nextest cases.
+The [following cache reuse check](https://cloud.rwx.com/optimism/runs/01a13b0aacc373e795a9328169eeacc6)
+restored 1,346 source files and the generated tar with no refreshed inputs and
+zero crate recompilations. A [whole-second target regression](https://cloud.rwx.com/optimism/runs/01a13ae6f4987ee69ca2c04698ee113b)
+also verified source-change invalidation and reuse after the changed build.
+These trials used isolated default-vault cache names; they do not establish
+protected-branch cache warming or change the production cache grants.
+
 Full-test build/runtime tool caches retain individual `rust/target` files in
 `files` namespaces. Keep compiler binaries, fingerprints and incremental state;
 remove nextest reports before publication. RWX can reuse unchanged filesystem
