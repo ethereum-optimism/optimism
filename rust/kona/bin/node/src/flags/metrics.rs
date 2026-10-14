@@ -22,11 +22,17 @@ pub struct MetricsArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_name = "BOOL"
     )]
     pub enabled: bool,
     /// The IP address to serve Prometheus metrics on.
-    #[arg(long = "metrics.addr", default_value = "0.0.0.0", env = "KONA_NODE_METRICS_ADDR")]
+    #[arg(
+        long = "metrics.addr",
+        default_value = "0.0.0.0",
+        env = "KONA_NODE_METRICS_ADDR",
+        value_name = "IP"
+    )]
     pub addr: IpAddr,
     /// The port to serve Prometheus metrics on.
     #[arg(long = "metrics.port", default_value = "9090", env = "KONA_NODE_METRICS_PORT")]

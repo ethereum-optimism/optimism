@@ -28,17 +28,26 @@ pub struct SequencerArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_name = "BOOL"
     )]
     pub enabled: bool,
 
-    /// Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1
-    /// origin.
-    #[arg(long = "sequencer.l1-confs", default_value = "4", env = "KONA_NODE_SEQUENCER_L1_CONFS")]
+    /// How many blocks behind the L1 head the sequencer picks its L1 origins.
+    #[arg(
+        long = "sequencer.l1-confs",
+        default_value = "4",
+        env = "KONA_NODE_SEQUENCER_L1_CONFS",
+        value_name = "N"
+    )]
     pub l1_confs: u64,
 
-    /// Conductor service rpc endpoint. Providing this value will enable the conductor service.
-    #[arg(long = "sequencer.conductor.url", env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL")]
+    /// URL of the op-conductor RPC API. Setting it puts the sequencer behind the conductor.
+    #[arg(
+        long = "sequencer.conductor.url",
+        env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL",
+        value_name = "URL"
+    )]
     pub conductor_url: Option<Url>,
 
     /// How long a conductor request may take before it fails and the sequencer tries again later,
@@ -47,6 +56,7 @@ pub struct SequencerArgs {
         long = "sequencer.conductor.timeout",
         default_value = "1s",
         env = "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT",
+        value_name = "DURATION",
         value_parser = humantime::parse_duration
     )]
     pub conductor_timeout: Duration,

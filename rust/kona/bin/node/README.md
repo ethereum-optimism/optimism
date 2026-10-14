@@ -41,7 +41,7 @@ kona-node node \
   --p2p.enabled \
   --p2p.listen.tcp-port 9223 \
   --p2p.listen.udp-port 9223 \
-  --p2p.peer-scoring none \
+  --p2p.peer-scoring off \
   --p2p.discovery.enabled \
   --p2p.discovery.bootstore.enabled \
   --p2p.discovery.bootstore.path /path/to/bootstore.json
@@ -71,7 +71,7 @@ kona-node node \
   --p2p.enabled \
   --p2p.listen.tcp-port 9223 \
   --p2p.listen.udp-port 9223 \
-  --p2p.peer-scoring none \
+  --p2p.peer-scoring off \
   --p2p.discovery.enabled \
   --p2p.discovery.bootstore.enabled \
   --p2p.discovery.bootstore.path ./bootstore.json

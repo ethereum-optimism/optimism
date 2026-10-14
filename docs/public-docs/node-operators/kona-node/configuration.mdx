@@ -76,32 +76,32 @@ The other P2P flags apply only with `--p2p.enabled`.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.enabled[=<BOOL>]` | `KONA_NODE_P2P_ENABLED` | Receive and gossip blocks over P2P. Without it, the node follows the chain by deriving it from L1, and a sequencer neither signs nor gossips its blocks | `false` |
-| `--p2p.priv-path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.advertise.addr <HOST>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP address or DNS name to advertise to external peers | The listen address |
-| `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | The listen TCP port |
-| `--p2p.advertise.udp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | The listen UDP port |
-| `--p2p.listen.addr <HOST>` | `KONA_NODE_P2P_LISTEN_ADDR` | IP address or DNS name to bind LibP2P/Discv5 to | `0.0.0.0` |
-| `--p2p.listen.tcp-port <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
-| `--p2p.listen.udp-port <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
-| `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
-| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_LO` | GossipSub mesh low watermark | `6` |
-| `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
-| `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target | `6` |
-| `--p2p.gossip.mesh.flood-publish.enabled[=<BOOL>]` | `KONA_NODE_P2P_GOSSIP_MESH_FLOOD_PUBLISH_ENABLED` | Publish to all known peers | `false` |
-| `--p2p.peer-scoring <none or light>` | `KONA_NODE_P2P_PEER_SCORING` | Peer scoring strategy | `light` |
-| `--p2p.ban.enabled[=<BOOL>]` | `KONA_NODE_P2P_BAN_ENABLED` | Enable peer banning | `false` |
-| `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
-| `--p2p.ban.duration <DURATION>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `1h` |
+| `--p2p.enabled[=<BOOL>]` | `KONA_NODE_P2P_ENABLED` | Receive and gossip blocks over P2P. When disabled, the node only follows the safe chain (unless it is a sequencer, when it also produces the ungossiped unsafe chain) | `false` |
+| `--p2p.priv-path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to a file holding the hex-encoded 32-byte private key of the node's peer ID, created with a new key if it does not exist. Keep it across restarts to keep the peer ID | A new peer ID at each start |
+| `--p2p.listen.addr <HOST>` | `KONA_NODE_P2P_LISTEN_ADDR` | IP address or DNS hostname to listen for peers on. A hostname is resolved when the node starts | `0.0.0.0` |
+| `--p2p.listen.tcp-port <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to listen for peers on. `0` picks any free port | `9222` |
+| `--p2p.listen.udp-port <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port for discovery to listen on. `0` picks any free port | `9223` |
+| `--p2p.advertise.addr <HOST>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP address or DNS hostname for discovery to advertise to peers, such as a public address behind a NAT. Setting it stops discovery from updating the advertised address from what peers report. Used only with `--p2p.discovery.enabled` | The listen address |
+| `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port for discovery to advertise to peers | The listen TCP port |
+| `--p2p.advertise.udp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port for discovery to advertise to peers | The listen UDP port |
+| `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target degree: how many peers to keep in the mesh and send blocks to | `8` |
+| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_LO` | GossipSub mesh low watermark: with fewer peers in the mesh, the node adds more | `6` |
+| `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark: with more peers in the mesh, the node prunes it | `12` |
+| `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target: how many peers outside the mesh to announce blocks to, without sending them the blocks | `6` |
+| `--p2p.gossip.mesh.flood-publish.enabled[=<BOOL>]` | `KONA_NODE_P2P_GOSSIP_MESH_FLOOD_PUBLISH_ENABLED` | Publish the node's own blocks to every known peer on the topic, not only to its mesh | `false` |
+| `--p2p.peer-scoring <LEVEL>` | `KONA_NODE_P2P_PEER_SCORING` | How to score peers by their behavior: `off` or `light` | `light` |
+| `--p2p.topic-scoring.enabled[=<BOOL>]` | `KONA_NODE_P2P_TOPIC_SCORING_ENABLED` | Also score peers by their behavior on each gossip topic. Kept for compatibility and debugging: op-node is phasing topic scoring out | `false` |
+| `--p2p.ban.enabled[=<BOOL>]` | `KONA_NODE_P2P_BAN_ENABLED` | Ban peers whose score falls below `--p2p.ban.threshold`, for `--p2p.ban.duration` | `false` |
+| `--p2p.ban.threshold <SCORE>` | `KONA_NODE_P2P_BAN_THRESHOLD` | The score below which a peer is banned | `-100` |
+| `--p2p.ban.duration <DURATION>` | `KONA_NODE_P2P_BAN_DURATION` | How long to ban a peer for | `1h` |
+| `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | How many times to redial a peer that disconnects, within each `--p2p.redial.period`. `0` redials it indefinitely | `500` |
+| `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | How long after a peer was last dialed its count of redials resets | `1h` |
 | `--p2p.discovery.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_ENABLED` | Find peers with discv5. Without it, the node keeps only the peers it is told to connect to, and those that connect to it, and ignores the other discovery flags | `false` |
-| `--p2p.discovery.bootnodes <ENR,...>` | `KONA_NODE_P2P_DISCOVERY_BOOTNODES` | List of bootnode ENRs to start discovery with | - |
-| `--p2p.discovery.interval <DURATION>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5s` |
-| `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
+| `--p2p.discovery.bootnodes <ENR,...>` | `KONA_NODE_P2P_DISCOVERY_BOOTNODES` | Comma-separated ENRs or enode URLs of nodes to start discovery from, in addition to the chain's built-in bootnodes | - |
+| `--p2p.discovery.interval <DURATION>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | How often discovery looks for new peers | `5s` |
+| `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | How often to drop a random peer from discovery, so that it finds a wider set of peers | Never |
 | `--p2p.discovery.bootstore.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_ENABLED` | Keep the peers discovery finds in a bootstore, to find them again after a restart | `false` |
-| `--p2p.discovery.bootstore.path <PATH>` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH` | The bootstore's file | `~/.kona/<CHAIN_ID>/bootstore.json` |
-| `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | How many times to redial a peer that disconnects; `0` redials it indefinitely | `500` |
-| `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `1h` |
-| `--p2p.topic-scoring.enabled[=<BOOL>]` | `KONA_NODE_P2P_TOPIC_SCORING_ENABLED` | Enable topic scoring | `false` |
+| `--p2p.discovery.bootstore.path <PATH>` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH` | Path to the bootstore file | `~/.kona/<CHAIN_ID>/bootstore.json` |
 
 ## RPC Arguments
 
@@ -128,8 +128,8 @@ A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled`,
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--sequencer.enabled[=<BOOL>]` | `KONA_NODE_SEQUENCER_ENABLED` | Run the sequencer. Requires `--rpc.enabled`, and with `--p2p.enabled` a block signer. The flag alone means `true` | `false` |
-| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
-| `--sequencer.conductor.url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
+| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | How many blocks behind the L1 head the sequencer picks its L1 origins | `4` |
+| `--sequencer.conductor.url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | URL of the op-conductor RPC API. Setting it puts the sequencer behind the conductor | - |
 | `--sequencer.conductor.timeout <DURATION>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT` | How long a conductor request may take before it fails and the sequencer tries again later | `1s` |
 
 ## Signer Arguments

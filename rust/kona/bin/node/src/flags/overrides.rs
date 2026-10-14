@@ -70,7 +70,7 @@ pub struct OverrideArgs {
         value_name = "TIMESTAMP"
     )]
     pub karst: Option<u64>,
-    /// Manually specify the timestamp for the pectra blob schedule, overriding the bundled
+    /// Manually specify the timestamp for the Pectra blob schedule, overriding the bundled
     /// setting.
     #[arg(
         long = "chain.hardfork.pectra-blob-schedule-time",

@@ -18,19 +18,14 @@ pub struct LogArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_name = "BOOL"
     )]
     pub enabled: bool,
     /// The most detailed level to log.
     #[arg(long = "logs.level", default_value = "info", env = "KONA_NODE_LOGS_LEVEL")]
     pub level: LogLevel,
     /// The format of the logs.
-    ///
-    /// full: The default rust log format.
-    /// json: The logs are printed in JSON structured format.
-    /// pretty: The logs are printed in a pretty, human readable format.
-    /// compact: The logs are printed in a compact format.
-    /// logfmt: The logs are printed in logfmt key=value format.
     #[arg(long = "logs.format", default_value = "full", env = "KONA_NODE_LOGS_FORMAT")]
     pub format: LogFormat,
 }

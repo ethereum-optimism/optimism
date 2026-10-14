@@ -21,7 +21,8 @@ pub struct RpcArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true"
+        default_missing_value = "true",
+        value_name = "BOOL"
     )]
     pub enabled: bool,
     /// RPC listening address.
@@ -29,10 +30,20 @@ pub struct RpcArgs {
     /// Defaults to `127.0.0.1`, because the server always serves the admin API, which can stop
     /// the sequencer and reset the node. Set it to `0.0.0.0` to reach the RPC from outside a
     /// container, and keep the port off untrusted networks.
-    #[arg(long = "rpc.addr", default_value = "127.0.0.1", env = "KONA_NODE_RPC_ADDR")]
+    #[arg(
+        long = "rpc.addr",
+        default_value = "127.0.0.1",
+        env = "KONA_NODE_RPC_ADDR",
+        value_name = "IP"
+    )]
     pub listen_addr: IpAddr,
     /// RPC listening port.
-    #[arg(long = "rpc.port", default_value = "9545", env = "KONA_NODE_RPC_PORT")]
+    #[arg(
+        long = "rpc.port",
+        default_value = "9545",
+        env = "KONA_NODE_RPC_PORT",
+        value_name = "PORT"
+    )]
     pub listen_port: u16,
 }
 
