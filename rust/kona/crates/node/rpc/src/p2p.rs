@@ -586,21 +586,55 @@ mod tests {
         );
     }
 
+    /// Returns a libp2p keypair and the discv5 node ID of the same secp256k1 key.
+    fn keypair_and_node_id() -> (Keypair, NodeId) {
+        let enr::CombinedKey::Secp256k1(key) = enr::CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let node_id = enr::Enr::<enr::CombinedKey>::builder()
+            .build(&enr::CombinedKey::Secp256k1(key.clone()))
+            .unwrap()
+            .node_id();
+        let secret =
+            libp2p::identity::secp256k1::SecretKey::try_from_bytes(key.to_bytes().to_vec())
+                .unwrap();
+        (libp2p::identity::secp256k1::Keypair::from(secret).into(), node_id)
+    }
+
+    /// Discovery and the RPC must agree on a peer's node ID, which follows from its key.
+    #[test]
+    fn node_ids_match_discovery() {
+        let (keypair, expected) = keypair_and_node_id();
+        assert_eq!(node_id(&keypair.public().to_peer_id()), Some(expected));
+    }
+
     #[tokio::test]
     async fn a_node_without_discovery_reports_no_enr_and_an_empty_table() {
         let driver = gossip_driver();
-        let (_state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
+        let (local, local_node_id) = keypair_and_node_id();
+        let (peer, peer_node_id) = keypair_and_node_id();
+        let peer_id = peer.public().to_peer_id();
+        let mut state = driver.snapshot();
+        state.local_peer_id = local.public().to_peer_id();
+        state.connected_peers.insert(peer_id);
+        let (_state_tx, state_rx) = watch::channel(Arc::new(state));
         let network = network::Builder::new(gossip_driver()).handle();
         let rpc = P2pRpc::new(state_rx, network, None, 10);
 
         let this = rpc.opp2p_self().await.unwrap();
         assert_eq!(this.enr, None);
-        // The node ID follows from the node's key.
-        assert!(!this.node_id.is_empty());
+        // The node ID follows from the node's key, with or without discovery.
+        assert_eq!(this.node_id, format!("{local_node_id:?}"));
         assert_eq!(rpc.opp2p_peer_count().await.unwrap().connected_discovery, None);
         assert_eq!(rpc.opp2p_peer_stats().await.unwrap().table, 0);
         assert!(rpc.opp2p_discovery_table().await.unwrap().is_empty());
-        assert_eq!(rpc.opp2p_peers(false).await.unwrap().total_connected, 0);
+
+        let peers = rpc.opp2p_peers(true).await.unwrap();
+        assert_eq!(peers.total_connected, 1);
+        let info = &peers.peers[&peer_id.to_string()];
+        assert_eq!(info.node_id, format!("{peer_node_id:?}"));
+        assert_eq!(info.enr, None);
+        assert_eq!(info.connectedness, Connectedness::Connected);
     }
 
     #[test]
