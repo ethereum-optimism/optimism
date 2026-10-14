@@ -37,7 +37,7 @@ This allows operations to signal different recovery strategies based on the erro
 
 ## Operations
 
-The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
+The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineClient`, which talks only to the Engine API; a reset also reads L1 through the node's L1 provider. Tests supply mock transports to the same client and provider.
 
 Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
@@ -89,18 +89,16 @@ The engine actor receives all state-mutating input through its handle: payload a
 
 ```rust
 // Create the concrete engine client from an authenticated Engine API provider.
-let client = EngineClient::new(
-    l1_provider,
-    EngineClient::rpc_client(l2_engine_url, jwt_secret),
-    rollup_config.clone(),
-);
+let client =
+    EngineClient::new(EngineClient::rpc_client(l2_engine_url, jwt_secret), rollup_config.clone());
 
 // Create the request queue and state publisher, and hand out handles.
 let builder = engine::Builder::new(capacity);
 let handle = builder.handle();
 
-// Supply the dependencies and spawn the actor's lifetime future.
-let actor = builder.build(Arc::new(client), rollup_config, block_sink);
+// Supply the dependencies and spawn the actor's lifetime future. A reset reads L1 through
+// `l1_provider` to find a plausible sync starting point.
+let actor = builder.build(Arc::new(client), l1_provider, rollup_config, block_sink);
 tokio::spawn(actor);
 ```
 

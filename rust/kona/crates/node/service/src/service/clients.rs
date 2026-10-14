@@ -52,9 +52,8 @@ pub struct RollupNodeClients {
     /// The L2 execution layer's Engine API, authenticated with the engine's JWT secret. It must
     /// reach the same execution layer as [`Self::l2`].
     ///
-    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineClient`] from it,
-    /// [`Self::l1`] and the config's rollup config, so the engine follows the same chain as the
-    /// rest of the node.
+    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineClient`] from it and
+    /// the config's rollup config, so the engine follows the same chain as the rest of the node.
     pub engine: RootProvider<Optimism>,
     /// The consensus layer the node follows instead of deriving. The node derives the safe chain
     /// itself when this is `None`.

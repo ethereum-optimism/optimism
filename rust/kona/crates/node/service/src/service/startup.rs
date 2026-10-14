@@ -107,7 +107,6 @@ mod tests {
         RollupNode, RollupNodeClients,
         service::test_utils::{JWT_HEX, endpoints, network_config, node_config},
     };
-    use alloy_provider::RootProvider;
     use alloy_rpc_types_engine::JwtSecret;
     use kona_genesis::RollupConfig;
     use std::{net::Ipv4Addr, sync::Arc, time::Duration};
@@ -177,7 +176,6 @@ mod tests {
     /// An engine client whose Engine API is `server`.
     fn engine(server: &httpmock::MockServer) -> EngineClient {
         EngineClient::new(
-            RootProvider::new_http(server.url("/l1").parse().unwrap()),
             EngineClient::rpc_client(
                 server.url("/").parse().unwrap(),
                 JwtSecret::from_hex(JWT_HEX).unwrap(),

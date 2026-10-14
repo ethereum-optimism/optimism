@@ -12,6 +12,7 @@ pub use error::SyncStartError;
 use tracing::info;
 
 use crate::EngineClient;
+use alloy_provider::Provider;
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///
@@ -28,6 +29,7 @@ use crate::EngineClient;
 pub async fn find_starting_forkchoice(
     cfg: &RollupConfig,
     engine_client: &EngineClient,
+    l1: &impl Provider,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
     let mut current_fc = L2ForkchoiceState::current(cfg, engine_client).await?;
     info!(
@@ -40,8 +42,7 @@ pub async fn find_starting_forkchoice(
 
     // Search for the highest `unsafe` block, relative to the initial `unsafe` block's L1 origin,
     loop {
-        let l1_origin =
-            engine_client.get_l1_block(current_fc.un_safe.l1_origin.hash.into()).await?;
+        let l1_origin = l1.get_block_by_hash(current_fc.un_safe.l1_origin.hash).await?;
         info!(
             target: "sync_start",
             l1_origin = %current_fc.un_safe.l1_origin.number,

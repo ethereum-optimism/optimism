@@ -86,11 +86,8 @@ impl RollupNode {
             IMPORTED_BLOCK_BUFFER_SIZE,
             0,
         );
-        let engine_client = Arc::new(EngineClient::new(
-            clients.l1.clone(),
-            clients.engine.clone(),
-            config.chain.rollup_config.clone(),
-        ));
+        let engine_client =
+            Arc::new(EngineClient::new(clients.engine.clone(), config.chain.rollup_config.clone()));
         Self {
             version: config.version,
             chain: config.chain,
@@ -169,6 +166,7 @@ impl RollupNode {
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
+            self.clients.l1.clone(),
             self.chain.rollup_config.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )

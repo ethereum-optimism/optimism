@@ -141,10 +141,8 @@ impl Service<RequestPacket> for RpcMock {
     }
 }
 
-/// Creates the production client with separate scripted L1 and L2 transports.
-pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, RpcMock) {
-    let l1 = RpcMock::default();
+/// Creates the production client with a scripted Engine API transport.
+pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock) {
     let l2 = RpcMock::default();
-    let client = EngineClient::new(l1.provider(), l2.provider(), cfg);
-    (client, l1, l2)
+    (EngineClient::new(l2.provider(), cfg), l2)
 }
