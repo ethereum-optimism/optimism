@@ -38,9 +38,9 @@ kona-node node \
   --l2.engine.jwt-secret-path /path/to/jwt.hex \
   --rpc.enabled \
   --rpc.port 5060 \
-  --p2p.listen.tcp 9223 \
-  --p2p.listen.udp 9223 \
-  --p2p.scoring off \
+  --p2p.listen.tcp-port 9223 \
+  --p2p.listen.udp-port 9223 \
+  --p2p.peer-scoring none \
   --p2p.bootstore /path/to/bootstore
 ```
 
@@ -65,9 +65,9 @@ kona-node node \
   --l2.engine.jwt-secret-path ./jwt.hex \
   --rpc.enabled \
   --rpc.port 5060 \
-  --p2p.listen.tcp 9223 \
-  --p2p.listen.udp 9223 \
-  --p2p.scoring off \
+  --p2p.listen.tcp-port 9223 \
+  --p2p.listen.udp-port 9223 \
+  --p2p.peer-scoring none \
   --p2p.bootstore ./bootstore
 ```
 

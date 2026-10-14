@@ -170,6 +170,17 @@ mod tests {
         assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
     }
 
+    /// The P2P flags are experimental: accepted, but left out of the help.
+    #[test]
+    fn the_help_leaves_out_the_p2p_flags() {
+        use clap::CommandFactory;
+
+        let mut cli = Cli::command();
+        let help = cli.find_subcommand_mut("node").unwrap().render_long_help().to_string();
+        assert!(!help.contains("--p2p."), "{help}");
+        try_parse_node(&["--chain", "optimism", "--p2p.listen.tcp-port", "0"]).unwrap();
+    }
+
     #[test]
     fn node_flags_read_the_environment_variables_named_after_them() {
         use clap::CommandFactory;

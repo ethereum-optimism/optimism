@@ -102,9 +102,9 @@ services:
       --rpc.enabled
       --rpc.addr 0.0.0.0
       --rpc.port ${KONA_NODE_RPC_PORT:-5060}
-      --p2p.listen.tcp ${KONA_NODE_DISCOVERY_PORT:-9223}
-      --p2p.listen.udp ${KONA_NODE_DISCOVERY_PORT:-9223}
-      --p2p.scoring light
+      --p2p.listen.tcp-port ${KONA_NODE_DISCOVERY_PORT:-9223}
+      --p2p.listen.udp-port ${KONA_NODE_DISCOVERY_PORT:-9223}
+      --p2p.peer-scoring light
       --p2p.bootstore /db
 
 

@@ -4,10 +4,8 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use alloy_primitives::B256;
-use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use enr::k256;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
@@ -18,7 +16,6 @@ use libp2p::identity::Keypair;
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
-    str::FromStr,
 };
 use tokio::time::Duration;
 
@@ -55,56 +52,74 @@ pub struct P2PArgs {
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after
     /// restarting, maintaining the previous advertised identity.
-    #[arg(long = "p2p.priv.path", env = "KONA_NODE_P2P_PRIV_PATH")]
+    #[arg(long = "p2p.priv-path", env = "KONA_NODE_P2P_PRIV_PATH", hide = true)]
     pub priv_path: Option<PathBuf>,
-    /// The hex-encoded 32-byte private key for the peer ID.
-    #[arg(long = "p2p.priv.raw", env = "KONA_NODE_P2P_PRIV_RAW")]
-    pub private_key: Option<B256>,
 
     /// IP address or DNS hostname to advertise to external peers from Discv5.
-    /// Optional argument. Use the `p2p.listen.ip` if not set.
+    /// Optional argument. Use the `p2p.listen.addr` if not set.
     /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
     /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
     ///
     /// Technical note: if this argument is set, the dynamic ENR updates from the discovery layer
     /// will be disabled. This is to allow the advertised IP to be static (to use in a network
     /// behind a NAT for instance).
-    #[arg(long = "p2p.advertise.ip", env = "KONA_NODE_P2P_ADVERTISE_IP", value_parser = resolve_host)]
+    #[arg(long = "p2p.advertise.addr", env = "KONA_NODE_P2P_ADVERTISE_ADDR", value_parser = resolve_host, hide = true)]
     pub advertise_ip: Option<IpAddr>,
-    /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
-    /// if set to zero.
-    #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP")]
+    /// TCP port to advertise to external peers from the discovery layer. Same as
+    /// `p2p.listen.tcp-port` if set to zero.
+    #[arg(long = "p2p.advertise.tcp-port", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT", hide = true)]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer.
-    /// Same as `p2p.listen.udp` if set to zero.
-    #[arg(long = "p2p.advertise.udp", env = "KONA_NODE_P2P_ADVERTISE_UDP")]
+    /// Same as `p2p.listen.udp-port` if set to zero.
+    #[arg(long = "p2p.advertise.udp-port", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT", hide = true)]
     pub advertise_udp_port: Option<u16>,
 
     /// IP address or DNS hostname to bind LibP2P/Discv5 to.
     /// Accepts either an IP address (e.g., "0.0.0.0") or a DNS hostname (e.g.,
     /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
-    #[arg(long = "p2p.listen.ip", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_IP", value_parser = resolve_host)]
+    #[arg(long = "p2p.listen.addr", default_value = "0.0.0.0", env = "KONA_NODE_P2P_LISTEN_ADDR", value_parser = resolve_host, hide = true)]
     pub listen_ip: IpAddr,
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
-    #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP")]
+    #[arg(
+        long = "p2p.listen.tcp-port",
+        default_value = "9222",
+        env = "KONA_NODE_P2P_LISTEN_TCP_PORT",
+        hide = true
+    )]
     pub listen_tcp_port: u16,
     /// UDP port to bind Discv5 to. Same as TCP port if left 0.
-    #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP")]
+    #[arg(
+        long = "p2p.listen.udp-port",
+        default_value = "9223",
+        env = "KONA_NODE_P2P_LISTEN_UDP_PORT",
+        hide = true
+    )]
     pub listen_udp_port: u16,
     /// Configure `GossipSub` topic stable mesh target count.
     /// Aka: The desired outbound degree (numbers of peers to gossip to).
-    #[arg(long = "p2p.gossip.mesh.d", default_value = "8", env = "KONA_NODE_P2P_GOSSIP_MESH_D")]
+    #[arg(
+        long = "p2p.gossip.mesh.d",
+        default_value = "8",
+        env = "KONA_NODE_P2P_GOSSIP_MESH_D",
+        hide = true
+    )]
     pub gossip_mesh_d: usize,
     /// Configure `GossipSub` topic stable mesh low watermark.
     /// Aka: The lower bound of outbound degree.
-    #[arg(long = "p2p.gossip.mesh.lo", default_value = "6", env = "KONA_NODE_P2P_GOSSIP_MESH_LO")]
+    #[arg(
+        long = "p2p.gossip.mesh.lo",
+        default_value = "6",
+        env = "KONA_NODE_P2P_GOSSIP_MESH_LO",
+        hide = true
+    )]
     pub gossip_mesh_dlo: usize,
     /// Configure `GossipSub` topic stable mesh high watermark.
     /// Aka: The upper bound of outbound degree (additional peers will not receive gossip).
     #[arg(
         long = "p2p.gossip.mesh.dhi",
         default_value = "12",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_DHI"
+        env = "KONA_NODE_P2P_GOSSIP_MESH_DHI",
+        hide = true
     )]
     pub gossip_mesh_dhi: usize,
     /// Configure `GossipSub` gossip target.
@@ -113,45 +128,73 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.gossip.mesh.dlazy",
         default_value = "6",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_DLAZY"
+        env = "KONA_NODE_P2P_GOSSIP_MESH_DLAZY",
+        hide = true
     )]
     pub gossip_mesh_dlazy: usize,
     /// Configure `GossipSub` to publish messages to all known peers on the topic, outside of the
     /// mesh. Also see Dlazy as less aggressive alternative.
     #[arg(
-        long = "p2p.gossip.mesh.floodpublish",
-        default_value = "false",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_FLOODPUBLISH"
+        id = "p2p_flood_publish_enabled",
+        long = "p2p.gossip.mesh.flood-publish.enabled",
+        env = "KONA_NODE_P2P_GOSSIP_MESH_FLOOD_PUBLISH_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true",
+        hide = true
     )]
     pub gossip_flood_publish: bool,
     /// Sets the peer scoring strategy for the P2P stack.
     /// Can be one of: none or light.
-    #[arg(long = "p2p.scoring", default_value = "light", env = "KONA_NODE_P2P_SCORING")]
+    #[arg(
+        long = "p2p.peer-scoring",
+        default_value = "light",
+        env = "KONA_NODE_P2P_PEER_SCORING",
+        hide = true
+    )]
     pub scoring: PeerScoreLevel,
 
     /// Allows to ban peers based on their score.
     ///
     /// Peers are banned based on a ban threshold (see `p2p.ban.threshold`).
     /// If a peer's score is below the threshold, it gets automatically banned.
-    #[arg(long = "p2p.ban.peers", default_value = "false", env = "KONA_NODE_P2P_BAN_PEERS")]
+    #[arg(
+        id = "p2p_ban_enabled",
+        long = "p2p.ban.enabled",
+        env = "KONA_NODE_P2P_BAN_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true",
+        hide = true
+    )]
     pub ban_enabled: bool,
 
     /// The threshold used to ban peers.
     ///
-    /// For peers to be banned, the `p2p.ban.peers` flag must be set to `true`.
+    /// For peers to be banned, the `p2p.ban.enabled` flag must be set.
     /// By default, peers are banned if their score is below -100. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L123-L130>`.
-    #[arg(long = "p2p.ban.threshold", default_value = "-100", env = "KONA_NODE_P2P_BAN_THRESHOLD")]
+    #[arg(
+        long = "p2p.ban.threshold",
+        default_value = "-100",
+        env = "KONA_NODE_P2P_BAN_THRESHOLD",
+        hide = true
+    )]
     pub ban_threshold: i64,
 
     /// How long to ban a peer for, such as `30m` or `1h`.
     ///
-    /// For peers to be banned, the `p2p.ban.peers` flag must be set to `true`.
+    /// For peers to be banned, the `p2p.ban.enabled` flag must be set.
     /// By default peers are banned for 1 hour. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L131-L138>`.
     #[arg(
         long = "p2p.ban.duration",
         default_value = "1h",
         env = "KONA_NODE_P2P_BAN_DURATION",
-        value_parser = humantime::parse_duration
+        value_parser = humantime::parse_duration,
+        hide = true
     )]
     pub ban_duration: Duration,
 
@@ -160,19 +203,25 @@ pub struct P2PArgs {
         long = "p2p.discovery.interval",
         default_value = "5s",
         env = "KONA_NODE_P2P_DISCOVERY_INTERVAL",
-        value_parser = humantime::parse_duration
+        value_parser = humantime::parse_duration,
+        hide = true
     )]
     pub discovery_interval: Duration,
     /// The directory to store the bootstore.
-    #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
+    #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE", hide = true)]
     pub bootstore: Option<PathBuf>,
     /// Disables the bootstore.
-    #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE")]
+    #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE", hide = true)]
     pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
     /// disconnects. By default, peers are *not* redialed. If set to 0, the peer will be
     /// redialed indefinitely.
-    #[arg(long = "p2p.redial", env = "KONA_NODE_P2P_REDIAL", default_value = "500")]
+    #[arg(
+        long = "p2p.redial.max-attempts",
+        env = "KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS",
+        default_value = "500",
+        hide = true
+    )]
     pub peer_redial: Option<u64>,
 
     /// The peer dial period, such as `1h`.
@@ -182,12 +231,18 @@ pub struct P2PArgs {
         long = "p2p.redial.period",
         env = "KONA_NODE_P2P_REDIAL_PERIOD",
         default_value = "1h",
-        value_parser = humantime::parse_duration
+        value_parser = humantime::parse_duration,
+        hide = true
     )]
     pub redial_period: Duration,
 
     /// An optional list of bootnode ENRs or node records to start the node with.
-    #[arg(long = "p2p.bootnodes", value_delimiter = ',', env = "KONA_NODE_P2P_BOOTNODES")]
+    #[arg(
+        long = "p2p.bootnodes",
+        value_delimiter = ',',
+        env = "KONA_NODE_P2P_BOOTNODES",
+        hide = true
+    )]
     pub bootnodes: Vec<String>,
 
     /// Optionally enable topic scoring.
@@ -201,9 +256,15 @@ pub struct P2PArgs {
     ///
     /// [out]: https://github.com/ethereum-optimism/optimism/pull/15719
     #[arg(
-        long = "p2p.topic-scoring",
-        default_value = "false",
-        env = "KONA_NODE_P2P_TOPIC_SCORING"
+        id = "p2p_topic_scoring_enabled",
+        long = "p2p.topic-scoring.enabled",
+        env = "KONA_NODE_P2P_TOPIC_SCORING_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true",
+        hide = true
     )]
     pub topic_scoring: bool,
 
@@ -216,7 +277,8 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.discovery.randomize",
         env = "KONA_NODE_P2P_DISCOVERY_RANDOMIZE",
-        value_parser = humantime::parse_duration
+        value_parser = humantime::parse_duration,
+        hide = true
     )]
     pub discovery_randomize: Option<Duration>,
 }
@@ -230,35 +292,6 @@ impl Default for P2PArgs {
 }
 
 impl P2PArgs {
-    /// Returns the private key as specified in the raw cli flag or via file path.
-    pub fn private_key(&self) -> Option<PrivateKeySigner> {
-        if let Some(key) = self.private_key {
-            match PrivateKeySigner::from_bytes(&key) {
-                Ok(signer) => return Some(signer),
-                Err(e) => {
-                    tracing::error!(target: "p2p::flags", "Failed to parse private key: {}", e);
-                    return None;
-                }
-            }
-        }
-
-        if let Some(path) = self.priv_path.as_ref() &&
-            path.exists()
-        {
-            let contents = std::fs::read_to_string(path).ok()?;
-            let decoded = B256::from_str(&contents).ok()?;
-            match PrivateKeySigner::from_bytes(&decoded) {
-                Ok(signer) => return Some(signer),
-                Err(e) => {
-                    tracing::error!(target: "p2p::flags", "Failed to parse private key from file: {}", e);
-                    return None;
-                }
-            }
-        }
-
-        None
-    }
-
     /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
     pub fn config(self, config: &RollupConfig) -> Result<NetworkConfig> {
         // Note: the advertised address is contained in the ENR for external peers from the
@@ -288,7 +321,7 @@ impl P2PArgs {
                 error = %e,
                 peer_id = %generated.public().to_peer_id(),
                 "Failed to load P2P keypair from configuration, generated ephemeral keypair. \
-                 Set --p2p.priv.path or --p2p.priv.raw for a persistent peer ID."
+                 Set --p2p.priv-path for a persistent peer ID."
             );
             generated
         });
@@ -365,28 +398,13 @@ impl P2PArgs {
         )
     }
 
-    /// Returns the [`Keypair`] from the cli inputs.
+    /// Returns the [`Keypair`] read from `--p2p.priv-path`, which is created with a new key if it
+    /// does not exist yet.
     ///
-    /// If the raw private key is empty and the specified file is empty,
-    /// this method will generate a new private key and write it out to the file.
-    ///
-    /// If neither a file is specified, nor a raw private key input, this method
-    /// will error.
+    /// Fails if no key file is given.
     pub fn keypair(&self) -> Result<Keypair> {
-        // Attempt the parse the private key if specified.
-        if let Some(mut private_key) = self.private_key {
-            let keypair = kona_cli::SecretKeyLoader::parse(&mut private_key.0)
-                .map_err(|e| anyhow::anyhow!(e))?;
-            tracing::info!(
-                target: "p2p::config",
-                peer_id = %keypair.public().to_peer_id(),
-                "Successfully loaded P2P keypair from raw private key"
-            );
-            return Ok(keypair);
-        }
-
         let Some(ref key_path) = self.priv_path else {
-            anyhow::bail!("Neither a raw private key nor a private key file path was provided.");
+            anyhow::bail!("No private key file path was provided.");
         };
 
         kona_cli::SecretKeyLoader::load(key_path).map_err(|e| anyhow::anyhow!(e))
@@ -399,6 +417,7 @@ mod tests {
     use alloy_primitives::b256;
     use clap::Parser;
     use kona_peers::NodeRecord;
+    use std::str::FromStr;
 
     /// A mock command that uses the `P2PArgs`.
     #[derive(Parser, Debug, Clone)]
@@ -416,16 +435,6 @@ mod tests {
     }
 
     #[test]
-    fn test_p2p_args_keypair_raw_private_key() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.priv.raw",
-            "1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be",
-        ]);
-        assert!(args.p2p.keypair().is_ok());
-    }
-
-    #[test]
     fn test_p2p_args_keypair_from_path() {
         // Create a temporary directory.
         let dir = std::env::temp_dir();
@@ -440,7 +449,7 @@ mod tests {
 
         // Parse the keypair from the file.
         let args =
-            MockCommand::parse_from(["test", "--p2p.priv.path", source_path.to_str().unwrap()]);
+            MockCommand::parse_from(["test", "--p2p.priv-path", source_path.to_str().unwrap()]);
         assert!(args.p2p.keypair().is_ok());
     }
 
@@ -481,37 +490,26 @@ mod tests {
 
     #[test]
     fn test_p2p_args_priv_path() {
-        let args = MockCommand::parse_from(["test", "--p2p.priv.path", "test.txt"]);
+        let args = MockCommand::parse_from(["test", "--p2p.priv-path", "test.txt"]);
         assert_eq!(args.p2p.priv_path, Some(PathBuf::from("test.txt")));
     }
 
     #[test]
-    fn test_p2p_args_private_key() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.priv.raw",
-            "1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be",
-        ]);
-        let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
-        assert_eq!(args.p2p.private_key, Some(key));
-    }
-
-    #[test]
     fn test_p2p_args_listen_ip() {
-        let args = MockCommand::parse_from(["test", "--p2p.listen.ip", "127.0.0.1"]);
+        let args = MockCommand::parse_from(["test", "--p2p.listen.addr", "127.0.0.1"]);
         let expected: IpAddr = "127.0.0.1".parse().unwrap();
         assert_eq!(args.p2p.listen_ip, expected);
     }
 
     #[test]
     fn test_p2p_args_listen_tcp_port() {
-        let args = MockCommand::parse_from(["test", "--p2p.listen.tcp", "1234"]);
+        let args = MockCommand::parse_from(["test", "--p2p.listen.tcp-port", "1234"]);
         assert_eq!(args.p2p.listen_tcp_port, 1234);
     }
 
     #[test]
     fn test_p2p_args_listen_udp_port() {
-        let args = MockCommand::parse_from(["test", "--p2p.listen.udp", "1234"]);
+        let args = MockCommand::parse_from(["test", "--p2p.listen.udp-port", "1234"]);
         assert_eq!(args.p2p.listen_udp_port, 1234);
     }
 
@@ -580,7 +578,7 @@ mod tests {
     fn test_p2p_args_listen_ip_dns_resolution() {
         // Test that DNS hostnames are resolved to IP addresses
         // Using localhost which should resolve reliably
-        let args = MockCommand::parse_from(["test", "--p2p.listen.ip", "localhost"]);
+        let args = MockCommand::parse_from(["test", "--p2p.listen.addr", "localhost"]);
         // localhost typically resolves to 127.0.0.1 or ::1
         assert!(
             args.p2p.listen_ip == "127.0.0.1".parse::<IpAddr>().unwrap() ||
@@ -591,7 +589,7 @@ mod tests {
     #[test]
     fn test_p2p_args_advertise_ip_dns_resolution() {
         // Test that DNS hostnames are resolved to IP addresses for advertise_ip
-        let args = MockCommand::parse_from(["test", "--p2p.advertise.ip", "localhost"]);
+        let args = MockCommand::parse_from(["test", "--p2p.advertise.addr", "localhost"]);
         // localhost typically resolves to 127.0.0.1 or ::1
         let ip = args.p2p.advertise_ip.unwrap();
         assert!(

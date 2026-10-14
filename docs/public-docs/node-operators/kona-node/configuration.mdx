@@ -72,31 +72,34 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 ## P2P Arguments
 
+<Warning>
+The P2P flags are experimental: `kona-node` accepts them, but leaves them out of `--help`, and they may change.
+</Warning>
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
-| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP` | TCP port to advertise | `0` |
-| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP` | UDP port to advertise | `0` |
-| `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
-| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP` | TCP port to bind LibP2P to | `9222` |
-| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP` | UDP port to bind Discv5 to | `9223` |
+| `--p2p.priv-path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
+| `--p2p.advertise.addr <IP>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP to advertise to external peers | - |
+| `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
+| `--p2p.advertise.udp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
+| `--p2p.listen.addr <IP>` | `KONA_NODE_P2P_LISTEN_ADDR` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
+| `--p2p.listen.tcp-port <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
+| `--p2p.listen.udp-port <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
 | `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
 | `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_LO` | GossipSub mesh low watermark | `6` |
 | `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
 | `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target | `6` |
-| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_MESH_FLOODPUBLISH` | Publish to all known peers | `false` |
-| `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
-| `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
+| `--p2p.gossip.mesh.flood-publish.enabled[=<BOOL>]` | `KONA_NODE_P2P_GOSSIP_MESH_FLOOD_PUBLISH_ENABLED` | Publish to all known peers | `false` |
+| `--p2p.peer-scoring <none or light>` | `KONA_NODE_P2P_PEER_SCORING` | Peer scoring strategy | `light` |
+| `--p2p.ban.enabled[=<BOOL>]` | `KONA_NODE_P2P_BAN_ENABLED` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
 | `--p2p.ban.duration <DURATION>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `1h` |
 | `--p2p.discovery.interval <DURATION>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5s` |
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
-| `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
+| `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `1h` |
 | `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
-| `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
+| `--p2p.topic-scoring.enabled[=<BOOL>]` | `KONA_NODE_P2P_TOPIC_SCORING_ENABLED` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
 
 ## RPC Arguments
