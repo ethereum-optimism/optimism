@@ -1,7 +1,11 @@
 //! The derivation actor, which derives payload attributes from L1.
 
 use super::{ActorError, Builder, DerivationStatus, Engine, L1, reset_engine};
-use crate::{Metrics, engine::Consolidation};
+use crate::{
+    Metrics,
+    engine::Consolidation,
+    l1::{Child, HandleError},
+};
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
     SignalReceiver, StepResult,
@@ -17,13 +21,19 @@ use tokio::{
 /// engine resets again first.
 const PIPELINE_RESET_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
+/// How long to wait before stepping the pipeline again after a temporary failure while L1 has
+/// blocks after the pipeline's origin.
+const STEP_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
 impl Builder {
     /// Supplies the dependencies of the derivation actor that derives payload attributes from L1,
     /// and produces its lifetime future without spawning it.
     ///
-    /// The status reports the pipeline's origin from now on. Derivation waits on `l1` for a new
-    /// head whenever the pipeline runs out of data. Runtime work begins when the future is polled.
-    /// Dropping the future stops the actor.
+    /// The status reports the pipeline's origin from now on. Whenever the pipeline fails
+    /// temporarily and L1 has no child of the pipeline's origin, derivation waits on `l1` for one,
+    /// and resets if the origin is reorged out instead. The pipeline should read L1 heights from
+    /// the same L1 actor, through an [`L1ChainProvider`](super::L1ChainProvider). Runtime work
+    /// begins when the future is polled. Dropping the future stops the actor.
     pub fn build<Engine_, PipelineSignalReceiver, L1_>(
         self,
         engine: Engine_,
@@ -129,14 +139,14 @@ enum Derived {
     ResetNeeded,
 }
 
-/// The derivation pipeline, the safe head it derives on, and the L1 head it waits for.
+/// The derivation pipeline, the safe head it derives on, and the L1 chain it waits on.
 #[derive(Debug)]
 struct Deriver<PipelineSignalReceiver, L1_> {
     /// The derivation pipeline.
     pipeline: PipelineSignalReceiver,
     /// The engine's safe head, which the next attributes extend.
     safe_head: L2BlockInfo,
-    /// The L1 chain, whose new heads wake derivation when the pipeline runs out of data.
+    /// The L1 chain, which wakes derivation once it extends the pipeline's origin.
     l1: L1_,
     /// Progress published to RPC readers.
     status: watch::Sender<DerivationStatus>,
@@ -158,7 +168,7 @@ where
     }
 
     /// Steps the pipeline on the safe head until it produces attributes or needs a reset, waiting
-    /// for the next L1 head whenever it runs out of data.
+    /// after each temporary failure until stepping again may succeed.
     ///
     /// Cancelling it can leave a step half done, so only a pipeline reset may follow. The pipeline
     /// queues the attributes a step prepares, which a reset does not clear, but they are taken
@@ -183,10 +193,11 @@ where
                     // NotEnoughData is transient, and doesn't imply we need to wait for more data.
                     // We can continue stepping until we receive an Eof.
                     PipelineErrorKind::Temporary(PipelineError::NotEnoughData) => continue,
-                    PipelineErrorKind::Temporary(_) => {
-                        info!(target: "derivation", "Yielding derivation until more data is available.");
-                        let head = self.l1.next_head().await.ok_or(ActorError::L1Stopped)?;
-                        info!(target: "derivation", l1_head = ?head, "Processing l1 head update");
+                    PipelineErrorKind::Temporary(err) => {
+                        debug!(target: "derivation", ?err, "Derivation stopped temporarily");
+                        if let Some(derived) = self.wait_to_retry().await? {
+                            return Ok(derived);
+                        }
                     }
                     PipelineErrorKind::Reset(ResetError::HoloceneActivation) => {
                         info!(target: "derivation", "Activating Holocene in the pipeline");
@@ -217,6 +228,41 @@ where
             // If there are any new attributes, send them to the execution actor.
             if let Some(attributes) = self.pipeline.next() {
                 return Ok(Derived::Attributes(attributes));
+            }
+        }
+    }
+
+    /// Waits, after a temporary failure, until stepping the pipeline again may succeed: until L1
+    /// extends the pipeline's origin if it has not, or else for an interval, since something other
+    /// than a lack of L1 data failed. Returns [`Derived::ResetNeeded`] if L1 reorged out the
+    /// origin instead.
+    async fn wait_to_retry(&self) -> Result<Option<Derived>, ActorError> {
+        let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
+        let child = match self.l1.try_child_of(origin).await {
+            Ok(None) => {
+                debug!(target: "derivation", ?origin, "Waiting for L1 to extend the pipeline's origin");
+                self.l1.child_of(origin).await
+            }
+            Ok(Some(child)) => {
+                if let Child::Block(_) = child {
+                    time::sleep(STEP_RETRY_INTERVAL).await;
+                }
+                Ok(child)
+            }
+            Err(err) => Err(err),
+        };
+        match child {
+            Ok(Child::Block(_)) => Ok(None),
+            Ok(Child::Reorged) => {
+                warn!(target: "derivation", ?origin, "L1 reorged out the pipeline's origin");
+                metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
+                Ok(Some(Derived::ResetNeeded))
+            }
+            Err(HandleError::Stopped) => Err(ActorError::L1Stopped),
+            Err(err) => {
+                warn!(target: "derivation", ?err, "Failed to read L1; retrying");
+                time::sleep(STEP_RETRY_INTERVAL).await;
+                Ok(None)
             }
         }
     }
@@ -259,6 +305,10 @@ mod tests {
         EngineClientError,
         derivation::engine::{Request, TestEngine},
         engine::{EngineState, HeadsUpdate},
+        l1::{
+            self,
+            test_utils::{TestChain, block as l1_block},
+        },
     };
     use alloy_primitives::B256;
     use async_trait::async_trait;
@@ -272,14 +322,17 @@ mod tests {
         sync::Arc,
     };
 
-    /// A pipeline stub that follows the L1 head, prepares attributes, runs out of data, reports a
-    /// reset, or hangs, and records the signals it receives and the safe heads it steps on.
+    /// A pipeline stub that advances its origin along L1, prepares attributes, runs out of data,
+    /// reports a reset or a temporary failure, or hangs, and records the signals it receives and
+    /// the safe heads it steps on.
     #[derive(Debug)]
     struct TestPipeline {
         rollup_config: Arc<RollupConfig>,
         origin: Option<BlockInfo>,
-        /// The L1 head the origin advances to, one step at a time.
-        l1_head: Option<watch::Receiver<BlockInfo>>,
+        /// The L1 chain the origin advances along, one block a step.
+        l1: Option<l1::Handle>,
+        /// Fails the next step temporarily.
+        temporary_failure: bool,
         /// Reports an L1 reorg on the next step.
         reorg: bool,
         /// Reports Holocene's activation on the next step.
@@ -301,7 +354,8 @@ mod tests {
             Self {
                 rollup_config: Arc::new(RollupConfig::default()),
                 origin: Some(BlockInfo::default()),
-                l1_head: None,
+                l1: None,
+                temporary_failure: false,
                 reorg: false,
                 holocene_activation: false,
                 hang: false,
@@ -363,16 +417,21 @@ mod tests {
             if std::mem::take(&mut self.hang) {
                 return future::pending().await;
             }
-            let l1_head = self.l1_head.as_ref().map(|head| *head.borrow());
-            if std::mem::take(&mut self.reorg) {
+            let next_origin = match (&self.l1, self.origin) {
+                (Some(l1), Some(origin)) => l1.canonical(origin.number + 1).await.unwrap(),
+                _ => None,
+            };
+            if std::mem::take(&mut self.temporary_failure) {
+                StepResult::StepFailed(PipelineError::Provider("unavailable".into()).temp())
+            } else if std::mem::take(&mut self.reorg) {
                 StepResult::StepFailed(PipelineErrorKind::Reset(ResetError::ReorgDetected(
                     B256::ZERO,
                     B256::repeat_byte(1),
                 )))
             } else if std::mem::take(&mut self.holocene_activation) {
                 StepResult::StepFailed(PipelineErrorKind::Reset(ResetError::HoloceneActivation))
-            } else if l1_head.is_some() && l1_head != self.origin {
-                self.origin = l1_head;
+            } else if next_origin.is_some() {
+                self.origin = next_origin;
                 StepResult::AdvancedOrigin
             } else if !self.prepared.is_empty() {
                 StepResult::PreparedAttributes
@@ -394,28 +453,32 @@ mod tests {
         }
     }
 
-    #[async_trait]
-    impl L1 for watch::Receiver<BlockInfo> {
-        async fn next_head(&mut self) -> Option<BlockInfo> {
-            self.changed().await.ok()?;
-            Some(*self.borrow_and_update())
-        }
-    }
+    type TestActor = Actor<TestEngine, TestPipeline, l1::Handle>;
 
-    type TestActor = Actor<TestEngine, TestPipeline, watch::Receiver<BlockInfo>>;
-
-    /// The L1 head publisher an actor reads from, and its status.
+    /// The L1 chain an actor follows, and its status.
     struct Publishers {
-        heads: watch::Sender<BlockInfo>,
+        l1: TestChain,
         status: watch::Receiver<DerivationStatus>,
     }
 
-    /// Creates an actor with the publishers it reads from.
+    /// Creates an actor with the publishers it reads from. L1 holds only the default block, the
+    /// origin of the test safe heads, so the pipeline has derived from all of L1.
     fn actor(engine: TestEngine, pipeline: TestPipeline) -> (TestActor, Publishers) {
-        let (heads, head_rx) = watch::channel(BlockInfo::default());
+        let l1 = TestChain::new(&[BlockInfo::default()]);
         let (status_tx, status) = watch::channel(DerivationStatus::default());
-        let actor = Actor { engine, deriver: Deriver::new(pipeline, head_rx, status_tx) };
-        (actor, Publishers { heads, status })
+        let actor = Actor { engine, deriver: Deriver::new(pipeline, l1.handle(), status_tx) };
+        (actor, Publishers { l1, status })
+    }
+
+    /// Returns L1 block `number` of the chain `fork`, whose parent is block `number - 1` of the
+    /// chain `parent_fork`, and block 0 the default block.
+    fn l1_child(number: u64, fork: u8, parent_fork: u8) -> BlockInfo {
+        let parent_hash = if number == 1 {
+            B256::ZERO
+        } else {
+            l1_block(number - 1, parent_fork, parent_fork).hash
+        };
+        BlockInfo { parent_hash, ..l1_block(number, fork, parent_fork) }
     }
 
     /// Runs the actor while `script` runs, and returns the actor's error if it stops first.
@@ -482,9 +545,9 @@ mod tests {
         let origin = BlockInfo { number: 5, ..Default::default() };
         let builder = Builder::new();
         let handle = builder.handle();
-        let (_heads, head) = watch::channel(BlockInfo::default());
+        let l1 = TestChain::new(&[BlockInfo::default()]);
         let pipeline = TestPipeline { origin: Some(origin), ..TestPipeline::new() };
-        let task = builder.build(TestEngine::new([]), pipeline, head);
+        let task = builder.build(TestEngine::new([]), pipeline, l1.handle());
         assert_eq!(handle.status().borrow().current_l1, Some(origin));
         drop(task);
     }
@@ -715,61 +778,113 @@ mod tests {
         assert_eq!(actor.deriver.pipeline.stepped_on.last(), Some(&derives_on));
     }
 
-    /// L1 heads wake derivation, which follows the latest head, including when it reorgs back.
-    /// Heads published while derivation is busy are coalesced.
+    /// Each block L1 adds wakes derivation, which advances its origin along L1.
     #[tokio::test(start_paused = true)]
-    async fn head_changes_wake_derivation_and_coalesce_reorgs() {
+    async fn blocks_l1_adds_wake_derivation() {
         let engine = TestEngine::new([Ok(engine_state(L2BlockInfo::default()))]);
         let (mut actor, publishers) = actor(engine, TestPipeline::new());
-        actor.deriver.pipeline.l1_head = Some(publishers.heads.subscribe());
+        actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
         let status = publishers.status.clone();
 
         let stopped = run_during(&mut actor, async {
             settle().await;
-            for (number, hash) in [(7, 1), (7, 2), (6, 3)] {
-                let block =
-                    BlockInfo { number, hash: B256::repeat_byte(hash), ..Default::default() };
-                publishers.heads.send_replace(block);
+            for number in 1..=3 {
+                publishers.l1.set_head(&[l1_child(number, 1, 1)]);
                 settle().await;
-                assert_eq!(status.borrow().current_l1, Some(block));
+                assert_eq!(status.borrow().current_l1, Some(l1_child(number, 1, 1)));
             }
-            publishers.heads.send_replace(BlockInfo { number: 8, ..Default::default() });
-            let latest = BlockInfo { number: 9, ..Default::default() };
-            publishers.heads.send_replace(latest);
+            // Blocks added together are derived from in turn.
+            publishers.l1.set_head(&[l1_child(4, 1, 1), l1_child(5, 1, 1)]);
             settle().await;
-            assert_eq!(status.borrow().current_l1, Some(latest));
+            assert_eq!(status.borrow().current_l1, Some(l1_child(5, 1, 1)));
         })
         .await;
 
         assert!(stopped.is_none());
-        assert!(!actor.deriver.l1.has_changed().unwrap());
+        assert!(actor.deriver.pipeline.out_of_data);
     }
 
-    /// An L1 head that arrives while deriving makes derivation step the pipeline again once it
-    /// runs out of data.
+    /// A block L1 adds while derivation is busy makes derivation step the pipeline again once it
+    /// has derived from all of L1.
     #[tokio::test(start_paused = true)]
-    async fn head_during_derivation_resumes_it_afterwards() {
+    async fn a_block_added_during_derivation_resumes_it_afterwards() {
         let engine = TestEngine::new([Ok(engine_state(L2BlockInfo::default()))]);
         let (mut actor, publishers) =
             actor(engine.clone(), TestPipeline::preparing([attributes(L2BlockInfo::default())]));
-        let heads = publishers.heads.clone();
+        actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
+        let l1 = publishers.l1.clone();
         engine.on_consolidation(move |_| {
-            heads.send_replace(BlockInfo { number: 1, ..Default::default() });
+            l1.set_head(&[l1_child(1, 1, 1)]);
             consolidated(engine_state(block(1)))
         });
 
         run_until_out_of_data(&mut actor).await;
 
-        // The step that prepared the attributes, the one that ran out of data, and one more after
-        // the head.
+        assert_eq!(actor.deriver.pipeline.origin, Some(l1_child(1, 1, 1)));
+    }
+
+    /// L1 reorging out the pipeline's origin, while derivation waits on it, resets the engine.
+    #[tokio::test(start_paused = true)]
+    async fn a_reorged_origin_resets_the_engine() {
+        let engine =
+            TestEngine::new([Ok(engine_state(L2BlockInfo::default())), Ok(engine_state(block(2)))]);
+        let (mut actor, publishers) = actor(engine.clone(), TestPipeline::new());
+        actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
+
+        let stopped = run_during(&mut actor, async {
+            publishers.l1.set_head(&[l1_child(1, 1, 1)]);
+            settle().await;
+            assert_eq!(engine.requests(), [Request::Reset]);
+            publishers.l1.set_head(&[l1_child(1, 2, 2), l1_child(2, 2, 2)]);
+            settle().await;
+        })
+        .await;
+
+        assert!(stopped.is_none());
+        assert_eq!(engine.requests(), [Request::Reset, Request::Reset]);
+        assert_eq!(
+            actor.deriver.pipeline.signals,
+            [reset(L2BlockInfo::default()), reset(block(2))]
+        );
+    }
+
+    /// A temporary failure while L1 has blocks after the pipeline's origin is retried after an
+    /// interval.
+    #[tokio::test(start_paused = true)]
+    async fn a_temporary_failure_with_l1_data_left_is_retried() {
+        let engine = TestEngine::new([Ok(engine_state(L2BlockInfo::default()))]);
+        let pipeline = TestPipeline { temporary_failure: true, ..TestPipeline::new() };
+        let (mut actor, publishers) = actor(engine, pipeline);
+        publishers.l1.set_head(&[l1_child(1, 1, 1)]);
+        actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
+
+        run_until_out_of_data(&mut actor).await;
+
+        // The step that failed, the one after the interval, and the one that ran out of data.
         assert_eq!(actor.deriver.pipeline.stepped_on.len(), 3);
+        assert_eq!(actor.deriver.pipeline.origin, Some(l1_child(1, 1, 1)));
+    }
+
+    /// A temporary failure while L1 has no block after the pipeline's origin waits for one.
+    #[tokio::test(start_paused = true)]
+    async fn a_temporary_failure_without_l1_data_left_waits_for_l1() {
+        let engine = TestEngine::new([Ok(engine_state(L2BlockInfo::default()))]);
+        let pipeline = TestPipeline { temporary_failure: true, ..TestPipeline::new() };
+        let (mut actor, publishers) = actor(engine, pipeline);
+        actor.deriver.pipeline.l1 = Some(publishers.l1.handle());
+
+        let stopped = run_during(&mut actor, time::sleep(STEP_RETRY_INTERVAL * 10)).await;
+
+        assert!(stopped.is_none());
+        // Only the step that failed: L1 never extended the origin.
+        assert_eq!(actor.deriver.pipeline.stepped_on.len(), 1);
     }
 
     #[tokio::test(start_paused = true)]
-    async fn closed_head_publisher_is_fatal() {
+    async fn a_stopped_l1_actor_is_fatal() {
         let engine = TestEngine::new([Ok(engine_state(L2BlockInfo::default()))]);
         let (mut actor, publishers) = actor(engine, TestPipeline::new());
-        drop(publishers.heads);
+        drop(publishers.l1);
 
         assert!(matches!(actor.run().await, Err(ActorError::L1Stopped)));
     }

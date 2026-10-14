@@ -24,6 +24,7 @@ kona-protocol.workspace = true
 kona-peers.workspace = true
 
 # alloy
+alloy-consensus.workspace = true
 alloy-signer.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-client.workspace = true

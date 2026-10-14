@@ -143,23 +143,12 @@ impl L1 {
     pub(super) fn new(handle: l1::Handle) -> Self {
         Self { handle, head: BlockInfo::default(), finalized: BlockInfo::default() }
     }
-
-    async fn next_head(&mut self) -> Option<BlockInfo> {
-        self.head = self.handle.next_head(self.head).await.ok()?;
-        Some(self.head)
-    }
-}
-
-#[async_trait]
-impl derivation::L1 for L1 {
-    async fn next_head(&mut self) -> Option<BlockInfo> {
-        Self::next_head(self).await
-    }
 }
 
 impl l1_signer_updater::L1 for L1 {
     async fn next_head(&mut self) -> Option<BlockInfo> {
-        Self::next_head(self).await
+        self.head = self.handle.next_head(self.head).await.ok()?;
+        Some(self.head)
     }
 }
 

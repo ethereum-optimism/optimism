@@ -33,7 +33,7 @@ pub(super) fn chain_of(blocks: &[BlockInfo]) -> Chain {
 }
 
 /// An L1 chain that a test moves, in place of the L1 actor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct TestChain(watch::Sender<Chain>);
 
 impl TestChain {

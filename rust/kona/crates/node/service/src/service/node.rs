@@ -137,10 +137,16 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
+    /// Creates the derivation pipeline, which reads L1 heights from the L1 actor's `l1` handle.
+    async fn create_pipeline(
+        &self,
+        l1: l1::Handle,
+    ) -> Result<OnlinePipeline<derivation::L1ChainProvider>, BlobProviderError> {
         // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider =
-            AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE);
+        let l1_derivation_provider = derivation::L1ChainProvider::new(
+            l1,
+            AlloyChainProvider::new(self.clients.l1.clone(), DERIVATION_PROVIDER_CACHE_SIZE),
+        );
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new(
@@ -191,14 +197,10 @@ impl RollupNode {
             )))
         } else {
             let pipeline = self
-                .create_pipeline()
+                .create_pipeline(l1.clone())
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
-            Ok(Box::pin(builder.build(
-                adapters::Engine::new(engine),
-                pipeline,
-                adapters::L1::new(l1),
-            )))
+            Ok(Box::pin(builder.build(adapters::Engine::new(engine), pipeline, l1)))
         }
     }
 

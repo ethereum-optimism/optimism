@@ -20,6 +20,9 @@ pub use engine::Engine;
 mod l1;
 pub use l1::L1;
 
+mod chain_provider;
+pub use chain_provider::{L1ChainProvider, L1ChainProviderError};
+
 mod error;
 pub use error::ActorError;
 
