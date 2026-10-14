@@ -40,7 +40,6 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
 	t.Logf("Transaction 1 included in block: %d", bigs.Uint64Strict(receipt1.BlockNumber))
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(receipt1.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt1.BlockNumber), dsl.ProofAccount{Address: accounts[0].Address()})
 	sys.L2ELSequencerNode().WaitForBlockNumber(currentBlock.Number + 1)
 
@@ -55,7 +54,6 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt2.Status)
 	t.Logf("Transaction 2 included in block: %d", bigs.Uint64Strict(receipt2.BlockNumber))
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(receipt2.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt2.BlockNumber), dsl.ProofAccount{Address: accounts[1].Address()})
 
 	// Also verify we can get proofs for account 0 at block 2 (different block height)
@@ -100,7 +98,6 @@ func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
 	receipt1Block := bigs.Uint64Strict(receipt1.BlockNumber)
 	t.Logf("Transaction 1 included in block %d", receipt1Block)
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(max(receipt0Block, receipt1Block), dsl.DefaultProofsCatchUpTimeout)
 	// Txns can land in the same or different blocks depending on timing.
 	if receipt0Block == receipt1Block {
 		t.Logf("Both transactions included in the same L2 block: %d", receipt0Block)

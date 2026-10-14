@@ -20,6 +20,8 @@ const (
 	// referenceEthProofWindow lets the reference node answer eth_getProof for every block of the
 	// run from reth's own historical state; reth's default window of zero rejects them all.
 	referenceEthProofWindow = 1_000_000
+	// memoryBlockBufferTarget is reth's --engine.memory-block-buffer-target default.
+	memoryBlockBufferTarget = 5
 	workloadRounds          = 4
 )
 
@@ -49,6 +51,13 @@ func (c proofsHistoryCase) opRethArgs() []string {
 	return args
 }
 
+// blocksBeforeLastRound is a chain height by which reth has persisted at least once under the
+// case's threshold: persistence starts once more than the threshold of blocks sit in memory and
+// keeps the buffer target in memory afterwards.
+func (c proofsHistoryCase) blocksBeforeLastRound() uint64 {
+	return c.persistenceThreshold + 2*memoryBlockBufferTarget
+}
+
 func proofsHistoryMatrix() []proofsHistoryCase {
 	var cases []proofsHistoryCase
 	for _, persistenceThreshold := range []uint64{7, 50} {
@@ -66,6 +75,7 @@ func proofsHistoryMatrix() []proofsHistoryCase {
 }
 
 type proofsHistorySystem struct {
+	Bridge         *dsl.StandardBridge
 	FunderL2       *dsl.FunderEOA
 	ProofsFollower *dsl.L2ELNode
 	Reference      *dsl.L2ELNode
@@ -112,6 +122,7 @@ func newProofsHistorySystem(t devtest.T, c proofsHistoryCase) *proofsHistorySyst
 	t.Require().NotNil(follower, "missing the proofs follower")
 
 	return &proofsHistorySystem{
+		Bridge:         dsl.NewStandardBridge(t, frontends.L2Network, frontends.L1EL),
 		FunderL2:       frontends.FunderL2,
 		ProofsFollower: follower,
 		Reference:      frontends.L2Network.PrimaryEL(),
@@ -139,17 +150,17 @@ func includedBlock(t devtest.T, tx *txplan.PlannedTx) uint64 {
 	return bigs.Uint64Strict(receipt.BlockNumber)
 }
 
-// TestProofsHistoryFollowerServesMatchingHistoricalProofs runs transfers and contract writes
-// against a sequencer that serves eth_getProof from its own historical state, then sweeps every
-// block of a proofs-history follower's window: each of the follower's proofs must verify against
-// the block header and equal the sequencer's.
+// TestProofsHistoryFollowerServesMatchingHistoricalProofs runs transfers, withdrawals and contract
+// writes against a sequencer that serves eth_getProof from its own historical state, then sweeps a
+// proofs-history follower from its window's first block to the last workload block: each of the
+// follower's proofs must verify against the block header and equal the sequencer's.
 func TestProofsHistoryFollowerServesMatchingHistoricalProofs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	for _, c := range proofsHistoryMatrix() {
 		t.Run(c.name(), func(t devtest.T) {
 			t.Parallel()
 			if c.stateMaskingBlocks != 0 {
-				t.Skipf("state masking is compiled out of reth 2.5.2 on develop and #23046 rejects a nonzero --engine.num-state-masking-blocks; re-enable with ethereum-optimism/protocol-team#457")
+				t.Skip("state masking is compiled out of reth 2.5.2 on develop and #23046 rejects a nonzero --engine.num-state-masking-blocks; re-enable with ethereum-optimism/protocol-team#457")
 			}
 			sys := newProofsHistorySystem(t, c)
 
@@ -157,9 +168,16 @@ func TestProofsHistoryFollowerServesMatchingHistoricalProofs(gt *testing.T) {
 			bob := sys.FunderL2.NewFundedEOA(eth.OneEther)
 			recorder := deployBlockRecorder(t, alice)
 			var lastWorkloadBlock uint64
-			for range workloadRounds {
+			for round := range workloadRounds {
+				if round == workloadRounds-1 {
+					// The last round lands after reth has persisted at least once, so the sweep spans
+					// blocks that left reth's memory and blocks that have not.
+					target := c.blocksBeforeLastRound()
+					sys.ProofsFollower.Reached(eth.Unsafe, target, int(target)+30)
+				}
 				alice.Transfer(bob.Address(), eth.OneHundredthEther)
 				bob.Transfer(alice.Address(), eth.OneHundredthEther)
+				sys.Bridge.InitiateWithdrawal(eth.OneHundredthEther, bob)
 				lastWorkloadBlock = includedBlock(t, alice.Transact(alice.Plan(), txplan.WithTo(&recorder)))
 			}
 

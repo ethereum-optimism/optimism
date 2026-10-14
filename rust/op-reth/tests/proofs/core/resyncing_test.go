@@ -61,8 +61,6 @@ func TestResyncing(gt *testing.T) {
 	})
 	require.NoError(gt, err, "Validator L2 CL failed to resync to latest block")
 
-	sys.L2ELValidatorNode().WaitForProofsStoreBlock(blockNumbers[len(blockNumbers)-1], dsl.DefaultProofsCatchUpTimeout)
-
 	t.Logf("Fetching and verifying proofs for transactions produced while node was down")
 	// verify the proofs for the transactions produced while the node was down
 	for _, blockNumber := range blockNumbers {

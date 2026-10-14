@@ -170,7 +170,6 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	}
 
 	latestBlock := sys.L2Chain.WaitForBlock()
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(latestBlock.Number, dsl.DefaultProofsCatchUpTimeout)
 
 	// verify that the L2A validator has reorged and reached the latest block. Bounded so a
 	// validator that never converges fails here instead of consuming the package timeout.

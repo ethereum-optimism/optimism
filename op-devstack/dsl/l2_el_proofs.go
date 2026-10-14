@@ -3,6 +3,7 @@ package dsl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/rlp"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -55,11 +57,13 @@ type HistoricalProofsOpts struct {
 	// sampled block before the sweep fails.
 	CatchUpTimeout time.Duration
 	// FirstBlock and LastBlock bound the sweep. Zero selects the matching edge of the proofs
-	// window reported by debug_proofsSyncStatus when the sweep starts.
+	// window reported by debug_proofsSyncStatus when the sweep starts. A block the store prunes
+	// while the sweep runs is skipped when FirstBlock is zero and fails the sweep otherwise.
 	FirstBlock uint64
 	LastBlock  uint64
 	// MaxSampledBlocks bounds how many blocks of the range are compared; zero compares every
-	// block. The first and last block of the range are always compared.
+	// block. The first and last block of the range are always compared, so at least two blocks
+	// of a multi-block range are.
 	MaxSampledBlocks int
 }
 
@@ -91,7 +95,7 @@ func (el *L2ELNode) WaitForProofsStoreBlock(target uint64, timeout time.Duration
 			return false, nil
 		}
 		lastStatus, lastErr = status, nil
-		if status.Latest != nil && *status.Latest >= target {
+		if status.Earliest != nil && status.Latest != nil && *status.Latest >= target {
 			logger.Info("Proofs store indexed block", "window", status)
 			return true, nil
 		}
@@ -106,8 +110,7 @@ func (el *L2ELNode) WaitForProofsStoreBlock(target uint64, timeout time.Duration
 // VerifyHistoricalProofsMatch sweeps the blocks this node's proofs-history store serves and, at
 // every sampled block, requires eth_getProof for each configured account to verify against the
 // block's state root and to equal the proof served by reference. The L2ToL1MessagePasser proof is
-// always included, and its storage root must equal the header's withdrawalsRoot where the header
-// carries one.
+// always included, and from Isthmus on its storage root must equal the header's withdrawalsRoot.
 //
 // reference must answer eth_getProof from its own historical state rather than from a
 // proofs-history store, since two stores can agree on a wrong proof.
@@ -134,23 +137,31 @@ func (el *L2ELNode) VerifyHistoricalProofsMatch(reference *L2ELNode, opts ...fun
 
 	logger.Info("Sweeping historical proofs", "window", window, "first", first, "last", last,
 		"blocks", len(blocks), "accounts", len(accounts))
+	pruned := 0
 	for _, block := range blocks {
-		el.verifyProofsMatchAt(reference, block, accounts, cfg.CatchUpTimeout)
+		window, err := el.ProofsSyncStatus()
+		el.require.NoErrorf(err, "debug_proofsSyncStatus failed on %s", el.inner.Name())
+		if cfg.FirstBlock == 0 && window.Earliest != nil && block < *window.Earliest {
+			logger.Info("Block left the proofs window during the sweep; skipping", "block", block, "window", window)
+			pruned++
+			continue
+		}
+		el.verifyProofsMatchAt(reference, block, window, accounts, cfg.CatchUpTimeout)
 	}
 	logger.Info("Historical proofs match the reference", "first", first, "last", last,
-		"blocks", len(blocks), "accounts", len(accounts))
+		"blocks", len(blocks)-pruned, "pruned_during_sweep", pruned, "accounts", len(accounts))
 }
 
-// VerifyProofsMatchAt is VerifyHistoricalProofsMatch for one block and an explicit account list,
-// waiting up to DefaultProofsCatchUpTimeout for the proofs store to serve the block.
+// VerifyProofsMatchAt verifies the proofs of the given accounts at one block the same way
+// VerifyHistoricalProofsMatch does, after waiting up to DefaultProofsCatchUpTimeout for the proofs
+// store to serve the block. Only the listed accounts are proven, and reference is not checked for
+// independence.
 func (el *L2ELNode) VerifyProofsMatchAt(reference *L2ELNode, block uint64, accounts ...ProofAccount) {
-	el.WaitForProofsStoreBlock(block, DefaultProofsCatchUpTimeout)
-	el.verifyProofsMatchAt(reference, block, accounts, DefaultProofsCatchUpTimeout)
+	window := el.WaitForProofsStoreBlock(block, DefaultProofsCatchUpTimeout)
+	el.verifyProofsMatchAt(reference, block, window, accounts, DefaultProofsCatchUpTimeout)
 }
 
-func (el *L2ELNode) verifyProofsMatchAt(reference *L2ELNode, block uint64, accounts []ProofAccount, catchUpTimeout time.Duration) {
-	window, err := el.ProofsSyncStatus()
-	el.require.NoErrorf(err, "debug_proofsSyncStatus failed on %s", el.inner.Name())
+func (el *L2ELNode) verifyProofsMatchAt(reference *L2ELNode, block uint64, window ProofsSyncStatus, accounts []ProofAccount, catchUpTimeout time.Duration) {
 	el.require.Truef(window.serves(block), "proofs store on %s does not serve block %d: window %s", el.inner.Name(), block, window)
 
 	header := el.awaitHeaderByNumber(block, catchUpTimeout)
@@ -180,7 +191,9 @@ func (el *L2ELNode) verifyAccountProofMatchesAt(reference *L2ELNode, header eth.
 	el.require.Equalf(referenceProof, proof, "block %d account %s: eth_getProof from %s differs from reference %s",
 		block, account.Address, el.inner.Name(), reference.inner.Name())
 
-	if account.Address == predeploys.L2ToL1MessagePasserAddr && header.WithdrawalsRoot() != nil {
+	// Isthmus made withdrawalsRoot the message passer's storage root. Before that the header
+	// carries the hash of an empty withdrawals list, which says nothing about the message passer.
+	if account.Address == predeploys.L2ToL1MessagePasserAddr && header.WithdrawalsRoot() != nil && *header.WithdrawalsRoot() != types.EmptyWithdrawalsHash {
 		el.require.Equalf(*header.WithdrawalsRoot(), proof.StorageHash,
 			"block %d: L2ToL1MessagePasser storage root from %s does not equal the header's withdrawalsRoot", block, el.inner.Name())
 	}
@@ -188,16 +201,14 @@ func (el *L2ELNode) verifyAccountProofMatchesAt(reference *L2ELNode, header eth.
 		"account", account.Address, "storage_keys", len(account.StorageKeys))
 }
 
-// requireIndependentProofReference fails when reference serves eth_getProof from a proofs-history
-// store, which every node that exposes a proofs window does.
+// requireIndependentProofReference fails unless reference lacks debug_proofsSyncStatus, which
+// op-reth registers only on a proofs-history node and op-geth never does.
 func (el *L2ELNode) requireIndependentProofReference(reference *L2ELNode) {
 	status, err := reference.ProofsSyncStatus()
-	if err != nil {
-		el.log.Debug("Reference node has no proofs-history store", "reference", reference.inner.Name(), "err", err)
-		return
-	}
-	el.require.Nilf(status.Latest, "reference %s runs proofs history (window %s); the sweep needs a reference that serves eth_getProof from its own historical state",
-		reference.inner.Name(), status)
+	var rpcErr gethrpc.Error
+	el.require.Truef(errors.As(err, &rpcErr) && rpcErr.ErrorCode() == int(eth.MethodNotFound),
+		"reference %s must serve eth_getProof from its own historical state, not a proofs-history store; debug_proofsSyncStatus returned window %s, err: %v",
+		reference.inner.Name(), status, err)
 }
 
 func (el *L2ELNode) awaitHeaderByNumber(number uint64, timeout time.Duration) eth.BlockInfo {
@@ -247,8 +258,9 @@ func (el *L2ELNode) awaitProof(header eth.BlockInfo, account ProofAccount, timeo
 	return proof
 }
 
-// sampleBlockNumbers returns at most maxSamples evenly spaced block numbers in [first, last],
-// always including both edges. A non-positive maxSamples returns every block.
+// sampleBlockNumbers returns evenly spaced block numbers in [first, last], always including both
+// edges: every block when maxSamples is non-positive or covers the range, otherwise
+// max(maxSamples, 2) of them.
 func sampleBlockNumbers(first, last uint64, maxSamples int) []uint64 {
 	count := last - first + 1
 	if maxSamples <= 0 || uint64(maxSamples) >= count {
@@ -271,14 +283,12 @@ func sampleBlockNumbers(first, last uint64, maxSamples int) []uint64 {
 // NormalizeProofResponse rewrites an eth_getProof response into one canonical encoding so proofs
 // from different clients compare equal: an empty storage proof, which reth encodes as ["0x80"],
 // becomes empty; a zero code hash becomes keccak256("") and a zero storage hash becomes the empty
-// trie root, which is how reth encodes both; storage keys are left-padded to 32 bytes; and an
-// absent storage proof list becomes nil.
+// trie root, which is how reth encodes both; and an empty storage proof list becomes nil.
 func NormalizeProofResponse(res *eth.AccountResult) {
 	for i := range res.StorageProof {
 		if len(res.StorageProof[i].Proof) == 1 && bytes.Equal(res.StorageProof[i].Proof[0], []byte{0x80}) {
 			res.StorageProof[i].Proof = []hexutil.Bytes{}
 		}
-		res.StorageProof[i].Key = common.BytesToHash(res.StorageProof[i].Key).Bytes()
 	}
 	if len(res.StorageProof) == 0 {
 		res.StorageProof = nil
@@ -295,7 +305,13 @@ func NormalizeProofResponse(res *eth.AccountResult) {
 // eth.AccountResult.Verify it accepts an empty storage trie, whose proofs carry no nodes, and a
 // non-existence proof for an account the response reports as empty.
 func VerifyAccountProof(res *eth.AccountResult, stateRoot common.Hash) error {
-	if res.StorageHash != types.EmptyRootHash {
+	if res.StorageHash == types.EmptyRootHash {
+		for i, entry := range res.StorageProof {
+			if entry.Value.ToInt().Sign() != 0 {
+				return fmt.Errorf("storage value %d at key %s is nonzero but the storage trie is empty", i, entry.Key.String())
+			}
+		}
+	} else {
 		for i, entry := range res.StorageProof {
 			db := memorydb.New()
 			for j, encodedNode := range entry.Proof {

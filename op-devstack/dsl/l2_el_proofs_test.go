@@ -124,6 +124,15 @@ func TestVerifyAccountProof(t *testing.T) {
 		{name: "account without storage verifies", proof: func() *eth.AccountResult { return proofOf(t, stateTrie, bob) }, root: stateRoot},
 		{name: "absent account reported empty verifies", proof: func() *eth.AccountResult { return proofOf(t, stateTrie, nobody) }, root: stateRoot},
 		{
+			name: "zero slot of an empty storage trie verifies",
+			proof: func() *eth.AccountResult {
+				proof := proofOf(t, stateTrie, bob)
+				proof.StorageProof = []eth.StorageProofEntry{{Key: common.HexToHash("0x0").Bytes(), Proof: []hexutil.Bytes{}}}
+				return proof
+			},
+			root: stateRoot,
+		},
+		{
 			name: "tampered balance fails",
 			proof: func() *eth.AccountResult {
 				proof := proofOf(t, stateTrie, alice)
@@ -142,6 +151,16 @@ func TestVerifyAccountProof(t *testing.T) {
 			},
 			root:    stateRoot,
 			wantErr: "does not match proven value",
+		},
+		{
+			name: "nonzero slot of an empty storage trie fails",
+			proof: func() *eth.AccountResult {
+				proof := proofOf(t, stateTrie, bob)
+				proof.StorageProof = []eth.StorageProofEntry{{Key: common.HexToHash("0x0").Bytes(), Value: (hexutil.Big)(*big.NewInt(42)), Proof: []hexutil.Bytes{}}}
+				return proof
+			},
+			root:    stateRoot,
+			wantErr: "is nonzero but the storage trie is empty",
 		},
 		{
 			name: "absent account claiming a balance fails",
@@ -174,7 +193,7 @@ func TestVerifyAccountProof(t *testing.T) {
 func TestNormalizeProofResponse(t *testing.T) {
 	emptyCodeHash := crypto.Keccak256Hash(nil)
 	someHash := common.HexToHash("0xabc")
-	paddedKey := common.HexToHash("0x1").Bytes()
+	key := common.HexToHash("0x1").Bytes()
 
 	for _, tc := range []struct {
 		name string
@@ -183,13 +202,8 @@ func TestNormalizeProofResponse(t *testing.T) {
 	}{
 		{
 			name: "reth empty storage proof becomes empty",
-			in:   eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: paddedKey, Proof: []hexutil.Bytes{{0x80}}}}},
-			want: eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: paddedKey, Proof: []hexutil.Bytes{}}}},
-		},
-		{
-			name: "short storage key is padded to 32 bytes",
-			in:   eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: []byte{0x1}, Proof: []hexutil.Bytes{}}}},
-			want: eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: paddedKey, Proof: []hexutil.Bytes{}}}},
+			in:   eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: key, Proof: []hexutil.Bytes{{0x80}}}}},
+			want: eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: key, Proof: []hexutil.Bytes{}}}},
 		},
 		{
 			name: "zero code hash becomes the empty code hash",
@@ -208,14 +222,36 @@ func TestNormalizeProofResponse(t *testing.T) {
 		},
 		{
 			name: "non-empty values are kept",
-			in:   eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: paddedKey, Proof: []hexutil.Bytes{{0x80}, {0x81}}}}},
-			want: eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: paddedKey, Proof: []hexutil.Bytes{{0x80}, {0x81}}}}},
+			in:   eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: key, Proof: []hexutil.Bytes{{0x80}, {0x81}}}}},
+			want: eth.AccountResult{CodeHash: someHash, StorageHash: someHash, StorageProof: []eth.StorageProofEntry{{Key: key, Proof: []hexutil.Bytes{{0x80}, {0x81}}}}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.in
 			NormalizeProofResponse(&got)
 			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestProofsSyncStatusServes(t *testing.T) {
+	window := func(earliest, latest uint64) ProofsSyncStatus {
+		return ProofsSyncStatus{Earliest: &earliest, Latest: &latest}
+	}
+	for _, tc := range []struct {
+		name   string
+		status ProofsSyncStatus
+		block  uint64
+		want   bool
+	}{
+		{name: "uninitialized store serves nothing", status: ProofsSyncStatus{}, block: 0, want: false},
+		{name: "earliest edge is served", status: window(5, 9), block: 5, want: true},
+		{name: "latest edge is served", status: window(5, 9), block: 9, want: true},
+		{name: "block below earliest is not served", status: window(5, 9), block: 4, want: false},
+		{name: "block above latest is not served", status: window(5, 9), block: 10, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, tc.status.serves(tc.block))
 		})
 	}
 }

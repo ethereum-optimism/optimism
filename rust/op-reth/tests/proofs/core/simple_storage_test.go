@@ -22,7 +22,6 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	contract, receipt := utils.DeploySimpleStorage(t, user)
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(receipt.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// fetch and verify initial proof (should be zeroed storage)
 	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt.BlockNumber), dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{common.HexToHash("0x0")}})
 
@@ -50,7 +49,6 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValue transaction included in L2 block %d", callRes.BlockNumber)
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(callRes.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// for each case, get proof and verify
 	for _, c := range cases {
 		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), c.Block, dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{common.HexToHash("0x0")}})
@@ -71,7 +69,6 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	contract, receipt := utils.DeployMultiStorage(t, user)
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(receipt.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// fetch and verify initial proof (should be zeroed storage)
 	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt.BlockNumber), dsl.ProofAccount{Address: contract.Address(), StorageKeys: []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}})
 
@@ -108,7 +105,6 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValues transaction included in L2 block %d", callRes.BlockNumber)
 
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(bigs.Uint64Strict(callRes.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	// for each case, get proof and verify
 	for _, c := range cases {
 		var slots []common.Hash
@@ -151,8 +147,6 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	deactRes := contract.DeactivateAllowance(alice, spenderAddr)
 	deactBlock := bigs.Uint64Strict(deactRes.BlockNumber)
 	t.Logf("deactivateAllowance included in block %d", deactBlock)
-
-	sys.RethWithProofL2ELNode().WaitForProofsStoreBlock(deactBlock, dsl.DefaultProofsCatchUpTimeout)
 
 	// balance slot for user
 	balanceSlot := contract.GetBalanceSlot(userAddr)

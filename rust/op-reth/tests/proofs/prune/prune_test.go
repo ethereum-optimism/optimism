@@ -65,9 +65,6 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	}
 	t.Logf("Target block for proof validation (pre-prune): %d", targetBlock)
 
-	// Make sure the proof store has indexed the target block before verifying.
-	opRethELNode.WaitForProofsStoreBlock(targetBlock, dsl.DefaultProofsCatchUpTimeout)
-
 	// Pre-prune proof verification at targetBlock.
 	// This verifies the proof against the block's state root (efficient correctness check).
 	t.Logf("Pre-prune: verifying getProof proofs at block %d", targetBlock)
