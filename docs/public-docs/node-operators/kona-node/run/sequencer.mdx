@@ -21,6 +21,8 @@ To run a Kona node that can sequence, pass `--sequencer.enabled`, `--rpc.enabled
 ```bash
 kona-node node \
   --logs.enabled \
+  --p2p.enabled \
+  --p2p.discovery.enabled \
   --sequencer.enabled \
   --rpc.enabled \
   --l1.eth-url=http://l1-node:8545 \
@@ -75,6 +77,8 @@ The full flag catalogue, including the standard node arguments every node takes,
 ```bash
 kona-node node \
   --logs.enabled \
+  --p2p.enabled \
+  --p2p.discovery.enabled \
   --sequencer.enabled \
   --rpc.enabled \
   --l1.eth-url=http://localhost:8545 \
@@ -89,6 +93,8 @@ kona-node node \
 ```bash
 kona-node node \
   --logs.enabled \
+  --p2p.enabled \
+  --p2p.discovery.enabled \
   --sequencer.enabled \
   --rpc.enabled \
   --sequencer.conductor.url=http://conductor:8080 \

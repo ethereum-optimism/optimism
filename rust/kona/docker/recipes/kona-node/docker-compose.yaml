@@ -87,6 +87,7 @@ services:
       --rpc.enabled
       --rpc.addr 0.0.0.0
       --rpc.port 5060
+      --p2p.enabled
       --p2p.listen.tcp-port 9223
       --p2p.listen.udp-port 9223
       --p2p.discovery.enabled

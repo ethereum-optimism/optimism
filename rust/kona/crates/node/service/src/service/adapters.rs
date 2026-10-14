@@ -185,12 +185,14 @@ impl network::Discovery for Discovery {
     }
 }
 
+/// The network actor, or `None` for a node without P2P, which dials no peers and drops the
+/// blocks it signs, having no peers to gossip them to.
 #[derive(Debug, Clone)]
-pub(super) struct Network(pub(super) network::Handle);
+pub(super) struct Network(pub(super) Option<network::Handle>);
 
 impl discovery::Network for Network {
     fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
-        self.0.dial(enr)
+        self.0.as_ref().map_or(Ok(()), |network| network.dial(enr))
     }
 }
 
@@ -199,7 +201,10 @@ impl signer::Network for Network {
     type Error = SendError<signer::Payload>;
 
     async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
-        self.0.publish(payload).await
+        match &self.0 {
+            Some(network) => network.publish(payload).await,
+            None => Ok(()),
+        }
     }
 }
 

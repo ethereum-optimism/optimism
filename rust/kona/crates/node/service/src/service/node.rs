@@ -58,8 +58,8 @@ pub struct RollupNode {
     pub(crate) engine_api: Arc<EngineApi>,
     /// The address the RPC server listens on, or `None` for a node that serves no RPC.
     pub(crate) rpc_addr: Option<SocketAddr>,
-    /// The P2P [`NetworkConfig`] for the node.
-    pub(crate) p2p_config: NetworkConfig,
+    /// The P2P [`NetworkConfig`] for the node, or `None` for a node without P2P.
+    pub(crate) p2p_config: Option<NetworkConfig>,
     /// The [`SequencerConfig`] of a node that can sequence.
     pub(crate) sequencer: Option<SequencerConfig>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
@@ -144,7 +144,9 @@ impl RollupNode {
     /// cleanly, and [`RollupNodeError::Stopped`] if it failed.
     pub async fn start(&self) -> Result<(), RollupNodeError> {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
-        startup::check_listen_ports(&self.p2p_config)?;
+        if let Some(p2p_config) = &self.p2p_config {
+            startup::check_listen_ports(p2p_config)?;
+        }
         startup::validate_engine_jwt(&self.engine_api, ExponentialBuilder::default()).await?;
         // The engine starts from the execution layer's heads, so that its state, which the RPC
         // serves, is never empty. The read fails fast, as the execution layer just answered.
@@ -268,35 +270,45 @@ impl RollupNode {
         };
 
         // ─── network ────────────────────────────────────────────────────────────────────────
-        let (gossip, discovery_driver) = self
-            .p2p_config
-            .clone()
-            .start(signer_rx.clone())
-            .await
-            .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e}")))?;
-        let network_builder = network::Builder::new(gossip);
-        let network = network_builder.handle();
-        // A node without discovery runs no discovery actor, and bans no discovery nodes.
-        let discovery_actor = discovery_driver
-            .map(|driver| discovery_builder.build(driver, adapters::Network(network.clone())));
-        let discovery = discovery_actor.is_some().then_some(discovery);
-        let network_actor = network_builder
-            .build(adapters::Engine::new(engine.clone()), adapters::Discovery(discovery.clone()));
+        // A node without P2P runs no network or discovery actor, serves no P2P RPC, and drops the
+        // blocks its sequencer signs, having no peers to gossip them to.
+        let mut network = None;
+        let mut network_actors = None;
+        let mut p2p_rpc = None;
+        if let Some(p2p_config) = self.p2p_config.clone() {
+            let (gossip, discovery_driver) = p2p_config
+                .start(signer_rx.clone())
+                .await
+                .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e}")))?;
+            let network_builder = network::Builder::new(gossip);
+            let handle = network_builder.handle();
+            // A node without discovery runs no discovery actor, and bans no discovery nodes.
+            let discovery_actor = discovery_driver.map(|driver| {
+                discovery_builder.build(driver, adapters::Network(Some(handle.clone())))
+            });
+            let discovery = discovery_actor.is_some().then_some(discovery);
+            let network_actor = network_builder.build(
+                adapters::Engine::new(engine.clone()),
+                adapters::Discovery(discovery.clone()),
+            );
+            p2p_rpc = Some(P2pRpc::new(
+                handle.state(),
+                handle.clone(),
+                discovery,
+                self.chain.rollup_config.l2_chain_id.id(),
+            ));
+            network = Some(handle);
+            // Boxed, so that the actors do not sit in `start`'s frame while it awaits.
+            network_actors = Some((Box::pin(network_actor), discovery_actor.map(Box::pin)));
+        }
         let signer_actor = block_signer.map(|signer| {
             signer_builder.build(
                 signer,
                 self.chain.rollup_config.l2_chain_id.id(),
                 signer_rx,
-                adapters::Network(network.clone()),
+                adapters::Network(network),
             )
         });
-
-        let p2p_rpc = P2pRpc::new(
-            network.state(),
-            network,
-            discovery,
-            self.chain.rollup_config.l2_chain_id.id(),
-        );
 
         // ─── L1 watchers ────────────────────────────────────────────────────────────────────
         let signer_updater = signer_updater_builder.build(
@@ -362,9 +374,11 @@ impl RollupNode {
                             "Failed to register healthz module: {e:?}"
                         ))
                     })?;
-                modules.merge(p2p_rpc.into_rpc()).map_err(|e| {
-                    RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
-                })?;
+                if let Some(p2p_rpc) = p2p_rpc {
+                    modules.merge(p2p_rpc.into_rpc()).map_err(|e| {
+                        RollupNodeError::Startup(format!("Failed to register p2p module: {e:?}"))
+                    })?;
+                }
                 modules.merge(AdminRpc::new(engine.clone()).into_rpc()).map_err(|e| {
                     RollupNodeError::Startup(format!("Failed to register admin module: {e:?}"))
                 })?;
@@ -435,9 +449,11 @@ impl RollupNode {
         if let Some(signer) = signer_actor {
             supervisor.spawn("signer", signer);
         }
-        supervisor.spawn("network", network_actor);
-        if let Some(discovery_actor) = discovery_actor {
-            supervisor.spawn("discovery", discovery_actor);
+        if let Some((network_actor, discovery_actor)) = network_actors {
+            supervisor.spawn("network", network_actor);
+            if let Some(discovery_actor) = discovery_actor {
+                supervisor.spawn("discovery", discovery_actor);
+            }
         }
         // The L1 actor runs until it is dropped: its output, `Infallible`, never exists.
         supervisor.spawn("l1", async move { Err::<(), _>(l1_actor.await) });

@@ -46,9 +46,27 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 }
 
 /// P2P CLI Flags
+///
+/// The other P2P flags apply only with `--p2p.enabled`, and are ignored otherwise. They are
+/// experimental, so they are left out of `--help`.
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 #[command(next_help_heading = "P2P")]
 pub struct P2PArgs {
+    /// Receive and gossip blocks over P2P. Disabled by default: the node then follows the chain
+    /// by deriving it from L1, and a sequencer's blocks are not gossiped.
+    #[arg(
+        id = "p2p_enabled",
+        long = "p2p.enabled",
+        env = "KONA_NODE_P2P_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true",
+        hide = true
+    )]
+    pub enabled: bool,
+
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after
     /// restarting, maintaining the previous advertised identity.

@@ -165,7 +165,11 @@ impl NodeCommand {
         let chain = self.chain.chain_spec()?;
         Ok(RollupNodeConfig {
             version: crate::version::version().to_owned(),
-            p2p_config: self.p2p_flags.clone().config(&chain.rollup_config)?,
+            p2p_config: self
+                .p2p_flags
+                .enabled
+                .then(|| self.p2p_flags.clone().config(&chain.rollup_config))
+                .transpose()?,
             rpc_addr: self.rpc_flags.addr(),
             sequencer: self.sequencer_flags.clone().config()?,
             chain,
@@ -331,9 +335,8 @@ mod tests {
         let sequencer = config.sequencer.unwrap();
         assert_eq!(sequencer.conductor_rpc_url, Some("http://127.0.0.1:4".parse().unwrap()));
         assert_eq!(sequencer.l1_conf_delay, 4);
-        // Discovery and its bootstore are off by default.
-        assert!(!config.p2p_config.discovery_enabled);
-        assert_eq!(config.p2p_config.bootstore, None);
+        // P2P is off by default.
+        assert!(config.p2p_config.is_none());
     }
 
     #[test]
@@ -401,6 +404,7 @@ mod tests {
             rollup_file.path().to_str().unwrap(),
             "--chain.l1-config-path",
             l1_file.path().to_str().unwrap(),
+            "--p2p.enabled",
             "--p2p.discovery.enabled",
             "--p2p.discovery.bootstore.enabled",
         ]);
@@ -409,7 +413,9 @@ mod tests {
 
         assert_eq!(config.chain.rollup_config.l2_chain_id.id(), 901);
         assert_eq!(config.chain.l1_config.chain_id, 900);
-        assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
+        let p2p_config = config.p2p_config.unwrap();
+        assert!(p2p_config.discovery_enabled);
+        assert_eq!(p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 901 }));
         assert_eq!(
             config.chain.dependency_set.dependencies.keys().copied().collect::<Vec<_>>(),
             [901]

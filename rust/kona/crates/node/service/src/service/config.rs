@@ -13,8 +13,9 @@ pub struct RollupNodeConfig {
     pub version: String,
     /// The rules of the chain the node follows, shared by every component of the node.
     pub chain: ChainSpec,
-    /// The [`NetworkConfig`].
-    pub p2p_config: NetworkConfig,
+    /// The [`NetworkConfig`], or `None` for a node without P2P, which neither receives nor
+    /// gossips blocks.
+    pub p2p_config: Option<NetworkConfig>,
     /// The address the RPC server listens on, or `None` for a node that serves no RPC. It serves
     /// the admin API, so keep it off untrusted networks.
     pub rpc_addr: Option<SocketAddr>,

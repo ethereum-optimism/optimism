@@ -76,8 +76,11 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 The P2P flags are experimental: `kona-node` accepts them, but leaves them out of `--help`, and they may change.
 </Warning>
 
+The other P2P flags apply only with `--p2p.enabled`.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
+| `--p2p.enabled[=<BOOL>]` | `KONA_NODE_P2P_ENABLED` | Receive and gossip blocks over P2P. Without it, the node follows the chain by deriving it from L1, and a sequencer's blocks are not gossiped | `false` |
 | `--p2p.priv-path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.advertise.addr <IP>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP to advertise to external peers | - |
 | `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
@@ -173,10 +176,11 @@ the node's own, authenticated with the JWT secret. Neither behavior is configura
 
 Unless overridden by the flags above, a `kona-node node` run has the following defaults:
 
-- The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
-  to receive block gossip. Peer scoring is enabled. Peer discovery is
-  disabled; with `--p2p.discovery.enabled`, the `discv5` discovery
-  service runs on UDP port `9223`.
+- P2P is disabled: the node follows the chain by deriving it from L1.
+  With `--p2p.enabled`, the libp2p swarm listens on TCP `9222` to
+  receive and gossip blocks, with peer scoring. Peer discovery is
+  disabled even then; with `--p2p.discovery.enabled`, the `discv5`
+  discovery service runs on UDP port `9223`.
 - No RPC is served. Enable it with `--rpc.enabled`; it is then served at
   `127.0.0.1:9545`, configurable via the `--rpc.addr` and `--rpc.port` flags.
 - Logs are disabled. Enable them with `--logs.enabled`; they are then

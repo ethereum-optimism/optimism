@@ -48,7 +48,7 @@ pub(crate) fn node_config(p2p_config: NetworkConfig) -> RollupNodeConfig {
                 override_message_expiry_window: None,
             }),
         },
-        p2p_config,
+        p2p_config: Some(p2p_config),
         rpc_addr: Some((Ipv4Addr::LOCALHOST, 0).into()),
         sequencer: None,
     }
