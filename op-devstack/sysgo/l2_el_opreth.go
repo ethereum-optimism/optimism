@@ -3,16 +3,18 @@ package sysgo
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
-	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
@@ -84,6 +86,22 @@ func OpRethWithBinary(binary string) OpRethOption {
 	})
 }
 
+// ResolveOpRethBinary locates the binary an op-reth node selected through OpRethWithBinary, or
+// this repo's op-reth when binary is empty, through the rustbin env overrides and build rules.
+// Resolving a binary before the chain starts keeps a RUST_JIT_BUILD build out of the run.
+func ResolveOpRethBinary(t devtest.T, binary string) string {
+	if binary == "" {
+		binary = "op-reth"
+	}
+	execPath, err := rustbin.Spec{
+		SrcDir:  "rust",
+		Package: binary,
+		Binary:  binary,
+	}.EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set %s for a binary built from another repo)", binary, rustbin.PathOverrideEnvVar(binary))
+	return execPath
+}
+
 // OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
 // enables proofs-history on every op-reth node by default; use this for a CLI-superset binary that
 // rejects --proofs-history in the mode under test.
@@ -143,10 +161,18 @@ type OpReth struct {
 	sub *SubProcess
 
 	l2MetricsRegistrar L2MetricsRegistrar
+
+	// logObservers has its own lock because the process's log pipes deliver entries while Start
+	// holds mu.
+	logObserversMu sync.Mutex
+	logObservers   map[int]func(logpipe.LogEntry)
+	nextObserverID int
 }
 
 var (
 	_ L2ELNode                  = (*OpReth)(nil)
+	_ stack.BinarySwitchable    = (*OpReth)(nil)
+	_ stack.LogObservable       = (*OpReth)(nil)
 	_ stack.UngracefulLifecycle = (*OpReth)(nil)
 )
 
@@ -224,28 +250,47 @@ func (n *OpReth) Start() {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
+		n.notifyLogObservers(e)
 	})
 	stdErrLogs := logpipe.LogCallback(func(line []byte) {
-		e := logpipe.ParseRustStructuredLogs(line)
+		e := raiseUnstructuredStderr(logpipe.ParseRustStructuredLogs(line))
 		logErr(e)
+		n.notifyLogObservers(e)
 	})
 	n.sub = NewSubProcess(n.p, stdOutLogs, stdErrLogs)
 
 	err := n.sub.Start(n.execPath, n.args, n.env)
 	n.p.Require().NoError(err, "Must start")
 
-	var userRPCAddr, authRPCAddr string
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
+	userRPCAddr := awaitAnnouncement(n.p, n.sub, userRPCChan, n.name, "user RPC")
+	authRPCAddr := awaitAnnouncement(n.p, n.sub, authRPCChan, n.name, "auth RPC")
 
 	if areMetricsEnabled() {
-		var metricsTarget PrometheusMetricsTarget
-		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		metricsTarget := awaitAnnouncement(n.p, n.sub, metricsTargetChan, n.name, "metrics endpoint")
 		n.l2MetricsRegistrar.RegisterL2MetricsTargets(n.name, metricsTarget)
 	}
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+}
+
+// awaitAnnouncement returns the value a node logs once part of it is up, and fails the test as
+// soon as the process exits without logging it, so a binary that aborts at startup does not stall
+// the test until its deadline.
+func awaitAnnouncement[E any](t devtest.CommonT, sub *SubProcess, announced chan E, name, what string) E {
+	var value E
+	select {
+	case value = <-announced:
+	case <-sub.Exited():
+		exit := "exit status 0"
+		if err := sub.ExitErr(); err != nil {
+			exit = err.Error()
+		}
+		t.Require().Failf("process exited at startup", "%s exited during startup while waiting for its %s: %s", name, what, exit)
+	case <-t.Ctx().Done():
+		t.Require().NoErrorf(t.Ctx().Err(), "waiting for %s to announce its %s", name, what)
+	}
+	return value
 }
 
 // Stop stops the op-reth node.
@@ -276,6 +321,55 @@ func (n *OpReth) StopUngracefully() {
 	n.clearProxyUpstreams()
 	n.p.Require().NoError(n.sub.Kill(), "Must kill")
 	n.sub = nil
+}
+
+// SwitchBinary resolves binary the way OpRethWithBinary does and makes the next Start run it on
+// the node's existing datadir, proofs store and arguments. The node must be stopped.
+func (n *OpReth) SwitchBinary(binary string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Truef(n.sub == nil, "op-reth %s must be stopped before its binary is switched", n.name)
+	execPath := ResolveOpRethBinary(n.p, binary)
+	n.p.Logger().Info("Switching op-reth binary", "name", n.name, "chain", n.chainID, "binary", binary, "from", n.execPath, "to", execPath)
+	n.execPath = execPath
+}
+
+// ObserveLogs registers observer for every stdout and stderr entry the op-reth process emits,
+// across restarts, until the returned function is called.
+func (n *OpReth) ObserveLogs(observer func(logpipe.LogEntry)) func() {
+	n.logObserversMu.Lock()
+	defer n.logObserversMu.Unlock()
+	if n.logObservers == nil {
+		n.logObservers = make(map[int]func(logpipe.LogEntry))
+	}
+	id := n.nextObserverID
+	n.nextObserverID++
+	n.logObservers[id] = observer
+	return func() {
+		n.logObserversMu.Lock()
+		defer n.logObserversMu.Unlock()
+		delete(n.logObservers, id)
+	}
+}
+
+func (n *OpReth) notifyLogObservers(e logpipe.LogEntry) {
+	n.logObserversMu.Lock()
+	observers := slices.Collect(maps.Values(n.logObservers))
+	n.logObserversMu.Unlock()
+	for _, observe := range observers {
+		observe(e)
+	}
+}
+
+// raiseUnstructuredStderr turns an unparsable stderr line into an error entry: op-reth writes its
+// structured logs to stdout, so anything else on stderr is a panic or an abort message.
+func raiseUnstructuredStderr(e logpipe.LogEntry) logpipe.LogEntry {
+	if !logpipe.IsUnstructured(e) {
+		return e
+	}
+	r := e.(logpipe.StructuredRustLogEntry)
+	r.Level = log.LevelError
+	return r
 }
 
 // Callers must hold n.mu.
