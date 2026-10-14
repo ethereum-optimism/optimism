@@ -1,6 +1,6 @@
 use super::{super::UnsealedPayloadHandle, test_actor, test_actor_with_config};
 use crate::{
-    EngineClientError, MockOriginSelector, MockSequencerEngineClient,
+    EngineClientError, MockOrigin, MockSequencerEngineClient,
     engine::{BuildTaskError, EngineBuildError},
     sequencer::{ActorError, MockSigner, handle::Message},
 };
@@ -36,13 +36,13 @@ async fn build_handles_payload_attributes_errors(
     client.expect_reset_engine_forkchoice().times(resets).returning(|| Ok(()));
 
     let l1_origin = BlockInfo::default();
-    let mut origin_selector = MockOriginSelector::new();
-    origin_selector.expect_next_l1_origin().times(1).return_once(move |_| Ok(l1_origin));
+    let mut origin = MockOrigin::new();
+    origin.expect_next().times(1).return_once(move |_| Ok(l1_origin));
 
     let attributes_builder = TestAttributesBuilder { attributes: vec![Err(forced_error)] };
 
     let mut actor = test_actor();
-    actor.origin_selector = origin_selector;
+    actor.origin = origin;
     actor.engine_client = client;
     actor.attributes_builder = attributes_builder;
 
@@ -72,12 +72,12 @@ async fn build_handles_start_build_errors(#[case] error: EngineBuildError, #[cas
     client.expect_start_build_block().times(1).return_once(move |_| {
         Err(EngineClientError::StartBuildError(BuildTaskError::EngineBuildError(error)))
     });
-    let mut origin_selector = MockOriginSelector::new();
-    origin_selector.expect_next_l1_origin().times(1).return_once(|_| Ok(BlockInfo::default()));
+    let mut origin = MockOrigin::new();
+    origin.expect_next().times(1).return_once(|_| Ok(BlockInfo::default()));
 
     let mut actor = test_actor();
     actor.engine_client = client;
-    actor.origin_selector = origin_selector;
+    actor.origin = origin;
     actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
     actor.signer.expect_has_capacity().return_const(true);
     // Consume the interval's immediate first tick, then build partway through the period so the
@@ -169,10 +169,10 @@ async fn building_resumes_once_the_signer_queue_drains() {
     engine.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
     actor.engine_client = engine;
 
-    // Building starts again on the second attempt: the origin selector is consulted once.
-    let mut origin_selector = MockOriginSelector::new();
-    origin_selector.expect_next_l1_origin().times(1).return_once(|_| Ok(BlockInfo::default()));
-    actor.origin_selector = origin_selector;
+    // Building starts again on the second attempt: the origin is selected once.
+    let mut origin = MockOrigin::new();
+    origin.expect_next().times(1).return_once(|_| Ok(BlockInfo::default()));
+    actor.origin = origin;
     actor.attributes_builder = TestAttributesBuilder {
         attributes: vec![Err(PipelineErrorKind::Temporary(
             BuilderError::Custom(String::new()).into(),

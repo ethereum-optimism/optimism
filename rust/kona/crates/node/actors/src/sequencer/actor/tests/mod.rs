@@ -1,6 +1,6 @@
 use super::Actor;
 use crate::{
-    MockConductor, MockOriginSelector, MockSequencerEngineClient,
+    MockConductor, MockOrigin, MockSequencerEngineClient,
     sequencer::{Handle, MockSigner, handle::Message},
 };
 use kona_derive::test_utils::TestAttributesBuilder;
@@ -11,13 +11,8 @@ use tokio::sync::{mpsc, watch};
 mod admin;
 mod building;
 
-type TestActor = Actor<
-    TestAttributesBuilder,
-    MockConductor,
-    MockOriginSelector,
-    MockSequencerEngineClient,
-    MockSigner,
->;
+type TestActor =
+    Actor<TestAttributesBuilder, MockConductor, MockOrigin, MockSequencerEngineClient, MockSigner>;
 
 fn test_actor() -> TestActor {
     // Drop the sender so block-building tests have no admin requests.
@@ -37,7 +32,7 @@ fn test_actor_with_config(
         TestAttributesBuilder { attributes: vec![] },
         conductor,
         MockSequencerEngineClient::new(),
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
         MockSigner::new(),
     );

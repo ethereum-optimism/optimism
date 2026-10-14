@@ -13,7 +13,7 @@ This page explains the design of sequencer mode and how to configure it programm
 When running in sequencer mode, the Kona node:
 
 - **Builds L2 blocks** by collecting transactions from the mempool and constructing new blocks
-- **Selects L1 origins** for new L2 blocks based on finalized L1 data
+- **Selects L1 origins** for new L2 blocks from confirmed L1 blocks, through the origin actor
 - **Manages block production timing** and ensures proper sequencing constraints
 - **Integrates with conductor services** for leader election in multi-sequencer setups
 - **Handles recovery scenarios** when the sequencer needs to catch up with L1
@@ -40,9 +40,15 @@ pub enum NodeMode {
 The core actor responsible for block production. It:
 
 - Builds L2 blocks using the attributes builder
-- Manages timing and L1 origin selection
+- Manages timing, and asks the origin actor for each block's L1 origin
 - Handles admin RPC commands for sequencer control
 - Coordinates with conductor services for leader election
+
+### Origin actor
+
+The origin actor, in `kona_node_actors::origin`, keeps the sequencer's next L1 origin ready, so that block production never waits on L1. It holds a window of L1 blocks: the L1 origin of the engine's unsafe head, then the canonical L1 blocks after it that are `l1_conf_delay` blocks below the L1 head. It follows the engine's published state and the L1 actor, does all of the L1 reads, and drops the blocks L1 reorgs out.
+
+The sequencer asks `origin::Handle::next` for the L1 origin of the child of its unsafe head. The handle answers from the window: the child stays on its parent's origin until its timestamp reaches the next L1 block, and must move to the next block once past the sequencer drift. It answers at once while the window holds the parent's origin, and waits otherwise, such as right after an engine reset. It fails with `OriginError::MaxDriftReached` when the child would be past the drift and L1 has no next origin yet, which the sequencer retries on its next tick, and with `OriginError::Reorged` when L1 reorged out the parent's origin, on which the sequencer resets the engine.
 
 ### `SequencerConfig`
 

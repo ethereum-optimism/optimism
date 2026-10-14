@@ -1,6 +1,6 @@
 use crate::{
-    Conductor, ConductorError, EngineClientError, EngineClientResult, MockConductor,
-    MockOriginSelector, MockSequencerEngineClient, SequencerEngineClient,
+    Conductor, ConductorError, EngineClientError, EngineClientResult, MockConductor, MockOrigin,
+    MockSequencerEngineClient, SequencerEngineClient,
     sequencer::{ActorError, Builder, Capacity, HandleError, MockSigner},
 };
 use alloy_rpc_types_engine::PayloadId;
@@ -100,7 +100,7 @@ fn construction_and_build_do_not_require_a_runtime() {
     let task = builder.build(
         TestAttributesBuilder { attributes: vec![] },
         MockSequencerEngineClient::new(),
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         config(),
         Some(MockConductor::new()),
         MockSigner::new(),
@@ -118,7 +118,7 @@ async fn aborting_lifetime_interrupts_a_pending_initial_reset() {
     let task = tokio::spawn(builder.build(
         TestAttributesBuilder { attributes: vec![] },
         ForwardingEngine(engine),
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         config(),
         None::<MockConductor>,
         MockSigner::new(),
@@ -152,7 +152,7 @@ async fn sequencing_continues_without_command_handles() {
     let task = tokio::spawn(builder.build(
         TestAttributesBuilder { attributes: vec![] },
         engine,
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         config(),
         None::<MockConductor>,
         signer,
@@ -172,7 +172,7 @@ async fn stopped_actor_without_command_handles_stays_pending() {
     let task = Builder::new(Capacity::try_from(1).unwrap()).build(
         TestAttributesBuilder { attributes: vec![] },
         engine,
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         config(),
         None::<MockConductor>,
         MockSigner::new(),
@@ -205,7 +205,7 @@ async fn failed_startup_rejects_a_previously_queued_command() {
     let task = builder.build(
         TestAttributesBuilder { attributes: vec![] },
         engine,
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         config(),
         None::<MockConductor>,
         MockSigner::new(),
@@ -218,8 +218,8 @@ async fn failed_startup_rejects_a_previously_queued_command() {
 #[tokio::test]
 async fn aborting_lifetime_interrupts_an_in_flight_block_build() {
     let (engine, mut requests) = mpsc::channel(1);
-    let mut origin = MockOriginSelector::new();
-    origin.expect_next_l1_origin().times(1).return_once(|_| Ok(Default::default()));
+    let mut origin = MockOrigin::new();
+    origin.expect_next().times(1).return_once(|_| Ok(Default::default()));
     let mut signer = MockSigner::new();
     signer.expect_has_capacity().times(1).return_const(true);
     let builder = Builder::new(Capacity::try_from(1).unwrap());
@@ -255,7 +255,7 @@ async fn aborting_lifetime_interrupts_an_in_flight_message() {
     let task = tokio::spawn(builder.build(
         TestAttributesBuilder { attributes: vec![] },
         engine,
-        MockOriginSelector::new(),
+        MockOrigin::new(),
         config(),
         Some(PendingConductor(started.clone())),
         MockSigner::new(),

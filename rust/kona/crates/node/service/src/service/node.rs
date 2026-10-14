@@ -1,8 +1,8 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
-    ChainSpec, ConductorClient, L1OriginSelector, NetworkConfig, NodeMode, RollupNodeClients,
-    RollupNodeConfig, SequencerConfig, service::BufferImportedBlocks, signer,
+    ChainSpec, ConductorClient, NetworkConfig, NodeMode, RollupNodeClients, RollupNodeConfig,
+    SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use backon::ExponentialBuilder;
 use jsonrpsee::{
@@ -14,7 +14,7 @@ use jsonrpsee::{
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_node_actors::{
-    derivation, discovery, engine, finality, l1, l1_signer_updater, network, sequencer,
+    derivation, discovery, engine, finality, l1, l1_signer_updater, network, origin, sequencer,
 };
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBlobProvider,
@@ -238,28 +238,34 @@ impl RollupNode {
         Ok(Some(signer))
     }
 
-    /// Wires the sequencer dependencies and returns its lifetime future.
+    /// Wires the sequencer and the origin actor that keeps its next L1 origin ready, and returns
+    /// their lifetime futures.
     fn build_sequencer(
         &self,
         engine: engine::Handle,
         signer: signer::Handle,
         l1: l1::Handle,
         builder: sequencer::Builder,
-    ) -> impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static {
-        let origin_selector = L1OriginSelector::new(
+    ) -> (
+        impl Future<Output = Result<(), sequencer::ActorError>> + Send + 'static,
+        impl Future<Output = Result<(), origin::ActorError>> + Send + 'static,
+    ) {
+        let origin_builder = origin::Builder::new(
             self.chain.rollup_config.clone(),
-            l1,
             self.sequencer_config.l1_conf_delay,
         );
+        let origin = origin_builder.handle();
+        let origin_actor = origin_builder.build(l1, engine.state());
 
-        builder.build(
+        let sequencer_actor = builder.build(
             self.create_attributes_builder(),
             adapters::Engine::new(engine),
-            origin_selector,
+            origin,
             self.chain.rollup_config.clone(),
             self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http),
             adapters::Signer(signer),
-        )
+        );
+        (sequencer_actor, origin_actor)
     }
 
     /// Assembles the JSON-RPC module set, starts the server, and returns its lifetime future.
@@ -480,7 +486,7 @@ impl RollupNode {
             finalized_interval: Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
         });
 
-        let sequencer_actor = sequencer_builder.map(|builder| {
+        let sequencer_actors = sequencer_builder.map(|builder| {
             self.build_sequencer(engine.clone(), signer_handle, l1.clone(), builder)
         });
 
@@ -497,8 +503,9 @@ impl RollupNode {
 
         let mut supervisor = Supervisor::new();
         supervisor.spawn("rpc", rpc);
-        if let Some(sequencer) = sequencer_actor {
+        if let Some((sequencer, origin)) = sequencer_actors {
             supervisor.spawn("sequencer", sequencer);
+            supervisor.spawn("origin", origin);
         }
         if let Some(signer) = signer_actor {
             supervisor.spawn("signer", signer);

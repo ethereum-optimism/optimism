@@ -99,8 +99,9 @@ mod tests {
     use kona_derive::test_utils::TestAttributesBuilder;
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
-        EngineClientResult, L1OriginSelectorError, OriginSelector, SequencerEngineClient,
+        EngineClientResult, SequencerEngineClient,
         engine::NoopBlockSink,
+        origin::OriginError,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -199,14 +200,11 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct UnusedOriginSelector;
+    struct UnusedOrigin;
 
     #[async_trait]
-    impl OriginSelector for UnusedOriginSelector {
-        async fn next_l1_origin(
-            &mut self,
-            _unsafe_head: L2BlockInfo,
-        ) -> Result<BlockInfo, L1OriginSelectorError> {
+    impl sequencer::Origin for UnusedOrigin {
+        async fn next(&self, _parent: L2BlockInfo) -> Result<BlockInfo, OriginError> {
             panic!("a full signer queue must pause building")
         }
     }
@@ -219,7 +217,7 @@ mod tests {
         let task = builder.build(
             TestAttributesBuilder { attributes: vec![] },
             IdleEngine,
-            UnusedOriginSelector,
+            UnusedOrigin,
             Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
             conductor_enabled
                 .then(|| ConductorClient::new_http("http://localhost:1".parse().unwrap())),

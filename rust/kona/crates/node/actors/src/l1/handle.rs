@@ -80,6 +80,19 @@ impl Handle {
         }
     }
 
+    /// Returns the L1 block `block`, or `None` if L1 does not have it. A block the chain does not
+    /// hold, such as one after the head, is read from L1 by hash, and may not be canonical.
+    pub async fn block(&self, block: BlockNumHash) -> Result<Option<BlockInfo>, HandleError> {
+        let height = self.chain()?.at(block.number);
+        if let Height::Held(held) = height &&
+            held.hash == block.hash
+        {
+            return Ok(Some(held));
+        }
+        let read = self.history.header_by_hash(block.hash).await.map(|header| block_info(&header));
+        Ok(read.filter(|read| read.number == block.number))
+    }
+
     /// Waits until L1 has a canonical child of `block`, or `block` is reorged out, and returns
     /// which.
     pub async fn child_of(&self, block: BlockNumHash) -> Result<Child, HandleError> {
@@ -237,6 +250,22 @@ mod tests {
             handle.try_child_of(block(9).id(), 0).await.unwrap(),
             Some(Child::Block(block(10)))
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn returns_a_block_from_the_chain_or_else_from_l1_by_hash() {
+        let (blocks, block) = l1(12);
+        let chain = TestChain::new(&blocks[10..]);
+        let responses = Asserter::new();
+        let handle = reading(&chain, &responses);
+        assert_eq!(handle.block(block(11).id()).await.unwrap(), Some(block(11)));
+        // A block after the head.
+        let ahead = child(&block(12), 1);
+        responses.push_success(&rpc_block(&ahead));
+        assert_eq!(handle.block(ahead.id()).await.unwrap(), Some(ahead));
+        // A block L1 does not have.
+        responses.push_success(&Option::<Block>::None);
+        assert_eq!(handle.block(child(&block(11), 2).id()).await.unwrap(), None);
     }
 
     #[tokio::test(start_paused = true)]

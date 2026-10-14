@@ -25,6 +25,8 @@ pub mod l1_signer_updater;
 
 pub mod l1;
 
+pub mod origin;
+
 pub mod signer;
 
 pub mod network;
@@ -33,12 +35,11 @@ pub use network::NetworkConfig;
 pub mod sequencer;
 
 pub use sequencer::{
-    Conductor, ConductorClient, ConductorError, L1OriginSelector, L1OriginSelectorError,
-    OriginSelector, SequencerConfig, SequencerEngineClient,
+    Conductor, ConductorClient, ConductorError, SequencerConfig, SequencerEngineClient,
 };
 
 #[cfg(test)]
-pub use sequencer::{MockConductor, MockOriginSelector, MockSequencerEngineClient};
+pub use sequencer::{MockConductor, MockOrigin, MockSequencerEngineClient};
 
 mod mode;
 pub use mode::NodeMode;

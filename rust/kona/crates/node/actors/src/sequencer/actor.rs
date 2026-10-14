@@ -7,6 +7,7 @@ use crate::{
         BuildTaskError, EngineBuildError, EngineClientError, InsertTaskError, SealTaskError,
         SynchronizeTaskError,
     },
+    origin::OriginError,
     sequencer::{
         Handle, HandleError, Signer,
         conductor::Conductor,
@@ -17,7 +18,7 @@ use crate::{
             update_conductor_commitment_duration_metrics, update_seal_duration_metrics,
             update_total_transactions_sequenced,
         },
-        origin_selector::{L1OriginSelectorError, OriginSelector},
+        origin::Origin,
     },
 };
 use alloy_rpc_types_engine::PayloadId;
@@ -64,14 +65,14 @@ impl Builder {
     pub fn build<
         AttributesBuilder_: AttributesBuilder + Sync + 'static,
         Conductor_: Conductor + 'static,
-        OriginSelector_: OriginSelector + 'static,
+        Origin_: Origin + 'static,
         SequencerEngineClient_: SequencerEngineClient + 'static,
         Signer_: Signer + 'static,
     >(
         self,
         attributes_builder: AttributesBuilder_,
         engine_client: SequencerEngineClient_,
-        origin_selector: OriginSelector_,
+        origin: Origin_,
         rollup_config: Arc<RollupConfig>,
         conductor: Option<Conductor_>,
         signer: Signer_,
@@ -84,7 +85,7 @@ impl Builder {
                 attributes_builder,
                 conductor,
                 engine_client,
-                origin_selector,
+                origin,
                 rollup_config,
                 signer,
             )
@@ -117,11 +118,11 @@ struct SealLastStartNextResult {
 /// and handing them to the [`Signer`] to be signed
 /// and gossipped, extending the L2 chain with new blocks.
 #[derive(Debug)]
-struct Actor<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
+struct Actor<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
 where
     AttributesBuilder_: AttributesBuilder,
     Conductor_: Conductor,
-    OriginSelector_: OriginSelector,
+    Origin_: Origin,
     SequencerEngineClient_: SequencerEngineClient,
     Signer_: Signer,
 {
@@ -138,7 +139,7 @@ where
     /// The struct used to interact with the engine.
     engine_client: SequencerEngineClient_,
     /// The struct used to determine the next L1 origin.
-    origin_selector: OriginSelector_,
+    origin: Origin_,
     /// The rollup configuration.
     rollup_config: Arc<RollupConfig>,
     /// Queues built payloads for signing.
@@ -152,12 +153,12 @@ where
     last_seal_duration: Duration,
 }
 
-impl<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
-    Actor<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
+impl<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
+    Actor<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
 where
     AttributesBuilder_: AttributesBuilder,
     Conductor_: Conductor,
-    OriginSelector_: OriginSelector,
+    Origin_: Origin,
     SequencerEngineClient_: SequencerEngineClient,
     Signer_: Signer,
 {
@@ -168,7 +169,7 @@ where
         attributes_builder: AttributesBuilder_,
         conductor: Option<Conductor_>,
         engine_client: SequencerEngineClient_,
-        origin_selector: OriginSelector_,
+        origin: Origin_,
         rollup_config: Arc<RollupConfig>,
         signer: Signer_,
     ) -> Self {
@@ -181,7 +182,7 @@ where
             attributes_builder,
             conductor,
             engine_client,
-            origin_selector,
+            origin,
             rollup_config,
             signer,
             build_ticker,
@@ -300,12 +301,12 @@ where
     /// Determines and validates the L1 origin block for the provided L2 unsafe head.
     /// Returns `Ok(None)` for temporary errors that should be retried.
     async fn get_next_payload_l1_origin(
-        &mut self,
+        &self,
         unsafe_head: L2BlockInfo,
     ) -> Result<Option<BlockInfo>, ActorError> {
-        let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head).await {
+        let l1_origin = match self.origin.next(unsafe_head).await {
             Ok(l1_origin) => l1_origin,
-            Err(L1OriginSelectorError::OriginReorged(origin)) => {
+            Err(OriginError::Reorged(origin)) => {
                 warn!(
                     target: "sequencer",
                     ?origin,
@@ -314,14 +315,14 @@ where
                 self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);
             }
-            Err(err) => {
+            Err(OriginError::MaxDriftReached) => {
                 warn!(
                     target: "sequencer",
-                    ?err,
-                    "Temporary error occurred while selecting next L1 origin. Re-attempting on next tick."
+                    "The next L2 block reaches the maximum sequencer drift, and L1 has no next origin yet. Re-attempting on next tick."
                 );
                 return Ok(None);
             }
+            Err(OriginError::Stopped) => return Err(ActorError::OriginStopped),
         };
 
         if unsafe_head.l1_origin.hash != l1_origin.parent_hash &&
@@ -459,12 +460,12 @@ where
     }
 }
 
-impl<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
-    Actor<AttributesBuilder_, Conductor_, OriginSelector_, SequencerEngineClient_, Signer_>
+impl<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
+    Actor<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
 where
     AttributesBuilder_: AttributesBuilder + Sync + 'static,
     Conductor_: Conductor + Sync + 'static,
-    OriginSelector_: OriginSelector + Sync + 'static,
+    Origin_: Origin + Sync + 'static,
     SequencerEngineClient_: SequencerEngineClient + Sync + 'static,
     Signer_: Signer + 'static,
 {

@@ -3,8 +3,8 @@
 mod config;
 pub use config::SequencerConfig;
 
-mod origin_selector;
-pub use origin_selector::{L1OriginSelector, L1OriginSelectorError, OriginSelector};
+mod origin;
+pub use origin::Origin;
 
 mod actor;
 pub use actor::Builder;
@@ -28,7 +28,7 @@ pub use conductor::MockConductor;
 pub use engine_client::MockSequencerEngineClient;
 
 #[cfg(test)]
-pub use origin_selector::MockOriginSelector;
+pub use origin::MockOrigin;
 
 mod handle;
 pub use crate::capacity::{Capacity, InvalidCapacity};

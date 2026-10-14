@@ -1,7 +1,4 @@
-use crate::{
-    L1OriginSelectorError,
-    engine::{BuildTaskError, EngineClientError},
-};
+use crate::engine::{BuildTaskError, EngineClientError};
 use kona_derive::PipelineErrorKind;
 
 /// An error returned by the actor.
@@ -13,9 +10,9 @@ pub enum ActorError {
     /// A channel was unexpectedly closed.
     #[error("Channel closed unexpectedly")]
     ChannelClosed,
-    /// An error occurred while selecting the next L1 origin.
-    #[error(transparent)]
-    L1OriginSelector(#[from] L1OriginSelectorError),
+    /// The origin actor stopped.
+    #[error("the origin actor stopped")]
+    OriginStopped,
     /// An error occurred communicating with the engine.
     #[error(transparent)]
     EngineError(#[from] EngineClientError),
