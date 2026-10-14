@@ -25,7 +25,7 @@ let cfg = Arc::new(RollupConfig::default());
 // `dependency_set` must be `Some` when the rollup uses interop.
 // The constructor panics at build time otherwise;
 // turning silent state divergence into a startup crash. Live-node
-// operators populate it from kona-node's `--chain.dependency-set` (op-node's
+// operators populate it from kona-node's `--chain.dependency-set-path` (op-node's
 // `--interop.dependency-set`).
 let dependency_set = None;
 let attributes = StatefulAttributesBuilder::new(

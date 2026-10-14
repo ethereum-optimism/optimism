@@ -88,7 +88,7 @@ mod tests {
         "http://localhost:5052",
         "--l2.engine.url",
         "http://localhost:8551",
-        "--l2.engine.jwt-secret",
+        "--l2.engine.jwt-secret-path",
         "/path/to/jwt.hex",
     ];
 
@@ -150,7 +150,7 @@ mod tests {
             "debug",
             "--chain",
             "8453",
-            "--chain.hardfork.karst",
+            "--chain.hardfork.karst-time",
             "123",
             "--logs.format",
             "json",

@@ -42,7 +42,7 @@ pub struct SequencerArgs {
     pub l1_confs: u64,
 
     /// Conductor service rpc endpoint. Providing this value will enable the conductor service.
-    #[arg(long = "sequencer.conductor-url", env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL")]
+    #[arg(long = "sequencer.conductor.url", env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL")]
     pub conductor_url: Option<Url>,
 
     /// How long a conductor request may take, in milliseconds, before it fails and the sequencer
@@ -68,7 +68,7 @@ impl Default for SequencerArgs {
 pub enum SequencerFlagsError {
     /// The node was run with `--sequencer.enabled` but without a block signer.
     #[error(
-        "--sequencer.enabled requires a block signer: --sequencer.signer.key.path, or \
+        "--sequencer.enabled requires a block signer: --sequencer.signer.key-path, or \
          --sequencer.signer.url with --sequencer.signer.address"
     )]
     NoBlockSigner,
@@ -102,7 +102,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     const ADDRESS: &str = "0x0000000000000000000000000000000000000001";
-    const LOCAL: [&str; 3] = ["--sequencer.enabled", "--sequencer.signer.key.path", "/key"];
+    const LOCAL: [&str; 3] = ["--sequencer.enabled", "--sequencer.signer.key-path", "/key"];
     const REMOTE: [&str; 5] = [
         "--sequencer.enabled",
         "--sequencer.signer.url",
@@ -114,13 +114,13 @@ mod tests {
     /// Each sequencer flag other than `--sequencer.enabled`, with a valid value, and the flags that
     /// complete it.
     const SEQUENCER_FLAGS: [(&str, &str, &[&str]); 10] = [
-        ("sequencer.signer.key.path", "/key", &["--sequencer.enabled"]),
+        ("sequencer.signer.key-path", "/key", &["--sequencer.enabled"]),
         ("sequencer.signer.url", "http://127.0.0.1:8080", &REMOTE),
         ("sequencer.signer.address", ADDRESS, &REMOTE),
         ("sequencer.signer.header", "a=b", &REMOTE),
-        ("sequencer.signer.tls.ca", "/ca.pem", &REMOTE),
+        ("sequencer.signer.tls.ca-path", "/ca.pem", &REMOTE),
         (
-            "sequencer.signer.tls.cert",
+            "sequencer.signer.tls.cert-path",
             "/cert.pem",
             &[
                 "--sequencer.enabled",
@@ -128,12 +128,12 @@ mod tests {
                 "http://127.0.0.1:8080",
                 "--sequencer.signer.address",
                 ADDRESS,
-                "--sequencer.signer.tls.key",
+                "--sequencer.signer.tls.key-path",
                 "/key.pem",
             ],
         ),
         (
-            "sequencer.signer.tls.key",
+            "sequencer.signer.tls.key-path",
             "/key.pem",
             &[
                 "--sequencer.enabled",
@@ -141,12 +141,12 @@ mod tests {
                 "http://127.0.0.1:8080",
                 "--sequencer.signer.address",
                 ADDRESS,
-                "--sequencer.signer.tls.cert",
+                "--sequencer.signer.tls.cert-path",
                 "/cert.pem",
             ],
         ),
         ("sequencer.l1-confs", "2", &LOCAL),
-        ("sequencer.conductor-url", "http://127.0.0.1:4", &LOCAL),
+        ("sequencer.conductor.url", "http://127.0.0.1:4", &LOCAL),
         ("sequencer.conductor-timeout-ms", "500", &LOCAL),
     ];
 
@@ -195,7 +195,7 @@ mod tests {
         let key = key_file(KEY);
         let key_path = key.path().to_str().unwrap();
 
-        let config = parse(&["--sequencer.enabled", "--sequencer.signer.key.path", key_path])
+        let config = parse(&["--sequencer.enabled", "--sequencer.signer.key-path", key_path])
             .unwrap()
             .config()
             .unwrap()
@@ -204,11 +204,11 @@ mod tests {
 
         let config = parse(&[
             "--sequencer.enabled",
-            "--sequencer.signer.key.path",
+            "--sequencer.signer.key-path",
             key_path,
             "--sequencer.l1-confs",
             "2",
-            "--sequencer.conductor-url",
+            "--sequencer.conductor.url",
             "http://127.0.0.1:4",
         ])
         .unwrap()
@@ -224,7 +224,7 @@ mod tests {
         let key = key_file(KEY);
         let key_path = key.path().to_str().unwrap();
         let config = |enabled| {
-            parse(&[enabled, "--sequencer.signer.key.path", key_path])
+            parse(&[enabled, "--sequencer.signer.key-path", key_path])
                 .map(|args| args.config().unwrap().is_some())
         };
         assert!(config("--sequencer.enabled=true").unwrap());
@@ -239,10 +239,10 @@ mod tests {
 
         // SAFETY: nextest runs each test in its own process.
         unsafe { std::env::set_var("KONA_NODE_SEQUENCER_ENABLED", "true") };
-        let enabled = parse(&["--sequencer.signer.key.path", key_path]);
+        let enabled = parse(&["--sequencer.signer.key-path", key_path]);
         // SAFETY: as above.
         unsafe { std::env::set_var("KONA_NODE_SEQUENCER_ENABLED", "false") };
-        let disabled = parse(&["--sequencer.signer.key.path", key_path]);
+        let disabled = parse(&["--sequencer.signer.key-path", key_path]);
         // SAFETY: as above.
         unsafe { std::env::remove_var("KONA_NODE_SEQUENCER_ENABLED") };
 

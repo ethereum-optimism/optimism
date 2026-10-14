@@ -22,10 +22,10 @@
 | P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP` |
 
 `kona-node` does not run a supervisor RPC server: the binary has no `--supervisor.*`
-flag group. Its interop dependency set, `--chain.dependency-set`
-(`KONA_NODE_CHAIN_DEPENDENCY_SET`), is a path to a JSON file rather than a port.
+flag group. Its interop dependency set, `--chain.dependency-set-path`
+(`KONA_NODE_CHAIN_DEPENDENCY_SET_PATH`), is a path to a JSON file rather than a port.
 
-`--sequencer.conductor-url` (`KONA_NODE_SEQUENCER_CONDUCTOR_URL`) is not a listening port either. It is
+`--sequencer.conductor.url` (`KONA_NODE_SEQUENCER_CONDUCTOR_URL`) is not a listening port either. It is
 the RPC endpoint URL of an external conductor service that the node dials out to,
 and it has no default value. Supplying it enables the conductor integration. It
 requires `--sequencer.enabled`: without it, the node refuses to start.

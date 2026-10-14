@@ -35,7 +35,7 @@ kona-node node \
   --l1.eth-url <L1_PROVIDER_RPC> \
   --l1.beacon-url <L1_BEACON_API> \
   --l2.engine.url <L2_ENGINE_RPC> \
-  --l2.engine.jwt-secret /path/to/jwt.hex \
+  --l2.engine.jwt-secret-path /path/to/jwt.hex \
   --rpc.enabled \
   --rpc.port 5060 \
   --p2p.listen.tcp 9223 \
@@ -62,7 +62,7 @@ kona-node node \
   --l1.eth-url $L1_PROVIDER_RPC \
   --l1.beacon-url $L1_BEACON_API \
   --l2.engine.url http://localhost:8551 \
-  --l2.engine.jwt-secret ./jwt.hex \
+  --l2.engine.jwt-secret-path ./jwt.hex \
   --rpc.enabled \
   --rpc.port 5060 \
   --p2p.listen.tcp 9223 \
@@ -75,11 +75,11 @@ kona-node node \
 
 Many configuration options can be set via environment variables:
 
-- `KONA_NODE_CHAIN` - L2 chain to load from the superchain registry (or set `KONA_NODE_CHAIN_ROLLUP_CONFIG` to a rollup config file)
+- `KONA_NODE_CHAIN` - L2 chain to load from the superchain registry (or set `KONA_NODE_CHAIN_ROLLUP_CONFIG_PATH` to a rollup config file)
 - `KONA_NODE_L1_ETH_URL` - L1 execution client RPC URL
 - `KONA_NODE_L1_BEACON_URL` - L1 beacon API URL
 - `KONA_NODE_L2_ENGINE_URL` - L2 engine API URL
-- `KONA_NODE_L2_ENGINE_JWT_SECRET` - Path to L2 engine JWT secret file
+- `KONA_NODE_L2_ENGINE_JWT_SECRET_PATH` - Path to L2 engine JWT secret file
 - `RUST_LOG` - Logging configuration
 
 Example using environment variables:
@@ -89,7 +89,7 @@ export KONA_NODE_CHAIN="optimism"
 export KONA_NODE_L1_ETH_URL="https://your-l1-rpc"
 export KONA_NODE_L1_BEACON_URL="https://your-l1-beacon-api"
 export KONA_NODE_L2_ENGINE_URL="http://localhost:8551"
-export KONA_NODE_L2_ENGINE_JWT_SECRET="/path/to/jwt.hex"
+export KONA_NODE_L2_ENGINE_JWT_SECRET_PATH="/path/to/jwt.hex"
 export RUST_LOG="kona_node=info,kona_derive=debug"
 
 kona-node node --logs.enabled --rpc.enabled --rpc.port 5060

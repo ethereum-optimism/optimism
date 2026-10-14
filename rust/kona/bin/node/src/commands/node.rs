@@ -21,7 +21,7 @@ use tracing::{debug, error, info};
 /// # Sequencing
 ///
 /// A node run with `--sequencer.enabled` can sequence. It needs a block signer:
-/// `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address`,
+/// `--sequencer.signer.key-path`, or `--sequencer.signer.url` with `--sequencer.signer.address`,
 /// and `--rpc.enabled`: its sequencer starts stopped; start it with `admin_startSequencer`. A node
 /// without `--sequencer.enabled` follows the chain only.
 ///
@@ -40,17 +40,17 @@ use tracing::{debug, error, info};
 ///                --l1.eth-url http://localhost:8545 \
 ///                --l1.beacon-url http://localhost:5052 \
 ///                --l2.engine.url http://localhost:8551 \
-///                --l2.engine.jwt-secret /path/to/jwt.hex
+///                --l2.engine.jwt-secret-path /path/to/jwt.hex
 ///
 /// # Run a node that can sequence a custom chain
 /// kona-node node --sequencer.enabled \
 ///                --rpc.enabled \
-///                --chain.rollup-config /path/to/rollup.json \
+///                --chain.rollup-config-path /path/to/rollup.json \
 ///                --l1.eth-url http://localhost:8545 \
 ///                --l1.beacon-url http://localhost:5052 \
 ///                --l2.engine.url http://localhost:8551 \
-///                --l2.engine.jwt-secret /path/to/jwt.hex \
-///                --sequencer.signer.key.path /path/to/sequencer.key
+///                --l2.engine.jwt-secret-path /path/to/jwt.hex \
+///                --sequencer.signer.key-path /path/to/sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
@@ -204,7 +204,7 @@ impl NodeCommand {
         if matches!(error, RollupNodeError::JwtRejected) {
             error!(
                 target: "rollup_node",
-                "Check that --l2.engine.jwt-secret holds the engine's JWT secret, and that the \
+                "Check that --l2.engine.jwt-secret-path holds the engine's JWT secret, and that the \
                  node's and the engine's clocks agree"
             );
         }
@@ -231,7 +231,7 @@ mod tests {
             "http://localhost:5052",
             "--l2.engine.url",
             "http://localhost:8551",
-            "--l2.engine.jwt-secret",
+            "--l2.engine.jwt-secret-path",
             "/path/to/jwt.hex",
         ]
     }
@@ -291,7 +291,7 @@ mod tests {
         let command = NodeCommand::try_parse_from(
             std::iter::once("node")
                 .chain(UNREACHABLE_FLAGS)
-                .chain(["--l2.engine.jwt-secret", &jwt_path])
+                .chain(["--l2.engine.jwt-secret-path", &jwt_path])
                 .chain(args.iter().copied()),
         )
         .unwrap();
@@ -306,9 +306,9 @@ mod tests {
             "optimism",
             "--rpc.enabled",
             "--sequencer.enabled",
-            "--sequencer.signer.key.path",
+            "--sequencer.signer.key-path",
             key.path().to_str().unwrap(),
-            "--sequencer.conductor-url",
+            "--sequencer.conductor.url",
             "http://127.0.0.1:4",
         ]);
 
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn test_sequencer_flags_are_ignored_without_the_sequencer() {
         let (command, _jwt) =
-            parse_node(&["--chain", "optimism", "--sequencer.conductor-url", "http://127.0.0.1:4"]);
+            parse_node(&["--chain", "optimism", "--sequencer.conductor.url", "http://127.0.0.1:4"]);
 
         assert!(command.config().unwrap().sequencer.is_none());
     }
@@ -359,7 +359,7 @@ mod tests {
             "--chain",
             "optimism",
             "--sequencer.enabled",
-            "--sequencer.signer.key.path",
+            "--sequencer.signer.key-path",
             key.path().to_str().unwrap(),
         ]);
 
@@ -389,9 +389,9 @@ mod tests {
         serde_json::to_writer(&mut l1_file, &serde_json::json!({"chainId": 900})).unwrap();
 
         let (command, _jwt) = parse_node(&[
-            "--chain.rollup-config",
+            "--chain.rollup-config-path",
             rollup_file.path().to_str().unwrap(),
-            "--chain.l1-config",
+            "--chain.l1-config-path",
             l1_file.path().to_str().unwrap(),
         ]);
 

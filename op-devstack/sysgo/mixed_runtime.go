@@ -565,9 +565,9 @@ func startMixedKonaNode(
 		"KONA_NODE_L1_ETH_URL=" + l1EL.UserRPC(),
 		"KONA_NODE_L1_BEACON_URL=" + l1CL.beaconHTTPAddr,
 		"KONA_NODE_L2_ENGINE_URL=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
-		"KONA_NODE_L2_ENGINE_JWT_SECRET=" + l2EL.JWTPath(),
-		"KONA_NODE_CHAIN_ROLLUP_CONFIG=" + tempRollupCfgPath,
-		"KONA_NODE_CHAIN_L1_CONFIG=" + tempL1CfgPath,
+		"KONA_NODE_L2_ENGINE_JWT_SECRET_PATH=" + l2EL.JWTPath(),
+		"KONA_NODE_CHAIN_ROLLUP_CONFIG_PATH=" + tempRollupCfgPath,
+		"KONA_NODE_CHAIN_L1_CONFIG_PATH=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 		"KONA_NODE_RPC_ENABLED=true",
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
@@ -588,7 +588,7 @@ func startMixedKonaNode(
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
-		envVars = append(envVars, "KONA_NODE_CHAIN_DEPENDENCY_SET="+tempDepSetPath)
+		envVars = append(envVars, "KONA_NODE_CHAIN_DEPENDENCY_SET_PATH="+tempDepSetPath)
 	}
 
 	if isSequencer {

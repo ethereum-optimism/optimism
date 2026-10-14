@@ -26,15 +26,15 @@ pub struct L2ClientArgs {
     /// authenticated engine API. The secret is only accepted from a file, so that it stays out of
     /// the process's command line.
     #[arg(
-        long = "l2.engine.jwt-secret",
-        env = "KONA_NODE_L2_ENGINE_JWT_SECRET",
+        long = "l2.engine.jwt-secret-path",
+        env = "KONA_NODE_L2_ENGINE_JWT_SECRET_PATH",
         value_name = "PATH"
     )]
     pub engine_jwt_secret: PathBuf,
 }
 
 impl L2ClientArgs {
-    /// Returns the engine API's JWT secret, read from the `--l2.engine.jwt-secret` file.
+    /// Returns the engine API's JWT secret, read from the `--l2.engine.jwt-secret-path` file.
     pub fn jwt_secret(&self) -> Result<JwtSecret> {
         let path = &self.engine_jwt_secret;
         let hex = std::fs::read_to_string(path)
@@ -80,13 +80,13 @@ mod tests {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         writeln!(file, "{JWT_HEX}").unwrap();
 
-        let args = parse(&["--l2.engine.jwt-secret", file.path().to_str().unwrap()]).unwrap();
+        let args = parse(&["--l2.engine.jwt-secret-path", file.path().to_str().unwrap()]).unwrap();
         assert_eq!(args.jwt_secret().unwrap(), JwtSecret::from_hex(JWT_HEX).unwrap());
     }
 
     #[test]
     fn jwt_secret_errors_on_a_missing_file() {
-        let args = parse(&["--l2.engine.jwt-secret", "/nonexistent/jwt.hex"]).unwrap();
+        let args = parse(&["--l2.engine.jwt-secret-path", "/nonexistent/jwt.hex"]).unwrap();
         assert!(args.jwt_secret().is_err());
     }
 
@@ -97,8 +97,9 @@ mod tests {
 
     #[test]
     fn jwt_secret_not_accepted_on_the_command_line() {
-        let err = parse(&["--l2.engine.jwt-secret", "jwt.hex", "--l2-engine-jwt-encoded", JWT_HEX])
-            .unwrap_err();
+        let err =
+            parse(&["--l2.engine.jwt-secret-path", "jwt.hex", "--l2-engine-jwt-encoded", JWT_HEX])
+                .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::UnknownArgument);
     }
 }

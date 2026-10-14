@@ -20,7 +20,7 @@ const BLOCK_SIGNER: &str = "block_signer";
 pub struct SignerArgs {
     /// Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The
     /// file must exist.
-    #[arg(long = "sequencer.signer.key.path", env = "KONA_NODE_SEQUENCER_SIGNER_KEY_PATH")]
+    #[arg(long = "sequencer.signer.key-path", env = "KONA_NODE_SEQUENCER_SIGNER_KEY_PATH")]
     pub key_path: Option<PathBuf>,
     /// A remote op-signer that signs the sequencer's blocks.
     #[command(flatten)]
@@ -58,23 +58,23 @@ pub struct RemoteSignerArgs {
     pub headers: Vec<SignerHeader>,
     /// Path to the CA certificates that verify the remote op-signer.
     #[arg(
-        long = "sequencer.signer.tls.ca",
-        env = "KONA_NODE_SEQUENCER_SIGNER_TLS_CA",
+        long = "sequencer.signer.tls.ca-path",
+        env = "KONA_NODE_SEQUENCER_SIGNER_TLS_CA_PATH",
         requires = "url"
     )]
     pub ca_cert: Option<PathBuf>,
     /// Path to the client certificate presented to the remote op-signer.
     #[arg(
-        long = "sequencer.signer.tls.cert",
-        env = "KONA_NODE_SEQUENCER_SIGNER_TLS_CERT",
+        long = "sequencer.signer.tls.cert-path",
+        env = "KONA_NODE_SEQUENCER_SIGNER_TLS_CERT_PATH",
         requires = "url",
         requires = "client_key"
     )]
     pub client_cert: Option<PathBuf>,
     /// Path to the private key of the client certificate.
     #[arg(
-        long = "sequencer.signer.tls.key",
-        env = "KONA_NODE_SEQUENCER_SIGNER_TLS_KEY",
+        long = "sequencer.signer.tls.key-path",
+        env = "KONA_NODE_SEQUENCER_SIGNER_TLS_KEY_PATH",
         requires = "url",
         requires = "client_cert"
     )]
@@ -155,7 +155,7 @@ pub(crate) mod test_utils {
     pub(crate) const KEY: &str =
         "0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be";
 
-    /// A file holding `contents`, for `--sequencer.signer.key.path`. It is deleted on drop.
+    /// A file holding `contents`, for `--sequencer.signer.key-path`. It is deleted on drop.
     pub(crate) fn key_file(contents: &str) -> tempfile::NamedTempFile {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         write!(file, "{contents}").unwrap();
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn reads_the_local_key_from_its_file() {
         let file = key_file(&format!("{KEY}\n"));
-        let args = parse(&["--sequencer.signer.key.path", file.path().to_str().unwrap()]).unwrap();
+        let args = parse(&["--sequencer.signer.key-path", file.path().to_str().unwrap()]).unwrap();
 
         let Some(BlockSigner::Local(signer)) = args.config().unwrap() else {
             panic!("expected a local signer")
@@ -201,15 +201,15 @@ mod tests {
 
     #[test]
     fn rejects_a_missing_or_malformed_key_file() {
-        let args = parse(&["--sequencer.signer.key.path", "/nonexistent/sequencer.key"]).unwrap();
+        let args = parse(&["--sequencer.signer.key-path", "/nonexistent/sequencer.key"]).unwrap();
         assert!(matches!(args.config(), Err(SignerKeyError::Read(..))));
 
         let file = key_file("not hex");
-        let args = parse(&["--sequencer.signer.key.path", file.path().to_str().unwrap()]).unwrap();
+        let args = parse(&["--sequencer.signer.key-path", file.path().to_str().unwrap()]).unwrap();
         assert!(matches!(args.config(), Err(SignerKeyError::Decode(..))));
 
         let file = key_file(&B256::ZERO.to_string());
-        let args = parse(&["--sequencer.signer.key.path", file.path().to_str().unwrap()]).unwrap();
+        let args = parse(&["--sequencer.signer.key-path", file.path().to_str().unwrap()]).unwrap();
         assert!(matches!(args.config(), Err(SignerKeyError::Invalid(..))));
     }
 
@@ -222,9 +222,9 @@ mod tests {
             ADDRESS,
             "--sequencer.signer.header",
             "x-api-key=secret,with,commas",
-            "--sequencer.signer.tls.cert",
+            "--sequencer.signer.tls.cert-path",
             "/cert.pem",
-            "--sequencer.signer.tls.key",
+            "--sequencer.signer.tls.key-path",
             "/key.pem",
         ])
         .unwrap();
@@ -245,20 +245,20 @@ mod tests {
         let with_remote = |extra: &[&'static str]| [&remote[..], extra].concat();
         let cases: [(Vec<&str>, ErrorKind); 8] = [
             // two signers
-            (with_remote(&["--sequencer.signer.key.path", "/key"]), ErrorKind::ArgumentConflict),
+            (with_remote(&["--sequencer.signer.key-path", "/key"]), ErrorKind::ArgumentConflict),
             // a remote signer without its address, or its URL
             (vec!["--sequencer.signer.url", "http://a"], ErrorKind::MissingRequiredArgument),
             (vec!["--sequencer.signer.address", ADDRESS], ErrorKind::MissingRequiredArgument),
             // remote signer options without a remote signer
             (vec!["--sequencer.signer.header", "a=b"], ErrorKind::MissingRequiredArgument),
-            (vec!["--sequencer.signer.tls.ca", "/ca.pem"], ErrorKind::MissingRequiredArgument),
+            (vec!["--sequencer.signer.tls.ca-path", "/ca.pem"], ErrorKind::MissingRequiredArgument),
             // a client certificate without its key, or a key without its certificate
             (
-                with_remote(&["--sequencer.signer.tls.cert", "/c"]),
+                with_remote(&["--sequencer.signer.tls.cert-path", "/c"]),
                 ErrorKind::MissingRequiredArgument,
             ),
             (
-                with_remote(&["--sequencer.signer.tls.key", "/k"]),
+                with_remote(&["--sequencer.signer.tls.key-path", "/k"]),
                 ErrorKind::MissingRequiredArgument,
             ),
             // a malformed header

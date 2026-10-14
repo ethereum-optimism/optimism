@@ -9,79 +9,79 @@ use kona_genesis::RollupConfig;
 pub struct OverrideArgs {
     /// Manually specify the timestamp for the Canyon fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.canyon",
-        env = "KONA_NODE_CHAIN_HARDFORK_CANYON",
+        long = "chain.hardfork.canyon-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_CANYON_TIME",
         value_name = "TIMESTAMP"
     )]
     pub canyon: Option<u64>,
     /// Manually specify the timestamp for the Delta fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.delta",
-        env = "KONA_NODE_CHAIN_HARDFORK_DELTA",
+        long = "chain.hardfork.delta-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_DELTA_TIME",
         value_name = "TIMESTAMP"
     )]
     pub delta: Option<u64>,
     /// Manually specify the timestamp for the Ecotone fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.ecotone",
-        env = "KONA_NODE_CHAIN_HARDFORK_ECOTONE",
+        long = "chain.hardfork.ecotone-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_ECOTONE_TIME",
         value_name = "TIMESTAMP"
     )]
     pub ecotone: Option<u64>,
     /// Manually specify the timestamp for the Fjord fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.fjord",
-        env = "KONA_NODE_CHAIN_HARDFORK_FJORD",
+        long = "chain.hardfork.fjord-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_FJORD_TIME",
         value_name = "TIMESTAMP"
     )]
     pub fjord: Option<u64>,
     /// Manually specify the timestamp for the Granite fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.granite",
-        env = "KONA_NODE_CHAIN_HARDFORK_GRANITE",
+        long = "chain.hardfork.granite-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_GRANITE_TIME",
         value_name = "TIMESTAMP"
     )]
     pub granite: Option<u64>,
     /// Manually specify the timestamp for the Holocene fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.holocene",
-        env = "KONA_NODE_CHAIN_HARDFORK_HOLOCENE",
+        long = "chain.hardfork.holocene-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_HOLOCENE_TIME",
         value_name = "TIMESTAMP"
     )]
     pub holocene: Option<u64>,
     /// Manually specify the timestamp for the Isthmus fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.isthmus",
-        env = "KONA_NODE_CHAIN_HARDFORK_ISTHMUS",
+        long = "chain.hardfork.isthmus-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_ISTHMUS_TIME",
         value_name = "TIMESTAMP"
     )]
     pub isthmus: Option<u64>,
     /// Manually specify the timestamp for the Jovian fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.jovian",
-        env = "KONA_NODE_CHAIN_HARDFORK_JOVIAN",
+        long = "chain.hardfork.jovian-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_JOVIAN_TIME",
         value_name = "TIMESTAMP"
     )]
     pub jovian: Option<u64>,
     /// Manually specify the timestamp for the Karst fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.karst",
-        env = "KONA_NODE_CHAIN_HARDFORK_KARST",
+        long = "chain.hardfork.karst-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_KARST_TIME",
         value_name = "TIMESTAMP"
     )]
     pub karst: Option<u64>,
     /// Manually specify the timestamp for the pectra blob schedule, overriding the bundled
     /// setting.
     #[arg(
-        long = "chain.hardfork.pectra-blob-schedule",
-        env = "KONA_NODE_CHAIN_HARDFORK_PECTRA_BLOB_SCHEDULE",
+        long = "chain.hardfork.pectra-blob-schedule-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_PECTRA_BLOB_SCHEDULE_TIME",
         value_name = "TIMESTAMP"
     )]
     pub pectra_blob_schedule: Option<u64>,
     /// Manually specify the timestamp for the Lagoon fork, overriding the bundled setting.
     #[arg(
-        long = "chain.hardfork.lagoon",
-        env = "KONA_NODE_CHAIN_HARDFORK_LAGOON",
+        long = "chain.hardfork.lagoon-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_LAGOON_TIME",
         value_name = "TIMESTAMP"
     )]
     pub lagoon: Option<u64>,
@@ -148,27 +148,27 @@ mod tests {
     fn test_apply_overrides() {
         let args = MockCommand::parse_from([
             "test",
-            "--chain.hardfork.canyon",
+            "--chain.hardfork.canyon-time",
             "1699981200",
-            "--chain.hardfork.delta",
+            "--chain.hardfork.delta-time",
             "1703203200",
-            "--chain.hardfork.ecotone",
+            "--chain.hardfork.ecotone-time",
             "1708534800",
-            "--chain.hardfork.fjord",
+            "--chain.hardfork.fjord-time",
             "1716998400",
-            "--chain.hardfork.granite",
+            "--chain.hardfork.granite-time",
             "1723478400",
-            "--chain.hardfork.holocene",
+            "--chain.hardfork.holocene-time",
             "1732633200",
-            "--chain.hardfork.pectra-blob-schedule",
+            "--chain.hardfork.pectra-blob-schedule-time",
             "1745000000",
-            "--chain.hardfork.isthmus",
+            "--chain.hardfork.isthmus-time",
             "1740000000",
-            "--chain.hardfork.jovian",
+            "--chain.hardfork.jovian-time",
             "1745000001",
-            "--chain.hardfork.karst",
+            "--chain.hardfork.karst-time",
             "1750000000",
-            "--chain.hardfork.lagoon",
+            "--chain.hardfork.lagoon-time",
             "1755000000",
             "--chain.keep-karst-upgrade-gas",
             "true",
