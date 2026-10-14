@@ -20,7 +20,7 @@ The derivation subsystem in kona-node decides the engine's safe head. Its actors
 
 ### The Engine Drives Derivation
 
-The engine drives derivation, and derivation never asks anything of the engine. From its first reset, which it makes itself once the execution layer is synced, the engine repeatedly asks the `engine::Safety` trait's `next` for what to make safe next on top of its safe head:
+The engine drives derivation, and derivation never asks anything of the engine. Once the execution layer has synced, the engine resets derivation and repeatedly asks the `engine::Safety` trait's `next` for what to make safe next on top of its safe head:
 
 - `Derived::Attributes`: payload attributes derived from L1 that no unsafe block matches, which the engine builds into the next safe block, as described in [the engine's operations](/node-operators/kona-node/design/engine#driving-safety-and-finality). If the execution layer rejected the block, a deposits-only block replaces it, and the engine calls `flush` so derivation drops the rest of its channel.
 - `Derived::Safe`: a block the execution layer has, and the L1 block it was derived from, which the engine makes safe as it is.

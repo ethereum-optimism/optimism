@@ -241,15 +241,38 @@ fn spawn(
     (handle, task)
 }
 
-/// Spawns an actor with the initial engine state, following L1 and driving safety and finality
-/// from the start if `started`, as after its first reset, and returns its handle, its task, and
-/// the test's side of its safety and finality.
+/// Spawns an actor with the initial engine state, as after its startup reset, driving safety and
+/// finality if `deriving`, and returns its handle, its task, and the test's side of its safety and
+/// finality.
 fn spawn_with(
     clients: Clients,
     config: Arc<RollupConfig>,
     state: EngineState,
-    started: bool,
+    deriving: bool,
 ) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>, Scripts) {
+    let (handle, mut actor, scripts) = unstarted(clients, config, state);
+    actor.deriving = if deriving { Deriving::Running } else { Deriving::NotStarted };
+    (handle, tokio::spawn(actor.serve()), scripts)
+}
+
+/// Spawns an actor that starts from the initial engine state, with its startup reset, and returns
+/// its handle, its task, and the test's side of its safety and finality.
+fn start(
+    clients: Clients,
+    config: Arc<RollupConfig>,
+    state: EngineState,
+) -> (Handle, tokio::task::JoinHandle<Result<(), ActorError>>, Scripts) {
+    let (handle, actor, scripts) = unstarted(clients, config, state);
+    (handle, tokio::spawn(actor.run()), scripts)
+}
+
+/// Returns an actor with the initial engine state that has not started, its handle, and the test's
+/// side of its safety and finality.
+fn unstarted(
+    clients: Clients,
+    config: Arc<RollupConfig>,
+    state: EngineState,
+) -> (Handle, TestActor, Scripts) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
     let (resets_tx, resets_rx) = watch::channel(state);
@@ -258,9 +281,8 @@ fn spawn_with(
     let block_sink = Arc::new(NoopBlockSink);
     let dependencies =
         Dependencies { client: Arc::new(engine), l1, config, block_sink, safety, finality };
-    let mut actor = Actor::new(dependencies, state_tx, resets_tx, messages_rx);
-    actor.follows_l1 = started;
-    (Handle::new(messages, state_rx, resets_rx), tokio::spawn(actor.run()), scripts)
+    let actor = Actor::new(dependencies, state_tx, resets_tx, messages_rx);
+    (Handle::new(messages, state_rx, resets_rx), actor, scripts)
 }
 
 /// Returns a rollup configuration whose genesis is the default L2 block.
@@ -348,11 +370,11 @@ async fn reset_recovers_and_completes_original_request(#[case] read_delay: Durat
     l2.assert_finished();
 }
 
-/// The engine starts from the execution layer's heads and publishes them before its first request.
-/// It has chosen no forkchoice yet, so its first reset sends the forkchoice even when it settles on
-/// the same heads.
+/// The engine starts from the execution layer's heads, publishes them, and resets at once, which
+/// sends a forkchoice even when it settles on the same heads. An execution layer that has finalized
+/// no block past genesis is doing its first sync, so safety does not start yet.
 #[tokio::test(start_paused = true)]
-async fn starts_from_the_execution_layers_heads() {
+async fn starts_from_the_execution_layers_heads_and_resets() {
     let config = config();
     let (clients, l2) = clients(config.clone());
     for _ in 0..3 {
@@ -368,54 +390,60 @@ async fn starts_from_the_execution_layers_heads() {
     );
 
     expect_reset(&l2, Duration::ZERO);
-    let (handle, actor) = spawn(clients, config, state);
+    let (handle, actor, scripts) = start(clients, config, state);
+    let mut resets = handle.resets();
     assert_eq!(*handle.state().borrow(), state);
-    assert_eq!(handle.reset().await.unwrap(), state);
+    assert_eq!(next_reset(&mut resets).await, state);
+    settle().await;
+    assert_eq!(scripts.driven(), []);
     actor.abort();
     l2.assert_finished();
 }
 
-/// The engine resets itself once the execution layer has synced: until then it asks it every
-/// second, by sending the current forkchoice again, from the first forkchoice it sends. A
-/// forkchoice the execution layer rejects counts as synced, because the reset replaces it. The
-/// reset starts derivation onto the reset's heads.
-#[rstest]
-#[case::valid(PayloadStatusEnum::Valid)]
-#[case::rejected(PayloadStatusEnum::Invalid { validation_error: "invalid block".into() })]
+/// An execution layer that has finalized a block past genesis is not doing its first sync, so
+/// safety starts after the startup reset, onto the reset's safe head.
 #[tokio::test(start_paused = true)]
-async fn resets_itself_once_the_execution_layer_synced(#[case] verdict: PayloadStatusEnum) {
-    let (payload, config) = genesis_payload();
+async fn derives_at_once_when_the_execution_layer_finalized_past_genesis() {
+    let config = config();
     let (clients, l2) = clients(config.clone());
-    let forkchoice_updated = |status| ForkchoiceUpdated::new(PayloadStatus::from_status(status));
-    // The execution layer syncs to the unsafe block the engine inserts, and still syncs when the
-    // engine next asks.
-    l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
-    // It has synced when the engine asks again, so the engine resets onto the inserted block.
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(verdict));
-    let block: OpBlock = payload.clone().try_into_block().unwrap();
-    let block: RpcBlock<op_alloy_rpc_types::Transaction> =
-        RpcBlock::new(RpcHeader::new(block.header), BlockTransactions::Full(vec![]));
-    for _ in 0..3 {
-        l2.expect("eth_getBlockByNumber", block.clone());
-    }
-    l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
-    let (handle, actor, scripts) =
-        spawn_with(clients, config.clone(), EngineState::default(), false);
-    let mut resets = handle.resets();
-
-    // No forkchoice has been sent, so there is none to ask with.
-    time::sleep(Duration::from_secs(10)).await;
-    assert!(!resets.has_changed().unwrap());
-
-    handle.insert_unsafe_block(payload).await.unwrap();
-    let reset = next_reset(&mut resets).await;
-    assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
+    expect_reset(&l2, Duration::ZERO);
+    let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(5)).build();
+    let (handle, actor, scripts) = start(clients, config, state);
+    let reset = next_reset(&mut handle.resets()).await;
+    settle().await;
     assert_eq!(scripts.driven(), [Driven::Reset(reset.safe_head())]);
-    // The engine asks no more once it reset.
-    time::sleep(Duration::from_secs(10)).await;
     actor.abort();
+    l2.assert_finished();
+}
+
+/// During its first sync, the execution layer has synced once it validates a forkchoice whose
+/// unsafe head is past the startup reset's: only then do safety and finality start.
+#[rstest]
+#[case::still_syncing(PayloadStatusEnum::Syncing, 6, false)]
+#[case::validated_at_the_reset(PayloadStatusEnum::Valid, 5, false)]
+#[case::validated_past_it(PayloadStatusEnum::Valid, 6, true)]
+#[tokio::test]
+async fn first_sync_ends_with_a_valid_forkchoice_past_the_reset(
+    #[case] status: PayloadStatusEnum,
+    #[case] unsafe_head: u64,
+    #[case] synced: bool,
+) {
+    let config = config();
+    let (clients, l2) = clients(config.clone());
+    l2.expect(
+        "engine_forkchoiceUpdatedV3",
+        ForkchoiceUpdated::new(PayloadStatus::from_status(status)),
+    );
+    let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(4)).build();
+    let (mut actor, _) = actor(clients, config, state, Arc::new(NoopBlockSink));
+    actor.deriving = Deriving::AfterSyncPast(5);
+
+    let update =
+        HeadsUpdate { unsafe_head: Some(test_block_info(unsafe_head)), ..Default::default() };
+    actor.synchronize(update).await.unwrap();
+
+    let expected = if synced { Deriving::Synced } else { Deriving::AfterSyncPast(5) };
+    assert_eq!(actor.deriving, expected);
     l2.assert_finished();
 }
 
@@ -716,8 +744,6 @@ async fn reset_forgets_the_safe_head_source() {
     let (mut actor, _) = actor(clients, config, EngineState::default(), Arc::new(NoopBlockSink));
 
     actor.reset().await.unwrap();
-    // From its first reset, the engine follows L1.
-    assert!(actor.follows_l1);
     actor.state =
         actor.state.with_safe_head_source(Some(BlockInfo { number: 1, ..Default::default() }));
     actor.reset().await.unwrap();
@@ -875,27 +901,6 @@ async fn checks_an_l1_origin_after_the_l1_head_once_l1_reaches_it() {
     expect_reset(&l2, Duration::ZERO);
     l1.set_head(&second);
     next_reset(&mut resets).await;
-    actor.abort();
-    l2.assert_finished();
-}
-
-/// The engine follows L1 only from its first reset. Until then its heads are the execution layer's
-/// own, unchecked, and the first reset checks them against L1.
-#[tokio::test(start_paused = true)]
-async fn follows_l1_only_from_its_first_reset() {
-    let config = config();
-    let first = descendants(&BlockInfo::default(), 3, 1);
-    let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first].concat());
-    let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
-    let state = resting_on(first[1], RestsOn::UnsafeOrigin);
-    let (handle, actor) = spawn(clients, config, state);
-    let resets = handle.resets();
-
-    // L1 replaces the unsafe head's origin, which the engine does not check yet.
-    let second = descendants(&first[0], 3, 2);
-    l1.set_head(&second);
-    time::sleep(Duration::from_secs(60)).await;
-    assert!(!resets.has_changed().unwrap());
     actor.abort();
     l2.assert_finished();
 }

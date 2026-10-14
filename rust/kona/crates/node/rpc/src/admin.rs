@@ -182,8 +182,8 @@ mod tests {
         engine::Builder::new(engine::EngineState::default()).handle()
     }
 
-    /// Returns an engine whose execution client completes one reset, on an L1 chain that holds
-    /// only the L1 origin of the genesis block.
+    /// Returns an engine whose execution client completes its startup reset and one more, on an
+    /// L1 chain that holds only the L1 origin of the genesis block.
     fn resetting_engine()
     -> (engine::Handle, impl Future<Output = Result<(), engine::ActorError>> + Send + 'static) {
         let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
@@ -199,6 +199,10 @@ mod tests {
             "engine_forkchoiceUpdatedV3",
             ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
         );
+        // The second reset finds the same heads, so it sends no forkchoice.
+        for _ in 0..3 {
+            l2.expect("eth_getBlockByNumber", &block);
+        }
         // The genesis block's L1 origin is the default L1 block, which the L1 chain starts at.
         let l1 = kona_node_actors::l1::Builder::new(
             kona_sources::UntrustedRpc::new(RpcMock::default().provider())

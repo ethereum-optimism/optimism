@@ -53,20 +53,21 @@ The `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
    When starting, the engine takes the execution layer's own heads,
-   and sends it no forkchoice.
+   checks them against L1, and sends them as its forkchoice.
    Once an unsafe block is received from P2P gossip, the engine
    inserts the payload and sends a forkchoice update through the
    engine api, which kicks off EL sync on the execution layer (EL)
    client (such as op-reth or op-geth). EL sync instructs the
    execution client to fetch and sync L2 blocks directly from peers.
-   During this phase, the engine asks the EL client every second
-   whether it has reached the chain tip, until it returns that it is
-   `synced`. No L2 blocks are derived from L1 during this period.
+   During this phase, the EL client answers the engine's forkchoice
+   updates with `SYNCING`, until it reaches the chain tip and answers
+   `VALID`. No L2 blocks are derived from L1 during this period. An
+   EL client that had finalized blocks past genesis when the node
+   started skips this phase.
 
 2. **Consensus Layer (CL) Sync:**
-   Once the EL client is fully synced to the tip, the engine resets
-   onto the synced chain, and the node transitions to consensus layer
-   (CL) sync. In this phase, `kona-node` begins
+   Once the EL client is fully synced to the tip, the node
+   transitions to consensus layer (CL) sync. In this phase, `kona-node` begins
    deriving new L2 payload attributes from the L1 chain, following
    the rollup derivation process. Derivation compares each
    `OpAttributesWithParent` it derives with the unsafe block at its

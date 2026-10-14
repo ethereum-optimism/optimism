@@ -23,7 +23,7 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
     sync::{mpsc, oneshot, watch},
-    time::{self, Duration, Instant, MissedTickBehavior},
+    time::{self, Duration, Instant},
 };
 
 #[cfg(test)]
@@ -92,8 +92,6 @@ const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 /// How long an operation may keep failing temporarily before it is abandoned and the engine reset.
 const TASK_RETRY_TIMEOUT: Duration = Duration::from_secs(60);
-/// How often the engine asks the execution layer whether it synced, until its first reset.
-const EL_SYNC_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 /// One attempt at an operation, boxed so the actor's future stays `Send`.
 type Attempt<'a, E> = Pin<Box<dyn Future<Output = Result<(), E>> + Send + 'a>>;
@@ -143,9 +141,9 @@ struct Dependencies<S, F> {
 /// An operation that keeps failing for [`TASK_RETRY_TIMEOUT`] is abandoned and the engine is
 /// reset; a reset retries until it succeeds.
 ///
-/// The engine resets itself once the execution layer has synced, and from that first reset it
-/// follows L1: whenever the L1 head or the L1 blocks its heads rest on change, it resets if L1
-/// reorged out one of those blocks.
+/// The engine resets itself when it starts, and from then on follows L1: whenever the L1 head or
+/// the L1 blocks its heads rest on change, it resets if L1 reorged out one of those blocks. It
+/// drives safety and finality once the execution layer has synced.
 #[derive(Debug)]
 struct Actor<S, F> {
     /// The Engine API client.
@@ -157,18 +155,18 @@ struct Actor<S, F> {
     config: Arc<RollupConfig>,
     /// Where to hand every block the engine makes canonical.
     block_sink: Arc<dyn ImportedBlockSink>,
-    /// What decides the safe head, which the engine drives from its first reset.
+    /// What decides the safe head, which the engine drives once the execution layer has synced.
     safety: S,
-    /// What decides the finalized head, which the engine drives from its first reset.
+    /// What decides the finalized head, which the engine drives once the execution layer has
+    /// synced.
     finality: F,
     /// The state of the engine. Operations update it, and it is published after every request.
     state: EngineState,
     /// Whether the engine has sent the execution layer a forkchoice. It starts from the execution
     /// layer's own heads, which it has not chosen until it sends them.
     forkchoice_sent: bool,
-    /// Whether the engine follows L1 reorgs. It does from its first reset, which checks the
-    /// execution layer's heads it starts from against L1.
-    follows_l1: bool,
+    /// Whether the engine drives safety and finality yet.
+    deriving: Deriving,
     /// The latest L1 head the engine checked its heads against, and the L1 blocks they rested on
     /// then. Once its heads rest on other blocks, the engine checks them again.
     l1_checked: Option<L1Checked>,
@@ -199,7 +197,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
             finality,
             state,
             forkchoice_sent: false,
-            follows_l1: false,
+            deriving: Deriving::NotStarted,
             l1_checked: None,
             state_tx,
             resets_tx,
@@ -207,24 +205,44 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         }
     }
 
+    /// Resets the engine, which checks the execution layer's heads against L1, and then serves.
+    ///
+    /// An execution layer that has finalized a block past genesis is not doing its first sync, so
+    /// safety and finality start at once. Otherwise they start once the execution layer has synced
+    /// past the reset's unsafe head: until then, deriving would build blocks the execution layer is
+    /// still syncing, and move its sync target.
     async fn run(mut self) -> Result<(), ActorError> {
-        let mut el_sync_poll = time::interval(EL_SYNC_POLL_INTERVAL);
-        el_sync_poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let first_sync =
+            self.state.finalized_head().block_info.number <= self.config.genesis.l2.number;
+        self.reset().await?;
+        self.deriving = if first_sync {
+            info!(target: "engine", "Waiting for the execution layer's first sync before deriving");
+            Deriving::AfterSyncPast(self.state.unsafe_head().block_info.number)
+        } else {
+            Deriving::Synced
+        };
+        self.serve().await
+    }
+
+    /// Serves requests, checks L1, and drives safety and finality once they start, for as long as
+    /// the actor runs.
+    async fn serve(mut self) -> Result<(), ActorError> {
         loop {
+            if self.deriving == Deriving::Synced {
+                info!(target: "engine", "The execution layer synced; deriving");
+                self.deriving = Deriving::Running;
+                self.safety
+                    .reset(self.state.safe_head())
+                    .await
+                    .map_err(|_| ActorError::SafetyStopped)?;
+            }
             let safe = self.safe();
+            let deriving = self.deriving == Deriving::Running;
             tokio::select! {
-                // Poll and check L1 before more requests, which could otherwise delay them for as
-                // long as they keep coming.
+                // Check L1 before more requests, which could otherwise delay it for as long as
+                // they keep coming.
                 biased;
-                // Resetting while the execution layer syncs would point it back at its own stale
-                // heads, away from the chain it is syncing, so the first reset waits for it.
-                _ = el_sync_poll.tick(), if !self.follows_l1 => {
-                    if self.el_synced().await {
-                        info!(target: "engine", "The execution layer synced; resetting the engine");
-                        self.reset().await?;
-                    }
-                }
-                checked = Self::next_l1_check(&self.l1, self.state, self.l1_checked), if self.follows_l1 => {
+                checked = Self::next_l1_check(&self.l1, self.state, self.l1_checked) => {
                     let L1Check { head, reorged } = checked.map_err(|_| ActorError::L1Stopped)?;
                     if let Some(block) = reorged {
                         warn!(target: "engine", ?block, l1_head = ?head.id(), "L1 reorged out a block the engine's heads rest on; resetting");
@@ -236,8 +254,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
                     let message = message.ok_or(ActorError::ChannelClosed)?;
                     self.handle_message(message).await?;
                 }
-                // Safety starts with the engine's first reset, which resets it.
-                derived = self.safety.next(self.state.safe_head()), if self.follows_l1 => {
+                derived = self.safety.next(self.state.safe_head()), if deriving => {
                     let derived = derived.map_err(|_| ActorError::SafetyStopped)?;
                     let result = self.adopt(derived).await;
                     // Publish the state even if adopting failed: it can update the state before a
@@ -247,7 +264,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
                 }
                 // Finality learns each safe head whose source the engine knows: none since a
                 // reset until the engine makes another block safe.
-                finalized = self.finality.next(safe), if self.follows_l1 && self.state.safe_head_source().is_some() => {
+                finalized = self.finality.next(safe), if deriving && self.state.safe_head_source().is_some() => {
                     let finalized = finalized.map_err(|_| ActorError::FinalityStopped)?;
                     let result = self.adopt_finalized(finalized).await;
                     self.publish_state();
@@ -373,27 +390,6 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         self.publish_state();
         let _ = result_tx.send(self.state);
         Ok(())
-    }
-
-    /// Returns whether the execution layer is synced, by sending it the current forkchoice again.
-    ///
-    /// Before the engine has sent a forkchoice, the execution layer is taken to be syncing. A
-    /// rejected forkchoice counts as synced, because a reset replaces it.
-    async fn el_synced(&self) -> bool {
-        if !self.forkchoice_sent {
-            return false;
-        }
-        match self.update_forkchoice(self.state.create_forkchoice_state()).await {
-            Ok(synced) => synced,
-            Err(err) if err.severity() == EngineTaskErrorSeverity::Reset => {
-                warn!(target: "engine", ?err, "The execution layer rejected the forkchoice");
-                true
-            }
-            Err(err) => {
-                warn!(target: "engine", ?err, "Failed to ask whether the execution layer synced");
-                false
-            }
-        }
     }
 
     /// Starts a build and replies with its payload ID or failure; the caller decides whether to
@@ -642,15 +638,20 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         }
         // The reset's safe head was not derived from a known L1 block.
         self.state = self.state.with_safe_head_source(None);
-        self.follows_l1 = true;
         // Readers that follow the engine's chain start over from the reset's safe head. The reset
         // is published before the reply to the request that caused it, and after the state, so a
         // reader that sees the reset finds no older state left to read.
         self.publish_state();
         self.resets_tx.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
-        // Safety starts over from the reset's safe head.
-        self.safety.reset(self.state.safe_head()).await.map_err(|_| ActorError::SafetyStopped)
+        // Safety starts over from the reset's safe head, if it started.
+        if self.deriving == Deriving::Running {
+            self.safety
+                .reset(self.state.safe_head())
+                .await
+                .map_err(|_| ActorError::SafetyStopped)?;
+        }
+        Ok(())
     }
 
     /// Applies a heads update and sends the resulting forkchoice to the execution layer with
@@ -688,9 +689,15 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         }
 
         let forkchoice = new_state.create_forkchoice_state();
-        self.update_forkchoice(forkchoice).await?;
+        let valid = self.update_forkchoice(forkchoice).await?;
         self.state = new_state;
         self.forkchoice_sent = true;
+        if let Deriving::AfterSyncPast(number) = self.deriving &&
+            valid &&
+            new_state.unsafe_head().block_info.number > number
+        {
+            self.deriving = Deriving::Synced;
+        }
         Ok(())
     }
 
@@ -1046,6 +1053,20 @@ impl<S: Safety, F: Finality> Actor<S, F> {
 
         Ok(true)
     }
+}
+
+/// Whether the engine drives safety and finality yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Deriving {
+    /// Not before the engine's startup reset.
+    NotStarted,
+    /// Not until the execution layer validates a forkchoice whose unsafe head is past this block
+    /// number: it is doing its first sync.
+    AfterSyncPast(u64),
+    /// The execution layer synced, so they start next.
+    Synced,
+    /// The engine drives them.
+    Running,
 }
 
 /// Returns the L1 blocks the heads of `state` rest on: the unsafe head's L1 origin, and the L1
