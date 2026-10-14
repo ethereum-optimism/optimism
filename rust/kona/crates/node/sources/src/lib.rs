@@ -7,6 +7,12 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod engine;
+pub use engine::{EngineClient, EngineClientError};
+
+mod metrics;
+pub use metrics::Metrics;
+
 mod signer;
 pub use signer::{
     BlockSigner, BlockSignerError, BlockSignerHandler, BlockSignerStartError, RemoteSigner,
@@ -18,3 +24,6 @@ pub use tls::{
     CertificateError, ClientCert, ReloadingRpcClient, ReloadingRpcClientError, TlsPaths,
     redacted_url,
 };
+
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;

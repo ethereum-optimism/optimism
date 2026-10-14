@@ -11,8 +11,8 @@ use alloy_transport_http::{
     reqwest,
 };
 use http_body_util::Full;
-use kona_engine::EngineClient;
 use kona_providers_alloy::OnlineBeaconClient;
+use kona_sources::EngineClient;
 use op_alloy_network::Optimism;
 use std::time::Duration;
 use tower::ServiceBuilder;

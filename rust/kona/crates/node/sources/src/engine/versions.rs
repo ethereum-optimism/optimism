@@ -24,7 +24,7 @@ use kona_genesis::RollupConfig;
 /// Selects between V2 and V3 based on hardfork activation. V3 is required
 /// for Ecotone/Cancun and later hardforks to support new consensus features.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EngineForkchoiceVersion {
+pub(super) enum EngineForkchoiceVersion {
     /// Version 2: Used for Bedrock, Canyon, and Delta hardforks.
     V2,
     /// Version 3: Required for Ecotone/Cancun and later hardforks.
@@ -35,7 +35,7 @@ impl EngineForkchoiceVersion {
     /// Returns the appropriate [`EngineForkchoiceVersion`] for the chain at the given attributes.
     ///
     /// Uses the [`RollupConfig`] to check which L1 hardfork is implied at the given timestamp.
-    pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
+    pub(super) fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
         if cfg.is_cancun_active_at_timestamp(timestamp) {
             // Ecotone+
             Self::V3
@@ -51,7 +51,7 @@ impl EngineForkchoiceVersion {
 /// Matches the payload version used for retrieval with the version
 /// used during payload construction, ensuring API compatibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EngineGetPayloadVersion {
+pub(super) enum EngineGetPayloadVersion {
     /// Version 2: Basic payload retrieval.
     V2,
     /// Version 3: Enhanced payload data for Cancun/Ecotone.
@@ -68,7 +68,7 @@ impl EngineGetPayloadVersion {
     /// Uses the [`RollupConfig`] to check which L1 hardfork is implied at the given timestamp.
     /// Osaka (Karst) bumps only `getPayload` to V5; `newPayload`/`forkchoiceUpdated` are
     /// unchanged.
-    pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
+    pub(super) fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
         if cfg.is_osaka_active_at_timestamp(timestamp) {
             Self::V5
         } else if cfg.is_prague_active_at_timestamp(timestamp) {

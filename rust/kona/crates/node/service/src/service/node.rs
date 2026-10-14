@@ -14,7 +14,6 @@ use jsonrpsee::{
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::EngineClient;
 use kona_node_actors::{
     derivation, discovery, engine, finality, l1, l1_signer_updater, network, sequencer,
 };
@@ -28,7 +27,7 @@ use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
-use kona_sources::BlockSignerHandler;
+use kona_sources::{BlockSignerHandler, EngineClient};
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::watch;
 

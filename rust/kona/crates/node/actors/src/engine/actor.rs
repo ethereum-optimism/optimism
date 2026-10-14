@@ -13,11 +13,10 @@ use alloy_rpc_types_engine::{
     ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
 };
 use alloy_rpc_types_eth::Block as RpcBlock;
-use kona_engine::{
-    AttributesMatch, EngineClient, ImportedBlockSink, Metrics, find_starting_forkchoice,
-};
+use kona_engine::{AttributesMatch, ImportedBlockSink, Metrics, find_starting_forkchoice};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_sources::EngineClient;
 use op_alloy_consensus::OpBlock;
 use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;

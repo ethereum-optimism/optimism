@@ -15,25 +15,21 @@ workspace = true
 # workspace
 kona-genesis.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
+kona-sources.workspace = true
 
 # alloy
-alloy-hardforks.workspace = true
 alloy-eips.workspace = true
 alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-transport.workspace = true
-alloy-json-rpc.workspace = true
 alloy-primitives.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "reqwest", "reqwest-rustls-tls", "engine-api"] }
-alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
-alloy-transport-http = { workspace = true, features = ["reqwest", "hyper", "jwt-auth"] }
 
 # op-alloy
 op-alloy-network.workspace = true
 op-alloy-consensus.workspace = true
-op-alloy-provider.workspace = true
 op-alloy-rpc-types.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 
@@ -43,8 +39,6 @@ tokio.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 url.workspace = true
-tower = { workspace = true, features = ["util"] }
-http-body-util.workspace = true
 serde_json.workspace = true
 
 # metrics
@@ -56,8 +50,6 @@ kona-registry.workspace = true
 rand = {workspace = true, features = ["thread_rng"]}
 arbitrary.workspace = true
 op-alloy-rpc-types = {workspace = true, features = ["arbitrary", "k256"]}
-metrics-exporter-prometheus.workspace = true
-rstest.workspace = true
 
 [features]
 test-utils = [

@@ -68,6 +68,7 @@ alloy-json-rpc.workspace = true
 httpmock.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
+kona-sources = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }
 rstest.workspace = true
 metrics-exporter-prometheus.workspace = true

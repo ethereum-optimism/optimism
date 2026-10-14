@@ -10,7 +10,6 @@
 ///
 /// - Block progression through safety levels (unsafe → finalized)
 /// - Task execution success/failure rates by type
-/// - Engine API method call latencies
 ///
 /// # Usage
 ///
@@ -23,9 +22,6 @@
 ///
 /// // Record block height at safety level
 /// gauge!(Metrics::BLOCK_LABELS, block_num as f64, "level" => Metrics::SAFE_BLOCK_LABEL);
-///
-/// // Time Engine API calls
-/// histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, duration.as_secs_f64());
 /// ```
 #[derive(Debug, Clone)]
 pub struct Metrics;
@@ -60,10 +56,6 @@ impl Metrics {
     /// Finalize task label.
     pub const FINALIZE_TASK_LABEL: &str = "finalize";
 
-    /// Identifier for the histogram that tracks the duration of requests to the L2 execution
-    /// layer, labeled by JSON-RPC method.
-    pub const ENGINE_METHOD_REQUEST_DURATION: &str = "kona_node_engine_method_request_duration";
-
     /// Identifier for the counter that tracks the number of times the engine has been reset.
     pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";
 
@@ -85,13 +77,6 @@ impl Metrics {
         // Engine task counts
         metrics::describe_counter!(Self::ENGINE_TASK_SUCCESS, "Engine tasks successfully executed");
         metrics::describe_counter!(Self::ENGINE_TASK_FAILURE, "Engine tasks failed");
-
-        // L2 execution layer request duration histogram
-        metrics::describe_histogram!(
-            Self::ENGINE_METHOD_REQUEST_DURATION,
-            metrics::Unit::Seconds,
-            "Duration of requests to the L2 execution layer, by JSON-RPC method"
-        );
 
         // Engine reset counter
         metrics::describe_counter!(

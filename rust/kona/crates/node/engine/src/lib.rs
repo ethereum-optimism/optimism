@@ -8,10 +8,7 @@
 
 //! ## Module Organization
 //!
-//! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
 //! - **Sync** - Sync starting point discovery via [`find_starting_forkchoice`]
-//! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`] and
-//!   [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
 //! - **Block sink** - Canonical block notifications via [`ImportedBlockSink`]
 //! - **Metrics** - Optional Prometheus metrics collection via [`Metrics`]
@@ -24,12 +21,6 @@ pub use attributes::{AttributesMatch, AttributesMismatch};
 
 mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
-
-mod client;
-pub use client::{EngineClient, EngineClientError};
-
-mod versions;
-pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};
 
 mod metrics;
 pub use metrics::Metrics;

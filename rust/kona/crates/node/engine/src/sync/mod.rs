@@ -11,8 +11,8 @@ pub use error::SyncStartError;
 
 use tracing::info;
 
-use crate::EngineClient;
 use alloy_provider::Provider;
+use kona_sources::EngineClient;
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///

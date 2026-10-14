@@ -233,9 +233,9 @@ mod tests {
     use super::*;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
-    use kona_engine::test_utils::{RpcMock, test_engine_client};
     use kona_node_actors::engine::HeadsUpdate;
     use kona_protocol::{BlockInfo, L2BlockInfo};
+    use kona_sources::test_utils::{RpcMock, test_engine_client};
     use op_alloy_rpc_types::Transaction;
     use serde_json::json;
 

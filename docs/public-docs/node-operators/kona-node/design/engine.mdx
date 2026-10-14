@@ -3,7 +3,7 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It is built on the Engine API client and version selection from the `kona-engine` crate.
+The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It talks to the execution layer through the Engine API client in the `kona-sources` crate, which selects each method's version.
 
 ## Architecture Overview
 
@@ -11,7 +11,7 @@ The execution engine is built around several key components:
 
 - **Engine Operations**: Engine API operations the engine actor performs one at a time against the engine state
 - **Error Severities**: Each operation's errors say how to recover
-- **Engine Client**: HTTP client for communicating with the execution layer, from `kona-engine`
+- **Engine Client**: HTTP client for communicating with the execution layer, from `kona-sources`
 - **Actor Integration**: Service layer integration through the engine actor's handle
 
 ## Error Severity

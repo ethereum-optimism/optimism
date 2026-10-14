@@ -97,16 +97,14 @@ mod tests {
         ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
     };
     use kona_derive::test_utils::TestAttributesBuilder;
-    use kona_engine::{
-        NoopBlockSink,
-        test_utils::{RpcMock, test_engine_client},
-    };
+    use kona_engine::NoopBlockSink;
     use kona_genesis::RollupConfig;
     use kona_node_actors::{
         EngineClientResult, L1OriginSelectorError, OriginSelector, SequencerEngineClient,
         sequencer::{self, ConductorClient},
     };
     use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+    use kona_sources::test_utils::{RpcMock, test_engine_client};
     use std::{
         future::{Future, ready},
         sync::Arc,

@@ -9,10 +9,11 @@ use alloy_rpc_types_engine::{
 use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
 use kona_engine::{
     NoopBlockSink,
-    test_utils::{RpcMock, TestAttributesBuilder, test_block_info, test_engine_client},
+    test_utils::{TestAttributesBuilder, test_block_info},
 };
 use kona_genesis::ChainGenesis;
 use kona_protocol::BlockInfo;
+use kona_sources::test_utils::{RpcMock, test_engine_client};
 use op_alloy_consensus::OpTxType;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use rstest::rstest;

@@ -1,6 +1,7 @@
 //! An Engine API Client.
 
-use crate::{EngineForkchoiceVersion, EngineGetPayloadVersion, Metrics};
+use super::versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};
+use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::Network;
@@ -382,10 +383,11 @@ mod deadline_tests {
 #[cfg(test)]
 mod version_tests {
     use super::*;
-    use crate::test_utils::{TestAttributesBuilder, test_engine_client};
+    use crate::test_utils::test_engine_client;
     use alloy_primitives::B256;
     use alloy_rpc_types_engine::{
-        ExecutionPayloadEnvelopeV2, ExecutionPayloadV2, ExecutionPayloadV3, PayloadStatusEnum,
+        ExecutionPayloadEnvelopeV2, ExecutionPayloadV2, ExecutionPayloadV3, PayloadAttributes,
+        PayloadStatusEnum,
     };
     use op_alloy_rpc_types_engine::{
         OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
@@ -417,8 +419,9 @@ mod version_tests {
     ) {
         let (client, l2) = test_engine_client(config());
         let state = ForkchoiceState::default();
-        let attributes = timestamp.map(|timestamp| {
-            TestAttributesBuilder::new().with_timestamp(timestamp).build().attributes
+        let attributes = timestamp.map(|timestamp| OpPayloadAttributes {
+            payload_attributes: PayloadAttributes { timestamp, ..Default::default() },
+            ..Default::default()
         });
         l2.expect_params(method, json!([state, attributes]), ForkchoiceUpdated::new(valid()));
 

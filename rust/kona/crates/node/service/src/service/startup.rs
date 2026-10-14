@@ -4,7 +4,7 @@
 use super::error::{ListenProtocol, RollupNodeError};
 use crate::NetworkConfig;
 use backon::{ExponentialBuilder, Retryable};
-use kona_engine::EngineClient;
+use kona_sources::EngineClient;
 use libp2p::multiaddr::Protocol;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use std::net::{IpAddr, SocketAddr, TcpListener, UdpSocket};
