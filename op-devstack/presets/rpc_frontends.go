@@ -158,12 +158,14 @@ type l2ELFrontend struct {
 	control        stack.ControlledLifecycle
 	ungraceful     stack.UngracefulLifecycle
 	logRecorder    stack.LogRecorder
+	proofsInit     stack.ProofsHistoryInitializer
 }
 
 var (
-	_ stack.L2ELNode            = (*l2ELFrontend)(nil)
-	_ stack.LogRecorder         = (*l2ELFrontend)(nil)
-	_ stack.UngracefulLifecycle = (*l2ELFrontend)(nil)
+	_ stack.L2ELNode                 = (*l2ELFrontend)(nil)
+	_ stack.LogRecorder              = (*l2ELFrontend)(nil)
+	_ stack.ProofsHistoryInitializer = (*l2ELFrontend)(nil)
+	_ stack.UngracefulLifecycle      = (*l2ELFrontend)(nil)
 )
 
 func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
@@ -208,6 +210,11 @@ func (r *l2ELFrontend) StopUngracefully() {
 func (r *l2ELFrontend) RecordLogLines(substring string) *logpipe.LogRecord {
 	r.require().NotNil(r.logRecorder, "L2EL node %s does not expose its log", r.Name())
 	return r.logRecorder.RecordLogLines(substring)
+}
+
+func (r *l2ELFrontend) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHistoryInitReport, error) {
+	r.require().NotNil(r.proofsInit, "L2EL node %s cannot seed a proofs-history store", r.Name())
+	return r.proofsInit.InitProofsHistory(init)
 }
 
 func (r *l2ELFrontend) StartControlled(ctx context.Context) error {

@@ -72,6 +72,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if recorder, ok := lifecycle[0].(stack.LogRecorder); ok {
 			l2EL.logRecorder = recorder
 		}
+		if initializer, ok := lifecycle[0].(stack.ProofsHistoryInitializer); ok {
+			l2EL.proofsInit = initializer
+		}
 	}
 	return l2EL
 }
