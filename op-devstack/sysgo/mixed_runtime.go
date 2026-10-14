@@ -177,6 +177,9 @@ type MixedSingleChainNodeSpec struct {
 	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
 	// rather than the consolidation path. Defaults to false (fully peered).
 	IsolateFromL2P2P bool
+	// L2CLOpts are per-node op-node options, e.g. L2CLVerifierSyncMode for a follower that must
+	// EL-sync. Ignored for non-op-node CL kinds.
+	L2CLOpts []L2CLOption
 	// OpRethOpts are per-node op-reth options applied AFTER the shared cfg.OpRethOptions, only to
 	// this node's EL. Use for options that must not reach every node — e.g. a per-node binary
 	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
@@ -287,10 +290,10 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				IsSequencer:   spec.IsSequencer,
 				NoDiscovery:   true,
 				DependencySet: depSet,
-				L2CLOptions: []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+				L2CLOptions: append([]L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 					cfg.SafeDBPath = safeDBPath
 					cfg.VerifierL1Confs = spec.VerifierL1Confs
-				})},
+				})}, spec.L2CLOpts...),
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
