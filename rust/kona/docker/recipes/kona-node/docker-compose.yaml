@@ -73,7 +73,7 @@ services:
     environment:
       L1_PROVIDER_RPC: ${L1_PROVIDER_RPC:?}
       L1_BEACON_API: ${L1_BEACON_API:?}
-      RUST_LOG: ${RUST_LOG:-}
+      RUST_LOG:
     command: >
       node
       --chain optimism-sepolia

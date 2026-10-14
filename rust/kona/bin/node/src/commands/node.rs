@@ -13,6 +13,12 @@ use kona_node_service::{
 };
 use tracing::{debug, error, info};
 
+/// Log directives the node applies before `--logs.filter`, which overrides them for the same
+/// target.
+///
+/// Discovery logs are off: they used to be cut to errors as noise, which is still to be checked.
+const DEFAULT_LOG_DIRECTIVES: &str = "discv5=off";
+
 /// Command-line interface for running a Kona rollup node.
 ///
 /// The `NodeCommand` struct defines all the configuration options needed to start and run
@@ -30,7 +36,8 @@ use tracing::{debug, error, info};
 ///
 /// Configuration can be provided through:
 /// - Command-line arguments
-/// - Environment variables (prefixed with `KONA_NODE_`)
+/// - Environment variables (prefixed with `KONA_NODE_`, except `--logs.filter`, which reads
+///   `RUST_LOG`)
 /// - Configuration files (for rollup config)
 ///
 /// # Examples
@@ -95,11 +102,9 @@ pub struct NodeCommand {
 impl NodeCommand {
     /// Initializes the logging system based on the logging arguments.
     pub fn init_logs(&self) -> anyhow::Result<()> {
-        // Filter out discovery warnings since they're very very noisy.
-        let filter = tracing_subscriber::EnvFilter::from_default_env()
-            .add_directive("discv5=error".parse()?);
-
-        self.log_args.config().init_tracing_subscriber(Some(filter))?;
+        let mut config = self.log_args.config();
+        config.filter = config.filter.with_defaults(DEFAULT_LOG_DIRECTIVES)?;
+        config.init_tracing_subscriber()?;
         Ok(())
     }
 

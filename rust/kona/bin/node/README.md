@@ -86,7 +86,7 @@ Many configuration options can be set via environment variables:
 - `KONA_NODE_L1_BEACON_URL` - L1 beacon API URL
 - `KONA_NODE_L2_ENGINE_URL` - L2 engine API URL
 - `KONA_NODE_L2_ENGINE_JWT_SECRET_PATH` - Path to L2 engine JWT secret file
-- `RUST_LOG` - Logging configuration
+- `RUST_LOG` - Which logs to keep, read when `--logs.filter` is not set
 
 Example using environment variables:
 
@@ -96,7 +96,7 @@ export KONA_NODE_L1_ETH_URL="https://your-l1-rpc"
 export KONA_NODE_L1_BEACON_URL="https://your-l1-beacon-api"
 export KONA_NODE_L2_ENGINE_URL="http://localhost:8551"
 export KONA_NODE_L2_ENGINE_JWT_SECRET_PATH="/path/to/jwt.hex"
-export RUST_LOG="kona_node=info,kona_derive=debug"
+export RUST_LOG="info,derivation=debug"
 
 kona-node node --logs.enabled --rpc.enabled --rpc.port 5060
 ```

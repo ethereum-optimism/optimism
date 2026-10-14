@@ -573,7 +573,10 @@ func startMixedKonaNode(
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		"KONA_NODE_LOGS_ENABLED=true",
-		propagateEnvVarOrDefault("KONA_NODE_LOGS_LEVEL", "info"),
+		// kona-node reports its RPC address in an info log with the target `rpc`, which
+		// startup waits for, so keep that target at info whatever RUST_LOG holds. An `rpc`
+		// directive in RUST_LOG comes later and still wins.
+		"RUST_LOG=rpc=info," + getEnvVarOrDefault("RUST_LOG", "info"),
 		propagateEnvVarOrDefault("KONA_NODE_LOGS_FORMAT", "json"),
 		"KONA_NODE_P2P_ENABLED=true",
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_ADDR", "127.0.0.1"),

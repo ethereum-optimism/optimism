@@ -35,7 +35,6 @@ use tokio::sync::{
     watch,
 };
 use tracing::error;
-use tracing_subscriber::EnvFilter;
 
 /// Passes the peers discovery finds to the network actor.
 #[derive(Debug)]
@@ -84,7 +83,7 @@ pub struct GossipCommand {
 impl GossipCommand {
     /// Run the gossip subcommand.
     pub async fn run(self) -> anyhow::Result<()> {
-        LogConfig::new(self.v).init_tracing_subscriber(None::<EnvFilter>)?;
+        LogConfig::new(self.v).init_tracing_subscriber()?;
 
         let rollup_config = ROLLUP_CONFIGS
             .get(&self.l2_chain_id)

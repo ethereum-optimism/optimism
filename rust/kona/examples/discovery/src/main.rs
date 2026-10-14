@@ -51,9 +51,7 @@ pub struct DiscCommand {
 impl DiscCommand {
     /// Run the discovery subcommand.
     pub async fn run(self) -> anyhow::Result<()> {
-        let filter = tracing_subscriber::EnvFilter::from_default_env()
-            .add_directive("discv5=error".parse()?);
-        LogConfig::new(self.v).init_tracing_subscriber(Some(filter))?;
+        LogConfig::new(self.v).init_tracing_subscriber()?;
 
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()

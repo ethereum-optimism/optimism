@@ -3,7 +3,7 @@
 //! These are cli flags that are shared across binaries to standardize kona's services CLI UX.
 
 mod log;
-pub use log::{LogArgs, LogLevel};
+pub use log::{LogArgs, LogFilter};
 
 /// Returns the environment variable a flag reads: `prefix`, then the flag's long name in upper
 /// case with `.` and `-` replaced by `_`. For example, with the prefix `KONA_NODE_`,
@@ -27,7 +27,12 @@ mod tests {
             .get_arguments()
             .filter_map(|arg| {
                 let long = arg.get_long()?;
-                let expected = env_var_for_flag("KONA_", long);
+                // The log filter reads the variable every Rust program's filter does.
+                let expected = if long == "logs.filter" {
+                    "RUST_LOG".to_string()
+                } else {
+                    env_var_for_flag("KONA_", long)
+                };
                 let actual = arg.get_env().map(|env| env.to_string_lossy().into_owned());
                 (actual.as_deref() != Some(expected.as_str()))
                     .then(|| format!("--{long}: {actual:?}, expected {expected}"))

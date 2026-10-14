@@ -53,7 +53,6 @@ thiserror.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
 rstest.workspace = true

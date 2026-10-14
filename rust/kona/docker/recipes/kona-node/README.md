@@ -79,10 +79,10 @@ network parameters. Specifically:
 
 ### Adjusting log filters
 
-Log filters can be adjusted by setting the `RUST_LOG` environment variable. This environment variable will be forwarded
-to the `kona-node` container's entrypoint.
+Log filters can be adjusted by setting the `RUST_LOG` environment variable, in the syntax of `kona-node`'s `--logs.filter`. This environment variable will be forwarded
+to the `kona-node` container's entrypoint. When it is not set, `kona-node` logs at the `info` level.
 
-Example: `export RUST_LOG=engine_builder=trace,runtime=debug`
+Example: `export RUST_LOG=info,engine=debug`
 
 [op-sepolia]: https://sepolia-optimism.etherscan.io
 [op-reth]: https://github.com/paradigmxyz/reth

@@ -1,7 +1,7 @@
 //! Logging CLI Flags
 
 use clap::{ArgAction, Args};
-use kona_cli::{LogConfig, LogFormat, LogLevel, StdoutLogConfig};
+use kona_cli::{LogConfig, LogFilter, LogFormat, StdoutLogConfig};
 
 /// Logging CLI Flags
 ///
@@ -22,20 +22,25 @@ pub struct LogArgs {
         value_name = "BOOL"
     )]
     pub enabled: bool,
-    /// The most detailed level to log.
-    #[arg(long = "logs.level", default_value = "info", env = "KONA_NODE_LOGS_LEVEL")]
-    pub level: LogLevel,
+    /// Which logs to keep, in `RUST_LOG` syntax: a level such as `debug` for every target, a
+    /// level for one target such as `engine=debug`, or several, comma-separated, such as
+    /// `info,engine=debug`. A target without a level of its own logs at the bare level, and with
+    /// no bare level it logs nothing. An invalid directive is an error.
+    ///
+    /// Unlike the other flags, which read a `KONA_NODE_` variable, this reads `RUST_LOG`.
+    #[arg(long = "logs.filter", default_value = "info", env = "RUST_LOG")]
+    pub filter: LogFilter,
     /// The format of the logs.
     #[arg(long = "logs.format", default_value = "full", env = "KONA_NODE_LOGS_FORMAT")]
     pub format: LogFormat,
 }
 
 impl LogArgs {
-    /// Returns the logging configuration: stdout logs at the given level and format if enabled,
-    /// and no logs otherwise.
+    /// Returns the logging configuration: stdout logs kept by the given filter, in the given
+    /// format, if enabled, and no logs otherwise.
     pub fn config(&self) -> LogConfig {
         LogConfig {
-            global_level: self.level.into(),
+            filter: self.filter.clone(),
             stdout_logs: self.enabled.then_some(StdoutLogConfig { format: self.format }),
             file_logs: None,
         }
@@ -67,13 +72,24 @@ mod tests {
     }
 
     #[test]
-    fn logs_to_stdout_at_the_level_and_format_given() {
-        let logs = parse(&["--logs.enabled", "--logs.level", "debug", "--logs.format", "json"])
-            .unwrap()
-            .config();
-        assert_eq!(logs.global_level, tracing::level_filters::LevelFilter::DEBUG);
+    fn logs_to_stdout_with_the_filter_and_format_given() {
+        let logs = parse(&[
+            "--logs.enabled",
+            "--logs.filter",
+            "info,engine=debug",
+            "--logs.format",
+            "json",
+        ])
+        .unwrap()
+        .config();
+        assert_eq!(logs.filter.to_string(), "info,engine=debug");
         assert_eq!(logs.stdout_logs.unwrap().format, LogFormat::Json);
         assert!(logs.file_logs.is_none());
+    }
+
+    #[test]
+    fn the_level_flag_is_gone() {
+        assert!(parse(&["--logs.level", "debug"]).is_err());
     }
 
     #[test]

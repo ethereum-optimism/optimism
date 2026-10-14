@@ -19,34 +19,41 @@ metrics into Grafana dashboards.
 `--logs.format` (`KONA_NODE_LOGS_FORMAT`) sets their format: `full` (the
 default), `json`, `pretty`, `compact` or `logfmt`.
 
-`--logs.level` (`KONA_NODE_LOGS_LEVEL`) sets the most detailed level it logs
-at. From the least detailed to the most, the levels are:
+`kona-node` chooses which logs to keep with the `--logs.filter` flag, or the
+`RUST_LOG` environment variable when the flag is not set. It defaults to
+`info`. The filter uses the
+[`RUST_LOG` syntax of the tracing_subscriber crate][tracing-env]: a
+comma-separated list of directives, each a level, or a log target and the level
+to log it at.
+
+A level on its own applies to every log target. From the least detailed to the
+most, the levels are:
 
 - `error`: only error logs
 - `warn`: warning and error logs
-- `info`: informational logs, and the levels above. This is the default.
+- `info`: informational logs, and the levels above
 - `debug`: logs meant to print debugging information, and the levels above
 - `trace`: very verbose logs that provide a detailed trace
 
-To log at the `debug` level, run the node like so:
-`kona-node node --logs.enabled --logs.level debug`.
+`off` turns logging off. To log at the `debug` level, run the node like so:
+`kona-node node --logs.enabled --logs.filter debug`.
 
 ### Filtering Log Targets
 
-By default, the `kona-node` initializes its tracing (logging)
-using the default environment variable filter [provided by the
-tracing_subscriber crate][tracing-env]. This uses the value in
-the `RUST_LOG` environment variable to set the tracing level
-for specific targets. Effectively, `RUST_LOG` allows you to
-bypass the default log level for the whole node or specific
-log targets. For example, by prepending `RUST_LOG=engine=debug`
-to the `kona-node` command (or setting that as an environment
-variable), only `INFO` logs will be displayed except for the
-`engine` log target which will also print `DEBUG` logs.
+A directive for a log target sets the level for that target alone. For example,
+`--logs.filter info,engine=debug` (or `RUST_LOG=info,engine=debug`) prints
+`INFO` logs, and `DEBUG` logs from the `engine` target too. A target without a
+directive of its own logs at the level on its own, so without one,
+`--logs.filter engine=debug` prints only the `engine` target's logs.
 
-This comes in handy say for when we would like to debug Kona's
-P2P stack, we could prepend `RUST_LOG=discv5=debug,libp2p=debug`
-to view debug logs from only `discv5` and `libp2p` targets.
+When directives name the same target, the later one wins. `kona-node` puts
+`discv5=off` before the filter, so discovery logs are off unless the filter
+names `discv5`. This comes in handy say for when we would like to debug Kona's
+P2P stack: `--logs.filter info,discv5=debug,libp2p=debug` adds debug logs from
+the `discv5` and `libp2p` targets.
+
+An invalid directive stops the node at startup. An empty filter, such as an
+empty `RUST_LOG`, keeps no logs.
 
 ## Metrics
 
@@ -88,7 +95,7 @@ the `+` icon > `Import Dashboard` > paste the contents of [kona's
 dashboard][dashboard] in the textbox > `Load`.
 
 
-[tracing-env]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#method.from_default_env
+[tracing-env]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives
 
 [setup]: https://reth.rs/run/monitoring#prometheus--grafana
 

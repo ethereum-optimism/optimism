@@ -119,10 +119,12 @@ PROMETHEUS_PORT=9090
 
 ### Logging
 
-Adjust log levels by setting the `RUST_LOG` environment variable:
+Choose which logs to keep by setting the `RUST_LOG` environment variable, which `kona-node`
+reads when `--logs.filter` is not set. For example, to keep `info` logs and `debug` logs from the
+`engine` target:
 
 ```bash
-export RUST_LOG=engine_builder=trace,runtime=debug
+export RUST_LOG=info,engine=debug
 ```
 
 ## Management Commands

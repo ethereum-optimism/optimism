@@ -5022,7 +5022,6 @@ dependencies = [
  "kona-node-actors",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -5064,7 +5063,6 @@ dependencies = [
  "libp2p",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -5085,7 +5083,6 @@ dependencies = [
  "kona-executor",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "url",
 ]
 
@@ -7163,6 +7160,7 @@ dependencies = [
  "metrics-process",
  "rstest",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "tracing",
  "tracing-appender",
@@ -7439,7 +7437,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -7528,7 +7525,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "url",
 ]
 

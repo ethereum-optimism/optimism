@@ -152,8 +152,8 @@ mod tests {
     #[test]
     fn test_parse_node_flags() {
         let flags = [
-            "--logs.level",
-            "debug",
+            "--logs.filter",
+            "debug,engine=trace",
             "--chain",
             "8453",
             "--chain.hardfork.karst-time",
@@ -163,7 +163,7 @@ mod tests {
             "--metrics.enabled",
         ];
         let Commands::Node(node) = try_parse_node(&flags).unwrap().subcommand;
-        assert_eq!(node.log_args.level, kona_cli::LogLevel::Debug);
+        assert_eq!(node.log_args.filter.to_string(), "debug,engine=trace");
         assert_eq!(node.chain.l2_chain_id.unwrap().id(), 8453);
         assert_eq!(node.chain.overrides.karst, Some(123));
         assert!(node.metrics.enabled);
@@ -199,7 +199,12 @@ mod tests {
                 if long == "help" {
                     return None;
                 }
-                let expected = kona_cli::env_var_for_flag("KONA_NODE_", long);
+                // The log filter reads the variable every Rust program's filter does.
+                let expected = if long == "logs.filter" {
+                    "RUST_LOG".to_string()
+                } else {
+                    kona_cli::env_var_for_flag("KONA_NODE_", long)
+                };
                 let actual = arg.get_env().map(|env| env.to_string_lossy().into_owned());
                 (actual.as_deref() != Some(expected.as_str()))
                     .then(|| format!("--{long}: {actual:?}, expected {expected}"))

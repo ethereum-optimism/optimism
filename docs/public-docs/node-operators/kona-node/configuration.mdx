@@ -157,7 +157,7 @@ The block signer signs the blocks a sequencer builds, so that it can gossip them
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--logs.enabled[=<BOOL>]` | `KONA_NODE_LOGS_ENABLED` | Print logs to stdout. The flag alone means `true` | `false` |
-| `--logs.level <LEVEL>` | `KONA_NODE_LOGS_LEVEL` | The most detailed level to log: `error`, `warn`, `info`, `debug` or `trace` | `info` |
+| `--logs.filter <FILTER>` | `RUST_LOG` | Which logs to keep, in [`RUST_LOG` syntax](/node-operators/kona-node/monitoring#logging): a level such as `debug`, or directives such as `info,engine=debug`. An invalid directive is an error | `info` |
 | `--logs.format <FORMAT>` | `KONA_NODE_LOGS_FORMAT` | The format of the logs: `full`, `json`, `pretty`, `compact` or `logfmt` | `full` |
 
 ## Metrics Arguments
