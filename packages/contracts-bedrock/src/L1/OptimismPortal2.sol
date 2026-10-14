@@ -257,9 +257,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_DisputeGameNotInvalidated();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.0.0
+    /// @custom:semver 6.0.1
     function version() public pure virtual returns (string memory) {
-        return "6.0.0";
+        return "6.0.1";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.

@@ -27,6 +27,18 @@ contract SimpleSafeCaller {
     }
 }
 
+/// @notice Accepts value.
+contract ValueReceiver {
+    receive() external payable { }
+}
+
+/// @notice Calls `SafeCall.callWithMinGas` with its own balance as the value.
+contract ValueSafeCaller {
+    function callWithMinGas(address _target, uint256 _minGas) external returns (bool) {
+        return SafeCall.callWithMinGas(_target, _minGas, address(this).balance, hex"");
+    }
+}
+
 /// @title SafeCall_TestInit
 /// @notice Reusable test initialization for `SafeCall` tests.
 abstract contract SafeCall_TestInit is Test {
@@ -157,6 +169,97 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
         }
     }
 
+    /// @notice Tests that `callWithMinGas` reverts or supplies the minimum gas when sending value to
+    ///         a new account, whose EIP-8037 state gas the CALL charges before the 63/64 split.
+    ///         Not isolated: isolation treats the gas limit as a transaction's, which must cover
+    ///         intrinsic gas. SafeCall makes internal calls, whose gas limit never has to.
+    /// forge-config: default.isolate = false
+    function testFuzz_callWithMinGas_valueToNewAccount_succeeds(
+        address _target,
+        uint256 _minGas,
+        uint256 _gas
+    )
+        external
+    {
+        assumeNot(_target);
+        ValueSafeCaller caller = new ValueSafeCaller();
+        vm.assume(_target != address(caller));
+        vm.deal(address(caller), 1);
+
+        _minGas = bound(_minGas, 2300, 30_000_000);
+        _gas = bound(_gas, 0, 2 * _minGas + 1_000_000);
+
+        // expectCallMinGas adds the 2,300-gas stipend for nonzero-value calls.
+        vm.expectCallMinGas(_target, 1, uint64(_minGas - 2300), hex"");
+        (bool success,) = address(caller).call{ gas: _gas }(abi.encodeCall(caller.callWithMinGas, (_target, _minGas)));
+
+        // Reverts satisfy the invariant; only calls that pass the check must meet the expectation.
+        vm.assume(success);
+        assertEq(_target.balance, 1, "target not funded");
+    }
+
+    /// @notice Calls `callWithMinGas` sending `_value` to `_target` with gas above the base
+    ///         allowance but well below `NEW_ACCOUNT_STATE_GAS`. Callers set `isolate = false`; see
+    ///         `testFuzz_callWithMinGas_valueToNewAccount_succeeds`.
+    /// @return success_    Whether the call succeeded.
+    /// @return returndata_ The call's returndata.
+    function _callWithMinGasBelowNewAccountGas(
+        address _target,
+        uint256 _value
+    )
+        internal
+        returns (bool success_, bytes memory returndata_)
+    {
+        uint256 minGas = 100_000;
+        ValueSafeCaller caller = new ValueSafeCaller();
+        vm.deal(address(caller), _value);
+        uint256 gas = minGas * 64 / 63 + 40_000 + 50_000;
+        (success_, returndata_) =
+            address(caller).call{ gas: gas }(abi.encodeCall(caller.callWithMinGas, (_target, minGas)));
+    }
+
+    /// @notice Tests that `callWithMinGas` reserves `NEW_ACCOUNT_STATE_GAS` for value to an empty
+    ///         account.
+    /// forge-config: default.isolate = false
+    function test_callWithMinGas_valueToEmptyAccount_reverts() external {
+        (bool success, bytes memory returndata) = _callWithMinGasBelowNewAccountGas(makeAddr("empty"), 1);
+        assertFalse(success);
+        assertEq(returndata, abi.encodeWithSignature("Error(string)", "SafeCall: Not enough gas"));
+    }
+
+    /// @notice Tests that `callWithMinGas` does not reserve `NEW_ACCOUNT_STATE_GAS` for a call to an
+    ///         empty account without value.
+    /// forge-config: default.isolate = false
+    function test_callWithMinGas_noValueToEmptyAccount_succeeds() external {
+        address target = makeAddr("empty");
+        vm.expectCallMinGas(target, 0, 100_000, hex"");
+        (bool success,) = _callWithMinGasBelowNewAccountGas(target, 0);
+        assertTrue(success);
+    }
+
+    /// @notice Tests that `callWithMinGas` does not reserve `NEW_ACCOUNT_STATE_GAS` for value to an
+    ///         account with a balance.
+    /// forge-config: default.isolate = false
+    function test_callWithMinGas_valueToFundedAccount_succeeds() external {
+        address target = makeAddr("funded");
+        vm.deal(target, 1);
+        vm.expectCallMinGas(target, 1, 100_000 - 2300, hex"");
+        (bool success,) = _callWithMinGasBelowNewAccountGas(target, 1);
+        assertTrue(success);
+        assertEq(target.balance, 2);
+    }
+
+    /// @notice Tests that `callWithMinGas` does not reserve `NEW_ACCOUNT_STATE_GAS` for value to an
+    ///         account with code.
+    /// forge-config: default.isolate = false
+    function test_callWithMinGas_valueToContract_succeeds() external {
+        address target = address(new ValueReceiver());
+        vm.expectCallMinGas(target, 1, 100_000 - 2300, hex"");
+        (bool success,) = _callWithMinGasBelowNewAccountGas(target, 1);
+        assertTrue(success);
+        assertEq(target.balance, 1);
+    }
+
     /// @notice Tests that `callWithMinGas` succeeds for the lower gas bounds.
     function test_callWithMinGas_noLeakageLow_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
@@ -176,11 +279,11 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
             if (Config.isUnoptimized()) {
-                // 66_290 is the exact amount of gas required with the optimizer disabled.
-                expected = 66_290;
+                // 66_378 is the exact amount of gas required with the optimizer disabled.
+                expected = 66_378;
             } else {
-                // 65_922 is the exact amount of gas required with optimizer enabled.
-                expected = 65_922;
+                // 66_007 is the exact amount of gas required with optimizer enabled.
+                expected = 66_007;
             }
 
             if (i < expected) {
@@ -213,11 +316,11 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
             if (Config.isUnoptimized()) {
-                // 15_278_989 is the exact amount of gas required with the optimizer disabled.
-                expected = 15_278_989;
+                // 15_279_077 is the exact amount of gas required with the optimizer disabled.
+                expected = 15_279_077;
             } else {
-                // 15_278_621 is the exact amount of gas required with optimizer enabled.
-                expected = 15_278_621;
+                // 15_278_706 is the exact amount of gas required with optimizer enabled.
+                expected = 15_278_706;
             }
 
             if (i < expected) {
