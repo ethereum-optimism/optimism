@@ -125,19 +125,22 @@ impl Handle {
             let chain = self.chain()?;
             (chain.at(block.number), chain.at(block.number + 1), chain.head())
         };
-        let canonical = match at_block {
-            Height::Final => self.final_block(block.number).await,
-            Height::Held(canonical) => canonical,
-            Height::Ahead => return Ok(None),
-        };
-        if canonical.hash != block.hash {
-            return Ok(Some(Child::Reorged));
-        }
+        // The canonical child's parent is the canonical block at `block`'s height, so reading the
+        // child tells whether `block` is canonical too.
         let child = match at_child {
             Height::Final => self.final_block(block.number + 1).await,
             Height::Held(child) => child,
-            Height::Ahead => return Ok(None),
+            // No child yet: whether `block` is canonical decides, if the chain holds its height.
+            Height::Ahead => {
+                return Ok(match at_block {
+                    Height::Held(canonical) if canonical.hash != block.hash => Some(Child::Reorged),
+                    _ => None,
+                });
+            }
         };
+        if child.parent_hash != block.hash {
+            return Ok(Some(Child::Reorged));
+        }
         Ok((child.number + confirmations <= head.number).then_some(Child::Block(child)))
     }
 
@@ -251,22 +254,24 @@ mod tests {
         let handle = reading(&chain, &responses);
         responses.push_success(&rpc_block(&block(4)));
         assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4)));
-        responses.push_success(&rpc_block(&block(4)));
+        // Only the child is read: its parent hash tells whether the block is canonical.
         responses.push_success(&rpc_block(&block(5)));
         assert_eq!(
             handle.try_child_of(block(4).id(), 0).await.unwrap(),
             Some(Child::Block(block(5)))
         );
+        assert!(responses.read_q().is_empty());
         // A block that lost to a block L1 then finalized.
         responses.push_success(&rpc_block(&block(4)));
-        let lost = child(&block(3), 2);
+        let lost = child(&block(2), 2);
         assert_eq!(handle.try_child_of(lost.id(), 0).await.unwrap(), Some(Child::Reorged));
-        // The child of the block before the finalized block is the finalized block.
-        responses.push_success(&rpc_block(&block(9)));
+        // The child of the block before the finalized block is the finalized block, which the
+        // chain holds, so nothing is read.
         assert_eq!(
             handle.try_child_of(block(9).id(), 0).await.unwrap(),
             Some(Child::Block(block(10)))
         );
+        assert!(responses.read_q().is_empty());
     }
 
     #[tokio::test(start_paused = true)]
