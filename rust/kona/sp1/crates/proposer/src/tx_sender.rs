@@ -5,20 +5,21 @@
 //! - Takes the `latest` nonce, so it replaces any transaction of ours still pending at that nonce.
 //! - Estimates gas once and prices the transaction at the node's suggested tip plus twice the
 //!   latest base fee, clamped by [`FeeCaps`].
-//! - Bumps fees every 24s, and once when the pool rejects a publish as underpriced, using txmgr's
-//!   replacement rule (at least +10% on tip and fee cap). When a bump is blocked by [`FeeCaps`] or
-//!   fails, republishes the current version.
+//! - Bumps fees every 24s, and when the pool rejects a publish as underpriced, using txmgr's
+//!   replacement rule (at least +10% on tip and fee cap). Underpriced rejections keep bumping for
+//!   as long as bumps succeed. A bump fails when it would exceed txmgr's default fee limit (5x the
+//!   suggestion, for fees of at least 100 gwei) or [`FeeCaps`]; the current version is then
+//!   republished.
 //! - Treats "already known", and a publish the node never answered, as published: a lost response
-//!   can hide an accepted transaction. Polls every version it sent, concurrently and including ones
-//!   whose publish failed, until one reaches [`NUM_CONFIRMATIONS`]. Receipt query errors are logged
-//!   and retried.
+//!   can hide an accepted transaction. Polls every version it sent, concurrently, including ones
+//!   whose publish failed, and while a new version is being published, until one reaches
+//!   [`NUM_CONFIRMATIONS`]. Receipt query errors are logged and retried.
 //! - Aborts on "nonce too low" with txmgr's rules: at once if nothing was published, after 3
 //!   otherwise, never while a version is mined.
 //! - Bounds every RPC and signer call by 10s and the whole send by the caller's timeout.
 //!
 //! Not supported from txmgr, to keep the sender limited to what the proposer needs:
-//! - Fee-limit multiplier and threshold; bumps are bounded by the tick rate, the send timeout and
-//!   [`FeeCaps`].
+//! - Configurable fee-limit multiplier and threshold; txmgr's defaults are fixed.
 //! - Minimum tip and base fee floors, and the max tip and base fee errors ([`FeeCaps`] clamps
 //!   instead).
 //! - Gas re-estimation on bumps, and caller-supplied gas limits.
@@ -39,6 +40,7 @@ use alloy_provider::Provider;
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use anyhow::{Context, Result, anyhow, ensure};
 use futures::{StreamExt, stream::FuturesUnordered};
+use parking_lot::Mutex;
 use tokio::time::{Instant, MissedTickBehavior, interval_at, timeout};
 
 use crate::signer::Signer;
@@ -56,6 +58,12 @@ const RESUBMISSION_INTERVAL: Duration = Duration::from_secs(24);
 /// Nonce-too-low publish errors tolerated after a successful publish before the send aborts
 /// (Go txmgr `SafeAbortNonceTooLowCount`).
 const SAFE_ABORT_NONCE_TOO_LOW_COUNT: u64 = 3;
+
+/// Go txmgr default `FeeLimitMultiplier`.
+const FEE_LIMIT_MULTIPLIER: u128 = 5;
+
+/// Go txmgr default `FeeLimitThreshold`: 100 gwei. Bumped fees below it are not limited.
+const FEE_LIMIT_THRESHOLD: u128 = 100_000_000_000;
 
 /// Optional operator caps on EIP-1559 fee fields, applied to the initial fees and to every
 /// bump. Unset caps leave the estimate.
@@ -120,10 +128,29 @@ const fn update_fees(old: Fees, suggested: SuggestedFees) -> Fees {
     }
 }
 
+/// Go txmgr `checkLimits` with its default multiplier and threshold: a bumped tip or fee cap at
+/// or above [`FEE_LIMIT_THRESHOLD`] may not exceed [`FEE_LIMIT_MULTIPLIER`] times the current
+/// suggestion.
+fn check_fee_limits(suggested: SuggestedFees, bumped: Fees) -> Result<()> {
+    let max_tip = suggested.tip.saturating_mul(FEE_LIMIT_MULTIPLIER);
+    let max_fee_cap = fee_cap_for(max_tip, suggested.base_fee.saturating_mul(FEE_LIMIT_MULTIPLIER));
+    for (name, value, max) in
+        [("tip", bumped.tip, max_tip), ("fee cap", bumped.fee_cap, max_fee_cap)]
+    {
+        ensure!(
+            value < FEE_LIMIT_THRESHOLD || value <= max,
+            "bumped {name} {value} is over {FEE_LIMIT_MULTIPLIER}x the suggested value"
+        );
+    }
+    Ok(())
+}
+
 /// Publication state of one logical transaction across its fee-bumped versions
-/// (Go txmgr `SendState`).
+/// (Go txmgr `SendState`), shared by the publisher and the receipt poller.
 #[derive(Debug, Default)]
 struct SendState {
+    /// Every version sent, including ones whose publish failed.
+    sent: Vec<B256>,
     published: bool,
     nonce_too_low: u64,
     mined: HashSet<B256>,
@@ -196,38 +223,47 @@ async fn send<P: Provider>(
     let fees = caps.clamp(suggest_fees(provider).await?.fees());
     let tx = sign(signer, &request, fees).await?;
 
-    let mut pending = PendingSend {
-        provider,
-        signer,
-        caps,
-        request,
-        fees,
-        tx,
-        hashes: Vec::new(),
-        state: SendState::default(),
-    };
+    let mut publisher = Publisher { provider, signer, caps, request, fees, tx };
+    let state = Mutex::new(SendState::default());
     let start = Instant::now();
-    pending.publish(false).await;
-
     let mut resubmit = interval_at(start + RESUBMISSION_INTERVAL, RESUBMISSION_INTERVAL);
     resubmit.set_missed_tick_behavior(MissedTickBehavior::Delay);
     let poll_interval = provider.client().poll_interval();
     let mut poll = interval_at(start + poll_interval, poll_interval);
     poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    let mut bump = false;
     loop {
-        pending.state.critical_error()?;
-        tokio::select! {
-            _ = resubmit.tick() => {
-                if !pending.state.is_waiting_for_confirmation() {
-                    pending.publish(true).await;
-                }
-            }
-            _ = poll.tick() => {
-                if let Some(receipt) = pending.query_receipts().await {
-                    return Ok(receipt);
+        // Receipts are polled while a version is published, so a publish slowed by RPC
+        // timeouts cannot hide a confirmation (Go txmgr polls from separate goroutines).
+        let publish = publisher.publish(&state, bump);
+        tokio::pin!(publish);
+        loop {
+            tokio::select! {
+                () = &mut publish => break,
+                _ = poll.tick() => {
+                    if let Some(receipt) = query_receipts(provider, &state).await {
+                        return Ok(receipt);
+                    }
                 }
             }
         }
+
+        loop {
+            state.lock().critical_error()?;
+            tokio::select! {
+                _ = resubmit.tick() => {
+                    if !state.lock().is_waiting_for_confirmation() {
+                        break;
+                    }
+                }
+                _ = poll.tick() => {
+                    if let Some(receipt) = query_receipts(provider, &state).await {
+                        return Ok(receipt);
+                    }
+                }
+            }
+        }
+        bump = true;
     }
 }
 
@@ -239,39 +275,44 @@ enum PublishError {
     Unknown(String),
 }
 
-/// One logical transaction: the unsigned request, its latest signed version and every hash
-/// sent so far.
-struct PendingSend<'a, P> {
+/// The unsigned request and its latest signed version.
+struct Publisher<'a, P> {
     provider: &'a P,
     signer: &'a Signer,
     caps: FeeCaps,
     request: TransactionRequest,
     fees: Fees,
     tx: TxEnvelope,
-    hashes: Vec<B256>,
-    state: SendState,
 }
 
-impl<P: Provider> PendingSend<'_, P> {
+impl<P: Provider> Publisher<'_, P> {
     /// Publishes the current version, bumping its fees first when `bump` is set (Go txmgr
-    /// `publishTx`). An underpriced rejection of an unbumped version bumps once and retries;
+    /// `publishTx`). An underpriced rejection bumps and retries for as long as bumps succeed;
     /// any other failure waits for the next resubmission tick.
-    async fn publish(&mut self, mut bump: bool) {
+    async fn publish(&mut self, state: &Mutex<SendState>, mut bump: bool) {
+        let mut bump_failed = false;
         loop {
-            if bump && let Err(error) = self.bump_fees().await {
-                tracing::warn!(
-                    error = format!("{error:#}"),
-                    "Unable to bump fees, republishing the current transaction"
-                );
+            if bump {
+                match self.bump_fees().await {
+                    Ok(()) if state.lock().is_waiting_for_confirmation() => return,
+                    Ok(()) => {}
+                    Err(error) => {
+                        tracing::warn!(
+                            error = format!("{error:#}"),
+                            "Unable to bump fees, republishing the current transaction"
+                        );
+                        bump_failed = true;
+                    }
+                }
             }
             match self.send_raw().await {
                 Err(PublishError::Rejected(error))
-                    if !bump && error.contains("transaction underpriced") =>
+                    if !bump_failed && error.contains("transaction underpriced") =>
                 {
                     tracing::warn!(error, "Transaction underpriced, bumping fees");
                     bump = true;
                 }
-                result => return self.record_publish(result),
+                result => return self.record_publish(state, result),
             }
         }
     }
@@ -294,11 +335,12 @@ impl<P: Provider> PendingSend<'_, P> {
     /// A publish with no answer from the node counts as published for the nonce-too-low abort
     /// rules: the node may have accepted it, and a replacement then sees "nonce too low" once it
     /// is mined.
-    fn record_publish(&mut self, result: Result<(), PublishError>) {
+    fn record_publish(&self, state: &Mutex<SendState>, result: Result<(), PublishError>) {
         let hash = *self.tx.tx_hash();
         let nonce = self.request.nonce;
-        if !self.hashes.contains(&hash) {
-            self.hashes.push(hash);
+        let mut state = state.lock();
+        if !state.sent.contains(&hash) {
+            state.sent.push(hash);
         }
         match result {
             Ok(()) => tracing::info!(
@@ -316,18 +358,21 @@ impl<P: Provider> PendingSend<'_, P> {
             }
             Err(PublishError::Rejected(error)) => {
                 if error.contains("nonce too low") {
-                    self.state.nonce_too_low += 1;
+                    state.nonce_too_low += 1;
                 }
                 tracing::warn!(%hash, nonce, error, "Unable to publish transaction");
                 return;
             }
         }
-        self.state.published = true;
+        state.published = true;
     }
 
     /// Re-signs at fees that replace the current version (Go txmgr `increaseGasPrice`).
     async fn bump_fees(&mut self) -> Result<()> {
-        let fees = self.caps.clamp(update_fees(self.fees, suggest_fees(self.provider).await?));
+        let suggested = suggest_fees(self.provider).await?;
+        let bumped = update_fees(self.fees, suggested);
+        check_fee_limits(suggested, bumped)?;
+        let fees = self.caps.clamp(bumped);
         ensure!(
             fees.tip >= bump_threshold(self.fees.tip) &&
                 fees.fee_cap >= bump_threshold(self.fees.fee_cap),
@@ -340,45 +385,44 @@ impl<P: Provider> PendingSend<'_, P> {
         self.fees = fees;
         Ok(())
     }
+}
 
-    /// Queries every sent version concurrently and returns as soon as one mined version has
-    /// [`NUM_CONFIRMATIONS`] confirmations, without waiting for slower queries (Go txmgr
-    /// polls each version in its own goroutine).
-    async fn query_receipts(&mut self) -> Option<TransactionReceipt> {
-        let provider = self.provider;
-        let mut queries: FuturesUnordered<_> = self
-            .hashes
-            .iter()
-            .map(|&hash| async move {
-                (
-                    hash,
-                    rpc("eth_getTransactionReceipt", provider.get_transaction_receipt(hash)).await,
-                )
-            })
-            .collect();
-        while let Some((hash, result)) = queries.next().await {
-            let receipt = match result {
-                Ok(receipt) => receipt,
-                Err(error) => {
-                    tracing::warn!(%hash, error = format!("{error:#}"), "Receipt query failed");
-                    continue;
-                }
-            };
-            let Some(block) = receipt.as_ref().and_then(|receipt| receipt.block_number) else {
-                self.state.tx_not_mined(hash);
+/// Queries every sent version concurrently and returns as soon as one mined version has
+/// [`NUM_CONFIRMATIONS`] confirmations, without waiting for slower queries (Go txmgr polls each
+/// version in its own goroutine).
+async fn query_receipts<P: Provider>(
+    provider: &P,
+    state: &Mutex<SendState>,
+) -> Option<TransactionReceipt> {
+    let sent = state.lock().sent.clone();
+    let mut queries: FuturesUnordered<_> = sent
+        .into_iter()
+        .map(|hash| async move {
+            (hash, rpc("eth_getTransactionReceipt", provider.get_transaction_receipt(hash)).await)
+        })
+        .collect();
+    while let Some((hash, result)) = queries.next().await {
+        let receipt = match result {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                tracing::warn!(%hash, error = format!("{error:#}"), "Receipt query failed");
                 continue;
-            };
-            self.state.tx_mined(hash);
-            match rpc("eth_blockNumber", provider.get_block_number()).await {
-                Ok(tip) if block + NUM_CONFIRMATIONS <= tip + 1 => return receipt,
-                Ok(_) => {}
-                Err(error) => {
-                    tracing::warn!(error = format!("{error:#}"), "L1 head query failed");
-                }
+            }
+        };
+        let Some(block) = receipt.as_ref().and_then(|receipt| receipt.block_number) else {
+            state.lock().tx_not_mined(hash);
+            continue;
+        };
+        state.lock().tx_mined(hash);
+        match rpc("eth_blockNumber", provider.get_block_number()).await {
+            Ok(tip) if block + NUM_CONFIRMATIONS <= tip + 1 => return receipt,
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(error = format!("{error:#}"), "L1 head query failed");
             }
         }
-        None
     }
+    None
 }
 
 async fn suggest_fees<P: Provider>(provider: &P) -> Result<SuggestedFees> {
@@ -456,6 +500,9 @@ mod tests {
         mine_on_accept: bool,
         receipt_errors: usize,
         hung_receipts: HashSet<B256>,
+        /// Tip an earlier transaction at the same nonce forces a replacement to pay.
+        replacement_min_tip: u128,
+        hang_fee_queries: bool,
         head: u64,
         sent: Vec<TxEnvelope>,
         mined: HashMap<B256, u64>,
@@ -476,6 +523,7 @@ mod tests {
                     json!(format!("{LATEST_NONCE:#x}"))
                 }
                 "eth_estimateGas" => json!("0x186a0"),
+                "eth_maxPriorityFeePerGas" if self.hang_fee_queries => return None,
                 "eth_maxPriorityFeePerGas" => json!(format!("{TIP:#x}")),
                 "eth_getBlockByNumber" => {
                     let mut block = Block::<alloy_rpc_types_eth::Transaction>::default();
@@ -487,7 +535,12 @@ mod tests {
                     let raw: Bytes = serde_json::from_value(params[0].clone()).unwrap();
                     let tx = TxEnvelope::decode_2718(&mut raw.as_ref()).unwrap();
                     let hash = *tx.tx_hash();
+                    assert!(self.sent.len() < 1_000, "runaway fee bumps");
+                    let tip = tx.max_priority_fee_per_gas().unwrap();
                     self.sent.push(tx);
+                    if tip < self.replacement_min_tip {
+                        return Some(Err("replacement transaction underpriced".to_string()));
+                    }
                     let publish = self.publishes.pop_front().unwrap_or(Publish::Accept);
                     match publish {
                         Publish::Reject(error) => return Some(Err(error.to_string())),
@@ -590,6 +643,8 @@ mod tests {
             mine_on_accept: false,
             receipt_errors: 0,
             hung_receipts: HashSet::new(),
+            replacement_min_tip: 0,
+            hang_fee_queries: false,
             head: HEAD,
             sent: Vec::new(),
             mined: HashMap::new(),
@@ -826,6 +881,66 @@ mod tests {
         let chain = chain.lock();
         assert_eq!(chain.sent.len(), 3);
         assert!(chain.sent.iter().all(|tx| tx.tx_hash() == chain.sent[0].tx_hash()));
+    }
+
+    /// After a restart our earlier transaction pays a higher tip than the node now suggests, so
+    /// the replacement must keep bumping past it instead of stopping after one bump.
+    #[tokio::test(start_paused = true)]
+    async fn replacement_bumps_until_it_outbids_the_stuck_transaction() {
+        let stuck_tip = 3 * TIP;
+        let chain = chain(|chain| {
+            chain.replacement_min_tip = bump_threshold(stuck_tip);
+            chain.mine_on_accept = true;
+        });
+        let start = Instant::now();
+        let receipt = send(chain.clone()).await.unwrap();
+        assert!(start.elapsed() < RESUBMISSION_INTERVAL, "waited for resubmission ticks");
+        let chain = chain.lock();
+        let replacement = chain.sent.last().unwrap();
+        assert!(replacement.max_priority_fee_per_gas().unwrap() >= bump_threshold(stuck_tip));
+        assert!(chain.sent.iter().all(|tx| tx.nonce() == LATEST_NONCE));
+        assert_eq!(receipt.transaction_hash, *replacement.tx_hash());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fee_limit_stops_underpriced_bumps() {
+        let chain = chain(|chain| chain.replacement_min_tip = u128::MAX);
+        send_with_caps(chain.clone(), Duration::from_secs(20), FeeCaps::default())
+            .await
+            .unwrap_err();
+        let limit =
+            fee_cap_for(TIP * FEE_LIMIT_MULTIPLIER, u128::from(BASE_FEE) * FEE_LIMIT_MULTIPLIER);
+        let chain = chain.lock();
+        assert!(chain.sent.iter().all(|tx| tx.max_fee_per_gas() <= limit));
+        assert!(bump_threshold(chain.sent.last().unwrap().max_fee_per_gas()) > limit);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn receipts_are_polled_while_a_bump_is_stalled() {
+        let chain = chain(|chain| chain.publishes = [Publish::Accept, Publish::Hang].into());
+        let handle = tokio::spawn(send(chain.clone()));
+        tokio::time::sleep(RESUBMISSION_INTERVAL - Duration::from_secs(1)).await;
+        chain.lock().hang_fee_queries = true;
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        chain.lock().mine(0, HEAD - 2);
+        let mined_at = Instant::now();
+        let receipt = handle.await.unwrap().unwrap();
+        assert!(mined_at.elapsed() < NETWORK_TIMEOUT, "receipt waited for the stalled publish");
+        assert_eq!(receipt.transaction_hash, *chain.lock().sent[0].tx_hash());
+    }
+
+    #[test]
+    fn fee_limit_applies_only_at_or_above_the_threshold() {
+        let suggested = SuggestedFees { tip: 1, base_fee: 1 };
+        let below = FEE_LIMIT_THRESHOLD - 1;
+        assert!(check_fee_limits(suggested, Fees { tip: below, fee_cap: below }).is_ok());
+        let at = Fees { tip: 1, fee_cap: FEE_LIMIT_THRESHOLD };
+        assert!(check_fee_limits(suggested, at).is_err());
+        let suggested = SuggestedFees { tip: FEE_LIMIT_THRESHOLD, base_fee: FEE_LIMIT_THRESHOLD };
+        let within = Fees { tip: 5 * FEE_LIMIT_THRESHOLD, fee_cap: 15 * FEE_LIMIT_THRESHOLD };
+        assert!(check_fee_limits(suggested, within).is_ok());
+        let tip_over = Fees { tip: 5 * FEE_LIMIT_THRESHOLD + 1, ..within };
+        assert!(check_fee_limits(suggested, tip_over).is_err());
     }
 
     #[test]
