@@ -7,14 +7,12 @@ import { MockHelper } from "test/utils/MockHelper.sol";
 
 // Contracts
 import { Proxy } from "src/universal/Proxy.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -523,10 +521,10 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
 
     /// @notice Relays an L1 message from this chain's L1CrossDomainMessenger to the
     ///         L2ToL2CrossDomainMessenger, as the deposit does.
-    function _relayToL2(uint256 _nonce, bytes memory _message, uint256 _gas) internal {
+    function _relayToL2(uint256 _nonce, bytes memory _message) internal {
         address l1Messenger = address(l1CrossDomainMessenger);
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1Messenger));
-        l2CrossDomainMessenger.relayMessage{ gas: _gas }(
+        l2CrossDomainMessenger.relayMessage(
             _nonce, l1Messenger, Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 0, 100_000, _message
         );
     }
@@ -605,65 +603,7 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         // Here, the deposit expires the message, and the sender is refunded.
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit MessageExpired(messageHash, block.timestamp);
-        _relayToL2(depositNonce, expire, 1_000_000);
-        assertTrue(messenger.expiredMessages(messageHash));
-
-        vm.prank(alice);
-        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
-        assertEq(alice.balance, 1 ether);
-    }
-
-    /// @notice Tests that EXPIRE_MESSAGE_GAS_LIMIT covers expireMessage on cold storage, as in the
-    ///         deposit's own transaction. Here rather than in the messenger's tests because it needs
-    ///         the deployed, proxied messenger.
-    function test_refundETH_expireGasLimit_succeeds() external {
-        (, bytes32 messageHash) = _sendAndWait();
-        // Read the implementation first: reading it warms the proxy's slot.
-        address implementation = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        vm.cool(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        vm.cool(implementation);
-        vm.mockCall(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(address(l1CrossDomainMessenger))
-        );
-
-        // The real xDomainMessageSender lookup costs under 10k more than the mock, so 90k here
-        // means expireMessage fits in the 100k the L1CrossDomainMessenger asks for.
-        vm.prank(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        messenger.expireMessage{ gas: 90_000 }(messageHash, block.timestamp);
-        assertTrue(messenger.expiredMessages(messageHash));
-    }
-
-    /// @notice Tests that a deposit that runs out of gas lands in the L2CrossDomainMessenger's
-    ///         failed messages, and anyone can replay it to expire the message. Here rather than in
-    ///         the messenger's tests because it needs the deployed L2CrossDomainMessenger.
-    function test_refundETH_expireReplay_succeeds() external {
-        (uint256 nonce, bytes32 messageHash) = _sendAndWait();
-        bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (messageHash, block.timestamp));
-        uint256 depositNonce = Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 });
-
-        _relayToL2(depositNonce, expire, 150_000);
-        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
-            depositNonce,
-            address(l1CrossDomainMessenger),
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            0,
-            100_000,
-            expire
-        );
-        assertTrue(l2CrossDomainMessenger.failedMessages(versionedHash));
-        assertFalse(messenger.expiredMessages(messageHash));
-
-        vm.prank(bob);
-        l2CrossDomainMessenger.relayMessage(
-            depositNonce,
-            address(l1CrossDomainMessenger),
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            0,
-            100_000,
-            expire
-        );
+        _relayToL2(depositNonce, expire);
         assertTrue(messenger.expiredMessages(messageHash));
 
         vm.prank(alice);

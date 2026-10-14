@@ -5,10 +5,15 @@ pragma solidity 0.8.25;
 import { Test } from "test/setup/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
+// Scripts
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
 // Target contract
@@ -31,6 +36,7 @@ import {
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
@@ -1015,6 +1021,74 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         vm.expectRevert(L2ToL2CrossDomainMessenger_NotOtherMessenger.selector);
         vm.prank(_caller);
         l2ToL2CrossDomainMessenger.expireMessage(messageHash, type(uint64).max);
+    }
+
+    /// @notice Tests that EXPIRE_MESSAGE_GAS_LIMIT covers expireMessage through the predeploy's
+    ///         proxy on cold storage, as in the deposit's own transaction.
+    function test_expireMessage_coldProxyGasLimit_succeeds() external {
+        IL2CrossDomainMessenger l2Messenger = _realL2CrossDomainMessenger();
+        uint256 undeliveredAt = sentAt + l2ToL2CrossDomainMessenger.expiryPeriod() + 1;
+        // Put the messenger behind a proxy, keeping its storage.
+        address implementation = address(new L2ToL2CrossDomainMessenger());
+        vm.etch(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DeployUtils.getDeployedCode("Proxy"));
+        vm.store(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            Constants.PROXY_IMPLEMENTATION_ADDRESS,
+            bytes32(uint256(uint160(implementation)))
+        );
+        vm.cool(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.cool(implementation);
+        vm.cool(address(l2Messenger));
+        vm.mockCall(
+            address(l2Messenger),
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(l1Messenger)
+        );
+
+        // The real xDomainMessageSender lookup costs under 10k more than the mock, so 90k here
+        // means expireMessage fits in the 100k the L1CrossDomainMessenger asks for.
+        vm.prank(address(l2Messenger));
+        l2ToL2CrossDomainMessenger.expireMessage{ gas: 90_000 }(messageHash, undeliveredAt);
+        assertTrue(l2ToL2CrossDomainMessenger.expiredMessages(messageHash));
+    }
+
+    /// @notice Tests that a deposit with too little gas to call expireMessage lands in the
+    ///         L2CrossDomainMessenger's failed messages, and anyone can replay it to expire the
+    ///         message.
+    function test_expireMessage_replayedDeposit_succeeds() external {
+        IL2CrossDomainMessenger l2Messenger = _realL2CrossDomainMessenger();
+        bytes memory expire = abi.encodeCall(
+            IL2ToL2CrossDomainMessenger.expireMessage,
+            (messageHash, sentAt + l2ToL2CrossDomainMessenger.expiryPeriod() + 1)
+        );
+        uint256 depositNonce = Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 });
+
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1Messenger));
+        l2Messenger.relayMessage{ gas: 150_000 }(
+            depositNonce, l1Messenger, Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 0, 100_000, expire
+        );
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
+            depositNonce, l1Messenger, Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 0, 100_000, expire
+        );
+        assertTrue(l2Messenger.failedMessages(versionedHash));
+        assertFalse(l2ToL2CrossDomainMessenger.expiredMessages(messageHash));
+
+        vm.prank(makeAddr("anyone"));
+        l2Messenger.relayMessage(
+            depositNonce, l1Messenger, Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 0, 100_000, expire
+        );
+        assertTrue(l2ToL2CrossDomainMessenger.expiredMessages(messageHash));
+    }
+
+    /// @notice Replaces the mocked L2CrossDomainMessenger with a real one whose other messenger is
+    ///         `l1Messenger`.
+    function _realL2CrossDomainMessenger() internal returns (IL2CrossDomainMessenger l2Messenger_) {
+        vm.clearMockedCalls();
+        l2Messenger_ = IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        vm.etch(address(l2Messenger_), DeployUtils.getDeployedCode("L2CrossDomainMessenger"));
+        vm.store(address(l2Messenger_), Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(1)));
+        vm.prank(address(1));
+        l2Messenger_.initialize(ICrossDomainMessenger(l1Messenger));
     }
 }
 
