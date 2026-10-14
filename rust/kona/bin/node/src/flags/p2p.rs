@@ -47,8 +47,7 @@ fn resolve_host(host: &str) -> Result<IpAddr> {
 
 /// P2P CLI Flags
 ///
-/// The other P2P flags apply only with `--p2p.enabled`, and are ignored otherwise. They are
-/// experimental, so they are left out of `--help`.
+/// The other P2P flags apply only with `--p2p.enabled`, and are ignored otherwise.
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 #[command(next_help_heading = "P2P")]
 pub struct P2PArgs {
@@ -62,15 +61,14 @@ pub struct P2PArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub enabled: bool,
 
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
     /// Created if not already exists. Important to persist to keep the same network identity after
     /// restarting, maintaining the previous advertised identity.
-    #[arg(long = "p2p.priv-path", env = "KONA_NODE_P2P_PRIV_PATH", hide = true)]
+    #[arg(long = "p2p.priv-path", env = "KONA_NODE_P2P_PRIV_PATH")]
     pub priv_path: Option<PathBuf>,
 
     /// IP address or DNS hostname to advertise to external peers from Discv5.
@@ -85,17 +83,16 @@ pub struct P2PArgs {
     #[arg(
         id = "p2p_advertise_addr",
         long = "p2p.advertise.addr",
-        env = "KONA_NODE_P2P_ADVERTISE_ADDR",
-        hide = true
+        env = "KONA_NODE_P2P_ADVERTISE_ADDR"
     )]
     pub advertise_addr: Option<String>,
     /// TCP port to advertise to external peers from the discovery layer. Defaults to
     /// `p2p.listen.tcp-port`.
-    #[arg(long = "p2p.advertise.tcp-port", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT", hide = true)]
+    #[arg(long = "p2p.advertise.tcp-port", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT")]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer. Defaults to
     /// `p2p.listen.udp-port`.
-    #[arg(long = "p2p.advertise.udp-port", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT", hide = true)]
+    #[arg(long = "p2p.advertise.udp-port", env = "KONA_NODE_P2P_ADVERTISE_UDP_PORT")]
     pub advertise_udp_port: Option<u16>,
 
     /// IP address or DNS hostname to bind LibP2P/Discv5 to.
@@ -106,51 +103,37 @@ pub struct P2PArgs {
         id = "p2p_listen_addr",
         long = "p2p.listen.addr",
         default_value = "0.0.0.0",
-        env = "KONA_NODE_P2P_LISTEN_ADDR",
-        hide = true
+        env = "KONA_NODE_P2P_LISTEN_ADDR"
     )]
     pub listen_addr: String,
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
     #[arg(
         long = "p2p.listen.tcp-port",
         default_value = "9222",
-        env = "KONA_NODE_P2P_LISTEN_TCP_PORT",
-        hide = true
+        env = "KONA_NODE_P2P_LISTEN_TCP_PORT"
     )]
     pub listen_tcp_port: u16,
     /// UDP port to bind Discv5 to. Same as TCP port if left 0.
     #[arg(
         long = "p2p.listen.udp-port",
         default_value = "9223",
-        env = "KONA_NODE_P2P_LISTEN_UDP_PORT",
-        hide = true
+        env = "KONA_NODE_P2P_LISTEN_UDP_PORT"
     )]
     pub listen_udp_port: u16,
     /// Configure `GossipSub` topic stable mesh target count.
     /// Aka: The desired outbound degree (numbers of peers to gossip to).
-    #[arg(
-        long = "p2p.gossip.mesh.d",
-        default_value = "8",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_D",
-        hide = true
-    )]
+    #[arg(long = "p2p.gossip.mesh.d", default_value = "8", env = "KONA_NODE_P2P_GOSSIP_MESH_D")]
     pub gossip_mesh_d: usize,
     /// Configure `GossipSub` topic stable mesh low watermark.
     /// Aka: The lower bound of outbound degree.
-    #[arg(
-        long = "p2p.gossip.mesh.lo",
-        default_value = "6",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_LO",
-        hide = true
-    )]
+    #[arg(long = "p2p.gossip.mesh.lo", default_value = "6", env = "KONA_NODE_P2P_GOSSIP_MESH_LO")]
     pub gossip_mesh_dlo: usize,
     /// Configure `GossipSub` topic stable mesh high watermark.
     /// Aka: The upper bound of outbound degree (additional peers will not receive gossip).
     #[arg(
         long = "p2p.gossip.mesh.dhi",
         default_value = "12",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_DHI",
-        hide = true
+        env = "KONA_NODE_P2P_GOSSIP_MESH_DHI"
     )]
     pub gossip_mesh_dhi: usize,
     /// Configure `GossipSub` gossip target.
@@ -159,8 +142,7 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.gossip.mesh.dlazy",
         default_value = "6",
-        env = "KONA_NODE_P2P_GOSSIP_MESH_DLAZY",
-        hide = true
+        env = "KONA_NODE_P2P_GOSSIP_MESH_DLAZY"
     )]
     pub gossip_mesh_dlazy: usize,
     /// Configure `GossipSub` to publish messages to all known peers on the topic, outside of the
@@ -173,18 +155,12 @@ pub struct P2PArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub gossip_flood_publish: bool,
     /// Sets the peer scoring strategy for the P2P stack.
     /// Can be one of: none or light.
-    #[arg(
-        long = "p2p.peer-scoring",
-        default_value = "light",
-        env = "KONA_NODE_P2P_PEER_SCORING",
-        hide = true
-    )]
+    #[arg(long = "p2p.peer-scoring", default_value = "light", env = "KONA_NODE_P2P_PEER_SCORING")]
     pub scoring: PeerScoreLevel,
 
     /// Allows to ban peers based on their score.
@@ -199,8 +175,7 @@ pub struct P2PArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub ban_enabled: bool,
 
@@ -208,12 +183,7 @@ pub struct P2PArgs {
     ///
     /// For peers to be banned, the `p2p.ban.enabled` flag must be set.
     /// By default, peers are banned if their score is below -100. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L123-L130>`.
-    #[arg(
-        long = "p2p.ban.threshold",
-        default_value = "-100",
-        env = "KONA_NODE_P2P_BAN_THRESHOLD",
-        hide = true
-    )]
+    #[arg(long = "p2p.ban.threshold", default_value = "-100", env = "KONA_NODE_P2P_BAN_THRESHOLD")]
     pub ban_threshold: i64,
 
     /// How long to ban a peer for, such as `30m` or `1h`.
@@ -224,8 +194,7 @@ pub struct P2PArgs {
         long = "p2p.ban.duration",
         default_value = "1h",
         env = "KONA_NODE_P2P_BAN_DURATION",
-        value_parser = humantime::parse_duration,
-        hide = true
+        value_parser = humantime::parse_duration
     )]
     pub ban_duration: Duration,
 
@@ -239,8 +208,7 @@ pub struct P2PArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub discovery_enabled: bool,
 
@@ -249,8 +217,7 @@ pub struct P2PArgs {
         long = "p2p.discovery.interval",
         default_value = "5s",
         env = "KONA_NODE_P2P_DISCOVERY_INTERVAL",
-        value_parser = humantime::parse_duration,
-        hide = true
+        value_parser = humantime::parse_duration
     )]
     pub discovery_interval: Duration,
     /// Keep the peers discovery finds in a bootstore, so that the node finds them again after a
@@ -263,24 +230,18 @@ pub struct P2PArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub bootstore_enabled: bool,
     /// The bootstore's file. By default, `~/.kona/<chain_id>/bootstore.json`.
-    #[arg(
-        long = "p2p.discovery.bootstore.path",
-        env = "KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH",
-        hide = true
-    )]
+    #[arg(long = "p2p.discovery.bootstore.path", env = "KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH")]
     pub bootstore: Option<PathBuf>,
     /// The maximum number of times to redial a peer that disconnects. If set to 0, the peer is
     /// redialed indefinitely.
     #[arg(
         long = "p2p.redial.max-attempts",
         env = "KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS",
-        default_value = "500",
-        hide = true
+        default_value = "500"
     )]
     pub peer_redial: Option<u64>,
 
@@ -291,8 +252,7 @@ pub struct P2PArgs {
         long = "p2p.redial.period",
         env = "KONA_NODE_P2P_REDIAL_PERIOD",
         default_value = "1h",
-        value_parser = humantime::parse_duration,
-        hide = true
+        value_parser = humantime::parse_duration
     )]
     pub redial_period: Duration,
 
@@ -300,8 +260,7 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.discovery.bootnodes",
         value_delimiter = ',',
-        env = "KONA_NODE_P2P_DISCOVERY_BOOTNODES",
-        hide = true
+        env = "KONA_NODE_P2P_DISCOVERY_BOOTNODES"
     )]
     pub bootnodes: Vec<String>,
 
@@ -323,8 +282,7 @@ pub struct P2PArgs {
         num_args = 0..=1,
         require_equals = true,
         default_value_t = false,
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub topic_scoring: bool,
 
@@ -337,8 +295,7 @@ pub struct P2PArgs {
     #[arg(
         long = "p2p.discovery.randomize",
         env = "KONA_NODE_P2P_DISCOVERY_RANDOMIZE",
-        value_parser = humantime::parse_duration,
-        hide = true
+        value_parser = humantime::parse_duration
     )]
     pub discovery_randomize: Option<Duration>,
 }
