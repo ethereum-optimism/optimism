@@ -353,21 +353,6 @@ where
         Ok(Publication::Published)
     }
 
-    /// Before the sequencer stops, makes a kept block the conductor already committed canonical,
-    /// once more, as op-node waits for its last sealed block to become the unsafe head: the
-    /// conductor's log holds it, so the cluster's next sequencer builds on it. Any other kept or
-    /// started block is dropped.
-    async fn publish_committed(&self, last: LastBuild) -> Result<(), ActorError> {
-        let LastBuild::Sealed { block, .. } = last else { return Ok(()) };
-        if !block.committed {
-            return Ok(());
-        }
-        if let Publication::Retry(_) = self.publish(*block).await? {
-            warn!(target: "sequencer", "Stopping without a committed block the engine could not make canonical");
-        }
-        Ok(())
-    }
-
     /// Starts building an L2 block by creating and populating payload attributes referencing the
     /// correct L1 origin block and sending them to the block engine.
     async fn build_unsealed_payload(
@@ -589,10 +574,6 @@ where
                 // Prioritize messages over block building.
                 biased;
                 Some(message) = self.messages_rx.recv() => {
-                    if matches!(message, Message::StopSequencer(_)) {
-                        let kept = std::mem::replace(&mut last, LastBuild::NothingStarted);
-                        self.publish_committed(kept).await?;
-                    }
                     self.handle_message(message).await;
                     // A stopped sequencer drops what it built: once started again, possibly after
                     // another sequencer led, it builds afresh on the unsafe head.
