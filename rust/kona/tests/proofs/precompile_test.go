@@ -59,8 +59,8 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	receipt := env.Alice.L2.LastTxReceipt(t)
-	receiptBlockTime := env.Engine.L2Chain().GetBlockByHash(receipt.BlockHash).Time()
-	rules := env.Engine.L2Chain().Config().Rules(receipt.BlockNumber, true, receiptBlockTime)
+	receiptBlockTime := env.Engine.HeaderByHash(t, receipt.BlockHash).Time
+	rules := env.Sd.L2Cfg.Config.Rules(receipt.BlockNumber, true, receiptBlockTime)
 	expectedResult := make([]byte, 0)
 	precompile, ok := vm.ActivePrecompiledContracts(rules)[testCase.Address]
 	if ok {
@@ -99,7 +99,7 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	env.Sequencer.ActL2PipelineFull(t)
 
 	l1Head := env.Miner.L1Chain().CurrentBlock()
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	// Ensure the block is marked as safe before we attempt to fault prove it.
