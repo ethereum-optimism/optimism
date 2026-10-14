@@ -367,8 +367,8 @@ Migrations landed with this issue: the `InfoAndUserTxsBy*`, `InfoAndDepositsBy*`
 - **op-supernode** — no direct `ethclient`; receipts via sources interfaces, reads only
   `receipt.Logs`. Picks up §11 improvements transparently.
 - **cannon** — production code imports only `common`/`hexutil`/`crypto`; the preimage oracle
-  treats bytes opaquely. Its test support (`mipsevm/testutil`) runs the MIPS contracts on an
-  in-process EVM through a fork-only signature (§15).
+  treats bytes opaquely. Its test support (`mipsevm/testutil`) runs the MIPS contracts on a plain
+  L1 (mainnet-config) EVM, but calls it through a fork-only signature (§15).
 
 ---
 
@@ -495,9 +495,10 @@ files — all test or test-support code, so they ride §13 (#23405). Two more:
   interop load test matches. Upstream has no such error, so the classification needs op-reth's
   equivalent rejection instead (#23406).
 - The fork's `core.NewEVMBlockContext(header, chain, author, config, statedb)` signature, used by
-  cannon's `mipsevm/testutil` to run the MIPS contracts on an in-process EVM, and by op-e2e's
-  in-process L1 miner. Upstream's takes only `(header, chain, author)` (#23405). The op-e2e
-  actions L2 engine uses it too and goes with #21196.
+  cannon's `mipsevm/testutil` to run the MIPS contracts on an L1 EVM, and by op-e2e's in-process
+  L1 miner. Upstream's takes only `(header, chain, author)`; the extra arguments feed only the OP
+  L1-cost and operator-fee functions, which an L1 config never uses, so these callers just drop
+  them (#23405). The op-e2e actions L2 engine uses it too and goes with #21196.
 
 The ratchet allowlist (§19) lists the current sites.
 
