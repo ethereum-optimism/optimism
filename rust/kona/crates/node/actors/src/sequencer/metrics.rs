@@ -22,6 +22,39 @@ pub(super) fn update_seal_duration_metrics(duration: Duration) {
     metrics::gauge!(crate::Metrics::SEQUENCER_BLOCK_BUILDING_SEAL_TASK_DURATION).set(duration);
 }
 
+/// What became of an attempt to publish a sealed block.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum PublicationOutcome {
+    /// It was made canonical and queued for gossip.
+    Published,
+    /// The conductor did not commit it; it is kept to commit again.
+    ConductorRefused,
+    /// The engine failed temporarily to make it canonical; it is kept to try again.
+    CanonicalizeRetried,
+    /// The unsafe head had moved past its parent, so it was dropped uncommitted.
+    DroppedStale,
+    /// The engine can never make it canonical, so it was dropped.
+    DroppedRejected,
+}
+
+impl PublicationOutcome {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Published => "published",
+            Self::ConductorRefused => "conductor_refused",
+            Self::CanonicalizeRetried => "canonicalize_retried",
+            Self::DroppedStale => "dropped_stale",
+            Self::DroppedRejected => "dropped_rejected",
+        }
+    }
+}
+
+#[inline]
+pub(super) fn record_publication(outcome: PublicationOutcome) {
+    metrics::counter!(crate::Metrics::SEQUENCER_SEALED_BLOCKS, "outcome" => outcome.label())
+        .increment(1);
+}
+
 #[inline]
 pub(super) fn update_total_transactions_sequenced(transaction_count: u64) {
     metrics::counter!(crate::Metrics::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED)

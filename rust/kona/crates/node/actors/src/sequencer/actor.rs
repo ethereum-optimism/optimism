@@ -13,9 +13,9 @@ use crate::{
         error::ActorError,
         handle::Message,
         metrics::{
-            update_attributes_build_duration_metrics, update_block_build_duration_metrics,
-            update_conductor_commitment_duration_metrics, update_seal_duration_metrics,
-            update_total_transactions_sequenced,
+            PublicationOutcome, record_publication, update_attributes_build_duration_metrics,
+            update_block_build_duration_metrics, update_conductor_commitment_duration_metrics,
+            update_seal_duration_metrics, update_total_transactions_sequenced,
         },
         origin::Origin,
     },
@@ -301,6 +301,7 @@ where
                 let unsafe_head = self.engine_client.get_unsafe_head().await?;
                 if unsafe_head.block_info.id() != block.attributes.parent.block_info.id() {
                     warn!(target: "sequencer", ?unsafe_head, "Dropping a sealed block the unsafe head moved past");
+                    record_publication(PublicationOutcome::DroppedStale);
                     return Ok(Publication::Dropped);
                 }
                 let commitment_start = Instant::now();
@@ -308,6 +309,7 @@ where
                 update_conductor_commitment_duration_metrics(commitment_start.elapsed());
                 if let Err(err) = result {
                     warn!(target: "sequencer", ?err, "The conductor did not commit the sealed block; retrying");
+                    record_publication(PublicationOutcome::ConductorRefused);
                     return Ok(Publication::Retry(Box::new(block)));
                 }
             }
@@ -327,9 +329,11 @@ where
                 }
                 if is_canonicalize_err_temporary(&err) {
                     warn!(target: "sequencer", ?err, "Failed to make the sealed block canonical; retrying");
+                    record_publication(PublicationOutcome::CanonicalizeRetried);
                     return Ok(Publication::Retry(Box::new(block)));
                 }
                 warn!(target: "sequencer", ?err, "Dropping a sealed block that cannot become canonical");
+                record_publication(PublicationOutcome::DroppedRejected);
                 return Ok(Publication::Dropped);
             }
             Err(err) => return Err(err.into()),
@@ -340,6 +344,7 @@ where
             .send(block.payload)
             .await
             .map_err(|error| ActorError::Signer(error.to_string()))?;
+        record_publication(PublicationOutcome::Published);
         Ok(Publication::Published)
     }
 

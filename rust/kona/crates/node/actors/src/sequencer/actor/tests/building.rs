@@ -216,6 +216,38 @@ async fn a_kept_block_the_unsafe_head_moved_past_is_dropped() {
     assert!(matches!(publication, Publication::Dropped));
 }
 
+/// Each attempt to publish a sealed block is counted by what became of it, so an operator sees a
+/// conductor that refuses the sequencer's blocks.
+#[tokio::test(start_paused = true)]
+async fn publications_are_counted_by_outcome() {
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics = recorder.handle();
+    let _recorder = metrics::set_default_local_recorder(&recorder);
+    let mut conductor = MockConductor::new();
+    let mut commits = 0;
+    conductor.expect_commit_unsafe_payload().times(2).returning(move |_| {
+        commits += 1;
+        if commits == 1 {
+            Err(ConductorError::Rpc(alloy_transport::TransportErrorKind::custom_str("not leader")))
+        } else {
+            Ok(())
+        }
+    });
+    let (mut actor, _, _) = test_actor_with_config(true, Some(conductor));
+    actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    actor.engine_client.expect_canonicalize_block().times(1).return_once(|_, _| Ok(()));
+    actor.signer.expect_send().times(1).returning(|_| Ok(()));
+
+    let publication = actor.publish(sealed_block(crate::test_payload(1))).await.unwrap();
+    let Publication::Retry(block) = publication else { panic!("kept nothing: {publication:?}") };
+    assert!(matches!(actor.publish(*block).await.unwrap(), Publication::Published));
+    let rendered = metrics.render();
+    for outcome in ["conductor_refused", "published"] {
+        let line = format!("kona_node_sequencer_sealed_blocks_total{{outcome=\"{outcome}\"}} 1");
+        assert!(rendered.contains(&line), "{rendered}");
+    }
+}
+
 /// Once an operator overrides the conductor's leadership, for disaster recovery, the sequencer
 /// publishes blocks without committing them to its conductor, as op-node.
 #[tokio::test(start_paused = true)]

@@ -43,6 +43,11 @@ impl Metrics {
     pub const SEQUENCER_CONDUCTOR_COMMITMENT_DURATION: &str =
         "kona_node_sequencer_conductor_commitment_duration";
 
+    /// Counter of the blocks the sequencer sealed, by what became of each attempt to publish one:
+    /// `published`, `conductor_refused` or `canonicalize_retried` (kept to try again a second
+    /// later), and `dropped_stale` or `dropped_rejected`.
+    pub const SEQUENCER_SEALED_BLOCKS: &str = "kona_node_sequencer_sealed_blocks_total";
+
     /// Total number of transactions of sequenced by sequencer.
     pub const SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED: &str =
         "kona_node_sequencer_total_transactions_sequenced";
@@ -119,6 +124,12 @@ impl Metrics {
         metrics::describe_gauge!(
             Self::SEQUENCER_STATE,
             "Whether the sequencer is active: 1 for the current state's `active` label, 0 for the other"
+        );
+
+        metrics::describe_counter!(
+            Self::SEQUENCER_SEALED_BLOCKS,
+            "Attempts to publish a sealed block, by outcome: published, conductor_refused, \
+             canonicalize_retried, dropped_stale, dropped_rejected"
         );
 
         // Sequencer attributes builder duration
