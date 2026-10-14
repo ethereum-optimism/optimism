@@ -271,6 +271,23 @@ async fn a_committed_block_the_unsafe_head_moved_past_is_dropped_as_stale() {
     );
 }
 
+/// When the sequencer stops, a kept block the conductor committed is made canonical and gossiped,
+/// as the conductor's log holds it. A kept block it did not commit is dropped.
+#[rstest]
+#[tokio::test(start_paused = true)]
+async fn stopping_publishes_a_kept_committed_block(#[values(true, false)] committed: bool) {
+    let (mut actor, _, _) = test_actor_with_config(true, Some(MockConductor::new()));
+    let published = usize::from(committed);
+    actor.engine_client.expect_canonicalize_block().times(published).return_once(|_, _| Ok(()));
+    actor.signer.expect_send().times(published).returning(|_| Ok(()));
+    let mut block = sealed_block(crate::test_payload(1));
+    block.committed = committed;
+
+    let kept = LastBuild::Sealed { block: Box::new(block), at: Instant::now() };
+    actor.publish_committed(kept).await.unwrap();
+    actor.publish_committed(LastBuild::NothingStarted).await.unwrap();
+}
+
 /// Once an operator overrides the conductor's leadership, for disaster recovery, the sequencer
 /// publishes blocks without committing them to its conductor, as op-node.
 #[tokio::test(start_paused = true)]
