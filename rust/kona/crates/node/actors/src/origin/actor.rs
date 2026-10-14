@@ -49,10 +49,7 @@ impl Actor {
         let mut l1_head = BlockInfo::default();
         loop {
             let origin = self.engine_state.borrow_and_update().unsafe_head().l1_origin;
-            // Before its first reset, the engine has no heads.
-            if origin != BlockNumHash::default() {
-                self.update(origin).await?;
-            }
+            self.update(origin).await?;
             tokio::select! {
                 changed = self.engine_state.changed() => {
                     changed.map_err(|_| ActorError::EngineStateClosed)?;
@@ -216,14 +213,6 @@ mod tests {
         // L1 reaches the origin, and confirms the block after it.
         l1.set_head(&blocks[2..]);
         assert_eq!(running.blocks().await, blocks[3..5].to_vec());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn waits_for_the_engine_to_have_heads() {
-        let l1 = TestChain::new(&chain(0..=6, 1));
-        let running = Running::new(l1.handle(), EngineState::default());
-        assert_eq!(running.blocks().await, vec![]);
-        assert_eq!(*running.window.borrow(), Window::default());
     }
 
     #[tokio::test(start_paused = true)]

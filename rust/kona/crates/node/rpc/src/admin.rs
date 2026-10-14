@@ -153,7 +153,7 @@ mod tests {
 
     /// Returns a handle to an engine that never runs.
     fn idle_engine() -> engine::Handle {
-        engine::Builder::new().handle()
+        engine::Builder::new(engine::EngineState::default()).handle()
     }
 
     /// Returns an engine whose execution client completes one reset, on an L1 chain that holds
@@ -179,7 +179,7 @@ mod tests {
                 .retrying(Duration::from_secs(1)),
             BlockInfo::default(),
         );
-        let builder = engine::Builder::new();
+        let builder = engine::Builder::new(engine::EngineState::default());
         let handle = builder.handle();
         let engine = builder.build(Arc::new(client), l1.handle(), config, Arc::new(NoopBlockSink));
         // The L1 chain lasts as long as the engine.
@@ -317,7 +317,7 @@ mod tests {
 
     #[tokio::test]
     async fn maps_closed_engine_channels() {
-        let builder = engine::Builder::new();
+        let builder = engine::Builder::new(engine::EngineState::default());
         let rpc = AdminRpc::new(builder.handle());
         // The engine stops with the reset queued.
         let (result, ()) = tokio::join!(rpc.admin_reset_derivation_pipeline(), async {
@@ -333,7 +333,7 @@ mod tests {
     #[tokio::test]
     async fn validates_payloads_before_queueing_them_on_the_engine() {
         // The engine never runs, so its one-slot queue fills with the first queued payload.
-        let builder = engine::Builder::new();
+        let builder = engine::Builder::new(engine::EngineState::default());
         let rpc = AdminRpc::new(builder.handle());
         let mut payload = ExecutionPayloadV1 {
             parent_hash: Default::default(),

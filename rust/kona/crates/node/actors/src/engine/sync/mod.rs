@@ -11,8 +11,32 @@ pub use error::SyncStartError;
 
 use tracing::info;
 
-use crate::l1;
+use crate::{
+    engine::{EngineState, HeadsUpdate},
+    l1,
+};
 use kona_sources::EngineApi;
+
+/// Reads the execution layer's heads, to give [`Builder::new`](super::Builder::new) the state the
+/// engine starts from: the latest block is the unsafe head, the safe block the local-safe and safe
+/// heads, and the finalized block the finalized head. An execution layer that has finalized no
+/// block gives the genesis block, and one that marks no block safe gives its finalized block.
+///
+/// These are the execution layer's heads, unchecked; the engine's first reset checks them against
+/// L1 and sends the forkchoice it settles on.
+pub async fn execution_layer_state(
+    cfg: &RollupConfig,
+    engine: &EngineApi,
+) -> Result<EngineState, SyncStartError> {
+    let L2ForkchoiceState { un_safe, safe, finalized } =
+        L2ForkchoiceState::current(cfg, engine).await?;
+    Ok(EngineState::default().apply_update(HeadsUpdate {
+        unsafe_head: Some(un_safe),
+        local_safe_head: Some(safe),
+        safe_head: Some(safe),
+        finalized_head: Some(finalized),
+    }))
+}
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///

@@ -25,7 +25,7 @@ mod state;
 pub use state::{EngineState, HeadsUpdate};
 
 mod sync;
-pub use sync::SyncStartError;
+pub use sync::{SyncStartError, execution_layer_state};
 
 #[cfg(test)]
 mod test_utils;

@@ -164,7 +164,7 @@ impl ImportedBlockSink for RecordingSink {
 fn construction_and_build_do_not_require_a_runtime() {
     let config = Arc::new(RollupConfig::default());
     let (clients, _) = clients(config.clone());
-    let builder = Builder::new();
+    let builder = Builder::new(EngineState::default());
     let handle = builder.handle();
     let task = builder.build(Arc::new(clients.engine), clients.l1, config, Arc::new(NoopBlockSink));
     assert_eq!(*handle.state().borrow(), EngineState::default());
@@ -198,6 +198,34 @@ async fn reset_recovers_and_completes_original_request(#[case] read_delay: Durat
     l2.assert_finished();
 }
 
+/// The engine starts from the execution layer's heads and publishes them before its first request.
+/// It has chosen no forkchoice yet, so it takes the execution layer to be syncing until it sends
+/// one, and its first reset sends the forkchoice even when it settles on the same heads.
+#[tokio::test(start_paused = true)]
+async fn starts_from_the_execution_layers_heads() {
+    let config = config();
+    let (clients, l2) = clients(config.clone());
+    for _ in 0..3 {
+        l2.expect("eth_getBlockByNumber", L2Block::default());
+    }
+    let state = crate::engine::execution_layer_state(&config, &clients.engine).await.unwrap();
+    l2.assert_finished();
+    let genesis = state.finalized_head();
+    assert_eq!(genesis.block_info.hash, config.genesis.l2.hash);
+    assert_eq!(
+        [state.unsafe_head(), state.local_safe_head(), state.safe_head()],
+        [genesis, genesis, genesis]
+    );
+
+    expect_reset(&l2, Duration::ZERO);
+    let (handle, actor) = spawn(clients, config, state);
+    assert_eq!(*handle.state().borrow(), state);
+    assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
+    assert_eq!(handle.reset().await.unwrap(), state);
+    actor.abort();
+    l2.assert_finished();
+}
+
 /// A reset that asks for a synced execution layer sends the current forkchoice again, and is
 /// refused unless the execution layer validates it. A rejected forkchoice lets the reset proceed,
 /// because the reset replaces it.
@@ -222,7 +250,7 @@ async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
     let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
 
     let resets = handle.resets();
-    // With no heads, there is no forkchoice to ask with.
+    // No forkchoice has been sent, so there is none to ask with.
     assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
     // A refused reset is not published.
     assert!(!resets.has_changed().unwrap());

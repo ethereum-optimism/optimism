@@ -134,6 +134,8 @@ impl RollupNode {
     /// - [`RollupNodeError::JwtRejected`] if the engine rejects the node's JWT;
     /// - [`RollupNodeError::EngineCapabilityExchange`] if the capability exchange that checks the
     ///   JWT secret still fails after the retries;
+    /// - [`RollupNodeError::L2Heads`] if the execution layer's heads, which the engine starts from,
+    ///   cannot be read;
     /// - [`RollupNodeError::L1FinalizedBlock`] if the finalized L1 block cannot be read;
     /// - [`RollupNodeError::UnsafeBlockSigner`] if the unsafe block signer cannot be read from L1.
     ///
@@ -144,6 +146,12 @@ impl RollupNode {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
         startup::check_listen_ports(&self.p2p_config)?;
         startup::validate_engine_jwt(&self.engine_api, ExponentialBuilder::default()).await?;
+        // The engine starts from the execution layer's heads, so that its state, which the RPC
+        // serves, is never empty. The read fails fast, as the execution layer just answered.
+        let engine_state =
+            engine::execution_layer_state(&self.chain.rollup_config, &self.engine_api)
+                .await
+                .map_err(RollupNodeError::L2Heads)?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         // The L1 actor and the startup read share the L1 client: the read fails fast, and the actor
@@ -164,7 +172,7 @@ impl RollupNode {
         // actor request channels
         let derivation_builder = derivation::Builder::new();
         let derivation = derivation_builder.handle();
-        let engine_builder = engine::Builder::new();
+        let engine_builder = engine::Builder::new(engine_state);
         let engine = engine_builder.handle();
         let sequencer = self.sequencer.as_ref().map(|config| (config, sequencer::Builder::new()));
         let sequencer_admin_rpc = sequencer.as_ref().map(|(config, builder)| {
