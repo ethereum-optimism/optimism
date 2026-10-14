@@ -60,7 +60,7 @@ A sequencer requires all standard node arguments plus `--sequencer.enabled` and 
 | **Rollup Config** | `--chain.rollup-config-path` or `--chain` | `KONA_NODE_CHAIN_ROLLUP_CONFIG_PATH` or `KONA_NODE_CHAIN` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
 | **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The variable takes `true` or `false` |
 | **RPC** | `--rpc.enabled` | `KONA_NODE_RPC_ENABLED` | Serves the RPC API, through which the stopped sequencer is started |
-| **Block Signer** | `--signer.key-path`, or `--signer.url` with `--signer.address` | `KONA_NODE_SIGNER_KEY_PATH`, `KONA_NODE_SIGNER_URL`, `KONA_NODE_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer. Used and required only with `--p2p.enabled` |
+| **Block Signer** | `--signer.key-path`, or `--signer.remote.url` with `--signer.remote.address` | `KONA_NODE_SIGNER_KEY_PATH`, `KONA_NODE_SIGNER_REMOTE_URL`, `KONA_NODE_SIGNER_REMOTE_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer. Used and required only with `--p2p.enabled` |
 
 ## Sequencer-Specific Flags
 

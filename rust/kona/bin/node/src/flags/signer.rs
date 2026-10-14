@@ -21,7 +21,7 @@ use url::Url;
 #[command(next_help_heading = "Signer")]
 pub struct SignerArgs {
     /// Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The
-    /// file must exist. Give this or `--signer.url`. Used and required only when
+    /// file must exist. Give this or `--signer.remote.url`. Used and required only when
     /// `--sequencer.enabled` and `--p2p.enabled`.
     #[arg(long = "signer.key-path", value_name = "PATH", env = "KONA_NODE_SIGNER_KEY_PATH")]
     pub key_path: Option<PathBuf>,
@@ -38,33 +38,42 @@ pub struct SignerArgs {
 pub struct RemoteSignerArgs {
     /// The URL of a remote op-signer that signs the sequencer's blocks. Give this or
     /// `--signer.key-path`. Used and required only when `--sequencer.enabled` and `--p2p.enabled`.
-    #[arg(long = "signer.url", env = "KONA_NODE_SIGNER_URL")]
+    #[arg(long = "signer.remote.url", env = "KONA_NODE_SIGNER_REMOTE_URL")]
     pub url: Option<Url>,
-    /// The address of the remote op-signer's key. Requires `--signer.url`.
-    #[arg(long = "signer.address", env = "KONA_NODE_SIGNER_ADDRESS")]
+    /// The address of the remote op-signer's key. Requires `--signer.remote.url`.
+    #[arg(long = "signer.remote.address", env = "KONA_NODE_SIGNER_REMOTE_ADDRESS")]
     pub address: Option<Address>,
     /// A header to send to the remote op-signer, as `name=value`. Pass the flag once per header;
     /// the environment variable sets a single header, whose value may contain commas. Requires
-    /// `--signer.url`.
-    #[arg(long = "signer.header", value_name = "NAME=VALUE", env = "KONA_NODE_SIGNER_HEADER")]
-    pub headers: Vec<SignerHeader>,
-    /// Path to the CA certificates that verify the remote op-signer. Requires `--signer.url`.
-    #[arg(long = "signer.tls.ca-path", value_name = "PATH", env = "KONA_NODE_SIGNER_TLS_CA_PATH")]
-    pub ca_cert: Option<PathBuf>,
-    /// Path to the client certificate presented to the remote op-signer. Requires `--signer.url`
-    /// and `--signer.tls.key-path`.
+    /// `--signer.remote.url`.
     #[arg(
-        long = "signer.tls.cert-path",
+        long = "signer.remote.header",
+        value_name = "NAME=VALUE",
+        env = "KONA_NODE_SIGNER_REMOTE_HEADER"
+    )]
+    pub headers: Vec<SignerHeader>,
+    /// Path to the CA certificates that verify the remote op-signer. Requires
+    /// `--signer.remote.url`.
+    #[arg(
+        long = "signer.remote.tls.ca-path",
         value_name = "PATH",
-        env = "KONA_NODE_SIGNER_TLS_CERT_PATH"
+        env = "KONA_NODE_SIGNER_REMOTE_TLS_CA_PATH"
+    )]
+    pub ca_cert: Option<PathBuf>,
+    /// Path to the client certificate presented to the remote op-signer. Requires
+    /// `--signer.remote.url` and `--signer.remote.tls.key-path`.
+    #[arg(
+        long = "signer.remote.tls.cert-path",
+        value_name = "PATH",
+        env = "KONA_NODE_SIGNER_REMOTE_TLS_CERT_PATH"
     )]
     pub client_cert: Option<PathBuf>,
-    /// Path to the private key of the client certificate. Requires `--signer.url` and
-    /// `--signer.tls.cert-path`.
+    /// Path to the private key of the client certificate. Requires `--signer.remote.url` and
+    /// `--signer.remote.tls.cert-path`.
     #[arg(
-        long = "signer.tls.key-path",
+        long = "signer.remote.tls.key-path",
         value_name = "PATH",
-        env = "KONA_NODE_SIGNER_TLS_KEY_PATH"
+        env = "KONA_NODE_SIGNER_REMOTE_TLS_KEY_PATH"
     )]
     pub client_key: Option<PathBuf>,
 }
@@ -93,20 +102,22 @@ pub enum SignerError {
     /// No signer was given.
     #[error(
         "--sequencer.enabled with --p2p.enabled requires a block signer: --signer.key-path, or \
-         --signer.url with --signer.address"
+         --signer.remote.url with --signer.remote.address"
     )]
     NoSigner,
     /// Both a local key and a remote signer were given.
-    #[error("give --signer.key-path or --signer.url, not both")]
+    #[error("give --signer.key-path or --signer.remote.url, not both")]
     TwoSigners,
     /// A remote signer was given without its URL, or without its address.
-    #[error("--signer.url and --signer.address must be given together")]
+    #[error("--signer.remote.url and --signer.remote.address must be given together")]
     IncompleteRemoteSigner,
     /// A remote signer option was given without a remote signer.
-    #[error("{0} requires --signer.url")]
+    #[error("{0} requires --signer.remote.url")]
     NoRemoteSigner(&'static str),
     /// A client certificate was given without its key, or a key without its certificate.
-    #[error("--signer.tls.cert-path and --signer.tls.key-path must be given together")]
+    #[error(
+        "--signer.remote.tls.cert-path and --signer.remote.tls.key-path must be given together"
+    )]
     IncompleteClientCert,
     /// The key file could not be read.
     #[error("failed to read the signer key file {0}")]
@@ -180,10 +191,10 @@ impl RemoteSignerArgs {
             (Some(url), Some(address)) => (url, address),
             (None, None) => {
                 let options = [
-                    ("--signer.header", !self.headers.is_empty()),
-                    ("--signer.tls.ca-path", self.ca_cert.is_some()),
-                    ("--signer.tls.cert-path", self.client_cert.is_some()),
-                    ("--signer.tls.key-path", self.client_key.is_some()),
+                    ("--signer.remote.header", !self.headers.is_empty()),
+                    ("--signer.remote.tls.ca-path", self.ca_cert.is_some()),
+                    ("--signer.remote.tls.cert-path", self.client_cert.is_some()),
+                    ("--signer.remote.tls.key-path", self.client_key.is_some()),
                 ];
                 return match options.into_iter().find(|(_, given)| *given) {
                     Some((flag, _)) => Err(SignerError::NoRemoteSigner(flag)),
@@ -276,15 +287,15 @@ mod tests {
     #[test]
     fn configures_a_remote_signer() {
         let args = parse(&[
-            "--signer.url",
+            "--signer.remote.url",
             "http://127.0.0.1:8080",
-            "--signer.address",
+            "--signer.remote.address",
             ADDRESS,
-            "--signer.header",
+            "--signer.remote.header",
             "x-api-key=secret,with,commas",
-            "--signer.tls.cert-path",
+            "--signer.remote.tls.cert-path",
             "/cert.pem",
-            "--signer.tls.key-path",
+            "--signer.remote.tls.key-path",
             "/key.pem",
         ])
         .unwrap();
@@ -301,7 +312,7 @@ mod tests {
 
     #[test]
     fn rejects_inconsistent_signer_flags() {
-        let remote = ["--signer.url", "http://a", "--signer.address", ADDRESS];
+        let remote = ["--signer.remote.url", "http://a", "--signer.remote.address", ADDRESS];
         let with_remote = |extra: &[&'static str]| [&remote[..], extra].concat();
         let cases: [(Vec<&str>, SignerError); 10] = [
             // no signer
@@ -310,25 +321,34 @@ mod tests {
             (with_remote(&["--signer.key-path", "/key"]), SignerError::TwoSigners),
             // remote signer options beside a local key
             (
-                vec!["--signer.key-path", "/key", "--signer.address", ADDRESS],
+                vec!["--signer.key-path", "/key", "--signer.remote.address", ADDRESS],
                 SignerError::IncompleteRemoteSigner,
             ),
             (
-                vec!["--signer.key-path", "/key", "--signer.header", "a=b"],
-                SignerError::NoRemoteSigner("--signer.header"),
+                vec!["--signer.key-path", "/key", "--signer.remote.header", "a=b"],
+                SignerError::NoRemoteSigner("--signer.remote.header"),
             ),
             // a remote signer without its address, or its URL
-            (vec!["--signer.url", "http://a"], SignerError::IncompleteRemoteSigner),
-            (vec!["--signer.address", ADDRESS], SignerError::IncompleteRemoteSigner),
+            (vec!["--signer.remote.url", "http://a"], SignerError::IncompleteRemoteSigner),
+            (vec!["--signer.remote.address", ADDRESS], SignerError::IncompleteRemoteSigner),
             // remote signer options without a remote signer
-            (vec!["--signer.header", "a=b"], SignerError::NoRemoteSigner("--signer.header")),
             (
-                vec!["--signer.tls.ca-path", "/ca.pem"],
-                SignerError::NoRemoteSigner("--signer.tls.ca-path"),
+                vec!["--signer.remote.header", "a=b"],
+                SignerError::NoRemoteSigner("--signer.remote.header"),
+            ),
+            (
+                vec!["--signer.remote.tls.ca-path", "/ca.pem"],
+                SignerError::NoRemoteSigner("--signer.remote.tls.ca-path"),
             ),
             // a client certificate without its key, or a key without its certificate
-            (with_remote(&["--signer.tls.cert-path", "/c"]), SignerError::IncompleteClientCert),
-            (with_remote(&["--signer.tls.key-path", "/k"]), SignerError::IncompleteClientCert),
+            (
+                with_remote(&["--signer.remote.tls.cert-path", "/c"]),
+                SignerError::IncompleteClientCert,
+            ),
+            (
+                with_remote(&["--signer.remote.tls.key-path", "/k"]),
+                SignerError::IncompleteClientCert,
+            ),
         ];
         for (raw, expected) in cases {
             let args = parse(&raw).unwrap();
@@ -341,7 +361,7 @@ mod tests {
 
     #[test]
     fn rejects_a_malformed_header() {
-        let error = parse(&["--signer.header", "no-value"]).unwrap_err();
+        let error = parse(&["--signer.remote.header", "no-value"]).unwrap_err();
         assert_eq!(error.kind(), ErrorKind::ValueValidation);
     }
 }

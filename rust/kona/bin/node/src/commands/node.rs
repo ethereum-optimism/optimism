@@ -22,8 +22,9 @@ use tracing::{debug, error, info};
 ///
 /// A node run with `--sequencer.enabled` can sequence. It needs `--rpc.enabled`: its sequencer
 /// starts stopped; start it with `admin_startSequencer`. With `--p2p.enabled`, it gossips the
-/// blocks it builds, and needs a block signer to sign them: `--signer.key-path`, or `--signer.url`
-/// with `--signer.address`. A node without `--sequencer.enabled` follows the chain only.
+/// blocks it builds, and needs a block signer to sign them: `--signer.key-path`, or
+/// `--signer.remote.url` with `--signer.remote.address`. A node without `--sequencer.enabled`
+/// follows the chain only.
 ///
 /// # Configuration Sources
 ///
@@ -427,16 +428,16 @@ mod tests {
             (&[], Some(ErrorKind::MissingRequiredArgument)),
             (&["--signer.key-path", "KEY"], None),
             (
-                &["--signer.key-path", "KEY", "--signer.url", "http://a"],
+                &["--signer.key-path", "KEY", "--signer.remote.url", "http://a"],
                 Some(ErrorKind::MissingRequiredArgument),
             ),
             (
                 &[
                     "--signer.key-path",
                     "KEY",
-                    "--signer.url",
+                    "--signer.remote.url",
                     "http://a",
-                    "--signer.address",
+                    "--signer.remote.address",
                     ADDRESS,
                 ],
                 Some(ErrorKind::ArgumentConflict),
