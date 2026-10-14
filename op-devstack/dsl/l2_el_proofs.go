@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -105,6 +106,73 @@ func (el *L2ELNode) WaitForProofsStoreBlock(target uint64, timeout time.Duration
 	el.require.NoErrorf(err, "proofs store on %s did not index block %d within %s; last window %s; last error: %v",
 		el.inner.Name(), target, timeout, lastStatus, lastErr)
 	return lastStatus
+}
+
+// WaitForProofsStorePrunedPast waits until this node's proofs-history store no longer serves
+// block, because pruning moved the store's earliest block past it. The store prunes to its
+// window behind the latest block it indexed, so the chain has to be more than a window past
+// block first.
+func (el *L2ELNode) WaitForProofsStorePrunedPast(block uint64, timeout time.Duration) ProofsSyncStatus {
+	ctx, cancel := context.WithTimeout(el.ctx, timeout)
+	defer cancel()
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "block", block, "timeout", timeout)
+	logger.Info("Waiting for proofs store to prune past block")
+
+	var lastStatus ProofsSyncStatus
+	var lastErr error
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		status, err := el.ProofsSyncStatus()
+		if err != nil {
+			lastErr = err
+			logger.Warn("debug_proofsSyncStatus failed; will retry", "err", err)
+			return false, nil
+		}
+		lastStatus, lastErr = status, nil
+		if status.Earliest != nil && *status.Earliest > block {
+			logger.Info("Proofs store pruned past block", "window", status)
+			return true, nil
+		}
+		logger.Info("Proofs store still serves block", "window", status)
+		return false, nil
+	})
+	el.require.NoErrorf(err, "proofs store on %s did not prune past block %d within %s; last window %s; last error: %v",
+		el.inner.Name(), block, timeout, lastStatus, lastErr)
+	return lastStatus
+}
+
+// InitProofsHistory seeds this node's proofs-history store from its datadir with
+// `op-reth proofs init`, the way an operator does for a node that synced without proofs history,
+// and makes the node run with proofs history from its next Start. The node must be stopped: a
+// test of what init does to a datadir the node still writes to uses TryInitProofsHistory.
+func (el *L2ELNode) InitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) stack.ProofsHistoryInitReport {
+	if control, ok := el.inner.(stack.ControlledLifecycle); ok {
+		el.require.Falsef(control.Running(), "stop %s before seeding its proofs-history store", el.inner.Name())
+	}
+	report, err := el.TryInitProofsHistory(opts...)
+	el.require.NoErrorf(err, "proofs init on %s must seed the store", el.inner.Name())
+	return report
+}
+
+// TryInitProofsHistory is InitProofsHistory for a test that asserts on the init's outcome itself:
+// it runs whether or not the node is running and returns the failure instead of failing the test.
+// The store backfills through a trie-state snapshot and keeps the node's configured window unless
+// the options say otherwise.
+func (el *L2ELNode) TryInitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) (stack.ProofsHistoryInitReport, error) {
+	initializer, ok := el.inner.(stack.ProofsHistoryInitializer)
+	el.require.Truef(ok, "L2EL node %s cannot seed a proofs-history store", el.inner.Name())
+	init := stack.ProofsHistoryInit{UseSnapshot: true}
+	for _, opt := range opts {
+		opt(&init)
+	}
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "window", init.Window, "use_snapshot", init.UseSnapshot)
+	logger.Info("Seeding the proofs-history store from the datadir")
+	report, err := initializer.InitProofsHistory(init)
+	if err != nil {
+		logger.Warn("Proofs init did not seed the store", "duration", report.Duration, "err", err)
+		return report, err
+	}
+	logger.Info("Proofs init seeded the store", "duration", report.Duration)
+	return report, nil
 }
 
 // VerifyHistoricalProofsMatch sweeps the blocks this node's proofs-history store serves and, at
