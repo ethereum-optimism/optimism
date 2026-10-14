@@ -28,9 +28,7 @@ use kona_rpc::{
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
 use kona_sources::BlockSignerHandler;
-use std::{
-    convert::Infallible, future::Future, num::NonZeroUsize, pin::Pin, sync::Arc, time::Duration,
-};
+use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -42,9 +40,6 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
-/// The most L1 blocks the L1 actor holds. L1 finalizes about 64 to 96 blocks behind its head, so
-/// this covers finality stalling for a few epochs.
-const L1_WINDOW: NonZeroUsize = NonZeroUsize::new(256).unwrap();
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
 /// Stack configuration of components.
@@ -483,7 +478,6 @@ impl RollupNode {
             l1::Config {
                 head_interval: Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
                 finalized_interval: Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
-                window: L1_WINDOW,
             },
         );
 
