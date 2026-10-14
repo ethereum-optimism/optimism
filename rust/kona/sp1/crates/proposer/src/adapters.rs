@@ -21,7 +21,7 @@ use kona_sp1_super_range_executor::{HostInputs, SuperRootAtTimestampResponse};
 
 use crate::{
     TX_REVERTED_PREFIX, ZK_GAME_TYPE,
-    config::RangeSplitCount,
+    config::{RangeSplitCount, WitnessByteLimit},
     contract::{
         AnchorStateRegistry, BondDistributionMode, DelayedWETH,
         DisputeGameFactory::{DisputeGameCreated, DisputeGameFactoryInstance},
@@ -493,6 +493,7 @@ pub(crate) struct ProductionProofEngine {
     provider: ProofProvider,
     host_inputs: Arc<HostInputs>,
     split: RangeSplitCount,
+    witness_limit: WitnessByteLimit,
     max_concurrent: NonZeroUsize,
     proof_progress: InMemoryProofProgress,
 }
@@ -502,12 +503,14 @@ impl ProductionProofEngine {
         provider: ProofProvider,
         host_inputs: Arc<HostInputs>,
         split: RangeSplitCount,
+        witness_limit: WitnessByteLimit,
         max_concurrent: NonZeroUsize,
     ) -> Self {
         Self {
             provider,
             host_inputs,
             split,
+            witness_limit,
             max_concurrent,
             proof_progress: InMemoryProofProgress::default(),
         }
@@ -536,6 +539,7 @@ impl ProofEngine for ProductionProofEngine {
                 game: &game,
                 responses: &responses,
                 split: self.split,
+                witness_limit: self.witness_limit,
                 max_concurrent: self.max_concurrent,
                 proof_progress: &self.proof_progress,
             },
@@ -855,6 +859,7 @@ mod tests {
                 dependency_set_path: None,
             }),
             RangeSplitCount::one(),
+            WitnessByteLimit::default(),
             NonZeroUsize::MIN,
         );
 

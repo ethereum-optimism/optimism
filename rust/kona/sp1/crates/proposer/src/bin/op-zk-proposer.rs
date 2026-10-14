@@ -68,6 +68,7 @@ async fn main() -> Result<()> {
         l1_config_path = ?config.l1_config_path,
         dependency_set_path = ?config.dependency_set_path,
         range_split_count = ?config.range_split_count,
+        max_witness_bytes = config.max_witness_bytes.get(),
         max_concurrent_range_proofs = %config.max_concurrent_range_proofs,
         max_concurrent_defense_tasks = %config.max_concurrent_defense_tasks,
         fast_finality_mode = config.fast_finality_mode,

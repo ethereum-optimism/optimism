@@ -27,9 +27,9 @@ use kona_sp1_client_utils::{
 };
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    HostInputs, SuperRootAtTimestampResponse, SynthesizedExecution, build_interop_host,
-    build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
-    collect_range_witness, decode_super_consolidation_public_values,
+    HostInputs, MAX_ARCHIVED_WITNESS_BYTES, SuperRootAtTimestampResponse, SynthesizedExecution,
+    build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
+    collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
     decode_super_range_public_values, deployment_chain_configs, proof_from_super_v1,
     synthesize_execution,
 };
@@ -41,7 +41,7 @@ use tracing::Instrument;
 pub use crate::ports::GameProofInputs;
 
 use crate::{
-    config::RangeSplitCount,
+    config::{RangeSplitCount, WitnessByteLimit},
     metrics::ProposerGauge,
     ports::SuperRootSource,
     prover::{
@@ -699,6 +699,15 @@ async fn prove_consolidation_request(
     .await
 }
 
+/// Per-game inputs shared by every chunk of one proving attempt.
+struct ChunkContext<'a> {
+    provider: &'a ProofProvider,
+    keys: Option<&'a ProofKeys>,
+    host_inputs: &'a HostInputs,
+    game: &'a GameProofInputs,
+    witness_limit: WitnessByteLimit,
+}
+
 /// Executes one chunk in three steps:
 /// 1. collect the range and consolidation witnesses and native outputs;
 /// 2. in network mode, submit or resume the two child proof requests in order;
@@ -707,10 +716,7 @@ async fn prove_consolidation_request(
 /// Per-stage request state lives in `progress`. The caller caches this function's result only
 /// after both child proofs complete.
 async fn prove_chunk(
-    provider: &ProofProvider,
-    keys: Option<&ProofKeys>,
-    host_inputs: &HostInputs,
-    game: &GameProofInputs,
+    ctx: &ChunkContext<'_>,
     plan: ChunkPlan,
     chunk_count: usize,
     progress: Arc<GameProgress>,
@@ -724,8 +730,7 @@ async fn prove_chunk(
         agreed_timestamp,
         claimed_timestamp,
         async move {
-            let result =
-                prove_chunk_inner(provider, keys, host_inputs, game, plan, progress).await;
+            let result = prove_chunk_inner(ctx, plan, progress).await;
             match &result {
                 Ok(chunk) => tracing::info!(
                     range_transition_count = chunk.range_outputs.transitions.len(),
@@ -745,17 +750,18 @@ async fn prove_chunk(
 }
 
 async fn prove_chunk_inner(
-    provider: &ProofProvider,
-    keys: Option<&ProofKeys>,
-    host_inputs: &HostInputs,
-    game: &GameProofInputs,
+    ctx: &ChunkContext<'_>,
     plan: ChunkPlan,
     progress: Arc<GameProgress>,
 ) -> Result<ChunkResult> {
+    let ChunkContext { provider, keys, host_inputs, game, witness_limit } = *ctx;
     let index = plan.index;
     let chunk_progress = &progress.chunks[index];
     let synthesized = &plan.synthesized;
     let span = synthesized.range_inputs.span;
+    // A single timestamp cannot be split further, so it may use the whole archive.
+    let collection_limit =
+        if span.end > span.start { witness_limit.get() } else { MAX_ARCHIVED_WITNESS_BYTES };
     let range_host = build_interop_host(
         host_inputs,
         game.l1_head,
@@ -769,7 +775,7 @@ async fn prove_chunk_inner(
         &synthesized.range_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
-        None,
+        Some(collection_limit),
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
@@ -786,7 +792,7 @@ async fn prove_chunk_inner(
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
-        None,
+        Some(collection_limit),
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
@@ -875,6 +881,8 @@ pub struct ProveGameRequest<'a> {
     pub responses: &'a [SuperRootAtTimestampResponse],
     /// Number of chunks used for the span.
     pub split: RangeSplitCount,
+    /// Witness bytes a multi-timestamp chunk may collect.
+    pub witness_limit: WitnessByteLimit,
     /// Maximum number of concurrently active chunk tasks.
     pub max_concurrent: NonZeroUsize,
     /// Process-local progress retained between scheduler attempts.
@@ -895,7 +903,7 @@ pub async fn prove_game_inner(
         ensure!(keys.is_some(), "network proving requires prestate proving keys");
     }
     let (plans, progress) = plan_game_attempt(provider, keys, &request)?;
-    let ProveGameRequest { game, responses, max_concurrent, .. } = request;
+    let ProveGameRequest { game, responses, witness_limit, max_concurrent, .. } = request;
     let chunk_count = plans.len();
     tracing::info!(
         starting_ts = game.starting_ts,
@@ -914,19 +922,12 @@ pub async fn prove_game_inner(
         return Ok(proof);
     }
 
+    let ctx = ChunkContext { provider, keys, host_inputs, game, witness_limit };
     let attempts = plans
         .into_iter()
         .map(|plan| {
             let index = plan.index;
-            let attempt = prove_chunk(
-                provider,
-                keys,
-                host_inputs,
-                game,
-                plan,
-                chunk_count,
-                Arc::clone(&progress),
-            );
+            let attempt = prove_chunk(&ctx, plan, chunk_count, Arc::clone(&progress));
             (index, attempt)
         })
         .collect();
@@ -1285,6 +1286,7 @@ mod tests {
             game: &game,
             responses: &responses,
             split: RangeSplitCount::one(),
+            witness_limit: WitnessByteLimit::default(),
             max_concurrent: NonZeroUsize::MIN,
             proof_progress: &cache,
         };
@@ -1324,6 +1326,7 @@ mod tests {
                 game: &game,
                 responses: &responses,
                 split: RangeSplitCount::new(2).unwrap(),
+                witness_limit: WitnessByteLimit::default(),
                 max_concurrent: NonZeroUsize::MIN,
                 proof_progress: &cache,
             };

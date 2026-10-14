@@ -447,6 +447,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
+| `OP_ZK_PROPOSER_MAX_WITNESS_BYTES` | witness bytes a multi-timestamp chunk may collect before it is bisected (default `1342177280`, 1.25 GiB; maximum `2147483647`, the guest's rkyv archive limit) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
