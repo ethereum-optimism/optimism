@@ -9,15 +9,10 @@
 #[macro_use]
 extern crate tracing;
 
-use async_trait::async_trait;
-
 mod capacity;
 
 pub mod engine;
 pub use engine::{EngineClientError, EngineClientResult};
-
-mod rpc;
-pub use rpc::{RpcActor, RpcActorError};
 
 pub mod derivation;
 pub use derivation::{DerivationDelegateClientError, DerivationDelegateProvider};
@@ -44,23 +39,6 @@ pub use sequencer::{
 
 #[cfg(test)]
 pub use sequencer::{MockConductor, MockOriginSelector, MockSequencerEngineClient};
-
-/// The [`NodeActor`] is an actor-like service for the node.
-///
-/// Callers may call [`Self::step`] to execute a single inbound request,
-/// event, or tick.
-#[async_trait]
-pub trait NodeActor: Send + 'static {
-    /// The error type for the actor.
-    type Error: std::fmt::Debug;
-
-    /// Handle the next inbound request, event, or scheduled tick.
-    ///
-    /// Returning `Ok(())` indicates the actor is ready to be stepped again.
-    /// Returning `Err(_)` indicates the actor has encountered a fatal
-    /// condition and should not be stepped further.
-    async fn step(&mut self) -> Result<(), Self::Error>;
-}
 
 mod mode;
 pub use mode::NodeMode;

@@ -1,9 +1,10 @@
 //! An Engine API Client.
 
-use crate::{EngineForkchoiceVersion, EngineGetPayloadVersion, Metrics};
+use super::versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};
+use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
-use alloy_network::{Ethereum, Network};
+use alloy_network::Network;
 use alloy_primitives::Bytes;
 use alloy_provider::{EthGetBlock, Provider, RootProvider};
 use alloy_rpc_client::ClientBuilder;
@@ -34,7 +35,7 @@ use thiserror::Error;
 use tower::{Layer, Service, ServiceBuilder, util::MapFutureLayer};
 use url::Url;
 
-/// Deadline for each request the engine client sends, to the Engine API or to L1.
+/// Deadline for each request the client sends to the Engine API.
 ///
 /// It bounds one request, never an operation made of many requests, such as the block traversal
 /// of a reset, so a long but healthy operation is not cut off.
@@ -99,44 +100,31 @@ where
     }
 }
 
-/// An error that occurred in the [`EngineClient`].
+/// An error that occurred in the [`EngineApi`].
 #[derive(Error, Debug)]
-pub enum EngineClientError {
+pub enum EngineApiError {
     /// An RPC error occurred
     #[error("An RPC error occurred: {0}")]
     RpcError(#[from] RpcError<TransportErrorKind>),
 }
-/// Client for L1 reads and L2 Engine API calls. Providers erase their transport type, so tests
+/// Client for the L2 execution layer's Engine API. Providers erase their transport type, so tests
 /// use the same client with a mock transport. [`Self::forkchoice_updated`], [`Self::get_payload`]
 /// and [`Self::new_payload`] select the Engine API method version.
 #[derive(Clone, Debug)]
-pub struct EngineClient {
+pub struct EngineApi {
     engine: RootProvider<Optimism>,
-    l1_provider: RootProvider,
     cfg: Arc<RollupConfig>,
 }
 
-impl EngineClient {
-    /// Creates a client from existing providers.
-    pub const fn new(
-        l1_provider: RootProvider,
-        engine: RootProvider<Optimism>,
-        cfg: Arc<RollupConfig>,
-    ) -> Self {
-        Self { engine, l1_provider, cfg }
+impl EngineApi {
+    /// Creates a client from an existing Engine API provider.
+    pub const fn new(engine: RootProvider<Optimism>, cfg: Arc<RollupConfig>) -> Self {
+        Self { engine, cfg }
     }
 
     /// Returns the rollup configuration.
     pub fn cfg(&self) -> &RollupConfig {
         &self.cfg
-    }
-
-    /// Fetches an L1 block.
-    pub fn get_l1_block(
-        &self,
-        block: BlockId,
-    ) -> EthGetBlock<<Ethereum as Network>::BlockResponse> {
-        self.l1_provider.get_block(block)
     }
 
     /// Fetches an L2 block.
@@ -248,7 +236,7 @@ impl EngineClient {
     pub async fn l2_block_by_label(
         &self,
         numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
+    ) -> Result<Option<Block<Transaction>>, EngineApiError> {
         Ok(self.engine.get_block_by_number(numtag).full().await?)
     }
 
@@ -266,34 +254,9 @@ impl EngineClient {
 }
 
 /// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
-impl Provider<Optimism> for EngineClient {
+impl Provider<Optimism> for EngineApi {
     fn root(&self) -> &RootProvider<Optimism> {
         &self.engine
-    }
-}
-
-/// Connection settings for an [`EngineClient`].
-#[derive(Debug, Clone)]
-pub struct EngineClientBuilder {
-    /// The L2 Engine API endpoint URL.
-    pub l2: Url,
-    /// The L2 JWT secret.
-    pub l2_jwt: JwtSecret,
-    /// The L1 RPC URL.
-    pub l1_rpc: Url,
-    /// The rollup configuration.
-    pub cfg: Arc<RollupConfig>,
-}
-
-impl EngineClientBuilder {
-    /// Connects to the authenticated L2 engine and unauthenticated L1 RPC. Each request has a
-    /// deadline.
-    pub fn build(self) -> EngineClient {
-        let engine = EngineClient::rpc_client(self.l2, self.l2_jwt);
-        let l1_provider = RootProvider::new(
-            ClientBuilder::default().layer(MapFutureLayer::new(with_deadline)).http(self.l1_rpc),
-        );
-        EngineClient::new(l1_provider, engine, self.cfg)
     }
 }
 
@@ -401,61 +364,30 @@ mod deadline_tests {
         b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"
     )]
     #[tokio::test]
-    async fn stalled_engine_and_l1_requests_have_a_deadline(#[case] response: &'static [u8]) {
+    async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let client = Arc::new(
-            EngineClientBuilder {
-                l2: stalled_endpoint(response, answered_tx.clone()).await,
-                l2_jwt: JwtSecret::random(),
-                l1_rpc: stalled_endpoint(response, answered_tx).await,
-                cfg: Arc::new(RollupConfig::default()),
-            }
-            .build(),
+        let engine = EngineApi::rpc_client(
+            stalled_endpoint(response, answered_tx).await,
+            JwtSecret::random(),
         );
+        let client = EngineApi::new(engine, Arc::new(RollupConfig::default()));
 
-        let engine = client.clone();
         fails_at_deadline(
-            async move { engine.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
+            async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
             &mut answered,
         )
         .await;
-        fails_at_deadline(
-            async move { client.get_l1_block(BlockId::latest()).await.is_err() },
-            &mut answered,
-        )
-        .await;
-    }
-}
-
-#[cfg(test)]
-mod provider_tests {
-    use super::*;
-    use crate::test_utils::test_engine_client;
-    use serde_json::json;
-
-    #[tokio::test]
-    async fn reads_l1_and_l2_blocks_from_their_providers() {
-        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
-        l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), Option::<Block>::None);
-        l2.expect_params(
-            "eth_getBlockByNumber",
-            json!(["latest", false]),
-            Option::<Block<Transaction>>::None,
-        );
-        assert!(client.get_l1_block(BlockId::latest()).await.unwrap().is_none());
-        assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
-        l1.assert_finished();
-        l2.assert_finished();
     }
 }
 
 #[cfg(test)]
 mod version_tests {
     use super::*;
-    use crate::test_utils::{TestAttributesBuilder, test_engine_client};
+    use crate::test_utils::test_engine_api;
     use alloy_primitives::B256;
     use alloy_rpc_types_engine::{
-        ExecutionPayloadEnvelopeV2, ExecutionPayloadV2, ExecutionPayloadV3, PayloadStatusEnum,
+        ExecutionPayloadEnvelopeV2, ExecutionPayloadV2, ExecutionPayloadV3, PayloadAttributes,
+        PayloadStatusEnum,
     };
     use op_alloy_rpc_types_engine::{
         OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
@@ -485,16 +417,16 @@ mod version_tests {
         #[case] timestamp: Option<u64>,
         #[case] method: &'static str,
     ) {
-        let (client, l1, l2) = test_engine_client(config());
+        let (client, l2) = test_engine_api(config());
         let state = ForkchoiceState::default();
-        let attributes = timestamp.map(|timestamp| {
-            TestAttributesBuilder::new().with_timestamp(timestamp).build().attributes
+        let attributes = timestamp.map(|timestamp| OpPayloadAttributes {
+            payload_attributes: PayloadAttributes { timestamp, ..Default::default() },
+            ..Default::default()
         });
         l2.expect_params(method, json!([state, attributes]), ForkchoiceUpdated::new(valid()));
 
         let response = client.forkchoice_updated(state, attributes).await.unwrap();
         assert_eq!(response.payload_status, valid());
-        l1.assert_finished();
         l2.assert_finished();
     }
 
@@ -555,11 +487,10 @@ mod version_tests {
         #[case] call: (OpExecutionPayloadEnvelope, &'static str, serde_json::Value),
     ) {
         let (envelope, method, params) = call;
-        let (client, l1, l2) = test_engine_client(config());
+        let (client, l2) = test_engine_api(config());
         l2.expect_params(method, params, valid());
 
         assert_eq!(client.new_payload(envelope).await.unwrap(), valid());
-        l1.assert_finished();
         l2.assert_finished();
     }
 
@@ -576,7 +507,7 @@ mod version_tests {
         #[case] timestamp: u64,
         #[case] method: &'static str,
     ) {
-        let (client, l1, l2) = test_engine_client(config());
+        let (client, l2) = test_engine_api(config());
         let id = PayloadId::new([1; 8]);
         let params = json!([id]);
         let root = B256::repeat_byte(0x42);
@@ -638,7 +569,6 @@ mod version_tests {
             OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root: root }
         };
         assert_eq!(client.get_payload(id, timestamp).await.unwrap(), expected);
-        l1.assert_finished();
         l2.assert_finished();
     }
 }

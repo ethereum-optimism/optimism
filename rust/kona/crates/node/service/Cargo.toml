@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 # workspace
 kona-node-actors.workspace = true
-kona-engine.workspace = true
 kona-providers-local = { workspace = true, features = ["metrics"] }
 op-alloy-consensus.workspace = true
 kona-sources.workspace = true
@@ -67,7 +66,6 @@ alloy-signer-local.workspace = true
 metrics-exporter-prometheus.workspace = true
 alloy-json-rpc.workspace = true
 serde_json.workspace = true
-kona-engine = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }
 enr.workspace = true
 rstest.workspace = true

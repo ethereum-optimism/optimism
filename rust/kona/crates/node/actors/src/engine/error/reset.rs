@@ -1,7 +1,7 @@
 //! Errors from resetting the engine.
 
 use super::{EngineTaskError, EngineTaskErrorSeverity, SynchronizeTaskError};
-use kona_engine::SyncStartError;
+use crate::engine::SyncStartError;
 use thiserror::Error;
 
 /// An error from resetting the engine.

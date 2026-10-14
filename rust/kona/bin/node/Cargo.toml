@@ -27,7 +27,6 @@ kona-cli = { workspace = true, features = ["secrets"] }
 kona-gossip.workspace = true
 kona-disc.workspace = true
 kona-derive = { workspace = true, features = ["metrics"] }
-kona-engine.workspace = true
 kona-registry.workspace = true
 kona-sources = { workspace = true }
 kona-node-service.workspace = true

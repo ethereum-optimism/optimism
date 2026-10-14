@@ -1,6 +1,6 @@
 //! Feeds blocks the engine imports into the buffer that backs derivation's L2 lookups.
 
-use kona_engine::ImportedBlockSink;
+use crate::engine::ImportedBlockSink;
 use kona_protocol::L2BlockInfo;
 use kona_providers_local::BufferedL2Provider;
 use op_alloy_consensus::OpBlock;

@@ -46,6 +46,38 @@ impl Metrics {
     pub const SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED: &str =
         "kona_node_sequencer_total_transactions_sequenced";
 
+    /// Identifier for the gauge that tracks block labels.
+    pub const BLOCK_LABELS: &str = "kona_node_block_labels";
+    /// Unsafe block label.
+    pub const UNSAFE_BLOCK_LABEL: &str = "unsafe";
+    /// Local-safe block label.
+    pub const LOCAL_SAFE_BLOCK_LABEL: &str = "local-safe";
+    /// Safe block label.
+    pub const SAFE_BLOCK_LABEL: &str = "safe";
+    /// Finalized block label.
+    pub const FINALIZED_BLOCK_LABEL: &str = "finalized";
+
+    /// Identifier for the counter that records engine task counts.
+    pub const ENGINE_TASK_SUCCESS: &str = "kona_node_engine_task_count";
+    /// Identifier for the counter that records engine task counts.
+    pub const ENGINE_TASK_FAILURE: &str = "kona_node_engine_task_failure";
+
+    /// Insert task label.
+    pub const INSERT_TASK_LABEL: &str = "insert";
+    /// Consolidate task label.
+    pub const CONSOLIDATE_TASK_LABEL: &str = "consolidate";
+    /// Forkchoice task label.
+    pub const FORKCHOICE_TASK_LABEL: &str = "forkchoice-update";
+    /// Build task label.
+    pub const BUILD_TASK_LABEL: &str = "build";
+    /// Seal task label.
+    pub const SEAL_TASK_LABEL: &str = "seal";
+    /// Finalize task label.
+    pub const FINALIZE_TASK_LABEL: &str = "finalize";
+
+    /// Identifier for the counter that tracks the number of times the engine has been reset.
+    pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";
+
     /// Initializes metrics for the node service.
     ///
     /// This does two things:
@@ -111,6 +143,20 @@ impl Metrics {
             metrics::Unit::Count,
             "Total count of sequenced transactions"
         );
+
+        // Block labels
+        metrics::describe_gauge!(Self::BLOCK_LABELS, "Blockchain head labels");
+
+        // Engine task counts
+        metrics::describe_counter!(Self::ENGINE_TASK_SUCCESS, "Engine tasks successfully executed");
+        metrics::describe_counter!(Self::ENGINE_TASK_FAILURE, "Engine tasks failed");
+
+        // Engine reset counter
+        metrics::describe_counter!(
+            Self::ENGINE_RESET_COUNT,
+            metrics::Unit::Count,
+            "Engine reset count"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -124,5 +170,23 @@ impl Metrics {
 
         // Sequencer: reset total transactions sequenced
         metrics::counter!(Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED).absolute(0);
+
+        // Engine task counts
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::INSERT_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::CONSOLIDATE_TASK_LABEL)
+            .absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::BUILD_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_SUCCESS, "type" => Self::FINALIZE_TASK_LABEL)
+            .absolute(0);
+
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::INSERT_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::CONSOLIDATE_TASK_LABEL)
+            .absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::BUILD_TASK_LABEL).absolute(0);
+        metrics::counter!(Self::ENGINE_TASK_FAILURE, "type" => Self::FINALIZE_TASK_LABEL)
+            .absolute(0);
+
+        // Engine reset count
+        metrics::counter!(Self::ENGINE_RESET_COUNT).absolute(0);
     }
 }

@@ -20,7 +20,6 @@ kona-node-actors.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 kona-gossip.workspace = true
 kona-peers.workspace = true
-kona-engine.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
 
 # OP Alloy
@@ -69,7 +68,7 @@ kona-derive = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
 op-alloy-rpc-types.workspace = true
 serde_json.workspace = true
-kona-engine = { workspace = true, features = ["test-utils"] }
+kona-sources = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]

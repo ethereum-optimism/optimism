@@ -1,6 +1,6 @@
 //! Scripted RPC expectations over Alloy's mock transport.
 
-use crate::EngineClient;
+use crate::EngineApi;
 use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
 use alloy_provider::RootProvider;
@@ -141,10 +141,8 @@ impl Service<RequestPacket> for RpcMock {
     }
 }
 
-/// Creates the production client with separate scripted L1 and L2 transports.
-pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, RpcMock) {
-    let l1 = RpcMock::default();
+/// Creates the production client with a scripted Engine API transport.
+pub fn test_engine_api(cfg: Arc<RollupConfig>) -> (EngineApi, RpcMock) {
     let l2 = RpcMock::default();
-    let client = EngineClient::new(l1.provider(), l2.provider(), cfg);
-    (client, l1, l2)
+    (EngineApi::new(l2.provider(), cfg), l2)
 }

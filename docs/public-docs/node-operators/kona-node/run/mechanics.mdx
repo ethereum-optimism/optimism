@@ -92,15 +92,15 @@ to support advanced use cases and custom integrations.
 #### Actor Model
 
 At the core of `kona-node` is the concept of **actors**: independent,
-async services that communicate over channels. Actors expose lifetime
-futures, while some still implement the [`NodeActor` trait][node-actor]
-with a `step` method that the service drives in a loop. The supervisor
-aborts the remaining actors when one exits or the node shuts down.
+async services that communicate over channels. Each actor exposes a
+lifetime future that the service spawns. The supervisor aborts the
+remaining actors when one exits or the node shuts down.
 
 The [`RollupNode` service][node] builds and spawns a fixed set of
 actors covering derivation, the execution engine and its read-only
-engine RPC, L1 polling and signer updates, P2P networking, the node's RPC server,
-and, in sequencer mode, block building.
+engine RPC, L1 polling and signer updates, P2P networking, and, in
+sequencer mode, block building. It runs the node's RPC server alongside
+them, and stops if the server stops.
 
 The [Node Design section](/node-operators/kona-node/design/intro) is
 the canonical description of that actor set and of what each actor
@@ -109,33 +109,31 @@ does.
 
 #### Extending with Custom Actors
 
-You can write your own actor by implementing the `NodeActor` trait.
-This allows you to introduce new background services, event
-processors, or integrations with external systems.
+An actor is a future that runs for as long as the node does and
+returns a `Result<(), E>`: `Ok(())` if it exits cleanly, and an error
+if it fails. Writing your own lets you introduce new background
+services, event processors, or integrations with external systems.
 
-The trait has one associated type and one method. Each call to `step`
-handles a single inbound request, event, or scheduled tick. Returning
-`Ok(())` means the actor is ready to be stepped again; returning an
-error is fatal and stops the actor. Cancellation is handled by the
-caller that drives the loop, so the actor itself does not own a
+Exiting either way stops the node, so an actor returns only when it
+cannot continue. Cancellation is handled by whoever runs the future:
+dropping it stops the actor, so the actor itself does not own a
 cancellation token.
+
+Most built-in actors also come with a builder, which hands out the
+actor's handle before the actor's dependencies exist; its `build`
+method takes those dependencies and returns the actor's future.
 
 **Example: Defining a Custom Actor**
 
 ```rust
-use async_trait::async_trait;
-use kona_node_service::NodeActor;
+use tokio::sync::mpsc;
 
-struct MyCustomActor;
-
-#[async_trait]
-impl NodeActor for MyCustomActor {
-    type Error = std::io::Error;
-
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        // Your actor logic for one step here.
-        Ok(())
+/// Logs each event it receives, and exits once every sender is dropped.
+async fn my_custom_actor(mut events: mpsc::Receiver<String>) -> Result<(), std::io::Error> {
+    while let Some(event) = events.recv().await {
+        tracing::info!(%event, "Received event");
     }
+    Ok(())
 }
 ```
 
@@ -153,8 +151,8 @@ The request and payload types they exchange over channels are public
 too, spread across `kona-node-service`, sibling kona crates such as
 `kona-rpc` and `kona-gossip`, and the shared alloy engine types. A
 custom binary can therefore construct the actors it needs, wire them
-together over channels, add its own `NodeActor` implementations, and
-drive each actor's `step` method in its own task.
+together over channels, add its own actors, and spawn each actor's
+future in its own task.
 
 #### Programmatic Node Construction
 
@@ -174,8 +172,8 @@ cases, you can build your own node by composing actors directly.
 
 #### Learn More
 
-- See the [`NodeActor` trait documentation][node-actor] for details
-  on implementing actors.
+- See the [kona-node-actors crate][actors] for the built-in actors
+  and their builders.
 - Explore the [kona-node-service crate][service] for source code
   and more examples.
 
@@ -184,7 +182,7 @@ cases, you can build your own node by composing actors directly.
 [subcommands]: ../subcommands.mdx
 
 [service]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service
-[node-actor]: https://docs.rs/kona-node-service/latest/kona_node_service/trait.NodeActor.html
+[actors]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/actors
 [node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
 [config]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/config.rs
 

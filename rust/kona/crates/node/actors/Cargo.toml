@@ -15,7 +15,6 @@ workspace = true
 # workspace
 kona-gossip.workspace = true
 kona-disc.workspace = true
-kona-engine.workspace = true
 kona-sources.workspace = true
 kona-providers-alloy = { workspace = true, features = ["metrics"] }
 kona-genesis.workspace = true
@@ -24,7 +23,6 @@ kona-protocol.workspace = true
 kona-peers.workspace = true
 
 # alloy
-alloy-consensus.workspace = true
 alloy-signer.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-client.workspace = true
@@ -36,6 +34,8 @@ alloy-transport.workspace = true
 
 # op-alloy
 op-alloy-network.workspace = true
+alloy-network.workspace = true
+alloy-consensus.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-rpc-types.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
@@ -53,12 +53,13 @@ thiserror.workspace = true
 async-trait.workspace = true
 strum = { workspace = true, features = ["derive"] }
 derive_more = { workspace = true, features = ["display", "from_str"] }
-jsonrpsee = { workspace = true, features = ["server", "client-core"] }
+jsonrpsee = { workspace = true, features = ["client-core"] }
 tokio = { workspace = true, features = ["macros"] }
 
 metrics.workspace = true
 
 [dev-dependencies]
+jsonrpsee = { workspace = true, features = ["server"] }
 alloy-chains.workspace = true
 alloy-signer-local.workspace = true
 tower.workspace = true
@@ -66,7 +67,7 @@ tower.workspace = true
 alloy-json-rpc.workspace = true
 httpmock.workspace = true
 serde_json.workspace = true
-kona-engine = { workspace = true, features = ["test-utils"] }
+kona-sources = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }
 rstest.workspace = true
 metrics-exporter-prometheus.workspace = true
@@ -75,6 +76,8 @@ mockall.workspace = true
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
+op-alloy-rpc-types = { workspace = true, features = ["arbitrary", "k256"] }
+kona-registry.workspace = true
 op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 kona-derive = {workspace = true, features = ["test-utils"]}
 

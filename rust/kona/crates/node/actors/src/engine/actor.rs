@@ -3,20 +3,22 @@
 use super::{
     ActorError, BuildTaskError, Capacity, ConsolidateTaskError, Consolidation, EngineBuildError,
     EngineClientError, EngineResetError, EngineState, EngineTaskError, EngineTaskErrorSeverity,
-    FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, InsertTaskError, SealTaskError,
-    SynchronizeTaskError,
+    FinalizeBlockId, FinalizeTaskError, Handle, HeadsUpdate, ImportedBlockSink, InsertTaskError,
+    SealTaskError, SynchronizeTaskError,
+    attributes::AttributesMatch,
     handle::{BuildRequest, ConsolidateRequest, Message, ResetRequest, SealRequest},
+    sync::find_starting_forkchoice,
 };
+use crate::Metrics;
 use alloy_eips::BlockId;
+use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::{
     ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
 };
 use alloy_rpc_types_eth::Block as RpcBlock;
-use kona_engine::{
-    AttributesMatch, EngineClient, ImportedBlockSink, Metrics, find_starting_forkchoice,
-};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use kona_sources::EngineApi;
 use op_alloy_consensus::OpBlock;
 use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -64,12 +66,13 @@ impl Builder {
     /// Dropping the future stops the actor.
     pub fn build(
         self,
-        client: Arc<EngineClient>,
+        client: Arc<EngineApi>,
+        l1: RootProvider,
         rollup: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
-        Actor::new(client, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
+        Actor::new(client, l1, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
     }
 }
 
@@ -113,7 +116,9 @@ impl Backoff {
 #[derive(Debug)]
 struct Actor {
     /// The Engine API client.
-    client: Arc<EngineClient>,
+    client: Arc<EngineApi>,
+    /// The L1 provider, which a reset reads to find a plausible forkchoice.
+    l1: RootProvider,
     /// The rollup configuration.
     config: Arc<RollupConfig>,
     /// Where to hand every block the engine makes canonical.
@@ -131,7 +136,8 @@ struct Actor {
 impl Actor {
     /// Creates the actor, starting from the state that `state_tx` holds.
     fn new(
-        client: Arc<EngineClient>,
+        client: Arc<EngineApi>,
+        l1: RootProvider,
         config: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
         state_tx: watch::Sender<EngineState>,
@@ -139,7 +145,7 @@ impl Actor {
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let state = *state_tx.borrow();
-        Self { client, config, block_sink, state, state_tx, resets_tx, messages_rx }
+        Self { client, l1, config, block_sink, state, state_tx, resets_tx, messages_rx }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
@@ -430,7 +436,7 @@ impl Actor {
             .map_err(FinalizeTaskError::TransportError)?
             .ok_or(FinalizeTaskError::BlockNotFound(block_number))?
             .into_consensus();
-        let block_info = L2BlockInfo::from_block_and_genesis(&block, &self.client.cfg().genesis)
+        let block_info = L2BlockInfo::from_block_and_genesis(&block, &self.config.genesis)
             .map_err(FinalizeTaskError::FromBlock)?;
 
         // For ByHash, also assert the returned block's height matches the caller's claim. The
@@ -519,7 +525,8 @@ impl Actor {
         let mut backoff = Backoff::default();
         loop {
             let attempt = async {
-                let start = find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
+                let start =
+                    find_starting_forkchoice(&self.config, self.client.as_ref(), &self.l1).await?;
                 self.synchronize(HeadsUpdate {
                     unsafe_head: Some(start.un_safe),
                     local_safe_head: Some(start.safe),

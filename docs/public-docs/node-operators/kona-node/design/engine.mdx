@@ -3,7 +3,7 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It is built on the Engine API client and version selection from the `kona-engine` crate.
+The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It talks to the execution layer through the Engine API client in the `kona-sources` crate, which selects each method's version.
 
 ## Architecture Overview
 
@@ -11,7 +11,7 @@ The execution engine is built around several key components:
 
 - **Engine Operations**: Engine API operations the engine actor performs one at a time against the engine state
 - **Error Severities**: Each operation's errors say how to recover
-- **Engine Client**: HTTP client for communicating with the execution layer, from `kona-engine`
+- **Engine API Client**: `EngineApi`, the HTTP client for the execution layer's Engine API, from `kona-sources`
 - **Actor Integration**: Service layer integration through the engine actor's handle
 
 ## Error Severity
@@ -37,7 +37,7 @@ This allows operations to signal different recovery strategies based on the erro
 
 ## Operations
 
-The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineClient`, whose Alloy providers share their RPC connections. Tests supply mock transports to the same client.
+The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a seal, consolidation, or reset, so the caller reads the new heads. The engine never sends another actor anything on its own: it only replies to requests and publishes its state and resets. A request whose operation is retried publishes after its last attempt, not between attempts. Builds and seals return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering. They use the concrete `EngineApi`, which talks only to the Engine API; a reset also reads L1 through the node's L1 provider. Tests supply mock transports to the same client and provider.
 
 Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
@@ -77,32 +77,28 @@ The `kona-node` service layer integrates the engine through the engine actor in 
 
 ### Communication Channels
 
-The engine actor receives all state-mutating input through its handle: payload attributes from derivation, unsafe blocks from gossip and the admin API, reset requests, finalization requests, and block building requests (sequencer mode only). Reset, consolidation, build, and seal requests wait for the actor's reply; the others return once the request is queued. A consolidation replies with the resulting engine state, and whether a deposits-only block replaced the derived one, so derivation must flush its channel. Attributes whose parent is not the safe head were derived before a reset; the engine skips them and replies with its state. The actor executes one request at a time, in the order requests arrive, with one handler per request. Builds and seals reply to their caller, which decides whether to retry them. For the other operations, the actor retries a temporary failure in place with backoff, starting at 100 ms and doubling up to 5 s, while later requests wait in the handle's bounded queue. An operation still failing after 60 seconds is abandoned and the engine is reset; a reset is retried until it succeeds. Derivation and finality follow the published resets, which include a reset that leaves the safe head where it was. A flush completes its operation, because the deposits-only replacement block has already been imported. `Handle::state` subscribes to the engine state the actor publishes after each request. The node service adapts the handle to the narrow engine-client traits that derivation, finality, the network, and the sequencer depend on. The `RollupRpc` module serves read-only RPC requests directly. It shares the engine's connection through a cloned `EngineClient`, constrained by the `OutputProvider` trait to query only `output_at_block`, and reads engine state through that subscription.
+The engine actor receives all state-mutating input through its handle: payload attributes from derivation, unsafe blocks from gossip and the admin API, reset requests, finalization requests, and block building requests (sequencer mode only). Reset, consolidation, build, and seal requests wait for the actor's reply; the others return once the request is queued. A consolidation replies with the resulting engine state, and whether a deposits-only block replaced the derived one, so derivation must flush its channel. Attributes whose parent is not the safe head were derived before a reset; the engine skips them and replies with its state. The actor executes one request at a time, in the order requests arrive, with one handler per request. Builds and seals reply to their caller, which decides whether to retry them. For the other operations, the actor retries a temporary failure in place with backoff, starting at 100 ms and doubling up to 5 s, while later requests wait in the handle's bounded queue. An operation still failing after 60 seconds is abandoned and the engine is reset; a reset is retried until it succeeds. Derivation and finality follow the published resets, which include a reset that leaves the safe head where it was. A flush completes its operation, because the deposits-only replacement block has already been imported. `Handle::state` subscribes to the engine state the actor publishes after each request. The node service adapts the handle to the narrow engine-client traits that derivation, finality, the network, and the sequencer depend on. The `RollupRpc` module serves read-only RPC requests directly. It shares the engine's connection through a cloned `EngineApi`, constrained by the `OutputProvider` trait to query only `output_at_block`, and reads engine state through that subscription.
 
 ### Rollup RPC Reads
 
-`RollupRpc` clones the rollup configuration for `optimism_rollupConfig`, combines published engine, L1 block, and derivation snapshots for `optimism_syncStatus`, and calls `OutputProvider::output_at_block` with its rollup configuration for `optimism_outputAtBlock`. The L1 polling actors publish observed head, safe, and finalized blocks through separate watch channels; derivation publishes its current L1 origin. Sync-status reads do not queue actor requests or make L1 RPC calls. The legacy `current_l1_finalized` field uses the finalized L1 receiver's block. Any Alloy `Provider<Optimism>`, including `EngineClient`, implements the output trait without dynamic dispatch or boxed futures. The RPC module computes the output using the configured genesis and fork rules. These reads run in jsonrpsee request handlers, so a slow output-root query does not block other state reads.
+`RollupRpc` clones the rollup configuration for `optimism_rollupConfig`, combines published engine, L1 block, and derivation snapshots for `optimism_syncStatus`, and calls `OutputProvider::output_at_block` with its rollup configuration for `optimism_outputAtBlock`. The L1 polling actors publish observed head, safe, and finalized blocks through separate watch channels; derivation publishes its current L1 origin. Sync-status reads do not queue actor requests or make L1 RPC calls. The legacy `current_l1_finalized` field uses the finalized L1 receiver's block. Any Alloy `Provider<Optimism>`, including `EngineApi`, implements the output trait without dynamic dispatch or boxed futures. The RPC module computes the output using the configured genesis and fork rules. These reads run in jsonrpsee request handlers, so a slow output-root query does not block other state reads.
 
 ## Usage Patterns
 
 ### Basic Engine Setup
 
 ```rust
-// Create the concrete engine client through `EngineClientBuilder`.
-let client = EngineClientBuilder {
-    l2: l2_engine_url,
-    l2_jwt: jwt_secret,
-    l1_rpc: l1_rpc_url,
-    cfg: rollup_config.clone(),
-}
-.build();
+// Create the Engine API client from an authenticated Engine API provider.
+let client =
+    EngineApi::new(EngineApi::rpc_client(l2_engine_url, jwt_secret), rollup_config.clone());
 
 // Create the request queue and state publisher, and hand out handles.
 let builder = engine::Builder::new(capacity);
 let handle = builder.handle();
 
-// Supply the dependencies and spawn the actor's lifetime future.
-let actor = builder.build(Arc::new(client), rollup_config, block_sink);
+// Supply the dependencies and spawn the actor's lifetime future. A reset reads L1 through
+// `l1_provider` to find a plausible sync starting point.
+let actor = builder.build(Arc::new(client), l1_provider, rollup_config, block_sink);
 tokio::spawn(actor);
 ```
 
@@ -152,4 +148,4 @@ The engine always includes metrics instrumentation for:
 
 ## Extensibility
 
-Each operation's error type implements `EngineTaskError`, whose severity decides how the engine actor recovers from the operation's failure. Tests run the operations against mock RPC transports through the same `EngineClient`.
+Each operation's error type implements `EngineTaskError`, whose severity decides how the engine actor recovers from the operation's failure. Tests run the operations against mock RPC transports through the same `EngineApi`.

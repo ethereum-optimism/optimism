@@ -4,7 +4,7 @@
 use super::error::{ListenProtocol, RollupNodeError};
 use crate::NetworkConfig;
 use backon::{ExponentialBuilder, Retryable};
-use kona_engine::EngineClient;
+use kona_sources::EngineApi;
 use libp2p::multiaddr::Protocol;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use std::net::{IpAddr, SocketAddr, TcpListener, UdpSocket};
@@ -31,7 +31,7 @@ fn is_jwt_signature_error(error: &(dyn std::error::Error + 'static)) -> bool {
 /// with `backoff`; [`RollupNode::start`](crate::RollupNode::start) uses backon's default
 /// exponential backoff, which retries up to three times.
 pub(super) async fn validate_engine_jwt(
-    engine: &EngineClient,
+    engine: &EngineApi,
     backoff: ExponentialBuilder,
 ) -> Result<(), RollupNodeError> {
     let exchange = || async {
@@ -107,7 +107,6 @@ mod tests {
         RollupNode, RollupNodeClients,
         service::test_utils::{JWT_HEX, endpoints, network_config, node_config},
     };
-    use alloy_provider::RootProvider;
     use alloy_rpc_types_engine::JwtSecret;
     use kona_genesis::RollupConfig;
     use std::{net::Ipv4Addr, sync::Arc, time::Duration};
@@ -174,11 +173,10 @@ mod tests {
         );
     }
 
-    /// An engine client whose Engine API is `server`.
-    fn engine(server: &httpmock::MockServer) -> EngineClient {
-        EngineClient::new(
-            RootProvider::new_http(server.url("/l1").parse().unwrap()),
-            EngineClient::rpc_client(
+    /// An Engine API client whose Engine API is `server`.
+    fn engine(server: &httpmock::MockServer) -> EngineApi {
+        EngineApi::new(
+            EngineApi::rpc_client(
                 server.url("/").parse().unwrap(),
                 JwtSecret::from_hex(JWT_HEX).unwrap(),
             ),

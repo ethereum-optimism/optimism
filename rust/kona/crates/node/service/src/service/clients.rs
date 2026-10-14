@@ -11,8 +11,8 @@ use alloy_transport_http::{
     reqwest,
 };
 use http_body_util::Full;
-use kona_engine::EngineClient;
 use kona_providers_alloy::OnlineBeaconClient;
+use kona_sources::EngineApi;
 use op_alloy_network::Optimism;
 use std::time::Duration;
 use tower::ServiceBuilder;
@@ -52,9 +52,8 @@ pub struct RollupNodeClients {
     /// The L2 execution layer's Engine API, authenticated with the engine's JWT secret. It must
     /// reach the same execution layer as [`Self::l2`].
     ///
-    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineClient`] from it,
-    /// [`Self::l1`] and the config's rollup config, so the engine follows the same chain as the
-    /// rest of the node.
+    /// [`RollupNode::new`](crate::RollupNode::new) builds the node's [`EngineApi`] from it and
+    /// the config's rollup config, so the engine follows the same chain as the rest of the node.
     pub engine: RootProvider<Optimism>,
     /// The consensus layer the node follows instead of deriving. The node derives the safe chain
     /// itself when this is `None`.
@@ -84,7 +83,7 @@ impl RollupNodeClients {
             false,
         ));
 
-        let engine = EngineClient::rpc_client(endpoints.l2_engine.clone(), endpoints.l2_jwt_secret);
+        let engine = EngineApi::rpc_client(endpoints.l2_engine.clone(), endpoints.l2_jwt_secret);
 
         let derivation_delegate =
             endpoints.derivation_delegate.clone().map(DerivationDelegateClient::new).transpose()?;
@@ -120,13 +119,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_engine_client_uses_the_configs_rollup_config() {
+    async fn the_engine_api_uses_the_configs_rollup_config() {
         let config = node_config(network_config(0, 0));
         let rollup_config = config.chain.rollup_config.clone();
         let clients = RollupNodeClients::connect(&endpoints(None)).unwrap();
 
         let node = crate::RollupNode::new(config, clients);
 
-        assert!(std::ptr::eq(node.engine_client.cfg(), rollup_config.as_ref()));
+        assert!(std::ptr::eq(node.engine_api.cfg(), rollup_config.as_ref()));
     }
 }

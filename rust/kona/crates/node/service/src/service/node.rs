@@ -1,20 +1,18 @@
 //! Contains the [`RollupNode`] implementation.
 use super::{Supervisor, adapters, error::RollupNodeError, middleware::RpcMetricsLayer, startup};
 use crate::{
-    ChainSpec, ConductorClient, L1OriginSelector, NetworkConfig, NodeActor, NodeMode,
-    RollupNodeClients, RollupNodeConfig, RpcActor, SequencerConfig, service::BufferImportedBlocks,
-    signer,
+    ChainSpec, ConductorClient, L1OriginSelector, NetworkConfig, NodeMode, RollupNodeClients,
+    RollupNodeConfig, SequencerConfig, service::BufferImportedBlocks, signer,
 };
 use backon::ExponentialBuilder;
 use jsonrpsee::{
     RpcModule,
     server::{
-        Server, ServerConfig,
+        Server, ServerConfig, ServerHandle,
         middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::EngineClient;
 use kona_node_actors::{
     derivation, discovery, engine, finality, l1, l1_signer_updater, network, sequencer,
 };
@@ -27,7 +25,7 @@ use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
-use kona_sources::BlockSignerHandler;
+use kona_sources::{BlockSignerHandler, EngineApi};
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
@@ -53,7 +51,7 @@ pub struct RollupNode {
     pub(crate) clients: RollupNodeClients,
     /// The client for the L2 execution layer's Engine API, built from the clients and the rollup
     /// config.
-    pub(crate) engine_client: Arc<EngineClient>,
+    pub(crate) engine_api: Arc<EngineApi>,
     /// The mode of operation for the node.
     pub(crate) mode: NodeMode,
     /// The RPC server's configuration.
@@ -85,16 +83,13 @@ impl RollupNode {
             IMPORTED_BLOCK_BUFFER_SIZE,
             0,
         );
-        let engine_client = Arc::new(EngineClient::new(
-            clients.l1.clone(),
-            clients.engine.clone(),
-            config.chain.rollup_config.clone(),
-        ));
+        let engine_api =
+            Arc::new(EngineApi::new(clients.engine.clone(), config.chain.rollup_config.clone()));
         Self {
             version: config.version,
             chain: config.chain,
             clients,
-            engine_client,
+            engine_api,
             mode: config.mode,
             rpc_builder: config.rpc_config,
             p2p_config: config.p2p_config,
@@ -170,10 +165,11 @@ impl RollupNode {
     fn build_engine(
         &self,
         builder: engine::Builder,
-        client: Arc<EngineClient>,
+        client: Arc<EngineApi>,
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
+            self.clients.l1.clone(),
             self.chain.rollup_config.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )
@@ -262,18 +258,17 @@ impl RollupNode {
         )
     }
 
-    /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
-    /// configured [`RpcActor`].
+    /// Assembles the JSON-RPC module set, starts the server, and returns its lifetime future.
     #[allow(clippy::too_many_arguments)]
-    async fn build_rpc_actor(
+    async fn build_rpc(
         &self,
-        l2_query_client: EngineClient,
+        l2_query_client: EngineApi,
         engine_state: watch::Receiver<engine::EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
         l1: l1::Handle,
         derivation_status: watch::Receiver<derivation::DerivationStatus>,
-    ) -> Result<RpcActor, String> {
+    ) -> Result<impl Future<Output = Result<(), &'static str>> + Send + 'static, String> {
         let config = self.rpc_builder();
 
         let mut modules = RpcModule::new(());
@@ -328,7 +323,7 @@ impl RollupNode {
             error!(target: "rpc", "Failed to get local address for RPC server");
         }
 
-        Ok(RpcActor::new(server.start(modules)))
+        Ok(supervise_rpc_server(server.start(modules)))
     }
 
     /// Starts the rollup node service.
@@ -376,7 +371,7 @@ impl RollupNode {
     pub async fn start(&self) -> Result<(), RollupNodeError> {
         // ─── startup checks ─────────────────────────────────────────────────────────────────
         startup::check_listen_ports(&self.p2p_config)?;
-        startup::validate_engine_jwt(&self.engine_client, ExponentialBuilder::default()).await?;
+        startup::validate_engine_jwt(&self.engine_api, ExponentialBuilder::default()).await?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         let l1_finalized = l1::finalized_block(&self.clients.l1)
@@ -423,9 +418,9 @@ impl RollupNode {
         let signer_handle = signer_builder.handle();
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let engine_client = self.engine_client.clone();
-        let l2_query_client = engine_client.as_ref().clone();
-        let engine_actor = self.build_engine(engine_builder, engine_client);
+        let engine_api = self.engine_api.clone();
+        let l2_query_client = engine_api.as_ref().clone();
+        let engine_actor = self.build_engine(engine_builder, engine_api);
 
         let derivation_actor = self
             .build_derivation(derivation_builder, engine.clone(), l1.clone())
@@ -490,19 +485,12 @@ impl RollupNode {
             engine,
         );
         let rpc = self
-            .build_rpc_actor(
-                l2_query_client,
-                engine_state,
-                admin_rpc,
-                p2p_rpc,
-                l1,
-                derivation.status(),
-            )
+            .build_rpc(l2_query_client, engine_state, admin_rpc, p2p_rpc, l1, derivation.status())
             .await
             .map_err(RollupNodeError::Startup)?;
 
         let mut supervisor = Supervisor::new();
-        supervisor.spawn("rpc", run_node_actor(rpc));
+        supervisor.spawn("rpc", rpc);
         if let Some(sequencer) = sequencer_actor {
             supervisor.spawn("sequencer", sequencer);
         }
@@ -525,41 +513,30 @@ impl RollupNode {
     }
 }
 
-/// Adapts an existing step-based actor into a lifetime future.
-async fn run_node_actor<A: NodeActor>(mut actor: A) -> Result<(), A::Error> {
-    loop {
-        actor.step().await?;
-    }
+/// Returns the RPC server's lifetime future, which fails once the server stops.
+///
+/// The future owns the server's handle, so dropping it stops the server.
+async fn supervise_rpc_server(server: ServerHandle) -> Result<(), &'static str> {
+    server.stopped().await;
+    Err("server stopped unexpectedly")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
-
-    struct StepActor {
-        calls: Arc<AtomicUsize>,
-        fail_after: usize,
-    }
-
-    #[async_trait::async_trait]
-    impl NodeActor for StepActor {
-        type Error = &'static str;
-
-        async fn step(&mut self) -> Result<(), Self::Error> {
-            let calls = self.calls.fetch_add(1, Ordering::Relaxed) + 1;
-            if calls >= self.fail_after { Err("step failed") } else { Ok(()) }
-        }
-    }
 
     #[tokio::test]
-    async fn adapter_repeats_steps_until_error() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let actor = StepActor { calls: calls.clone(), fail_after: 3 };
-        assert_eq!(run_node_actor(actor).await, Err("step failed"));
-        assert_eq!(calls.load(Ordering::Relaxed), 3);
+    async fn rpc_server_stopping_is_fatal() {
+        let server = Server::builder().build("127.0.0.1:0").await.unwrap();
+        let handle = server.start(RpcModule::new(()));
+        let mut lifetime = std::pin::pin!(supervise_rpc_server(handle.clone()));
+        tokio::select! {
+            biased;
+            result = &mut lifetime => panic!("ended while the server runs: {result:?}"),
+            () = std::future::ready(()) => {}
+        }
+
+        handle.stop().unwrap();
+        assert_eq!(lifetime.await, Err("server stopped unexpectedly"));
     }
 }

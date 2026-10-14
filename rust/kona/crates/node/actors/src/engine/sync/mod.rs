@@ -4,14 +4,15 @@ use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 
 mod forkchoice;
-pub use forkchoice::L2ForkchoiceState;
+use forkchoice::L2ForkchoiceState;
 
 mod error;
 pub use error::SyncStartError;
 
 use tracing::info;
 
-use crate::EngineClient;
+use alloy_provider::Provider;
+use kona_sources::EngineApi;
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///
@@ -25,11 +26,12 @@ use crate::EngineClient;
 /// Plausible: meaning that the blockhash of the L2 block's L1 origin
 /// (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another
 /// height in the L1 chain, and the same holds for all its ancestors.
-pub async fn find_starting_forkchoice(
+pub(super) async fn find_starting_forkchoice(
     cfg: &RollupConfig,
-    engine_client: &EngineClient,
+    engine: &EngineApi,
+    l1: &impl Provider,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
-    let mut current_fc = L2ForkchoiceState::current(cfg, engine_client).await?;
+    let mut current_fc = L2ForkchoiceState::current(cfg, engine).await?;
     info!(
         target: "sync_start",
         unsafe = %current_fc.un_safe.block_info.number,
@@ -40,8 +42,7 @@ pub async fn find_starting_forkchoice(
 
     // Search for the highest `unsafe` block, relative to the initial `unsafe` block's L1 origin,
     loop {
-        let l1_origin =
-            engine_client.get_l1_block(current_fc.un_safe.l1_origin.hash.into()).await?;
+        let l1_origin = l1.get_block_by_hash(current_fc.un_safe.l1_origin.hash).await?;
         info!(
             target: "sync_start",
             l1_origin = %current_fc.un_safe.l1_origin.number,
@@ -61,7 +62,7 @@ pub async fn find_starting_forkchoice(
             }
             None => {
                 let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
-                let l2_parent = engine_client
+                let l2_parent = engine
                     .get_l2_block(l2_parent_hash)
                     .full()
                     .await?
@@ -101,7 +102,7 @@ pub async fn find_starting_forkchoice(
             current_fc.safe = safe_cursor;
             break;
         }
-        let block = engine_client
+        let block = engine
             .get_l2_block(safe_cursor.block_info.parent_hash.into())
             .full()
             .await?

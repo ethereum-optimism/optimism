@@ -16,24 +16,39 @@ workspace = true
 
 [dependencies]
 # Workspace
+kona-genesis.workspace = true
 
 # Alloy
 alloy-transport.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-client.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
+alloy-eips.workspace = true
+alloy-hardforks.workspace = true
+alloy-json-rpc.workspace = true
+alloy-network.workspace = true
+alloy-provider = { workspace = true, features = ["engine-api"] }
+alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
+alloy-rpc-types-eth.workspace = true
 
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 
 # OP Alloy
 op-alloy-rpc-types-engine.workspace = true
+op-alloy-network.workspace = true
+op-alloy-provider.workspace = true
+op-alloy-rpc-types.workspace = true
 
 # Misc
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing.workspace = true
 thiserror.workspace = true
 derive_more.workspace = true
+metrics.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tower = { workspace = true, features = ["util"] }
+http-body-util.workspace = true
 
 # HTTP client and TLS for remote signer
 url.workspace = true
@@ -45,8 +60,13 @@ notify.workspace = true
 
 [features]
 default = []
+test-utils = []
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "io-util", "net", "test-util"] }
+metrics-exporter-prometheus.workspace = true
+rstest.workspace = true
+op-alloy-consensus.workspace = true
+alloy-consensus.workspace = true
 tempfile.workspace = true
 serde_json.workspace = true
