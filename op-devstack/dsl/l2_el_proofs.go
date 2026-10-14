@@ -142,33 +142,33 @@ func (el *L2ELNode) WaitForProofsStorePrunedPast(block uint64, timeout time.Dura
 
 // InitProofsHistory seeds this node's proofs-history store from its datadir with
 // `op-reth proofs init`, the way an operator does for a node that synced without proofs history,
-// and makes the node run with proofs history from its next Start. The node must be stopped: a
-// test of what init does to a datadir the node still writes to uses TryInitProofsHistory.
+// and makes the node run with proofs history from its next Start. It fails the test if the node
+// is running or the init fails; InitProofsHistoryRaw does neither.
 func (el *L2ELNode) InitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) stack.ProofsHistoryInitReport {
 	if control, ok := el.inner.(stack.ControlledLifecycle); ok {
 		el.require.Falsef(control.Running(), "stop %s before seeding its proofs-history store", el.inner.Name())
 	}
-	report, err := el.TryInitProofsHistory(opts...)
+	report, err := el.InitProofsHistoryRaw(opts...)
 	el.require.NoErrorf(err, "proofs init on %s must seed the store", el.inner.Name())
 	return report
 }
 
-// TryInitProofsHistory is InitProofsHistory for a test that asserts on the init's outcome itself:
-// it runs whether or not the node is running and returns the failure instead of failing the test.
-// The store backfills through a trie-state snapshot and keeps the node's configured window unless
-// the options say otherwise.
-func (el *L2ELNode) TryInitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) (stack.ProofsHistoryInitReport, error) {
+// InitProofsHistoryRaw runs `op-reth proofs init` against this node's datadir whether or not the
+// node is running and returns the outcome, failure included, for the test to assert on. The
+// options start from op-reth's defaults: a backfill through a trie-state snapshot and the node's
+// configured window.
+func (el *L2ELNode) InitProofsHistoryRaw(opts ...func(*stack.ProofsHistoryInit)) (stack.ProofsHistoryInitReport, error) {
 	initializer, ok := el.inner.(stack.ProofsHistoryInitializer)
 	el.require.Truef(ok, "L2EL node %s cannot seed a proofs-history store", el.inner.Name())
-	init := stack.ProofsHistoryInit{UseSnapshot: true}
+	var init stack.ProofsHistoryInit
 	for _, opt := range opts {
 		opt(&init)
 	}
-	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "window", init.Window, "use_snapshot", init.UseSnapshot)
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "plain_backfill", init.PlainBackfill)
 	logger.Info("Seeding the proofs-history store from the datadir")
 	report, err := initializer.InitProofsHistory(init)
 	if err != nil {
-		logger.Warn("Proofs init did not seed the store", "duration", report.Duration, "err", err)
+		logger.Warn("Proofs init did not seed the store", "duration", report.Duration)
 		return report, err
 	}
 	logger.Info("Proofs init seeded the store", "duration", report.Duration)

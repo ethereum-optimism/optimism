@@ -25,19 +25,19 @@ const (
 	// explicitly, like the persistence threshold, so how far reth's datadir trails its head does
 	// not depend on reth's defaults.
 	memoryBlockBufferTarget = 5
+	// postRestartTrafficBlocks is how far past the head the chain is driven once the follower is
+	// back, so the sweeps also cover blocks the store indexed live after the init.
+	postRestartTrafficBlocks = 10
 	// proofsHistoryWindow is the window the init backfills behind its anchor and the node keeps
 	// afterwards: small enough that pruning moves the window within the test, large enough that
 	// the backfill spans blocks reth has persisted and blocks it still held in memory.
 	proofsHistoryWindow = 30
-	// windowMargin is how far past a full window the chain is driven before the init, so the
-	// backfill target lies above the blocks that funded the workload.
-	windowMargin = 5
-	// postRestartTrafficBlocks is how far past the head the chain is driven once the follower is
-	// back, so the sweeps also cover blocks the store indexed live after the init.
-	postRestartTrafficBlocks = 10
 	// referenceEthProofWindow lets the sequencer answer eth_getProof for every block of the run
 	// from reth's own historical state; reth's default window of zero rejects them all.
 	referenceEthProofWindow = 1_000_000
+	// windowMargin is how far past a full window the init's anchor must sit, so the backfill
+	// target lies above genesis and the store's earliest block is that target, not the clamp.
+	windowMargin = 5
 
 	// pruneTimeout bounds how long the store may take to prune the backfilled blocks once the
 	// chain is a window past the anchor.
@@ -89,15 +89,21 @@ func (s followerSpec) headWithPersistedWindow() uint64 {
 	return s.persistenceThreshold + proofsHistoryWindow + windowMargin
 }
 
+// name identifies a guard cell: the guards are about reth's datadir, so the cells vary what
+// shapes it, the persistence schedule and state masking.
+func (s followerSpec) name() string {
+	return fmt.Sprintf("threshold_%d-masking_%d", s.persistenceThreshold, s.stateMaskingBlocks)
+}
+
 // initCase is one cell of the matrix the operator path runs under.
 type initCase struct {
-	spec        followerSpec
-	useSnapshot bool
+	plainBackfill bool
+	spec          followerSpec
 }
 
 func (c initCase) name() string {
 	backfill := "snapshot"
-	if !c.useSnapshot {
+	if c.plainBackfill {
 		backfill = "plain"
 	}
 	return fmt.Sprintf("threshold_%d-%s-backfill_%s", c.spec.persistenceThreshold, c.spec.proofsPath(), backfill)
@@ -107,10 +113,10 @@ func initMatrix() []initCase {
 	var cases []initCase
 	for _, persistenceThreshold := range []uint64{7, 50} {
 		for _, verificationInterval := range []uint64{0, 1} {
-			for _, useSnapshot := range []bool{true, false} {
+			for _, plainBackfill := range []bool{false, true} {
 				cases = append(cases, initCase{
-					spec:        followerSpec{persistenceThreshold: persistenceThreshold, verificationInterval: verificationInterval},
-					useSnapshot: useSnapshot,
+					plainBackfill: plainBackfill,
+					spec:          followerSpec{persistenceThreshold: persistenceThreshold, verificationInterval: verificationInterval},
 				})
 			}
 		}
@@ -118,21 +124,11 @@ func initMatrix() []initCase {
 	return cases
 }
 
-// guardCase is one cell of the matrix the init guards run under. The guards are about reth's
-// datadir, so the cells vary what shapes it: the persistence schedule and state masking.
-type guardCase struct {
-	spec followerSpec
-}
-
-func (c guardCase) name() string {
-	return fmt.Sprintf("threshold_%d-masking_%d", c.spec.persistenceThreshold, c.spec.stateMaskingBlocks)
-}
-
-func guardMatrix() []guardCase {
-	var cases []guardCase
+func guardMatrix() []followerSpec {
+	var cases []followerSpec
 	for _, persistenceThreshold := range []uint64{7, 50} {
 		for _, stateMaskingBlocks := range []uint64{0, 30} {
-			cases = append(cases, guardCase{spec: followerSpec{persistenceThreshold: persistenceThreshold, stateMaskingBlocks: stateMaskingBlocks}})
+			cases = append(cases, followerSpec{persistenceThreshold: persistenceThreshold, stateMaskingBlocks: stateMaskingBlocks})
 		}
 	}
 	return cases
@@ -324,7 +320,7 @@ func TestFollowerServesTheWholeWindowAfterProofsInitWithBackfill(gt *testing.T) 
 			sys.FollowerCL.Stop()
 			sys.Follower.Stop()
 			report := sys.Follower.InitProofsHistory(func(init *stack.ProofsHistoryInit) {
-				init.UseSnapshot = c.useSnapshot
+				init.PlainBackfill = c.plainBackfill
 			})
 			t.Logger().Info("Proofs init seeded the follower's store", "cell", c.name(), "init_duration", report.Duration,
 				"head_at_stop", head, "window", proofsHistoryWindow)
@@ -351,18 +347,18 @@ func TestFollowerServesTheWholeWindowAfterProofsInitWithBackfill(gt *testing.T) 
 // window and the blocks it re-imports with proofs that match the sequencer's.
 func TestProofsInitSeedsAConsistentStoreFromAKilledNodeDatadir(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	for _, c := range guardMatrix() {
-		t.Run(c.name(), func(t devtest.T) {
+	for _, spec := range guardMatrix() {
+		t.Run(spec.name(), func(t devtest.T) {
 			t.Parallel()
-			skipMaskingCell(t, c.spec)
-			sys := newInitSystem(t, c.spec)
+			skipMaskingCell(t, spec)
+			sys := newInitSystem(t, spec)
 			w := newWorkload(t, sys.FunderL2)
-			head := driveChainTo(sys, w, c.spec.headWithPersistedWindow())
+			head := driveChainTo(sys, w, spec.headWithPersistedWindow())
 
 			sys.Follower.StopUngracefully()
 			sys.FollowerCL.Stop()
 			report := sys.Follower.InitProofsHistory()
-			t.Logger().Info("Proofs init seeded the killed follower's store", "cell", c.name(), "init_duration", report.Duration, "head_at_kill", head)
+			t.Logger().Info("Proofs init seeded the killed follower's store", "cell", spec.name(), "init_duration", report.Duration, "head_at_kill", head)
 
 			persistedTip := restartFollowerEL(t, sys)
 			t.Require().Lessf(persistedTip.Number, head.Number,
@@ -376,32 +372,32 @@ func TestProofsInitSeedsAConsistentStoreFromAKilledNodeDatadir(gt *testing.T) {
 	}
 }
 
-// TestProofsInitAgainstARunningNodeNeverSeedsAStoreThatMatchesNoBlock runs `op-reth proofs init`
+// TestProofsInitAgainstARunningNodeLeavesAStoreThatMatchesTheChain runs `op-reth proofs init`
 // against the datadir of a follower that is still running and persisting, which an operator can
 // do by mistake. Whatever the init makes of that datadir, the store the follower ends up running
 // on must describe the chain: after a clean stop, a seeding of a store the init refused, and a
 // restart with proofs history, every proof of the window must verify against its header and match
 // the sequencer's.
-func TestProofsInitAgainstARunningNodeNeverSeedsAStoreThatMatchesNoBlock(gt *testing.T) {
+func TestProofsInitAgainstARunningNodeLeavesAStoreThatMatchesTheChain(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	for _, c := range guardMatrix() {
-		t.Run(c.name(), func(t devtest.T) {
+	for _, spec := range guardMatrix() {
+		t.Run(spec.name(), func(t devtest.T) {
 			t.Parallel()
-			skipMaskingCell(t, c.spec)
-			sys := newInitSystem(t, c.spec)
+			skipMaskingCell(t, spec)
+			sys := newInitSystem(t, spec)
 			w := newWorkload(t, sys.FunderL2)
 			// The init reads reth's persisted tip, so the chain is driven until that tip is a
 			// window above genesis under the spec's threshold.
-			head := driveChainTo(sys, w, c.spec.headWithPersistedWindow())
+			head := driveChainTo(sys, w, spec.headWithPersistedWindow())
 
-			report, err := sys.Follower.TryInitProofsHistory()
+			report, err := sys.Follower.InitProofsHistoryRaw()
 			if err != nil {
-				// #23046 refuses the init when reth persisted past the anchor between the init's
-				// two database reads. develop has no such guard, so any failure is unexpected.
+				// The init may refuse a datadir whose tip moved between its two reads (#23046);
+				// any other failure is a bug.
 				t.Require().ErrorContainsf(err, "reth database tip moved",
 					"proofs init against a running node may only fail because reth's tip moved (#23046); it failed with: %v", err)
 			}
-			t.Logger().Info("Proofs init ran against the running follower", "cell", c.name(), "init_duration", report.Duration,
+			t.Logger().Info("Proofs init ran against the running follower", "cell", spec.name(), "init_duration", report.Duration,
 				"head_at_init", head, "refused", err != nil)
 
 			sys.FollowerCL.Stop()

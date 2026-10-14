@@ -46,17 +46,17 @@ func TestProofsHistoryNodeArgs(t *testing.T) {
 func TestProofsHistoryInitArgs(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
-		useSnapshot      bool
+		plainBackfill    bool
 		window           uint64
 		wantSnapshotFlag []string
 		wantWindow       string
 	}{
-		{name: "snapshot backfill is op-reth's default and gets no flag", useSnapshot: true, window: 30, wantSnapshotFlag: nil, wantWindow: "--proofs-history.window=30"},
-		{name: "plain backfill turns the snapshot off", useSnapshot: false, window: 30, wantSnapshotFlag: []string{"--proofs-history.use-snapshot=false"}, wantWindow: "--proofs-history.window=30"},
-		{name: "zero window uses the runtime default", useSnapshot: true, window: 0, wantSnapshotFlag: nil, wantWindow: "--proofs-history.window=10000"},
+		{name: "snapshot backfill is op-reth's default and gets no flag", plainBackfill: false, window: 30, wantSnapshotFlag: nil, wantWindow: "--proofs-history.window=30"},
+		{name: "plain backfill turns the snapshot off", plainBackfill: true, window: 30, wantSnapshotFlag: []string{"--proofs-history.use-snapshot=false"}, wantWindow: "--proofs-history.window=30"},
+		{name: "zero window uses the runtime default", plainBackfill: false, window: 0, wantSnapshotFlag: nil, wantWindow: "--proofs-history.window=10000"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			args := proofsHistoryInitArgs("/genesis.json", "/data", "/proofs", tc.window, tc.useSnapshot)
+			args := proofsHistoryInitArgs("/genesis.json", "/data", "/proofs", tc.window, tc.plainBackfill)
 
 			require.Equal(t, []string{"proofs", "init"}, args[:2])
 			require.Contains(t, args, "--chain=/genesis.json")
@@ -109,7 +109,7 @@ func TestInitProofsHistoryEnablesProofsHistoryOnSuccessOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			n := newTestOpReth(t, fakeOpReth(t, tc.exitCode))
 
-			report, err := n.InitProofsHistory(stack.ProofsHistoryInit{UseSnapshot: false, Window: tc.window})
+			report, err := n.InitProofsHistory(stack.ProofsHistoryInit{PlainBackfill: true, Window: tc.window})
 
 			if tc.exitCode == 0 {
 				require.NoError(t, err)
