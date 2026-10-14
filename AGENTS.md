@@ -76,10 +76,6 @@ directly.
 To watch for *review* activity, use the
 [`watch-reviews` skill](.claude/skills/watch-reviews/SKILL.md).
 
-When you review a change to `rust/kona/sp1/` or to a shared kona crate that the SP1 guests run,
-also run the [`kona-sp1-cost-reviewer`](.claude/agents/kona-sp1-cost-reviewer.md) agent. Its
-description lists the crates.
-
 ## Subdirectory Instructions
 
 Some subdirectories have their own CLAUDE.md with domain-specific conventions. Read the relevant file before working in that area — do not read them all upfront.
@@ -116,7 +112,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/interop-review.md](docs/ai/interop-review.md) - Reviewing interop message verification and safety promotion. Pairs with the `interop-reviewer` agent
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
-- [docs/ai/kona-sp1-proof-limits.md](docs/ai/kona-sp1-proof-limits.md) - Kona-SP1 proof-generation limits (input region, memory, PGU) and a method to compute the proof cost of guest code: if an honest proof exceeds a limit, the proposer loses its `ZKDisputeGame`. Pairs with the `kona-sp1-cost-reviewer` agent
+- [docs/ai/kona-sp1-proof-limits.md](docs/ai/kona-sp1-proof-limits.md) - Kona-SP1 proof-generation limits (witness encoding, input region, memory, PGU) and a method to compute the proof cost of guest code: if an honest proof exceeds a limit, the proposer loses its `ZKDisputeGame`. Pairs with the `kona-sp1-cost-reviewer` agent
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
