@@ -109,7 +109,8 @@ pub enum EngineApiError {
 }
 /// Client for the L2 execution layer's Engine API. Providers erase their transport type, so tests
 /// use the same client with a mock transport. [`Self::forkchoice_updated`], [`Self::get_payload`]
-/// and [`Self::new_payload`] select the Engine API method version.
+/// and [`Self::new_payload`] select the Engine API method version; the versioned methods are not
+/// exposed, so callers cannot pick the wrong one.
 #[derive(Clone, Debug)]
 pub struct EngineApi {
     engine: RootProvider<Optimism>,
@@ -127,6 +128,15 @@ impl EngineApi {
         &self.cfg
     }
 
+    /// Sends `engine_exchangeCapabilities`, which fails if the execution layer rejects the client's
+    /// JWT.
+    pub async fn exchange_capabilities(
+        &self,
+        capabilities: Vec<String>,
+    ) -> TransportResult<Vec<String>> {
+        self.engine.exchange_capabilities(capabilities).await
+    }
+
     /// Fetches an L2 block.
     pub fn get_l2_block(
         &self,
@@ -136,10 +146,7 @@ impl EngineApi {
     }
 
     /// Submits a Paris payload, whose method is provided by Alloy's Ethereum Engine API extension.
-    pub async fn new_payload_v1(
-        &self,
-        payload: ExecutionPayloadV1,
-    ) -> TransportResult<PayloadStatus> {
+    async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
         // OP Alloy's extension has no V1 method, and importing Alloy's Ethereum extension would
         // make the other versions' methods ambiguous.
         alloy_provider::ext::EngineApi::new_payload_v1(&self.engine, payload).await
@@ -158,8 +165,12 @@ impl EngineApi {
             EngineForkchoiceVersion::from_cfg(&self.cfg, attributes.payload_attributes.timestamp)
         });
         match version {
-            EngineForkchoiceVersion::V3 => self.fork_choice_updated_v3(state, attributes).await,
-            EngineForkchoiceVersion::V2 => self.fork_choice_updated_v2(state, attributes).await,
+            EngineForkchoiceVersion::V3 => {
+                self.engine.fork_choice_updated_v3(state, attributes).await
+            }
+            EngineForkchoiceVersion::V2 => {
+                self.engine.fork_choice_updated_v2(state, attributes).await
+            }
         }
     }
 
@@ -178,28 +189,28 @@ impl EngineApi {
         Ok(match EngineGetPayloadVersion::from_cfg(&self.cfg, timestamp) {
             EngineGetPayloadVersion::V5 => {
                 // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-                let payload = self.get_payload_v5(payload_id).await?;
+                let payload = self.engine.get_payload_v5(payload_id).await?;
                 OpExecutionPayloadEnvelope::V4 {
                     parent_beacon_block_root: payload.parent_beacon_block_root,
                     payload: payload.execution_payload,
                 }
             }
             EngineGetPayloadVersion::V4 => {
-                let payload = self.get_payload_v4(payload_id).await?;
+                let payload = self.engine.get_payload_v4(payload_id).await?;
                 OpExecutionPayloadEnvelope::V4 {
                     parent_beacon_block_root: payload.parent_beacon_block_root,
                     payload: payload.execution_payload,
                 }
             }
             EngineGetPayloadVersion::V3 => {
-                let payload = self.get_payload_v3(payload_id).await?;
+                let payload = self.engine.get_payload_v3(payload_id).await?;
                 OpExecutionPayloadEnvelope::V3 {
                     parent_beacon_block_root: payload.parent_beacon_block_root,
                     payload: payload.execution_payload,
                 }
             }
             EngineGetPayloadVersion::V2 => {
-                let payload = self.get_payload_v2(payload_id).await?;
+                let payload = self.engine.get_payload_v2(payload_id).await?;
                 match payload.execution_payload {
                     ExecutionPayloadFieldV2::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
                     ExecutionPayloadFieldV2::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
@@ -221,13 +232,13 @@ impl EngineApi {
                     execution_payload: payload.payload_inner,
                     withdrawals: Some(payload.withdrawals),
                 };
-                self.new_payload_v2(payload_input).await
+                self.engine.new_payload_v2(payload_input).await
             }
             OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-                self.new_payload_v3(payload, parent_beacon_block_root).await
+                self.engine.new_payload_v3(payload, parent_beacon_block_root).await
             }
             OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-                self.new_payload_v4(payload, parent_beacon_block_root).await
+                self.engine.new_payload_v4(payload, parent_beacon_block_root).await
             }
         }
     }
@@ -250,13 +261,6 @@ impl EngineApi {
             .layer(MapFutureLayer::new(with_deadline))
             .transport(http_hyper, false);
         RootProvider::new(rpc_client)
-    }
-}
-
-/// Engine API calls use the L2 provider through OP Alloy's blanket implementation.
-impl Provider<Optimism> for EngineApi {
-    fn root(&self) -> &RootProvider<Optimism> {
-        &self.engine
     }
 }
 
