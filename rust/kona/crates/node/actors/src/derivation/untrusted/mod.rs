@@ -23,7 +23,7 @@ mod chain_provider;
 pub use chain_provider::{L1ChainProvider, L1ChainProviderError};
 
 use crate::engine::Derived;
-use kona_derive::{Pipeline, PipelineErrorKind, SignalReceiver};
+use kona_derive::{Pipeline, PipelineErrorKind, ResetError, SignalReceiver};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use std::future::Future;
 use thiserror::Error;
@@ -44,6 +44,10 @@ pub enum ActorError {
     /// The derivation pipeline failed critically.
     #[error(transparent)]
     Pipeline(#[from] PipelineErrorKind),
+    /// The derivation pipeline is inconsistent with the safe head it derives on, which only a bug
+    /// can cause.
+    #[error("the pipeline is inconsistent with the safe head: {0}")]
+    Inconsistent(ResetError),
     /// The L1 actor stopped.
     #[error("the L1 actor stopped")]
     L1Stopped,

@@ -7,8 +7,8 @@ use crate::{
     l1::{Child, HandleError},
 };
 use kona_derive::{
-    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
-    SignalReceiver, StepResult,
+    ActivationSignal, BuilderError, Pipeline, PipelineError, PipelineErrorKind, ResetError,
+    ResetSignal, Signal, SignalReceiver, StepResult,
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use tokio::{
@@ -273,6 +273,10 @@ where
                         metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
                         return Ok(Stepped::ResetNeeded);
                     }
+                    PipelineErrorKind::Reset(e) if is_inconsistent(&e) => {
+                        error!(target: "derivation", "The pipeline is inconsistent with the safe head: {e}");
+                        return Err(ActorError::Inconsistent(e));
+                    }
                     PipelineErrorKind::Reset(e) => {
                         warn!(target: "derivation", "Derivation pipeline is being reset: {e}");
                         return Ok(Stepped::ResetNeeded);
@@ -369,6 +373,19 @@ where
     }
 }
 
+/// Returns whether a reset error means the pipeline is inconsistent with the safe head it derives
+/// on: batch validation drops invalid batches before they reach these checks, and an L1 reorg
+/// cannot cause them, so they are bugs, which a pipeline reset would only repeat.
+const fn is_inconsistent(err: &ResetError) -> bool {
+    matches!(
+        err,
+        ResetError::BadParentHash(..) |
+            ResetError::BadTimestamp(..) |
+            ResetError::L1OriginMismatch(..) |
+            ResetError::AttributesBuilder(BuilderError::BrokenTimeInvariant(..))
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,6 +429,8 @@ mod tests {
         holocene_activation: bool,
         /// Never finishes the next step.
         hang: bool,
+        /// Fails the next step with this error.
+        failure: Option<PipelineErrorKind>,
         /// Errors the next reset signals fail with, in order.
         reset_errors: VecDeque<PipelineErrorKind>,
         prepared: VecDeque<OpAttributesWithParent>,
@@ -432,6 +451,7 @@ mod tests {
                 reorg: false,
                 holocene_activation: false,
                 hang: false,
+                failure: None,
                 reset_errors: VecDeque::new(),
                 prepared: VecDeque::new(),
                 signals: Vec::new(),
@@ -494,7 +514,9 @@ mod tests {
                 (Some(l1), Some(origin)) => l1.canonical(origin.number + 1).await.unwrap(),
                 _ => None,
             };
-            if std::mem::take(&mut self.temporary_failure) {
+            if let Some(failure) = self.failure.take() {
+                StepResult::StepFailed(failure)
+            } else if std::mem::take(&mut self.temporary_failure) {
                 StepResult::StepFailed(PipelineError::Provider("unavailable".into()).temp())
             } else if std::mem::take(&mut self.reorg) {
                 StepResult::StepFailed(PipelineErrorKind::Reset(ResetError::ReorgDetected(
@@ -693,6 +715,42 @@ mod tests {
 
         assert_eq!(actor.deriver.pipeline.signals, [reset(block(0)), reset(block(0))]);
         assert_eq!(actor.deriver.pipeline.stepped_on.last(), Some(&block(0)));
+    }
+
+    /// A reset error that only a bug can cause, since the pipeline is inconsistent with the safe
+    /// head it derives on, stops the actor; any other resets the pipeline in place.
+    #[rstest]
+    #[case::bad_parent_hash(ResetError::BadParentHash(B256::ZERO, B256::ZERO), true)]
+    #[case::bad_timestamp(ResetError::BadTimestamp(1, 2), true)]
+    #[case::l1_origin_mismatch(ResetError::L1OriginMismatch(1, 2), true)]
+    #[case::broken_time_invariant(
+        ResetError::AttributesBuilder(BuilderError::BrokenTimeInvariant(
+            Default::default(),
+            0,
+            Default::default(),
+            0
+        )),
+        true
+    )]
+    #[case::block_not_found(ResetError::BlockNotFound(B256::ZERO.into()), false)]
+    #[case::blobs_unavailable(ResetError::BlobsUnavailable(1), false)]
+    #[tokio::test(start_paused = true)]
+    async fn inconsistencies_stop_the_actor(#[case] error: ResetError, #[case] stops: bool) {
+        let pipeline = TestPipeline { failure: Some(error.reset()), ..TestPipeline::new() };
+        let (mut actor, publishers) = actor(pipeline);
+
+        let stopped = run_during(&mut actor, async {
+            publishers.handle.reset(block(0)).await.unwrap();
+            time::sleep(Duration::from_secs(60)).await;
+        })
+        .await;
+
+        if stops {
+            assert!(matches!(stopped, Some(ActorError::Inconsistent(_))));
+        } else {
+            assert!(stopped.is_none());
+            assert_eq!(actor.deriver.pipeline.signals, [reset(block(0)), reset(block(0))]);
+        }
     }
 
     /// A reset interrupts derivation in progress, which the pipeline reset then discards.
