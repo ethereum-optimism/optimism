@@ -412,6 +412,14 @@ pub async fn launch_node(
             MdbxProofsStorage::new(&path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
         );
+        if mdbx.holds_only_legacy_v1_data()? {
+            eyre::bail!(
+                "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
+                 directory (or use a fresh --proofs-history.storage-path), then run \
+                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                path.display()
+            );
+        }
         let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = mdbx.clone().into();
         let storage_exec = storage.clone();
 

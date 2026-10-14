@@ -59,7 +59,9 @@ contract SuperchainETHBridge is ISemver {
     mapping(bytes32 => bool) public refunded;
 
     /// @notice Sends ETH to some target address on another chain. Reverts if the caller is the
-    ///         L2ToL2CrossDomainMessenger, which could never spend a refund.
+    ///         L2ToL2CrossDomainMessenger, which could never spend a refund. A send made through
+    ///         the L2CrossDomainMessenger cannot be refunded either, so a sender on L1 should
+    ///         deposit through the portal and send from its own address, or use a contract on L2.
     /// @param _to       Address to send ETH to.
     /// @param _chainId  Chain ID of the destination chain.
     /// @return msgHash_ Hash of the message sent.

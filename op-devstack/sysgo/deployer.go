@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -651,11 +650,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 		wb.require.NoError(err)
 		prepareDeployment = prepareDeployment || requirements.Permissionless
 	}
-	if prepareDeployment {
-		// Prepare pins L2 genesis one hour after its safe L1 anchor.
-		// Backdate L1, rather than move L2 beyond the sequencer's wall clock.
-		intent.L1DevGenesisParams.BlockParams.Timestamp -= standard.MinGenesisTimeOffsetSeconds
-	}
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(millionEth)
 	wb.require.NoError(pipeline.ValidateInputs(intent, st))
@@ -735,7 +729,6 @@ func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, 
 	wb.require.NoError(deployer.Prepare(wb.p.Ctx(), deployer.PrepareConfig{
 		Workdir: workdir, Logger: wb.logger, PrivateKey: privateKey,
 		L1RPCUrl: opts.L1RPCUrl, CacheDir: opts.CacheDir,
-		GenesisTimeOffset:         standard.MinGenesisTimeOffsetSeconds,
 		AllowUnoptimizedContracts: true,
 	}))
 	st, err := pipeline.ReadState(workdir)
