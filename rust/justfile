@@ -515,7 +515,9 @@ hack-tests-default partition="" shuffle="false" seed="default":
 # neither `check` nor `--tests` compiles them, and `test-docs` runs the whole
 # workspace at once, where feature unification can mask a doc example that
 # uses a feature its crate never declares. Doc tests have no `--no-run`, so
-# this builds each crate's lib and runs its doc tests.
+# this builds each crate's lib and runs its doc tests. Only packages with a
+# lib or proc-macro target are selected: `cargo test --doc` errors on a
+# binary-only package instead of skipping it.
 # seed: deterministic seed for shuffle (all partition nodes must use the same seed)
 hack-doctests-default partition="" shuffle="false" seed="default":
   #!/usr/bin/env bash
@@ -526,16 +528,16 @@ hack-doctests-default partition="" shuffle="false" seed="default":
     echo "Running cargo hack (doc tests, default-features) without partition"
   fi
 
-  PKG_FLAGS=""
+  PKGS=$(cargo metadata --no-deps --format-version 1 \
+    | jq -r '.packages[] | select(any(.targets[]; .kind | any(. == "lib" or . == "rlib" or . == "proc-macro"))) | .name')
   if [ "{{shuffle}}" = "true" ]; then
-    PKGS=$(cargo metadata --no-deps --format-version 1 \
-      | jq -r '.packages[].name' \
+    PKGS=$(echo "$PKGS" \
       | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
-    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
     echo "Shuffled package order (seed={{seed}}): $PKGS"
   fi
+  PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
 
-  cargo hack test --doc $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+  cargo hack test --doc --locked $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
 
 ########################### Release #################################
 
