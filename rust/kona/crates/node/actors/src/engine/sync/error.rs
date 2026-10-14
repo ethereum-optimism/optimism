@@ -19,4 +19,7 @@ pub enum SyncStartError {
     /// A block could not be found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
+    /// The L1 actor stopped.
+    #[error("the L1 actor stopped")]
+    L1Stopped,
 }

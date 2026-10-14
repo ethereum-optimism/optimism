@@ -11,7 +11,7 @@ pub use error::SyncStartError;
 
 use tracing::info;
 
-use alloy_provider::Provider;
+use crate::l1;
 use kona_sources::EngineApi;
 
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
@@ -23,13 +23,14 @@ use kona_sources::EngineApi;
 ///   - The *finalized L2 block*: This is the L2 block which is known to be fully derived from
 ///     finalized L1 block data.
 ///
-/// Plausible: meaning that the blockhash of the L2 block's L1 origin
-/// (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another
-/// height in the L1 chain, and the same holds for all its ancestors.
+/// Plausible: meaning that the L2 block's L1 origin (as reported in the L1 Attributes deposit
+/// within the L2 block) is the canonical L1 block at its height, as the L1 actor knows it, or is
+/// after the L1 actor's head, where it may yet be. The L1 origins of an L2 chain are consecutive L1
+/// blocks, so the same then holds for all its ancestors.
 pub(super) async fn find_starting_forkchoice(
     cfg: &RollupConfig,
     engine: &EngineApi,
-    l1: &impl Provider,
+    l1: &l1::Handle,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
     let mut current_fc = L2ForkchoiceState::current(cfg, engine).await?;
     info!(
@@ -42,17 +43,26 @@ pub(super) async fn find_starting_forkchoice(
 
     // Search for the highest `unsafe` block, relative to the initial `unsafe` block's L1 origin,
     loop {
-        let l1_origin = l1.get_block_by_hash(current_fc.un_safe.l1_origin.hash).await?;
+        let origin = current_fc.un_safe.l1_origin;
+        let canonical = l1.canonical(origin.number).await.map_err(|_| SyncStartError::L1Stopped)?;
         info!(
             target: "sync_start",
-            l1_origin = %current_fc.un_safe.l1_origin.number,
+            l1_origin = %origin.number,
             l2_unsafe = %current_fc.un_safe.block_info.number,
             "Searching for L2 unsafe block with canonical L1 origin"
         );
 
-        match l1_origin {
-            Some(_) => {
-                // Unsafe block has existing L1 origin. Continue with this head.
+        match canonical {
+            // The origin is canonical, or after the L1 head. Continue with this head.
+            None => {
+                info!(
+                    target: "sync_start",
+                    l2_unsafe = %current_fc.un_safe.block_info.number,
+                    "Found L2 unsafe block with an L1 origin after the L1 head"
+                );
+                break;
+            }
+            Some(canonical) if canonical.hash == origin.hash => {
                 info!(
                     target: "sync_start",
                     l2_unsafe = %current_fc.un_safe.block_info.number,
@@ -60,7 +70,8 @@ pub(super) async fn find_starting_forkchoice(
                 );
                 break;
             }
-            None => {
+            // L1 reorged out the origin.
+            Some(_) => {
                 let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
                 let l2_parent = engine
                     .get_l2_block(l2_parent_hash)

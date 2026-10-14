@@ -169,10 +169,11 @@ impl RollupNode {
         &self,
         builder: engine::Builder,
         client: Arc<EngineApi>,
+        l1: l1::Handle,
     ) -> impl Future<Output = Result<(), engine::ActorError>> + Send + 'static {
         builder.build(
             client,
-            self.clients.l1.clone(),
+            l1,
             self.chain.rollup_config.clone(),
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         )
@@ -425,7 +426,7 @@ impl RollupNode {
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let engine_api = self.engine_api.clone();
         let l2_query_client = engine_api.as_ref().clone();
-        let engine_actor = self.build_engine(engine_builder, engine_api);
+        let engine_actor = self.build_engine(engine_builder, engine_api, l1.clone());
 
         let derivation_actor = self
             .build_derivation(derivation_builder, engine.clone(), l1.clone())

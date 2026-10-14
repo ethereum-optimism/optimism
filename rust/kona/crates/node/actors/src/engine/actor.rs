@@ -9,9 +9,8 @@ use super::{
     handle::{BuildRequest, ConsolidateRequest, Message, ResetRequest, SealRequest},
     sync::find_starting_forkchoice,
 };
-use crate::Metrics;
+use crate::{Metrics, l1};
 use alloy_eips::BlockId;
-use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::{
     ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum,
 };
@@ -67,7 +66,7 @@ impl Builder {
     pub fn build(
         self,
         client: Arc<EngineApi>,
-        l1: RootProvider,
+        l1: l1::Handle,
         rollup: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
@@ -117,8 +116,8 @@ impl Backoff {
 struct Actor {
     /// The Engine API client.
     client: Arc<EngineApi>,
-    /// The L1 provider, which a reset reads to find a plausible forkchoice.
-    l1: RootProvider,
+    /// The L1 chain, which a reset checks to find a plausible forkchoice.
+    l1: l1::Handle,
     /// The rollup configuration.
     config: Arc<RollupConfig>,
     /// Where to hand every block the engine makes canonical.
@@ -137,7 +136,7 @@ impl Actor {
     /// Creates the actor, starting from the state that `state_tx` holds.
     fn new(
         client: Arc<EngineApi>,
-        l1: RootProvider,
+        l1: l1::Handle,
         config: Arc<RollupConfig>,
         block_sink: Arc<dyn ImportedBlockSink>,
         state_tx: watch::Sender<EngineState>,

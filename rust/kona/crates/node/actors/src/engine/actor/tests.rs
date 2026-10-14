@@ -2,9 +2,10 @@ use super::*;
 use crate::{
     EngineClientError,
     engine::{
-        NoopBlockSink,
+        NoopBlockSink, SyncStartError,
         test_utils::{TestAttributesBuilder, test_block_info},
     },
+    l1::{self, test_utils::TestChain},
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, FixedBytes, b256};
@@ -65,14 +66,20 @@ type L2Block = <op_alloy_network::Optimism as alloy_provider::Network>::BlockRes
 /// The clients an actor talks to the execution layer and L1 with.
 struct Clients {
     engine: EngineApi,
-    l1: RootProvider,
+    l1: l1::Handle,
 }
 
-/// Returns an actor's clients, with the scripted L1 and L2 transports behind them.
-fn clients(config: Arc<RollupConfig>) -> (Clients, RpcMock, RpcMock) {
+/// Returns an actor's clients, with the scripted L2 transport behind them, and an L1 chain that
+/// holds only the default L1 block, the L1 origin of the default L2 block.
+fn clients(config: Arc<RollupConfig>) -> (Clients, RpcMock) {
+    clients_on_l1(config, &[BlockInfo::default()])
+}
+
+/// Returns an actor's clients, with the scripted L2 transport behind them, and an L1 chain of
+/// `l1`, oldest first; the oldest is finalized.
+fn clients_on_l1(config: Arc<RollupConfig>, l1: &[BlockInfo]) -> (Clients, RpcMock) {
     let (engine, l2) = test_engine_api(config);
-    let l1 = RpcMock::default();
-    (Clients { engine, l1: l1.provider() }, l1, l2)
+    (Clients { engine, l1: TestChain::fixed(l1) }, l2)
 }
 
 /// Returns an actor that is not running, for calling its methods directly, with the receiver of
@@ -122,16 +129,10 @@ fn config() -> Arc<RollupConfig> {
 }
 
 /// Expects the requests of a reset that finds the default L2 block as every head.
-fn expect_reset(l1: &RpcMock, l2: &RpcMock, read_delay: Duration) {
+fn expect_reset(l2: &RpcMock, read_delay: Duration) {
     for _ in 0..3 {
         l2.expect_with_delay("eth_getBlockByNumber", L2Block::default(), read_delay);
     }
-    // The reset checks that the unsafe head's L1 origin, the genesis L1 block, is on L1.
-    l1.expect_params(
-        "eth_getBlockByHash",
-        serde_json::json!([B256::ZERO, false]),
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-    );
     l2.expect(
         "engine_forkchoiceUpdatedV3",
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
@@ -162,7 +163,7 @@ impl ImportedBlockSink for RecordingSink {
 #[test]
 fn construction_and_build_do_not_require_a_runtime() {
     let config = Arc::new(RollupConfig::default());
-    let (clients, _, _) = clients(config.clone());
+    let (clients, _) = clients(config.clone());
     let builder = Builder::new(Capacity::try_from(1).unwrap());
     let handle = builder.handle();
     let task = builder.build(Arc::new(clients.engine), clients.l1, config, Arc::new(NoopBlockSink));
@@ -170,33 +171,18 @@ fn construction_and_build_do_not_require_a_runtime() {
     drop(task);
 }
 
-/// Both L1 and L2 outages during a reset must retain the original request and finish it
-/// after recovery, retrying without another request.
+/// An L2 outage during a reset must retain the original request and finish it after recovery,
+/// retrying without another request. The L1 actor waits out L1 outages itself.
 #[rstest]
-#[case(true, Duration::ZERO)]
-#[case(false, Duration::ZERO)]
-#[case(false, Duration::from_secs(4))]
+#[case(Duration::ZERO)]
+#[case(Duration::from_secs(4))]
 #[tokio::test(start_paused = true)]
-async fn reset_recovers_and_completes_original_request(
-    #[case] l1_failure: bool,
-    #[case] read_delay: Duration,
-) {
+async fn reset_recovers_and_completes_original_request(#[case] read_delay: Duration) {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     // The first attempt fails; the recovery is scripted up front.
-    if l1_failure {
-        for tag in ["finalized", "safe", "latest"] {
-            l2.expect_params(
-                "eth_getBlockByNumber",
-                serde_json::json!([tag, true]),
-                L2Block::default(),
-            );
-        }
-        l1.expect_error("eth_getBlockByHash");
-    } else {
-        l2.expect_error("eth_getBlockByNumber");
-    }
-    expect_reset(&l1, &l2, read_delay);
+    l2.expect_error("eth_getBlockByNumber");
+    expect_reset(&l2, read_delay);
     let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
     let resets = handle.resets();
 
@@ -209,7 +195,6 @@ async fn reset_recovers_and_completes_original_request(
     assert_eq!(*resets.borrow(), state);
     assert_eq!(*handle.state().borrow(), state);
     actor.abort();
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -219,7 +204,7 @@ async fn reset_recovers_and_completes_original_request(
 #[tokio::test(start_paused = true)]
 async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let forkchoice_updated = |status| ForkchoiceUpdated::new(PayloadStatus::from_status(status));
     let invalid = PayloadStatusEnum::Invalid { validation_error: "invalid block".into() };
     // The execution layer syncs, and still syncs when the engine asks.
@@ -227,13 +212,13 @@ async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
     // It finished syncing when the engine asks again, so the reset proceeds.
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
-    expect_reset(&l1, &l2, Duration::ZERO);
+    expect_reset(&l2, Duration::ZERO);
     // It validates a later forkchoice, then falls back into syncing.
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Valid));
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(PayloadStatusEnum::Syncing));
     // It rejects the forkchoice, so the reset proceeds.
     l2.expect("engine_forkchoiceUpdatedV3", forkchoice_updated(invalid));
-    expect_reset(&l1, &l2, Duration::ZERO);
+    expect_reset(&l2, Duration::ZERO);
     let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
 
     let resets = handle.resets();
@@ -249,7 +234,6 @@ async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
     assert!(matches!(handle.reset_if_el_synced().await, Err(EngineClientError::ElSyncing)));
     handle.reset_if_el_synced().await.unwrap();
     actor.abort();
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -258,7 +242,7 @@ async fn reset_if_el_synced_asks_the_el_whether_it_synced() {
 async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     let (payload, config) = genesis_payload();
     let hash = config.genesis.l2.hash;
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     l2.expect_error("engine_newPayloadV1");
     l2.expect("engine_newPayloadV1", valid());
@@ -277,7 +261,6 @@ async fn temporary_failure_is_retried_until_the_operation_succeeds() {
     .unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
     actor.abort();
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -287,7 +270,7 @@ async fn abandoned_replies_do_not_stop_the_engine() {
     let mut config = RollupConfig::default();
     config.hardforks.ecotone_time = Some(0);
     let config = Arc::new(config);
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let started = || {
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid))
             .with_payload_id(PayloadId::new([1; 8]))
@@ -308,7 +291,6 @@ async fn abandoned_replies_do_not_stop_the_engine() {
     let payload_id = handle.start_build(TestAttributesBuilder::new().build()).await.unwrap();
     assert_eq!(payload_id, PayloadId::new([1; 8]));
     actor.abort();
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -317,7 +299,7 @@ async fn abandoned_replies_do_not_stop_the_engine() {
 #[tokio::test(start_paused = true)]
 async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     // Fail every attempt made before the timeout, and the first one after it.
     let mut attempt_at = Duration::ZERO;
     let mut delay = INITIAL_RETRY_DELAY;
@@ -327,7 +309,7 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
         delay = (delay * 2).min(MAX_RETRY_DELAY);
         l2.expect_error("engine_newPayloadV1");
     }
-    expect_reset(&l1, &l2, Duration::ZERO);
+    expect_reset(&l2, Duration::ZERO);
     let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
 
     let started = Instant::now();
@@ -342,7 +324,6 @@ async fn persistent_temporary_failure_abandons_the_operation_and_resets() {
     .unwrap();
     assert!(started.elapsed() >= TASK_RETRY_TIMEOUT);
     actor.abort();
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -405,7 +386,7 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
         .build();
     let forkchoice = state.create_forkchoice_state();
 
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let started = || fcu_for_payload(Some(PayloadId::new([1; 8])), PayloadStatusEnum::Valid);
     let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     let invalid = || {
@@ -459,7 +440,6 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
         assert_eq!(state.safe_head_source(), Some(source));
         actor.abort();
     }
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -468,10 +448,10 @@ async fn consolidation_builds_and_seals_derived_attributes(#[case] verdicts: Ver
 #[tokio::test(start_paused = true)]
 async fn consolidation_that_resets_replies_with_the_reset_state() {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     // The unsafe block at the attributes' height is missing, which needs a reset.
     l2.expect("eth_getBlockByNumber", Option::<RpcBlock<op_alloy_rpc_types::Transaction>>::None);
-    expect_reset(&l1, &l2, Duration::ZERO);
+    expect_reset(&l2, Duration::ZERO);
     let state = TestEngineStateBuilder::new()
         .with_unsafe_head(test_block_info(2))
         .with_safe_head(L2BlockInfo::default())
@@ -492,7 +472,6 @@ async fn consolidation_that_resets_replies_with_the_reset_state() {
     assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
     assert_eq!(*handle.state().borrow(), state);
     actor.abort();
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -501,8 +480,8 @@ async fn consolidation_that_resets_replies_with_the_reset_state() {
 #[tokio::test(start_paused = true)]
 async fn consolidation_skips_attributes_derived_before_a_reset() {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
-    expect_reset(&l1, &l2, Duration::ZERO);
+    let (clients, l2) = clients(config.clone());
+    expect_reset(&l2, Duration::ZERO);
     let safe_head = test_block_info(1);
     let state = TestEngineStateBuilder::new()
         .with_unsafe_head(test_block_info(2))
@@ -518,7 +497,46 @@ async fn consolidation_skips_attributes_derived_before_a_reset() {
     let reset = reset.unwrap();
     assert_eq!(consolidation.unwrap(), Consolidation { state: reset, flush: false });
     actor.abort();
-    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A reset keeps an unsafe head whose L1 origin is after the L1 head, where it may yet be
+/// canonical.
+#[tokio::test]
+async fn reset_keeps_an_unsafe_head_whose_l1_origin_is_after_the_l1_head() {
+    let mut config = (*config()).clone();
+    config.genesis.l1 = BlockNumHash { number: 5, hash: B256::repeat_byte(5) };
+    let config = Arc::new(config);
+    let (clients, l2) = clients(config.clone());
+    expect_reset(&l2, Duration::ZERO);
+    let (mut actor, _) =
+        actor(clients, config.clone(), EngineState::default(), Arc::new(NoopBlockSink));
+
+    actor.reset().await.unwrap();
+
+    assert_eq!(actor.state.unsafe_head().block_info.hash, config.genesis.l2.hash);
+    l2.assert_finished();
+}
+
+/// A reset walks back from an unsafe head whose L1 origin L1 reorged out, though L1 can still
+/// serve the origin by hash.
+#[tokio::test]
+async fn reset_walks_back_from_an_unsafe_head_whose_l1_origin_was_reorged_out() {
+    let config = config();
+    // The canonical L1 block at the origin's height is another block.
+    let other = BlockInfo { hash: B256::repeat_byte(9), ..Default::default() };
+    let (clients, l2) = clients_on_l1(config.clone(), &[other]);
+    for _ in 0..3 {
+        l2.expect("eth_getBlockByNumber", L2Block::default());
+    }
+    // The genesis block has no parent to walk back to.
+    l2.expect("eth_getBlockByHash", Option::<L2Block>::None);
+    let (mut actor, _) = actor(clients, config, EngineState::default(), Arc::new(NoopBlockSink));
+
+    assert!(matches!(
+        actor.reset().await,
+        Err(ActorError::EngineReset(EngineResetError::SyncStart(SyncStartError::BlockNotFound(_))))
+    ));
     l2.assert_finished();
 }
 
@@ -526,16 +544,12 @@ async fn consolidation_skips_attributes_derived_before_a_reset() {
 #[tokio::test]
 async fn reset_forgets_the_safe_head_source() {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
-    expect_reset(&l1, &l2, Duration::ZERO);
+    let (clients, l2) = clients(config.clone());
+    expect_reset(&l2, Duration::ZERO);
     // The second reset finds the same heads, so it sends no forkchoice update.
     for _ in 0..3 {
         l2.expect("eth_getBlockByNumber", L2Block::default());
     }
-    l1.expect(
-        "eth_getBlockByHash",
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-    );
     let (mut actor, _) = actor(clients, config, EngineState::default(), Arc::new(NoopBlockSink));
 
     actor.reset().await.unwrap();
@@ -544,14 +558,13 @@ async fn reset_forgets_the_safe_head_source() {
     actor.reset().await.unwrap();
 
     assert_eq!(actor.state.safe_head_source(), None);
-    l1.assert_finished();
     l2.assert_finished();
 }
 
 #[tokio::test]
 async fn inserted_blocks_are_handed_to_the_block_sink() {
     let (payload, config) = genesis_payload();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     l2.expect("engine_newPayloadV1", valid());
     l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
@@ -564,7 +577,6 @@ async fn inserted_blocks_are_handed_to_the_block_sink() {
         &[(config.genesis.l2.hash, 0)],
         "a successfully imported block must reach the sink"
     );
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -574,7 +586,7 @@ async fn inserted_blocks_are_handed_to_the_block_sink() {
 #[tokio::test]
 async fn insert_drops_rejected_payloads(#[case] status: PayloadStatusEnum) {
     let (payload, config) = genesis_payload();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     l2.expect("engine_newPayloadV1", PayloadStatus::from_status(status));
     let sink = Arc::new(RecordingSink::default());
     let (mut actor, _) = actor(clients, config, EngineState::default(), sink.clone());
@@ -582,7 +594,6 @@ async fn insert_drops_rejected_payloads(#[case] status: PayloadStatusEnum) {
     actor.handle_insert(payload).await.unwrap();
     assert_eq!(actor.state, EngineState::default());
     assert!(sink.0.lock().unwrap().is_empty(), "a rejected block must not reach the sink");
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -646,7 +657,7 @@ async fn build_variants(
     let mut cfg = RollupConfig::default();
     cfg.hardforks.ecotone_time = Some(0);
     let cfg = Arc::new(cfg);
-    let (clients, l1, l2) = clients(cfg.clone());
+    let (clients, l2) = clients(cfg.clone());
     if let Some(status) = fcu_status {
         l2.expect("engine_forkchoiceUpdatedV3", fcu_for_payload(payload_id, status));
     } else {
@@ -674,7 +685,6 @@ async fn build_variants(
         assert!(payload_id.is_some(), "Payload id none when it should be some.");
         assert_eq!(result.unwrap(), payload_id.unwrap(), "Should return the correct payload ID");
     }
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -682,7 +692,7 @@ async fn build_variants(
 #[tokio::test]
 async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
     let config = Arc::new(RollupConfig::default());
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let state = TestEngineStateBuilder::new()
         .with_unsafe_head(test_block_info(1))
         .with_finalized_head(test_block_info(2))
@@ -691,7 +701,6 @@ async fn build_rejects_an_unsafe_head_behind_the_finalized_head() {
 
     let result = simplify(actor.start_build(TestAttributesBuilder::new().build()).await);
     assert_eq!(result, Err(BuildErr::FinalizedAheadOfUnsafe));
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -714,7 +723,7 @@ async fn seal_publishes_the_new_unsafe_head_before_replying() {
     let OpExecutionPayloadEnvelope::V1(payload_v1) = payload else {
         unreachable!("the genesis payload is a V1 payload")
     };
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
     l2.expect(
         "engine_getPayloadV2",
@@ -737,7 +746,6 @@ async fn seal_publishes_the_new_unsafe_head_before_replying() {
     // The seal handler published the new unsafe head itself, before replying.
     assert!(state_rx.has_changed().unwrap());
     assert_eq!(state_rx.borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -787,7 +795,7 @@ async fn unsafe_head_check_variants(
     let state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
 
     let cfg = Arc::new(RollupConfig::default());
-    let (clients, l1, l2) = clients(cfg.clone());
+    let (clients, l2) = clients(cfg.clone());
     let payload_id = PayloadId::new([1u8; 8]);
     if sealing == Sealing::Reorg {
         l2.expect(
@@ -808,7 +816,6 @@ async fn unsafe_head_check_variants(
         },
     };
     assert_eq!(classify(&result.expect_err("seal should fail against the mock")), expected);
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -830,7 +837,7 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
         },
         ..Default::default()
     });
-    let (clients, l1, l2) = clients(cfg.clone());
+    let (clients, l2) = clients(cfg.clone());
     l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
     let safe_l2 = L2BlockInfo {
         block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
@@ -844,7 +851,6 @@ async fn consolidated_blocks_are_handed_to_the_block_sink() {
     actor.handle_follow_safe_head(safe_l2).await.unwrap();
 
     assert_eq!(sink.0.lock().unwrap().as_slice(), &[(block_hash, 0)]);
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -868,7 +874,7 @@ async fn consolidation_makes_a_matching_unsafe_block_safe(#[case] is_last_in_spa
         },
         ..Default::default()
     });
-    let (clients, l1, l2) = clients(cfg.clone());
+    let (clients, l2) = clients(cfg.clone());
     l2.expect("eth_getBlockByNumber", block);
     if is_last_in_span {
         l2.expect(
@@ -895,7 +901,6 @@ async fn consolidation_makes_a_matching_unsafe_block_safe(#[case] is_last_in_spa
 
     assert_eq!(actor.state.safe_head().block_info.hash, block_hash);
     assert_eq!(actor.state.safe_head_source(), Some(source));
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -909,7 +914,7 @@ async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
     #[case] unsafe_head_ahead: bool,
 ) {
     let config = Arc::new(RollupConfig::default());
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let safe_head = test_block_info(1);
     let unsafe_head = if unsafe_head_ahead { test_block_info(2) } else { safe_head };
     if unsafe_head_ahead {
@@ -937,7 +942,6 @@ async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
 
     assert_eq!(actor.state.unsafe_head(), safe_head);
     assert_eq!(actor.state.safe_head(), safe_head);
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -946,14 +950,13 @@ async fn delegated_safe_head_is_applied_when_the_unsafe_chain_lacks_it(
 #[tokio::test]
 async fn finalize_drops_a_block_that_is_not_safe() {
     let config = config();
-    let (clients, l1, l2) = clients(config.clone());
+    let (clients, l2) = clients(config.clone());
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(2)).build();
     let (mut actor, _) = actor(clients, config, state, Arc::new(NoopBlockSink));
 
     actor.handle_finalize(FinalizeBlockId::ByNumber(3)).await.unwrap();
 
     assert_eq!(actor.state, state);
-    l1.assert_finished();
     l2.assert_finished();
 }
 
@@ -970,7 +973,7 @@ async fn finalize_by_hash_errors_when_engine_lacks_hash() {
     let hash_b = b256!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 
     let cfg = Arc::new(RollupConfig::default());
-    let (clients, l1, l2) = clients(cfg.clone());
+    let (clients, l2) = clients(cfg.clone());
     l2.expect_params(
         "eth_getBlockByHash",
         serde_json::json!([hash_b, true]),
@@ -1003,6 +1006,5 @@ async fn finalize_by_hash_errors_when_engine_lacks_hash() {
          the engine lacks the requested hash; instead, finalization either succeeded (finalizing the \
          wrong block) or surfaced a different error."
     );
-    l1.assert_finished();
     l2.assert_finished();
 }

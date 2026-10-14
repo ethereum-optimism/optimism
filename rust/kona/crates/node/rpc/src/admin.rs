@@ -149,7 +149,8 @@ mod tests {
         engine::Builder::new(engine::Capacity::try_from(1).unwrap()).handle()
     }
 
-    /// Returns an engine whose execution and L1 clients complete one reset.
+    /// Returns an engine whose execution client completes one reset, on an L1 chain that holds
+    /// only the L1 origin of the genesis block.
     fn resetting_engine()
     -> (engine::Handle, impl Future<Output = Result<(), engine::ActorError>> + Send + 'static) {
         let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
@@ -158,22 +159,27 @@ mod tests {
         config.genesis.l2.hash = block.header.inner.hash_slow();
         let config = Arc::new(config);
         let (client, l2) = test_engine_api(config.clone());
-        let l1 = RpcMock::default();
         for _ in 0..3 {
             l2.expect("eth_getBlockByNumber", &block);
         }
-        l1.expect(
-            "eth_getBlockByHash",
-            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-        );
         l2.expect(
             "engine_forkchoiceUpdatedV3",
             ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
         );
+        // The genesis block's L1 origin is the default L1 block, which the L1 chain starts at.
+        let l1 = kona_node_actors::l1::Builder::new(
+            kona_sources::UntrustedRpc::new(RpcMock::default().provider())
+                .retrying(Duration::from_secs(1)),
+            BlockInfo::default(),
+        );
         let builder = engine::Builder::new(engine::Capacity::try_from(1).unwrap());
         let handle = builder.handle();
-        let task = builder.build(Arc::new(client), l1.provider(), config, Arc::new(NoopBlockSink));
-        (handle, task)
+        let engine = builder.build(Arc::new(client), l1.handle(), config, Arc::new(NoopBlockSink));
+        // The L1 chain lasts as long as the engine.
+        (handle, async move {
+            let _l1 = l1;
+            engine.await
+        })
     }
 
     #[derive(Debug)]

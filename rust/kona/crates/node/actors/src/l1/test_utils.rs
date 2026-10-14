@@ -109,6 +109,15 @@ impl TestChain {
         Handle::new(self.0.subscribe(), UntrustedRpc::new(history).retrying(RETRY_DELAY))
     }
 
+    /// Returns a handle to a chain of `blocks` that never changes, and never stops. The handle must
+    /// not read blocks before the finalized block.
+    pub(crate) fn fixed(blocks: &[BlockInfo]) -> Handle {
+        let chain = Self::new(blocks);
+        let handle = chain.handle();
+        std::mem::forget(chain);
+        handle
+    }
+
     /// Returns a handle to the chain, which must not read blocks before the finalized block.
     pub(crate) fn handle(&self) -> Handle {
         self.handle_with_history(RootProvider::new(RpcClient::mocked(Asserter::new())))
