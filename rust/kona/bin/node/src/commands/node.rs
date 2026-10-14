@@ -3,12 +3,11 @@
 use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
-        ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, LogArgs, P2PArgs, RpcArgs,
-        SequencerArgs,
+        ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, LogArgs, MetricsArgs,
+        P2PArgs, RpcArgs, SequencerArgs,
     },
 };
 use clap::Parser;
-use kona_cli::MetricsArgs;
 use kona_node_service::{
     RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
@@ -30,7 +29,7 @@ use tracing::{debug, error, info};
 ///
 /// Configuration can be provided through:
 /// - Command-line arguments
-/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_METRICS_` for the metrics flags)
+/// - Environment variables (prefixed with `KONA_NODE_`)
 /// - Configuration files (for rollup config)
 ///
 /// # Examples
@@ -100,7 +99,7 @@ impl NodeCommand {
 
     /// Initializes CLI metrics for the Node subcommand.
     pub fn init_cli_metrics(&self) -> anyhow::Result<()> {
-        if !self.metrics.is_enabled() {
+        if !self.metrics.enabled {
             debug!("CLI metrics are disabled");
             return Ok(());
         }
@@ -191,7 +190,7 @@ impl NodeCommand {
         );
 
         // If metrics are enabled, initialize the global cli metrics.
-        self.metrics.is_enabled().then(|| init_rollup_config_metrics(&config.chain.rollup_config));
+        self.metrics.enabled.then(|| init_rollup_config_metrics(&config.chain.rollup_config));
 
         let clients = RollupNodeClients::connect(&endpoints)?;
         let Err(error) = RollupNode::new(config, clients).start().await else {

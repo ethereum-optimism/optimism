@@ -1,6 +1,6 @@
 //! Flags that enable a feature.
 
-/// Parses the value of a flag that enables a feature, such as `--metrics.enabled`, from its
+/// Parses the value of a flag that enables a feature, such as `--sequencer.enabled`, from its
 /// environment variable.
 ///
 /// Declare such a flag with `action = ArgAction::Set`, `num_args = 0`,

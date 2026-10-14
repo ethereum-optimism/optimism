@@ -5,9 +5,6 @@
 mod log;
 pub use log::{LogArgs, LogLevel};
 
-mod metrics;
-pub use metrics::MetricsArgs;
-
 mod enabled;
 pub use enabled::parse_enabled;
 
@@ -28,7 +25,7 @@ mod tests {
 
     #[test]
     fn shared_flags_read_the_environment_variables_named_after_them() {
-        let command = MetricsArgs::augment_args(LogArgs::augment_args(Command::new("test")));
+        let command = LogArgs::augment_args(Command::new("test"));
         let mismatches: Vec<_> = command
             .get_arguments()
             .filter_map(|arg| {

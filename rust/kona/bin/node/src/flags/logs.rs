@@ -11,6 +11,7 @@ use kona_cli::{LogConfig, LogFormat, LogLevel, StdoutLogConfig};
 pub struct LogArgs {
     /// Print logs to stdout. Disabled by default.
     #[arg(
+        id = "logs_enabled",
         long = "logs.enabled",
         env = "KONA_NODE_LOGS_ENABLED",
         action = ArgAction::Set,

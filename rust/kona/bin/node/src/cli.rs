@@ -160,7 +160,7 @@ mod tests {
         assert_eq!(node.log_args.level, kona_cli::LogLevel::Debug);
         assert_eq!(node.chain.l2_chain_id.unwrap().id(), 8453);
         assert_eq!(node.chain.overrides.karst, Some(123));
-        assert!(node.metrics.is_enabled());
+        assert!(node.metrics.enabled);
 
         // The flags belong to the node subcommand, so they cannot precede it.
         let err = Cli::try_parse_from(
@@ -172,11 +172,7 @@ mod tests {
 
     #[test]
     fn node_flags_read_the_environment_variables_named_after_them() {
-        use clap::{Args, CommandFactory};
-
-        // kona-cli's shared flags follow its own rule, which it tests.
-        let shared = kona_cli::MetricsArgs::augment_args(clap::Command::new("shared"));
-        let shared: Vec<_> = shared.get_arguments().filter_map(|arg| arg.get_long()).collect();
+        use clap::CommandFactory;
 
         let cli = Cli::command();
         let node = cli.find_subcommand("node").unwrap();
@@ -184,7 +180,7 @@ mod tests {
             .get_arguments()
             .filter_map(|arg| {
                 let long = arg.get_long()?;
-                if long == "help" || shared.contains(&long) {
+                if long == "help" {
                     return None;
                 }
                 let expected = kona_cli::env_var_for_flag("KONA_NODE_", long);

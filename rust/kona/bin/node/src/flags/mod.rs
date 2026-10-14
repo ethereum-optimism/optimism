@@ -16,7 +16,7 @@ mod logs;
 pub use logs::LogArgs;
 
 mod metrics;
-pub use metrics::init_unified_metrics;
+pub use metrics::{MetricsArgs, init_unified_metrics};
 
 mod sequencer;
 pub use sequencer::SequencerArgs;

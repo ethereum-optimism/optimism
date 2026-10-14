@@ -51,11 +51,13 @@ to view debug logs from only `discv5` and `libp2p` targets.
 ## Metrics
 
 The `kona-node` can serve Prometheus metrics, which are disabled
-by default. To turn them on, pass the `--metrics.enabled` cli flag.
+by default. To turn them on, pass the `--metrics.enabled` cli flag, or set
+`KONA_NODE_METRICS_ENABLED=true`.
 
 Unless otherwise specified with the `--metrics.port` flag, metrics
-are exposed on port `9090`. `--metrics.port` and `--metrics.addr` require
-`--metrics.enabled`, and `KONA_METRICS_ENABLED` must be `true` or unset.
+are exposed on port `9090`. `--metrics.port` and `--metrics.addr` apply only
+while metrics are enabled, so `--metrics.enabled=false` turns metrics off
+without unsetting them.
 
 To grab a snapshot of the metrics, you can visit `0.0.0.0:9090`
 or `curl` the url.

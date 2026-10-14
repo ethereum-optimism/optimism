@@ -142,6 +142,16 @@ A node run with `--sequencer.enabled` can sequence. It requires a block signer: 
 | `--logs.level <LEVEL>` | `KONA_NODE_LOGS_LEVEL` | The most detailed level to log: `error`, `warn`, `info`, `debug` or `trace` | `info` |
 | `--logs.format <FORMAT>` | `KONA_NODE_LOGS_FORMAT` | The format of the logs: `full`, `json`, `pretty`, `compact` or `logfmt` | `full` |
 
+## Metrics Arguments
+
+<Unreleased component="kona-node" />
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--metrics.enabled[=<BOOL>]` | `KONA_NODE_METRICS_ENABLED` | Serve Prometheus metrics. The flag alone means `true` | `false` |
+| `--metrics.addr <IP>` | `KONA_NODE_METRICS_ADDR` | The IP address to serve metrics on. Ignored while metrics are disabled | `0.0.0.0` |
+| `--metrics.port <PORT>` | `KONA_NODE_METRICS_PORT` | The port to serve metrics on. Ignored while metrics are disabled | `9090` |
+
 ## RPC Response Verification
 
 `kona-node` does not trust the L1 RPC: every L1 header and block it fetches by hash is checked
@@ -162,8 +172,7 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
   printed to stdout.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
-  configurable via the `--metrics.port` and `--metrics.addr` flags, which
-  require `--metrics.enabled`.
+  configurable via the `--metrics.port` and `--metrics.addr` flags.
 
 ## Rollup Configuration Loading
 
