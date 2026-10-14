@@ -4,7 +4,7 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/flags.go#L233-L265
 
-use super::signer::{SignerArgs, SignerKeyError};
+use super::signer::{SignerArgs, SignerError};
 use clap::{ArgAction, Parser};
 use kona_node_service::SequencerConfig;
 use std::time::Duration;
@@ -73,9 +73,9 @@ pub enum SequencerFlagsError {
          --sequencer.signer.url with --sequencer.signer.address"
     )]
     NoBlockSigner,
-    /// The block signer's key could not be read.
+    /// The block signer's flags are inconsistent, or its key could not be read.
     #[error(transparent)]
-    SignerKey(#[from] SignerKeyError),
+    Signer(#[from] SignerError),
 }
 
 impl SequencerArgs {
@@ -103,60 +103,26 @@ mod tests {
     use std::collections::BTreeSet;
 
     const ADDRESS: &str = "0x0000000000000000000000000000000000000001";
-    const LOCAL: [&str; 3] = ["--sequencer.enabled", "--sequencer.signer.key-path", "/key"];
-    const REMOTE: [&str; 5] = [
-        "--sequencer.enabled",
-        "--sequencer.signer.url",
-        "http://127.0.0.1:8080",
-        "--sequencer.signer.address",
-        ADDRESS,
-    ];
-
-    /// Each sequencer flag other than `--sequencer.enabled`, with a valid value, and the flags that
-    /// complete it.
-    const SEQUENCER_FLAGS: [(&str, &str, &[&str]); 10] = [
-        ("sequencer.signer.key-path", "/key", &["--sequencer.enabled"]),
-        ("sequencer.signer.url", "http://127.0.0.1:8080", &REMOTE),
-        ("sequencer.signer.address", ADDRESS, &REMOTE),
-        ("sequencer.signer.header", "a=b", &REMOTE),
-        ("sequencer.signer.tls.ca-path", "/ca.pem", &REMOTE),
-        (
-            "sequencer.signer.tls.cert-path",
-            "/cert.pem",
-            &[
-                "--sequencer.enabled",
-                "--sequencer.signer.url",
-                "http://127.0.0.1:8080",
-                "--sequencer.signer.address",
-                ADDRESS,
-                "--sequencer.signer.tls.key-path",
-                "/key.pem",
-            ],
-        ),
-        (
-            "sequencer.signer.tls.key-path",
-            "/key.pem",
-            &[
-                "--sequencer.enabled",
-                "--sequencer.signer.url",
-                "http://127.0.0.1:8080",
-                "--sequencer.signer.address",
-                ADDRESS,
-                "--sequencer.signer.tls.cert-path",
-                "/cert.pem",
-            ],
-        ),
-        ("sequencer.l1-confs", "2", &LOCAL),
-        ("sequencer.conductor.url", "http://127.0.0.1:4", &LOCAL),
-        ("sequencer.conductor.timeout", "500ms", &LOCAL),
+    /// Each sequencer flag other than `--sequencer.enabled`, with a valid value.
+    const SEQUENCER_FLAGS: [(&str, &str); 10] = [
+        ("sequencer.signer.key-path", "/key"),
+        ("sequencer.signer.url", "http://127.0.0.1:8080"),
+        ("sequencer.signer.address", ADDRESS),
+        ("sequencer.signer.header", "a=b"),
+        ("sequencer.signer.tls.ca-path", "/ca.pem"),
+        ("sequencer.signer.tls.cert-path", "/cert.pem"),
+        ("sequencer.signer.tls.key-path", "/key.pem"),
+        ("sequencer.l1-confs", "2"),
+        ("sequencer.conductor.url", "http://127.0.0.1:4"),
+        ("sequencer.conductor.timeout", "500ms"),
     ];
 
     fn parse(args: &[&str]) -> Result<SequencerArgs, clap::Error> {
         SequencerArgs::try_parse_from(std::iter::once("node").chain(args.iter().copied()))
     }
 
-    /// The sequencer's flags apply only with `--sequencer.enabled`: without it, each parses and the
-    /// node cannot sequence.
+    /// The sequencer's flags apply only with `--sequencer.enabled`: without it, they are not
+    /// checked, alone or together, and the node cannot sequence.
     #[test]
     fn sequencer_flags_are_ignored_without_the_sequencer() {
         let command = SequencerArgs::command();
@@ -165,18 +131,17 @@ mod tests {
             .filter_map(|arg| arg.get_long())
             .filter(|flag| *flag != "sequencer.enabled")
             .collect();
-        let listed: BTreeSet<_> = SEQUENCER_FLAGS.iter().map(|(flag, ..)| *flag).collect();
+        let listed: BTreeSet<_> = SEQUENCER_FLAGS.iter().map(|(flag, _)| *flag).collect();
         assert_eq!(flags, listed, "list each new sequencer flag in SEQUENCER_FLAGS");
 
-        for (flag, value, completion) in SEQUENCER_FLAGS {
-            let flag = format!("--{flag}");
-            let mut args: Vec<_> =
-                completion.iter().copied().filter(|arg| *arg != "--sequencer.enabled").collect();
-            if !args.contains(&flag.as_str()) {
-                args.extend([flag.as_str(), value]);
-            }
-            let sequencer = parse(&args).unwrap_or_else(|error| panic!("{flag}: {error}"));
-            assert!(sequencer.config().unwrap().is_none(), "{flag}");
+        let args: Vec<_> = SEQUENCER_FLAGS
+            .iter()
+            .map(|(flag, value)| [format!("--{flag}"), value.to_string()])
+            .collect();
+        for args in args.iter().map(std::slice::from_ref).chain([&args[..]]) {
+            let args: Vec<_> = args.iter().flatten().map(String::as_str).collect();
+            let sequencer = parse(&args).unwrap_or_else(|error| panic!("{args:?}: {error}"));
+            assert!(sequencer.config().unwrap().is_none(), "{args:?}");
         }
     }
 

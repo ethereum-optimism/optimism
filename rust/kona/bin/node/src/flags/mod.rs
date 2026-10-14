@@ -24,7 +24,7 @@ pub use sequencer::{SequencerArgs, SequencerFlagsError};
 mod signer;
 #[cfg(test)]
 pub(crate) use signer::test_utils as signer_test_utils;
-pub use signer::{RemoteSignerArgs, SignerArgs, SignerHeader, SignerKeyError};
+pub use signer::{RemoteSignerArgs, SignerArgs, SignerError, SignerHeader};
 
 mod engine;
 pub use engine::{DerivationDelegateArgs, L1ClientArgs, L2ClientArgs};
