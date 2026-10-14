@@ -6,9 +6,13 @@
 //! processed, its canonical child, or the news that it was reorged out. Every consumer sees the
 //! actor's one view of L1. Blocks before the finalized block cannot reorg, so the handle reads them
 //! from L1.
+//!
+//! The actor and its handles read L1 through a [`RetryingRpc`](kona_sources::RetryingRpc): every
+//! block is checked to hash to its header and to be the block asked for, and a read that fails is
+//! retried until it succeeds. The node can do little without L1, so the actor waits for it rather
+//! than failing.
 
 mod actor;
-pub use actor::ActorError;
 
 mod builder;
 pub use builder::{Builder, Config};

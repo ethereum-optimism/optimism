@@ -19,6 +19,9 @@ pub use signer::{
     RemoteSignerError, RemoteSignerHandler, RemoteSignerStartError,
 };
 
+mod untrusted_rpc;
+pub use untrusted_rpc::{RetryingRpc, UntrustedRpc, UntrustedRpcError};
+
 mod tls;
 pub use tls::{
     CertificateError, ClientCert, ReloadingRpcClient, ReloadingRpcClientError, TlsPaths,

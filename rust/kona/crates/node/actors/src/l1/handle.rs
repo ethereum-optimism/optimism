@@ -5,9 +5,8 @@ use super::{
     rpc::block_info,
 };
 use alloy_eips::BlockNumHash;
-use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{TransportError, TransportErrorKind};
 use kona_protocol::BlockInfo;
+use kona_sources::RetryingRpc;
 use thiserror::Error;
 use tokio::sync::watch;
 
@@ -31,32 +30,27 @@ pub struct Status {
     pub finalized: BlockInfo,
 }
 
-/// A failed question to the L1 actor.
-#[derive(Debug, Error)]
-pub enum HandleError {
-    /// The L1 actor stopped.
-    #[error("the L1 actor stopped")]
-    Stopped,
-    /// A block before the finalized block could not be read from L1.
-    #[error("failed to read a finalized L1 block")]
-    Rpc(#[from] TransportError),
-}
+/// The L1 actor stopped.
+#[derive(Debug, Clone, Copy, Error)]
+#[error("the L1 actor stopped")]
+pub struct HandleError;
 
 /// Answers questions about L1 from the actor's chain.
 ///
 /// The actor holds the canonical chain from the latest finalized block to the head. Blocks before
-/// the finalized block cannot reorg, so the handle reads them from L1 by number. Methods that wait
-/// return when they can answer, and cancelling them loses nothing.
+/// the finalized block cannot reorg, so the handle reads them from L1 by number, waiting for as
+/// long as L1 cannot be read. Methods that wait return when they can answer, and cancelling them
+/// loses nothing.
 #[derive(Debug, Clone)]
 pub struct Handle {
     chain: watch::Receiver<Chain>,
-    history: RootProvider,
+    history: RetryingRpc,
 }
 
 impl Handle {
     /// Creates a handle that answers from `chain`, and reads blocks before the finalized block from
     /// `history`.
-    pub(super) const fn new(chain: watch::Receiver<Chain>, history: RootProvider) -> Self {
+    pub(super) const fn new(chain: watch::Receiver<Chain>, history: RetryingRpc) -> Self {
         Self { chain, history }
     }
 
@@ -80,7 +74,7 @@ impl Handle {
     pub async fn canonical(&self, number: u64) -> Result<Option<BlockInfo>, HandleError> {
         let height = self.chain()?.at(number);
         match height {
-            Height::Final => self.final_block(number).await.map(Some),
+            Height::Final => Ok(Some(self.final_block(number).await)),
             Height::Held(block) => Ok(Some(block)),
             Height::Ahead => Ok(None),
         }
@@ -97,7 +91,7 @@ impl Handle {
             if let Some(child) = self.try_child_of(block, 0).await? {
                 return Ok(child);
             }
-            chain.changed().await.map_err(|_| HandleError::Stopped)?;
+            chain.changed().await.map_err(|_| HandleError)?;
         }
     }
 
@@ -113,7 +107,7 @@ impl Handle {
             (chain.at(block.number), chain.at(block.number + 1), chain.head())
         };
         let canonical = match at_block {
-            Height::Final => self.final_block(block.number).await?,
+            Height::Final => self.final_block(block.number).await,
             Height::Held(canonical) => canonical,
             Height::Ahead => return Ok(None),
         };
@@ -121,7 +115,7 @@ impl Handle {
             return Ok(Some(Child::Reorged));
         }
         let child = match at_child {
-            Height::Final => self.final_block(block.number + 1).await?,
+            Height::Final => self.final_block(block.number + 1).await,
             Height::Held(child) => child,
             Height::Ahead => return Ok(None),
         };
@@ -130,7 +124,7 @@ impl Handle {
 
     /// Returns the actor's chain, or an error if the actor stopped.
     fn chain(&self) -> Result<watch::Ref<'_, Chain>, HandleError> {
-        self.chain.has_changed().map_err(|_| HandleError::Stopped)?;
+        self.chain.has_changed().map_err(|_| HandleError)?;
         Ok(self.chain.borrow())
     }
 
@@ -142,23 +136,23 @@ impl Handle {
             if let Some(answer) = answered {
                 return Ok(answer);
             }
-            chain.changed().await.map_err(|_| HandleError::Stopped)?;
+            chain.changed().await.map_err(|_| HandleError)?;
         }
     }
 
     /// Reads the canonical block at `number`, before the finalized block, from L1.
-    async fn final_block(&self, number: u64) -> Result<BlockInfo, HandleError> {
-        let block = self.history.get_block_by_number(number.into()).await?.ok_or_else(|| {
-            TransportErrorKind::custom_str(&format!("L1 has no finalized block {number}"))
-        })?;
-        Ok(block_info(&block))
+    async fn final_block(&self, number: u64) -> BlockInfo {
+        block_info(&self.history.header_at(number).await)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::l1::test_utils::{TestChain, block, chain as blocks};
+    use crate::l1::test_utils::{
+        TestChain, block, chain as blocks, child, descendants, genesis, rpc_block,
+    };
+    use alloy_provider::RootProvider;
     use alloy_rpc_client::RpcClient;
     use alloy_rpc_types_eth::Block;
     use alloy_transport::mock::Asserter;
@@ -167,18 +161,17 @@ mod tests {
 
     const WAIT: Duration = Duration::from_secs(1);
 
-    /// Returns a provider that answers with `blocks`, in order, and the RPC block for `info`.
-    fn history(blocks: &[BlockInfo]) -> RootProvider {
-        let responses = Asserter::new();
-        for info in blocks {
-            let mut block: Block = Block::default();
-            block.header.hash = info.hash;
-            block.header.inner.number = info.number;
-            block.header.inner.parent_hash = info.parent_hash;
-            block.header.inner.timestamp = info.timestamp;
-            responses.push_success(&block);
-        }
-        RootProvider::new(RpcClient::mocked(responses))
+    /// Returns the blocks of an L1 chain from genesis, which an RPC can serve, and a function
+    /// returning block `number` of them.
+    fn l1(count: usize) -> (Vec<BlockInfo>, impl Fn(u64) -> BlockInfo) {
+        let blocks = std::iter::once(genesis()).chain(descendants(&genesis(), count, 1));
+        let blocks: Vec<_> = blocks.collect();
+        (blocks.clone(), move |number| blocks[number as usize])
+    }
+
+    /// Returns a handle to `chain` that reads L1 from `responses`.
+    fn reading(chain: &TestChain, responses: &Asserter) -> Handle {
+        chain.handle_with_history(RootProvider::new(RpcClient::mocked(responses.clone())))
     }
 
     #[tokio::test(start_paused = true)]
@@ -222,40 +215,42 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn reads_blocks_before_the_finalized_block_from_l1() {
-        let chain = TestChain::new(&blocks(10..=12, 1));
-        let handle = chain.handle_with_history(history(&[
-            block(4, 1, 1),
-            block(4, 1, 1),
-            block(5, 1, 1),
-            block(4, 1, 1),
-        ]));
-        assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4, 1, 1)));
+        let (blocks, block) = l1(12);
+        let chain = TestChain::new(&blocks[10..]);
+        let responses = Asserter::new();
+        let handle = reading(&chain, &responses);
+        responses.push_success(&rpc_block(&block(4)));
+        assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4)));
+        responses.push_success(&rpc_block(&block(4)));
+        responses.push_success(&rpc_block(&block(5)));
         assert_eq!(
-            handle.try_child_of(block(4, 1, 1).id(), 0).await.unwrap(),
-            Some(Child::Block(block(5, 1, 1)))
+            handle.try_child_of(block(4).id(), 0).await.unwrap(),
+            Some(Child::Block(block(5)))
         );
         // A block that lost to a block L1 then finalized.
-        assert_eq!(
-            handle.try_child_of(block(4, 2, 2).id(), 0).await.unwrap(),
-            Some(Child::Reorged)
-        );
+        responses.push_success(&rpc_block(&block(4)));
+        let lost = child(&block(3), 2);
+        assert_eq!(handle.try_child_of(lost.id(), 0).await.unwrap(), Some(Child::Reorged));
         // The child of the block before the finalized block is the finalized block.
-        let handle = chain.handle_with_history(history(&[block(9, 1, 1)]));
+        responses.push_success(&rpc_block(&block(9)));
         assert_eq!(
-            handle.try_child_of(block(9, 1, 1).id(), 0).await.unwrap(),
-            Some(Child::Block(block(10, 1, 1)))
+            handle.try_child_of(block(9).id(), 0).await.unwrap(),
+            Some(Child::Block(block(10)))
         );
     }
 
     #[tokio::test(start_paused = true)]
-    async fn fails_when_l1_lacks_a_finalized_block() {
-        let chain = TestChain::new(&blocks(10..=12, 1));
+    async fn waits_for_l1_to_serve_a_block_before_the_finalized_block() {
+        let (blocks, block) = l1(12);
+        let chain = TestChain::new(&blocks[10..]);
         let responses = Asserter::new();
-        responses.push_success(&Option::<Block>::None);
+        let handle = reading(&chain, &responses);
+        // L1 is unreachable, then does not have the block, then serves a block that is not it.
         responses.push_failure_msg("L1 unavailable");
-        let handle = chain.handle_with_history(RootProvider::new(RpcClient::mocked(responses)));
-        assert!(matches!(handle.canonical(4).await, Err(HandleError::Rpc(_))));
-        assert!(matches!(handle.canonical(4).await, Err(HandleError::Rpc(_))));
+        responses.push_success(&Option::<Block>::None);
+        responses.push_success(&rpc_block(&block(5)));
+        responses.push_success(&rpc_block(&block(4)));
+        assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4)));
     }
 
     #[tokio::test(start_paused = true)]
@@ -306,12 +301,9 @@ mod tests {
         });
         tokio::task::yield_now().await;
         drop(chain);
-        assert!(matches!(waiting.await.unwrap(), Err(HandleError::Stopped)));
-        assert!(matches!(handle.status(), Err(HandleError::Stopped)));
-        assert!(matches!(
-            handle.try_child_of(block(4, 1, 1).id(), 0).await,
-            Err(HandleError::Stopped)
-        ));
-        assert!(matches!(handle.next_head(block(5, 1, 1)).await, Err(HandleError::Stopped)));
+        assert!(matches!(waiting.await.unwrap(), Err(HandleError)));
+        assert!(matches!(handle.status(), Err(HandleError)));
+        assert!(matches!(handle.try_child_of(block(4, 1, 1).id(), 0).await, Err(HandleError)));
+        assert!(matches!(handle.next_head(block(5, 1, 1)).await, Err(HandleError)));
     }
 }

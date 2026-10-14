@@ -25,7 +25,7 @@ use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, OpP2PApiServer, P2pRpc,
     RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
-use kona_sources::{BlockSignerHandler, EngineApi};
+use kona_sources::{BlockSignerHandler, EngineApi, UntrustedRpc};
 use std::{convert::Infallible, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
@@ -37,6 +37,9 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// arriving, and on a sequencer the two builders ask about different heads.
 const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
+
+/// How long the L1 actor waits before reading L1 again after a failed read.
+const L1_RETRY_DELAY: Duration = Duration::from_secs(1);
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
@@ -374,10 +377,12 @@ impl RollupNode {
         startup::validate_engine_jwt(&self.engine_api, ExponentialBuilder::default()).await?;
 
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
-        let l1_finalized = l1::finalized_block(&self.clients.l1)
-            .await
-            .map_err(RollupNodeError::L1FinalizedBlock)?;
-        let l1_builder = l1::Builder::new(self.clients.l1.clone(), l1_finalized);
+        // The L1 actor and the startup read share the L1 client: the read fails fast, and the actor
+        // retries until it can read L1.
+        let l1_rpc = UntrustedRpc::new(self.clients.l1.clone());
+        let l1_finalized =
+            l1::finalized_block(&l1_rpc).await.map_err(RollupNodeError::L1FinalizedBlock)?;
+        let l1_builder = l1::Builder::new(l1_rpc.retrying(L1_RETRY_DELAY), l1_finalized);
         let l1 = l1_builder.handle();
         let initial_signer = l1_signer_updater::signer_at_l1_head(
             &self.clients.l1,
@@ -499,7 +504,8 @@ impl RollupNode {
         }
         supervisor.spawn("network", network_actor);
         supervisor.spawn("discovery", discovery_actor);
-        supervisor.spawn("l1", l1_actor);
+        // The L1 actor runs until it is dropped: its output, `Infallible`, never exists.
+        supervisor.spawn("l1", async move { Err::<(), _>(l1_actor.await) });
         supervisor.spawn("l1_signer_updater", async move {
             signer_updater.await;
             Ok::<(), Infallible>(())

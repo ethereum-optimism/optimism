@@ -238,31 +238,25 @@ where
     /// origin instead.
     async fn wait_to_retry(&self) -> Result<Option<Derived>, ActorError> {
         let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        let child = match self.l1.try_child_of(origin.id()).await {
-            Ok(None) => {
+        let l1_stopped = |_: HandleError| ActorError::L1Stopped;
+        let child = match self.l1.try_child_of(origin.id()).await.map_err(l1_stopped)? {
+            None => {
                 debug!(target: "derivation", ?origin, "Waiting for L1 to extend the pipeline's origin");
-                self.l1.child_of(origin.id()).await
+                self.l1.child_of(origin.id()).await.map_err(l1_stopped)?
             }
-            Ok(Some(child)) => {
+            Some(child) => {
                 if let Child::Block(_) = child {
                     time::sleep(STEP_RETRY_INTERVAL).await;
                 }
-                Ok(child)
+                child
             }
-            Err(err) => Err(err),
         };
         match child {
-            Ok(Child::Block(_)) => Ok(None),
-            Ok(Child::Reorged) => {
+            Child::Block(_) => Ok(None),
+            Child::Reorged => {
                 warn!(target: "derivation", ?origin, "L1 reorged out the pipeline's origin");
                 metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
                 Ok(Some(Derived::ResetNeeded))
-            }
-            Err(HandleError::Stopped) => Err(ActorError::L1Stopped),
-            Err(err) => {
-                warn!(target: "derivation", ?err, "Failed to read L1; retrying");
-                time::sleep(STEP_RETRY_INTERVAL).await;
-                Ok(None)
             }
         }
     }

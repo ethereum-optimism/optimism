@@ -1,6 +1,7 @@
 //! The error [`RollupNode::start`](crate::RollupNode::start) returns.
 
 use alloy_transport::TransportError;
+use kona_sources::UntrustedRpcError;
 use std::{fmt, net::SocketAddr};
 
 /// The transport protocol of a P2P listener.
@@ -49,7 +50,7 @@ pub enum RollupNodeError {
     EngineCapabilityExchange(#[source] TransportError),
     /// The finalized L1 block, where the node's view of L1 starts, could not be read.
     #[error("failed to read the finalized L1 block")]
-    L1FinalizedBlock(#[source] TransportError),
+    L1FinalizedBlock(#[source] UntrustedRpcError),
     /// The unsafe block signer could not be read from L1.
     #[error("failed to read the unsafe block signer from L1")]
     UnsafeBlockSigner(#[source] TransportError),
