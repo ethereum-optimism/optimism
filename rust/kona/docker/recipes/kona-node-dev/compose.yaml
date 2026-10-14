@@ -92,6 +92,7 @@ services:
     command: >
       node
       --chain optimism-sepolia
+      --logs.enabled
       --metrics.enabled
       --metrics.port ${KONA_NODE_METRICS_PORT:-9002}
       --l1.eth-url ${L1_PROVIDER_RPC:?}

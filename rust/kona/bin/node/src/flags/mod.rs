@@ -12,6 +12,9 @@ pub use rpc::RpcArgs;
 mod overrides;
 pub use overrides::OverrideArgs;
 
+mod logs;
+pub use logs::LogArgs;
+
 mod metrics;
 pub use metrics::init_unified_metrics;
 

@@ -14,9 +14,13 @@ metrics into Grafana dashboards.
 
 <Unreleased component="kona-node" />
 
-`kona-node` sets the most detailed level it logs at with the `--logs.level`
-flag, or the `KONA_LOGS_LEVEL` environment variable. It applies to both stdout
-and file logs. From the least detailed to the most, the levels are:
+`kona-node` logs to stdout only, and only with `--logs.enabled`
+(`KONA_NODE_LOGS_ENABLED=true`). To keep its logs in a file, redirect stdout.
+`--logs.format` (`KONA_NODE_LOGS_FORMAT`) sets their format: `full` (the
+default), `json`, `pretty`, `compact` or `logfmt`.
+
+`--logs.level` (`KONA_NODE_LOGS_LEVEL`) sets the most detailed level it logs
+at. From the least detailed to the most, the levels are:
 
 - `error`: only error logs
 - `warn`: warning and error logs
@@ -25,7 +29,7 @@ and file logs. From the least detailed to the most, the levels are:
 - `trace`: very verbose logs that provide a detailed trace
 
 To log at the `debug` level, run the node like so:
-`kona-node node --logs.level debug`.
+`kona-node node --logs.enabled --logs.level debug`.
 
 ### Filtering Log Targets
 

@@ -20,6 +20,7 @@ To run a Kona node that can sequence, pass `--sequencer.enabled` and a block sig
 
 ```bash
 kona-node node \
+  --logs.enabled \
   --sequencer.enabled \
   --l1.eth-url=http://l1-node:8545 \
   --l1.beacon-url=http://l1-beacon:5052 \
@@ -71,6 +72,7 @@ The full flag catalogue, including the standard node arguments every node takes,
 ### Basic Sequencer
 ```bash
 kona-node node \
+  --logs.enabled \
   --sequencer.enabled \
   --l1.eth-url=http://localhost:8545 \
   --l1.beacon-url=http://localhost:5052 \
@@ -83,6 +85,7 @@ kona-node node \
 ### Sequencer with Conductor
 ```bash
 kona-node node \
+  --logs.enabled \
   --sequencer.enabled \
   --sequencer.conductor-url=http://conductor:8080 \
   --sequencer.l1-confs=6 \

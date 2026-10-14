@@ -130,6 +130,18 @@ A node run with `--sequencer.enabled` can sequence. It requires a block signer: 
 | `--sequencer.conductor-url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration | - |
 | `--sequencer.conductor-timeout-ms <MS>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS` | How long a conductor request may take before it fails and the sequencer tries again later | `1000` |
 
+## Logging Arguments
+
+<Unreleased component="kona-node" />
+
+`kona-node` logs to stdout only. Redirect stdout to keep its logs in a file.
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--logs.enabled[=<BOOL>]` | `KONA_NODE_LOGS_ENABLED` | Print logs to stdout. The flag alone means `true` | `false` |
+| `--logs.level <LEVEL>` | `KONA_NODE_LOGS_LEVEL` | The most detailed level to log: `error`, `warn`, `info`, `debug` or `trace` | `info` |
+| `--logs.format <FORMAT>` | `KONA_NODE_LOGS_FORMAT` | The format of the logs: `full`, `json`, `pretty`, `compact` or `logfmt` | `full` |
+
 ## RPC Response Verification
 
 `kona-node` does not trust the L1 RPC: every L1 header and block it fetches by hash is checked
@@ -146,6 +158,8 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
   UDP port `9223`. Peer scoring is enabled.
 - An RPC server is exposed at `127.0.0.1:9545`. Websocket connections
   are disabled by default.
+- Logs are disabled. Enable them with `--logs.enabled`; they are then
+  printed to stdout.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
   configurable via the `--metrics.port` and `--metrics.addr` flags, which

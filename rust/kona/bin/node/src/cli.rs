@@ -152,7 +152,7 @@ mod tests {
             "8453",
             "--chain.hardfork.karst",
             "123",
-            "--logs.stdout.format",
+            "--logs.format",
             "json",
             "--metrics.enabled",
         ];
@@ -175,9 +175,7 @@ mod tests {
         use clap::{Args, CommandFactory};
 
         // kona-cli's shared flags follow its own rule, which it tests.
-        let shared = kona_cli::MetricsArgs::augment_args(kona_cli::LogArgs::augment_args(
-            clap::Command::new("shared"),
-        ));
+        let shared = kona_cli::MetricsArgs::augment_args(clap::Command::new("shared"));
         let shared: Vec<_> = shared.get_arguments().filter_map(|arg| arg.get_long()).collect();
 
         let cli = Cli::command();

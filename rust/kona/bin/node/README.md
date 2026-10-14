@@ -28,6 +28,7 @@ The primary use case is running the consensus node with the `node` subcommand:
 
 ```bash
 kona-node node \
+  --logs.enabled \
   --chain 11155420 \
   --metrics.enabled \
   --metrics.port 9002 \
@@ -53,6 +54,7 @@ export L1_BEACON_API="https://your-l1-beacon-api-endpoint"
 
 # Run the node
 kona-node node \
+  --logs.enabled \
   --chain 11155420 \
   --metrics.enabled \
   --metrics.port 9002 \

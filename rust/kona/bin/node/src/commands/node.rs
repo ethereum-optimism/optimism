@@ -3,12 +3,12 @@
 use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
-        ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
+        ChainArgs, DerivationDelegateArgs, L1ClientArgs, L2ClientArgs, LogArgs, P2PArgs, RpcArgs,
         SequencerArgs,
     },
 };
 use clap::Parser;
-use kona_cli::{LogArgs, LogConfig, MetricsArgs};
+use kona_cli::MetricsArgs;
 use kona_node_service::{
     RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
@@ -30,8 +30,7 @@ use tracing::{debug, error, info};
 ///
 /// Configuration can be provided through:
 /// - Command-line arguments
-/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_LOGS_` and `KONA_METRICS_` for the
-///   logging and metrics flags)
+/// - Environment variables (prefixed with `KONA_NODE_`, or `KONA_METRICS_` for the metrics flags)
 /// - Configuration files (for rollup config)
 ///
 /// # Examples
@@ -95,7 +94,7 @@ impl NodeCommand {
         let filter = tracing_subscriber::EnvFilter::from_default_env()
             .add_directive("discv5=error".parse()?);
 
-        LogConfig::new(self.log_args.clone()).init_tracing_subscriber(Some(filter))?;
+        self.log_args.config().init_tracing_subscriber(Some(filter))?;
         Ok(())
     }
 
