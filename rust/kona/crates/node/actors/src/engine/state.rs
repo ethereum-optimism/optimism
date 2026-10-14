@@ -82,12 +82,6 @@ impl EngineState {
         }
     }
 
-    /// Returns whether any head is set, as it is once the initial forkchoice state is sent.
-    pub fn has_heads(&self) -> bool {
-        [self.unsafe_head, self.local_safe_head, self.safe_head, self.finalized_head] !=
-            [L2BlockInfo::default(); 4]
-    }
-
     /// Applies the update to the heads, keeping each head the update does not specify. Returns the
     /// new state, which forgets the safe head's source if the safe head changes.
     #[must_use]

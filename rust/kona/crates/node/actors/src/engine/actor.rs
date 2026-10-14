@@ -42,14 +42,16 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Creates the builder with the default engine state.
+    /// Creates the builder with the engine starting from `state`, the execution layer's heads as
+    /// [`execution_layer_state`](super::execution_layer_state) reads them. Its handles read those
+    /// heads until the engine's first reset replaces them.
     ///
     /// The request queue holds one request: a sender waits for room in it, and the network drops
     /// the unsafe blocks it receives over gossip while it is full.
-    pub fn new() -> Self {
+    pub fn new(state: EngineState) -> Self {
         let (messages_tx, messages_rx) = mpsc::channel(1);
-        let (state_tx, state_rx) = watch::channel(EngineState::default());
-        let (resets_tx, resets_rx) = watch::channel(EngineState::default());
+        let (state_tx, state_rx) = watch::channel(state);
+        let (resets_tx, resets_rx) = watch::channel(state);
         Self {
             handle: Handle::new(messages_tx, state_rx, resets_rx),
             messages_rx,
@@ -77,12 +79,6 @@ impl Builder {
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
         let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
         Actor::new(client, l1, rollup, block_sink, state_tx, resets_tx, messages_rx).run()
-    }
-}
-
-impl Default for Builder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -135,6 +131,9 @@ struct Actor {
     block_sink: Arc<dyn ImportedBlockSink>,
     /// The state of the engine. Operations update it, and it is published after every request.
     state: EngineState,
+    /// Whether the engine has sent the execution layer a forkchoice. It starts from the execution
+    /// layer's own heads, which it has not chosen until it sends them.
+    forkchoice_sent: bool,
     /// Publishes the state to handles.
     state_tx: watch::Sender<EngineState>,
     /// Publishes the state after each reset to handles.
@@ -155,7 +154,17 @@ impl Actor {
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let state = *state_tx.borrow();
-        Self { client, l1, config, block_sink, state, state_tx, resets_tx, messages_rx }
+        Self {
+            client,
+            l1,
+            config,
+            block_sink,
+            state,
+            forkchoice_sent: false,
+            state_tx,
+            resets_tx,
+            messages_rx,
+        }
     }
 
     async fn run(mut self) -> Result<(), ActorError> {
@@ -239,10 +248,10 @@ impl Actor {
 
     /// Returns whether the execution layer is synced, by sending it the current forkchoice again.
     ///
-    /// With no heads, no forkchoice has been sent, and the execution layer is taken to be syncing.
-    /// A rejected forkchoice counts as synced, because a reset replaces it.
+    /// Before the engine has sent a forkchoice, the execution layer is taken to be syncing. A
+    /// rejected forkchoice counts as synced, because a reset replaces it.
     async fn el_synced(&self) -> bool {
-        if !self.state.has_heads() {
+        if !self.forkchoice_sent {
             return false;
         }
         match self.update_forkchoice(self.state.create_forkchoice_state()).await {
@@ -621,7 +630,7 @@ impl Actor {
 
         // Check if a forkchoice update is not needed, return early.
         // A forkchoice update is not needed if...
-        // 1. Some head is set (initial forkchoice state has been emitted), and
+        // 1. A forkchoice has been sent, and
         // 2. The update changes no head.
         //
         // NOTE:
@@ -629,7 +638,7 @@ impl Actor {
         // here (except during consolidation, when the block is not the last in the batch, and
         // the safe head's source, which is not part of the forkchoice) - the engine would get
         // stuck retrying the forkchoice update.
-        if self.state.has_heads() && self.state == new_state {
+        if self.forkchoice_sent && self.state == new_state {
             debug!(target: "engine", ?new_state, "No forkchoice update needed");
             return Ok(());
         }
@@ -646,6 +655,7 @@ impl Actor {
         let forkchoice = new_state.create_forkchoice_state();
         self.update_forkchoice(forkchoice).await?;
         self.state = new_state;
+        self.forkchoice_sent = true;
         Ok(())
     }
 

@@ -1,6 +1,7 @@
 //! The error [`RollupNode::start`](crate::RollupNode::start) returns.
 
 use alloy_transport::TransportError;
+use kona_node_actors::engine::SyncStartError;
 use kona_sources::UntrustedRpcError;
 use std::{fmt, net::SocketAddr};
 
@@ -48,6 +49,9 @@ pub enum RollupNodeError {
     /// retries, such as the engine being unreachable or answering with an error.
     #[error("the engine capability exchange that checks the JWT secret failed")]
     EngineCapabilityExchange(#[source] TransportError),
+    /// The execution layer's heads, which the engine starts from, could not be read.
+    #[error("failed to read the execution layer's heads")]
+    L2Heads(#[source] SyncStartError),
     /// The finalized L1 block, where the node's view of L1 starts, could not be read.
     #[error("failed to read the finalized L1 block")]
     L1FinalizedBlock(#[source] UntrustedRpcError),

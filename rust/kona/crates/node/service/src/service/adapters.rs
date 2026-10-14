@@ -226,7 +226,7 @@ mod tests {
 
     #[tokio::test]
     async fn engine_reports_a_closed_queue() {
-        let builder = engine::Builder::new();
+        let builder = engine::Builder::new(EngineState::default());
         let mut engine = Engine::new(builder.handle());
         drop(builder);
         assert!(matches!(

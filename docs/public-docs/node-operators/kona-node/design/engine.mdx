@@ -48,7 +48,7 @@ Each operation updates the execution layer's forkchoice state with `engine_forkc
 - **`consolidate`** advances the safe chain with attributes derived from L1. If the unsafe block at that height matches the derived attributes, it becomes safe; otherwise the actor builds and seals the attributes, reorging the unsafe chain. Attributes that do not extend the safe head are skipped.
 - **`follow_safe_head`** follows a safe head supplied by the derivation delegate when derivation is delegated. If the unsafe block at that height matches it, that block becomes safe; otherwise it becomes the unsafe and safe head.
 - **`finalize`** finalizes an L2 block identified by number or hash. A request for a block above the safe head, which a reset can leave behind, is dropped.
-- **`reset`** finds a plausible sync starting point: it walks the unsafe head back until its L1 origin is the canonical L1 block at that height, or is after the L1 actor's head, where it may yet be. An origin L1 reorged out does not count, though L1 may still serve it by hash. The reset reorgs the execution layer to it, publishes the reset, and replies with the engine state. **`reset_if_el_synced`** first sends the current forkchoice again, and does the same only if the execution layer answers VALID; otherwise it is refused with `EngineClientError::ElSyncing`, so a reset never points a syncing execution layer back at its own stale heads. A forkchoice the execution layer rejects lets the reset proceed, because the reset replaces it. Before the engine has any heads, there is no forkchoice to send, and the reset is refused. Derivation starts with this reset.
+- **`reset`** finds a plausible sync starting point: it walks the unsafe head back until its L1 origin is the canonical L1 block at that height, or is after the L1 actor's head, where it may yet be. An origin L1 reorged out does not count, though L1 may still serve it by hash. The reset reorgs the execution layer to it, publishes the reset, and replies with the engine state. **`reset_if_el_synced`** first sends the current forkchoice again, and does the same only if the execution layer answers VALID; otherwise it is refused with `EngineClientError::ElSyncing`, so a reset never points a syncing execution layer back at its own stale heads. A forkchoice the execution layer rejects lets the reset proceed, because the reset replaces it. Before the engine has sent any forkchoice, there is none to send again, and the reset is refused. Derivation starts with this reset.
 
 After Holocene, a derived payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the consolidation's reply tells derivation to flush its channel.
 
@@ -74,7 +74,7 @@ The `kona-node` service layer integrates the engine through the engine actor in 
 
 ### Builder, Handle, and Actor
 
-`engine::Builder::new` creates the actor's bounded request queue and engine state publisher before any dependencies exist, so the node can give `engine::Handle` clones to derivation, the network, the sequencer, and the admin RPC before building the actor. `Builder::build` takes the Engine API client, rollup configuration, and imported block sink, and returns the actor's lifetime future. The node supervisor spawns that future; dropping it stops the actor.
+`engine::Builder::new` creates the actor's bounded request queue and engine state publisher before any dependencies exist, so the node can give `engine::Handle` clones to derivation, the network, the sequencer, and the admin RPC before building the actor. It takes the state the engine starts from: the execution layer's latest, safe and finalized blocks, which `engine::execution_layer_state` reads when the node starts. Handles read those heads from the start, so the node never reports empty heads, until the engine's first reset checks them against L1 and replaces them. The engine sends no forkchoice for them: until it sends one, it takes the execution layer to be syncing. `Builder::build` takes the Engine API client, rollup configuration, and imported block sink, and returns the actor's lifetime future. The node supervisor spawns that future; dropping it stops the actor.
 
 ### Communication Channels
 
@@ -93,8 +93,10 @@ The engine actor receives all state-mutating input through its handle: payload a
 let client =
     EngineApi::new(kona_sources::l2_provider(l2_engine_url, jwt_secret), rollup_config.clone());
 
-// Create the request queue and state publisher, and hand out handles.
-let builder = engine::Builder::new();
+// Start from the execution layer's heads, then create the request queue and state publisher,
+// and hand out handles.
+let state = engine::execution_layer_state(&rollup_config, &client).await?;
+let builder = engine::Builder::new(state);
 let handle = builder.handle();
 
 // Supply the dependencies and spawn the actor's lifetime future. A reset asks the L1 actor,
