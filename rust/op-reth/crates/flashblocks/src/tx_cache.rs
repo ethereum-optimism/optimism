@@ -45,6 +45,7 @@ use alloy_primitives::B256;
 use op_alloy_consensus::SDMGasEntry;
 use reth_primitives_traits::NodePrimitives;
 use reth_revm::db::BundleState;
+use tracing::trace;
 
 /// Cached block-level execution metadata for the stored transaction prefix.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -287,8 +288,16 @@ impl<N: NodePrimitives> TransactionCache<N> {
         }
 
         let prefix_entries =
-            post_exec_entries.iter().take_while(|entry| entry.index < prefix_len as u64).cloned();
-        if !prefix_entries.eq(self.execution_meta.post_exec_entries.iter().cloned()) {
+            post_exec_entries.iter().take_while(|entry| entry.index < prefix_len as u64);
+        if !prefix_entries.clone().eq(self.execution_meta.post_exec_entries.iter()) {
+            trace!(
+                target: "flashblocks",
+                block_number,
+                prefix_len,
+                cached_entries = self.execution_meta.post_exec_entries.len(),
+                incoming_prefix_entries = prefix_entries.count(),
+                "Cached prefix ran with different post-exec refunds, re-executing from scratch"
+            );
             return None;
         }
 
@@ -722,16 +731,30 @@ mod tests {
         assert!(miss.is_none());
     }
 
+    const fn entry(index: u64, gas_refund: u64) -> SDMGasEntry {
+        SDMGasEntry { index, gas_refund }
+    }
+
     /// Refunds settle into the cached prefix's receipts and balances, so a build may resume from it
     /// only when its refund entries for the prefix's indexes are exactly the ones the prefix ran
-    /// with. Entries for transactions after the prefix don't matter.
-    #[test]
-    fn test_cache_resumes_only_with_matching_prefix_refund_entries() {
+    /// with. Entries for transactions after the prefix don't matter. The cache holds one
+    /// transaction, so the prefix is index 0.
+    #[test_case::test_case(vec![entry(0, 1_000)], vec![entry(0, 1_000), entry(1, 500)], Some(1); "unchanged")]
+    #[test_case::test_case(vec![entry(0, 1_000)], vec![entry(0, 1_000)], Some(1); "suffix has no refund")]
+    #[test_case::test_case(vec![entry(0, 1_000)], vec![entry(0, 999), entry(1, 500)], None; "revised")]
+    #[test_case::test_case(vec![entry(0, 1_000)], vec![entry(1, 500)], None; "withdrawn")]
+    #[test_case::test_case(vec![entry(0, 1_000)], vec![], None; "no post-exec tx")]
+    #[test_case::test_case(vec![], vec![entry(1, 500)], Some(1); "first refund in suffix")]
+    #[test_case::test_case(vec![], vec![entry(0, 1_000)], None; "first refund in prefix")]
+    fn test_cache_resumes_only_with_matching_prefix_refund_entries(
+        cached: Vec<SDMGasEntry>,
+        incoming: Vec<SDMGasEntry>,
+        expected_skip: Option<usize>,
+    ) {
         let mut cache = TestCache::new();
         let tx_a = B256::repeat_byte(0xAA);
         let tx_b = B256::repeat_byte(0xBB);
         let parent = B256::repeat_byte(0x11);
-        let entry = |index, gas_refund| SDMGasEntry { index, gas_refund };
 
         cache.update_with_execution_meta_for_parent(
             100,
@@ -739,23 +762,16 @@ mod tests {
             vec![tx_a],
             BundleState::default(),
             vec![],
-            CachedExecutionMeta { post_exec_entries: vec![entry(0, 1_000)], ..Default::default() },
+            CachedExecutionMeta { post_exec_entries: cached, ..Default::default() },
         );
-        let lookup = |entries: &[SDMGasEntry]| {
-            cache
-                .get_resumable_state_with_execution_meta_for_parent(
-                    100,
-                    parent,
-                    &[tx_a, tx_b],
-                    entries,
-                )
-                .map(|(.., skip_count)| skip_count)
-        };
-
-        assert_eq!(lookup(&[entry(0, 1_000), entry(1, 500)]), Some(1), "prefix refund unchanged");
-        assert_eq!(lookup(&[entry(0, 1_000)]), Some(1), "suffix has no refund");
-        assert_eq!(lookup(&[entry(0, 999), entry(1, 500)]), None, "prefix refund revised");
-        assert_eq!(lookup(&[entry(1, 500)]), None, "prefix refund withdrawn");
-        assert_eq!(lookup(&[]), None, "build without a 0x7D cannot reuse a refunded prefix");
+        let skip = cache
+            .get_resumable_state_with_execution_meta_for_parent(
+                100,
+                parent,
+                &[tx_a, tx_b],
+                &incoming,
+            )
+            .map(|(.., skip_count)| skip_count);
+        assert_eq!(skip, expected_skip);
     }
 }

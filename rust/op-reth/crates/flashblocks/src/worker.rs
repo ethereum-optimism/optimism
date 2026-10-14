@@ -1053,10 +1053,14 @@ mod tests {
         );
     }
 
-    /// A revised refund for an already-streamed transaction invalidates the cached prefix, whose
-    /// state has the old refund settled into it, so the build re-executes from scratch.
-    #[test]
-    fn verify_build_re_executes_when_prefix_refund_revised() {
+    /// A cached prefix ran with its refunds settled into its state, so a build whose entries for
+    /// that prefix differ must re-execute from scratch: a revised refund for an already-streamed
+    /// transaction, or a newest subblock without a 0x7D (no refunds so far).
+    #[test_case::test_case(Some(vec![(0, 2_000), (1, 1_000)]); "prefix refund revised")]
+    #[test_case::test_case(None; "newest subblock without post-exec tx")]
+    fn refunded_prefix_is_not_reused_when_its_entries_change(
+        second_entries: Option<Vec<(u64, u64)>>,
+    ) {
         let f = RefundFixture::new();
         let block = f.base.block_number;
         let first_entries = [SDMGasEntry { index: 0, gas_refund: 1_000 }];
@@ -1070,17 +1074,14 @@ mod tests {
             &first_entries,
         );
 
-        let second_txs = vec![
-            f.tx_a.clone(),
-            f.tx_b.clone(),
-            post_exec_tx(
-                block,
-                vec![
-                    SDMGasEntry { index: 0, gas_refund: 2_000 },
-                    SDMGasEntry { index: 1, gas_refund: 1_000 },
-                ],
-            ),
-        ];
+        let mut second_txs = vec![f.tx_a.clone(), f.tx_b.clone()];
+        if let Some(entries) = second_entries {
+            let entries = entries
+                .into_iter()
+                .map(|(index, gas_refund)| SDMGasEntry { index, gas_refund })
+                .collect();
+            second_txs.push(post_exec_tx(block, entries));
+        }
         let second = f.build(second_txs.clone(), &mut tx_cache);
         assert_ne!(
             second.pending_state.execution_outcome.result.receipts[0]
@@ -1092,32 +1093,56 @@ mod tests {
         f.assert_matches_fresh(&second, second_txs);
     }
 
-    /// A newest subblock without a 0x7D means no refunds so far, so a prefix that ran with
-    /// refunds cannot be reused.
+    /// The common transition on a real stream: subblock 0 carries only deposits, which are never
+    /// refunded, so it has no 0x7D and its prefix is cached with no entries. The block's first
+    /// 0x7D then arrives with entries for the new transactions only, and that build resumes from
+    /// the refund-free prefix.
     #[test]
-    fn build_without_post_exec_re_executes_refunded_prefix() {
+    fn first_post_exec_build_resumes_from_refund_free_prefix() {
         let f = RefundFixture::new();
         let block = f.base.block_number;
-        let first_entries = [SDMGasEntry { index: 0, gas_refund: 1_000 }];
         let mut tx_cache = TransactionCache::<OpPrimitives>::new();
 
-        f.build(vec![f.tx_a.clone(), post_exec_tx(block, first_entries.to_vec())], &mut tx_cache);
+        f.build(vec![f.tx_a.clone()], &mut tx_cache);
         let tampered = tamper_cached_first_receipt(
             &mut tx_cache,
             &f.base,
             &[B256::from(*f.tx_a.1.tx_hash())],
-            &first_entries,
+            &[],
         );
 
-        let second_txs = vec![f.tx_a.clone(), f.tx_b.clone()];
-        let second = f.build(second_txs.clone(), &mut tx_cache);
-        assert_ne!(
+        let second = f.build(
+            vec![
+                f.tx_a.clone(),
+                f.tx_b.clone(),
+                post_exec_tx(block, vec![SDMGasEntry { index: 1, gas_refund: 1_000 }]),
+            ],
+            &mut tx_cache,
+        );
+        assert_eq!(
             second.pending_state.execution_outcome.result.receipts[0]
                 .as_receipt()
                 .cumulative_gas_used,
             tampered,
-            "the refunded prefix was not reused"
+            "the refund-free prefix came from the cache"
         );
+    }
+
+    /// Resuming the first 0x7D build from a refund-free prefix gives the same block as building
+    /// it from scratch, including the new transaction's refund.
+    #[test]
+    fn first_post_exec_build_from_refund_free_prefix_matches_fresh() {
+        let f = RefundFixture::new();
+        let block = f.base.block_number;
+        let mut tx_cache = TransactionCache::<OpPrimitives>::new();
+
+        f.build(vec![f.tx_a.clone()], &mut tx_cache);
+        let second_txs = vec![
+            f.tx_a.clone(),
+            f.tx_b.clone(),
+            post_exec_tx(block, vec![SDMGasEntry { index: 1, gas_refund: 1_000 }]),
+        ];
+        let second = f.build(second_txs.clone(), &mut tx_cache);
         f.assert_matches_fresh(&second, second_txs);
     }
 }
