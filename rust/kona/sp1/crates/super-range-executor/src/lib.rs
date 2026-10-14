@@ -772,6 +772,7 @@ where
     let oracle = Arc::new(PreimageWitnessCollector {
         preimage_oracle: preimage_oracle.clone(),
         preimage_witness_store: preimage_witness_store.clone(),
+        size_limit: None,
     });
     let beacon = OnlineBlobStore {
         provider: OracleBlobProvider::new(preimage_oracle),

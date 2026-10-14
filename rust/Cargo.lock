@@ -8126,6 +8126,7 @@ dependencies = [
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "parking_lot",
  "reqwest 0.13.2",
  "serde",
  "sp1-sdk",

@@ -10,6 +10,8 @@ use kona_preimage::{
 use kona_proof::FlushableCache;
 use kona_sp1_client_utils::witness::preimage_store::PreimageStore;
 
+use super::WitnessSizeLimit;
+
 /// A [`PreimageOracleClient`] that collects preimages into a witness store as they are requested.
 #[derive(Clone, Debug)]
 pub struct PreimageWitnessCollector<P: CommsClient + FlushableCache + Send + Sync + Clone> {
@@ -17,6 +19,8 @@ pub struct PreimageWitnessCollector<P: CommsClient + FlushableCache + Send + Syn
     pub preimage_oracle: Arc<P>,
     /// The preimage witness store.
     pub preimage_witness_store: Arc<Mutex<PreimageStore>>,
+    /// Stops retaining preimages once the collected witness exceeds this limit.
+    pub size_limit: Option<Arc<WitnessSizeLimit>>,
 }
 
 #[async_trait]
@@ -60,8 +64,14 @@ impl<P> PreimageWitnessCollector<P>
 where
     P: CommsClient + FlushableCache + Send + Sync + Clone,
 {
-    /// Saves a preimage to the witness store.
+    /// Saves a preimage to the witness store. Once `size_limit` has tripped, preimages are no
+    /// longer retained; the oracle still serves them so native execution runs until cancelled.
     pub fn save(&self, key: PreimageKey, value: &[u8]) -> PreimageOracleResult<()> {
+        if let Some(limit) = &self.size_limit &&
+            !limit.record(key, value.len())
+        {
+            return Ok(());
+        }
         let mut witness_store_lock = self.preimage_witness_store.lock().map_err(|_| {
             PreimageOracleError::Other("Failed to acquire preimage_witness_store lock".to_string())
         })?;
