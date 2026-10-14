@@ -536,6 +536,8 @@ mod tests {
     };
     use std::{collections::BTreeMap, default::Default, sync::Arc};
 
+    mod startup_reconciliation;
+
     // -------------------------------------------------------------------------
     // Helpers: deterministic blocks and deterministic Chain with precomputed updates
     // -------------------------------------------------------------------------
