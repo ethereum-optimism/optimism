@@ -35,7 +35,6 @@ pub struct Builder {
     handle: Handle,
     messages_rx: mpsc::Receiver<Message>,
     state_tx: watch::Sender<EngineState>,
-    resets_tx: watch::Sender<EngineState>,
 }
 
 impl Builder {
@@ -48,13 +47,7 @@ impl Builder {
     pub fn new(state: EngineState) -> Self {
         let (messages_tx, messages_rx) = mpsc::channel(1);
         let (state_tx, state_rx) = watch::channel(state);
-        let (resets_tx, resets_rx) = watch::channel(state);
-        Self {
-            handle: Handle::new(messages_tx, state_rx, resets_rx),
-            messages_rx,
-            state_tx,
-            resets_tx,
-        }
+        Self { handle: Handle::new(messages_tx, state_rx), messages_rx, state_tx }
     }
 
     /// Returns a handle that can be wired into other components before the actor starts.
@@ -79,10 +72,10 @@ impl Builder {
         safety: S,
         finality: F,
     ) -> impl Future<Output = Result<(), ActorError>> + Send + 'static {
-        let Self { handle: _, messages_rx, state_tx, resets_tx } = self;
+        let Self { handle: _, messages_rx, state_tx } = self;
         let dependencies =
             Dependencies { client, l1, config: rollup, block_sink, safety, finality };
-        Actor::new(dependencies, state_tx, resets_tx, messages_rx).run()
+        Actor::new(dependencies, state_tx, messages_rx).run()
     }
 }
 
@@ -172,8 +165,6 @@ struct Actor<S, F> {
     l1_checked: Option<L1Checked>,
     /// Publishes the state to handles.
     state_tx: watch::Sender<EngineState>,
-    /// Publishes the state after each reset to handles.
-    resets_tx: watch::Sender<EngineState>,
     /// Receives messages from handles.
     messages_rx: mpsc::Receiver<Message>,
 }
@@ -183,7 +174,6 @@ impl<S: Safety, F: Finality> Actor<S, F> {
     fn new(
         dependencies: Dependencies<S, F>,
         state_tx: watch::Sender<EngineState>,
-        resets_tx: watch::Sender<EngineState>,
         messages_rx: mpsc::Receiver<Message>,
     ) -> Self {
         let Dependencies { client, l1, config, block_sink, safety, finality } = dependencies;
@@ -200,7 +190,6 @@ impl<S: Safety, F: Finality> Actor<S, F> {
             deriving: Deriving::NotStarted,
             l1_checked: None,
             state_tx,
-            resets_tx,
             messages_rx,
         }
     }
@@ -638,11 +627,7 @@ impl<S: Safety, F: Finality> Actor<S, F> {
         }
         // The reset's safe head was not derived from a known L1 block.
         self.state = self.state.with_safe_head_source(None);
-        // Readers that follow the engine's chain start over from the reset's safe head. The reset
-        // is published before the reply to the request that caused it, and after the state, so a
-        // reader that sees the reset finds no older state left to read.
         self.publish_state();
-        self.resets_tx.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
         // Safety starts over from the reset's safe head, if it started.
         if self.deriving == Deriving::Running {

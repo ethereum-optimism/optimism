@@ -222,13 +222,12 @@ fn actor(
     block_sink: Arc<dyn ImportedBlockSink>,
 ) -> (TestActor, watch::Receiver<EngineState>) {
     let (state_tx, state_rx) = watch::channel(state);
-    let (resets_tx, _) = watch::channel(state);
     let (_, messages_rx) = mpsc::channel(1);
     let Clients { engine, l1 } = clients;
     let (safety, finality, _) = scripted();
     let dependencies =
         Dependencies { client: Arc::new(engine), l1, config, block_sink, safety, finality };
-    (Actor::new(dependencies, state_tx, resets_tx, messages_rx), state_rx)
+    (Actor::new(dependencies, state_tx, messages_rx), state_rx)
 }
 
 /// Spawns an actor with the initial engine state and returns its handle and task.
@@ -275,14 +274,13 @@ fn unstarted(
 ) -> (Handle, TestActor, Scripts) {
     let (messages, messages_rx) = mpsc::channel(8);
     let (state_tx, state_rx) = watch::channel(state);
-    let (resets_tx, resets_rx) = watch::channel(state);
     let (safety, finality, scripts) = scripted();
     let Clients { engine, l1 } = clients;
     let block_sink = Arc::new(NoopBlockSink);
     let dependencies =
         Dependencies { client: Arc::new(engine), l1, config, block_sink, safety, finality };
-    let actor = Actor::new(dependencies, state_tx, resets_tx, messages_rx);
-    (Handle::new(messages, state_rx, resets_rx), actor, scripts)
+    let actor = Actor::new(dependencies, state_tx, messages_rx);
+    (Handle::new(messages, state_rx), actor, scripts)
 }
 
 /// Returns a rollup configuration whose genesis is the default L2 block.
@@ -356,15 +354,12 @@ async fn reset_recovers_and_completes_original_request(#[case] read_delay: Durat
     l2.expect_error("eth_getBlockByNumber");
     expect_reset(&l2, read_delay);
     let (handle, actor) = spawn(clients, config.clone(), EngineState::default());
-    let resets = handle.resets();
 
     let started = Instant::now();
     let state = time::timeout(Duration::from_secs(20), handle.reset()).await.unwrap().unwrap();
     assert!(started.elapsed() >= INITIAL_RETRY_DELAY, "the failed attempt is retried later");
     assert_eq!(state.safe_head().block_info.hash, config.genesis.l2.hash);
-    // The reset and its state are published before the reply.
-    assert!(resets.has_changed().unwrap());
-    assert_eq!(*resets.borrow(), state);
+    // The state is published before the reply.
     assert_eq!(*handle.state().borrow(), state);
     actor.abort();
     l2.assert_finished();
@@ -391,10 +386,9 @@ async fn starts_from_the_execution_layers_heads_and_resets() {
 
     expect_reset(&l2, Duration::ZERO);
     let (handle, actor, scripts) = start(clients, config, state);
-    let mut resets = handle.resets();
     assert_eq!(*handle.state().borrow(), state);
-    assert_eq!(next_reset(&mut resets).await, state);
     settle().await;
+    assert_eq!(*handle.state().borrow(), state);
     assert_eq!(scripts.driven(), []);
     actor.abort();
     l2.assert_finished();
@@ -409,9 +403,9 @@ async fn derives_at_once_when_the_execution_layer_finalized_past_genesis() {
     expect_reset(&l2, Duration::ZERO);
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(5)).build();
     let (handle, actor, scripts) = start(clients, config, state);
-    let reset = next_reset(&mut handle.resets()).await;
-    settle().await;
-    assert_eq!(scripts.driven(), [Driven::Reset(reset.safe_head())]);
+    let reset = next_reset(&scripts).await;
+    assert_eq!(reset, handle.state().borrow().safe_head());
+    assert_eq!(scripts.driven(), [Driven::Reset(reset)]);
     actor.abort();
     l2.assert_finished();
 }
@@ -677,16 +671,14 @@ async fn abandoning_a_safe_block_resets_safety() {
         .with_finalized_head(L2BlockInfo::default())
         .build();
     let (handle, actor, scripts) = spawn_with(clients, config.clone(), state, true);
-    let mut resets = handle.resets();
 
     scripts.derive(Derived::Safe(Safe { head: test_block_info(1), source: BlockInfo::default() }));
 
-    let reset = next_reset(&mut resets).await;
+    let reset = next_reset(&scripts).await;
+    assert_eq!(reset.block_info.hash, config.genesis.l2.hash);
     // The reset's safe head was not derived from a known L1 block.
-    assert_eq!(reset.safe_head_source(), None);
-    assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
-    settle().await;
-    assert_eq!(scripts.driven(), [Driven::Reset(reset.safe_head())]);
+    assert_eq!(handle.state().borrow().safe_head_source(), None);
+    assert_eq!(scripts.driven(), [Driven::Reset(reset)]);
     actor.abort();
     l2.assert_finished();
 }
@@ -782,13 +774,23 @@ async fn settle() {
     time::sleep(Duration::from_secs(1)).await;
 }
 
-/// Waits for the engine's next reset, and returns its state.
-async fn next_reset(resets: &mut watch::Receiver<EngineState>) -> EngineState {
-    time::timeout(Duration::from_secs(10), resets.changed()).await.unwrap().unwrap();
-    *resets.borrow_and_update()
+/// Waits until the engine resets safety, and returns the safe head it reset it onto.
+async fn next_reset(scripts: &Scripts) -> L2BlockInfo {
+    let reset = async {
+        loop {
+            let driven = scripts.driven();
+            if let Some(Driven::Reset(safe)) =
+                driven.iter().rev().find(|d| matches!(d, Driven::Reset(_)))
+            {
+                return *safe;
+            }
+            settle().await;
+        }
+    };
+    time::timeout(Duration::from_secs(10), reset).await.unwrap()
 }
 
-/// From its first reset, the engine resets when L1 reorgs out a block its heads rest on.
+/// The engine resets when L1 reorgs out a block its heads rest on, which resets safety.
 #[rstest]
 #[case::unsafe_origin(RestsOn::UnsafeOrigin)]
 #[case::safe_source(RestsOn::SafeSource)]
@@ -799,18 +801,17 @@ async fn resets_when_l1_reorgs_out_a_block_its_heads_rest_on(#[case] rests_on: R
     let first = descendants(&BlockInfo::default(), 3, 1);
     let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first].concat());
     let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
-    let (handle, actor, _) =
+    let (handle, actor, scripts) =
         spawn_with(clients, config.clone(), resting_on(first[1], rests_on), true);
-    let mut resets = handle.resets();
     settle().await;
-    assert!(!resets.has_changed().unwrap());
+    assert_eq!(scripts.driven(), []);
 
     // L1 replaces the block, and the engine resets onto the default L2 block.
     let second = descendants(&first[0], 3, 2);
     expect_reset(&l2, Duration::ZERO);
     l1.set_head(&second);
-    let reset = next_reset(&mut resets).await;
-    assert_eq!(reset.unsafe_head().block_info.hash, config.genesis.l2.hash);
+    next_reset(&scripts).await;
+    assert_eq!(handle.state().borrow().unsafe_head().block_info.hash, config.genesis.l2.hash);
     actor.abort();
     l2.assert_finished();
 }
@@ -824,9 +825,8 @@ async fn checks_heads_that_change_between_l1_heads() {
     let second = descendants(&first[0], 2, 2);
     let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first[..1], &second].concat());
     let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
-    let (handle, actor, scripts) =
+    let (_handle, actor, scripts) =
         spawn_with(clients, config.clone(), EngineState::default(), true);
-    let mut resets = handle.resets();
     settle().await;
 
     // A safe head derived from the replaced block.
@@ -841,8 +841,8 @@ async fn checks_heads_that_change_between_l1_heads() {
     );
     expect_reset(&l2, Duration::ZERO);
     scripts.derive(Derived::Safe(Safe { head: safe, source: first[1] }));
-    let reset = next_reset(&mut resets).await;
-    assert_eq!(reset.safe_head().block_info.hash, config.genesis.l2.hash);
+    let reset = next_reset(&scripts).await;
+    assert_eq!(reset.block_info.hash, config.genesis.l2.hash);
     actor.abort();
     l2.assert_finished();
 }
@@ -887,20 +887,19 @@ async fn checks_an_l1_origin_after_the_l1_head_once_l1_reaches_it() {
     let l1 = TestChain::new(&[&[BlockInfo::default()][..], &first[..3]].concat());
     let (clients, l2) = clients_with_l1(config.clone(), l1.handle());
     let state = resting_on(first[3], RestsOn::UnsafeOrigin);
-    let (handle, actor, _) = spawn_with(clients, config, state, true);
-    let mut resets = handle.resets();
+    let (_handle, actor, scripts) = spawn_with(clients, config, state, true);
     settle().await;
 
     // L1 reaches the origin.
     l1.set_head(&first[3..]);
     settle().await;
-    assert!(!resets.has_changed().unwrap());
+    assert_eq!(scripts.driven(), []);
 
     // L1 replaces the origin.
     let second = descendants(&first[2], 2, 2);
     expect_reset(&l2, Duration::ZERO);
     l1.set_head(&second);
-    next_reset(&mut resets).await;
+    next_reset(&scripts).await;
     actor.abort();
     l2.assert_finished();
 }
