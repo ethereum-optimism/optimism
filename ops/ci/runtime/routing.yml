@@ -59,6 +59,12 @@ api_dispatch:
   labeled_pr:
     - close_issue
 
+# Workflows restricted to this repository's publication credentials and schedules.
+public_repo_only:
+  - publish_contract_artifacts
+  - kona_publish_prestates
+  - circleci_schedule_trigger_check
+
 # Change-detection patterns. Each value is a POSIX Extended Regular Expression
 # (ERE, like grep -E) matched line-by-line against the changed file list
 # (git diff --name-only origin/develop...HEAD). collect-params.sh reads these.

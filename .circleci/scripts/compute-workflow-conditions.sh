@@ -10,4 +10,5 @@ case "${TRIGGER_SOURCE:?TRIGGER_SOURCE must be set}" in
 esac
 export CI_EVENT
 export CI_BRANCH="${BRANCH:-}" CI_TAG="${TAG:-}" CI_SCHEDULE_NAME="${SCHEDULE_NAME:-}"
+export CI_REPOSITORY="${CIRCLE_PROJECT_USERNAME:-}/${CIRCLE_PROJECT_REPONAME:-}"
 exec bash "$(dirname "${BASH_SOURCE[0]}")/../../ops/ci/runtime/compute-workflow-conditions.sh" "$@"

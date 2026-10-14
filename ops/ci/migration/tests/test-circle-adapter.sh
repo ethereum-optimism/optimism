@@ -4,6 +4,7 @@ set -euo pipefail
 CIRCLECI_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.circleci/scripts" && pwd)"
 compare_route() {
   local trigger="$1" branch="$2" tag="$3" schedule="$4" json_seed="$5"
+  local repo="${REPO:-ethereum-optimism/optimism}"
   local legacy_trigger
   case "${trigger}" in
     push) legacy_trigger=webhook ;;
@@ -13,6 +14,7 @@ compare_route() {
   echo "${json_seed}" > "${TEST_DIR}/circleci.json"
   if ! OUTPUT="${TEST_DIR}/circleci.json" TRIGGER_SOURCE="${legacy_trigger}" \
     BRANCH="${branch}" TAG="${tag}" SCHEDULE_NAME="${schedule}" \
+    CIRCLE_PROJECT_USERNAME="${repo%%/*}" CIRCLE_PROJECT_REPONAME="${repo#*/}" \
     bash "${CIRCLECI_SCRIPTS}/compute-workflow-conditions.sh" >"${TEST_DIR}/circleci.log" 2>&1; then
     cat "${TEST_DIR}/circleci.log"
     echo "  FAIL: CircleCI routing adapter exited unsuccessfully"

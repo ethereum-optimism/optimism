@@ -1,0 +1,53 @@
+# kona-zkvm-canary builds in its own melange stack rather than as an
+# op-stack-rust subpackage. Its SP1 profiling feature must stay out of the
+# combined op-stack-rust build: on x86_64 Linux that feature selects SP1's
+# portable in-process executor, and unifying it with op-zk-proposer would change
+# the proposer's production executor from the native child runner. That forces a
+# second cargo invocation with its own target tree, so as a subpackage it shared
+# nothing with the main build yet ran after it, adding a full fat-LTO link of
+# kona-host + SP1 to every op-stack-rust leg. As its own stack it builds in
+# parallel on its own runner and GHA cache.
+package:
+  name: kona-zkvm-canary
+  version: "0.0.0"
+  epoch: 0
+  description: kona-zkvm-canary — OP Stack SP1 zkVM canary
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - ca-certificates-bundle
+      - build-base
+      - cargo-auditable
+      - rust
+      - openssl-dev
+      - perl
+      - protobuf-dev
+      - clang-19
+      - libclang-cpp-19
+      # opt-in mold linking when the cargo/build pipeline uses it.
+      - mold
+  environment:
+    # See melange/op-stack-rust.yaml: the workflow selects
+    # MELANGE_CARGO_PROFILE, and GHA cache restores melange-cache/ first.
+    CARGO_HOME: /var/cache/melange/cargo
+    CARGO_TARGET_DIR: /var/cache/melange/target
+
+pipeline:
+  - uses: cargo/build
+    with:
+      install-dir: local/bin
+      modroot: rust/kona/sp1/crates/zkvm-canary
+      output: kona-zkvm-canary
+      profile: "${MELANGE_CARGO_PROFILE}"
+      opts: --locked --package kona-zkvm-canary
+  - uses: strip
+    with:
+      opts: -g --remove-section=.note.package

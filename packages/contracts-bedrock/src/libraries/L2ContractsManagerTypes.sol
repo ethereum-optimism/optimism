@@ -62,6 +62,7 @@ library L2ContractsManagerTypes {
         FeeVaultConfig l1FeeVault;
         FeeVaultConfig operatorFeeVault;
         LiquidityControllerConfig liquidityController;
+        uint256 l2ToL2MessageExpiryPeriod;
         bool isCustomGasToken;
         bool isInterop;
     }

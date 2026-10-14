@@ -6,7 +6,7 @@ use alloy_eips::NumHash;
 use reth_db::{
     BlockNumberList, Database, DatabaseEnv,
     cursor::{DbCursorRW, DbDupCursorRO},
-    mdbx::{DatabaseArguments, init_db_for},
+    mdbx::{self, DatabaseArguments, init_db_for},
     models::sharded_key::ShardedKey,
     transaction::{DbTx, DbTxMut},
 };
@@ -2331,28 +2331,107 @@ fn table_exists(storage: &MdbxProofsStorage, table: &str) -> bool {
 }
 
 #[test]
-fn test_new_drops_empty_legacy_v1_tables() {
+fn test_new_preserves_empty_legacy_v1_tables() {
     let dir = TempDir::new().unwrap();
     create_legacy_tables(dir.path(), None);
 
     let storage = MdbxProofsStorage::new(dir.path()).unwrap();
 
     for table in LEGACY_V1_TABLES {
-        assert!(!table_exists(&storage, table), "{table} was not dropped");
+        assert!(table_exists(&storage, table), "{table} was dropped");
     }
+    assert_eq!(LegacyV1Usage::read(&storage.env).unwrap(), LegacyV1Usage::default());
+    assert!(!storage.holds_only_legacy_v1_data().unwrap());
 }
 
 #[test]
-fn test_new_rejects_populated_legacy_v1_tables() {
+fn test_legacy_v1_usage_without_legacy_tables() {
+    let dir = TempDir::new().unwrap();
+    let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+
+    assert_eq!(LegacyV1Usage::read(&storage.env).unwrap(), LegacyV1Usage::default());
+}
+
+#[test]
+fn test_new_preserves_populated_legacy_v1_tables_without_v2_data() {
     for &populated in LEGACY_V1_TABLES {
         let dir = TempDir::new().unwrap();
         create_legacy_tables(dir.path(), Some(populated));
 
-        let err = MdbxProofsStorage::new(dir.path()).unwrap_err();
+        for _ in 0..2 {
+            let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+            let tx = storage.env.begin_ro_txn().unwrap();
+            for &name in LEGACY_V1_TABLES {
+                let table = tx.open_db(Some(name)).unwrap();
+                assert_eq!(
+                    tx.db_stat(table.dbi()).unwrap().entries(),
+                    usize::from(name == populated)
+                );
+            }
+            drop(tx);
+            let usage = LegacyV1Usage::read(&storage.env).unwrap();
+            assert_eq!(usage.entries, 1);
+            assert!(usage.size_bytes > 0, "{populated} reported no pages");
+            assert!(!usage.has_v2_data);
+            assert!(storage.holds_only_legacy_v1_data().unwrap());
+            let provider = storage.provider_ro().unwrap();
+            assert_eq!(provider.tx.entries::<V2ProofWindow>().unwrap(), 0);
+            assert!(matches!(
+                provider.get_earliest_block(),
+                Err(OpProofsStorageError::NoBlocksFound)
+            ));
+        }
+    }
+}
 
-        assert!(
-            matches!(&err, OpProofsStorageError::LegacyV1Database { path } if path == dir.path()),
-            "unexpected error for populated {populated}: {err:?}"
-        );
+#[test_case::test_case(false; "initialization in progress")]
+#[test_case::test_case(true; "initialization completed")]
+fn test_new_preserves_populated_legacy_v1_tables_with_v2_data(completed: bool) {
+    for &populated in LEGACY_V1_TABLES {
+        let dir = TempDir::new().unwrap();
+        create_legacy_tables(dir.path(), Some(populated));
+        let anchor = BlockNumHash::new(42, B256::repeat_byte(0x42));
+        let address = B256::repeat_byte(0xAA);
+        let account = sample_account();
+        {
+            // Initialize v2 alongside stale v1 data.
+            let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+            let provider = storage.initialization_provider().unwrap();
+            provider.set_initial_state_anchor(anchor).unwrap();
+            provider.store_hashed_accounts(vec![(address, Some(account))]).unwrap();
+            if completed {
+                provider.commit_initial_state().unwrap();
+            }
+            OpProofsInitProvider::commit(provider).unwrap();
+        }
+
+        // Repeated opens must keep both the v2 state and the unused v1 data.
+        for _ in 0..2 {
+            let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+            let usage = LegacyV1Usage::read(&storage.env).unwrap();
+            assert_eq!(usage.entries, 1);
+            assert!(usage.size_bytes > 0, "{populated} reported no pages");
+            assert!(usage.has_v2_data);
+            assert!(!storage.holds_only_legacy_v1_data().unwrap());
+            for &table in LEGACY_V1_TABLES {
+                assert!(table_exists(&storage, table), "{table} was dropped");
+            }
+
+            let provider = storage.provider_ro().unwrap();
+            assert_eq!(
+                provider.get_block_number_hash_inner(ProofWindowKey::InitialStateAnchor).unwrap(),
+                anchor
+            );
+            assert_eq!(provider.tx.get::<V2HashedAccounts>(address).unwrap(), Some(account));
+            if completed {
+                assert_eq!(provider.get_earliest_block().unwrap(), anchor);
+                assert_eq!(provider.get_latest_block().unwrap(), anchor);
+            } else {
+                assert!(matches!(
+                    provider.get_earliest_block(),
+                    Err(OpProofsStorageError::NoBlocksFound)
+                ));
+            }
+        }
     }
 }

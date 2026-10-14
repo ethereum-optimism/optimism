@@ -162,6 +162,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidZKDisputeGameConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_NoChains",
     "type": "error"
   },

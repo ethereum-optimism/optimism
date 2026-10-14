@@ -11,6 +11,8 @@ export CI_EVENT="${CI_EVENT:-push}"
 export CI_BRANCH="${CI_BRANCH:-}"
 export CI_TAG="${CI_TAG:-}"
 export CI_SCHEDULE_NAME="${CI_SCHEDULE_NAME:-}"
+# Native workload definitions clone this repository explicitly.
+export CI_REPOSITORY="ethereum-optimism/optimism"
 export CI_BASE_REVISION="${CI_BASE_REVISION:-develop}"
 
 if [[ ! "${CI_COMMIT_SHA}" =~ ^[0-9a-f]{40}$ ]]; then

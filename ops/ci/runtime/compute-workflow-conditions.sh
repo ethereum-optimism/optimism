@@ -12,11 +12,13 @@
 # Inputs normalized by each provider adapter:
 #   CI_EVENT: push, schedule, or dispatch
 #   CI_BRANCH, CI_TAG, CI_SCHEDULE_NAME (empty when not applicable)
+#   CI_REPOSITORY: owner/name used to restrict repository-specific workflows
 #   OUTPUT: JSON parameters input/output (default /tmp/pipeline-parameters.json)
 #
 # Helpers (workflow-helpers.sh):
 #   run <wf...>            enable workflows by literal name
 #   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
+#   skip_group <sec>       disable the workflows listed under routing.yml sec
 #   is_true <x>            true if c-x is true in the JSON
 #   param <x>              raw value of c-x from the JSON
 #   finalize               strip intermediate params, keep c-run_* + passthrough
@@ -167,5 +169,9 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
     exit 1
     ;;
 esac
+
+if [[ "${CI_REPOSITORY:-}" != "ethereum-optimism/optimism" ]]; then
+  skip_group public_repo_only
+fi
 
 finalize

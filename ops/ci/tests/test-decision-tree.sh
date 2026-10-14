@@ -54,10 +54,11 @@ run_scenario() {
     fi
   done
 
-  # Seed the JSON and run the routing policy as the pipeline would.
+  # Pin repository identity so fixtures do not depend on the calling CI provider.
+  local repo="${REPO:-ethereum-optimism/optimism}"
   echo "${json_seed}" > "${OUTPUT}"
   local all_pass=true
-  if ! CI_EVENT="${trigger}" CI_BRANCH="${branch}" CI_TAG="${tag}" CI_SCHEDULE_NAME="${schedule}" \
+  if ! CI_EVENT="${trigger}" CI_BRANCH="${branch}" CI_TAG="${tag}" CI_SCHEDULE_NAME="${schedule}" CI_REPOSITORY="${repo}" \
     bash "${ROUTING_SCRIPT}" >"${TEST_DIR}/route.log" 2>&1; then
     cat "${TEST_DIR}/route.log"
     echo "  FAIL: shared routing policy exited unsuccessfully"
@@ -226,6 +227,34 @@ run_scenario \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
   --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
+
+REPO="ethereum-optimism/other" run_scenario \
+  "Develop outside the public repository" \
+  "push" "develop" "" "" \
+  '{}' \
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci \
+  --not publish_contract_artifacts kona_publish_prestates circleci_schedule_trigger_check
+
+REPO="ethereum-optimism/other" run_scenario \
+  "CI changes outside the public repository" \
+  "push" "feat/my-thing" "" "" \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true}' \
+  main release contracts_feature_tests rust_ci rust_e2e_ci \
+  --not circleci_schedule_trigger_check
+
+REPO="ethereum-optimism/other" run_scenario \
+  "Publication dispatch outside the public repository" \
+  "dispatch" "" "" "" \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  release \
+  --not publish_contract_artifacts
+
+REPO="ethereum-optimism/other" run_scenario \
+  "Daily schedule outside the public repository" \
+  "schedule" "" "" "build_daily" \
+  '{}' \
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke \
+  --not circleci_schedule_trigger_check
 
 run_scenario \
   "Scheduled: build_four_hours" \

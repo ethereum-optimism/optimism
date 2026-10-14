@@ -412,6 +412,14 @@ pub async fn launch_node(
             MdbxProofsStorage::new(&path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
         );
+        if mdbx.holds_only_legacy_v1_data()? {
+            eyre::bail!(
+                "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
+                 directory (or use a fresh --proofs-history.storage-path), then run \
+                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                path.display()
+            );
+        }
         let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = mdbx.clone().into();
         let storage_exec = storage.clone();
 
@@ -471,7 +479,7 @@ pub async fn launch_node(
         Ok(provider) if !provider.cached_storage_settings().is_v2() => {
             warn!(
                 target: "reth::cli",
-                "Storage V1 is deprecated and will be removed on 2027-01-04. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+                "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
             );
         }
         Ok(_) => {}

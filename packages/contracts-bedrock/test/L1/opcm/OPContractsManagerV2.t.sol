@@ -1095,6 +1095,92 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Enables the ZK game in the upgrade input with a valid prestate and the given
+    ///         challenge parameters.
+    /// @param _maxChallengeDuration The maximum challenge duration for the game.
+    /// @param _maxProveDuration The maximum prove duration for the game.
+    /// @param _challengerBond The challenger bond for the game.
+    function _setZKUpgradeConfig(
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        internal
+    {
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
+                absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
+                maxChallengeDuration: Duration.wrap(_maxChallengeDuration),
+                maxProveDuration: Duration.wrap(_maxProveDuration),
+                challengerBond: _challengerBond
+            })
+        );
+    }
+
+    /// @notice Tests that enabling the ZK dispute game reverts when the max challenge duration is
+    ///         zero, which lets an unchallenged root win immediately, or above uint32 max, which can
+    ///         overflow the game's uint64 deadline into the past.
+    function test_upgrade_enableZKGameInvalidMaxChallengeDuration_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
+        for (uint256 i = 0; i < bad.length; i++) {
+            _setZKUpgradeConfig(bad[i], uint64(3 days), 1 ether);
+
+            // nosemgrep: sol-style-use-abi-encodecall
+            runCurrentUpgradeV2(
+                chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+            );
+        }
+    }
+
+    /// @notice Tests that enabling the ZK dispute game reverts when the max prove duration is
+    ///         zero or above uint32 max.
+    function test_upgrade_enableZKGameInvalidMaxProveDuration_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
+        for (uint256 i = 0; i < bad.length; i++) {
+            _setZKUpgradeConfig(uint64(7 days), bad[i], 1 ether);
+
+            // nosemgrep: sol-style-use-abi-encodecall
+            runCurrentUpgradeV2(
+                chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+            );
+        }
+    }
+
+    /// @notice Tests that enabling the ZK dispute game reverts when the challenger bond is zero,
+    ///         which would make challenges free.
+    function test_upgrade_enableZKGameZeroChallengerBond_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        _setZKUpgradeConfig(uint64(7 days), uint64(3 days), 0);
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that enabling the ZK dispute game accepts the inclusive bounds: uint32 max
+    ///         durations and a challenger bond of one wei.
+    function test_upgrade_enableZKGameMaxDurations_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        _setZKUpgradeConfig(type(uint32).max, type(uint32).max, 1);
+
+        runCurrentUpgradeV2(chainPAO);
+
+        LibGameArgs.ZKGameArgs memory args =
+            LibGameArgs.decodeZK(disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
+        assertEq(args.maxChallengeDuration, type(uint32).max, "max challenge duration not set");
+        assertEq(args.maxProveDuration, type(uint32).max, "max prove duration not set");
+        assertEq(args.challengerBond, 1, "challenger bond not set");
+    }
+
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
     function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
         // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of
@@ -2563,6 +2649,28 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         pure
         returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
     {
+        config_ = _zkDisputeGameConfig(_initBond, _absolutePrestate, uint64(7 days), uint64(3 days), 1 ether);
+    }
+
+    /// @notice Helper function to build a ZK_DISPUTE_GAME dispute game config with explicit
+    ///         challenge parameters.
+    /// @param _initBond The init bond for the game.
+    /// @param _absolutePrestate The absolute prestate for the game.
+    /// @param _maxChallengeDuration The maximum challenge duration for the game.
+    /// @param _maxProveDuration The maximum prove duration for the game.
+    /// @param _challengerBond The challenger bond for the game.
+    /// @return config_ The dispute game config.
+    function _zkDisputeGameConfig(
+        uint256 _initBond,
+        Claim _absolutePrestate,
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        internal
+        pure
+        returns (IOPContractsManagerUtils.DisputeGameConfig memory config_)
+    {
         config_ = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: _initBond,
@@ -2570,9 +2678,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: _absolutePrestate,
-                    maxChallengeDuration: Duration.wrap(uint64(7 days)),
-                    maxProveDuration: Duration.wrap(uint64(3 days)),
-                    challengerBond: 1 ether
+                    maxChallengeDuration: Duration.wrap(_maxChallengeDuration),
+                    maxProveDuration: Duration.wrap(_maxProveDuration),
+                    challengerBond: _challengerBond
                 })
             )
         });
@@ -3447,7 +3555,45 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, Claim.wrap(bytes32(0))));
 
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
+    ///         or greater-than-uint32-max challenge or prove duration.
+    function test_migrate_zkInvalidDurations_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
+        uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
+        for (uint256 i = 0; i < bad.length; i++) {
+            IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+            _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate, bad[i], uint64(3 days), 1 ether));
+            _doMigration(
+                input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector
+            );
+
+            input = _getDefaultMigrateInput();
+            _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate, uint64(7 days), bad[i], 1 ether));
+            _doMigration(
+                input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector
+            );
+        }
+    }
+
+    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
+    ///         challenger bond.
+    function test_migrate_zkZeroChallengerBond_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _appendDisputeGameConfig(
+            input,
+            _zkDisputeGameConfig(
+                1 ether, Claim.wrap(bytes32(keccak256("zk prestate"))), uint64(7 days), uint64(3 days), 0
+            )
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector);
     }
 
     /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config when the dev

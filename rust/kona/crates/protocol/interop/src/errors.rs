@@ -2,7 +2,7 @@
 
 use crate::InteropProvider;
 use alloc::vec::Vec;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use core::fmt::Debug;
 use kona_registry::HashMap;
 use thiserror::Error;
@@ -53,6 +53,15 @@ pub enum MessageGraphError<E: Debug> {
         expected: u64,
         /// The actual timestamp
         actual: u64,
+    },
+    /// The message identifier's block number is not the block the initiating chain produced at
+    /// the identifier's timestamp.
+    #[error("Invalid message block number {block_number} for initiating timestamp {timestamp}")]
+    InvalidMessageBlockNumber {
+        /// The block number claimed by the message identifier.
+        block_number: U256,
+        /// The initiating timestamp claimed by the message identifier.
+        timestamp: u64,
     },
     /// Interop has not been activated for at least one block on the initiating message's chain.
     #[error(

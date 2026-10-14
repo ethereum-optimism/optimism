@@ -40,6 +40,15 @@ run_group() {
   fi
 }
 
+# skip_group <section>: disable repository-specific workflows after selection.
+skip_group() {
+  local wf
+  for wf in $(yq -r ".${1}[]?" "${ROUTING}"); do
+    _json=$(echo "${_json}" | jq 'del(."c-run_'"${wf}"'")')
+    echo "  [skip] c-run_${wf}"
+  done
+}
+
 param() {
   echo "${_json}" | jq -r ".\"c-${1}\""
 }

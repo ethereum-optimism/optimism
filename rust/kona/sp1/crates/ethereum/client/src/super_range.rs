@@ -16,7 +16,6 @@ use kona_proof::{
 };
 use kona_proof_interop::HintType;
 use kona_sp1_client_utils::{
-    boot::BootInfoStruct,
     super_root::{
         SuperOptimisticBlock, SuperRangeInputs, SuperRangeOutputs, SuperRangeTransition,
         hash_super_root_proof,
@@ -66,7 +65,7 @@ where
     let l1_config = &configs.l1_config;
 
     for segment in range_segments(&inputs)? {
-        let boot_infos = run_super_range_segment(
+        let block_claims = run_super_range_segment(
             &inputs,
             &segment,
             oracle.clone(),
@@ -76,8 +75,8 @@ where
             l1_config,
         )
         .await?;
-        for (transition, boot_info) in segment.into_iter().zip(boot_infos) {
-            validate_range_transition_output(transition, oracle.as_ref(), &boot_info).await?;
+        for (transition, claim) in segment.into_iter().zip(block_claims) {
+            validate_range_transition_output(transition, oracle.as_ref(), &claim).await?;
         }
     }
 
@@ -124,13 +123,13 @@ async fn run_super_range_segment<O, B>(
     dependency_set: Arc<DependencySet>,
     rollup_configs: &BTreeMap<u64, RollupConfig>,
     l1_config: &L1ChainConfig,
-) -> anyhow::Result<Vec<BootInfoStruct>>
+) -> anyhow::Result<Vec<BlockClaim>>
 where
     O: CommsClient + FlushableCache + Send + Sync + Debug + 'static,
     B: BlobProvider + Send + Sync + Debug + Clone + 'static,
 {
     let mut segment: Option<(SegmentClaims, Sealed<Header>)> = None;
-    let mut boot_infos = Vec::with_capacity(transitions.len());
+    let mut block_claims = Vec::with_capacity(transitions.len());
     for transition in transitions {
         let transition_boot = build_super_range_transition_boot(
             inputs,
@@ -141,13 +140,14 @@ where
         )
         .await?;
         match transition_boot {
-            RangeTransitionBoot::NoOp { boot } => boot_infos.push(BootInfoStruct::from(boot)),
+            RangeTransitionBoot::NoOp { boot } => block_claims.push(BlockClaim::from(&boot)),
             RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head } => {
                 if let Some((claims, _)) = &mut segment {
-                    claims.following.push(BlockClaim::from(&boot));
-                    boot_infos.push(BootInfoStruct::from(boot));
+                    let claim = BlockClaim::from(&boot);
+                    claims.following.push(claim);
+                    block_claims.push(claim);
                 } else {
-                    boot_infos.push(BootInfoStruct::from(boot.clone()));
+                    block_claims.push(BlockClaim::from(&boot));
                     segment = Some((
                         SegmentClaims { first: boot, following: Vec::new() },
                         Sealed::new_unchecked(safe_head, safe_head_hash),
@@ -158,7 +158,7 @@ where
     }
 
     let Some((claims, safe_head)) = segment else {
-        return Ok(boot_infos);
+        return Ok(block_claims);
     };
     let boot = &claims.first;
 
@@ -179,7 +179,7 @@ where
     .await?;
     l2_provider.set_cursor(cursor.clone());
 
-    let executor = ETHDAWitnessExecutor::new_with_dependency_set(dependency_set);
+    let executor = ETHDAWitnessExecutor::new(dependency_set);
     let pipeline = executor
         .create_pipeline(
             rollup_config,
@@ -193,7 +193,7 @@ where
         .await?;
     executor.run(&claims, pipeline, cursor, l2_provider).await?;
 
-    Ok(boot_infos)
+    Ok(block_claims)
 }
 
 async fn build_super_range_transition_boot<O>(
@@ -310,19 +310,19 @@ where
 async fn validate_range_transition_output<O>(
     transition: &SuperRangeTransition,
     oracle: &O,
-    committed_boot_info: &BootInfoStruct,
+    claim: &BlockClaim,
 ) -> anyhow::Result<()>
 where
     O: CommsClient,
 {
     ensure!(
-        committed_boot_info.l2PostRoot == transition.optimistic_block.output_root,
+        claim.output_root == transition.optimistic_block.output_root,
         "range program committed output root {actual}, expected {expected}",
-        actual = committed_boot_info.l2PostRoot,
+        actual = claim.output_root,
         expected = transition.optimistic_block.output_root,
     );
 
-    let block_hash = fetch_output_block_hash(oracle, committed_boot_info.l2PostRoot).await?;
+    let block_hash = fetch_output_block_hash(oracle, claim.output_root).await?;
     ensure!(
         block_hash == transition.optimistic_block.block_hash,
         "output root commits to block hash {actual}, expected {expected}",
@@ -337,9 +337,9 @@ where
     )
     .await?;
     ensure!(
-        header.number == committed_boot_info.l2BlockNumber,
+        header.number == claim.block_number,
         "range witness committed block #{actual}, but output root header is block #{expected}",
-        actual = committed_boot_info.l2BlockNumber,
+        actual = claim.block_number,
         expected = header.number,
     );
     ensure!(

@@ -53,12 +53,25 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
      `op-challenger/game/fault/trace/super/provider.go`.
 
 5. **Diagnose the responsible op-node** (chain-agnostic):
-   - `op-challenger game-proposal-outputs --l1-eth-rpc <l1> --rollup-rpc <rollup> --game-factory-address <f>`
-     (or pass explicit game addresses) — per game, the node's `optimism_outputAtBlock` and
+   - `op-challenger game-proposal-outputs --l1-eth-rpc <l1> --rollup-rpc <rollup> --superroot-rpc <supernode> --game-factory-address <f>`
+     (or pass explicit game addresses; pass either RPC flag alone if every game needs only that
+     one). Per **output-root game** (`--rollup-rpc`): the node's `optimism_outputAtBlock` and
      `optimism_safeHeadAtL1Block` at the game's `l1Head`, with `rootMatch` / `safeHeadAtOrAboveBlock`
      flags. Identical output roots but a **safe head below the proposed block** = an incomplete
      safe-head DB / lagging node: the challenger clamps to its safe head and disputes
-     everything beyond it.
+     everything beyond it. Per **super-root game** (super-cannon-kona, super-permissioned, zk;
+     `--superroot-rpc`): `superroot_atTimestamp` at the game's `l2SequenceNumber`, reported as
+     `timestamp`, `superRoot` (absent when the node has no super root there, which makes the
+     proposal invalid; for super-cannon-kona and super-permissioned, the invalid-transition hash
+     when the root's `VerifiedRequiredL1` is past `l1Head`), `rootMatch`, and `nodeSynced`
+     (`current_l1 > l1Head`). When `nodeSynced` is false the node cannot judge the proposal yet,
+     so `superRoot` and `rootMatch` are omitted, the same way the challenger waits rather than
+     acting. Super-root records omit `l2BlockNumber`, `outputRoot` and the safe-head fields.
+     Challengers dispute invalid super-cannon-kona and zk proposals; super-permissioned games
+     resolve DEFENDER_WINS at creation, so `rootMatch=false` there needs a guardian blacklist in the
+     `AnchorStateRegistry` (op-dispute-mon alerts on it). For zk games `rootMatch` covers only the
+     root: the challenger also challenges any child of a parent that resolved CHALLENGER_WINS, so
+     check the parent's status with `list-games`.
    - `op-challenger/scripts/check-game-block-hashes.sh <node-rpc> <ref-rpc> <blocks…>` — block-hash
      cross-check (a mismatch = real divergence).
 
@@ -67,11 +80,11 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
    value should be either canonical or the bad node's single clamped value; anything else
    is a different fault.
 
-   These queries (and `game-proposal-outputs`) target **output-root games** via op-node
-   `optimism_outputAtBlock` / `optimism_safeHeadAtL1Block`. For **super-root games** the data
-   source is `superroot_atTimestamp` on the op-node **or op-supernode** — compare per the
-   super-root rules in §4 (the response carries the `RequiredL1` / `VerifiedRequiredL1` that
-   determine when the trace turns invalid).
+   The `optimism_outputAtBlock` / `optimism_safeHeadAtL1Block` queries apply to **output-root
+   games** only. For **super-root games** the data source is `superroot_atTimestamp` on the
+   op-node **or op-supernode**; `game-proposal-outputs` reports the root match and node sync,
+   and the step-level comparison follows the super-root rules in §4 (the response carries the
+   `RequiredL1` / `VerifiedRequiredL1` that determine when the trace turns invalid).
 
 6. **Check uncountered invalid claims against the honest actor — don't assume they're fine.**
    The honest-actor algorithm (`op-challenger/game/fault/solver/solver.go` `shouldCounter`)

@@ -112,6 +112,37 @@ Empty output means the bug never reached a release: keep the PR in the list, but
 it set the recommendation — and do not mention it in the note. "Both land in this release, so
 no published version is affected" is a triage conclusion, not something the reader needs.
 
+## Changes that already shipped
+
+A release tag is not always on the same line of history as the previous one. When the
+previous tag is not an ancestor of this one, a fix cherry-picked for the previous release
+appears again, as its original PR. List the commits that only the previous release has:
+
+```bash
+git log --format='%s' $(git merge-base <prev-tag> <this-tag>)..<prev-tag> -- <component paths>
+```
+
+Drop each draft PR that one of those commits backported, because the previous release
+already shipped it. `op-contracts/v8.0.0` listed #20919, which `op-contracts/v7.0.0` had
+already shipped as #20925.
+
+## op-contracts and op-deployer
+
+The op-contracts note gets what changes onchain. The op-deployer note gets what changes for
+a user of the tool, including changes to the contract scripts it runs. A PR that does both
+gets an entry in each note. The op-deployer note links to the op-contracts release and does
+not repeat its changes.
+
+For op-contracts, `LINKED` means a contract under `src/` or the candidate L2 upgrade bundle
+changed. Keep every bundle change: `op-core/nuts` snapshots it for the fork, and op-node and
+kona execute it. Drop a change that only bumps a contract's version. `DEPS` means
+`foundry.toml` or a `lib/` pin changed; read each one, because it can change the deployed
+bytecode.
+
+For op-deployer, `LINKED` also covers the contract scripts that its Go code runs, and their
+imports, from `forge tree`. The import graph comes from the current checkout, so a script
+deleted during the release range does not match; check such a row by hand.
+
 ## Dependency and security bumps
 
 `DEPS` rows are usually noise, but a bump patching a CVE in a library the binary links is
