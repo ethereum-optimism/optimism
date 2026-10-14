@@ -105,8 +105,10 @@ pub enum SignerError {
 impl SignerArgs {
     /// Returns the block signer the flags choose, or `None` if they choose none.
     pub fn config(self) -> Result<Option<BlockSigner>, SignerError> {
+        // Check the remote signer's flags first, so that none is ignored beside a local key.
+        let remote = self.remote.config()?;
         if let Some(path) = self.key_path {
-            if self.remote.url.is_some() {
+            if remote.is_some() {
                 return Err(SignerError::TwoSigners);
             }
             let contents =
@@ -117,7 +119,7 @@ impl SignerArgs {
                 PrivateKeySigner::from_bytes(&key).map_err(|e| SignerError::Invalid(path, e))?;
             return Ok(Some(signer.into()));
         }
-        Ok(self.remote.config()?.map(Into::into))
+        Ok(remote.map(Into::into))
     }
 }
 
@@ -252,9 +254,18 @@ mod tests {
     fn rejects_inconsistent_signer_flags() {
         let remote = ["--sequencer.signer.url", "http://a", "--sequencer.signer.address", ADDRESS];
         let with_remote = |extra: &[&'static str]| [&remote[..], extra].concat();
-        let cases: [(Vec<&str>, SignerError); 7] = [
+        let cases: [(Vec<&str>, SignerError); 9] = [
             // two signers
             (with_remote(&["--sequencer.signer.key-path", "/key"]), SignerError::TwoSigners),
+            // remote signer options beside a local key
+            (
+                vec!["--sequencer.signer.key-path", "/key", "--sequencer.signer.address", ADDRESS],
+                SignerError::IncompleteRemoteSigner,
+            ),
+            (
+                vec!["--sequencer.signer.key-path", "/key", "--sequencer.signer.header", "a=b"],
+                SignerError::NoRemoteSigner("--sequencer.signer.header"),
+            ),
             // a remote signer without its address, or its URL
             (vec!["--sequencer.signer.url", "http://a"], SignerError::IncompleteRemoteSigner),
             (vec!["--sequencer.signer.address", ADDRESS], SignerError::IncompleteRemoteSigner),
