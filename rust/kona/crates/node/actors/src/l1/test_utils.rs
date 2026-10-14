@@ -82,6 +82,7 @@ fn header_block(header: Header) -> BlockInfo {
 pub(super) fn chain_of(blocks: &[BlockInfo]) -> Chain {
     let mut chain = Chain::new(blocks[0]);
     chain.set_head(blocks[1..].to_vec());
+    chain.set_linking(false);
     chain
 }
 
@@ -107,6 +108,13 @@ impl TestChain {
     /// `history`.
     pub(crate) fn handle_with_history(&self, history: RootProvider) -> Handle {
         Handle::new(self.0.subscribe(), UntrustedRpc::new(history).retrying(RETRY_DELAY))
+    }
+
+    /// Sets whether the actor is linking a head it polled.
+    pub(crate) fn set_linking(&self, linking: bool) {
+        self.0.send_modify(|chain| {
+            chain.set_linking(linking);
+        });
     }
 
     /// Returns a handle to a chain of `blocks` that never changes, and never stops. The handle must

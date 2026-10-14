@@ -71,8 +71,11 @@ impl Handle {
     }
 
     /// Returns the canonical block at `number`, or `None` if it is after the head.
+    ///
+    /// While the actor is linking a head it polled, a height after the chain's head waits until it
+    /// has: L1 may already have a block there.
     pub async fn canonical(&self, number: u64) -> Result<Option<BlockInfo>, HandleError> {
-        let height = self.chain()?.at(number);
+        let height = self.settled(number).await?;
         match height {
             Height::Final => Ok(Some(self.final_block(number).await)),
             Height::Held(block) => Ok(Some(block)),
@@ -82,8 +85,11 @@ impl Handle {
 
     /// Returns the L1 block `block`, or `None` if L1 does not have it. A block the chain does not
     /// hold, such as one after the head, is read from L1 by hash, and may not be canonical.
+    ///
+    /// While the actor is linking a head it polled, a block after the chain's head waits until it
+    /// has.
     pub async fn block(&self, block: BlockNumHash) -> Result<Option<BlockInfo>, HandleError> {
-        let height = self.chain()?.at(block.number);
+        let height = self.settled(block.number).await?;
         if let Height::Held(held) = height &&
             held.hash == block.hash
         {
@@ -139,6 +145,17 @@ impl Handle {
     fn chain(&self) -> Result<watch::Ref<'_, Chain>, HandleError> {
         self.chain.has_changed().map_err(|_| HandleError)?;
         Ok(self.chain.borrow())
+    }
+
+    /// Returns where `number` falls relative to the chain, waiting while it is after the head and
+    /// the actor is linking a head it polled.
+    async fn settled(&self, number: u64) -> Result<Height, HandleError> {
+        self.chain()?;
+        self.wait_for(|chain| {
+            let height = chain.at(number);
+            (height != Height::Ahead || !chain.linking()).then_some(height)
+        })
+        .await
     }
 
     /// Waits until `answer` answers from the actor's chain, and returns its answer.
@@ -280,6 +297,25 @@ mod tests {
         responses.push_success(&rpc_block(&block(5)));
         responses.push_success(&rpc_block(&block(4)));
         assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4)));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn waits_to_answer_after_the_head_while_the_actor_links_a_head() {
+        let chain = TestChain::new(&blocks(3..=5, 1));
+        chain.set_linking(true);
+        let handle = chain.handle();
+        // Heights the chain holds answer at once.
+        assert_eq!(handle.canonical(4).await.unwrap(), Some(block(4, 1, 1)));
+        let waiting = tokio::spawn({
+            let handle = handle.clone();
+            async move { handle.canonical(7).await.unwrap() }
+        });
+        assert!(timeout(WAIT, handle.block(block(7, 1, 1).id())).await.is_err());
+        chain.set_head(&blocks(6..=8, 1));
+        chain.set_linking(false);
+        assert_eq!(waiting.await.unwrap(), Some(block(7, 1, 1)));
+        // Once linked, a height after the head has no block yet.
+        assert_eq!(handle.canonical(9).await.unwrap(), None);
     }
 
     #[tokio::test(start_paused = true)]

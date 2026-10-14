@@ -13,6 +13,9 @@ pub(super) struct Chain {
     descendants: VecDeque<BlockInfo>,
     /// The latest safe block.
     safe: BlockInfo,
+    /// Whether the actor is linking a head it polled to the chain. Until it has, a height after
+    /// the head may already be on L1.
+    linking: bool,
 }
 
 /// Where a height falls relative to the chain.
@@ -41,9 +44,20 @@ pub(super) enum Join {
 }
 
 impl Chain {
-    /// Creates a chain holding only the finalized block.
+    /// Creates a chain holding only the finalized block, which links the first head it polls.
     pub(super) const fn new(finalized: BlockInfo) -> Self {
-        Self { finalized, descendants: VecDeque::new(), safe: finalized }
+        Self { finalized, descendants: VecDeque::new(), safe: finalized, linking: true }
+    }
+
+    /// Returns whether the actor is linking a head it polled, so that a height after the head may
+    /// already be on L1.
+    pub(super) const fn linking(&self) -> bool {
+        self.linking
+    }
+
+    /// Sets whether the actor is linking a head it polled. Returns whether it changed.
+    pub(super) const fn set_linking(&mut self, linking: bool) -> bool {
+        std::mem::replace(&mut self.linking, linking) != linking
     }
 
     /// Returns the canonical head.

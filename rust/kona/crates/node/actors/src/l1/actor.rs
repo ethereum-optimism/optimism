@@ -41,8 +41,26 @@ impl Actor {
     }
 
     /// Makes `head` the chain's head, first fetching the ancestors that link it to the chain. If
-    /// one was reorged out, the chain keeps its head, and the next head tries again.
+    /// one was reorged out, the chain keeps its head, and the next head tries again. Either way,
+    /// the chain is no longer linking a head.
     async fn follow(&self, head: BlockInfo) {
+        let branch = self.link(head).await;
+        self.chain.send_if_modified(|chain| {
+            let linking = chain.set_linking(false);
+            let Some(branch) = branch else { return linking };
+            let previous = chain.head();
+            let orphaned = chain.set_head(branch);
+            if orphaned > 0 {
+                info!(target: "l1", ?head, orphaned, "L1 reorg");
+            }
+            linking || chain.head() != previous
+        });
+    }
+
+    /// Returns `head` and the ancestors that link it to the chain, oldest first, fetching the
+    /// ancestors the chain does not hold. Returns `None` if one was reorged out, or if `head` does
+    /// not descend from the finalized block.
+    async fn link(&self, head: BlockInfo) -> Option<Vec<BlockInfo>> {
         // The head and the ancestors fetched for it, newest first.
         let mut branch = vec![head];
         loop {
@@ -52,29 +70,25 @@ impl Actor {
                 Join::Held | Join::Extends => break,
                 Join::Rejected => {
                     warn!(target: "l1", ?head, "L1 head does not descend from the finalized block");
-                    return;
+                    return None;
                 }
                 Join::NeedsParent => {
+                    // Until the head is linked, questions about heights after the chain's head
+                    // wait.
+                    self.chain.send_if_modified(|chain| chain.set_linking(true));
                     let hash = oldest.parent_hash;
                     match self.rpc.header_by_hash(hash).await {
                         Some(parent) => branch.push(block_info(&parent)),
                         None => {
                             debug!(target: "l1", ?head, %hash, "An ancestor of the L1 head was reorged out");
-                            return;
+                            return None;
                         }
                     }
                 }
             }
         }
         branch.reverse();
-        self.chain.send_if_modified(|chain| {
-            let previous = chain.head();
-            let orphaned = chain.set_head(branch);
-            if orphaned > 0 {
-                info!(target: "l1", ?head, orphaned, "L1 reorg");
-            }
-            chain.head() != previous
-        });
+        Some(branch)
     }
 
     /// Moves the chain's start to a newly finalized block.
@@ -358,6 +372,17 @@ mod tests {
         head_reaches(&handle, block(40)).await;
         assert_eq!(state.all_fetches(), 29);
         assert_eq!(handle.canonical(25).await.unwrap(), Some(block(25)));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn answers_heights_after_the_head_once_it_links_the_first_head() {
+        let state = RpcState::new(block(10));
+        state.add(blocks(11..=39));
+        state.set_head(block(40));
+        let (handle, _actor) = spawn(&state);
+        // Asked before the actor linked its first head, which L1 already has.
+        assert_eq!(handle.canonical(25).await.unwrap(), Some(block(25)));
+        assert_eq!(handle.canonical(41).await.unwrap(), None);
     }
 
     #[tokio::test(start_paused = true)]
