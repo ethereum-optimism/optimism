@@ -137,7 +137,8 @@ impl RollupNode {
     /// - [`RollupNodeError::L2Heads`] if the execution layer's heads, which the engine starts from,
     ///   cannot be read;
     /// - [`RollupNodeError::L1FinalizedBlock`] if the finalized L1 block cannot be read;
-    /// - [`RollupNodeError::UnsafeBlockSigner`] if the unsafe block signer cannot be read from L1.
+    /// - [`RollupNodeError::UnsafeBlockSigner`] if the unsafe block signer, which a node with P2P
+    ///   checks gossiped blocks against, cannot be read from L1.
     ///
     /// Any other component that fails to start is a [`RollupNodeError::Startup`]. Once the actors
     /// run, the node stops when the first of them exits: this returns `Ok(())` if it exited
@@ -163,14 +164,6 @@ impl RollupNode {
             l1::finalized_block(&l1_rpc).await.map_err(RollupNodeError::L1FinalizedBlock)?;
         let l1_builder = l1::Builder::new(l1_rpc.retrying(L1_RETRY_DELAY), l1_finalized);
         let l1 = l1_builder.handle();
-        let initial_signer = l1_signer_updater::signer_at_l1_head(
-            &self.clients.l1,
-            self.chain.rollup_config.l1_system_config_address,
-        )
-        .await
-        .map_err(RollupNodeError::UnsafeBlockSigner)?;
-        let signer_updater_builder = l1_signer_updater::Builder::new(initial_signer);
-        let signer_rx = signer_updater_builder.handle();
         // actor request channels
         let derivation_builder = derivation::Builder::new();
         let derivation = derivation_builder.handle();
@@ -180,12 +173,6 @@ impl RollupNode {
         let sequencer_admin_rpc = sequencer.as_ref().map(|(config, builder)| {
             SequencerAdminRpc::new(builder.handle(), config.conductor_rpc_url.is_some())
         });
-        let discovery_builder = discovery::Builder::new();
-        let discovery = discovery_builder.handle();
-        // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
-        // network actor. While signing or publishing stalls, the sequencer pauses block production.
-        let signer_builder = signer::Builder::new();
-        let signer_handle = signer_builder.handle();
 
         // ─── engine ─────────────────────────────────────────────────────────────────────────
         let engine_actor = engine_builder.build(
@@ -259,63 +246,82 @@ impl RollupNode {
                 (Box::pin(derivation), Some(Box::pin(finality)))
             };
 
-        // ─── block signer ───────────────────────────────────────────────────────────────────
-        // Start the sequencer's block signer before the network, so a misconfigured or
-        // unreachable remote signer fails before the node binds its p2p ports.
-        let block_signer = match &self.sequencer {
-            Some(config) => Some(config.signer.clone().start().await.map_err(|e| {
-                RollupNodeError::Startup(format!("Failed to start block signer: {e}"))
-            })?),
-            None => None,
-        };
-
         // ─── network ────────────────────────────────────────────────────────────────────────
-        // A node without P2P runs no network or discovery actor, serves no P2P RPC, and drops the
-        // blocks its sequencer signs, having no peers to gossip them to.
-        let mut network = None;
-        let mut network_actors = None;
+        // A node without P2P runs no network, discovery or block signer actor, serves no P2P RPC,
+        // and does not sign the blocks its sequencer builds, having no peers to gossip them to.
+        let mut p2p_actors = None;
         let mut p2p_rpc = None;
+        let mut sequencer_signer = None;
         if let Some(p2p_config) = self.p2p_config.clone() {
+            // The network accepts gossiped blocks signed by the unsafe block signer that L1 names.
+            let initial_signer = l1_signer_updater::signer_at_l1_head(
+                &self.clients.l1,
+                self.chain.rollup_config.l1_system_config_address,
+            )
+            .await
+            .map_err(RollupNodeError::UnsafeBlockSigner)?;
+            let signer_updater_builder = l1_signer_updater::Builder::new(initial_signer);
+            let signer_rx = signer_updater_builder.handle();
+            let signer_updater = signer_updater_builder.build(
+                self.clients.l1.clone(),
+                self.chain.rollup_config.l1_system_config_address,
+                adapters::L1::new(l1.clone()),
+            );
+
+            // Start the sequencer's block signer before the network, so a misconfigured or
+            // unreachable remote signer fails before the node binds its p2p ports.
+            let block_signer = match &self.sequencer {
+                Some(config) => Some(config.signer.clone().start().await.map_err(|e| {
+                    RollupNodeError::Startup(format!("Failed to start block signer: {e}"))
+                })?),
+                None => None,
+            };
+
             let (gossip, discovery_driver) = p2p_config
                 .start(signer_rx.clone())
                 .await
                 .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e}")))?;
             let network_builder = network::Builder::new(gossip);
-            let handle = network_builder.handle();
+            let network = network_builder.handle();
             // A node without discovery runs no discovery actor, and bans no discovery nodes.
-            let discovery_actor = discovery_driver.map(|driver| {
-                discovery_builder.build(driver, adapters::Network(Some(handle.clone())))
-            });
-            let discovery = discovery_actor.is_some().then_some(discovery);
+            let discovery_builder = discovery::Builder::new();
+            let discovery = discovery_driver.is_some().then(|| discovery_builder.handle());
+            let discovery_actor = discovery_driver
+                .map(|driver| discovery_builder.build(driver, adapters::Network(network.clone())));
             let network_actor = network_builder.build(
                 adapters::Engine::new(engine.clone()),
                 adapters::Discovery(discovery.clone()),
             );
             p2p_rpc = Some(P2pRpc::new(
-                handle.state(),
-                handle.clone(),
+                network.state(),
+                network.clone(),
                 discovery,
                 self.chain.rollup_config.l2_chain_id.id(),
             ));
-            network = Some(handle);
-            // Boxed, so that the actors do not sit in `start`'s frame while it awaits.
-            network_actors = Some((Box::pin(network_actor), discovery_actor.map(Box::pin)));
-        }
-        let signer_actor = block_signer.map(|signer| {
-            signer_builder.build(
-                signer,
-                self.chain.rollup_config.l2_chain_id.id(),
-                signer_rx,
-                adapters::Network(network),
-            )
-        });
 
-        // ─── L1 watchers ────────────────────────────────────────────────────────────────────
-        let signer_updater = signer_updater_builder.build(
-            self.clients.l1.clone(),
-            self.chain.rollup_config.l1_system_config_address,
-            adapters::L1::new(l1.clone()),
-        );
+            // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
+            // network actor. While signing or publishing stalls, the sequencer pauses block
+            // production.
+            let signer_actor = block_signer.map(|block_signer| {
+                let signer_builder = signer::Builder::new();
+                sequencer_signer = Some(signer_builder.handle());
+                signer_builder.build(
+                    block_signer,
+                    self.chain.rollup_config.l2_chain_id.id(),
+                    signer_rx,
+                    adapters::Network(network),
+                )
+            });
+            // Boxed, so that the actors do not sit in `start`'s frame while it awaits.
+            p2p_actors = Some((
+                Box::pin(network_actor),
+                discovery_actor.map(Box::pin),
+                signer_actor.map(Box::pin),
+                Box::pin(signer_updater),
+            ));
+        }
+
+        // ─── L1 watcher ─────────────────────────────────────────────────────────────────────
         let l1_actor = l1_builder.build(l1::Config {
             head_interval: Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
             finalized_interval: Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
@@ -356,7 +362,7 @@ impl RollupNode {
                         config.conductor_rpc_timeout,
                     ))
                 }),
-                adapters::Signer(signer_handle),
+                adapters::Signer(sequencer_signer),
             );
             (sequencer_actor, origin_actor)
         });
@@ -446,21 +452,21 @@ impl RollupNode {
             supervisor.spawn("sequencer", sequencer);
             supervisor.spawn("origin", origin);
         }
-        if let Some(signer) = signer_actor {
-            supervisor.spawn("signer", signer);
-        }
-        if let Some((network_actor, discovery_actor)) = network_actors {
-            supervisor.spawn("network", network_actor);
-            if let Some(discovery_actor) = discovery_actor {
-                supervisor.spawn("discovery", discovery_actor);
+        if let Some((network, discovery, signer, signer_updater)) = p2p_actors {
+            supervisor.spawn("network", network);
+            if let Some(discovery) = discovery {
+                supervisor.spawn("discovery", discovery);
             }
+            if let Some(signer) = signer {
+                supervisor.spawn("signer", signer);
+            }
+            supervisor.spawn("l1_signer_updater", async move {
+                signer_updater.await;
+                Ok::<(), Infallible>(())
+            });
         }
         // The L1 actor runs until it is dropped: its output, `Infallible`, never exists.
         supervisor.spawn("l1", async move { Err::<(), _>(l1_actor.await) });
-        supervisor.spawn("l1_signer_updater", async move {
-            signer_updater.await;
-            Ok::<(), Infallible>(())
-        });
         supervisor.spawn("derivation", derivation_actor);
         if let Some(finality) = finality_actor {
             supervisor.spawn("finality", finality);

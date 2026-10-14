@@ -6,11 +6,11 @@ use url::Url;
 
 /// Sequencer configuration.
 ///
-/// A node given one can sequence: it signs the blocks it builds for gossip with the
-/// [`signer`](Self::signer).
+/// A node given one can sequence. With P2P, it signs the blocks it builds for gossip with the
+/// [`signer`](Self::signer); without P2P, it neither signs nor gossips them.
 #[derive(Debug, Clone)]
 pub struct SequencerConfig {
-    /// Signs the sequencer's blocks for gossip.
+    /// Signs the sequencer's blocks for gossip. Unused by a node without P2P.
     pub signer: BlockSigner,
     /// The [`Url`] for the conductor RPC endpoint. If [`Some`], enables the conductor service.
     pub conductor_rpc_url: Option<Url>,

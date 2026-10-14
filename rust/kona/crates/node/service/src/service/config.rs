@@ -14,7 +14,7 @@ pub struct RollupNodeConfig {
     /// The rules of the chain the node follows, shared by every component of the node.
     pub chain: ChainSpec,
     /// The [`NetworkConfig`], or `None` for a node without P2P, which neither receives nor
-    /// gossips blocks.
+    /// gossips blocks. A sequencer without P2P does not sign the blocks it builds.
     pub p2p_config: Option<NetworkConfig>,
     /// The address the RPC server listens on, or `None` for a node that serves no RPC. It serves
     /// the admin API, so keep it off untrusted networks.
@@ -23,6 +23,8 @@ pub struct RollupNodeConfig {
     /// the chain.
     ///
     /// A node that can sequence starts with its sequencer stopped, and serves the sequencer's
-    /// admin RPC methods, such as `admin_startSequencer`.
+    /// admin RPC methods, such as `admin_startSequencer`. Only those methods start the sequencer,
+    /// so a node that can sequence but serves no RPC (see [`rpc_addr`](Self::rpc_addr)) never
+    /// does.
     pub sequencer: Option<SequencerConfig>,
 }

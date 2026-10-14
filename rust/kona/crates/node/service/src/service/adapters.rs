@@ -185,14 +185,13 @@ impl network::Discovery for Discovery {
     }
 }
 
-/// The network actor, or `None` for a node without P2P, which dials no peers and drops the
-/// blocks it signs, having no peers to gossip them to.
+/// The network actor, which discovery dials peers through, and the signer gossips blocks through.
 #[derive(Debug, Clone)]
-pub(super) struct Network(pub(super) Option<network::Handle>);
+pub(super) struct Network(pub(super) network::Handle);
 
 impl discovery::Network for Network {
     fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
-        self.0.as_ref().map_or(Ok(()), |network| network.dial(enr))
+        self.0.dial(enr)
     }
 }
 
@@ -201,26 +200,31 @@ impl signer::Network for Network {
     type Error = SendError<signer::Payload>;
 
     async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
-        match &self.0 {
-            Some(network) => network.publish(payload).await,
-            None => Ok(()),
-        }
+        self.0.publish(payload).await
     }
 }
 
+/// The signer actor the sequencer hands its blocks to for signing and gossip, or `None` for a node
+/// without P2P, which drops them unsigned, having no peers to gossip them to.
 #[derive(Debug, Clone)]
-pub(super) struct Signer(pub(super) signer::Handle);
+pub(super) struct Signer(pub(super) Option<signer::Handle>);
 
 #[async_trait]
 impl sequencer::Signer for Signer {
     type Error = signer::Stopped;
 
     async fn send(&self, payload: OpExecutionPayloadEnvelope) -> Result<(), Self::Error> {
-        self.0.send(payload).await
+        match &self.0 {
+            Some(signer) => signer.send(payload).await,
+            None => Ok(()),
+        }
     }
 
     async fn ready(&self) -> Result<(), Self::Error> {
-        self.0.ready().await
+        match &self.0 {
+            Some(signer) => signer.ready().await,
+            None => Ok(()),
+        }
     }
 }
 
@@ -246,11 +250,8 @@ mod tests {
         ));
     }
 
-    #[tokio::test]
-    async fn signer_preserves_backpressure_and_reports_closed_channels() {
-        let builder = signer::Builder::new();
-        let signer = Signer(builder.handle());
-        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+    fn payload() -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
             parent_hash: Default::default(),
             fee_recipient: Default::default(),
             state_root: Default::default(),
@@ -265,7 +266,14 @@ mod tests {
             base_fee_per_gas: Default::default(),
             block_hash: Default::default(),
             transactions: vec![],
-        });
+        })
+    }
+
+    #[tokio::test]
+    async fn signer_preserves_backpressure_and_reports_closed_channels() {
+        let builder = signer::Builder::new();
+        let signer = Signer(Some(builder.handle()));
+        let payload = payload();
         signer.ready().await.unwrap();
         signer.send(payload.clone()).await.unwrap();
         let waiting = signer.ready();
@@ -286,5 +294,15 @@ mod tests {
         drop(builder);
         assert_eq!(send.await, Err(signer::Stopped));
         assert_eq!(waiting.await, Err(signer::Stopped));
+    }
+
+    /// Without P2P, the sequencer's blocks are dropped unsigned, so it never waits on a signer.
+    #[tokio::test]
+    async fn without_a_signer_blocks_are_dropped() {
+        let signer = Signer(None);
+        for _ in 0..3 {
+            signer.ready().await.unwrap();
+            signer.send(payload()).await.unwrap();
+        }
     }
 }
