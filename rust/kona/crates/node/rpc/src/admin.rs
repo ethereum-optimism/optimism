@@ -202,9 +202,8 @@ mod tests {
     #[derive(Debug)]
     struct UnusedOrigin;
 
-    #[async_trait]
     impl sequencer::Origin for UnusedOrigin {
-        async fn next(&self, _parent: L2BlockInfo) -> Result<BlockInfo, OriginError> {
+        fn next(&self, _parent: L2BlockInfo) -> Result<BlockInfo, OriginError> {
             panic!("a full signer queue must pause building")
         }
     }

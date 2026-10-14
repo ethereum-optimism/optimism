@@ -304,7 +304,7 @@ where
         &self,
         unsafe_head: L2BlockInfo,
     ) -> Result<Option<BlockInfo>, ActorError> {
-        let l1_origin = match self.origin.next(unsafe_head).await {
+        let l1_origin = match self.origin.next(unsafe_head) {
             Ok(l1_origin) => l1_origin,
             Err(OriginError::Reorged(origin)) => {
                 warn!(
@@ -315,11 +315,8 @@ where
                 self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);
             }
-            Err(OriginError::MaxDriftReached) => {
-                warn!(
-                    target: "sequencer",
-                    "The next L2 block reaches the maximum sequencer drift, and L1 has no next origin yet. Re-attempting on next tick."
-                );
+            Err(OriginError::Unavailable) => {
+                info!(target: "sequencer", "No L1 origin to build on yet; retrying on the next tick");
                 return Ok(None);
             }
             Err(OriginError::Stopped) => return Err(ActorError::OriginStopped),
