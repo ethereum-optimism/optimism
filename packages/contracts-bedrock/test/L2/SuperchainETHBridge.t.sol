@@ -382,6 +382,26 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
     }
 
+    /// @notice Tests that a refund of more than the send's amount is rejected.
+    function test_refundETH_wrongAmount_reverts() external {
+        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
+        _expire(messageHash);
+
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 2 ether);
+    }
+
+    /// @notice Tests that a refund naming another recipient than the send's is rejected.
+    function test_refundETH_wrongRecipient_reverts() external {
+        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
+        _expire(messageHash);
+
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_MessageNotExpired.selector);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, makeAddr("other"), 1 ether);
+    }
+
     /// @notice Tests that a refund whose arguments differ from the expired send's message is
     ///         rejected, so no other amount or recipient can be paid.
     function testFuzz_refundETH_wrongPreimage_reverts(
@@ -594,7 +614,8 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
     }
 
     /// @notice Tests that EXPIRE_MESSAGE_GAS_LIMIT covers expireMessage on cold storage, as in the
-    ///         deposit's own transaction.
+    ///         deposit's own transaction. Here rather than in the messenger's tests because it needs
+    ///         the deployed, proxied messenger.
     function test_refundETH_expireGasLimit_succeeds() external {
         (, bytes32 messageHash) = _sendAndWait();
         // Read the implementation first: reading it warms the proxy's slot.
@@ -615,7 +636,8 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
     }
 
     /// @notice Tests that a deposit that runs out of gas lands in the L2CrossDomainMessenger's
-    ///         failed messages, and anyone can replay it to expire the message.
+    ///         failed messages, and anyone can replay it to expire the message. Here rather than in
+    ///         the messenger's tests because it needs the deployed L2CrossDomainMessenger.
     function test_refundETH_expireReplay_succeeds() external {
         (uint256 nonce, bytes32 messageHash) = _sendAndWait();
         bytes memory expire = abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (messageHash, block.timestamp));
