@@ -515,7 +515,7 @@ impl SnapshotSource {
         &self,
         expected: BlockId,
         label: &str,
-    ) -> std::result::Result<CanonicalL1Block, BuildFailure> {
+    ) -> std::result::Result<(), BuildFailure> {
         let actual = self
             .fetch_l1_block(expected.number)
             .await
@@ -531,7 +531,7 @@ impl SnapshotSource {
                 expected.hash,
             )));
         }
-        Ok(CanonicalL1Block { block: actual })
+        Ok(())
     }
 
     async fn sum_executed_l2_gas(
