@@ -322,16 +322,21 @@ where
             .await
         {
             Ok(()) => {}
+            Err(EngineClientError::SealError(err)) if is_seal_task_err_fatal(&err) => {
+                error!(target: "sequencer", ?err, "Critical error making a sealed block canonical");
+                return Err(ActorError::EngineError(EngineClientError::SealError(err)));
+            }
+            Err(EngineClientError::SealError(err)) if is_canonicalize_err_temporary(&err) => {
+                warn!(target: "sequencer", ?err, "Failed to make the sealed block canonical; retrying");
+                record_publication(PublicationOutcome::CanonicalizeRetried);
+                return Ok(Publication::Retry(Box::new(block)));
+            }
+            Err(EngineClientError::SealError(SealTaskError::UnsafeHeadChangedSinceBuild)) => {
+                warn!(target: "sequencer", "Dropping a sealed block the unsafe head moved past");
+                record_publication(PublicationOutcome::DroppedStale);
+                return Ok(Publication::Dropped);
+            }
             Err(EngineClientError::SealError(err)) => {
-                if is_seal_task_err_fatal(&err) {
-                    error!(target: "sequencer", ?err, "Critical error making a sealed block canonical");
-                    return Err(ActorError::EngineError(EngineClientError::SealError(err)));
-                }
-                if is_canonicalize_err_temporary(&err) {
-                    warn!(target: "sequencer", ?err, "Failed to make the sealed block canonical; retrying");
-                    record_publication(PublicationOutcome::CanonicalizeRetried);
-                    return Ok(Publication::Retry(Box::new(block)));
-                }
                 warn!(target: "sequencer", ?err, "Dropping a sealed block that cannot become canonical");
                 record_publication(PublicationOutcome::DroppedRejected);
                 return Ok(Publication::Dropped);

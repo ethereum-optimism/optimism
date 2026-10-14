@@ -248,6 +248,29 @@ async fn publications_are_counted_by_outcome() {
     }
 }
 
+/// A committed block whose parent the unsafe head moved past by the time it is made canonical is
+/// dropped as stale, not as one the engine rejects.
+#[tokio::test(start_paused = true)]
+async fn a_committed_block_the_unsafe_head_moved_past_is_dropped_as_stale() {
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics = recorder.handle();
+    let _recorder = metrics::set_default_local_recorder(&recorder);
+    let (mut actor, _, _) = test_actor_with_config(true, None);
+    actor.engine_client.expect_canonicalize_block().times(1).return_once(|_, _| {
+        Err(EngineClientError::SealError(SealTaskError::UnsafeHeadChangedSinceBuild))
+    });
+    actor.signer.expect_send().times(0);
+    let mut block = sealed_block(crate::test_payload(1));
+    block.committed = true;
+
+    assert!(matches!(actor.publish(block).await.unwrap(), Publication::Dropped));
+    let rendered = metrics.render();
+    assert!(
+        rendered.contains("kona_node_sequencer_sealed_blocks_total{outcome=\"dropped_stale\"} 1"),
+        "{rendered}"
+    );
+}
+
 /// Once an operator overrides the conductor's leadership, for disaster recovery, the sequencer
 /// publishes blocks without committing them to its conductor, as op-node.
 #[tokio::test(start_paused = true)]

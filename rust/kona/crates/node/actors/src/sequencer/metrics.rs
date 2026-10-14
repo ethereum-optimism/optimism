@@ -31,7 +31,7 @@ pub(super) enum PublicationOutcome {
     ConductorRefused,
     /// The engine failed temporarily to make it canonical; it is kept to try again.
     CanonicalizeRetried,
-    /// The unsafe head had moved past its parent, so it was dropped uncommitted.
+    /// The unsafe head had moved past its parent, so it was dropped.
     DroppedStale,
     /// The engine can never make it canonical, so it was dropped.
     DroppedRejected,
