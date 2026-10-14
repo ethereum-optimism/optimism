@@ -98,9 +98,10 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Initializes CLI metrics for the Node subcommand.
+    /// Initializes CLI metrics for the Node subcommand. They record the P2P settings, so only a
+    /// node with P2P on publishes them.
     pub fn init_cli_metrics(&self) -> anyhow::Result<()> {
-        if !self.metrics.enabled {
+        if !self.metrics.enabled || !self.p2p_flags.enabled {
             debug!("CLI metrics are disabled");
             return Ok(());
         }
