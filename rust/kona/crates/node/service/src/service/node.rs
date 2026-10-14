@@ -264,7 +264,6 @@ impl RollupNode {
     #[allow(clippy::too_many_arguments)]
     async fn build_rpc(
         &self,
-        l2_query_client: EngineApi,
         engine_state: watch::Receiver<engine::EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
@@ -294,7 +293,7 @@ impl RollupNode {
                     self.version.clone(),
                     self.chain.rollup_config.clone(),
                     engine_state,
-                    l2_query_client,
+                    self.clients.l2.clone(),
                     head_l1,
                     safe_l1,
                     finalized_l1,
@@ -424,9 +423,7 @@ impl RollupNode {
         let signer_handle = signer_builder.handle();
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let engine_api = self.engine_api.clone();
-        let l2_query_client = engine_api.as_ref().clone();
-        let engine_actor = self.build_engine(engine_builder, engine_api);
+        let engine_actor = self.build_engine(engine_builder, self.engine_api.clone());
 
         let derivation_actor = self
             .build_derivation(derivation_builder, engine.clone(), head.clone())
@@ -502,16 +499,7 @@ impl RollupNode {
             engine,
         );
         let rpc = self
-            .build_rpc(
-                l2_query_client,
-                engine_state,
-                admin_rpc,
-                p2p_rpc,
-                head,
-                safe,
-                finalized,
-                derivation.status(),
-            )
+            .build_rpc(engine_state, admin_rpc, p2p_rpc, head, safe, finalized, derivation.status())
             .await
             .map_err(RollupNodeError::Startup)?;
 
