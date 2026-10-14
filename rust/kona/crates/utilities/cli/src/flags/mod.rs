@@ -5,9 +5,6 @@
 mod log;
 pub use log::{LogArgs, LogLevel};
 
-mod enabled;
-pub use enabled::parse_enabled;
-
 /// Returns the environment variable a flag reads: `prefix`, then the flag's long name in upper
 /// case with `.` and `-` replaced by `_`. For example, with the prefix `KONA_NODE_`,
 /// `--l1.eth-url` reads `KONA_NODE_L1_ETH_URL`.

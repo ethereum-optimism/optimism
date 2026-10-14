@@ -55,15 +55,15 @@ A sequencer requires all standard node arguments plus `--sequencer.enabled` and 
 | **L2 Engine** | `--l2.engine.url` | `KONA_NODE_L2_ENGINE_URL` | L2 engine API endpoint |
 | **JWT Secret** | `--l2.engine.jwt-secret` | `KONA_NODE_L2_ENGINE_JWT_SECRET` | Path to JWT secret file |
 | **Rollup Config** | `--chain.rollup-config` or `--chain` | `KONA_NODE_CHAIN_ROLLUP_CONFIG` or `KONA_NODE_CHAIN` | Exactly one: the rollup config file, or the chain to load it for from the superchain registry |
-| **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The environment variable must be `true` or unset |
+| **Sequencer** | `--sequencer.enabled` | `KONA_NODE_SEQUENCER_ENABLED` | Runs the sequencer. The variable takes `true` or `false` |
 | **Block Signer** | `--sequencer.signer.key.path`, or `--sequencer.signer.url` with `--sequencer.signer.address` | `KONA_NODE_SEQUENCER_SIGNER_KEY_PATH`, `KONA_NODE_SEQUENCER_SIGNER_URL`, `KONA_NODE_SEQUENCER_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
 
 ## Sequencer-Specific Flags
 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
-| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Requires `--sequencer.enabled` |
-| `--sequencer.conductor-url` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | - | Conductor service RPC endpoint. Requires `--sequencer.enabled` |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection. Applies only with `--sequencer.enabled` |
+| `--sequencer.conductor-url` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | - | Conductor service RPC endpoint. Applies only with `--sequencer.enabled` |
 
 The full flag catalogue, including the standard node arguments every node takes, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 

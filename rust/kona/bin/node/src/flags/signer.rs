@@ -1,6 +1,5 @@
 //! Block signer CLI Flags
 
-use super::sequencer::SEQUENCER_ENABLED;
 use alloy_primitives::{Address, B256};
 use alloy_signer::k256::ecdsa;
 use alloy_signer_local::PrivateKeySigner;
@@ -12,20 +11,16 @@ use std::{path::PathBuf, str::FromStr};
 use url::Url;
 
 /// The id of the group of flags that each choose a block signer. At most one may be given.
-pub(super) const BLOCK_SIGNER: &str = "block_signer";
+const BLOCK_SIGNER: &str = "block_signer";
 
 /// The flags that choose the sequencer's block signer: a local key read from a file, or a remote
-/// op-signer. Each requires `--sequencer.enabled`.
+/// op-signer. They apply only with `--sequencer.enabled`.
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
 #[command(group(ArgGroup::new(BLOCK_SIGNER).args(["key_path", "url"])))]
 pub struct SignerArgs {
     /// Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The
     /// file must exist.
-    #[arg(
-        long = "sequencer.signer.key.path",
-        env = "KONA_NODE_SEQUENCER_SIGNER_KEY_PATH",
-        requires = SEQUENCER_ENABLED
-    )]
+    #[arg(long = "sequencer.signer.key.path", env = "KONA_NODE_SEQUENCER_SIGNER_KEY_PATH")]
     pub key_path: Option<PathBuf>,
     /// A remote op-signer that signs the sequencer's blocks.
     #[command(flatten)]
@@ -43,8 +38,7 @@ pub struct RemoteSignerArgs {
     #[arg(
         long = "sequencer.signer.url",
         env = "KONA_NODE_SEQUENCER_SIGNER_URL",
-        requires = "address",
-        requires = SEQUENCER_ENABLED
+        requires = "address"
     )]
     pub url: Option<Url>,
     /// The address of the remote op-signer's key.
@@ -178,7 +172,7 @@ mod tests {
     use crate::flags::SequencerArgs;
     use clap::{Parser, error::ErrorKind};
 
-    /// Parses the signer flags `args` of a node run with `--sequencer.enabled`, which they require.
+    /// Parses the signer flags `args` of a node run with `--sequencer.enabled`.
     fn parse(args: &[&str]) -> Result<SignerArgs, clap::Error> {
         SequencerArgs::try_parse_from(
             ["node", "--sequencer.enabled"].into_iter().chain(args.iter().copied()),

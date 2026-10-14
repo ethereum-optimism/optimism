@@ -330,15 +330,18 @@ mod tests {
     }
 
     #[test]
-    fn test_sequencer_flags_require_a_block_signer() {
-        let error = NodeCommand::try_parse_from(
-            std::iter::once("node")
-                .chain(default_flags().iter().copied())
-                .chain(["--sequencer.conductor-url", "http://127.0.0.1:4"]),
-        )
-        .unwrap_err();
+    fn test_sequencer_flags_are_ignored_without_the_sequencer() {
+        let (command, _jwt) =
+            parse_node(&["--chain", "optimism", "--sequencer.conductor-url", "http://127.0.0.1:4"]);
 
-        assert_eq!(error.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+        assert!(command.config().unwrap().sequencer.is_none());
+    }
+
+    #[test]
+    fn test_sequencer_requires_a_block_signer() {
+        let (command, _jwt) = parse_node(&["--chain", "optimism", "--sequencer.enabled"]);
+
+        assert!(command.config().unwrap_err().to_string().contains("requires a block signer"));
     }
 
     #[test]

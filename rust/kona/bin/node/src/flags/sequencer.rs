@@ -4,37 +4,33 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/flags.go#L233-L265
 
-use super::signer::{BLOCK_SIGNER, SignerArgs, SignerKeyError};
+use super::signer::{SignerArgs, SignerKeyError};
 use clap::{ArgAction, Parser};
 use kona_node_service::SequencerConfig;
 use std::time::Duration;
 use url::Url;
 
-/// The id of `--sequencer.enabled`, which every other sequencer flag requires.
-pub(super) const SEQUENCER_ENABLED: &str = "sequencer_enabled";
-
 /// Sequencer CLI Flags
 ///
-/// `--sequencer.enabled` makes the node able to sequence, and requires a block signer. Every other
-/// flag here configures that sequencer, so it requires `--sequencer.enabled`.
+/// `--sequencer.enabled` makes the node able to sequence, and then requires a block signer. The
+/// other flags here configure that sequencer, and are ignored without it, so that setting
+/// `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 #[command(next_help_heading = "Sequencer")]
 pub struct SequencerArgs {
     /// Run the sequencer. It starts stopped: start it with `admin_startSequencer`. Requires a
-    /// block signer.
-    ///
-    /// The environment variable must be `true` or unset.
+    /// block signer. Disabled by default.
     #[arg(
-        id = SEQUENCER_ENABLED,
+        id = "sequencer_enabled",
         long = "sequencer.enabled",
         env = "KONA_NODE_SEQUENCER_ENABLED",
         action = ArgAction::Set,
-        num_args = 0,
-        default_missing_value = "true",
-        value_parser = kona_cli::parse_enabled,
-        requires = BLOCK_SIGNER
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true"
     )]
-    pub enabled: Option<bool>,
+    pub enabled: bool,
 
     /// The sequencer's block signer.
     #[command(flatten)]
@@ -42,20 +38,11 @@ pub struct SequencerArgs {
 
     /// Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1
     /// origin.
-    #[arg(
-        long = "sequencer.l1-confs",
-        default_value = "4",
-        env = "KONA_NODE_SEQUENCER_L1_CONFS",
-        requires = SEQUENCER_ENABLED
-    )]
+    #[arg(long = "sequencer.l1-confs", default_value = "4", env = "KONA_NODE_SEQUENCER_L1_CONFS")]
     pub l1_confs: u64,
 
     /// Conductor service rpc endpoint. Providing this value will enable the conductor service.
-    #[arg(
-        long = "sequencer.conductor-url",
-        env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL",
-        requires = SEQUENCER_ENABLED
-    )]
+    #[arg(long = "sequencer.conductor-url", env = "KONA_NODE_SEQUENCER_CONDUCTOR_URL")]
     pub conductor_url: Option<Url>,
 
     /// How long a conductor request may take, in milliseconds, before it fails and the sequencer
@@ -63,8 +50,7 @@ pub struct SequencerArgs {
     #[arg(
         long = "sequencer.conductor-timeout-ms",
         default_value = "1000",
-        env = "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS",
-        requires = SEQUENCER_ENABLED
+        env = "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT_MS"
     )]
     pub conductor_timeout_ms: u64,
 }
@@ -77,17 +63,28 @@ impl Default for SequencerArgs {
     }
 }
 
+/// An error in the sequencer's flags.
+#[derive(Debug, thiserror::Error)]
+pub enum SequencerFlagsError {
+    /// The node was run with `--sequencer.enabled` but without a block signer.
+    #[error(
+        "--sequencer.enabled requires a block signer: --sequencer.signer.key.path, or \
+         --sequencer.signer.url with --sequencer.signer.address"
+    )]
+    NoBlockSigner,
+    /// The block signer's key could not be read.
+    #[error(transparent)]
+    SignerKey(#[from] SignerKeyError),
+}
+
 impl SequencerArgs {
     /// Creates the [`SequencerConfig`] of a node run with `--sequencer.enabled`, or `None` for a
     /// node that cannot sequence.
-    pub fn config(self) -> Result<Option<SequencerConfig>, SignerKeyError> {
-        if self.enabled.is_none() {
+    pub fn config(self) -> Result<Option<SequencerConfig>, SequencerFlagsError> {
+        if !self.enabled {
             return Ok(None);
         }
-        // `--sequencer.enabled` requires a block signer.
-        let Some(signer) = self.signer.config()? else {
-            return Ok(None);
-        };
+        let signer = self.signer.config()?.ok_or(SequencerFlagsError::NoBlockSigner)?;
         Ok(Some(SequencerConfig {
             signer,
             conductor_rpc_url: self.conductor_url,
@@ -114,19 +111,17 @@ mod tests {
         ADDRESS,
     ];
 
-    /// Each sequencer flag other than `--sequencer.enabled`, with a valid value, whether it
-    /// requires `--sequencer.enabled` itself rather than through another flag, and the flags that
+    /// Each sequencer flag other than `--sequencer.enabled`, with a valid value, and the flags that
     /// complete it.
-    const SEQUENCER_FLAGS: [(&str, &str, bool, &[&str]); 10] = [
-        ("sequencer.signer.key.path", "/key", true, &["--sequencer.enabled"]),
-        ("sequencer.signer.url", "http://127.0.0.1:8080", true, &REMOTE),
-        ("sequencer.signer.address", ADDRESS, false, &REMOTE),
-        ("sequencer.signer.header", "a=b", false, &REMOTE),
-        ("sequencer.signer.tls.ca", "/ca.pem", false, &REMOTE),
+    const SEQUENCER_FLAGS: [(&str, &str, &[&str]); 10] = [
+        ("sequencer.signer.key.path", "/key", &["--sequencer.enabled"]),
+        ("sequencer.signer.url", "http://127.0.0.1:8080", &REMOTE),
+        ("sequencer.signer.address", ADDRESS, &REMOTE),
+        ("sequencer.signer.header", "a=b", &REMOTE),
+        ("sequencer.signer.tls.ca", "/ca.pem", &REMOTE),
         (
             "sequencer.signer.tls.cert",
             "/cert.pem",
-            false,
             &[
                 "--sequencer.enabled",
                 "--sequencer.signer.url",
@@ -140,7 +135,6 @@ mod tests {
         (
             "sequencer.signer.tls.key",
             "/key.pem",
-            false,
             &[
                 "--sequencer.enabled",
                 "--sequencer.signer.url",
@@ -151,17 +145,19 @@ mod tests {
                 "/cert.pem",
             ],
         ),
-        ("sequencer.l1-confs", "2", true, &LOCAL),
-        ("sequencer.conductor-url", "http://127.0.0.1:4", true, &LOCAL),
-        ("sequencer.conductor-timeout-ms", "500", true, &LOCAL),
+        ("sequencer.l1-confs", "2", &LOCAL),
+        ("sequencer.conductor-url", "http://127.0.0.1:4", &LOCAL),
+        ("sequencer.conductor-timeout-ms", "500", &LOCAL),
     ];
 
     fn parse(args: &[&str]) -> Result<SequencerArgs, clap::Error> {
         SequencerArgs::try_parse_from(std::iter::once("node").chain(args.iter().copied()))
     }
 
+    /// The sequencer's flags apply only with `--sequencer.enabled`: without it, each parses and the
+    /// node cannot sequence.
     #[test]
-    fn every_sequencer_flag_requires_the_sequencer() {
+    fn sequencer_flags_are_ignored_without_the_sequencer() {
         let command = SequencerArgs::command();
         let flags: BTreeSet<_> = command
             .get_arguments()
@@ -171,26 +167,22 @@ mod tests {
         let listed: BTreeSet<_> = SEQUENCER_FLAGS.iter().map(|(flag, ..)| *flag).collect();
         assert_eq!(flags, listed, "list each new sequencer flag in SEQUENCER_FLAGS");
 
-        for (flag, value, direct, completion) in SEQUENCER_FLAGS {
+        for (flag, value, completion) in SEQUENCER_FLAGS {
             let flag = format!("--{flag}");
-            let error = parse(&[&flag, value]).unwrap_err();
-            assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument, "{flag}");
-            if direct {
-                assert!(error.to_string().contains("--sequencer.enabled"), "{flag}: {error}");
-            }
-
-            let mut args = completion.to_vec();
+            let mut args: Vec<_> =
+                completion.iter().copied().filter(|arg| *arg != "--sequencer.enabled").collect();
             if !args.contains(&flag.as_str()) {
                 args.extend([flag.as_str(), value]);
             }
-            parse(&args).unwrap_or_else(|error| panic!("{flag}: {error}"));
+            let sequencer = parse(&args).unwrap_or_else(|error| panic!("{flag}: {error}"));
+            assert!(sequencer.config().unwrap().is_none(), "{flag}");
         }
     }
 
     #[test]
     fn the_sequencer_requires_a_block_signer() {
-        let error = parse(&["--sequencer.enabled"]).unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument);
+        let error = parse(&["--sequencer.enabled"]).unwrap().config().unwrap_err();
+        assert!(matches!(error, SequencerFlagsError::NoBlockSigner));
     }
 
     #[test]
@@ -228,17 +220,20 @@ mod tests {
     }
 
     #[test]
-    fn the_flag_takes_no_value() {
+    fn the_switch_takes_true_or_false() {
         let key = key_file(KEY);
         let key_path = key.path().to_str().unwrap();
-        for enabled in ["--sequencer.enabled=true", "--sequencer.enabled=false"] {
-            let error = parse(&[enabled, "--sequencer.signer.key.path", key_path]).unwrap_err();
-            assert_eq!(error.kind(), ErrorKind::TooManyValues, "{enabled}");
-        }
+        let config = |enabled| {
+            parse(&[enabled, "--sequencer.signer.key.path", key_path])
+                .map(|args| args.config().unwrap().is_some())
+        };
+        assert!(config("--sequencer.enabled=true").unwrap());
+        assert!(!config("--sequencer.enabled=false").unwrap());
+        assert_eq!(config("--sequencer.enabled=yes").unwrap_err().kind(), ErrorKind::InvalidValue);
     }
 
     #[test]
-    fn the_environment_variable_must_be_true_or_unset() {
+    fn the_environment_variable_takes_true_or_false() {
         let key = key_file(KEY);
         let key_path = key.path().to_str().unwrap();
 
@@ -252,6 +247,6 @@ mod tests {
         unsafe { std::env::remove_var("KONA_NODE_SEQUENCER_ENABLED") };
 
         assert!(enabled.unwrap().config().unwrap().is_some());
-        assert_eq!(disabled.unwrap_err().kind(), ErrorKind::ValueValidation);
+        assert!(disabled.unwrap().config().unwrap().is_none());
     }
 }
