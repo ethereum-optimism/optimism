@@ -81,6 +81,14 @@ func (s followerSpec) followerArgs() []string {
 	return append(s.engineArgs(), fmt.Sprintf("--proofs-history.verification-interval=%d", s.verificationInterval))
 }
 
+// headWithPersistedWindow is a chain height by which reth's datadir holds more than a window of
+// blocks under the spec's threshold, whatever reth still has in memory: reth persists nothing
+// until more than the threshold of blocks sit in memory, and from then on its datadir trails the
+// head by at most the threshold.
+func (s followerSpec) headWithPersistedWindow() uint64 {
+	return s.persistenceThreshold + proofsHistoryWindow + windowMargin
+}
+
 // initCase is one cell of the matrix the operator path runs under.
 type initCase struct {
 	spec        followerSpec
@@ -242,10 +250,10 @@ func includedBlock(t devtest.T, tx *txplan.PlannedTx) uint64 {
 	return bigs.Uint64Strict(receipt.BlockNumber)
 }
 
-// driveChainPastWindow runs the workload until the chain is more than a window long and the
-// follower has imported all of it, and returns the follower's head.
-func driveChainPastWindow(sys *initSystem, w *workload) eth.L2BlockRef {
-	w.driveUntilBlock(proofsHistoryWindow + windowMargin)
+// driveChainTo runs the workload until the chain reaches target and the follower has imported
+// all of it, and returns the follower's head.
+func driveChainTo(sys *initSystem, w *workload, target uint64) eth.L2BlockRef {
+	w.driveUntilBlock(target)
 	sys.Follower.InSync(sys.Sequencer, safety.LocalUnsafe, resyncAttempts)
 	return sys.Follower.BlockRefByLabel(eth.Unsafe)
 }
@@ -274,6 +282,8 @@ func reconnectFollower(sys *initSystem) {
 // sweeps that window against the sequencer. It runs before the follower's CL is back, so nothing
 // extends or prunes the store meanwhile.
 func verifySeededWindow(t devtest.T, sys *initSystem, w *workload, anchor eth.L2BlockRef) {
+	t.Require().GreaterOrEqualf(anchor.Number, uint64(proofsHistoryWindow),
+		"the anchor %s must be at least a window (%d blocks) above genesis for the backfill to span a full window", anchor, proofsHistoryWindow)
 	window := sys.Follower.WaitForProofsStoreBlock(anchor.Number, storeCatchUpTimeout)
 	t.Require().Equalf(anchor.Number, *window.Latest, "the store must be anchored at the datadir tip %s; store window %s", anchor, window)
 	t.Require().Equalf(anchor.Number-proofsHistoryWindow, *window.Earliest,
@@ -307,7 +317,9 @@ func TestFollowerServesTheWholeWindowAfterProofsInitWithBackfill(gt *testing.T) 
 			t.Parallel()
 			sys := newInitSystem(t, c.spec)
 			w := newWorkload(t, sys.FunderL2)
-			head := driveChainPastWindow(sys, w)
+			// A clean stop persists what reth holds in memory, so the datadir tip is the head
+			// whatever the threshold, and a window plus margin of blocks is enough.
+			head := driveChainTo(sys, w, proofsHistoryWindow+windowMargin)
 
 			sys.FollowerCL.Stop()
 			sys.Follower.Stop()
@@ -345,7 +357,7 @@ func TestProofsInitSeedsAConsistentStoreFromAKilledNodeDatadir(gt *testing.T) {
 			skipMaskingCell(t, c.spec)
 			sys := newInitSystem(t, c.spec)
 			w := newWorkload(t, sys.FunderL2)
-			head := driveChainPastWindow(sys, w)
+			head := driveChainTo(sys, w, c.spec.headWithPersistedWindow())
 
 			sys.Follower.StopUngracefully()
 			sys.FollowerCL.Stop()
@@ -378,7 +390,9 @@ func TestProofsInitAgainstARunningNodeNeverSeedsAStoreThatMatchesNoBlock(gt *tes
 			skipMaskingCell(t, c.spec)
 			sys := newInitSystem(t, c.spec)
 			w := newWorkload(t, sys.FunderL2)
-			head := driveChainPastWindow(sys, w)
+			// The init reads reth's persisted tip, so the chain is driven until that tip is a
+			// window above genesis under the spec's threshold.
+			head := driveChainTo(sys, w, c.spec.headWithPersistedWindow())
 
 			report, err := sys.Follower.TryInitProofsHistory()
 			if err != nil {
