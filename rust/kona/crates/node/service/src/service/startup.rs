@@ -56,7 +56,8 @@ pub(super) async fn validate_engine_jwt(
 /// Checks that the P2P stack's gossip (TCP) and discovery (UDP) listen addresses can be bound, so
 /// that an unusable address is reported before the node waits on its other dependencies.
 ///
-/// Each address is checked on its own, and ports of `0`, which the OS chooses, are not checked.
+/// Each address is checked on its own, and ports of `0`, which the OS chooses, are not checked. A
+/// node without discovery does not bind its discovery address, so it is not checked either.
 pub(super) fn check_listen_ports(config: &NetworkConfig) -> Result<(), RollupNodeError> {
     let gossip_ip = config.gossip_address.iter().find_map(|protocol| match protocol {
         Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
@@ -79,6 +80,7 @@ pub(super) fn check_listen_ports(config: &NetworkConfig) -> Result<(), RollupNod
     }
 
     let discovery: Vec<(IpAddr, u16)> = match &config.discovery_config.listen_config {
+        _ if !config.discovery_enabled => vec![],
         discv5::ListenConfig::Ipv4 { ip, port } => vec![((*ip).into(), *port)],
         discv5::ListenConfig::Ipv6 { ip, port } => vec![((*ip).into(), *port)],
         discv5::ListenConfig::DualStack { ipv4, ipv4_port, ipv6, ipv6_port } => {
@@ -150,6 +152,15 @@ mod tests {
             ),
             "{err}"
         );
+    }
+
+    /// A node without discovery does not bind its discovery port.
+    #[test]
+    fn a_udp_port_in_use_passes_without_discovery() {
+        let taken = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = taken.local_addr().unwrap().port();
+        let config = NetworkConfig { discovery_enabled: false, ..network_config(0, port) };
+        assert!(check_listen_ports(&config).is_ok());
     }
 
     #[tokio::test]

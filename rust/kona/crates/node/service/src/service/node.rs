@@ -276,8 +276,10 @@ impl RollupNode {
             .map_err(|e| RollupNodeError::Startup(format!("Failed to start network: {e}")))?;
         let network_builder = network::Builder::new(gossip);
         let network = network_builder.handle();
-        let discovery_actor =
-            discovery_builder.build(discovery_driver, adapters::Network(network.clone()));
+        // A node without discovery runs no discovery actor, and bans no discovery nodes.
+        let discovery_actor = discovery_driver
+            .map(|driver| discovery_builder.build(driver, adapters::Network(network.clone())));
+        let discovery = discovery_actor.is_some().then_some(discovery);
         let network_actor = network_builder
             .build(adapters::Engine::new(engine.clone()), adapters::Discovery(discovery.clone()));
         let signer_actor = block_signer.map(|signer| {
@@ -434,7 +436,9 @@ impl RollupNode {
             supervisor.spawn("signer", signer);
         }
         supervisor.spawn("network", network_actor);
-        supervisor.spawn("discovery", discovery_actor);
+        if let Some(discovery_actor) = discovery_actor {
+            supervisor.spawn("discovery", discovery_actor);
+        }
         // The L1 actor runs until it is dropped: its output, `Infallible`, never exists.
         supervisor.spawn("l1", async move { Err::<(), _>(l1_actor.await) });
         supervisor.spawn("l1_signer_updater", async move {

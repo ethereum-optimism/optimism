@@ -22,6 +22,10 @@ pub struct NetworkConfig {
     pub discovery_interval: Duration,
     /// The interval to remove peers from the discovery service.
     pub discovery_randomize: Option<Duration>,
+    /// Whether to run discv5 discovery. Without it, the node finds no peers by itself: it keeps
+    /// the peers it is told to connect to, and those that connect to it, and the discovery
+    /// settings, the bootnodes and the bootstore are ignored.
+    pub discovery_enabled: bool,
     /// Whether to update the ENR socket when the gossip listen address changes.
     pub enr_update: bool,
     /// The gossip address.
@@ -82,6 +86,7 @@ impl NetworkConfig {
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
+            discovery_enabled: true,
             gossip_address,
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
@@ -95,7 +100,8 @@ impl NetworkConfig {
         }
     }
 
-    /// Builds the gossip and discovery drivers, and starts the gossip swarm listening.
+    /// Builds the gossip driver, and the discovery driver if [`Self::discovery_enabled`], and
+    /// starts the gossip swarm listening.
     ///
     /// Gossiped blocks must be signed by the current value of `unsafe_block_signer`. When
     /// [`Self::enr_update`] is set, discovery advertises the address the swarm listens on, so the
@@ -103,7 +109,7 @@ impl NetworkConfig {
     pub async fn start(
         self,
         unsafe_block_signer: watch::Receiver<Address>,
-    ) -> Result<(GossipDriver<ConnectionGater>, Discv5Driver), StartError> {
+    ) -> Result<(GossipDriver<ConnectionGater>, Option<Discv5Driver>), StartError> {
         let initial_signer = *unsafe_block_signer.borrow();
         let mut gossip = GossipDriverBuilder::new(
             self.rollup_config.clone(),
@@ -118,19 +124,27 @@ impl NetworkConfig {
         .with_topic_scoring(self.topic_scoring)
         .with_gater_config(self.gater_config)
         .build()?;
-        let discovery = Discv5Builder::new(
-            self.discovery_address,
-            self.rollup_config.l2_chain_id.id(),
-            self.discovery_config,
-        )
-        .with_interval(self.discovery_interval)
-        .with_discovery_randomize(self.discovery_randomize)
-        .with_bootstore_file(self.bootstore)
-        .with_bootnodes(self.bootnodes)
-        .build()?;
+        let discovery = if self.discovery_enabled {
+            Some(
+                Discv5Builder::new(
+                    self.discovery_address,
+                    self.rollup_config.l2_chain_id.id(),
+                    self.discovery_config,
+                )
+                .with_interval(self.discovery_interval)
+                .with_discovery_randomize(self.discovery_randomize)
+                .with_bootstore_file(self.bootstore)
+                .with_bootnodes(self.bootnodes)
+                .build()?,
+            )
+        } else {
+            None
+        };
 
         let listen_addr = gossip.start().await?;
-        if self.enr_update {
+        if let Some(discovery) = &discovery &&
+            self.enr_update
+        {
             let socket =
                 tcp_socket(&listen_addr).ok_or(StartError::InvalidListenAddr(listen_addr))?;
             discovery.disc.update_local_enr_socket(socket, true);
@@ -205,6 +219,7 @@ mod tests {
     async fn start_listens_on_the_block_topics_and_advertises_the_listen_port() {
         let (gossip, discovery) =
             loopback(9098, true).start(watch::channel(Address::ZERO).1).await.unwrap();
+        let discovery = discovery.unwrap();
 
         let port = tcp_socket(&gossip.addr).unwrap().port();
         assert_ne!(port, 0);
@@ -228,7 +243,17 @@ mod tests {
     async fn start_keeps_the_configured_enr_without_enr_update() {
         let (_gossip, discovery) =
             loopback(9098, false).start(watch::channel(Address::ZERO).1).await.unwrap();
+        let discovery = discovery.unwrap();
         assert_eq!(discovery.disc.local_enr().tcp4(), Some(9098));
+    }
+
+    #[tokio::test]
+    async fn start_builds_no_discovery_without_it() {
+        let config = NetworkConfig { discovery_enabled: false, ..loopback(9098, true) };
+        let (gossip, discovery) = config.start(watch::channel(Address::ZERO).1).await.unwrap();
+
+        assert_ne!(tcp_socket(&gossip.addr).unwrap().port(), 0);
+        assert!(discovery.is_none());
     }
 
     #[test]

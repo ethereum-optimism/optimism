@@ -331,7 +331,9 @@ mod tests {
         let sequencer = config.sequencer.unwrap();
         assert_eq!(sequencer.conductor_rpc_url, Some("http://127.0.0.1:4".parse().unwrap()));
         assert_eq!(sequencer.l1_conf_delay, 4);
-        assert_eq!(config.p2p_config.bootstore, Some(BootStoreFile::Default { chain_id: 10 }));
+        // Discovery and its bootstore are off by default.
+        assert!(!config.p2p_config.discovery_enabled);
+        assert_eq!(config.p2p_config.bootstore, None);
     }
 
     #[test]
@@ -399,6 +401,8 @@ mod tests {
             rollup_file.path().to_str().unwrap(),
             "--chain.l1-config-path",
             l1_file.path().to_str().unwrap(),
+            "--p2p.discovery.enabled",
+            "--p2p.discovery.bootstore.enabled",
         ]);
 
         let config = command.config().unwrap();

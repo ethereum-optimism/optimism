@@ -114,7 +114,8 @@ impl TestNetworkBuilder {
         let discovery = discovery_builder.handle();
         let network_builder = network::Builder::new(gossip);
         let network = network_builder.handle();
-        let discovery_actor = discovery_builder.build(discovery_driver, Network(network.clone()));
+        let discovery_actor = discovery_builder
+            .build(discovery_driver.expect("discovery is on"), Network(network.clone()));
         tokio::spawn(async move {
             if let Err(err) = discovery_actor.await {
                 error!(target: "net", ?err, "Discovery actor failed");
@@ -130,7 +131,7 @@ impl TestNetworkBuilder {
             // the receiver.
             .build(blocks_tx, BanningDiscovery(discovery.clone()));
 
-        let p2p_rpc = P2pRpc::new(network.state(), network.clone(), discovery, self.chain_id);
+        let p2p_rpc = P2pRpc::new(network.state(), network.clone(), Some(discovery), self.chain_id);
 
         // Every test network can sign: payloads sent to `signer_handle` are signed with this
         // node's key and then gossiped.

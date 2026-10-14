@@ -198,6 +198,21 @@ pub struct P2PArgs {
     )]
     pub ban_duration: Duration,
 
+    /// Find peers with discv5. Disabled by default: the node then keeps only the peers it is told
+    /// to connect to, and those that connect to it, and the other discovery flags are ignored.
+    #[arg(
+        id = "p2p_discovery_enabled",
+        long = "p2p.discovery.enabled",
+        env = "KONA_NODE_P2P_DISCOVERY_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true",
+        hide = true
+    )]
+    pub discovery_enabled: bool,
+
     /// How often to find peers using the discovery service, such as `5s`.
     #[arg(
         long = "p2p.discovery.interval",
@@ -207,12 +222,27 @@ pub struct P2PArgs {
         hide = true
     )]
     pub discovery_interval: Duration,
-    /// The directory to store the bootstore.
-    #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE", hide = true)]
+    /// Keep the peers discovery finds in a bootstore, so that the node finds them again after a
+    /// restart. Disabled by default, and ignored without discovery.
+    #[arg(
+        id = "p2p_bootstore_enabled",
+        long = "p2p.discovery.bootstore.enabled",
+        env = "KONA_NODE_P2P_DISCOVERY_BOOTSTORE_ENABLED",
+        action = ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_value_t = false,
+        default_missing_value = "true",
+        hide = true
+    )]
+    pub bootstore_enabled: bool,
+    /// The bootstore's file. By default, `~/.kona/<chain_id>/bootstore.json`.
+    #[arg(
+        long = "p2p.discovery.bootstore.path",
+        env = "KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH",
+        hide = true
+    )]
     pub bootstore: Option<PathBuf>,
-    /// Disables the bootstore.
-    #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE", hide = true)]
-    pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
     /// disconnects. By default, peers are *not* redialed. If set to 0, the peer will be
     /// redialed indefinitely.
@@ -236,11 +266,11 @@ pub struct P2PArgs {
     )]
     pub redial_period: Duration,
 
-    /// An optional list of bootnode ENRs or node records to start the node with.
+    /// An optional list of bootnode ENRs or node records to start discovery with.
     #[arg(
-        long = "p2p.bootnodes",
+        long = "p2p.discovery.bootnodes",
         value_delimiter = ',',
-        env = "KONA_NODE_P2P_BOOTNODES",
+        env = "KONA_NODE_P2P_DISCOVERY_BOOTNODES",
         hide = true
     )]
     pub bootnodes: Vec<String>,
@@ -374,6 +404,7 @@ impl P2PArgs {
             scoring: self.scoring,
             monitor_peers,
             bootstore,
+            discovery_enabled: self.discovery_enabled,
             topic_scoring: self.topic_scoring,
             gater_config: GaterConfig {
                 peer_redialing: self.peer_redial,
@@ -387,7 +418,7 @@ impl P2PArgs {
     /// Returns the bootstore file to use for the rollup's L2 chain, or `None` if the bootstore is
     /// disabled.
     fn bootstore_file(&self, config: &RollupConfig) -> Option<BootStoreFile> {
-        if self.disable_bootstore {
+        if !self.bootstore_enabled {
             return None;
         }
         let chain_id = config.l2_chain_id.id();
@@ -465,18 +496,30 @@ mod tests {
             RollupConfig { l2_chain_id: alloy_chains::Chain::from_id(8453), ..Default::default() };
 
         let args = MockCommand::parse_from(["test"]);
+        assert_eq!(args.p2p.bootstore_file(&config), None);
+
+        let args = MockCommand::parse_from(["test", "--p2p.discovery.bootstore.enabled"]);
         assert_eq!(
             args.p2p.bootstore_file(&config),
             Some(BootStoreFile::Default { chain_id: 8453 })
         );
 
-        let args = MockCommand::parse_from(["test", "--p2p.bootstore", "/tmp/bootstore.json"]);
+        let args = MockCommand::parse_from([
+            "test",
+            "--p2p.discovery.bootstore.enabled",
+            "--p2p.discovery.bootstore.path",
+            "/tmp/bootstore.json",
+        ]);
         assert_eq!(
             args.p2p.bootstore_file(&config),
             Some(BootStoreFile::Custom(PathBuf::from("/tmp/bootstore.json")))
         );
 
-        let args = MockCommand::parse_from(["test", "--p2p.no-bootstore"]);
+        let args = MockCommand::parse_from([
+            "test",
+            "--p2p.discovery.bootstore.path",
+            "/tmp/bootstore.json",
+        ]);
         assert_eq!(args.p2p.bootstore_file(&config), None);
     }
 
@@ -517,7 +560,7 @@ mod tests {
     fn test_p2p_args_bootnodes() {
         let args = MockCommand::parse_from([
             "test",
-            "--p2p.bootnodes",
+            "--p2p.discovery.bootnodes",
             "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
         ]);
         assert_eq!(
@@ -547,7 +590,7 @@ mod tests {
     fn test_p2p_args_bootnodes_multiple() {
         let args = MockCommand::parse_from([
             "test",
-            "--p2p.bootnodes",
+            "--p2p.discovery.bootnodes",
             "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305,enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305",
         ]);
         assert_eq!(
@@ -563,7 +606,7 @@ mod tests {
     fn test_p2p_args_bootnode_enr() {
         let args = MockCommand::parse_from([
             "test",
-            "--p2p.bootnodes",
+            "--p2p.discovery.bootnodes",
             "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
         ]);
         assert_eq!(

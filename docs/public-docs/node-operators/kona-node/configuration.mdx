@@ -94,13 +94,15 @@ The P2P flags are experimental: `kona-node` accepts them, but leaves them out of
 | `--p2p.ban.enabled[=<BOOL>]` | `KONA_NODE_P2P_BAN_ENABLED` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
 | `--p2p.ban.duration <DURATION>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `1h` |
+| `--p2p.discovery.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_ENABLED` | Find peers with discv5. Without it, the node keeps only the peers it is told to connect to, and those that connect to it, and ignores the other discovery flags | `false` |
+| `--p2p.discovery.bootnodes <ENR,...>` | `KONA_NODE_P2P_DISCOVERY_BOOTNODES` | List of bootnode ENRs to start discovery with | - |
 | `--p2p.discovery.interval <DURATION>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5s` |
-| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
+| `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
+| `--p2p.discovery.bootstore.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_ENABLED` | Keep the peers discovery finds in a bootstore, to find them again after a restart | `false` |
+| `--p2p.discovery.bootstore.path <PATH>` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH` | The bootstore's file | `~/.kona/<CHAIN_ID>/bootstore.json` |
 | `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `1h` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
 | `--p2p.topic-scoring.enabled[=<BOOL>]` | `KONA_NODE_P2P_TOPIC_SCORING_ENABLED` | Enable topic scoring | `false` |
-| `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
 
 ## RPC Arguments
 
@@ -172,8 +174,9 @@ the node's own, authenticated with the JWT secret. Neither behavior is configura
 Unless overridden by the flags above, a `kona-node node` run has the following defaults:
 
 - The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
-  to receive block gossip. The `discv5` discovery service runs on
-  UDP port `9223`. Peer scoring is enabled.
+  to receive block gossip. Peer scoring is enabled. Peer discovery is
+  disabled; with `--p2p.discovery.enabled`, the `discv5` discovery
+  service runs on UDP port `9223`.
 - No RPC is served. Enable it with `--rpc.enabled`; it is then served at
   `127.0.0.1:9545`, configurable via the `--rpc.addr` and `--rpc.port` flags.
 - Logs are disabled. Enable them with `--logs.enabled`; they are then

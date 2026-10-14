@@ -170,8 +170,10 @@ impl finality::L1 for L1 {
     }
 }
 
+/// The discovery actor the network bans nodes through, or `None` for a node that runs no
+/// discovery, which has no discovery nodes to ban.
 #[derive(Debug, Clone)]
-pub(super) struct Discovery(pub(super) discovery::Handle);
+pub(super) struct Discovery(pub(super) Option<discovery::Handle>);
 
 impl network::Discovery for Discovery {
     fn try_ban(
@@ -179,7 +181,7 @@ impl network::Discovery for Discovery {
         addrs: HashSet<Multiaddr>,
         duration: Duration,
     ) -> Result<(), TrySendError<()>> {
-        self.0.try_ban(addrs, duration)
+        self.0.as_ref().map_or(Ok(()), |discovery| discovery.try_ban(addrs, duration))
     }
 }
 

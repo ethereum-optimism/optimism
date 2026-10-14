@@ -31,7 +31,8 @@ use crate::OpP2PApiServer;
 pub struct P2pRpc {
     gossip: watch::Receiver<Arc<GossipState>>,
     network: network::Handle,
-    discovery: discovery::Handle,
+    /// The discovery actor's handle, or `None` for a node that runs no discovery.
+    discovery: Option<discovery::Handle>,
     chain_id: u64,
 }
 
@@ -41,7 +42,11 @@ impl OpP2PApiServer for P2pRpc {
         let gossip = self.gossip_snapshot()?;
         let peer_id = gossip.local_peer_id;
         let chain_id = self.chain_id;
-        let enr = self.discovery.local_enr().await.map_err(internal_error)?;
+        // A node without discovery advertises no ENR.
+        let enr = match &self.discovery {
+            Some(discovery) => Some(discovery.local_enr().await.map_err(internal_error)?),
+            None => None,
+        };
         let mut addresses = gossip
             .listen_addresses
             .iter()
@@ -54,11 +59,12 @@ impl OpP2PApiServer for P2pRpc {
         addresses.extend(gossip.external_addresses.iter().map(ToString::to_string));
         Ok(PeerInfo {
             peer_id: peer_id.to_string(),
-            // Display abbreviates the node ID; the RPC response needs the full value.
-            node_id: format!("{:?}", enr.node_id()),
+            // The node ID follows from the node's key, with or without discovery. Display
+            // abbreviates it; the RPC response needs the full value.
+            node_id: node_id(&peer_id).map(|id| format!("{id:?}")).unwrap_or_default(),
             user_agent: "kona".to_string(),
             protocol_version: String::new(),
-            enr: Some(enr.to_string()),
+            enr: enr.map(|enr| enr.to_string()),
             addresses,
             protocols: Some(vec![
                 "/ipfs/id/push/1.0.0".to_string(),
@@ -83,14 +89,16 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_peer_count(&self) -> RpcResult<PeerCount> {
         let gossip = self.gossip_snapshot()?;
-        let connected_discovery = self
-            .discovery
-            .peer_count()
-            .await
-            .inspect_err(|e| {
-                warn!(target: "p2p_rpc", "Failed to receive peer count: {e:?}");
-            })
-            .ok();
+        let connected_discovery = match &self.discovery {
+            Some(discovery) => discovery
+                .peer_count()
+                .await
+                .inspect_err(|e| {
+                    warn!(target: "p2p_rpc", "Failed to receive peer count: {e:?}");
+                })
+                .ok(),
+            None => None,
+        };
         Ok(PeerCount { connected_discovery, connected_gossip: gossip.connected_peers.len() })
     }
 
@@ -106,24 +114,15 @@ impl OpP2PApiServer for P2pRpc {
         } else {
             gossip.peerstore.keys().copied().collect()
         };
-        let table_infos = self.discovery.table_infos().await.map_err(internal_error)?;
+        let table_infos = match &self.discovery {
+            Some(discovery) => discovery.table_infos().await.map_err(internal_error)?,
+            None => Vec::new(),
+        };
         let pings = gossip.pings().await;
-        let node_to_peer_id = peer_ids.into_iter().filter_map(|id| {
-            let Ok(pubkey) = libp2p::identity::PublicKey::try_decode_protobuf(&id.to_bytes()[2..]) else {
-                error!(target: "p2p::rpc", peer_id = ?id, "Failed to decode public key from peer ID");
-                return None;
-            };
-            let key = match pubkey.try_into_secp256k1().map_err(|e| e.to_string()).and_then(|key| {
-                ecdsa::VerifyingKey::from_sec1_bytes(key.to_bytes().as_slice()).map_err(|e| e.to_string())
-            }) {
-                Ok(key) => key,
-                Err(err) => {
-                    error!(target: "p2p::rpc", peer_id = ?id, ?err, "Failed to convert public key to secp256k1 public key");
-                    return None;
-                }
-            };
-            Some((NodeId::from(key), id))
-        }).collect::<HashMap<_, _>>();
+        let node_to_peer_id = peer_ids
+            .into_iter()
+            .filter_map(|id| Some((node_id(&id)?, id)))
+            .collect::<HashMap<_, _>>();
         let table_infos = table_infos
             .into_iter()
             .filter(|(id, _, _)| node_to_peer_id.contains_key(id))
@@ -210,7 +209,10 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
         let gossip = self.gossip_snapshot()?;
-        let table = self.discovery.peer_count().await.map_err(internal_error)?;
+        let table = match &self.discovery {
+            Some(discovery) => discovery.peer_count().await.map_err(internal_error)?,
+            None => 0,
+        };
         let to_u32 = |count: usize| {
             count.try_into().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
         };
@@ -233,7 +235,8 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>> {
         self.gossip_snapshot()?;
-        self.discovery
+        let Some(discovery) = &self.discovery else { return Ok(Vec::new()) };
+        discovery
             .table_enrs()
             .await
             .map(|enrs| enrs.into_iter().map(|enr| enr.to_string()).collect())
@@ -380,11 +383,12 @@ impl OpP2PApiServer for P2pRpc {
 
 impl P2pRpc {
     /// Constructs an RPC server for the L2 chain with ID `chain_id`. It reads the gossip state
-    /// the network actor publishes from `gossip`, usually [`network::Handle::state`].
+    /// the network actor publishes from `gossip`, usually [`network::Handle::state`]. A node
+    /// without discovery passes no `discovery` handle, and reports no ENR and an empty table.
     pub const fn new(
         gossip: watch::Receiver<Arc<GossipState>>,
         network: network::Handle,
-        discovery: discovery::Handle,
+        discovery: Option<discovery::Handle>,
         chain_id: u64,
     ) -> Self {
         Self { gossip, network, discovery, chain_id }
@@ -395,6 +399,23 @@ impl P2pRpc {
         // Fail if the actor exited, even if its final state has not been read yet.
         self.gossip.has_changed().map_err(internal_error)?;
         Ok(Arc::clone(&self.gossip.borrow()))
+    }
+}
+
+/// Returns the discv5 node ID of the peer with ID `id`: the node ID of its secp256k1 key.
+fn node_id(id: &PeerId) -> Option<NodeId> {
+    let Ok(pubkey) = libp2p::identity::PublicKey::try_decode_protobuf(&id.to_bytes()[2..]) else {
+        error!(target: "p2p::rpc", peer_id = ?id, "Failed to decode public key from peer ID");
+        return None;
+    };
+    match pubkey.try_into_secp256k1().map_err(|e| e.to_string()).and_then(|key| {
+        ecdsa::VerifyingKey::from_sec1_bytes(key.to_bytes().as_slice()).map_err(|e| e.to_string())
+    }) {
+        Ok(key) => Some(NodeId::from(key)),
+        Err(err) => {
+            error!(target: "p2p::rpc", peer_id = ?id, ?err, "Failed to convert public key to secp256k1 public key");
+            None
+        }
     }
 }
 
@@ -465,7 +486,7 @@ mod tests {
         let driver = gossip_driver();
         let (state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
         let network = network::Builder::new(gossip_driver()).handle();
-        let rpc = P2pRpc::new(state_rx, network, discovery(discovery_running), 10);
+        let rpc = P2pRpc::new(state_rx, network, Some(discovery(discovery_running)), 10);
         Fixture { rpc, state_tx, driver }
     }
 
@@ -563,6 +584,23 @@ mod tests {
             fixture.rpc.opp2p_peer_stats().await.unwrap_err().code(),
             ErrorCode::InternalError.code()
         );
+    }
+
+    #[tokio::test]
+    async fn a_node_without_discovery_reports_no_enr_and_an_empty_table() {
+        let driver = gossip_driver();
+        let (_state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
+        let network = network::Builder::new(gossip_driver()).handle();
+        let rpc = P2pRpc::new(state_rx, network, None, 10);
+
+        let this = rpc.opp2p_self().await.unwrap();
+        assert_eq!(this.enr, None);
+        // The node ID follows from the node's key.
+        assert!(!this.node_id.is_empty());
+        assert_eq!(rpc.opp2p_peer_count().await.unwrap().connected_discovery, None);
+        assert_eq!(rpc.opp2p_peer_stats().await.unwrap().table, 0);
+        assert!(rpc.opp2p_discovery_table().await.unwrap().is_empty());
+        assert_eq!(rpc.opp2p_peers(false).await.unwrap().total_connected, 0);
     }
 
     #[test]

@@ -121,6 +121,8 @@ impl GossipCommand {
         let discovery_builder = discovery::Builder::new();
         let discovery = discovery_builder.handle();
         let network_builder = network::Builder::new(gossip);
+        // `NetworkConfig::new` enables discovery.
+        let discovery_driver = discovery_driver.expect("discovery is enabled");
         let discovery_actor =
             discovery_builder.build(discovery_driver, DialingNetwork(network_builder.handle()));
         tokio::spawn(async move {
