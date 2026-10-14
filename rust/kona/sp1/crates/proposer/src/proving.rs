@@ -17,7 +17,10 @@ use std::{
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_sol_types::SolValue;
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::{
+    future::{BoxFuture, FutureExt},
+    stream::{FuturesUnordered, StreamExt},
+};
 use kona_sp1_client_utils::{
     super_root::{
         SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationInputs,
@@ -30,8 +33,8 @@ use kona_sp1_super_range_executor::{
     HostInputs, MAX_ARCHIVED_WITNESS_BYTES, SuperRootAtTimestampResponse, SynthesizedExecution,
     build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
     collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
-    decode_super_range_public_values, deployment_chain_configs, proof_from_super_v1,
-    synthesize_execution,
+    decode_super_range_public_values, deployment_chain_configs, is_witness_too_large,
+    proof_from_super_v1, synthesize_execution,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -243,7 +246,7 @@ enum RequestState {
     Terminal(ProofTerminalState),
 }
 
-/// SPN request kinds of one game proof, as named by [`GameProgress::requests`].
+/// SPN request kinds of one game proof, as named by [`GameProgress::for_each_request`].
 pub(crate) const PROOF_REQUEST_KINDS: [&str; 3] = ["range", "consolidation", "aggregation"];
 /// Request states reported by [`InMemoryProofProgress::request_counts`].
 pub(crate) const PROOF_REQUEST_STATES: [&str; 4] =
@@ -276,6 +279,24 @@ struct ChunkProgress {
     completed: Mutex<Option<Arc<ChunkResult>>>,
     range_request: Mutex<RequestState>,
     consolidation_request: Mutex<RequestState>,
+    /// Halves proved instead of this span once it exceeded a witness or execution limit.
+    split: Mutex<Option<Arc<[Self; 2]>>>,
+}
+
+impl ChunkProgress {
+    /// Visits the live request slots of this span, in timestamp order. Once the span has been
+    /// split, its own slots are superseded and only the halves' slots are visited.
+    fn for_each_request(&self, visit: &mut dyn FnMut(&'static str, &Mutex<RequestState>)) {
+        let halves = self.split.lock().clone();
+        if let Some(halves) = halves {
+            for half in halves.iter() {
+                half.for_each_request(visit);
+            }
+            return;
+        }
+        visit("range", &self.range_request);
+        visit("consolidation", &self.consolidation_request);
+    }
 }
 
 struct GameProgress {
@@ -290,52 +311,46 @@ impl GameProgress {
         Self { identity, chunks, aggregation_request: Mutex::new(RequestState::Missing) }
     }
 
-    fn requests(
+    /// Visits every live request slot: each top-level chunk's (with its index), then the
+    /// aggregation slot.
+    fn for_each_request(
         &self,
-    ) -> impl Iterator<Item = (Option<usize>, &'static str, &Mutex<RequestState>)> {
-        self.chunks
-            .iter()
-            .enumerate()
-            .flat_map(|(index, chunk)| {
-                [
-                    (Some(index), "range", &chunk.range_request),
-                    (Some(index), "consolidation", &chunk.consolidation_request),
-                ]
-            })
-            .chain(std::iter::once((None, "aggregation", &self.aggregation_request)))
+        mut visit: impl FnMut(Option<usize>, &'static str, &Mutex<RequestState>),
+    ) {
+        for (index, chunk) in self.chunks.iter().enumerate() {
+            chunk.for_each_request(&mut |kind, request| visit(Some(index), kind, request));
+        }
+        visit(None, "aggregation", &self.aggregation_request);
     }
 
     fn check_terminal_requests(&self) -> Result<()> {
-        for (chunk_index, kind, request) in self.requests() {
-            match &*request.lock() {
-                RequestState::Terminal(outcome) => {
-                    if let Some(index) = chunk_index {
-                        bail!(
-                            "chunk {index} {kind} proof request reached terminal state: {outcome:?}"
-                        );
-                    }
-                    bail!("{kind} proof request reached terminal state: {outcome:?}");
-                }
-                RequestState::Missing |
-                RequestState::Submitting |
-                RequestState::Submitted(_) |
-                RequestState::Fulfilled(_) => {}
+        let mut terminal = None;
+        self.for_each_request(|chunk_index, kind, request| {
+            if terminal.is_none() &&
+                let RequestState::Terminal(outcome) = &*request.lock()
+            {
+                terminal = Some((chunk_index, kind, *outcome));
             }
+        });
+        match terminal {
+            Some((Some(index), kind, outcome)) => {
+                bail!("chunk {index} {kind} proof request reached terminal state: {outcome:?}")
+            }
+            Some((None, kind, outcome)) => {
+                bail!("{kind} proof request reached terminal state: {outcome:?}")
+            }
+            None => Ok(()),
         }
-        Ok(())
     }
 
     fn request_summary(&self) -> RequestSummary {
         let mut summary = RequestSummary::default();
-        let mut record = |state: &Mutex<RequestState>| match &*state.lock() {
+        self.for_each_request(|_, _, request| match &*request.lock() {
             RequestState::Submitting => summary.submitting += 1,
             RequestState::Submitted(proof_id) => summary.submitted_ids.push(*proof_id),
             RequestState::Fulfilled(_) => summary.fulfilled += 1,
             RequestState::Missing | RequestState::Terminal(_) => {}
-        };
-        for (_, _, request) in self.requests() {
-            record(request);
-        }
+        });
         summary
     }
 }
@@ -392,7 +407,7 @@ impl InMemoryProofProgress {
             return 0;
         };
         let mut reset = 0;
-        for (_, _, request) in progress.requests() {
+        progress.for_each_request(|_, _, request| {
             let mut state = request.lock();
             match &*state {
                 RequestState::Terminal(_) => {
@@ -404,7 +419,7 @@ impl InMemoryProofProgress {
                 RequestState::Submitted(_) |
                 RequestState::Fulfilled(_) => {}
             }
-        }
+        });
         reset
     }
 
@@ -413,11 +428,11 @@ impl InMemoryProofProgress {
     pub(crate) fn request_counts(&self) -> ProofRequestCounts {
         let mut counts = ProofRequestCounts::new();
         for progress in self.games.lock().values() {
-            for (_, kind, request) in progress.requests() {
+            progress.for_each_request(|_, kind, request| {
                 if let Some(state) = request.lock().metric_state() {
                     *counts.entry((kind, state)).or_default() += 1;
                 }
-            }
+            });
         }
         counts
     }
@@ -557,13 +572,20 @@ struct ChildProofs {
     consolidation: Arc<SP1ProofWithPublicValues>,
 }
 
-/// One proven (or natively executed) span chunk, tagged with its position.
+/// Outputs and proofs of one range + consolidation pair covering a contiguous span.
 #[derive(Clone)]
-struct ChunkResult {
-    index: usize,
+struct SpanResult {
     range_outputs: SuperRangeOutputs,
     consolidation_outputs: SuperConsolidationOutputs,
     proofs: Option<ChildProofs>,
+}
+
+/// One proven (or natively executed) top-level chunk, tagged with its position. A chunk that
+/// was bisected holds several spans, in timestamp order.
+#[derive(Clone)]
+struct ChunkResult {
+    index: usize,
+    spans: Vec<SpanResult>,
 }
 
 /// Runs a range-witness chunk with proof-replay context attached for its full async lifetime.
@@ -699,69 +721,67 @@ async fn prove_consolidation_request(
     .await
 }
 
+/// A span of timestamps proved by one range + consolidation pair: `agreed + 1..=claimed`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ChunkSpan {
+    agreed: u64,
+    claimed: u64,
+}
+
+/// Proves one span as a single range + consolidation pair.
+trait SpanProver: Sync {
+    fn prove_leaf<'s>(
+        &'s self,
+        span: ChunkSpan,
+        synthesized: Option<SynthesizedExecution>,
+        node: &'s ChunkProgress,
+    ) -> BoxFuture<'s, Result<SpanResult>>;
+}
+
 /// Per-game inputs shared by every chunk of one proving attempt.
 struct ChunkContext<'a> {
     provider: &'a ProofProvider,
     keys: Option<&'a ProofKeys>,
     host_inputs: &'a HostInputs,
     game: &'a GameProofInputs,
+    responses: &'a [SuperRootAtTimestampResponse],
     witness_limit: WitnessByteLimit,
 }
 
-/// Executes one chunk in three steps:
-/// 1. collect the range and consolidation witnesses and native outputs;
-/// 2. in network mode, submit or resume the two child proof requests in order;
-/// 3. return the outputs and proofs for game-level aggregation.
-///
-/// Per-stage request state lives in `progress`. The caller caches this function's result only
-/// after both child proofs complete.
-async fn prove_chunk(
-    ctx: &ChunkContext<'_>,
-    plan: ChunkPlan,
-    chunk_count: usize,
-    progress: Arc<GameProgress>,
-) -> Result<ChunkResult> {
-    let index = plan.index;
-    let agreed_timestamp = plan.agreed_timestamp;
-    let claimed_timestamp = plan.claimed_timestamp;
-    with_proof_replay_chunk_span(
-        index,
-        chunk_count,
-        agreed_timestamp,
-        claimed_timestamp,
+impl SpanProver for ChunkContext<'_> {
+    fn prove_leaf<'s>(
+        &'s self,
+        span: ChunkSpan,
+        synthesized: Option<SynthesizedExecution>,
+        node: &'s ChunkProgress,
+    ) -> BoxFuture<'s, Result<SpanResult>> {
         async move {
-            let result = prove_chunk_inner(ctx, plan, progress).await;
-            match &result {
-                Ok(chunk) => tracing::info!(
-                    range_transition_count = chunk.range_outputs.transitions.len(),
-                    consolidation_transition_count = chunk.consolidation_outputs.transitions.len(),
-                    proofs_generated = chunk.proofs.is_some(),
-                    "Proof replay chunk completed after validating range output-root/block bindings and consolidated super-root claims"
-                ),
-                Err(error) => tracing::error!(
-                    error = ?error,
-                    "Proof replay chunk failed"
-                ),
-            }
-            result
-        },
-    )
-    .await
+            let synthesized = match synthesized {
+                Some(synthesized) => synthesized,
+                None => synthesize_chunk(self.game, self.responses, span)?,
+            };
+            prove_span_pair(self, &synthesized, node, span).await
+        }
+        .boxed()
+    }
 }
 
-async fn prove_chunk_inner(
+/// Collects the range and consolidation witnesses of one span and, in network mode, submits or
+/// resumes its two child proof requests in order.
+async fn prove_span_pair(
     ctx: &ChunkContext<'_>,
-    plan: ChunkPlan,
-    progress: Arc<GameProgress>,
-) -> Result<ChunkResult> {
-    let ChunkContext { provider, keys, host_inputs, game, witness_limit } = *ctx;
-    let index = plan.index;
-    let chunk_progress = &progress.chunks[index];
-    let synthesized = &plan.synthesized;
+    synthesized: &SynthesizedExecution,
+    node: &ChunkProgress,
+    chunk_span: ChunkSpan,
+) -> Result<SpanResult> {
+    let ChunkContext { provider, keys, host_inputs, game, witness_limit, .. } = *ctx;
     let span = synthesized.range_inputs.span;
     // A single timestamp cannot be split further, so it may use the whole archive.
-    let collection_limit =
-        if span.end > span.start { witness_limit.get() } else { MAX_ARCHIVED_WITNESS_BYTES };
+    let collection_limit = if chunk_span.claimed - chunk_span.agreed > 1 {
+        witness_limit.get()
+    } else {
+        MAX_ARCHIVED_WITNESS_BYTES
+    };
     let range_host = build_interop_host(
         host_inputs,
         game.l1_head,
@@ -806,7 +826,7 @@ async fn prove_chunk_inner(
                 &synthesized.range_inputs,
                 range_witness,
                 &range_outputs,
-                &chunk_progress.range_request,
+                &node.range_request,
             )
             .await?;
             let consolidation_proof = prove_consolidation_request(
@@ -815,7 +835,7 @@ async fn prove_chunk_inner(
                 &synthesized.consolidation_inputs,
                 consolidation_witness,
                 &consolidation_outputs,
-                &chunk_progress.consolidation_request,
+                &node.consolidation_request,
             )
             .await?;
             Some(ChildProofs { range: range_proof, consolidation: consolidation_proof })
@@ -823,7 +843,167 @@ async fn prove_chunk_inner(
         (_, None) => bail!("network proving requires prestate proving keys"),
     };
 
-    Ok(ChunkResult { index, range_outputs, consolidation_outputs, proofs })
+    Ok(SpanResult { range_outputs, consolidation_outputs, proofs })
+}
+
+/// Synthesizes the guest inputs of `span` from the game's verified responses.
+fn synthesize_chunk(
+    game: &GameProofInputs,
+    responses: &[SuperRootAtTimestampResponse],
+    span: ChunkSpan,
+) -> Result<SynthesizedExecution> {
+    let first = (span.agreed - game.starting_ts) as usize;
+    let last = (span.claimed - game.starting_ts) as usize;
+    let timestamps = TimestampSpan::new(span.agreed + 1, span.claimed)
+        .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
+    synthesize_execution(timestamps, game.l1_head, game.l1_head_number, &responses[first..=last])
+        .with_context(|| {
+            format!("failed to synthesize span {}..={}", timestamps.start, timestamps.end)
+        })
+}
+
+/// True when `err` shows the span is too large for one child proof.
+///
+/// Any `Unexecutable` counts, whatever SPN's execute-failure cause: SP1 execution is
+/// deterministic, so the same span cannot succeed on resubmission. A genuine guest failure is
+/// bisected down to a single timestamp, costing at most log2(chunk length) extra requests.
+fn span_exceeds_limits(err: &anyhow::Error) -> bool {
+    is_witness_too_large(err) ||
+        err.chain().any(|cause| {
+            matches!(
+                cause.downcast_ref::<ProofWaitError>(),
+                Some(ProofWaitError::Terminal { state: ProofTerminalState::Unexecutable, .. })
+            )
+        })
+}
+
+/// Proves `span` as one range + consolidation pair, or, once it exceeds a witness or execution
+/// limit, as two halves recorded on `node` and proved in timestamp order.
+///
+/// Halves stay on `node` across scheduler retries, so an oversized span is not collected again,
+/// and each half caches its own result. The caller caches `node`'s result.
+fn prove_span<'s>(
+    prover: &'s dyn SpanProver,
+    index: usize,
+    span: ChunkSpan,
+    synthesized: Option<SynthesizedExecution>,
+    node: &'s ChunkProgress,
+) -> BoxFuture<'s, Result<ChunkResult>> {
+    async move {
+        let mid = span.agreed + (span.claimed - span.agreed) / 2;
+        let recorded = node.split.lock().clone();
+        let halves = match recorded {
+            Some(halves) => halves,
+            None => {
+                let err = match prover.prove_leaf(span, synthesized, node).await {
+                    Ok(result) => return Ok(ChunkResult { index, spans: vec![result] }),
+                    Err(err) => err,
+                };
+                if !span_exceeds_limits(&err) {
+                    return Err(err);
+                }
+                if span.claimed - span.agreed == 1 {
+                    if is_witness_too_large(&err) {
+                        return Err(anyhow::Error::new(GameUnprovable(format!(
+                            "timestamp {} needs a witness beyond the guest's \
+                             {MAX_ARCHIVED_WITNESS_BYTES}-byte rkyv archive limit: {err:#}",
+                            span.claimed
+                        ))));
+                    }
+                    // Unexecutable: the request stays terminal and SIGUSR1 can retry it.
+                    return Err(err);
+                }
+                tracing::warn!(
+                    chunk_index = index,
+                    agreed_timestamp = span.agreed,
+                    claimed_timestamp = span.claimed,
+                    split_timestamp = mid,
+                    error = %format!("{err:#}"),
+                    "Span exceeds proving limits; bisecting"
+                );
+                Arc::clone(node.split.lock().get_or_insert_with(|| {
+                    Arc::new([ChunkProgress::default(), ChunkProgress::default()])
+                }))
+            }
+        };
+
+        let first = run_chunk_with_progress(
+            &halves[0],
+            prove_span(
+                prover,
+                index,
+                ChunkSpan { agreed: span.agreed, claimed: mid },
+                None,
+                &halves[0],
+            ),
+        )
+        .await?;
+        let second = run_chunk_with_progress(
+            &halves[1],
+            prove_span(
+                prover,
+                index,
+                ChunkSpan { agreed: mid, claimed: span.claimed },
+                None,
+                &halves[1],
+            ),
+        )
+        .await?;
+        let spans = first.spans.iter().chain(&second.spans).cloned().collect();
+        Ok(ChunkResult { index, spans })
+    }
+    .boxed()
+}
+
+/// Proves one top-level chunk, bisecting it as needed, and returns its spans for game-level
+/// aggregation.
+///
+/// Per-span request state lives in `progress`. The caller caches this function's result only
+/// after every child proof completes.
+async fn prove_chunk(
+    ctx: &ChunkContext<'_>,
+    plan: ChunkPlan,
+    chunk_count: usize,
+    progress: Arc<GameProgress>,
+) -> Result<ChunkResult> {
+    let index = plan.index;
+    let agreed_timestamp = plan.agreed_timestamp;
+    let claimed_timestamp = plan.claimed_timestamp;
+    with_proof_replay_chunk_span(
+        index,
+        chunk_count,
+        agreed_timestamp,
+        claimed_timestamp,
+        async move {
+            let span = ChunkSpan { agreed: agreed_timestamp, claimed: claimed_timestamp };
+            let result =
+                prove_span(ctx, index, span, Some(plan.synthesized), &progress.chunks[index])
+                    .await;
+            match &result {
+                Ok(chunk) => tracing::info!(
+                    span_count = chunk.spans.len(),
+                    range_transition_count = chunk
+                        .spans
+                        .iter()
+                        .map(|span| span.range_outputs.transitions.len())
+                        .sum::<usize>(),
+                    consolidation_transition_count = chunk
+                        .spans
+                        .iter()
+                        .map(|span| span.consolidation_outputs.transitions.len())
+                        .sum::<usize>(),
+                    proofs_generated = chunk.spans.iter().all(|span| span.proofs.is_some()),
+                    "Proof replay chunk completed after validating range output-root/block bindings and consolidated super-root claims"
+                ),
+                Err(error) => tracing::error!(
+                    error = ?error,
+                    "Proof replay chunk failed"
+                ),
+            }
+            result
+        },
+    )
+    .await
 }
 
 /// Selects cached progress and rejects terminal attempts before returning executable chunks.
@@ -837,15 +1017,11 @@ fn plan_game_attempt(
     let mut plans = Vec::with_capacity(chunks.len());
     let mut chunk_identities = Vec::with_capacity(chunks.len());
     for (index, (agreed_ts, claimed_ts)) in chunks.into_iter().enumerate() {
-        let first = (agreed_ts - game.starting_ts) as usize;
-        let last = (claimed_ts - game.starting_ts) as usize;
-        let span = TimestampSpan::new(agreed_ts + 1, claimed_ts)
-            .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
-        let synthesized =
-            synthesize_execution(span, game.l1_head, game.l1_head_number, &responses[first..=last])
-                .with_context(|| {
-                    format!("failed to synthesize span {}..={}", span.start, span.end)
-                })?;
+        let synthesized = synthesize_chunk(
+            game,
+            responses,
+            ChunkSpan { agreed: agreed_ts, claimed: claimed_ts },
+        )?;
         chunk_identities.push(ChunkIdentity {
             index: u8::try_from(index).context("chunk index exceeds u8")?,
             agreed_ts,
@@ -922,7 +1098,7 @@ pub async fn prove_game_inner(
         return Ok(proof);
     }
 
-    let ctx = ChunkContext { provider, keys, host_inputs, game, witness_limit };
+    let ctx = ChunkContext { provider, keys, host_inputs, game, responses, witness_limit };
     let attempts = plans
         .into_iter()
         .map(|plan| {
@@ -936,16 +1112,16 @@ pub async fn prove_game_inner(
     let results =
         run_chunk_attempts_with_progress(attempts, Arc::clone(&progress), max_concurrent).await?;
 
-    let mut range_outputs = vec![None; chunk_count];
-    let mut consolidation_outputs = vec![None; chunk_count];
-    let mut proofs = vec![None; chunk_count];
+    let mut chunks = vec![None; chunk_count];
     for result in results {
-        range_outputs[result.index] = Some(result.range_outputs.clone());
-        consolidation_outputs[result.index] = Some(result.consolidation_outputs.clone());
-        proofs[result.index] = result.proofs.clone();
+        let index = result.index;
+        chunks[index] = Some(result);
     }
-    let range_outputs = collect_indexed(range_outputs, "range outputs")?;
-    let consolidation_outputs = collect_indexed(consolidation_outputs, "consolidation outputs")?;
+    let chunks = collect_indexed(chunks, "chunk results")?;
+    let spans: Vec<&SpanResult> = chunks.iter().flat_map(|chunk| chunk.spans.iter()).collect();
+    let range_outputs = spans.iter().map(|span| span.range_outputs.clone()).collect();
+    let consolidation_outputs =
+        spans.iter().map(|span| span.consolidation_outputs.clone()).collect();
 
     let starting_data = responses
         .first()
@@ -979,13 +1155,15 @@ pub async fn prove_game_inner(
         ProofProvider::Network(_) => {
             let keys = keys.context("network proving requires prestate proving keys")?;
             let mut stdin = SP1Stdin::new();
-            let (range_proofs, consolidation_proofs): (Vec<_>, Vec<_>) = proofs
-                .into_iter()
+            let (range_proofs, consolidation_proofs): (Vec<_>, Vec<_>) = spans
+                .iter()
                 .enumerate()
-                .map(|(index, proofs)| {
-                    let proofs =
-                        proofs.ok_or_else(|| anyhow!("missing proofs for chunk {index}"))?;
-                    Ok((proofs.range, proofs.consolidation))
+                .map(|(position, span)| {
+                    let proofs = span
+                        .proofs
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("missing proofs for span {position}"))?;
+                    Ok((Arc::clone(&proofs.range), Arc::clone(&proofs.consolidation)))
                 })
                 .collect::<Result<Vec<_>>>()?
                 .into_iter()
@@ -1043,7 +1221,7 @@ mod tests {
     use kona_sp1_client_utils::test_utils::valid_aggregation_inputs;
     use kona_sp1_super_range_executor::{
         BlockId, ChainId, ChainIdAndOutput, OutputV0, OutputWithRequiredL1, SuperRootResponseData,
-        SuperV1,
+        SuperV1, WitnessTooLarge,
     };
     use sp1_sdk::SP1PublicValues;
     use tracing::{
@@ -1225,10 +1403,192 @@ mod tests {
         let inputs = valid_aggregation_inputs();
         ChunkResult {
             index,
-            range_outputs: inputs.range_outputs[index].clone(),
-            consolidation_outputs: inputs.consolidation_outputs[index].clone(),
-            proofs: None,
+            spans: vec![SpanResult {
+                range_outputs: inputs.range_outputs[index].clone(),
+                consolidation_outputs: inputs.consolidation_outputs[index].clone(),
+                proofs: None,
+            }],
         }
+    }
+
+    /// Records every span it is asked to prove and returns a scripted outcome.
+    struct ScriptedSpanProver<F> {
+        calls: Mutex<Vec<(u64, u64)>>,
+        outcome: F,
+    }
+
+    impl<F> ScriptedSpanProver<F>
+    where
+        F: Fn(ChunkSpan, &ChunkProgress) -> Result<SpanResult> + Sync,
+    {
+        fn new(outcome: F) -> Self {
+            Self { calls: Mutex::default(), outcome }
+        }
+
+        fn calls(&self) -> Vec<(u64, u64)> {
+            self.calls.lock().clone()
+        }
+    }
+
+    impl<F> SpanProver for ScriptedSpanProver<F>
+    where
+        F: Fn(ChunkSpan, &ChunkProgress) -> Result<SpanResult> + Sync,
+    {
+        fn prove_leaf<'s>(
+            &'s self,
+            span: ChunkSpan,
+            _synthesized: Option<SynthesizedExecution>,
+            node: &'s ChunkProgress,
+        ) -> BoxFuture<'s, Result<SpanResult>> {
+            self.calls.lock().push((span.agreed, span.claimed));
+            let outcome = (self.outcome)(span, node);
+            async move { outcome }.boxed()
+        }
+    }
+
+    fn span_result(span: ChunkSpan) -> SpanResult {
+        let inputs = valid_aggregation_inputs();
+        let timestamps = TimestampSpan::new(span.agreed + 1, span.claimed).unwrap();
+        let mut range_outputs = inputs.range_outputs[0].clone();
+        range_outputs.span = timestamps;
+        let mut consolidation_outputs = inputs.consolidation_outputs[0].clone();
+        consolidation_outputs.span = timestamps;
+        SpanResult { range_outputs, consolidation_outputs, proofs: None }
+    }
+
+    /// The `(agreed, claimed)` pairs of a result's spans, in order.
+    fn result_spans(result: &ChunkResult) -> Vec<(u64, u64)> {
+        result
+            .spans
+            .iter()
+            .map(|span| (span.range_outputs.span.start - 1, span.range_outputs.span.end))
+            .collect()
+    }
+
+    fn witness_too_large() -> anyhow::Error {
+        anyhow::Error::new(WitnessTooLarge::Collected { bytes: 2, limit: 1 })
+    }
+
+    fn unexecutable() -> anyhow::Error {
+        ProofWaitError::Terminal {
+            proof_id: B256::ZERO,
+            state: ProofTerminalState::Unexecutable,
+            fulfillment_status: 0,
+            execution_status: 0,
+        }
+        .into()
+    }
+
+    #[tokio::test]
+    async fn oversized_span_bisects_until_witness_fits() {
+        let prover = ScriptedSpanProver::new(|span, _| {
+            if span.claimed - span.agreed > 2 {
+                Err(witness_too_large())
+            } else {
+                Ok(span_result(span))
+            }
+        });
+        let node = ChunkProgress::default();
+
+        let result = prove_span(&prover, 0, ChunkSpan { agreed: 100, claimed: 108 }, None, &node)
+            .await
+            .unwrap();
+
+        assert_eq!(result_spans(&result), vec![(100, 102), (102, 104), (104, 106), (106, 108)]);
+        assert_eq!(
+            prover.calls(),
+            vec![
+                (100, 108),
+                (100, 104),
+                (100, 102),
+                (102, 104),
+                (104, 108),
+                (104, 106),
+                (106, 108)
+            ]
+        );
+        assert!(node.split.lock().is_some());
+    }
+
+    #[tokio::test]
+    async fn bisected_retry_reuses_halves_and_completed_leaves() {
+        let node = ChunkProgress::default();
+        let span = ChunkSpan { agreed: 100, claimed: 108 };
+        let failing = ScriptedSpanProver::new(|span, _| match (span.agreed, span.claimed) {
+            (106, 108) => Err(anyhow!("transient")),
+            _ if span.claimed - span.agreed > 2 => Err(witness_too_large()),
+            _ => Ok(span_result(span)),
+        });
+        let err = prove_span(&failing, 0, span, None, &node).await.err().unwrap();
+        assert!(err.to_string().contains("transient"), "{err:#}");
+
+        let retry = ScriptedSpanProver::new(|span, _| Ok(span_result(span)));
+        let result = prove_span(&retry, 0, span, None, &node).await.unwrap();
+
+        assert_eq!(retry.calls(), vec![(106, 108)]);
+        assert_eq!(result_spans(&result), vec![(100, 102), (102, 104), (104, 106), (106, 108)]);
+    }
+
+    #[tokio::test]
+    async fn single_timestamp_witness_overflow_is_unprovable() {
+        let prover = ScriptedSpanProver::new(|_, _| Err(witness_too_large()));
+        let node = ChunkProgress::default();
+
+        let err = prove_span(&prover, 0, ChunkSpan { agreed: 100, claimed: 101 }, None, &node)
+            .await
+            .err()
+            .unwrap();
+
+        assert!(is_unprovable(&err), "{err:#}");
+        assert!(node.split.lock().is_none());
+    }
+
+    #[tokio::test]
+    async fn unexecutable_span_bisects_and_preflight_ignores_superseded_slot() {
+        let start = response_at(100, 0x01, 5);
+        let end = response_at(104, 0x02, 5);
+        let cache = InMemoryProofProgress::default();
+        let progress = cache.load_or_create(
+            Address::repeat_byte(0x49),
+            attempt_identity(game_for(&start, &end, 10)),
+        );
+        let prover = ScriptedSpanProver::new(|span, node| {
+            if span == (ChunkSpan { agreed: 100, claimed: 104 }) {
+                *node.range_request.lock() =
+                    RequestState::Terminal(ProofTerminalState::Unexecutable);
+                return Err(unexecutable());
+            }
+            Ok(span_result(span))
+        });
+
+        let result = prove_span(
+            &prover,
+            0,
+            ChunkSpan { agreed: 100, claimed: 104 },
+            None,
+            &progress.chunks[0],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result_spans(&result), vec![(100, 102), (102, 104)]);
+        progress.check_terminal_requests().unwrap();
+        assert!(!cache.request_counts().contains_key(&("range", "terminal")));
+    }
+
+    #[tokio::test]
+    async fn single_timestamp_unexecutable_stays_sticky() {
+        let prover = ScriptedSpanProver::new(|_, _| Err(unexecutable()));
+        let node = ChunkProgress::default();
+
+        let err = prove_span(&prover, 0, ChunkSpan { agreed: 100, claimed: 101 }, None, &node)
+            .await
+            .err()
+            .unwrap();
+
+        assert!(err.downcast_ref::<ProofWaitError>().is_some(), "{err:#}");
+        assert!(!is_unprovable(&err));
+        assert!(node.split.lock().is_none());
     }
 
     fn fulfilled_proof() -> SP1ProofWithPublicValues {
@@ -1331,8 +1691,13 @@ mod tests {
                 proof_progress: &cache,
             };
             let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
-            let (_, _, request_state) = progress.requests().nth(slot).unwrap();
-            *request_state.lock() = RequestState::Terminal(state);
+            let mut visited = 0;
+            progress.for_each_request(|_, _, request| {
+                if visited == slot {
+                    *request.lock() = RequestState::Terminal(state);
+                }
+                visited += 1;
+            });
             let error = plan_game_attempt(&provider, None, &request)
                 .err()
                 .expect("terminal attempts must not return executable chunk plans");

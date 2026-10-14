@@ -586,31 +586,32 @@ enum ProofStatus {
     Pending,
 }
 
-/// Fulfillment takes precedence over terminal execution status.
+/// A fulfilled proof wins. Otherwise a terminal execution status wins over a terminal
+/// fulfillment status: SPN marks a request that breaks its gas or cycle limit UNFULFILLABLE and
+/// UNEXECUTABLE together, and only the execution status says resubmitting the same input cannot
+/// succeed.
 fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
     let fulfillment_status = FulfillmentStatus::try_from(fulfillment_status).ok();
     let execution_status = ExecutionStatus::try_from(execution_status).ok();
 
-    match fulfillment_status {
-        Some(FulfillmentStatus::Fulfilled) => return ProofStatus::Ready,
-        Some(FulfillmentStatus::Unfulfillable) => {
-            return ProofStatus::Failed(ProofTerminalState::Unfulfillable);
-        }
-        Some(FulfillmentStatus::Reverted) => {
-            return ProofStatus::Failed(ProofTerminalState::Reverted);
-        }
-        Some(FulfillmentStatus::Expired) => {
-            return ProofStatus::Failed(ProofTerminalState::Expired);
-        }
-        _ => {}
+    if fulfillment_status == Some(FulfillmentStatus::Fulfilled) {
+        return ProofStatus::Ready;
     }
     match execution_status {
         Some(ExecutionStatus::Unexecutable) => {
-            ProofStatus::Failed(ProofTerminalState::Unexecutable)
+            return ProofStatus::Failed(ProofTerminalState::Unexecutable);
         }
         Some(ExecutionStatus::ValidationFailed) => {
-            ProofStatus::Failed(ProofTerminalState::ValidationFailed)
+            return ProofStatus::Failed(ProofTerminalState::ValidationFailed);
         }
+        _ => {}
+    }
+    match fulfillment_status {
+        Some(FulfillmentStatus::Unfulfillable) => {
+            ProofStatus::Failed(ProofTerminalState::Unfulfillable)
+        }
+        Some(FulfillmentStatus::Reverted) => ProofStatus::Failed(ProofTerminalState::Reverted),
+        Some(FulfillmentStatus::Expired) => ProofStatus::Failed(ProofTerminalState::Expired),
         _ => ProofStatus::Pending,
     }
 }
@@ -857,6 +858,21 @@ mod tests {
                 FulfillmentStatus::Requested as i32,
                 ExecutionStatus::Unexecutable as i32,
                 ProofStatus::Failed(ProofTerminalState::Unexecutable),
+            ),
+            (
+                FulfillmentStatus::Unfulfillable as i32,
+                ExecutionStatus::Unexecutable as i32,
+                ProofStatus::Failed(ProofTerminalState::Unexecutable),
+            ),
+            (
+                FulfillmentStatus::Assigned as i32,
+                ExecutionStatus::Unexecutable as i32,
+                ProofStatus::Failed(ProofTerminalState::Unexecutable),
+            ),
+            (
+                FulfillmentStatus::Unfulfillable as i32,
+                ExecutionStatus::ValidationFailed as i32,
+                ProofStatus::Failed(ProofTerminalState::ValidationFailed),
             ),
             (
                 FulfillmentStatus::Requested as i32,

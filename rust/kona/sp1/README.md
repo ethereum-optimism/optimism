@@ -308,9 +308,11 @@ proposer loses the ability to defend, resolve, and claim those games.
 ### Restart behavior
 
 Proving progress is process-local. Retries with unchanged inputs reuse submitted
-request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
-`Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
-purchase replacements. Progress is cleared when a game becomes terminal, is
+request IDs, completed chunks and their bisected halves, and fulfilled aggregation
+proofs. `Cancelled`, `Expired`, `Reverted`, and `Unfulfillable` requests are
+retryable and may purchase replacements. A request that SPN also reports
+`UNEXECUTABLE` (how it reports gas, cycle, and memory breaches) is treated as
+`Unexecutable`, not `Unfulfillable`. Progress is cleared when a game becomes terminal, is
 evicted, fails a definitive pre-submit check, or is proven successfully.
 
 A restart loses all progress and re-detects games that still need proofs. A
@@ -319,8 +321,13 @@ re-detects unproven, signer-created games after restart.
 
 ### Terminal proof retry
 
-`Unexecutable` and local `ValidationFailed` requests are sticky. For unchanged
-attempt inputs, the proposer rejects the attempt before collecting witnesses
+A multi-timestamp span whose witness exceeds `OP_ZK_PROPOSER_MAX_WITNESS_BYTES`, or whose
+request ends `Unexecutable`, is bisected by timestamp instead of retried; its superseded
+request no longer blocks the game. A single-timestamp span cannot be split: an oversized
+witness makes the game unprovable, and an `Unexecutable` request stays sticky.
+
+`Unexecutable` single-timestamp requests and local `ValidationFailed` requests are sticky.
+For unchanged attempt inputs, the proposer rejects the attempt before collecting witnesses
 or submitting another SPN request. Scheduler tasks may still run and check
 inputs. A change to the full attempt identity permits a new attempt.
 
