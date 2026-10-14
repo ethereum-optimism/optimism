@@ -5,11 +5,11 @@ use crate::{
     errors::{MessageGraphError, MessageGraphResult},
     message::{EnrichedExecutingMessage, parse_log_to_executing_message},
     rules::MessageRules,
-    traits::InteropProvider,
+    traits::{InteropProvider, LogCommitment},
 };
-use alloc::{string::ToString, vec::Vec};
+use alloc::{boxed::Box, string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_primitives::{B256, Log, keccak256};
+use alloy_primitives::{B256, Log, U256, keccak256};
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_registry::HashMap;
 use tracing::{info, warn};
@@ -42,13 +42,22 @@ pub struct MessageGraph<'a, P> {
     dependency_set: &'a DependencySet,
 }
 
-/// Indexed initiating logs from a canonical block.
+/// A canonical initiating block, with its logs loaded on the first message that passes the
+/// header checks.
 #[derive(Debug)]
 struct InitiatingBlock {
     chain_id: u64,
-    number: u64,
-    timestamp: u64,
-    logs: Vec<(Log, Option<B256>)>,
+    header: Header,
+    logs: Option<InitiatingLogs>,
+}
+
+/// The logs of an [`InitiatingBlock`].
+#[derive(Debug)]
+enum InitiatingLogs {
+    /// Every log of the block, from its receipts, with the payload hash computed on first use.
+    Receipts(Vec<(Log, Option<B256>)>),
+    /// A commitment from [`InteropProvider::log_commitment`].
+    Committed(Box<dyn LogCommitment>),
 }
 
 impl<'a, P> MessageGraph<'a, P>
@@ -239,63 +248,94 @@ where
 
         let initiating_block_number = message.inner.identifier.blockNumber.saturating_to();
         let block_key = (initiating_chain_id, initiating_block_number);
-        if initiating_block.as_ref().map(|block| (block.chain_id, block.number)) != Some(block_key)
+        if initiating_block.as_ref().map(|block| (block.chain_id, block.header.number)) !=
+            Some(block_key)
         {
             *initiating_block = None;
             let header = self
                 .provider
                 .header_by_number(initiating_chain_id, initiating_block_number)
                 .await?;
-            let receipts = self
-                .provider
-                .receipts_by_number(initiating_chain_id, initiating_block_number)
-                .await?;
-            let logs = receipts
-                .into_iter()
-                .flat_map(|receipt| receipt.into_logs())
-                .map(|log| (log, None))
-                .collect();
-            *initiating_block = Some(InitiatingBlock {
-                chain_id: initiating_chain_id,
-                number: initiating_block_number,
-                timestamp: header.timestamp,
-                logs,
-            });
+            *initiating_block =
+                Some(InitiatingBlock { chain_id: initiating_chain_id, header, logs: None });
         }
         let initiating_block = initiating_block.as_mut().expect("initiating block loaded");
-        let (remote_log, remote_message_hash) = initiating_block
-            .logs
-            .get_mut(message.inner.identifier.logIndex.saturating_to::<usize>())
-            .ok_or(MessageGraphError::RemoteMessageNotFound {
-                chain_id: initiating_chain_id,
-                message_hash: message.inner.payloadHash,
-            })?;
 
-        // Validate the message's origin is correct.
-        if remote_log.address != message.inner.identifier.origin {
-            return Err(MessageGraphError::InvalidMessageOrigin {
-                expected: message.inner.identifier.origin,
-                actual: remote_log.address,
-            });
-        }
-
-        // Validate that the message hash is correct.
-        let remote_message_hash = remote_message_hash
-            .get_or_insert_with(|| keccak256(RawMessagePayload::from(&*remote_log).as_ref()));
-        if *remote_message_hash != message.inner.payloadHash {
-            return Err(MessageGraphError::InvalidMessageHash {
-                expected: message.inner.payloadHash,
-                actual: *remote_message_hash,
-            });
-        }
-
-        // Backstop for `check_initiating_block_number`: compare against the real header so the
-        // block-time grid alone never accepts a message.
-        if initiating_block.timestamp != initiating_timestamp {
+        // Backstop for `check_initiating_block_number`: the block-time grid alone never accepts.
+        if initiating_block.header.timestamp != initiating_timestamp {
             return Err(MessageGraphError::InvalidMessageTimestamp {
                 expected: initiating_timestamp,
-                actual: initiating_block.timestamp,
+                actual: initiating_block.header.timestamp,
             });
+        }
+
+        let logs = match &mut initiating_block.logs {
+            Some(logs) => logs,
+            logs @ None => {
+                let loaded = match self
+                    .provider
+                    .log_commitment(initiating_chain_id, &initiating_block.header)
+                {
+                    Some(commitment) => InitiatingLogs::Committed(commitment),
+                    None => InitiatingLogs::Receipts(
+                        self.provider
+                            .receipts_by_number(initiating_chain_id, initiating_block_number)
+                            .await?
+                            .into_iter()
+                            .flat_map(|receipt| receipt.into_logs())
+                            .map(|log| (log, None))
+                            .collect(),
+                    ),
+                };
+                logs.insert(loaded)
+            }
+        };
+        let log_index = message.inner.identifier.logIndex;
+        let not_found = || MessageGraphError::RemoteMessageNotFound {
+            chain_id: initiating_chain_id,
+            message_hash: message.inner.payloadHash,
+        };
+
+        match logs {
+            InitiatingLogs::Receipts(logs) => {
+                let (remote_log, remote_message_hash) =
+                    logs.get_mut(log_index.saturating_to::<usize>()).ok_or_else(not_found)?;
+
+                // Validate the message's origin is correct.
+                if remote_log.address != message.inner.identifier.origin {
+                    return Err(MessageGraphError::InvalidMessageOrigin {
+                        expected: message.inner.identifier.origin,
+                        actual: remote_log.address,
+                    });
+                }
+
+                // Validate that the message hash is correct.
+                let remote_message_hash = remote_message_hash.get_or_insert_with(|| {
+                    keccak256(RawMessagePayload::from(&*remote_log).as_ref())
+                });
+                if *remote_message_hash != message.inner.payloadHash {
+                    return Err(MessageGraphError::InvalidMessageHash {
+                        expected: message.inner.payloadHash,
+                        actual: *remote_message_hash,
+                    });
+                }
+            }
+            InitiatingLogs::Committed(commitment) => {
+                if log_index >= U256::from(commitment.log_count()) {
+                    return Err(not_found());
+                }
+                let log_index = log_index.to::<u64>();
+                if !commitment.log_matches(
+                    log_index,
+                    &message.inner.identifier.origin,
+                    &message.inner.payloadHash,
+                ) {
+                    return Err(MessageGraphError::InvalidMessageLog {
+                        chain_id: initiating_chain_id,
+                        log_index,
+                    });
+                }
+            }
         }
 
         Ok(())
@@ -305,16 +345,27 @@ where
 #[cfg(test)]
 #[allow(clippy::zero_sized_map_values)]
 mod test {
-    use super::MessageGraph;
+    use super::{InitiatingLogs, MessageGraph};
     use crate::{
-        MESSAGE_EXPIRY_WINDOW, MessageGraphError,
+        ExecutingMessage, InteropProvider, LogCommitment, MESSAGE_EXPIRY_WINDOW, MessageGraphError,
+        MessageGraphResult,
         message::EnrichedExecutingMessage,
         rules::detect_cycles,
-        test_util::{ExecutingMessageBuilder, SuperchainBuilder},
+        test_util::{
+            ExecutingMessageBuilder, InteropProviderError, LeafList, MockInteropProvider,
+            SuperchainBuilder,
+        },
     };
-    use alloc::collections::BTreeMap;
+    use alloc::{
+        boxed::Box,
+        collections::{BTreeMap, BTreeSet},
+    };
+    use alloy_consensus::{Header, Sealed};
     use alloy_primitives::{Address, B256, U256, hex, keccak256};
-    use kona_genesis::{ChainDependency, DependencySet};
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use kona_genesis::{ChainDependency, DependencySet, RollupConfig};
+    use kona_registry::HashMap;
+    use op_alloy_consensus::OpReceiptEnvelope;
     use std::sync::OnceLock;
 
     const MOCK_MESSAGE: [u8; 4] = hex!("deadbeef");
@@ -354,6 +405,190 @@ mod test {
         superchain
     }
 
+    /// Which blocks [`TestProvider`] serves a [`LogCommitment`] for.
+    #[derive(Debug, Clone, Copy)]
+    enum Commitments {
+        None,
+        All,
+        BelowHead,
+    }
+
+    /// A [`MockInteropProvider`] with failing receipts per block and [`LeafList`] commitments.
+    #[derive(Debug)]
+    struct TestProvider<'a> {
+        inner: &'a MockInteropProvider,
+        commitments: Commitments,
+        failing_receipts: BTreeSet<(u64, u64)>,
+        receipt_loads: AtomicUsize,
+        commitment_loads: AtomicUsize,
+    }
+
+    impl<'a> TestProvider<'a> {
+        fn new(
+            inner: &'a MockInteropProvider,
+            commitments: Commitments,
+            failing_receipts: &BTreeSet<(u64, u64)>,
+        ) -> Self {
+            Self {
+                inner,
+                commitments,
+                failing_receipts: failing_receipts.clone(),
+                receipt_loads: AtomicUsize::new(0),
+                commitment_loads: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl InteropProvider for TestProvider<'_> {
+        type Error = InteropProviderError;
+
+        async fn header_by_number(
+            &self,
+            chain_id: u64,
+            number: u64,
+        ) -> Result<Header, Self::Error> {
+            self.inner.header_by_number(chain_id, number).await
+        }
+
+        async fn receipts_by_number(
+            &self,
+            chain_id: u64,
+            number: u64,
+        ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
+            self.receipt_loads.fetch_add(1, Ordering::Relaxed);
+            if self.failing_receipts.contains(&(chain_id, number)) {
+                return Err(InteropProviderError);
+            }
+            self.inner.receipts_by_number(chain_id, number).await
+        }
+
+        async fn receipts_by_hash(
+            &self,
+            chain_id: u64,
+            block_hash: B256,
+        ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
+            self.inner.receipts_by_hash(chain_id, block_hash).await
+        }
+
+        fn log_commitment(&self, chain_id: u64, header: &Header) -> Option<Box<dyn LogCommitment>> {
+            let head = *self.inner.headers[&chain_id].keys().max().unwrap();
+            match self.commitments {
+                Commitments::None => return None,
+                Commitments::BelowHead if header.number >= head => return None,
+                Commitments::All | Commitments::BelowHead => {}
+            }
+            self.commitment_loads.fetch_add(1, Ordering::Relaxed);
+            // A block whose receipts do not decode commits to no logs.
+            if self.failing_receipts.contains(&(chain_id, header.number)) {
+                return Some(Box::new(LeafList::new(&[])));
+            }
+            Some(Box::new(LeafList::new(&self.inner.receipts[&chain_id][&header.number])))
+        }
+    }
+
+    /// One graph read through receipts and through commitments to the same receipts.
+    struct Differential<'a> {
+        receipts: MessageGraph<'a, TestProvider<'a>>,
+        committed: MessageGraph<'a, TestProvider<'a>>,
+    }
+
+    impl<'a> Differential<'a> {
+        /// Derives both graphs; the committed one is served a commitment for every block.
+        async fn derive(
+            blocks: &HashMap<u64, Sealed<Header>>,
+            provider: &'a MockInteropProvider,
+            rollup_configs: &'a HashMap<u64, RollupConfig>,
+            dependency_set: &'a DependencySet,
+            message_expiry_window: u64,
+        ) -> MessageGraphResult<Self, MockInteropProvider> {
+            Self::derive_with(
+                blocks,
+                provider,
+                rollup_configs,
+                dependency_set,
+                message_expiry_window,
+                Commitments::All,
+                &BTreeSet::new(),
+            )
+            .await
+        }
+
+        async fn derive_with(
+            blocks: &HashMap<u64, Sealed<Header>>,
+            provider: &'a MockInteropProvider,
+            rollup_configs: &'a HashMap<u64, RollupConfig>,
+            dependency_set: &'a DependencySet,
+            message_expiry_window: u64,
+            commitments: Commitments,
+            failing_receipts: &BTreeSet<(u64, u64)>,
+        ) -> MessageGraphResult<Self, MockInteropProvider> {
+            let graph = async |commitments| {
+                let provider =
+                    Box::leak(Box::new(TestProvider::new(provider, commitments, failing_receipts)));
+                MessageGraph::derive(
+                    blocks,
+                    &*provider,
+                    rollup_configs,
+                    dependency_set,
+                    message_expiry_window,
+                )
+                .await
+            };
+            let receipts = graph(Commitments::None).await?;
+            let committed = graph(commitments).await.expect("derive reads no initiating logs");
+            assert_eq!(format!("{:?}", receipts.messages), format!("{:?}", committed.messages));
+            Ok(Self { receipts, committed })
+        }
+
+        fn edit_messages(&mut self, edit: impl Fn(&mut Vec<EnrichedExecutingMessage>)) {
+            edit(&mut self.receipts.messages);
+            edit(&mut self.committed.messages);
+        }
+
+        /// Asserts equal verdicts and resolutions; returns the receipts graph's resolution.
+        async fn resolve(self) -> MessageGraphResult<(), MockInteropProvider> {
+            for message in &self.receipts.messages {
+                let receipts = self.receipts.check_single_dependency(message, &mut None).await;
+                let committed = self.committed.check_single_dependency(message, &mut None).await;
+                assert_eq!(
+                    receipts.is_ok(),
+                    committed.is_ok(),
+                    "verdicts differ for {message:?}: receipts {receipts:?}, committed {committed:?}"
+                );
+            }
+            let (receipts_provider, committed_provider) =
+                (self.receipts.provider, self.committed.provider);
+            receipts_provider.receipt_loads.store(0, Ordering::Relaxed);
+            committed_provider.receipt_loads.store(0, Ordering::Relaxed);
+            committed_provider.commitment_loads.store(0, Ordering::Relaxed);
+
+            let receipts = self.receipts.resolve().await;
+            let committed = self.committed.resolve().await;
+            match (&receipts, &committed) {
+                (
+                    Err(MessageGraphError::InvalidMessages(receipts)),
+                    Err(MessageGraphError::InvalidMessages(committed)),
+                ) => assert_eq!(
+                    receipts.keys().collect::<BTreeSet<_>>(),
+                    committed.keys().collect::<BTreeSet<_>>(),
+                    "invalid chains differ"
+                ),
+                _ => assert_eq!(receipts, committed),
+            }
+            // Each block that the receipts graph loaded, the committed graph loads once too.
+            assert_eq!(
+                receipts_provider.receipt_loads.load(Ordering::Relaxed),
+                committed_provider.receipt_loads.load(Ordering::Relaxed) +
+                    committed_provider.commitment_loads.load(Ordering::Relaxed),
+            );
+            if matches!(committed_provider.commitments, Commitments::All) {
+                assert_eq!(committed_provider.receipt_loads.load(Ordering::Relaxed), 0);
+            }
+            receipts
+        }
+    }
+
     #[tokio::test]
     async fn test_derive_and_resolve_simple_graph_no_cycles() {
         let mut superchain = default_superchain();
@@ -372,7 +607,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -404,7 +639,7 @@ mod test {
         let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
 
         let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
+            Differential::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
                 .await
                 .unwrap();
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
@@ -436,7 +671,7 @@ mod test {
         let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
 
         let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
+            Differential::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
                 .await
                 .unwrap();
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
@@ -473,7 +708,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -508,7 +743,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -549,7 +784,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -595,7 +830,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -639,7 +874,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -703,7 +938,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -746,7 +981,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -792,7 +1027,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -838,7 +1073,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -882,7 +1117,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -930,7 +1165,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -959,7 +1194,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1004,7 +1239,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1048,7 +1283,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1091,7 +1326,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1133,7 +1368,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1187,7 +1422,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1220,7 +1455,7 @@ mod test {
         let (headers, cfgs, provider) = superchain.build();
 
         let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
+            Differential::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
                 .await
                 .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
@@ -1262,7 +1497,7 @@ mod test {
         let (headers, cfgs, provider) = superchain.build();
 
         let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
+            Differential::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
                 .await
                 .unwrap();
         graph.resolve().await.unwrap();
@@ -1296,7 +1531,7 @@ mod test {
         let filtered_headers =
             headers.into_iter().filter(|(chain_id, _)| *chain_id != CHAIN_A_ID).collect();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &filtered_headers,
             &provider,
             &cfgs,
@@ -1352,7 +1587,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1418,7 +1653,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1687,7 +1922,7 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1856,7 +2091,7 @@ mod test {
                 );
             }
             let (headers, cfgs, provider) = superchain.build();
-            let mut graph = MessageGraph::derive(
+            let mut graph = Differential::derive(
                 &headers,
                 &provider,
                 &cfgs,
@@ -1865,42 +2100,42 @@ mod test {
             )
             .await
             .unwrap();
-            let message = &mut graph.messages[1].inner;
-            let expected = match field {
-                "hash" => {
-                    message.payloadHash = B256::ZERO;
+            let (edit, expected): (fn(&mut ExecutingMessage), _) = match field {
+                "hash" => (
+                    |message| message.payloadHash = B256::ZERO,
                     MessageGraphError::InvalidMessageHash {
                         expected: B256::ZERO,
                         actual: keccak256(MOCK_MESSAGE),
-                    }
-                }
-                "origin" => {
-                    message.identifier.origin = Address::repeat_byte(1);
+                    },
+                ),
+                "origin" => (
+                    |message| message.identifier.origin = Address::repeat_byte(1),
                     MessageGraphError::InvalidMessageOrigin {
                         expected: Address::repeat_byte(1),
                         actual: Address::ZERO,
-                    }
-                }
-                "timestamp" => {
-                    message.identifier.timestamp = U256::from(1);
+                    },
+                ),
+                "timestamp" => (
+                    |message| message.identifier.timestamp = U256::from(1),
                     MessageGraphError::InvalidMessageBlockNumber {
                         block_number: U256::from(1),
                         timestamp: 1,
-                    }
-                }
-                "index" => {
-                    message.identifier.logIndex = U256::from(1);
+                    },
+                ),
+                "index" => (
+                    |message| message.identifier.logIndex = U256::from(1),
                     MessageGraphError::RemoteMessageNotFound {
                         chain_id: CHAIN_A_ID,
                         message_hash: keccak256(MOCK_MESSAGE),
-                    }
-                }
-                "chain" => {
-                    message.identifier.chainId = U256::from(99);
-                    MessageGraphError::ChainNotInDependencySet(99)
-                }
+                    },
+                ),
+                "chain" => (
+                    |message| message.identifier.chainId = U256::from(99),
+                    MessageGraphError::ChainNotInDependencySet(99),
+                ),
                 _ => unreachable!(),
             };
+            graph.edit_messages(|messages| edit(&mut messages[1].inner));
             let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err()
             else {
                 panic!("expected invalid message for {field}");
@@ -1929,7 +2164,7 @@ mod test {
             );
         }
         let (headers, cfgs, provider) = superchain.build();
-        let mut graph = MessageGraph::derive(
+        let mut graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -1938,7 +2173,7 @@ mod test {
         )
         .await
         .unwrap();
-        graph.messages.sort_by_key(|message| message.executing_chain_id);
+        graph.edit_messages(|messages| messages.sort_by_key(|message| message.executing_chain_id));
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("expected activation failure");
         };
@@ -1982,7 +2217,7 @@ mod test {
             );
         }
         let (headers, cfgs, provider) = superchain.build();
-        let graph = MessageGraph::derive(
+        let graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -2006,7 +2241,7 @@ mod test {
             );
         }
         let (headers, cfgs, provider) = superchain.build();
-        let mut graph = MessageGraph::derive(
+        let mut graph = Differential::derive(
             &headers,
             &provider,
             &cfgs,
@@ -2015,9 +2250,9 @@ mod test {
         )
         .await
         .unwrap();
-        assert_eq!(graph.messages.len(), 2);
+        assert_eq!(graph.receipts.messages.len(), 2);
         // Visit the non-self edge first so premature deduplication would discard the self-cycle.
-        graph.messages.swap(0, 1);
+        graph.edit_messages(|messages| messages.swap(0, 1));
         assert_eq!(
             graph.resolve().await.unwrap_err(),
             MessageGraphError::CyclicDependency { chain_ids: vec![CHAIN_A_ID] }
@@ -2179,13 +2414,243 @@ mod test {
         .unwrap();
         let mut initiating_block = None;
         graph.check_single_dependency(&graph.messages[0], &mut initiating_block).await.unwrap();
-        let block = initiating_block.as_ref().unwrap();
-        assert_eq!(block.logs.len(), 64);
+        let Some(InitiatingLogs::Receipts(logs)) = &initiating_block.as_ref().unwrap().logs else {
+            panic!("expected receipt logs");
+        };
+        assert_eq!(logs.len(), 64);
         assert_eq!(
-            block.logs.iter().filter(|(_, hash)| hash.is_some()).count(),
+            logs.iter().filter(|(_, hash)| hash.is_some()).count(),
             1,
             "unreferenced logs must not be hashed"
         );
-        assert_eq!(block.logs[63].1, Some(keccak256(MOCK_MESSAGE)));
+        assert_eq!(logs[63].1, Some(keccak256(MOCK_MESSAGE)));
+    }
+
+    /// Resolves chain B's message into chain A's one-log block `1`, after `edit`.
+    async fn resolve_into_single_log_block(
+        edit: impl Fn(&mut Vec<EnrichedExecutingMessage>),
+    ) -> MessageGraphResult<(), MockInteropProvider> {
+        let mut superchain = default_superchain();
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_block_number(1)
+                .with_origin_timestamp(2),
+        );
+        let (headers, cfgs, provider) = superchain.build();
+        let mut graph = Differential::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        graph.edit_messages(edit);
+        graph.resolve().await
+    }
+
+    #[tokio::test]
+    async fn test_commitment_rejects_index_equal_to_log_count() {
+        let result = resolve_into_single_log_block(|messages| {
+            messages[0].inner.identifier.logIndex = U256::from(1);
+        })
+        .await;
+        assert!(matches!(result, Err(MessageGraphError::InvalidMessages(_))), "{result:?}");
+    }
+
+    #[tokio::test]
+    async fn test_commitment_rejects_index_above_u64() {
+        let result = resolve_into_single_log_block(|messages| {
+            messages[0].inner.identifier.logIndex = U256::from(1) << 64;
+        })
+        .await;
+        assert!(matches!(result, Err(MessageGraphError::InvalidMessages(_))), "{result:?}");
+    }
+
+    #[tokio::test]
+    async fn test_commitment_accepts_last_log() {
+        resolve_into_single_log_block(|_| {}).await.unwrap();
+    }
+
+    /// Pins `RemoteMessageNotFound`-equivalent verdicts for a block without logs.
+    #[tokio::test]
+    async fn test_commitment_rejects_message_into_block_without_logs() {
+        let mut superchain = default_superchain();
+        superchain.chain(CHAIN_A_ID).receipts.push(OpReceiptEnvelope::Eip1559(Default::default()));
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_block_number(1)
+                .with_origin_timestamp(2),
+        );
+        let (headers, cfgs, provider) = superchain.build();
+        let result = Differential::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap()
+        .resolve()
+        .await;
+        assert!(matches!(result, Err(MessageGraphError::InvalidMessages(_))), "{result:?}");
+    }
+
+    /// Pins equal verdicts for receipts that fail to load and a commitment with no logs.
+    #[tokio::test]
+    async fn test_commitment_without_logs_matches_receipts_error() {
+        let mut superchain = default_superchain();
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_block_number(1)
+                .with_origin_timestamp(2),
+        );
+        let (headers, cfgs, provider) = superchain.build();
+        let result = Differential::derive_with(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+            Commitments::All,
+            &BTreeSet::from([(CHAIN_A_ID, 1)]),
+        )
+        .await
+        .unwrap()
+        .resolve()
+        .await;
+        let Err(MessageGraphError::InvalidMessages(invalid)) = result else {
+            panic!("expected invalid messages, got {result:?}");
+        };
+        assert_eq!(
+            invalid[&CHAIN_B_ID],
+            MessageGraphError::InteropProviderError(InteropProviderError)
+        );
+    }
+
+    /// Pins a commitment for block `1` and the receipts path for head `2` in one run.
+    #[tokio::test]
+    async fn test_head_reference_reads_receipts_beside_committed_block() {
+        use alloy_primitives::Sealable;
+
+        let second = b"second".as_slice();
+        let valid = [(1, MOCK_MESSAGE.as_slice(), Address::ZERO), (2, second, Address::ZERO)];
+        let wrong_origin_below_head = (1, MOCK_MESSAGE.as_slice(), Address::repeat_byte(1));
+        let wrong_payload_at_head = (2, MOCK_MESSAGE.as_slice(), Address::ZERO);
+        for (extra, expect_valid) in [
+            (None, true),
+            (Some(wrong_origin_below_head), false),
+            (Some(wrong_payload_at_head), false),
+        ] {
+            let mut superchain = default_superchain();
+            superchain.chain(CHAIN_A_ID).with_number(2).with_timestamp(4);
+            superchain.chain(CHAIN_A_ID).add_initiating_message(second.into());
+            superchain.chain(CHAIN_B_ID).with_timestamp(4);
+            for (number, payload, origin) in valid.into_iter().chain(extra) {
+                superchain.chain(CHAIN_B_ID).add_executing_message(
+                    ExecutingMessageBuilder::default()
+                        .with_message_hash(keccak256(payload))
+                        .with_origin_address(origin)
+                        .with_origin_chain_id(CHAIN_A_ID)
+                        .with_origin_block_number(number)
+                        .with_origin_timestamp(2 * number),
+                );
+            }
+            let (headers, cfgs, mut provider) = superchain.build();
+            let block_1 = Header { number: 1, timestamp: 2, ..Default::default() }.seal_slow();
+            provider.headers.get_mut(&CHAIN_A_ID).unwrap().insert(1, block_1);
+            let mut block_1_source = SuperchainBuilder::new();
+            block_1_source.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+            let block_1_receipts = block_1_source.build().2.receipts[&CHAIN_A_ID][&0].clone();
+            provider.receipts.get_mut(&CHAIN_A_ID).unwrap().insert(1, block_1_receipts);
+
+            let graph = Differential::derive_with(
+                &headers,
+                &provider,
+                &cfgs,
+                default_dep_set(),
+                MESSAGE_EXPIRY_WINDOW,
+                Commitments::BelowHead,
+                &BTreeSet::new(),
+            )
+            .await
+            .unwrap();
+            let committed = graph.committed.provider;
+            let result = graph.resolve().await;
+            assert_eq!(result.is_ok(), expect_valid, "{extra:?}: {result:?}");
+            assert_eq!(committed.commitment_loads.load(Ordering::Relaxed), 1);
+            assert_eq!(committed.receipt_loads.load(Ordering::Relaxed), 1);
+        }
+    }
+
+    /// Pins a timestamp-mismatch verdict without a log read on either path.
+    #[tokio::test]
+    async fn test_timestamp_mismatch_reads_no_logs() {
+        let mut superchain = default_superchain();
+        superchain.chain(CHAIN_A_ID).with_timestamp(4).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).with_timestamp(4).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_block_number(1)
+                .with_origin_timestamp(2),
+        );
+        let (headers, cfgs, provider) = superchain.build();
+        let graph = Differential::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let (receipts, committed) = (graph.receipts.provider, graph.committed.provider);
+        let result = graph.resolve().await;
+        assert!(matches!(result, Err(MessageGraphError::InvalidMessages(_))), "{result:?}");
+        assert_eq!(receipts.receipt_loads.load(Ordering::Relaxed), 0);
+        assert_eq!(committed.commitment_loads.load(Ordering::Relaxed), 0);
+    }
+
+    /// Pins one commitment request per block.
+    #[tokio::test]
+    async fn test_commitment_requested_once_per_block() {
+        let mut superchain = default_superchain();
+        for _ in 0..3 {
+            superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        }
+        for index in 0..3 {
+            superchain.chain(CHAIN_B_ID).add_executing_message(
+                ExecutingMessageBuilder::default()
+                    .with_message_hash(keccak256(MOCK_MESSAGE))
+                    .with_origin_chain_id(CHAIN_A_ID)
+                    .with_origin_block_number(1)
+                    .with_origin_timestamp(2)
+                    .with_origin_log_index(index),
+            );
+        }
+        let (headers, cfgs, provider) = superchain.build();
+        let graph = Differential::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let committed = graph.committed.provider;
+        graph.resolve().await.unwrap();
+        assert_eq!(committed.commitment_loads.load(Ordering::Relaxed), 1);
     }
 }

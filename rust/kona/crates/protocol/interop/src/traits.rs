@@ -2,9 +2,9 @@
 
 use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::Header;
-use alloy_primitives::B256;
+use alloy_primitives::{Address, B256};
 use async_trait::async_trait;
-use core::error::Error;
+use core::{error::Error, fmt::Debug};
 use op_alloy_consensus::OpReceiptEnvelope;
 
 /// Describes the interface of the interop data provider. This provider is multiplexed over several
@@ -30,4 +30,22 @@ pub trait InteropProvider {
         chain_id: u64,
         block_hash: B256,
     ) -> Result<Vec<OpReceiptEnvelope>, Self::Error>;
+
+    /// A commitment to the logs of the canonical block `header` on `chain_id`, which
+    /// [`MessageGraph`](crate::MessageGraph) checks messages against instead of the block's
+    /// receipts. `None` reads the receipts.
+    fn log_commitment(&self, _chain_id: u64, _header: &Header) -> Option<Box<dyn LogCommitment>> {
+        None
+    }
+}
+
+/// A commitment to the log list of one canonical block: its receipts' logs in block order.
+pub trait LogCommitment: Debug + Send + Sync {
+    /// The number of logs in the block.
+    fn log_count(&self) -> u64;
+
+    /// Whether log `index` has `origin` and `payload_hash`, for `index` below
+    /// [`Self::log_count`]. `false` must not stand for a log that cannot be checked: a proof
+    /// program panics instead.
+    fn log_matches(&self, index: u64, origin: &Address, payload_hash: &B256) -> bool;
 }

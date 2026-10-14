@@ -46,6 +46,15 @@ pub enum MessageGraphError<E: Debug> {
         /// The actual message hash
         actual: B256,
     },
+    /// The committed log at the message's index does not have the message's origin and payload
+    /// hash.
+    #[error("Log {log_index} on chain ID {chain_id} does not match the message")]
+    InvalidMessageLog {
+        /// The remote chain ID
+        chain_id: u64,
+        /// The log index
+        log_index: u64,
+    },
     /// Invalid message timestamp
     #[error("Invalid message timestamp. Expected {expected}, got {actual}")]
     InvalidMessageTimestamp {

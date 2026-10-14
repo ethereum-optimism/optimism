@@ -19,7 +19,9 @@ mod hint;
 pub use hint::HintType;
 
 mod provider;
-pub use provider::{ChainScopedHinter, OracleInteropProvider, receipts_from_trie};
+pub use provider::{
+    ChainScopedHinter, LogCommitmentSource, OracleInteropProvider, receipts_from_trie,
+};
 
 pub mod boot;
 pub use boot::BootInfo;
