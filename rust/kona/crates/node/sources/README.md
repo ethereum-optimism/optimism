@@ -6,7 +6,7 @@ Data source types and utilities for the kona-node.
 
 [`l1_provider`] and [`l2_provider`] build the providers the node reads L1 and L2 through; the L2 provider authenticates with the engine's JWT secret. Each request they send has a deadline.
 
-[`RpcClientLayer`] records metrics and logs for the requests a JSON-RPC client sends, by client and method: the requests and the bytes of their params, how long they took, and the responses by error, with the bytes of their results. The L1 and L2 providers use it, as clients `l1` and `l2`.
+[`RpcClientLayer`] records metrics and logs for the requests a JSON-RPC client sends, by client and method: the requests and the bytes of their params, how long they took, and the responses by error, with the bytes of their results. The L1 and L2 providers, the conductor client and the remote signer client use it, as the clients `l1`, `l2`, `conductor` and `signer`.
 
 ## Engine API client
 

@@ -3,6 +3,7 @@
 use crate::Metrics;
 use alloy_json_rpc::{ErrorPayload, RequestPacket, Response, ResponsePacket, ResponsePayload};
 use alloy_transport::{RpcError, TransportError, TransportErrorKind, TransportFut};
+use alloy_transport_http::reqwest;
 use std::{
     borrow::Cow,
     task::{Context, Poll},
@@ -25,7 +26,8 @@ pub(crate) struct RequestTimedOut;
 /// - `rpc_<code>` for a JSON-RPC error response, or the first error in a batch;
 /// - `http_<status>` when the server answers with an HTTP error status instead of a JSON-RPC
 ///   response, such as a `401` for a rejected JWT;
-/// - `timeout` when the request misses a deadline set by a layer below this one;
+/// - `timeout` when the request misses a deadline set by a layer below this one, or the HTTP
+///   client's timeout;
 /// - `transport` when no response arrives for any other reason, or it cannot be read.
 ///
 /// It logs successful requests at `trace`, JSON-RPC errors at `debug` with their message since
@@ -161,7 +163,12 @@ impl<'a> Outcome<'a> {
                     return Self::Http(error.status);
                 }
                 return match kind {
-                    TransportErrorKind::Custom(error) if error.is::<RequestTimedOut>() => {
+                    TransportErrorKind::Custom(error)
+                        if error.is::<RequestTimedOut>() ||
+                            error
+                                .downcast_ref::<reqwest::Error>()
+                                .is_some_and(reqwest::Error::is_timeout) =>
+                    {
                         Self::Timeout
                     }
                     _ => Self::Transport,
@@ -287,6 +294,44 @@ mod tests {
         ] {
             assert!(rendered.contains(&expected), "missing {expected} in:\n{rendered}");
         }
+    }
+
+    #[test]
+    fn an_http_client_timeout_is_a_timeout() {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let metrics = recorder.handle();
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        metrics::with_local_recorder(&recorder, || {
+            runtime.block_on(async {
+                // Accepts connections and never answers.
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+                tokio::spawn(async move {
+                    while let Ok((stream, _)) = listener.accept().await {
+                        tokio::spawn(async move {
+                            let _stream = stream;
+                            std::future::pending::<()>().await
+                        });
+                    }
+                });
+                let http = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_millis(10))
+                    .build()
+                    .unwrap();
+                let client = alloy_rpc_client::ClientBuilder::default()
+                    .layer(RpcClientLayer::new("test"))
+                    .transport(alloy_transport_http::Http::with_client(http, url), true);
+                let response: Result<String, _> = client.request_noparams("eth_chainId").await;
+                assert!(response.is_err());
+            });
+        });
+
+        let expected = format!(
+            "{}{{client=\"test\",method=\"eth_chainId\",error=\"timeout\"}} 1",
+            Metrics::RPC_CLIENT_RESPONSES
+        );
+        let rendered = metrics.render();
+        assert!(rendered.contains(&expected), "missing {expected} in:\n{rendered}");
     }
 
     #[test]
