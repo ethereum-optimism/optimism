@@ -586,6 +586,9 @@ for uses in its test files) and what it needs from the fork, e.g.
 
 - **A use not on the allowlist fails the check.** Avoid it using this doc; if there is no way
   around it yet, add the entry by hand with a reason. Review of that line is the gate.
+- **Reasons start with the tracking issue** that removes the entry (e.g. `#23405 …`), so grepping
+  the allowlist and its history for an issue number shows that workstream's remaining entries and
+  its progress.
 - **An entry no longer used fails the check too**; `just opgeth-ratchet-update` removes it. The
   tool never adds entries, so the allowlist only grows deliberately.
 - **Each package reports only its own uses.** go/types type-checks every package from source and

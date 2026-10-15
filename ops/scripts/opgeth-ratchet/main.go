@@ -90,7 +90,8 @@ dependency: %s describes the replacements (op-core/*, the
 op-service seams, op-reth) and where each kind of use is headed.
 
 If there is no way around it yet, add the lines below to %s,
-replacing %s with why the use can't be avoided for now:
+replacing %s with the issue tracking its removal and why the use can't be
+avoided for now:
 
 %s
 `, joinUses(unlisted, "\n  "), version, decouplingDoc, allowlistFile, reasonPlaceholder, entryLines(unlisted))
