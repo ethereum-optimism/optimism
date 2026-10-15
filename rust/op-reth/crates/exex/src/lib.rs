@@ -9,16 +9,16 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_consensus::BlockHeader;
-use alloy_eips::eip1898::BlockWithParent;
 use futures_util::TryStreamExt;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
-    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, engine::EngineHandle,
+    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
+    engine::{EngineHandle, ReorgBlock},
 };
 use reth_provider::BlockNumReader;
-use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
+use reth_trie::{ComputedTrieData, LazyTrieData, SortedTrieData};
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -300,21 +300,14 @@ where
 
         // `Chain::blocks()` is a BTreeMap so iteration is already ordered oldest → newest.
         for (&block_number, block) in new.blocks() {
-            // Fast path: use pre-computed trie data only when verification is not due.
-            let should_verify = self.verification_interval > 0 &&
-                block_number.is_multiple_of(self.verification_interval);
-            let precomputed = (!should_verify).then(|| new.trie_data_at(block_number)).flatten();
-
-            if let Some(d) = precomputed {
-                let SortedTrieData { hashed_state, trie_updates } = &d.get().sorted;
+            if let Some(trie_data) = self.precomputed_trie_data(&new, block_number) {
+                let SortedTrieData { hashed_state, trie_updates } = &trie_data.sorted;
                 engine_handle.index_block(
                     block.block_with_parent(),
                     (**trie_updates).clone(),
                     (**hashed_state).clone(),
                 )?;
             } else {
-                // Slow path: execute the block in full (no trie data, or verification interval
-                // hit).
                 engine_handle.execute_block(block)?;
             }
         }
@@ -322,6 +315,26 @@ where
         Ok(())
     }
 
+    /// reth's trie data for `block_number`, unless the block has none or its verification is due,
+    /// in which case the engine executes the block instead.
+    fn precomputed_trie_data<'chain>(
+        &self,
+        chain: &'chain Chain<Primitives>,
+        block_number: u64,
+    ) -> Option<&'chain ComputedTrieData> {
+        let verification_due = self.verification_interval > 0 &&
+            block_number.is_multiple_of(self.verification_interval);
+        (!verification_due)
+            .then(|| chain.trie_data_at(block_number))
+            .flatten()
+            .map(LazyTrieData::get)
+    }
+
+    /// Switches the store to `new`: the engine unwinds to the fork block and takes the new
+    /// blocks in the way [`Self::handle_chain_committed`] would, indexing reth's trie data or
+    /// executing the block. reth notifies a reorg with both chains on one fork block; two
+    /// different fork blocks mean the notification is not a reorg the store can follow, so it
+    /// fails before the engine touches anything.
     fn handle_chain_reorged(
         &self,
         old: Arc<Chain<Primitives>>,
@@ -344,33 +357,22 @@ where
             ));
         }
 
-        let mut block_updates: Vec<(
-            BlockWithParent,
-            Arc<TrieUpdatesSorted>,
-            Arc<HashedPostStateSorted>,
-        )> = Vec::with_capacity(new.len());
-        for block_number in new.blocks().keys() {
-            let block = new
-                .blocks()
-                .get(block_number)
-                .ok_or_else(|| eyre::eyre!("Missing block {} in new chain", block_number))?;
-            let trie_data = new
-                .trie_data_at(*block_number)
-                .ok_or_else(|| {
-                    eyre::eyre!("Missing Trie data for block {} in new chain", block_number)
-                })?
-                .get();
-            let trie_updates = &trie_data.sorted.trie_updates;
-            let hashed_state = &trie_data.sorted.hashed_state;
+        let blocks = new
+            .blocks()
+            .iter()
+            .map(|(&block_number, block)| {
+                self.precomputed_trie_data(&new, block_number).map_or_else(
+                    || ReorgBlock::Execute(Arc::clone(block)),
+                    |trie_data| ReorgBlock::Index {
+                        block: block.block_with_parent(),
+                        hashed_state: trie_data.sorted.hashed_state.clone(),
+                        trie_updates: trie_data.sorted.trie_updates.clone(),
+                    },
+                )
+            })
+            .collect();
 
-            block_updates.push((
-                block.block_with_parent(),
-                trie_updates.clone(),
-                hashed_state.clone(),
-            ));
-        }
-
-        engine_handle.reorg(block_updates)?;
+        engine_handle.reorg(blocks)?;
 
         Ok(())
     }
@@ -397,18 +399,23 @@ mod tests {
     use super::*;
     use alloy_consensus::private::alloy_primitives::B256;
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
+    use reth_chain_state::{ExecutedBlock, NewCanonicalChain};
+    use reth_chainspec::{ChainSpec, ChainSpecBuilder, MAINNET};
     use reth_db::test_utils::tempdir_path;
     use reth_ethereum_primitives::{Block, Receipt};
+    use reth_evm_ethereum::EthEvmConfig;
     use reth_execution_types::{Chain, ExecutionOutcome};
+    use reth_exex_test_utils::{Adapter, TestExExHandle, test_exex_context_with_chain_spec};
     use reth_optimism_trie::{
-        BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
+        BlockStateDiff, InMemoryProofsStorage, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
     };
-    use reth_primitives_traits::RecoveredBlock;
+    use reth_primitives_traits::{RecoveredBlock, SealedHeader};
     use reth_trie::{
         ComputedTrieData, HashedPostStateSorted, LazyTrieData, updates::TrieUpdatesSorted,
     };
-    use std::{collections::BTreeMap, default::Default, sync::Arc};
+    use rstest::rstest;
+    use std::{collections::BTreeMap, default::Default, ops::RangeInclusive, sync::Arc};
 
     // -------------------------------------------------------------------------
     // Helpers: deterministic blocks and deterministic Chain with precomputed updates
@@ -634,6 +641,221 @@ mod tests {
             .expect("get latest block")
             .number;
         assert_eq!(latest, 12);
+    }
+
+    /// Which store implementation a case runs over.
+    #[derive(Clone, Copy, Debug)]
+    enum Backend {
+        InMemory,
+        Mdbx,
+    }
+
+    /// A mainnet-shaped chain past the merge from genesis, so that an empty block changes no
+    /// state when executed: no block reward, no withdrawals and no beacon root.
+    fn merged_chain_spec() -> Arc<ChainSpec> {
+        Arc::new(
+            ChainSpecBuilder::default()
+                .chain(MAINNET.chain)
+                .genesis(MAINNET.genesis.clone())
+                .paris_activated()
+                .build(),
+        )
+    }
+
+    /// An empty block `number` on `parent`, with a hash only `tag` and `number` decide. Its
+    /// header carries the empty state root, which is what executing it on [`merged_chain_spec`]
+    /// over a store initialized without trie data computes.
+    fn empty_block(number: u64, parent: B256, tag: u8) -> RecoveredBlock<Block> {
+        let mut block: RecoveredBlock<Block> = Default::default();
+        block.set_block_number(number);
+        block.set_parent_hash(parent);
+        block.set_hash(B256::new([[tag; 16], [number as u8; 16]].concat().try_into().unwrap()));
+        block
+    }
+
+    /// Empty blocks `numbers` chained on `parent`, which reth's canonical in-memory state takes
+    /// in as `update` so that the engine finds their parents' state when it executes them.
+    fn canonical_empty_chain(
+        ctx: &ExExContext<Adapter>,
+        parent: BlockNumHash,
+        numbers: RangeInclusive<u64>,
+        tag: u8,
+        update: impl FnOnce(Vec<ExecutedBlock>) -> NewCanonicalChain,
+    ) -> Vec<RecoveredBlock<Block>> {
+        let mut blocks: Vec<RecoveredBlock<Block>> = Vec::new();
+        let mut parent_hash = parent.hash;
+        for number in numbers {
+            let block = empty_block(number, parent_hash, tag);
+            parent_hash = block.hash();
+            blocks.push(block);
+        }
+        let executed = blocks
+            .iter()
+            .map(|block| ExecutedBlock {
+                recovered_block: Arc::new(block.clone()),
+                ..Default::default()
+            })
+            .collect();
+        let tip = blocks.last().expect("a chain has a tip");
+        let in_memory = ctx.components.provider.canonical_in_memory_state();
+        in_memory.update_chain(update(executed));
+        in_memory.set_canonical_head(SealedHeader::new(tip.header().clone(), tip.hash()));
+        blocks
+    }
+
+    /// A chain of `blocks`, with empty trie data for each when `with_trie_data`.
+    fn chain_of(
+        blocks: Vec<RecoveredBlock<Block>>,
+        with_trie_data: bool,
+    ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
+        let first_block = blocks.first().expect("a chain has a first block").number();
+        let trie_data = blocks
+            .iter()
+            .filter(|_| with_trie_data)
+            .map(|block| (block.number(), LazyTrieData::ready(ComputedTrieData::default())))
+            .collect();
+        let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
+            bundle: Default::default(),
+            receipts: Vec::new(),
+            requests: Vec::new(),
+            first_block,
+        };
+        Chain::new(blocks, execution_outcome, trie_data)
+    }
+
+    fn latest_block<S: OpProofsStore>(store: &S) -> NumHash {
+        store.provider_ro().expect("provider ro").get_latest_block().expect("latest block")
+    }
+
+    /// Anchors `store` at the test context's genesis and spawns an engine flushing every block,
+    /// executing with a real EVM over `chain_spec` since the context's EVM refuses every call.
+    fn engine_over<S: OpProofsStore + Clone + 'static>(
+        ctx: &ExExContext<Adapter>,
+        handle: &TestExExHandle,
+        chain_spec: Arc<ChainSpec>,
+        store: S,
+    ) -> EngineHandle<Block> {
+        let init = store.initialization_provider().expect("init");
+        init.set_initial_state_anchor(handle.genesis.num_hash()).expect("anchor");
+        init.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(init).expect("commit");
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        EngineHandle::spawn_with_thresholds(
+            EthEvmConfig::ethereum(chain_spec),
+            ctx.components.provider.clone(),
+            store,
+            pruner,
+            1,
+            2,
+        )
+    }
+
+    /// Commits empty blocks 1 through 3 on genesis, with trie data, through the ExEx.
+    fn commit_three_blocks<S: OpProofsStore + Clone + 'static>(
+        exex: &OpProofsExEx<Adapter, S>,
+        handle: &mut TestExExHandle,
+        engine: &EngineHandle<Block>,
+    ) -> Vec<RecoveredBlock<Block>> {
+        let blocks =
+            canonical_empty_chain(&exex.ctx, handle.genesis.num_hash(), 1..=3, 0x10, |new| {
+                NewCanonicalChain::Commit { new }
+            });
+        let notification =
+            ExExNotification::ChainCommitted { new: Arc::new(chain_of(blocks.clone(), true)) };
+        exex.handle_notification(notification, engine).expect("handle chain commit");
+        handle.assert_event_finished_height(blocks[2].num_hash()).expect("finished height");
+        blocks
+    }
+
+    async fn run_reorg_without_trie_data_case<S: OpProofsStore + Clone + 'static>(store: S) {
+        let chain_spec = merged_chain_spec();
+        let (ctx, mut handle) =
+            test_exex_context_with_chain_spec(chain_spec.clone()).await.expect("exex test context");
+        let engine = engine_over(&ctx, &handle, chain_spec, store.clone());
+        let exex = build_test_exex(ctx, store.clone());
+        let old = commit_three_blocks(&exex, &mut handle, &engine);
+        // reth switches from blocks 2 and 3 to blocks 2' through 4' on block 1.
+        let old_from_fork = old[1..].to_vec();
+        let new = canonical_empty_chain(&exex.ctx, old[0].num_hash(), 2..=4, 0x20, |new| {
+            NewCanonicalChain::Reorg {
+                new,
+                old: old_from_fork
+                    .iter()
+                    .map(|block| ExecutedBlock {
+                        recovered_block: Arc::new(block.clone()),
+                        ..Default::default()
+                    })
+                    .collect(),
+            }
+        });
+        let new_tip = new[2].num_hash();
+        let notification = ExExNotification::ChainReorged {
+            old: Arc::new(chain_of(old_from_fork, true)),
+            new: Arc::new(chain_of(new, false)),
+        };
+
+        exex.handle_notification(notification, &engine)
+            .expect("a reorg without trie data executes the new chain");
+
+        engine.flush();
+        assert_eq!(latest_block(&store), new_tip);
+        handle.assert_event_finished_height(new_tip).expect("finished height");
+    }
+
+    /// A reorg whose new chain carries no trie data executes the new blocks, as a commit without
+    /// trie data does, instead of failing.
+    #[rstest]
+    #[tokio::test]
+    async fn chain_reorged_without_trie_data_executes_the_new_chain(
+        #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
+    ) {
+        match backend {
+            Backend::InMemory => {
+                run_reorg_without_trie_data_case(InMemoryProofsStorage::new()).await
+            }
+            Backend::Mdbx => {
+                let dir = tempdir_path();
+                run_reorg_without_trie_data_case(Arc::new(
+                    MdbxProofsStorage::new(dir.as_path()).expect("env"),
+                ))
+                .await
+            }
+        }
+    }
+
+    /// A reorg whose old and new chains do not share a fork block fails before the engine
+    /// touches the store, and acknowledges no height.
+    #[tokio::test]
+    async fn chain_reorged_with_different_fork_blocks_fails_and_changes_nothing() {
+        let store = InMemoryProofsStorage::new();
+        let chain_spec = merged_chain_spec();
+        let (ctx, mut handle) =
+            test_exex_context_with_chain_spec(chain_spec.clone()).await.expect("exex test context");
+        let engine = engine_over(&ctx, &handle, chain_spec, store.clone());
+        let exex = build_test_exex(ctx, store.clone());
+        let old = commit_three_blocks(&exex, &mut handle, &engine);
+        let stored_tip = old[2].num_hash();
+        // The old chain forks at block 1, the new chain at block 2.
+        let mut new = Vec::new();
+        let mut parent_hash = old[1].hash();
+        for number in 3..=4 {
+            let block = empty_block(number, parent_hash, 0x20);
+            parent_hash = block.hash();
+            new.push(block);
+        }
+        let notification = ExExNotification::ChainReorged {
+            old: Arc::new(chain_of(old[1..].to_vec(), true)),
+            new: Arc::new(chain_of(new, true)),
+        };
+
+        let err = exex
+            .handle_notification(notification, &engine)
+            .expect_err("the chains have different fork blocks");
+
+        assert!(err.to_string().starts_with("Fork blocks do not match"), "got {err}");
+        engine.flush();
+        assert_eq!(latest_block(&store), stored_tip);
+        handle.assert_events_empty();
     }
 
     #[tokio::test]

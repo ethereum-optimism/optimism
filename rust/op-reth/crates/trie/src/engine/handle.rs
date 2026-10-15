@@ -5,7 +5,7 @@ use super::{
     error::EngineError,
     runner::Engine,
     service_guard::ServiceGuard,
-    tasks::{ExecuteBlockTask, IndexBlockTask, ReorgTask, SyncToTask, UnwindTask},
+    tasks::{ExecuteBlockTask, IndexBlockTask, ReorgBlock, ReorgTask, SyncToTask, UnwindTask},
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
 use alloy_eips::eip1898::BlockWithParent;
@@ -136,12 +136,12 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
         })
     }
 
-    /// Handle a chain reorg: unwind to the common ancestor then buffer new fork blocks.
-    pub fn reorg(
-        &self,
-        block_updates: Vec<(BlockWithParent, Arc<TrieUpdatesSorted>, Arc<HashedPostStateSorted>)>,
-    ) -> Result<(), EngineError> {
-        self.send_and_recv(|reply| EngineAction::Reorg(ReorgTask { block_updates, reply }))
+    /// Handle a chain reorg: unwind to the common ancestor then buffer the new chain, indexing or
+    /// executing each block as its [`ReorgBlock`] says. Fails without unwinding when the first
+    /// block does not build on the stored block below it or when the unwind would reach the
+    /// window's earliest block.
+    pub fn reorg(&self, blocks: Vec<ReorgBlock<Block>>) -> Result<(), EngineError> {
+        self.send_and_recv(|reply| EngineAction::Reorg(ReorgTask { blocks, reply }))
     }
 
     /// Unwind indexed data back to `to` (first block number removed, inclusive).

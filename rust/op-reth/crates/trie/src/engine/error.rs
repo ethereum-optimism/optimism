@@ -34,14 +34,15 @@ pub enum EngineError {
     /// The collector engine thread terminated unexpectedly.
     #[error("Collector engine terminated unexpectedly")]
     EngineDied,
-    /// Block is at the correct number but its parent hash does not match the current tip.
+    /// A block's parent hash does not match the stored block below it: the tip for a new block,
+    /// the block below the target for an unwind or a reorg.
     #[error(
         "Parent hash mismatch at block {block_number}: expected {expected_parent_hash}, got {actual_parent_hash}"
     )]
     ParentHashMismatch {
         /// The block number where the mismatch occurred.
         block_number: u64,
-        /// The expected parent hash (current tip hash).
+        /// The hash of the stored block the block should build on.
         expected_parent_hash: B256,
         /// The actual parent hash from the block header.
         actual_parent_hash: B256,

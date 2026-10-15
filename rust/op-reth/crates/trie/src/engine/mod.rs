@@ -11,6 +11,7 @@
 mod buffer;
 pub mod persistence;
 mod tasks;
+pub use tasks::ReorgBlock;
 
 mod error;
 pub use error::EngineError;
@@ -47,8 +48,8 @@ enum EngineAction<Block: reth_primitives_traits::Block> {
     ExecuteBlock(tasks::ExecuteBlockTask<Block>),
     /// Index pre-computed trie updates for a block (no EVM execution).
     IndexBlock(tasks::IndexBlockTask),
-    /// Handle a reorg: unwind to the common ancestor then index the new chain.
-    Reorg(tasks::ReorgTask),
+    /// Handle a reorg: unwind to the common ancestor then index or execute the new chain.
+    Reorg(tasks::ReorgTask<Block>),
     /// Unwind indexed data back to a given block.
     Unwind(tasks::UnwindTask),
     /// Block the caller until any in-flight persistence completes.

@@ -42,6 +42,8 @@ mod contracts;
 mod index_execute_parity;
 #[path = "live/parent_states.rs"]
 mod parent_states;
+#[path = "live/reorg_revert_edges.rs"]
+mod reorg_revert_edges;
 #[path = "live/simulated_reth.rs"]
 mod simulated_reth;
 #[path = "live/store_view.rs"]
@@ -56,6 +58,25 @@ const PRUNE_INTERVAL_BLOCKS: u64 = 1000;
 /// Timestamp of the block at `number`.
 const fn block_timestamp(number: u64) -> u64 {
     number * BLOCK_TIME
+}
+
+/// The engine's persistence and backpressure thresholds.
+#[derive(Clone, Copy, Debug)]
+struct FlushCadence {
+    backpressure: u64,
+    persistence: u64,
+}
+
+impl FlushCadence {
+    const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
+    const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
+}
+
+/// Which store implementation a case runs over.
+#[derive(Clone, Copy, Debug)]
+enum Backend {
+    InMemory,
+    Mdbx,
 }
 
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
