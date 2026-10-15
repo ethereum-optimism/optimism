@@ -1,6 +1,7 @@
 //! The test chain the live targets share: a funded signer, block and transaction specs, the
 //! block builder, the store constructors and the store's initialization at a block.
 
+use super::store_view::ProofTarget;
 use alloy_consensus::{
     Header, TxEip2930,
     constants::{EMPTY_WITHDRAWALS, ETH_TO_WEI},
@@ -129,6 +130,23 @@ impl BlockSpec {
     pub(super) const fn empty() -> Self {
         Self { txs: Vec::new() }
     }
+}
+
+/// Recipients the transfer chain pays in turn.
+pub(super) const RECIPIENTS: u64 = 4;
+
+pub(super) const fn recipient(serial: u64) -> Address {
+    Address::repeat_byte(0x40 + (serial % RECIPIENTS) as u8)
+}
+
+/// The block with `serial`: `serial` wei to its recipient, so that no two blocks are alike.
+pub(super) fn serial_transfer_block(serial: u64) -> BlockSpec {
+    BlockSpec::new(vec![TxSpec::transfer(recipient(serial), U256::from(serial))])
+}
+
+/// Proof targets for the transfer chain: the sender, the zero address and every recipient.
+pub(super) fn proof_targets_for_transfers(sender: Address) -> Vec<ProofTarget> {
+    ProofTarget::accounts([sender, Address::ZERO].into_iter().chain((0..RECIPIENTS).map(recipient)))
 }
 
 /// A mainnet-shaped chain spec whose genesis allocation is `alloc`, with the hardforks still to
