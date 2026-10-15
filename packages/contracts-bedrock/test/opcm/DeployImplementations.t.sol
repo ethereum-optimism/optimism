@@ -27,11 +27,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     DeployImplementations deployImplementations;
 
     // Define default inputs for testing.
-    uint256 withdrawalDelaySeconds = 100;
+    uint256 minWithdrawalDelaySeconds = 1;
+    uint256 maxWithdrawalDelaySeconds = 604800;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
-    uint256 proofMaturityDelaySeconds = 400;
-    uint256 disputeGameFinalityDelaySeconds = 500;
+    uint256 minProofMaturityDelaySeconds = 1;
+    uint256 maxProofMaturityDelaySeconds = 604800;
+    uint256 minDisputeGameFinalityDelaySeconds = 1;
+    uint256 maxDisputeGameFinalityDelaySeconds = 302400;
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
@@ -125,6 +128,15 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         }
     }
 
+    /// @notice Test that the DelayedWETH implementation is deployed with the configured delay bounds
+    ///         and no delay of its own; the delay lives in per-chain proxy storage.
+    function test_run_delayedWETHBounds_succeeds() public {
+        DeployImplementations.Output memory output = deployImplementations.run(defaultInput());
+        assertEq(output.delayedWETHImpl.minDelay(), minWithdrawalDelaySeconds, "DelayedWETH minDelay");
+        assertEq(output.delayedWETHImpl.maxDelay(), maxWithdrawalDelaySeconds, "DelayedWETH maxDelay");
+        assertEq(output.delayedWETHImpl.delay(), 0, "DelayedWETH impl delay");
+    }
+
     /// @notice Test that the deployImplementations function succeeds when reusing the same valid input.
     /// It should produce the same output addresses for each deployment.
     function test_reuseImplementation_succeeds() public {
@@ -175,11 +187,11 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     /// @notice Test that the deployImplementations script succeeds with a range of input values.
     function testFuzz_run_memory_succeeds(
-        uint256 _withdrawalDelaySeconds,
+        uint256 _minWithdrawalDelaySeconds,
         uint256 _minProposalSizeBytes,
         uint64 _challengePeriodSeconds,
-        uint256 _proofMaturityDelaySeconds,
-        uint256 _disputeGameFinalityDelaySeconds,
+        uint256 _minProofMaturityDelaySeconds,
+        uint256 _minDisputeGameFinalityDelaySeconds,
         address _superchainConfigImpl,
         uint256 _faultGameV2MaxGameDepth,
         uint256 _faultGameV2SplitDepth,
@@ -189,11 +201,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     )
         public
     {
-        _withdrawalDelaySeconds = bound(_withdrawalDelaySeconds, 1, type(uint256).max);
+        _minWithdrawalDelaySeconds = bound(_minWithdrawalDelaySeconds, 1, type(uint128).max);
         _minProposalSizeBytes = bound(_minProposalSizeBytes, 1, 1000000);
         _challengePeriodSeconds = uint64(bound(uint256(_challengePeriodSeconds), 1, type(uint64).max));
-        _proofMaturityDelaySeconds = bound(_proofMaturityDelaySeconds, 1, type(uint256).max);
-        _disputeGameFinalityDelaySeconds = bound(_disputeGameFinalityDelaySeconds, 1, type(uint256).max);
+        // The upper bounds are derived (2x the lower bound) to keep the fuzz signature within the
+        // stack limit; the deployed implementations are checked against both below.
+        _minProofMaturityDelaySeconds = bound(_minProofMaturityDelaySeconds, 1, type(uint128).max);
+        _minDisputeGameFinalityDelaySeconds = bound(_minDisputeGameFinalityDelaySeconds, 1, type(uint128).max);
 
         // Ensure superchainConfigImpl is not zero address
         vm.assume(_superchainConfigImpl != address(0));
@@ -225,11 +239,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
 
         DeployImplementations.Input memory input = DeployImplementations.Input(
-            _withdrawalDelaySeconds,
+            _minWithdrawalDelaySeconds,
+            _minWithdrawalDelaySeconds * 2,
             _minProposalSizeBytes,
             uint256(_challengePeriodSeconds),
-            _proofMaturityDelaySeconds,
-            _disputeGameFinalityDelaySeconds,
+            _minProofMaturityDelaySeconds,
+            _minProofMaturityDelaySeconds * 2,
+            _minDisputeGameFinalityDelaySeconds,
+            _minDisputeGameFinalityDelaySeconds * 2,
             StandardConstants.MIPS_VERSION, // mipsVersion
             _devFeatureBitmap, // devFeatureBitmap (fuzzed)
             _faultGameV2MaxGameDepth, // faultGameV2MaxGameDepth (bounded)
@@ -263,6 +280,30 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         assertNotEq(address(output.faultDisputeGameImpl), address(0), "V2 should be deployed when enabled");
         assertNotEq(address(output.permissionedDisputeGameImpl), address(0), "V2 should be deployed when enabled");
+
+        // Verify the per-chain delay bounds match fuzz inputs. The DelayedWETH bounds are checked in
+        // test_run_delayedWETHBounds_succeeds: asserting them here pushes this function past the
+        // stack limit.
+        assertEq(
+            output.optimismPortalImpl.minProofMaturityDelaySeconds(),
+            _minProofMaturityDelaySeconds,
+            "portal minProofMaturityDelaySeconds"
+        );
+        assertEq(
+            output.optimismPortalImpl.maxProofMaturityDelaySeconds(),
+            _minProofMaturityDelaySeconds * 2,
+            "portal maxProofMaturityDelaySeconds"
+        );
+        assertEq(
+            output.anchorStateRegistryImpl.minDisputeGameFinalityDelaySeconds(),
+            _minDisputeGameFinalityDelaySeconds,
+            "ASR minDisputeGameFinalityDelaySeconds"
+        );
+        assertEq(
+            output.anchorStateRegistryImpl.maxDisputeGameFinalityDelaySeconds(),
+            _minDisputeGameFinalityDelaySeconds * 2,
+            "ASR maxDisputeGameFinalityDelaySeconds"
+        );
 
         // Verify V2 constructor parameters match fuzz inputs
         assertEq(output.faultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "FDGv2 maxGameDepth");
@@ -400,8 +441,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         DeployImplementations.Input memory input;
 
         input = defaultInput();
-        input.withdrawalDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: withdrawalDelaySeconds not set");
+        input.minWithdrawalDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minWithdrawalDelaySeconds not set");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minWithdrawalDelaySeconds = input.maxWithdrawalDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: withdrawalDelaySeconds bounds inverted");
         deployImplementations.run(input);
 
         input = defaultInput();
@@ -415,13 +461,23 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.proofMaturityDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: proofMaturityDelaySeconds not set");
+        input.minProofMaturityDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minProofMaturityDelaySeconds not set");
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.disputeGameFinalityDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: disputeGameFinalityDelaySeconds not set");
+        input.minProofMaturityDelaySeconds = input.maxProofMaturityDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: proofMaturityDelaySeconds bounds inverted");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minDisputeGameFinalityDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minDisputeGameFinalityDelaySeconds not set");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minDisputeGameFinalityDelaySeconds = input.maxDisputeGameFinalityDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: disputeGameFinalityDelaySeconds bounds inverted");
         deployImplementations.run(input);
 
         input = defaultInput();
@@ -533,11 +589,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     function defaultInput() private view returns (DeployImplementations.Input memory input_) {
         input_ = DeployImplementations.Input(
-            withdrawalDelaySeconds,
+            minWithdrawalDelaySeconds,
+            maxWithdrawalDelaySeconds,
             minProposalSizeBytes,
             challengePeriodSeconds,
-            proofMaturityDelaySeconds,
-            disputeGameFinalityDelaySeconds,
+            minProofMaturityDelaySeconds,
+            maxProofMaturityDelaySeconds,
+            minDisputeGameFinalityDelaySeconds,
+            maxDisputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             devFeatureBitmap,
             73, // faultGameV2MaxGameDepth

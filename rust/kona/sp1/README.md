@@ -370,6 +370,7 @@ Names below use the `op_zk_proposer_` prefix.
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
 | `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
 | `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
+| `tx_sends_total` | Counter | L1 sends by `outcome`: `confirmed`, `reverted` (mined with status 0) or `failed` (no receipt: send timeout, nonce-too-low abort, or an error before publishing such as a gas-estimation revert). |
 
 Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
@@ -393,6 +394,16 @@ timed out; the next attempt can reuse the request.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
+
+L1 send diagnostics: `op_zk_proposer_tx_publish_errors_total` counts publishes that
+returned an error or no answer, by `reason` (`underpriced`, `nonce_too_low`,
+`rejected`, `no_response`); a `no_response` publish may still have reached the pool.
+Its `bump_failed` reason counts fee bumps that failed, for example when
+`OP_ZK_PROPOSER_MAX_FEE_PER_GAS` blocks the replacement.
+`op_zk_proposer_tx_fee_bumps_total` counts fee-bumped replacements sent to the node.
+`op_zk_proposer_tx_send_duration_seconds` is the duration of the latest send that
+got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
+`gas_used * effective_gas_price` over those sends, in whole gwei.
 
 ### Environment
 
@@ -432,9 +443,9 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
 | `OP_ZK_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
 | `OP_ZK_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
-| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
-| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
-| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
+| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | limit in seconds for one L1 transaction send, including fee bumps, until 3 confirmations (default `180`) |
+| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
+| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
@@ -546,10 +557,12 @@ L1-pinned live-network view. One process owns one network and one artifact URL.
 It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
 and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
 (`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
-pin is an input error. Finalized supernode responses are assumed immutable for a timestamp. An
-identical successful fingerprint is not re-executed; a correctness failure receives one
-confirmation attempt. The next selection is scheduled only after the prior attempt and its
-cadence plus bounded jitter have completed.
+pin is an input error. The pin and required L1 block identities are checked against the L1 RPC's
+canonical blocks. `CurrentL1` is used by number to bound the pin and verify processing progress;
+its hash is not independently validated. Finalized supernode responses are assumed immutable for
+a timestamp. An identical successful fingerprint is not re-executed; a correctness failure
+receives one confirmation attempt. The next selection is scheduled only after the prior attempt
+and its cadence plus bounded jitter have completed.
 
 The canary always uses SP1 CPU `execute` mode. This runs the real RISC-V ELF and returns an
 `ExecutionReport`, but it never invokes a proving API, submits work to the Succinct Prover Network,

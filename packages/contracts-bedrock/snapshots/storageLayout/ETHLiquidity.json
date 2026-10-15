@@ -8,7 +8,7 @@
   },
   {
     "bytes": "32",
-    "label": "pausedL1Timestamp",
+    "label": "pausedMessageNonce",
     "offset": 0,
     "slot": "1",
     "type": "uint256"

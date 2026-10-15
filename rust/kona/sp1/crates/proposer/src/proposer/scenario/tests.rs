@@ -32,8 +32,8 @@ use crate::{
     },
     prover::ProofKeys,
     proving::{GameProofInputs, ProofRequestCounts},
-    signer::NUM_CONFIRMATIONS,
     superroot::{SuperRootAt, zk_extra_data},
+    tx_sender::NUM_CONFIRMATIONS,
 };
 
 use crate::proposer::{

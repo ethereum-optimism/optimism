@@ -60,8 +60,9 @@ contract SuperchainETHBridge is ISemver {
 
     /// @notice Sends ETH to some target address on another chain. Reverts if the caller is the
     ///         L2ToL2CrossDomainMessenger, which could never spend a refund. A send made through
-    ///         the L2CrossDomainMessenger cannot be refunded either, so a sender on L1 should
-    ///         deposit through the portal and send from its own address, or use a contract on L2.
+    ///         the L2CrossDomainMessenger cannot be refunded to its sender on L1 either: a refund
+    ///         would go to that messenger and stay there. So a sender on L1 should deposit through
+    ///         the portal and send from its own address, or use a contract on L2.
     /// @param _to       Address to send ETH to.
     /// @param _chainId  Chain ID of the destination chain.
     /// @return msgHash_ Hash of the message sent.

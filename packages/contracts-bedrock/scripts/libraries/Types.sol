@@ -54,5 +54,9 @@ library Types {
         ISuperchainConfig superchainConfig;
         // Whether to use the custom gas token.
         bool useCustomGasToken;
+        // Per-chain withdrawal timing.
+        uint256 proofMaturityDelaySeconds;
+        uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
     }
 }
