@@ -1,11 +1,16 @@
 //! End-to-end test of the live trie collector.
 
-use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
-use alloy_eips::BlockNumHash;
+use alloy_consensus::{
+    BlockHeader, Header, TxEip2930,
+    constants::{EMPTY_WITHDRAWALS, ETH_TO_WEI},
+};
+use alloy_eips::{BlockNumHash, eip4895::Withdrawals};
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
 use derive_more::Constructor;
-use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
+use reth_chainspec::{
+    ChainSpec, ChainSpecBuilder, EthereumHardfork, EthereumHardforks, MAINNET, MIN_TRANSACTION_GAS,
+};
 use reth_db::Database;
 use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::{Block, BlockBody, Receipt, Transaction, TransactionSigned};
@@ -31,8 +36,22 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use test_case::test_case;
 
+#[path = "live/contracts.rs"]
+mod contracts;
+#[path = "live/index_execute_parity.rs"]
+mod index_execute_parity;
 #[path = "live/parent_states.rs"]
 mod parent_states;
+#[path = "live/simulated_reth.rs"]
+mod simulated_reth;
+
+/// Seconds between consecutive blocks.
+const BLOCK_TIME: u64 = 2;
+
+/// Timestamp of the block at `number`.
+const fn block_timestamp(number: u64) -> u64 {
+    number * BLOCK_TIME
+}
 
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap().keep();
@@ -90,6 +109,11 @@ impl TxSpec {
     const fn call(contract: Address, data: Bytes, gas_limit: u64) -> Self {
         Self { to: TxKind::Call(contract), data, gas_limit, value: U256::ZERO, nonce: None }
     }
+
+    /// Send `value` along with the transaction.
+    fn with_value(self, value: U256) -> Self {
+        Self { value, ..self }
+    }
 }
 
 /// Specification for a block in the test chain
@@ -108,22 +132,24 @@ struct TestScenario {
     blocks_after_initialization: Vec<BlockSpec>,
 }
 
+/// A mainnet-shaped chain spec whose genesis allocation is `alloc`, with the hardforks still to
+/// be chosen.
+fn chain_spec_builder(
+    alloc: impl IntoIterator<Item = (Address, GenesisAccount)>,
+) -> ChainSpecBuilder {
+    ChainSpecBuilder::default()
+        .chain(MAINNET.chain)
+        .genesis(Genesis { alloc: alloc.into_iter().collect(), ..MAINNET.genesis.clone() })
+}
+
+/// A genesis allocation funding `address`.
+fn funded(address: Address) -> (Address, GenesisAccount) {
+    (address, GenesisAccount { balance: U256::from(10 * ETH_TO_WEI), ..Default::default() })
+}
+
 /// Helper to create a chain spec with a genesis account funded
 fn chain_spec_with_address(address: Address) -> Arc<ChainSpec> {
-    Arc::new(
-        ChainSpecBuilder::default()
-            .chain(MAINNET.chain)
-            .genesis(Genesis {
-                alloc: [(
-                    address,
-                    GenesisAccount { balance: U256::from(10 * ETH_TO_WEI), ..Default::default() },
-                )]
-                .into(),
-                ..MAINNET.genesis.clone()
-            })
-            .paris_activated()
-            .build(),
-    )
+    Arc::new(chain_spec_builder([funded(address)]).paris_activated().build())
 }
 
 /// Creates a block from a spec, executing transactions with the given keypair
@@ -163,6 +189,9 @@ fn create_block_from_spec(
         .collect();
 
     let gas_total = spec.txs.iter().map(|tx| tx.gas_limit).sum::<u64>();
+    let timestamp = block_timestamp(block_number);
+    let shanghai = chain_spec.is_shanghai_active_at_timestamp(timestamp);
+    let cancun = chain_spec.is_cancun_active_at_timestamp(timestamp);
 
     Block {
         header: Header {
@@ -174,10 +203,19 @@ fn create_block_from_spec(
             number: block_number,
             gas_limit: gas_total.max(MIN_TRANSACTION_GAS),
             gas_used: gas_total,
+            timestamp,
             state_root: B256::ZERO, // Will be calculated by executor
+            withdrawals_root: shanghai.then_some(EMPTY_WITHDRAWALS),
+            blob_gas_used: cancun.then_some(0),
+            excess_blob_gas: cancun.then_some(0),
+            parent_beacon_block_root: cancun.then(|| keccak256(block_number.to_be_bytes())),
             ..Default::default()
         },
-        body: BlockBody { transactions, ..Default::default() },
+        body: BlockBody {
+            transactions,
+            withdrawals: shanghai.then(Withdrawals::default),
+            ..Default::default()
+        },
     }
     .try_into_recovered()
     .unwrap()
