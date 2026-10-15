@@ -19,7 +19,7 @@ use reth_provider::{
 use std::time::Duration;
 #[cfg(feature = "metrics")]
 use std::time::Instant;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Tracks all in-flight state for background persistence.
 pub(crate) struct PersistenceState {
@@ -124,18 +124,9 @@ impl PersistenceState {
         Ok(())
     }
 
-    /// Wait for any in-flight save, then send an unwind to the persistence service and
-    /// block until it completes.
-    pub(crate) fn unwind(
-        &mut self,
-        to: BlockWithParent,
-        memory: &TrieBufferState,
-    ) -> Result<(), EngineError> {
-        if self.in_flight.is_some() {
-            info!(target: "trie::engine::state", "Unwind waiting for in-flight persistence...");
-            self.wait(memory);
-        }
-
+    /// Send an unwind to the persistence service and block until it completes. The caller
+    /// drains any in-flight save first.
+    pub(crate) fn unwind(&self, to: BlockWithParent) -> Result<(), EngineError> {
         let (tx, rx) = bounded(1);
         self.handle.unwind(to, tx)?;
 
@@ -220,7 +211,7 @@ where
         // A save in flight can prune the window, so the checks run once it is done.
         self.drain_persistence();
         self.check_unwind_target(to)?;
-        self.persistence.unwind(to, &self.memory)?;
+        self.persistence.unwind(to)?;
         self.memory.unwind(to.block.number);
         // Clamp `sync_target` to the post-unwind tip. Without this, a stale target left over
         // from before a deep FCU rewind keeps `needs_sync()` perpetually true and spins the
@@ -239,6 +230,13 @@ where
     fn check_unwind_target(&self, to: BlockWithParent) -> Result<(), EngineError> {
         let window = self.storage.provider_ro()?.get_proof_window()?;
         if to.block.number <= window.earliest.number {
+            warn!(
+                target: "trie::engine::state",
+                to_block = to.block.number,
+                earliest = window.earliest.number,
+                latest = window.latest.number,
+                "Refusing to unwind at or below the earliest block"
+            );
             return Err(OpProofsStorageError::UnwindBeyondEarliest {
                 unwind_block_number: to.block.number,
                 earliest_block_number: window.earliest.number,
@@ -253,11 +251,20 @@ where
                 .map(|block| block.hash)
         });
         match stored_fork_hash {
-            Some(stored) if stored != to.parent => Err(EngineError::ParentHashMismatch {
-                block_number: to.block.number,
-                expected_parent_hash: stored,
-                actual_parent_hash: to.parent,
-            }),
+            Some(stored) if stored != to.parent => {
+                warn!(
+                    target: "trie::engine::state",
+                    to_block = to.block.number,
+                    stored_parent = ?stored,
+                    target_parent = ?to.parent,
+                    "Refusing to unwind onto a block the target does not build on"
+                );
+                Err(EngineError::ParentHashMismatch {
+                    block_number: to.block.number,
+                    expected_parent_hash: stored,
+                    actual_parent_hash: to.parent,
+                })
+            }
             _ => Ok(()),
         }
     }

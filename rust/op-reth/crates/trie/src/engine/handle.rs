@@ -137,9 +137,12 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     }
 
     /// Handle a chain reorg: unwind to the common ancestor then buffer the new chain, indexing or
-    /// executing each block as its [`ReorgBlock`] says. Fails without unwinding when the first
-    /// block does not build on the stored block below it or when the unwind would reach the
-    /// window's earliest block.
+    /// executing each block as its [`ReorgBlock`] says.
+    ///
+    /// Fails without unwinding when the unwind would reach the window's earliest block, or when
+    /// the first block's parent differs from the stored block below it and the engine knows that
+    /// block's hash (it has buffered or persisted it, or it is a window end). A block that fails
+    /// after the unwind leaves the store unwound with the blocks before it buffered.
     pub fn reorg(&self, blocks: Vec<ReorgBlock<Block>>) -> Result<(), EngineError> {
         self.send_and_recv(|reply| EngineAction::Reorg(ReorgTask { blocks, reply }))
     }

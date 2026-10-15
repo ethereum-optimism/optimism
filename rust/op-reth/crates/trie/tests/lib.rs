@@ -2146,29 +2146,30 @@ fn store_unwind_chain<S: OpProofsStore>(
 }
 
 /// `unwind_history` refuses a target at or below the earliest block and leaves the window alone.
-#[test_case(InMemoryProofsStorage::new(); "InMemory")]
-#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(); "Mdbx")]
+#[test_case(InMemoryProofsStorage::new(), 2; "InMemory at earliest")]
+#[test_case(InMemoryProofsStorage::new(), 1; "InMemory below earliest")]
+#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(), 2; "Mdbx at earliest")]
+#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(), 1; "Mdbx below earliest")]
 #[serial]
 fn test_unwind_history_rejects_target_at_or_below_earliest<S: OpProofsStore>(
     storage: S,
+    target: u64,
 ) -> Result<(), OpProofsStorageError> {
     store_unwind_chain(&storage, 2, 5)?;
 
-    for target in [2, 1] {
-        let provider_rw = storage.provider_rw()?;
-        let err = provider_rw.unwind_history(unwind_chain_block(target)).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                OpProofsStorageError::UnwindBeyondEarliest {
-                    unwind_block_number,
-                    earliest_block_number: 2,
-                } if unwind_block_number == target
-            ),
-            "unwinding to {target} gave {err:?}"
-        );
-        provider_rw.commit()?;
-    }
+    let provider_rw = storage.provider_rw()?;
+    let err = provider_rw.unwind_history(unwind_chain_block(target)).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            OpProofsStorageError::UnwindBeyondEarliest {
+                unwind_block_number,
+                earliest_block_number: 2,
+            } if unwind_block_number == target
+        ),
+        "unwinding to {target} gave {err:?}"
+    );
+    provider_rw.commit()?;
 
     let provider = storage.provider_ro()?;
     assert_eq!(provider.get_earliest_block()?, NumHash::new(2, unwind_chain_hash(2)));

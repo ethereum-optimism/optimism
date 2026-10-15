@@ -1,7 +1,7 @@
 //! reth's database and canonical in-memory state, driven the way reth's engine tree and
 //! persistence task drive them.
 
-use super::{BlockSpec, PRUNE_INTERVAL_BLOCKS, create_block_from_spec};
+use super::{BlockSpec, WHOLE_WINDOW, create_block_from_spec};
 use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -11,7 +11,10 @@ use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::Block;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
-use reth_optimism_trie::{OpProofStoragePruner, OpProofsStore, engine::EngineHandle};
+use reth_optimism_trie::{
+    OpProofStoragePruner, OpProofsStore,
+    engine::{EngineError, EngineHandle},
+};
 use reth_primitives_traits::RecoveredBlock;
 use reth_provider::{
     HashedPostStateProvider, ProviderFactory, SaveBlocksInput, StateProviderFactory,
@@ -26,6 +29,18 @@ use std::sync::Arc;
 
 /// reth's default `--engine.memory-block-buffer-target`.
 const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
+
+/// Hands `block` to `engine` the way the ExEx indexes a block reth validated.
+pub(super) fn index_executed_block(
+    engine: &EngineHandle<Block>,
+    block: &ExecutedBlock,
+) -> Result<(), EngineError> {
+    engine.index_block(
+        block.recovered_block().block_with_parent(),
+        (*block.trie_updates()).clone(),
+        (*block.hashed_state()).clone(),
+    )
+}
 
 /// A fixed signer, so a failing case reproduces with the same addresses and trie shape.
 pub(super) fn fixed_signer() -> Keypair {
@@ -185,7 +200,7 @@ impl SimulatedReth {
             store,
             persistence_threshold,
             backpressure_threshold,
-            PRUNE_INTERVAL_BLOCKS,
+            WHOLE_WINDOW,
         )
     }
 

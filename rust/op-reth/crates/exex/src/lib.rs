@@ -315,8 +315,8 @@ where
         Ok(())
     }
 
-    /// reth's trie data for `block_number`, unless the block has none or its verification is due,
-    /// in which case the engine executes the block instead.
+    /// reth's trie data for `block_number`; `None` when the chain carries none for it or when the
+    /// verification interval makes this block's execution due.
     fn precomputed_trie_data<'chain>(
         &self,
         chain: &'chain Chain<Primitives>,
@@ -330,11 +330,11 @@ where
             .map(LazyTrieData::get)
     }
 
-    /// Switches the store to `new`: the engine unwinds to the fork block and takes the new
-    /// blocks in the way [`Self::handle_chain_committed`] would, indexing reth's trie data or
-    /// executing the block. reth notifies a reorg with both chains on one fork block; two
-    /// different fork blocks mean the notification is not a reorg the store can follow, so it
-    /// fails before the engine touches anything.
+    /// Switches the store to `new`: the engine unwinds to the fork block and takes each new
+    /// block as [`Self::precomputed_trie_data`] decides, indexing reth's trie data or executing
+    /// the block. reth notifies a reorg with both chains on one fork block; two different fork
+    /// blocks mean the notification is not a reorg the store can follow, so it fails before the
+    /// engine touches anything.
     fn handle_chain_reorged(
         &self,
         old: Arc<Chain<Primitives>>,
@@ -477,9 +477,12 @@ mod tests {
 
     // Bootstrap storage to the genesis block via the init flow (sets earliest = latest = genesis).
     fn init_storage<S: OpProofsStore>(storage: S) {
-        let genesis = NumHash::new(0, b256(0x00));
+        init_storage_at(storage, NumHash::new(0, b256(0x00)));
+    }
+
+    fn init_storage_at<S: OpProofsStore>(storage: S, anchor: BlockNumHash) {
         let init = storage.initialization_provider().expect("init");
-        init.set_initial_state_anchor(genesis).expect("anchor");
+        init.set_initial_state_anchor(anchor).expect("anchor");
         init.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(init).expect("commit");
     }
@@ -673,14 +676,11 @@ mod tests {
         block
     }
 
-    /// Empty blocks `numbers` chained on `parent`, which reth's canonical in-memory state takes
-    /// in as `update` so that the engine finds their parents' state when it executes them.
-    fn canonical_empty_chain(
-        ctx: &ExExContext<Adapter>,
+    /// Empty blocks `numbers` chained on `parent`.
+    fn empty_chain(
         parent: BlockNumHash,
         numbers: RangeInclusive<u64>,
         tag: u8,
-        update: impl FnOnce(Vec<ExecutedBlock>) -> NewCanonicalChain,
     ) -> Vec<RecoveredBlock<Block>> {
         let mut blocks: Vec<RecoveredBlock<Block>> = Vec::new();
         let mut parent_hash = parent.hash;
@@ -689,18 +689,22 @@ mod tests {
             parent_hash = block.hash();
             blocks.push(block);
         }
-        let executed = blocks
-            .iter()
-            .map(|block| ExecutedBlock {
-                recovered_block: Arc::new(block.clone()),
-                ..Default::default()
-            })
-            .collect();
-        let tip = blocks.last().expect("a chain has a tip");
-        let in_memory = ctx.components.provider.canonical_in_memory_state();
-        in_memory.update_chain(update(executed));
-        in_memory.set_canonical_head(SealedHeader::new(tip.header().clone(), tip.hash()));
         blocks
+    }
+
+    /// `block` as reth holds it in memory, with no execution output.
+    fn executed(block: &RecoveredBlock<Block>) -> ExecutedBlock {
+        ExecutedBlock { recovered_block: Arc::new(block.clone()), ..Default::default() }
+    }
+
+    /// Makes `update` canonical in reth's in-memory state, so that the engine finds the state of
+    /// its blocks when it executes their children.
+    fn make_canonical(ctx: &ExExContext<Adapter>, update: NewCanonicalChain) {
+        let tip = update.tip();
+        let head = SealedHeader::new(tip.header().clone(), tip.hash());
+        let in_memory = ctx.components.provider.canonical_in_memory_state();
+        in_memory.update_chain(update);
+        in_memory.set_canonical_head(head);
     }
 
     /// A chain of `blocks`, with empty trie data for each when `with_trie_data`.
@@ -709,11 +713,14 @@ mod tests {
         with_trie_data: bool,
     ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
         let first_block = blocks.first().expect("a chain has a first block").number();
-        let trie_data = blocks
-            .iter()
-            .filter(|_| with_trie_data)
-            .map(|block| (block.number(), LazyTrieData::ready(ComputedTrieData::default())))
-            .collect();
+        let trie_data = if with_trie_data {
+            blocks
+                .iter()
+                .map(|block| (block.number(), LazyTrieData::ready(ComputedTrieData::default())))
+                .collect()
+        } else {
+            BTreeMap::new()
+        };
         let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
             bundle: Default::default(),
             receipts: Vec::new(),
@@ -735,10 +742,7 @@ mod tests {
         chain_spec: Arc<ChainSpec>,
         store: S,
     ) -> EngineHandle<Block> {
-        let init = store.initialization_provider().expect("init");
-        init.set_initial_state_anchor(handle.genesis.num_hash()).expect("anchor");
-        init.commit_initial_state().expect("commit init");
-        OpProofsInitProvider::commit(init).expect("commit");
+        init_storage_at(store.clone(), handle.genesis.num_hash());
         let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
         EngineHandle::spawn_with_thresholds(
             EthEvmConfig::ethereum(chain_spec),
@@ -756,10 +760,11 @@ mod tests {
         handle: &mut TestExExHandle,
         engine: &EngineHandle<Block>,
     ) -> Vec<RecoveredBlock<Block>> {
-        let blocks =
-            canonical_empty_chain(&exex.ctx, handle.genesis.num_hash(), 1..=3, 0x10, |new| {
-                NewCanonicalChain::Commit { new }
-            });
+        let blocks = empty_chain(handle.genesis.num_hash(), 1..=3, 0x10);
+        make_canonical(
+            &exex.ctx,
+            NewCanonicalChain::Commit { new: blocks.iter().map(executed).collect() },
+        );
         let notification =
             ExExNotification::ChainCommitted { new: Arc::new(chain_of(blocks.clone(), true)) };
         exex.handle_notification(notification, engine).expect("handle chain commit");
@@ -776,18 +781,14 @@ mod tests {
         let old = commit_three_blocks(&exex, &mut handle, &engine);
         // reth switches from blocks 2 and 3 to blocks 2' through 4' on block 1.
         let old_from_fork = old[1..].to_vec();
-        let new = canonical_empty_chain(&exex.ctx, old[0].num_hash(), 2..=4, 0x20, |new| {
+        let new = empty_chain(old[0].num_hash(), 2..=4, 0x20);
+        make_canonical(
+            &exex.ctx,
             NewCanonicalChain::Reorg {
-                new,
-                old: old_from_fork
-                    .iter()
-                    .map(|block| ExecutedBlock {
-                        recovered_block: Arc::new(block.clone()),
-                        ..Default::default()
-                    })
-                    .collect(),
-            }
-        });
+                new: new.iter().map(executed).collect(),
+                old: old_from_fork.iter().map(executed).collect(),
+            },
+        );
         let new_tip = new[2].num_hash();
         let notification = ExExNotification::ChainReorged {
             old: Arc::new(chain_of(old_from_fork, true)),
@@ -836,13 +837,7 @@ mod tests {
         let old = commit_three_blocks(&exex, &mut handle, &engine);
         let stored_tip = old[2].num_hash();
         // The old chain forks at block 1, the new chain at block 2.
-        let mut new = Vec::new();
-        let mut parent_hash = old[1].hash();
-        for number in 3..=4 {
-            let block = empty_block(number, parent_hash, 0x20);
-            parent_hash = block.hash();
-            new.push(block);
-        }
+        let new = empty_chain(old[1].num_hash(), 3..=4, 0x20);
         let notification = ExExNotification::ChainReorged {
             old: Arc::new(chain_of(old[1..].to_vec(), true)),
             new: Arc::new(chain_of(new, true)),
@@ -856,6 +851,31 @@ mod tests {
         engine.flush();
         assert_eq!(latest_block(&store), stored_tip);
         handle.assert_events_empty();
+    }
+
+    /// The trie data of a block is used unless the chain lacks it or the block's verification is
+    /// due; an interval of zero never makes it due.
+    #[rstest]
+    #[case::no_interval_with_data(0, 2, true, true)]
+    #[case::no_interval_without_data(0, 2, false, false)]
+    #[case::block_not_due(2, 1, true, true)]
+    #[case::block_due(2, 2, true, false)]
+    #[case::block_due_without_data(2, 2, false, false)]
+    #[tokio::test]
+    async fn precomputed_trie_data_follows_the_verification_interval(
+        #[case] verification_interval: u64,
+        #[case] block_number: u64,
+        #[case] with_trie_data: bool,
+        #[case] expected: bool,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let exex = OpProofsExEx::builder(ctx, InMemoryProofsStorage::new())
+            .with_verification_interval(verification_interval)
+            .build();
+        let chain = chain_of(empty_chain(handle.genesis.num_hash(), 1..=2, 0x10), with_trie_data);
+
+        assert_eq!(exex.precomputed_trie_data(&chain, block_number).is_some(), expected);
     }
 
     #[tokio::test]

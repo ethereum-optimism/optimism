@@ -1,5 +1,5 @@
 use super::super::state::EngineState;
-use crate::{BlockStateDiff, OpProofsStore, engine::EngineError};
+use crate::{OpProofsStore, engine::EngineError};
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
@@ -108,13 +108,12 @@ where
     for block in blocks {
         match block {
             ReorgBlock::Execute(block) => super::execute_block(&block, state)?,
-            ReorgBlock::Index { block, hashed_state, trie_updates } => state.memory.insert(
+            ReorgBlock::Index { block, hashed_state, trie_updates } => super::index_block(
+                state,
                 block,
-                BlockStateDiff {
-                    sorted_trie_updates: Arc::unwrap_or_clone(trie_updates),
-                    sorted_post_state: Arc::unwrap_or_clone(hashed_state),
-                },
-            ),
+                Arc::unwrap_or_clone(trie_updates),
+                Arc::unwrap_or_clone(hashed_state),
+            )?,
         }
     }
 
