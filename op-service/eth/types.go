@@ -44,6 +44,10 @@ const (
 	UnsupportedFork          ErrorCode = -38005 // Unused, see issue #11130.
 )
 
+// TransactionRejected is EIP-1474's -32003, which a node answers when its pool refuses a
+// transaction.
+const TransactionRejected ErrorCode = -32003
+
 var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 
 // InputError can be used to create rpc.Error instances with a specific error code.
