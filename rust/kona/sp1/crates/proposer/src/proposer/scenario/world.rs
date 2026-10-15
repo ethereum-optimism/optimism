@@ -26,8 +26,8 @@ use super::{NamedBarrier, ScenarioControl, ScenarioError};
 use crate::{
     TX_REVERTED_PREFIX, ZK_GAME_TYPE,
     config::{
-        AGGREGATION_ARTIFACT_SUFFIX, ProofProviderConfig, ProofProviderKind, ProposalSafety,
-        ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
+        AGGREGATION_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX, ProofProviderConfig,
+        ProofProviderKind, ProposalSafety, ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
     },
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
@@ -1511,7 +1511,9 @@ fn super_root_timestamp(root: B256) -> Result<u64> {
 }
 
 fn publish_prestate_at(directory: &Path, prestate: B256) {
-    for suffix in [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX] {
+    for suffix in
+        [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX]
+    {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
         encoder.write_all(&[0x7f, b'E', b'L', b'F']).expect("compress scenario ELF");
         let compressed = encoder.finish().expect("finish scenario ELF compression");

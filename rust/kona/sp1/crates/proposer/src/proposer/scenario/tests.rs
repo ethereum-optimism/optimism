@@ -405,12 +405,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
 
 async fn proposer_with(config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> Arc<Proposer> {
     let prestates = Arc::new(crate::proposer::PrestateCache::new(config.prestates_url.clone()));
-    prestates
-        .insert_for_tests(
-            B256::ZERO,
-            PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-        )
-        .await;
+    prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
     let proposer = Arc::new(
         Proposer::new_with_dependencies(
             config,
