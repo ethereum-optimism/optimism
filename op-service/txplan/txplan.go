@@ -149,6 +149,17 @@ func WithStaticNonce(nonce uint64) Option {
 	}
 }
 
+// WithStaticChainID pins the chain ID instead of reading it from a node, so a transaction whose
+// other fields are pinned as well can be signed without any node call.
+func WithStaticChainID(chainID eth.ChainID) Option {
+	return func(tx *PlannedTx) {
+		tx.ChainID.Set(chainID)
+		tx.ChainID.Fn(func(ctx context.Context) (eth.ChainID, error) {
+			return chainID, nil
+		})
+	}
+}
+
 func WithAccessList(al types.AccessList) Option {
 	return func(tx *PlannedTx) {
 		tx.AccessList.Set(al)
@@ -196,6 +207,9 @@ func WithGasLimit(limit uint64) Option {
 
 func WithGasFeeCap(feeCap *big.Int) Option {
 	return func(tx *PlannedTx) {
+		// The fee cap is explicitly set, so drop the default computation from the tip cap and the
+		// base fee, which a later change of the tip cap would otherwise trigger again.
+		tx.GasFeeCap.ResetFnAndDependencies()
 		tx.GasFeeCap.Set(feeCap)
 	}
 }

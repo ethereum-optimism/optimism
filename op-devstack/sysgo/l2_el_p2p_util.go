@@ -2,10 +2,12 @@ package sysgo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,15 +53,7 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	}
 	addTrustedPeer(initiator, targetInfo.Enode, "initiator")
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	err = forPeerList(waitCtx, initiator, func(peers []peer) bool {
-		return slices.ContainsFunc(peers, func(p peer) bool {
-			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
-			return peerID == strings.ToLower(expectedID)
-		})
-	})
-	require.NoError(err, "The peer was not connected")
+	require.NoError(waitForPeerConnected(ctx, initiator, expectedID), "The peer was not connected")
 
 	// The acceptor's trusted entry is added only once the session is up: reth
 	// dials trusted peers immediately, and two crossed in-flight dials are both
@@ -67,6 +61,138 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	// tie-break). Against a live session the trusted add only upgrades the
 	// session's peer kind.
 	addTrustedPeer(acceptor, initiatorInfo.Enode, "acceptor")
+}
+
+// ConnectP2PBasic creates a p2p peer connection between initiator and acceptor without
+// registering it as trusted on either side, so the session stays subject to reputation
+// penalties, bans and eviction like a discovered peer's. The initiator keeps the acceptor as a
+// static entry and re-dials it after the session drops; the acceptor keeps nothing. ConnectP2P
+// is for a peering that must survive whatever the test does; this is for a test that observes
+// peer management, which a trusted peering masks.
+func ConnectP2PBasic(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+	targetInfo, expectedID := nodeInfo(ctx, require, acceptor)
+
+	var peerAdded bool
+	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
+	require.True(peerAdded, "should have added peer successfully")
+
+	require.NoError(waitForPeerConnected(ctx, initiator, expectedID), "The peer was not connected")
+
+	require.False(PeerInfo(ctx, require, initiator, acceptor).Trusted, "the initiator must not hold the acceptor as a trusted peer")
+	require.False(PeerInfo(ctx, require, acceptor, initiator).Trusted, "the acceptor must not hold the initiator as a trusted peer")
+}
+
+// WaitP2PConnected waits until node lists remote among its connected peers, and fails when it
+// does not within the peer wait budget.
+func WaitP2PConnected(ctx context.Context, require *testreq.Assertions, node RpcCaller, remote RpcCaller) {
+	require.NoError(waitForPeerConnected(ctx, node, nodeID(ctx, require, remote)), "The peer is not connected")
+}
+
+// ELPeerInfo is what an execution-layer node reports about one of its peers through admin_peers.
+type ELPeerInfo struct {
+	// Caps are the capabilities the peer advertised in its hello, such as "eth/69".
+	Caps []string
+	// EthVersion is the eth protocol version the session negotiated.
+	EthVersion uint64
+	ID         string
+	Inbound    bool
+	// LocalAddress and RemoteAddress are the TCP endpoints of the session. The dialing side uses
+	// a fresh ephemeral port for every dial, so a session that was dropped and re-dialed shows a
+	// different address on the dialing side.
+	LocalAddress  string
+	RemoteAddress string
+	Static        bool
+	Trusted       bool
+}
+
+// PeerInfo waits until node lists remote with a negotiated eth session and returns what node
+// reports about it. It fails when the session is not up within the peer wait budget.
+func PeerInfo(ctx context.Context, require *testreq.Assertions, node RpcCaller, remote RpcCaller) ELPeerInfo {
+	expectedID := nodeID(ctx, require, remote)
+	found, err := waitForPeer(ctx, node, expectedID, peer.ethNegotiated)
+	require.NoError(err, "The peer %s has no negotiated eth session", expectedID)
+	info, ok := found.info()
+	require.True(ok, "The peer %s must report its eth version once negotiated", expectedID)
+	return info
+}
+
+// ListPeers returns what node reports about every peer whose eth session is negotiated.
+func ListPeers(ctx context.Context, node RpcCaller) ([]ELPeerInfo, error) {
+	callCtx, cancel := context.WithTimeout(ctx, peerCallTimeout)
+	defer cancel()
+	var peers []peer
+	if err := node.CallContext(callCtx, &peers, "admin_peers"); err != nil {
+		return nil, fmt.Errorf("listing peers: %w", err)
+	}
+	var infos []ELPeerInfo
+	for _, p := range peers {
+		if info, ok := p.info(); ok {
+			infos = append(infos, info)
+		}
+	}
+	return infos, nil
+}
+
+// HighestEthVersion returns the highest eth protocol version among caps, and an error when caps
+// carries none.
+func HighestEthVersion(caps []string) (uint64, error) {
+	var highest uint64
+	var found bool
+	for _, capability := range caps {
+		versionText, ok := strings.CutPrefix(capability, "eth/")
+		if !ok {
+			continue
+		}
+		version, err := strconv.ParseUint(versionText, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("parsing capability %q: %w", capability, err)
+		}
+		highest = max(highest, version)
+		found = true
+	}
+	if !found {
+		return 0, fmt.Errorf("no eth capability in %v", caps)
+	}
+	return highest, nil
+}
+
+// nodeInfo returns the node's admin_nodeInfo and its identity as admin_peers lists it on its
+// peers.
+func nodeInfo(ctx context.Context, require *testreq.Assertions, node RpcCaller) (p2p.NodeInfo, string) {
+	var info p2p.NodeInfo
+	require.NoError(node.CallContext(ctx, &info, "admin_nodeInfo"), "get node info")
+	parsed, err := enode.ParseV4(info.Enode)
+	require.NoError(err, "failed to parse node enode")
+	return info, parsed.ID().String()
+}
+
+func nodeID(ctx context.Context, require *testreq.Assertions, node RpcCaller) string {
+	_, id := nodeInfo(ctx, require, node)
+	return id
+}
+
+// waitForPeerConnected polls node's admin_peers until it lists expectedID.
+func waitForPeerConnected(ctx context.Context, node RpcCaller, expectedID string) error {
+	_, err := waitForPeer(ctx, node, expectedID, func(peer) bool { return true })
+	return err
+}
+
+// waitForPeer polls node's admin_peers until it lists expectedID with an entry accept takes, and
+// returns that entry.
+func waitForPeer(ctx context.Context, node RpcCaller, expectedID string, accept func(peer) bool) (peer, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, peerWaitTimeout)
+	defer cancel()
+	var found peer
+	err := forPeerList(waitCtx, node, func(peers []peer) bool {
+		for _, p := range peers {
+			if p.idMatches(expectedID) && accept(p) {
+				found = p
+				return true
+			}
+		}
+		return false
+	})
+	return found, err
 }
 
 // forPeerList polls admin_peers on node until cond holds for the returned peer
@@ -151,17 +277,71 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 	removePeer(initiator, targetInfo.ENR, "initiator")
 	removePeer(acceptor, initiatorInfo.ENR, "acceptor")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	waitCtx, cancel := context.WithTimeout(ctx, peerWaitTimeout)
 	defer cancel()
-	err = forPeerList(ctx, initiator, func(peers []peer) bool {
-		return !slices.ContainsFunc(peers, func(p peer) bool {
-			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
-			return peerID == strings.ToLower(expectedID)
-		})
+	err = forPeerList(waitCtx, initiator, func(peers []peer) bool {
+		return !slices.ContainsFunc(peers, func(p peer) bool { return p.idMatches(expectedID) })
 	})
 	require.NoError(err, "The peer was not removed")
 }
 
+const (
+	// peerCallTimeout bounds one admin call.
+	peerCallTimeout = 5 * time.Second
+	// peerWaitTimeout bounds a wait for a peer list to reach a state.
+	peerWaitTimeout = 30 * time.Second
+)
+
+// peer is an admin_peers entry as both op-geth and op-reth report it.
 type peer struct {
-	ID string `json:"id"`
+	Caps    []string `json:"caps"`
+	ID      string   `json:"id"`
+	Network struct {
+		Inbound       bool   `json:"inbound"`
+		LocalAddress  string `json:"localAddress"`
+		RemoteAddress string `json:"remoteAddress"`
+		Static        bool   `json:"static"`
+		Trusted       bool   `json:"trusted"`
+	} `json:"network"`
+	Protocols struct {
+		// Eth is an object with the negotiated version once the eth handshake is done; op-geth
+		// reports a string such as "handshake" until then.
+		Eth json.RawMessage `json:"eth"`
+	} `json:"protocols"`
+}
+
+func (p peer) idMatches(expectedID string) bool {
+	return strings.TrimPrefix(strings.ToLower(p.ID), "0x") == strings.ToLower(expectedID)
+}
+
+func (p peer) ethVersion() (uint64, bool) {
+	var eth struct {
+		Version uint64 `json:"version"`
+	}
+	if err := json.Unmarshal(p.Protocols.Eth, &eth); err != nil {
+		return 0, false
+	}
+	return eth.Version, true
+}
+
+func (p peer) ethNegotiated() bool {
+	_, ok := p.ethVersion()
+	return ok
+}
+
+func (p peer) info() (ELPeerInfo, bool) {
+	version, ok := p.ethVersion()
+	if !ok {
+		return ELPeerInfo{}, false
+	}
+	return ELPeerInfo{
+		Caps:          p.Caps,
+		EthVersion:    version,
+		ID:            p.ID,
+		Inbound:       p.Network.Inbound,
+		LocalAddress:  p.Network.LocalAddress,
+		RemoteAddress: p.Network.RemoteAddress,
+		Static:        p.Network.Static,
+		Trusted:       p.Network.Trusted,
+	}, true
 }

@@ -179,10 +179,12 @@ type MixedSingleChainNodeSpec struct {
 	ELKind      MixedL2ELKind
 	CLKind      MixedL2CLKind
 	IsSequencer bool
-	// IsolateFromL2P2P keeps this node off the L2 CL/EL P2P mesh: it is never peered with the
-	// other nodes, so it receives no gossiped or req-resp'd unsafe blocks and must advance purely
-	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
-	// rather than the consolidation path. Defaults to false (fully peered).
+	// IsolateFromL2P2P keeps this node off the L2 CL/EL P2P mesh: the runtime never peers it with
+	// the other nodes, so it receives no gossiped or req-resp'd unsafe blocks and must advance
+	// purely by deriving from L1, unless the test peers it itself. Used to exercise the
+	// derivation/force-build path (FCU-with-attributes) rather than the consolidation path, and
+	// to peer a node selectively where the runtime's trusted mesh would get in the way. Defaults
+	// to false (fully peered).
 	IsolateFromL2P2P bool
 	// L2CLOpts are per-node op-node options, e.g. L2CLVerifierSyncMode for a follower that must
 	// EL-sync. Ignored for non-op-node CL kinds.

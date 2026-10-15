@@ -98,3 +98,32 @@ func TestWithReaderDoesNotUseDefaultFeeCaps(t *testing.T) {
 	require.Equal(t, accessList, reader.msg.AccessList)
 	require.Equal(t, rpc.BlockNumber(7), reader.blockNumber)
 }
+
+func TestPinnedFieldsSignWithoutANode(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	to := common.Address{0x01}
+	chainID := eth.ChainIDFromUInt64(901)
+
+	// The tip cap is pinned after the fee cap: the pinned fee cap must survive that, instead of
+	// being recomputed from the tip cap and a block nobody fetched.
+	ptx := NewPlannedTx(
+		WithPrivateKey(key),
+		WithStaticChainID(chainID),
+		WithStaticNonce(7),
+		WithTo(&to),
+		WithGasLimit(21_000),
+		WithGasFeeCap(big.NewInt(100)),
+		WithGasTipCap(big.NewInt(3)),
+	)
+	tx, err := ptx.Signed.Eval(context.Background())
+	require.NoError(t, err)
+
+	require.Equal(t, chainID.ToBig(), tx.ChainId())
+	require.Equal(t, uint64(7), tx.Nonce())
+	require.Equal(t, big.NewInt(100), tx.GasFeeCap())
+	require.Equal(t, big.NewInt(3), tx.GasTipCap())
+	sender, err := types.LatestSignerForChainID(chainID.ToBig()).Sender(tx)
+	require.NoError(t, err)
+	require.Equal(t, crypto.PubkeyToAddress(key.PublicKey), sender)
+}
