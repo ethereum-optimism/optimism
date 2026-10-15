@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -20,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
@@ -39,6 +42,17 @@ func TestCalldataEncoding(t *testing.T) {
 	t.Run("sync", func(t *testing.T) {
 		data, err := syncFn.EncodeArgs()
 		require.Equal(t, sel("syncETHLiquidityPause()"), enc(t, data, err))
+	})
+	t.Run("pausedMessageNonce", func(t *testing.T) {
+		data, err := pausedMessageNonceFn.EncodeArgs()
+		require.Equal(t, sel("pausedMessageNonce()"), enc(t, data, err))
+	})
+	t.Run("setPaused", func(t *testing.T) {
+		data, err := setPausedFn.EncodeArgs(true, big.NewInt(5))
+		want := sel("setPaused(bool,uint256)") +
+			"0000000000000000000000000000000000000000000000000000000000000001" +
+			"0000000000000000000000000000000000000000000000000000000000000005"
+		require.Equal(t, want, enc(t, data, err))
 	})
 	t.Run("sendETH", func(t *testing.T) {
 		to := common.HexToAddress("0x00000000000000000000000000000000000000aa")
@@ -93,6 +107,17 @@ func TestDecodeRevert(t *testing.T) {
 	r = decodeRevert(&revertError{data: "0x08c379a0" + hex.EncodeToString(reason)})
 	require.Equal(t, `Error("Proxy: implementation not initialized")`, r.Name)
 
+	// A custom error whose arguments happen to be one string is not Error(string).
+	r = decodeRevert(&revertError{data: "0x" + sel("SuperchainConfig_OnlyGuardian()") + hex.EncodeToString(reason)})
+	require.Equal(t, "SuperchainConfig_OnlyGuardian()", r.Name)
+
+	code, err := abi.Arguments{{Type: uint256Type}}.Pack(big.NewInt(0x11))
+	require.NoError(t, err)
+	r = decodeRevert(&revertError{data: "0x4e487b71" + hex.EncodeToString(code)})
+	require.Equal(t, "Panic(0x11)", r.Name)
+	r = decodeRevert(&revertError{data: "0x4e487b71"})
+	require.Equal(t, "Panic(uint256)", r.Name, "a malformed panic keeps the bare signature")
+
 	require.NotNil(t, decodeRevert(errors.New("execution reverted")))
 	require.Nil(t, decodeRevert(errors.New("connection refused")))
 	require.Nil(t, decodeRevert(nil))
@@ -126,6 +151,10 @@ func TestPairChains(t *testing.T) {
 	require.ErrorContains(t, err, "got 2 --l2 and 1 --l1-messenger")
 	_, err = pairChains([]string{"a"}, []string{"nope"}, false)
 	require.ErrorContains(t, err, "not an address")
+	_, err = pairChains([]string{"a", "b"}, []string{
+		"0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000000",
+	}, false)
+	require.ErrorContains(t, err, "--l1-messenger for --l2 b is the zero address")
 
 	pairs, err := pairChains([]string{"a", "b"}, nil, false)
 	require.NoError(t, err)
@@ -164,6 +193,9 @@ func TestPlanGuardianStep(t *testing.T) {
 	} {
 		require.Equal(t, tc.call, planGuardianStep(tc.pause, tc.pausable, tc.active).Call, "%+v", tc)
 	}
+	require.Equal(t, "pause expired but still set", planGuardianStep(false, false, false).Reason)
+	require.Equal(t, "paused", planGuardianStep(false, false, true).Reason)
+	require.Contains(t, planGuardianStep(true, false, false).Reason, "pause expired but still set")
 }
 
 func TestCheckExpectation(t *testing.T) {
@@ -221,13 +253,25 @@ timeout = "30s"
 	require.True(t, observed)
 }
 
-// fakeChain serves the eth_chainId and eth_call answers status needs.
+// fakeChain serves the eth_chainId, eth_blockNumber and eth_call answers the commands need.
 type fakeChain struct {
 	chainID uint64
+	mu      sync.Mutex
 	// views maps (contract, 4-byte selector) to a 32-byte return word.
 	views map[common.Address]map[string][]byte
 	// l2Paused, when set, makes SuperchainETHBridge.sendETH revert with ETHLiquidity_Paused().
 	l2Paused bool
+	// beforeCall, if set, runs under mu before each eth_call, so tests can change state as the
+	// tool polls.
+	beforeCall func(c *fakeChain)
+}
+
+// setL2Pause sets ETHLiquidity's paused() and pausedMessageNonce(), as an applied
+// setPaused(paused, nonce) would.
+func (c *fakeChain) setL2Pause(paused bool, nonce *big.Int) {
+	c.l2Paused = paused
+	c.views[predeploys.ETHLiquidityAddr][sel("paused()")] = word(paused)
+	c.views[predeploys.ETHLiquidityAddr][sel("pausedMessageNonce()")] = common.LeftPadBytes(nonce.Bytes(), 32)
 }
 
 type callArgs struct {
@@ -241,7 +285,14 @@ type fakeEth struct{ c *fakeChain }
 
 func (f *fakeEth) ChainId() hexutil.Uint64 { return hexutil.Uint64(f.c.chainID) }
 
+func (f *fakeEth) BlockNumber() hexutil.Uint64 { return 1 }
+
 func (f *fakeEth) Call(args callArgs, _ string, overrides *map[common.Address]map[string]any) (hexutil.Bytes, error) {
+	f.c.mu.Lock()
+	defer f.c.mu.Unlock()
+	if f.c.beforeCall != nil {
+		f.c.beforeCall(f.c)
+	}
 	if args.To == nil || len(args.Input) < 4 {
 		return nil, errors.New("bad call")
 	}
@@ -300,30 +351,59 @@ func fakeL1(l2ChainID uint64, paused bool) (*fakeChain, common.Address) {
 	}}, messenger
 }
 
+// fakeL2 is an L2 whose ETHLiquidity was never synced, and whose L2CrossDomainMessenger has
+// no failed messages.
 func fakeL2(chainID uint64, paused bool) *fakeChain {
 	return &fakeChain{chainID: chainID, l2Paused: paused, views: map[common.Address]map[string][]byte{
-		predeploys.ETHLiquidityAddr: {sel("paused()"): word(paused), sel("pausedL1Timestamp()"): word(uint64(1700000000))},
+		predeploys.ETHLiquidityAddr:           {sel("paused()"): word(paused), sel("pausedMessageNonce()"): word(uint64(0))},
+		predeploys.L2CrossDomainMessengerAddr: {sel("failedMessages(bytes32)"): word(false)},
 	}}
 }
 
 func runStatus(t *testing.T, args ...string) (string, error) {
+	out, _, err := runStatusIO(t, args...)
+	return out, err
+}
+
+// runStatusIO runs status and returns its stdout and stderr.
+func runStatusIO(t *testing.T, args ...string) (string, string, error) {
 	app := newApp()
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	app.Writer = &out
-	app.ErrWriter = &bytes.Buffer{}
+	app.ErrWriter = &errOut
 	err := app.Run(append([]string{"eth-liquidity-pause", "status"}, args...))
-	return out.String(), err
+	return out.String(), errOut.String(), err
 }
 
 func TestStatusAgainstFakeChains(t *testing.T) {
 	t.Run("paused and synced", func(t *testing.T) {
 		l1, messenger := fakeL1(901, true)
-		out, err := runStatus(t, "--l2", serve(t, fakeL2(901, true)), "--l1", serve(t, l1),
+		l2 := fakeL2(901, true)
+		l2.setL2Pause(true, crossdomain.EncodeVersionedNonce(big.NewInt(42), big.NewInt(1)))
+		out, err := runStatus(t, "--l2", serve(t, l2), "--l1", serve(t, l1),
 			"--l1-messenger", messenger.Hex(), "--expect", "paused")
 		require.NoError(t, err, out)
 		require.Contains(t, out, "reverts "+pausedErrorName)
-		require.Contains(t, out, "L2 ETHLiquidity.paused(): true (synced from L1 timestamp 1700000000)")
+		require.Contains(t, out, "L2 ETHLiquidity.paused(): true (synced by L1 message nonce 42 (version 1))")
 		require.Contains(t, out, "OK: every chain is paused")
+	})
+	t.Run("never synced", func(t *testing.T) {
+		out, err := runStatus(t, "--l2", serve(t, fakeL2(901, false)))
+		require.NoError(t, err, out)
+		require.Contains(t, out, "L2 ETHLiquidity.paused(): false (never synced)")
+	})
+	t.Run("zero messenger is rejected, not read as L2-only", func(t *testing.T) {
+		// L1 is unpaused, so reading it would fail --expect paused; a zero messenger used to
+		// skip L1 and report OK.
+		l1, _ := fakeL1(901, false)
+		_, err := runStatus(t, "--l2", serve(t, fakeL2(901, true)), "--l1", serve(t, l1),
+			"--l1-messenger", common.Address{}.Hex(), "--expect", "paused")
+		require.ErrorContains(t, err, "zero address")
+	})
+	t.Run("--l1 without messengers", func(t *testing.T) {
+		l1, _ := fakeL1(901, false)
+		_, err := runStatus(t, "--l2", serve(t, fakeL2(901, true)), "--l1", serve(t, l1), "--expect", "paused")
+		require.ErrorContains(t, err, "--l1 needs one --l1-messenger per --l2")
 	})
 	t.Run("unpaused without L1", func(t *testing.T) {
 		out, err := runStatus(t, "--l2", serve(t, fakeL2(901, false)), "--l2", serve(t, fakeL2(902, false)),
@@ -352,10 +432,23 @@ func TestStatusAgainstFakeChains(t *testing.T) {
 		require.ErrorContains(t, err, "belongs to chain 999")
 	})
 	t.Run("json", func(t *testing.T) {
-		out, err := runStatus(t, "--l2", serve(t, fakeL2(901, true)), "--json")
+		l2 := fakeL2(901, true)
+		l2.setL2Pause(true, big.NewInt(0x2a))
+		out, err := runStatus(t, "--l2", serve(t, l2), "--json")
 		require.NoError(t, err)
 		require.Contains(t, out, `"l2Paused": true`)
+		require.Contains(t, out, `"l2PausedMessageNonce": "0x2a"`)
 		require.Contains(t, out, `"name": "ETHLiquidity_Paused()"`)
+	})
+	t.Run("json with expect keeps stdout valid JSON", func(t *testing.T) {
+		l1, messenger := fakeL1(901, true)
+		out, errOut, err := runStatusIO(t, "--l2", serve(t, fakeL2(901, true)), "--l1", serve(t, l1),
+			"--l1-messenger", messenger.Hex(), "--json", "--expect", "paused")
+		require.NoError(t, err)
+		var statuses []chainStatus
+		require.NoError(t, json.Unmarshal([]byte(out), &statuses), out)
+		require.Len(t, statuses, 1)
+		require.Contains(t, errOut, "OK: every chain is paused")
 	})
 }
 
@@ -369,7 +462,9 @@ func TestExampleConfigLoadsForEveryCommand(t *testing.T) {
 		cmd.Action = func(c *cli.Context) error {
 			ran[name] = true
 			require.Equal(t, []string{"http://localhost:9545", "http://localhost:9546"}, c.StringSlice(L2RPCs.Name))
-			require.Len(t, c.StringSlice(L1Messengers.Name), 2)
+			// The L1 side ships commented out, so an unfilled copy can't pass placeholders.
+			require.Empty(t, c.String(L1RPC.Name))
+			require.Empty(t, c.StringSlice(L1Messengers.Name))
 			return nil
 		}
 	}
@@ -391,7 +486,8 @@ func TestABIMatchesContractSnapshots(t *testing.T) {
 		return parsed
 	}
 	methods := map[string][]string{
-		"ETHLiquidity":           {"paused()", "pausedL1Timestamp()"},
+		"ETHLiquidity":           {"paused()", "pausedMessageNonce()", "setPaused(bool,uint256)"},
+		"L2CrossDomainMessenger": {"failedMessages(bytes32)"},
 		"SuperchainETHBridge":    {"sendETH(address,uint256)"},
 		"L1CrossDomainMessenger": {syncSignature, "paused()", "systemConfig()"},
 		"SystemConfig":           {"l2ChainId()", "optimismPortal()"},
@@ -405,6 +501,19 @@ func TestABIMatchesContractSnapshots(t *testing.T) {
 		"L1CrossDomainMessenger": {"L1CrossDomainMessenger_InteropNotEnabled()"},
 		"SuperchainConfig": {"SuperchainConfig_OnlyGuardian()", "SuperchainConfig_AlreadyPaused(address)",
 			"SuperchainConfig_NotAlreadyPaused(address)"},
+	}
+	events := map[string][]string{
+		"L1CrossDomainMessenger": {sentMessageEvt.Signature},
+	}
+	for contract, sigs := range events {
+		parsed := load(t, contract)
+		for _, sig := range sigs {
+			found := false
+			for _, e := range parsed.Events {
+				found = found || e.Sig == sig
+			}
+			require.True(t, found, "%s has no event %s", contract, sig)
+		}
 	}
 	for contract, sigs := range methods {
 		parsed := load(t, contract)
