@@ -18,13 +18,42 @@ use reth_provider::{BlockReader, TransactionVariant};
 use std::sync::Arc;
 use tracing::{info, warn};
 
+/// Why `proofs unwind` refused its target.
+#[derive(Debug, thiserror::Error)]
+pub enum UnwindError {
+    /// The target is below the proofs storage's earliest block. Unwind only removes blocks, so
+    /// the storage has to reach the target through a backfill first, or through a new
+    /// `proofs init` when reth no longer holds those blocks.
+    #[error(
+        "target block {target} is below the earliest block {earliest} in proofs storage; unwind \
+         only removes blocks, so backfill the storage past the target first, or delete it and \
+         run `proofs init` if reth no longer holds those blocks"
+    )]
+    TargetBelowEarliest {
+        /// The storage's earliest block.
+        earliest: u64,
+        /// The requested target.
+        target: u64,
+    },
+    /// reth pruned the target block's body, so the storage could not be backfilled from the
+    /// target again.
+    #[error(
+        "target block {0} body has been pruned by reth; refusing to unwind because re-backfilling \
+         from here is not possible until reth is re-synced without body pruning"
+    )]
+    TargetBodyPruned(u64),
+    /// reth does not hold the target block.
+    #[error("target block {0} not found in the main database")]
+    TargetNotInReth(u64),
+}
+
 /// Unwinds the proofs storage to a specific block number.
 ///
 /// This command removes all proof history and state updates after the target block number, so
 /// the target becomes the latest block in the proofs storage. A target at or above the latest
-/// block leaves the storage untouched. A target below the earliest block is refused: the earliest
-/// block carries the state the storage was initialized or backfilled to, and nothing below it can
-/// be reconstructed.
+/// block leaves the storage untouched. A target below the earliest block is refused: unwind only
+/// removes blocks, so a storage that should reach such a target has to be backfilled past it
+/// first, or seeded again with `proofs init` when reth no longer holds those blocks.
 #[derive(Debug, Parser)]
 pub struct UnwindCommand<C: ChainSpecParser> {
     #[command(flatten)]
@@ -47,7 +76,7 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
     /// nothing to unwind. A target below the earliest block is an error.
     fn window_to_unwind<Store: OpProofsStore>(
         &self,
-        storage: Store,
+        storage: &Store,
     ) -> eyre::Result<Option<ProofWindowRange>> {
         let window = match storage.provider_ro()?.get_proof_window() {
             Ok(window) => window,
@@ -59,13 +88,11 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
         };
 
         if self.target < window.earliest.number {
-            return Err(eyre::eyre!(
-                "Target block {} is below the earliest block {} in proofs storage; the storage \
-                 holds no state below the block it was initialized or backfilled to. Delete the \
-                 storage and run `proofs init` to seed it again instead.",
-                self.target,
-                window.earliest.number
-            ));
+            return Err(UnwindError::TargetBelowEarliest {
+                earliest: window.earliest.number,
+                target: self.target,
+            }
+            .into());
         }
 
         if self.target >= window.latest.number {
@@ -104,19 +131,17 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
     /// Validate the target against the proof window and remove every block above it.
     fn run_unwind<S, F>(&self, storage: S, provider_factory: &F) -> eyre::Result<()>
     where
-        S: OpProofsStore + Clone,
+        S: OpProofsStore,
         F: BlockReader,
     {
-        let Some(window) = self.window_to_unwind(storage.clone())? else {
+        let Some(window) = self.window_to_unwind(&storage)? else {
             return Ok(());
         };
 
         // Get the target block from the main database
         let block = provider_factory
             .recovered_block(self.target.into(), TransactionVariant::NoHash)?
-            .ok_or_else(|| {
-                eyre::eyre!("Target block {} not found in the main database", self.target)
-            })?;
+            .ok_or(UnwindError::TargetNotInReth(self.target))?;
 
         // Refuse to unwind when reth has pruned the target block's body. The unwind itself
         // would technically succeed (we only need the target's hash), but re-backfilling
@@ -125,12 +150,7 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
         if block.header().transactions_root() != EMPTY_ROOT_HASH &&
             block.body().transactions().is_empty()
         {
-            return Err(eyre::eyre!(
-                "Target block {} body has been pruned by reth; refusing to unwind because \
-                 re-backfilling from here is not possible until reth is re-synced without \
-                 body pruning.",
-                self.target
-            ));
+            return Err(UnwindError::TargetBodyPruned(self.target).into());
         }
 
         // The storage removes every block from the given block's number on and keeps the given
@@ -141,8 +161,8 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
 
         info!(
             target: "reth::cli",
-            target = self.target,
-            target_hash = %block.hash(),
+            unwind_target = self.target,
+            unwind_target_hash = %block.hash(),
             latest = window.latest.number,
             "Unwinding proofs storage to target block"
         );

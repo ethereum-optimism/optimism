@@ -50,8 +50,8 @@ pub enum SnapshotError {
         /// Human-readable reason describing the drift.
         reason: &'static str,
     },
-    /// A snapshot already exists at a different anchor; the caller must drop
-    /// it before requesting a new build.
+    /// A `Ready` snapshot already exists, at whichever anchor; the caller must
+    /// drop it before requesting a new build.
     #[error(
         "snapshot already exists at block {existing_block} (status {existing_status:?}); drop it before rebuilding"
     )]

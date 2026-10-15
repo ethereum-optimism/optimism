@@ -1,8 +1,8 @@
 //! A reth datadir seeded with a short OP chain for the proofs subcommands to run against.
 
 use alloy_consensus::{BlockBody, EMPTY_ROOT_HASH, Header};
-use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent, eip7685::Requests};
-use alloy_primitives::{Address, B256, KECCAK256_EMPTY, U256, keccak256, map::HashMap};
+use alloy_eips::{BlockNumHash, eip1898::BlockWithParent, eip7685::Requests};
+use alloy_primitives::{Address, B256, U256, hex, keccak256, map::HashMap};
 use clap::Parser;
 use reth_chainspec::EthChainSpec;
 use reth_cli_commands::common::{AccessRights, EnvironmentArgs};
@@ -32,19 +32,20 @@ use std::{
 };
 use tempfile::TempDir;
 
-/// The account whose balance grows by one wei per block.
-const FUNDED_ACCOUNT: Address = Address::repeat_byte(0x11);
-/// The account whose storage slot [`STORAGE_SLOT`] takes the block number in every block.
-const STORAGE_ACCOUNT: Address = Address::repeat_byte(0x22);
-const STORAGE_SLOT: U256 = U256::ZERO;
-/// `STOP`, so the storage account is a contract.
-const STORAGE_ACCOUNT_CODE: [u8; 1] = [0x00];
-const INITIAL_BALANCE: u128 = 1_000_000_000_000_000_000;
-const CHAIN_ID: u64 = 901;
 const BLOCK_TIME: u64 = 2;
+const CHAIN_ID: u64 = 901;
 /// What the header of a block whose body reth pruned looks like next to its empty body: a
 /// transactions root that is not the empty root.
 const PRUNED_BODY_TRANSACTIONS_ROOT: B256 = B256::repeat_byte(0xAB);
+
+/// The account whose balance grows by one wei per block.
+const FUNDED_ACCOUNT: Address = Address::repeat_byte(0x11);
+const INITIAL_BALANCE: u128 = 1_000_000_000_000_000_000;
+/// The account whose storage slot [`STORAGE_SLOT`] takes the block number in every block.
+const STORAGE_ACCOUNT: Address = Address::repeat_byte(0x22);
+/// `STOP`, so the storage account is a contract.
+const STORAGE_ACCOUNT_CODE: [u8; 1] = [0x00];
+const STORAGE_SLOT: U256 = U256::ZERO;
 
 type OpProviderFactory = ProviderFactory<NodeTypesWithDBAdapter<OpNode, DatabaseEnv>>;
 
@@ -55,13 +56,16 @@ static DATADIR_IN_USE: Mutex<()> = Mutex::new(());
 
 /// A datadir holding genesis and a chain of committed blocks, with the proofs storage at the
 /// path the subcommands default to.
+///
+/// Fields drop in declaration order: the lock stays last so the runtime, the datadir and its
+/// MDBX maps are gone before the next test seeds its own.
 pub(crate) struct SeededDatadir {
     /// Hash of every committed block, indexed by block number.
     block_hashes: Vec<B256>,
     datadir: PathBuf,
     genesis_path: PathBuf,
     runtime: Runtime,
-    _dir: TempDir,
+    _temp_dir: TempDir,
     _in_use: MutexGuard<'static, ()>,
 }
 
@@ -81,10 +85,10 @@ impl SeededDatadir {
 
     fn seed(blocks: u64, pruned_body_block: Option<u64>) -> Self {
         let in_use = DATADIR_IN_USE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let dir = TempDir::new().expect("temp dir");
-        let genesis_path = dir.path().join("genesis.json");
+        let temp_dir = TempDir::new().expect("temp dir");
+        let genesis_path = temp_dir.path().join("genesis.json");
         std::fs::write(&genesis_path, genesis_json()).expect("write genesis");
-        let datadir = dir.path().join("data");
+        let datadir = temp_dir.path().join("data");
         let runtime = Runtime::test();
 
         let factory = EnvironmentArgs::<OpChainSpecParser>::parse_from([
@@ -102,14 +106,24 @@ impl SeededDatadir {
         let genesis_timestamp = chain_spec.genesis().timestamp;
         let mut block_hashes = vec![chain_spec.genesis_hash()];
         for number in 1..=blocks {
-            let parent_hash = block_hashes[number as usize - 1];
+            let parent_hash = *block_hashes.last().expect("genesis hash");
             let timestamp = genesis_timestamp + number * BLOCK_TIME;
-            let pruned_body = pruned_body_block == Some(number);
-            block_hashes.push(append_block(&factory, number, parent_hash, timestamp, pruned_body));
+            let transactions_root = if pruned_body_block == Some(number) {
+                PRUNED_BODY_TRANSACTIONS_ROOT
+            } else {
+                EMPTY_ROOT_HASH
+            };
+            block_hashes.push(append_block(
+                &factory,
+                number,
+                parent_hash,
+                timestamp,
+                transactions_root,
+            ));
         }
         drop(factory);
 
-        Self { block_hashes, datadir, genesis_path, runtime, _dir: dir, _in_use: in_use }
+        Self { block_hashes, datadir, genesis_path, runtime, _temp_dir: temp_dir, _in_use: in_use }
     }
 
     /// Runs `op-reth proofs <args>` against this datadir in-process, the way the binary does.
@@ -125,6 +139,30 @@ impl SeededDatadir {
             unreachable!("the arguments name the proofs command")
         };
         self.runtime.handle().block_on(command.execute::<OpNode>(self.runtime.clone()))
+    }
+
+    /// Runs `op-reth proofs <subcommand> --proofs-history.window=<window> <extra_args>`.
+    pub(crate) fn run_with_window(
+        &self,
+        subcommand: &str,
+        window: u64,
+        extra_args: &[&str],
+    ) -> eyre::Result<()> {
+        let window_arg = format!("--proofs-history.window={window}");
+        let mut args = vec![subcommand, window_arg.as_str()];
+        args.extend_from_slice(extra_args);
+        self.run(&args)
+    }
+
+    /// Requires the storage's state at `block` to reproduce the state root of reth's header, by
+    /// building the trie-state snapshot there: the snapshot job validates the root it finds. Any
+    /// snapshot the storage held before is dropped first.
+    pub(crate) fn verify_state_root_at(&self, block: u64) {
+        self.run(&["snapshot", "drop"]).expect("snapshot drop must succeed");
+        self.run(&["snapshot", "init", &format!("--proofs-history.snapshot-target-block={block}")])
+            .unwrap_or_else(|err| {
+                panic!("the storage's state at block {block} must match reth's header: {err}")
+            });
     }
 
     /// The path the subcommands keep the proofs storage at when none is given.
@@ -146,9 +184,14 @@ impl SeededDatadir {
     /// The window `[earliest, latest]` with the hashes reth holds for both blocks.
     pub(crate) fn window_of(&self, earliest: u64, latest: u64) -> ProofWindowRange {
         ProofWindowRange {
-            earliest: NumHash::new(earliest, self.block_hash(earliest)),
-            latest: NumHash::new(latest, self.block_hash(latest)),
+            earliest: self.block_num_hash(earliest),
+            latest: self.block_num_hash(latest),
         }
+    }
+
+    /// Block `number` with the hash reth holds for it.
+    pub(crate) fn block_num_hash(&self, number: u64) -> BlockNumHash {
+        BlockNumHash::new(number, self.block_hash(number))
     }
 
     /// The block the storage's snapshot is anchored at, or the error a snapshot that is not
@@ -164,10 +207,11 @@ impl SeededDatadir {
 
     /// Appends a block the datadir does not hold to the proofs storage, which leaves the storage
     /// ahead of reth the way an unclean shutdown does.
-    pub(crate) fn append_store_only_block(&self) -> NumHash {
+    pub(crate) fn append_store_only_block(&self) -> BlockNumHash {
         let store = self.open_store();
         let latest = store.provider_ro().expect("ro provider").get_latest_block().expect("latest");
-        let block = NumHash::new(latest.number + 1, keccak256((latest.number + 1).to_be_bytes()));
+        let block =
+            BlockNumHash::new(latest.number + 1, keccak256((latest.number + 1).to_be_bytes()));
         let provider_rw = store.provider_rw().expect("rw provider");
         provider_rw
             .store_trie_updates(BlockWithParent::new(latest.hash, block), BlockStateDiff::default())
@@ -188,7 +232,7 @@ fn append_block(
     number: u64,
     parent_hash: B256,
     timestamp: u64,
-    pruned_body: bool,
+    transactions_root: B256,
 ) -> B256 {
     let bundle = block_state_changes(number);
     let provider = factory.provider().expect("ro provider");
@@ -205,11 +249,7 @@ fn append_block(
         parent_hash,
         state_root,
         timestamp,
-        transactions_root: if pruned_body {
-            PRUNED_BODY_TRANSACTIONS_ROOT
-        } else {
-            EMPTY_ROOT_HASH
-        },
+        transactions_root,
         ..Default::default()
     };
     let block = RecoveredBlock::new_sealed(
@@ -255,25 +295,20 @@ fn block_state_changes(number: u64) -> BundleState {
     )
 }
 
-fn funded_account(blocks_in: u64) -> AccountInfo {
+/// The funded account as it is after `block_number` blocks.
+fn funded_account(block_number: u64) -> AccountInfo {
     AccountInfo {
-        balance: U256::from(INITIAL_BALANCE) + U256::from(blocks_in),
-        code_hash: KECCAK256_EMPTY,
-        nonce: 0,
+        balance: U256::from(INITIAL_BALANCE) + U256::from(block_number),
         ..Default::default()
     }
 }
 
 fn storage_account() -> AccountInfo {
-    AccountInfo {
-        balance: U256::ZERO,
-        code_hash: keccak256(STORAGE_ACCOUNT_CODE),
-        nonce: 0,
-        ..Default::default()
-    }
+    AccountInfo { code_hash: keccak256(STORAGE_ACCOUNT_CODE), ..Default::default() }
 }
 
-/// A genesis with every OP fork active, the funded account and the storage account.
+/// A genesis with the OP forks through Isthmus active from the start, the funded account and
+/// the storage account.
 fn genesis_json() -> String {
     format!(
         r#"{{
@@ -297,10 +332,10 @@ fn genesis_json() -> String {
   "coinbase": "0x0000000000000000000000000000000000000000",
   "baseFeePerGas": "0x3b9aca00",
   "alloc": {{
-    "{FUNDED_ACCOUNT}": {{ "balance": "{:#x}" }},
-    "{STORAGE_ACCOUNT}": {{ "balance": "0x0", "code": "0x00" }}
+    "{FUNDED_ACCOUNT}": {{ "balance": "{INITIAL_BALANCE:#x}" }},
+    "{STORAGE_ACCOUNT}": {{ "balance": "0x0", "code": "{storage_account_code}" }}
   }}
 }}"#,
-        INITIAL_BALANCE
+        storage_account_code = hex::encode_prefixed(STORAGE_ACCOUNT_CODE)
     )
 }

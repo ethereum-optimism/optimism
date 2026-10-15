@@ -2,7 +2,7 @@
 //!
 //! Every test seeds a real reth datadir with a short chain, runs the subcommands against it the
 //! way the binary does, and asserts on the proof window and snapshot the proofs storage holds
-//! afterwards.
+//! afterward.
 
 mod backfill;
 mod fixture;

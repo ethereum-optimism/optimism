@@ -7,10 +7,11 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsHistoryWindowArg};
 use reth_optimism_trie::{
-    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
+    OpProofStoragePruner, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
+    db::MdbxProofsStorage,
 };
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Prunes the proofs storage by removing old proof history and state updates.
 #[derive(Debug, Parser)]
@@ -72,7 +73,14 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
         proofs_history_window: u64,
         prune_batch_size: u64,
     ) -> eyre::Result<()> {
-        let window = storage.provider_ro()?.get_proof_window()?;
+        let window = match storage.provider_ro()?.get_proof_window() {
+            Ok(window) => window,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to prune.");
+                return Ok(());
+            }
+            Err(err) => return Err(err.into()),
+        };
         info!(
             target: "reth::cli",
             earliest_block = ?window.earliest,

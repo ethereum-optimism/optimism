@@ -54,6 +54,7 @@ clap = { workspace = true, features = ["derive", "env"] }
 
 tracing.workspace = true
 eyre.workspace = true
+thiserror.workspace = true
 
 # reth test-vectors
 proptest = { workspace = true, optional = true }
@@ -108,6 +109,7 @@ dev = ["dep:proptest", "reth-cli-commands/arbitrary", "op-alloy-consensus/arbitr
 
 serde = [
     "alloy-consensus/serde",
+    "alloy-eips/serde",
     "alloy-primitives/serde",
     "op-alloy-consensus?/serde",
     "reth-optimism-primitives/serde",
