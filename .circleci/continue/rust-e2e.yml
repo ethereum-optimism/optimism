@@ -519,6 +519,7 @@ jobs:
             export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
             test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
             test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+            test -s "$KONA_SP1_ELF_DIR/log-commitment-elf"
 
             cd rust/kona/tests/proofs
             mkdir -p tmp/test-results tmp/testlogs

@@ -28,7 +28,7 @@ use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
-        log_commitment_witness,
+        log_commitment_public_values, log_commitment_witness,
     },
     super_root::{
         SuperConsolidationInputs, SuperConsolidationOutputs, SuperConsolidationTransitionInput,
@@ -49,6 +49,15 @@ use sp1_sdk::{
     SP1VerifyingKey,
 };
 
+mod cost;
+pub use cost::{
+    ConsolidationCost, LogBatchBlock, MAX_ENTRIES_PER_BATCH, MAX_WITNESS_BYTES,
+    ScannedTimestampCost, bound_receipts_path_pgu, bound_receipts_path_witness_bytes,
+    estimate_consolidation_pgu, estimate_log_block_pgu, estimate_log_commitment_pgu,
+    pack_log_commitment_batches, receipts_trie_bytes,
+};
+mod l2;
+pub use l2::L2BlockClient;
 mod log_commitments;
 pub use log_commitments::MissingLogCommitment;
 use log_commitments::{NativeConsolidation, run_native_consolidation};
@@ -251,30 +260,49 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     ensure_range_outputs_match_inputs(&replayed_range_outputs, &synthesized.range_inputs)?;
 
-    let consolidation_host = build_interop_host(
-        &host_inputs,
-        config.l1_head,
-        &synthesized.previous_super_root_proof_bytes,
-        synthesized.current_super_root,
-        config.end_timestamp,
-        None,
-    )?;
-    let consolidation = collect_consolidation_witness(
-        consolidation_host,
-        &synthesized.consolidation_inputs,
-        &preloaded_preimages,
-        Some(&configs),
-        &[],
-    )
-    .await?;
+    let collect = async |batches: &[Vec<u8>]| {
+        let host = build_interop_host(
+            &host_inputs,
+            config.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            config.end_timestamp,
+            None,
+        )?;
+        collect_consolidation_witness(
+            host,
+            &synthesized.consolidation_inputs,
+            &preloaded_preimages,
+            Some(&configs),
+            batches,
+        )
+        .await
+    };
+    // The table path: commit the blocks below the heads that the first run read, then recollect.
+    let mut consolidation = collect(&[]).await?;
+    let mut batches = Vec::new();
+    if !consolidation.missing.is_empty() {
+        batches.push(
+            commit_missing_blocks(&config, &consolidation.missing)
+                .await
+                .context("failed to commit the blocks below the local safe heads")?,
+        );
+        consolidation = collect(&batches).await?;
+        ensure!(
+            consolidation.missing.is_empty(),
+            "blocks below the local safe heads have no entry after the log stage: {:?}",
+            consolidation.missing,
+        );
+    }
     let native_consolidation_outputs = consolidation.outputs;
+    let log_commitments = LogCommitmentInputs { batches, openings: consolidation.openings };
 
     let replayed_consolidation_outputs = match replay_consolidation(
         config.native_core,
         config.report,
         &synthesized.consolidation_inputs,
         consolidation.witness,
-        &LogCommitmentInputs::default(),
+        &log_commitments,
         super_range_elf,
         Some(&configs),
     )
@@ -307,6 +335,36 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         "super-range program validated the optimistic transitions and consolidation",
     );
     Ok(Verdict::Valid)
+}
+
+/// The batch of entries of `missing`, from their receipts on the L2 nodes, computed by the
+/// `log-commitment` ELF, or natively with `--native-core`.
+async fn commit_missing_blocks(
+    config: &RunConfig,
+    missing: &[MissingLogCommitment],
+) -> Result<Vec<u8>> {
+    let mut clients = BTreeMap::new();
+    for address in &config.l2_node_addresses {
+        let client = L2BlockClient::connect(address).await?;
+        clients.insert(client.chain_id().await?, client);
+    }
+    let mut blocks = Vec::with_capacity(missing.len());
+    for block in missing {
+        let client = clients
+            .get(&block.chain_id)
+            .with_context(|| format!("no L2 node for chain {}", block.chain_id))?;
+        let receipts = client.receipts(block.block_hash, block.receipts_root).await?;
+        blocks.push(BlockReceipts { receipts_root: block.receipts_root, receipts });
+    }
+    let stdin = build_log_commitment_stdin_from_receipts(&blocks)?;
+    if config.native_core {
+        return Ok(expected_batch_public_values(&stdin));
+    }
+    let elf =
+        kona_sp1_elfs::load_elf("log-commitment-elf").context("log-commitment ELF unavailable")?;
+    let public_values =
+        execute_sp1("log-commitment", stdin, elf.into(), config.report, true).await?;
+    Ok(public_values.to_vec())
 }
 
 /// Resolves deployment files as registry overrides, using embedded values for omitted files.
@@ -589,6 +647,13 @@ pub fn build_log_commitment_stdin(
     Ok(stdin)
 }
 
+/// The public values that the `log-commitment` program commits for `stdin` from
+/// [`build_log_commitment_stdin`], by the program's own function over the same stdin items.
+pub fn expected_batch_public_values(stdin: &SP1Stdin) -> Vec<u8> {
+    let receipts_roots: Vec<B256> = SP1Stdin::from(&stdin.buffer[0]).read();
+    log_commitment_public_values(&receipts_roots, &stdin.buffer[1])
+}
+
 fn build_super_interop_stdin(
     inputs: SuperInteropInputs,
     witness: DefaultWitnessData,
@@ -626,16 +691,27 @@ pub fn decode_super_consolidation_public_values(
     }
 }
 
+/// Executes `elf` on `stdin`. Without `deferred_proof_verification`, the guest's
+/// `verify_sp1_proof` calls pass with no proof in the stdin.
 async fn execute_sp1(
     mode: &str,
     stdin: SP1Stdin,
-    super_range_elf: Arc<[u8]>,
+    elf: Arc<[u8]>,
     report: bool,
+    deferred_proof_verification: bool,
 ) -> Result<SP1PublicValues> {
     let stdin_bytes: usize = stdin.buffer.iter().map(Vec::len).sum();
     let client = ProverClient::builder().cpu().build().await;
-    let (public_values, execution_report) =
-        client.execute(Elf::Dynamic(super_range_elf), stdin).calculate_gas(true).await?;
+    let (public_values, execution_report) = client
+        .execute(Elf::Dynamic(elf), stdin)
+        .deferred_proof_verification(deferred_proof_verification)
+        .calculate_gas(true)
+        .await?;
+    ensure!(
+        execution_report.exit_code == 0,
+        "{mode} guest exited with code {}",
+        execution_report.exit_code
+    );
     if report {
         let pgu = execution_report.gas().expect("calculate_gas(true) reports PGU");
         println!(
@@ -660,7 +736,7 @@ async fn execute_sp1_range(
     report: bool,
 ) -> Result<SuperRangeOutputs> {
     let stdin = build_super_range_stdin(inputs, witness)?;
-    let mut public_values = execute_sp1("range", stdin, super_range_elf, report).await?;
+    let mut public_values = execute_sp1("range", stdin, super_range_elf, report, true).await?;
     decode_super_range_public_values(&mut public_values)
 }
 
@@ -672,7 +748,9 @@ async fn execute_sp1_consolidation(
     report: bool,
 ) -> Result<SuperConsolidationOutputs> {
     let stdin = build_super_consolidation_stdin(inputs, witness, log_commitments, None)?;
-    let mut public_values = execute_sp1("consolidation", stdin, super_range_elf, report).await?;
+    // The stdin carries the batches' public values without their proofs.
+    let mut public_values =
+        execute_sp1("consolidation", stdin, super_range_elf, report, false).await?;
     decode_super_consolidation_public_values(&mut public_values)
 }
 
@@ -821,8 +899,14 @@ pub struct CollectedConsolidation {
     pub missing: Vec<MissingLogCommitment>,
     /// The receipts roots whose entries the run read, so the stdin must carry their batches.
     pub served: Vec<B256>,
-    /// The total length of the witness preimages.
+    /// The total length of the witness keys and preimages.
     pub witness_bytes: u64,
+    /// The bytes that the run read from the oracle, with repeats.
+    pub read_bytes: u64,
+    /// The log checks against an entry; each verifies an opening.
+    pub log_checks: u64,
+    /// The siblings of the openings that those checks verify.
+    pub log_check_siblings: u64,
 }
 
 /// Collects a consolidation-mode witness and the natively computed consolidation outputs.
@@ -840,8 +924,27 @@ pub async fn collect_consolidation_witness(
         run_native_consolidation(oracle, inputs.clone(), configs, batches)
     })
     .await?;
-    let NativeConsolidation { outputs, openings, missing, served, witness_bytes } = native;
-    Ok(CollectedConsolidation { witness, outputs, openings, missing, served, witness_bytes })
+    let NativeConsolidation {
+        outputs,
+        openings,
+        missing,
+        served,
+        witness_bytes,
+        read_bytes,
+        log_checks,
+        log_check_siblings,
+    } = native;
+    Ok(CollectedConsolidation {
+        witness,
+        outputs,
+        openings,
+        missing,
+        served,
+        witness_bytes,
+        read_bytes,
+        log_checks,
+        log_check_siblings,
+    })
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);

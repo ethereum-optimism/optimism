@@ -742,6 +742,12 @@ collects range and consolidation witnesses through kona's `InteropHost`, runs th
 `super-range` ELF in the SP1 emulator, and exits `0` (valid claim) / `1` (invalid claim) / `2`
 (infrastructure error) — mirroring the native fault-proof program convention.
 
+The consolidation takes the table path. When the first collection reads a
+block below a local safe head, the executor fetches that block's receipts from the L2 node,
+computes its entry with the `log-commitment` ELF (natively with `--native-core`), and collects
+again through the entries. A block still without an entry after that, or any failure in this
+log stage, exits `2`.
+
 The op-e2e action test `TestSP1SuperRangeSimpleEmptyChain`
 (`rust/kona/tests/proofs/sp1_simple_program_test.go`) drives this binary against an
 in-process action-test chain, exercising both guest modes end-to-end on real inputs. Run it
@@ -757,7 +763,8 @@ and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF su
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
 is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
 tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
-tests in its `kona-sp1-action-tests` job.
+tests in its `kona-sp1-action-tests` job. The executor also loads `log-commitment-elf` when the
+consolidation reads a block below a local safe head.
 
 Because the executor is a separate process that resolves the transition itself, the action-test
 harness serves op-node's superroot API over a loopback HTTP listener
