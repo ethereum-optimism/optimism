@@ -17,7 +17,11 @@ use kona_genesis::RollupConfig;
 use kona_interop::{
     ChainBuilder, ChainDependency, DependencySet, ExecutingMessageBuilder, RawMessagePayload,
 };
-use kona_preimage::{DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey};
+use kona_preimage::{
+    CommsClient, DEPENDENCY_SET_KEY, HintWriterClient, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY,
+    PreimageKey, PreimageOracleClient, errors::PreimageOracleResult,
+};
+use kona_proof::FlushableCache;
 use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LOG_COMMITMENT_ENTRY_LEN, LogCommitmentEntry, LogCommitmentInputs,
@@ -335,11 +339,14 @@ fn block_without_entry_reads_its_receipts() {
 }
 
 /// The native run over a collector with `host` as its host oracle, and the collected witness.
-async fn collect(
+async fn collect<H>(
     fixture: &Fixture,
-    host: PreimageStore,
+    host: H,
     batches: &[Vec<u8>],
-) -> (anyhow::Result<crate::log_commitments::NativeConsolidation>, PreimageStore) {
+) -> (anyhow::Result<crate::log_commitments::NativeConsolidation>, PreimageStore)
+where
+    H: CommsClient + FlushableCache + std::fmt::Debug + Send + Sync + Clone + 'static,
+{
     let witness = Arc::new(Mutex::new(PreimageStore::default()));
     let collector = Arc::new(PreimageWitnessCollector {
         preimage_oracle: Arc::new(host),
@@ -359,14 +366,13 @@ async fn collect(
 /// Pins a collected witness without served receipts that replays to the native outputs.
 #[tokio::test(flavor = "multi_thread")]
 async fn collected_witness_omits_served_receipts() {
-    use kona_preimage::PreimageOracleClient;
-
     let fixture = small_fixture();
     let batches = vec![fixture.native_batch()];
     let (native, witness) = collect(&fixture, fixture.full_witness(), &batches).await;
     let native = native.unwrap();
     assert!(native.missing.is_empty());
     assert_eq!(native.openings, fixture.openings());
+    assert_eq!(native.witness_bytes, witness.preimage_bytes() as u64);
     for block in &fixture.below_head {
         let mut trie = kona_mpt::ordered_trie_with_encoder(&block.receipts, |receipt, out| {
             receipt.encode_2718(out)
@@ -394,6 +400,80 @@ async fn collection_reports_missing_blocks() {
         fixture.below_head.iter().map(|block| block.receipts_root).collect();
     expected.sort();
     assert_eq!(missing, expected);
+}
+
+/// A host oracle that suspends once before each read and records the keys it reads.
+#[derive(Debug, Clone)]
+struct SuspendingHost {
+    store: PreimageStore,
+    reads: Arc<Mutex<Vec<PreimageKey>>>,
+}
+
+/// Returns `Pending` on its first poll.
+#[derive(Default)]
+struct SuspendOnce(bool);
+
+impl std::future::Future for SuspendOnce {
+    type Output = ();
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        if self.0 {
+            return std::task::Poll::Ready(());
+        }
+        self.0 = true;
+        cx.waker().wake_by_ref();
+        std::task::Poll::Pending
+    }
+}
+
+#[async_trait::async_trait]
+impl PreimageOracleClient for SuspendingHost {
+    async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+        SuspendOnce::default().await;
+        self.reads.lock().unwrap().push(key);
+        self.store.get(key).await
+    }
+
+    async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+        SuspendOnce::default().await;
+        self.reads.lock().unwrap().push(key);
+        self.store.get_exact(key, buf).await
+    }
+}
+
+#[async_trait::async_trait]
+impl HintWriterClient for SuspendingHost {
+    async fn write(&self, hint: &str) -> PreimageOracleResult<()> {
+        self.store.write(hint).await
+    }
+}
+
+impl FlushableCache for SuspendingHost {
+    fn flush(&self) {}
+}
+
+/// Pins the failing host read as the run's last host read.
+#[tokio::test(flavor = "multi_thread")]
+async fn host_failure_stops_at_the_next_host_read() {
+    let fixture = small_fixture();
+    let mut store = fixture.withheld.clone();
+    for block in &fixture.below_head[1..] {
+        save_receipts(&mut store, &block.receipts);
+    }
+    let reads = Arc::new(Mutex::new(Vec::new()));
+    let host = SuspendingHost { store, reads: reads.clone() };
+    let (native, _) = collect(&fixture, host, &[fixture.native_batch()]).await;
+    let err = native.expect_err("a host failure must fail the collection");
+    assert!(format!("{err:#}").contains("failed to open a committed log"), "{err:#}");
+    // Messages are checked in initiating-block order, so block 1 fails first.
+    let failing = PreimageKey::new_keccak256(*fixture.below_head[0].receipts_root);
+    let reads = reads.lock().unwrap();
+    assert_eq!(reads.last(), Some(&failing), "{} reads after the failure", {
+        reads.iter().rev().position(|key| *key == failing).unwrap_or(reads.len())
+    });
 }
 
 /// Pins a collection error, not outputs, when the host cannot serve a served block's receipts.
