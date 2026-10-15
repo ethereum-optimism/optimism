@@ -30,6 +30,7 @@ Read-only: investigate and explain; never make moves, resolve, fund, or restart 
 
 - `op-challenger list-games`/`list-claims --format json` — enumerate games/claims.
 - `op-chain-ops/cmd/check-output-root` and `check-super-root` — canonical output root (EL-only, work against public nodes).
-- `op-challenger game-proposal-outputs` — per-game `outputAtBlock` +
-  `safeHeadAtL1Block` from a node (spots an incomplete safe-head DB).
+- `op-challenger game-proposal-outputs` — per-game node view: `outputAtBlock` + `safeHeadAtL1Block`
+  for output-root games (`--rollup-rpc`; spots an incomplete safe-head DB), super root + node
+  sync for super-root and zk games (`--superroot-rpc`).
 - `op-challenger/scripts/check-game-block-hashes.sh` — block-hash cross-check, node vs reference.

@@ -18,12 +18,16 @@ zkVM programs that execute inside the SP1 prover:
   proving ranges and span-shaped consolidation.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
   commits the public values consumed by `ZKDisputeGame`.
+- **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
+  operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
 
 ### Crates (`crates/`)
 
 Supporting libraries for the SP1 fault proof system:
 
-- **`build-info`**: Compile-time build marker embedding the monorepo commit into both guests
+- **`bls12-381-check`** (test-only): EIP-2537 reference oracle, case corpus, host differential
+  tests, and the zkVM check runner (`just check-bls12-381-zkvm`)
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
@@ -91,7 +95,7 @@ infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop a
 
 #### Build provenance
 
-Both guests embed the commit they were built from, so a guest ELF identifies its own source
+Every guest embeds the commit it was built from, so a guest ELF identifies its own source
 without a manifest, a lookup table, or executing it:
 
 ```bash
@@ -147,10 +151,10 @@ family, with `op-zk-proposer/vX.Y.Z-rc.N` for release candidates. It is to
   programs execute. Tag both on the same commit; a proposer-only release with no program change is
   fine.
 - **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
-- **Every new commit rotates the vkeys**: both guests embed the commit they were built from (see
-  [Build provenance](#build-provenance)), so a release tagged on a different commit from the
-  previous one always has new vkeys, even if no guest code changed, and every consumer must repin.
-  Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
+- **Every new commit rotates the vkeys**: both production guests embed the commit they were built
+  from (see [Build provenance](#build-provenance)), so a release tagged on a different commit from
+  the previous one always has new vkeys, even if no guest code changed, and every consumer must
+  repin. Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
 
 CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
 configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
@@ -212,7 +216,7 @@ remain network-proving concerns rather than deterministic acceptance-test covera
 
 ## Guest Precompile Patches
 
-Both guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
+All guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
 own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
 `crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
 generated ELFs get zkVM precompile-accelerated crypto without changing the host
@@ -220,8 +224,10 @@ generated ELFs get zkVM precompile-accelerated crypto without changing the host
 
 The EVM-executing super-range guest also enables `revm`'s `bn` feature
 in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
-backend for EIP-196/197 bn128 precompiles. EIP-2537 BLS pairing still uses
-arkworks and is not SP1 accelerated.
+backend for EIP-196/197 bn128 precompiles. The EIP-2537 BLS12-381 precompiles run
+through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field, G1 point, and
+bigint syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
+against revm's arkworks backend and prints per-operation cycle counts.
 
 ## Usage
 
@@ -426,9 +432,9 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
 | `OP_ZK_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
 | `OP_ZK_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
-| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
-| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
-| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
+| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | limit in seconds for one L1 transaction send, including fee bumps, until 3 confirmations (default `180`) |
+| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
+| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
@@ -540,10 +546,12 @@ L1-pinned live-network view. One process owns one network and one artifact URL.
 It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
 and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
 (`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
-pin is an input error. Finalized supernode responses are assumed immutable for a timestamp. An
-identical successful fingerprint is not re-executed; a correctness failure receives one
-confirmation attempt. The next selection is scheduled only after the prior attempt and its
-cadence plus bounded jitter have completed.
+pin is an input error. The pin and required L1 block identities are checked against the L1 RPC's
+canonical blocks. `CurrentL1` is used by number to bound the pin and verify processing progress;
+its hash is not independently validated. Finalized supernode responses are assumed immutable for
+a timestamp. An identical successful fingerprint is not re-executed; a correctness failure
+receives one confirmation attempt. The next selection is scheduled only after the prior attempt
+and its cadence plus bounded jitter have completed.
 
 The canary always uses SP1 CPU `execute` mode. This runs the real RISC-V ELF and returns an
 `ExecutionReport`, but it never invokes a proving API, submits work to the Succinct Prover Network,

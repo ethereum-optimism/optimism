@@ -158,18 +158,29 @@ func startStoppedSequencerCL(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		konaCfg := DefaultL2CLConfig()
-		konaCfg.IsSequencer = true
+		baseCfg := *DefaultL2CLConfig()
+		baseCfg.IsSequencer = true
+		konaCfg := baseCfg
 		target := NewComponentTarget(key, l2Net.ChainID())
 		for _, opt := range l2CLOpts {
 			if opt != nil {
-				opt.Apply(t, target, konaCfg)
+				opt.Apply(t, target, &konaCfg)
 			}
 		}
+		// Only the conductor settings are forwarded to kona. Fail on any other
+		// option rather than silently running a node that never saw it.
+		// SafeDBPath is set on every primary but is not forwarded to kona.
+		unsupported := konaCfg
+		unsupported.ConductorRPC = ""
+		unsupported.ConductorRPCTimeout = 0
+		unsupported.SafeDBPath = ""
+		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor settings cannot be applied to kona-node")
 		var extraEnv []string
 		if konaCfg.ConductorRPC != "" {
-			// kona-node has no conductor RPC timeout, so ConductorRPCTimeout does not apply.
 			extraEnv = append(extraEnv, "KONA_NODE_SEQUENCER_CONDUCTOR_URL="+konaCfg.ConductorRPC)
+			if konaCfg.ConductorRPCTimeout > 0 {
+				extraEnv = append(extraEnv, "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT="+konaCfg.ConductorRPCTimeout.String())
+			}
 		}
 		return startMixedKonaNode(
 			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, false, nil,

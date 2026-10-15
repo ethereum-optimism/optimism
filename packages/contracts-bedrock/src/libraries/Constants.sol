@@ -54,6 +54,10 @@ library Constants {
     ///         contracts to be deployed. Used for initial deployments only.
     bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
 
+    /// @notice The L2ToL2CrossDomainMessenger's expiry period on production networks: the interop
+    ///         message expiry window of 7 days plus a day of margin.
+    uint256 internal constant L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days;
+
     /// @notice Current bundle artifact path for Network Upgrade Transaction bundles.
     string internal constant CURRENT_BUNDLE_PATH = "snapshots/upgrades/current-upgrade-bundle.json";
 

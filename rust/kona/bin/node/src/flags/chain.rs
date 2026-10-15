@@ -326,7 +326,7 @@ mod tests {
     fn dependency_set_is_loaded_from_the_flag() {
         let set = DependencySet {
             dependencies: BTreeMap::from([(10, ChainDependency {}), (11, ChainDependency {})]),
-            override_message_expiry_window: Some(60),
+            override_message_expiry_window: Some(60.try_into().unwrap()),
         };
         let mut file = tempfile::NamedTempFile::new().unwrap();
         serde_json::to_writer(&mut file, &set).unwrap();

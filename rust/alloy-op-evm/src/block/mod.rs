@@ -33,7 +33,7 @@ use revm::{
     Database as _, DatabaseCommit, Inspector,
     context::{
         Block, TxEnv,
-        result::{ExecutionResult, ResultAndState},
+        result::{ExecutionResult, ResultAndState, ResultGas},
     },
     database::DatabaseCommitExt,
     state::{Account, AccountStatus, EvmState},
@@ -53,20 +53,50 @@ fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
     BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
 }
 
+/// Returns the gas a transaction would have used had execution spent `discount` less gas.
+///
+/// The EIP-3529 refund cap and the EIP-7623 floor are both functions of gas spent, so a discount on
+/// spent gas does not lower gas used one-for-one: the cap shrinks with it, and a binding floor
+/// absorbs it entirely.
+fn gas_used_with_spend_discount(gas: &ResultGas, discount: u64, max_refund_quotient: u64) -> u64 {
+    let spent = gas.total_gas_spent().saturating_sub(discount);
+    // `inner_refunded` is already capped at `total_gas_spent / quotient`, and the discounted cap is
+    // no larger, so this equals capping the raw refund counter at the discounted spend.
+    let refunded = gas.inner_refunded().min(spent / max_refund_quotient);
+    spent.saturating_sub(refunded).max(gas.floor_gas())
+}
+
 /// Returns a producer policy's consensus-safe refund for an executed transaction.
 ///
 /// A refund policy is advisory: malformed output must not reject an otherwise valid transaction or
-/// abort payload production. A normal-transaction refund that exceeds the gas the EVM actually used
-/// is discarded, while deposits are never refundable. Verifiers independently enforce these same
-/// bounds on the resulting post-exec payload.
+/// abort payload production. A normal-transaction refund that exceeds the gas execution spent can
+/// only come from a faulty policy and is discarded, while deposits are never refundable.
+///
+/// A policy's refund is a discount on the gas execution spent (for block-level warming, the
+/// EIP-2929 surcharges on block-warm accesses). It is clipped to what that discount actually saves
+/// the transaction, so the refund never lowers canonical gas below the gas the transaction would
+/// have used had execution spent that much less. Gas used is net of the EIP-3529 refund, so a
+/// discount can exceed it; the clip, not a comparison with gas used, is what keeps the refund
+/// within the verifier's `refund <= evmGasUsed` bound. The clip is producer policy, not consensus:
+/// verifiers apply whatever refund the payload carries.
 #[cfg_attr(not(feature = "metrics"), allow(clippy::missing_const_for_fn))]
-fn sanitize_producer_refund(refund: u64, evm_gas_used: u64, is_deposit: bool) -> u64 {
+fn sanitize_producer_refund(
+    refund: u64,
+    gas: &ResultGas,
+    max_refund_quotient: u64,
+    is_deposit: bool,
+) -> u64 {
     let (refund, correction) = if is_deposit && refund > 0 {
         (0, Some("ineligible_transaction"))
-    } else if refund > evm_gas_used {
-        (0, Some("exceeds_evm_gas"))
+    } else if refund > gas.total_gas_spent() {
+        (0, Some("exceeds_gas_spent"))
     } else {
-        (refund, None)
+        let net_saving = gas.tx_gas_used().saturating_sub(gas_used_with_spend_discount(
+            gas,
+            refund,
+            max_refund_quotient,
+        ));
+        if refund > net_saving { (net_saving, Some("exceeds_net_saving")) } else { (refund, None) }
     };
 
     #[cfg(feature = "metrics")]
@@ -290,6 +320,15 @@ impl PostExecState {
         }
     }
 
+    /// Moves the verifier cursor past the entries for transactions `[0, first_tx_index)`, which a
+    /// resumed executor never runs.
+    fn skip_verifier_entries_before(&mut self, first_tx_index: u64) {
+        if let Self::Verifying { payload, next_entry, .. } = self {
+            *next_entry =
+                payload.gas_refund_entries.partition_point(|entry| entry.index < first_tx_index);
+        }
+    }
+
     fn remaining_verifier_indexes(&self) -> Vec<u64> {
         match self {
             Self::Verifying { payload, next_entry, .. } => {
@@ -437,8 +476,12 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub l1_block_info: Option<L1BlockInfo>,
     /// Post-exec execution state (mode and producer/verifier working state).
     pub post_exec: PostExecState,
-    /// Per-transaction exact policy-provided refund attribution events aligned with receipts.
+    /// Per-transaction exact policy-provided refund attribution events aligned with receipts
+    /// (so, after [`Self::resume_at_tx_index`], with this executor's transactions only).
     pub refund_events_by_tx: Vec<Vec<PostExecRefundEvent>>,
+    /// Block index of the first transaction this executor runs: non-zero only after
+    /// [`Self::resume_at_tx_index`].
+    pub first_tx_index: u64,
 }
 
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
@@ -465,7 +508,43 @@ where
             l1_block_info: None,
             post_exec,
             refund_events_by_tx: Vec::new(),
+            first_tx_index: 0,
         }
+    }
+
+    /// Resumes the block at transaction index `first_tx_index`, after a prefix that another
+    /// executor ran.
+    ///
+    /// The caller supplies the prefix's post-state as this executor's prestate and does not call
+    /// [`BlockExecutor::apply_pre_execution_changes`], which the prefix already applied. In
+    /// `Verify` mode the payload's entries for indexes below `first_tx_index` count as applied, so
+    /// the prefix must have run against exactly those entries. Receipts, refund events and gas
+    /// totals, including the block gas and DA admission budgets, cover only the transactions this
+    /// executor runs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the payload-level errors that
+    /// [`BlockExecutor::apply_pre_execution_changes`] would have raised, or an error in `Produce`
+    /// mode, whose produced entries and refund-inspector state can't be rebuilt from a prestate.
+    pub fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError> {
+        if self.post_exec.is_producing() {
+            return Err(BlockExecutionError::msg(
+                "cannot resume a post-exec producer mid-block: its entries and refund state are lost",
+            ));
+        }
+        if let Some(reason) = self.post_exec.invalid_reason() {
+            return Err(validation_error(OpBlockExecutionError::InvalidPostExecPayload(
+                String::from(reason),
+            )));
+        }
+        let block_number = self.evm.block().number().saturating_to::<u64>();
+        if let Some(reason) = self.post_exec.verify_block_number(block_number) {
+            return Err(validation_error(OpBlockExecutionError::InvalidPostExecPayload(reason)));
+        }
+        self.first_tx_index = first_tx_index;
+        self.post_exec.skip_verifier_entries_before(first_tx_index);
+        Ok(())
     }
 
     /// Set the post-exec execution mode for the executor.
@@ -944,7 +1023,7 @@ where
         let (tx_env, tx) = tx.into_parts();
         let is_deposit = tx.tx().ty() == DEPOSIT_TRANSACTION_TYPE;
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
-        let tx_index = self.receipts.len() as u64;
+        let tx_index = self.first_tx_index + self.receipts.len() as u64;
 
         // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
         // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
@@ -1035,8 +1114,15 @@ where
                 self.evm.take_last_post_exec_tx_result();
             // The policy is advisory. Contain a faulty policy here, before its output changes gas,
             // settlement, receipts, or the trailing payload: excessive normal-tx refunds are
-            // discarded, and deposits never receive a refund.
-            let refund = sanitize_producer_refund(refund, evm_gas_used, is_deposit);
+            // discarded, refunds are clipped to their net saving, and deposits never receive a
+            // refund.
+            let max_refund_quotient = self.evm.cfg_env().gas_params.max_refund_quotient();
+            let refund = sanitize_producer_refund(
+                refund,
+                result.result.gas(),
+                max_refund_quotient,
+                is_deposit,
+            );
             (refund, refund_events)
         } else {
             (
@@ -1094,7 +1180,7 @@ where
     }
 
     fn commit_transaction(&mut self, output: Self::Result) -> GasOutput {
-        let tx_index = self.receipts.len() as u64;
+        let tx_index = self.first_tx_index + self.receipts.len() as u64;
         let OpTxResult {
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,

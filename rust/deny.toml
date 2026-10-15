@@ -28,6 +28,10 @@ ignore = [
   "RUSTSEC-2024-0384",
   # rustls-pemfile is unmaintained; transitive via tonic in the SP1 dependency tree.
   "RUSTSEC-2025-0134",
+  # ruzstd < 0.9.1 can exhaust memory on crafted input (DoS). Transitive via object 0.37,
+  # pulled in by sp1-core-executor and backtrace; object only moves to ruzstd 0.9 in 0.40,
+  # which neither has adopted yet, so no upgrade removes it.
+  "RUSTSEC-2026-0344",
 ]
 
 # This section is considered when running `cargo deny check bans`.

@@ -80,7 +80,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@8e1089eda9118f3589019bf9fd9304e2860986ff
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@b71bfb27995c67852e5337a91ce7f3e5faa22f39
     with:
       stack: ${{ matrix.stack }}
       arch: ${{ matrix.arch }}
@@ -113,7 +113,7 @@ jobs:
       attestations: write
       artifact-metadata: write
       actions: read
-    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@b87283a8bb6c325da0ef18400eb819b5979a9bd3
+    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@b71bfb27995c67852e5337a91ce7f3e5faa22f39
     with:
       service: ${{ matrix.service }}
       needs-melange-apks: ${{ matrix.needs_melange_apks }}
@@ -136,7 +136,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@b87283a8bb6c325da0ef18400eb819b5979a9bd3
+    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@b71bfb27995c67852e5337a91ce7f3e5faa22f39
     with:
       service: ${{ matrix.service }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images

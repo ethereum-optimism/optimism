@@ -86,6 +86,7 @@ Some subdirectories have their own CLAUDE.md with domain-specific conventions. R
 - `op-acceptance-tests/` — read before working in that area; links to [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md)
 - `op-node/rollup/derive/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
 - `rust/kona/crates/protocol/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
+- `rust/kona/sp1/` — read before working in that area; links to [docs/ai/kona-sp1-proof-limits.md](docs/ai/kona-sp1-proof-limits.md)
 - `.circleci/` and `.github/` — read before editing CI config; links to [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md)
 
 ## Additional Documentation
@@ -109,8 +110,10 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/spec-driven-review.md](docs/ai/spec-driven-review.md) - Shared method and evidence contract for specification-driven reviewer agents
 - [docs/ai/derivation-batch-review.md](docs/ai/derivation-batch-review.md) - Reviewing batch decoding and validation against protocol specifications. Pairs with the `derivation-batch-reviewer` agent
 - [docs/ai/interop-review.md](docs/ai/interop-review.md) - Reviewing interop message verification and safety promotion. Pairs with the `interop-reviewer` agent
+- [docs/ai/deposit-review.md](docs/ai/deposit-review.md) - Reviewing deposit derivation, execution, and receipts against protocol specifications. Pairs with the `deposit-reviewer` agent
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
+- [docs/ai/kona-sp1-proof-limits.md](docs/ai/kona-sp1-proof-limits.md) - Kona-SP1 proof-generation limits (witness encoding, input region, memory, PGU) and a method to compute the proof cost of guest code: if an honest proof exceeds a limit, the proposer loses its `ZKDisputeGame`. Pairs with the `kona-sp1-cost-reviewer` agent
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid

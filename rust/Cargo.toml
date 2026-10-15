@@ -20,6 +20,7 @@ members = [
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
   "kona/examples/*",
+  "kona/sp1/crates/bls12-381-check",
   "kona/sp1/crates/build-info",
   "kona/sp1/crates/client",
   "kona/sp1/crates/elfs",
@@ -545,6 +546,13 @@ c-kzg = { version = "2.1.5", default-features = false }
 enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
+# Pinned to kzg-rs's exact version. `experimental` is needed for EIP-2537 MAP_FP_TO_G1 / MAP_FP2_TO_G2.
+sp1_bls12_381 = { version = "=0.8.0-sp1-6.0.0", default-features = false, features = [
+  "groups",
+  "pairings",
+  "alloc",
+  "experimental",
+] }
 sha2 = { version = "0.10.9", default-features = false }
 secp256k1 = { version = "0.31.1", default-features = false }
 ark-ff = { version = "0.5.0", default-features = false }
@@ -554,6 +562,13 @@ ark-ff = { version = "0.5.0", default-features = false }
 ark-bls12-381 = { version = "0.5.0", default-features = false, features = [
   "scalar_field",
 ] }
+# ark 0.6 (revm-precompile's EIP-2537 backend); used only to test kona-sp1's EIP-2537 precompiles.
+ark-bls12-381-0-6 = { package = "ark-bls12-381", version = "0.6.0", default-features = false, features = [
+  "curve",
+] }
+ark-ec-0-6 = { package = "ark-ec", version = "0.6.0", default-features = false }
+ark-ff-0-6 = { package = "ark-ff", version = "0.6.0", default-features = false }
+ark-serialize-0-6 = { package = "ark-serialize", version = "0.6.0", default-features = false }
 
 # ==================== SERIALIZATION ====================
 bincode = { version = "2.0.1", features = ["serde"] }
