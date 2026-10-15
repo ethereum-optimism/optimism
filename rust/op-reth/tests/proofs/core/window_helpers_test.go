@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -42,6 +43,10 @@ const (
 	storeCatchUpTimeout = 60 * time.Second
 	// syncAttempts bounds, in 2s polls, the wait for the follower to catch up with the sequencer.
 	syncAttempts = 60
+	// workloadInclusionAttempts bounds the wait for a workload transaction to land, with
+	// exponential backoff capped at 10s: about a minute, so a chain that stalls for tens of
+	// seconds under CI load and then catches up does not fail the run.
+	workloadInclusionAttempts = 10
 )
 
 // persistenceThresholds are the reth persistence thresholds the cells run under: one that keeps
@@ -94,23 +99,43 @@ type workload struct {
 	// with nonce zero executes against the state of any block after her funding.
 	carol    *dsl.EOA
 	recorder common.Address
+	// sequencer serves the receipts the workload waits for.
+	sequencer *dsl.L2ELNode
 	// setupBlock is the first block in which every account of the workload exists and the
 	// recorder has been written to.
 	setupBlock uint64
 	t          devtest.T
 }
 
-func newWorkload(t devtest.T, funder *dsl.FunderEOA) *workload {
+func newWorkload(t devtest.T, sys *utils.MixedOpProofPreset) *workload {
 	w := &workload{
-		alice: funder.NewFundedEOA(eth.OneEther),
-		bob:   funder.NewFundedEOA(eth.OneEther),
-		carol: funder.NewFundedEOA(eth.OneEther),
-		t:     t,
+		alice:     sys.FunderL2.NewFundedEOA(eth.OneEther),
+		bob:       sys.FunderL2.NewFundedEOA(eth.OneEther),
+		carol:     sys.FunderL2.NewFundedEOA(eth.OneEther),
+		sequencer: sys.L2ELSequencer,
+		t:         t,
 	}
 	w.recorder = w.alice.DeployBlockRecorder()
-	w.setupBlock = includedBlock(t, w.bob.Transact(w.bob.Plan(), txplan.WithTo(&w.recorder)))
+	w.setupBlock = w.recordBlock()
 	t.Logger().Info("Workload set up", "setup_block", w.setupBlock, "recorder", w.recorder)
 	return w
+}
+
+// plan is sender's default transaction plan with the workload's inclusion budget in place of the
+// DSL's.
+func (w *workload) plan(sender *dsl.EOA) txplan.Option {
+	return txplan.Combine(sender.Plan(), txplan.WithRetryInclusion(w.sequencer.EthClient(), workloadInclusionAttempts, retry.Exponential()))
+}
+
+// transfer sends a hundredth of an ether from sender to recipient and returns the block that
+// included it.
+func (w *workload) transfer(sender *dsl.EOA, recipient common.Address) uint64 {
+	return includedBlock(w.t, sender.Transact(w.plan(sender), txplan.WithTo(&recipient), txplan.WithValue(eth.OneHundredthEther)))
+}
+
+// recordBlock has bob call the recorder and returns the block that included the call.
+func (w *workload) recordBlock() uint64 {
+	return includedBlock(w.t, w.bob.Transact(w.plan(w.bob), txplan.WithTo(&w.recorder)))
 }
 
 // accounts are the accounts whose proofs the checks compare with the reference.
@@ -127,9 +152,9 @@ func (w *workload) accounts() []dsl.ProofAccount {
 func (w *workload) driveUntilBlock(target uint64) uint64 {
 	w.t.Logger().Info("Driving the chain with the workload", "target", target)
 	for {
-		w.alice.Transfer(w.bob.Address(), eth.OneHundredthEther)
-		w.bob.Transfer(w.alice.Address(), eth.OneHundredthEther)
-		block := includedBlock(w.t, w.bob.Transact(w.bob.Plan(), txplan.WithTo(&w.recorder)))
+		w.transfer(w.alice, w.bob.Address())
+		w.transfer(w.bob, w.alice.Address())
+		block := w.recordBlock()
 		if block >= target {
 			w.t.Logger().Info("Workload reached the target", "target", target, "block", block)
 			return block
@@ -141,6 +166,12 @@ func (w *workload) driveUntilBlock(target uint64) uint64 {
 // carol's funding, since she never spends her first nonce on the chain.
 func (w *workload) signedTransferFromCarol(t devtest.T) []byte {
 	return utils.SignedTransfer(t, w.carol, w.alice.Address(), eth.OneWei, txplan.WithStaticNonce(0))
+}
+
+// signedRecorderCall signs a call to the recorder from bob without sending it, for a block the
+// test sequencer builds.
+func (w *workload) signedRecorderCall(t devtest.T) []byte {
+	return utils.SignedTransaction(t, txplan.Combine(w.bob.Plan(), txplan.WithTo(&w.recorder)))
 }
 
 func includedBlock(t devtest.T, tx *txplan.PlannedTx) uint64 {

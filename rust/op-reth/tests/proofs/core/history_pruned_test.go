@@ -186,7 +186,7 @@ func TestProofsFollowerServesBlocksBelowRethHistoryPruneCheckpoint(gt *testing.T
 			sys := newHistoryPrunedSystem(t, c)
 			follower, reference := sys.L2ELValidator, sys.L2ELSequencer
 			prunerLogs := recordRethPrunerLogs(follower)
-			w := newWorkload(t, sys.FunderL2)
+			w := newWorkload(t, sys)
 			// reth still answers for the prune target block itself, whose state only needs the
 			// changesets above it; the block below it is the first one reth refuses.
 			checked := uint64(historyPruneBefore - 2)
