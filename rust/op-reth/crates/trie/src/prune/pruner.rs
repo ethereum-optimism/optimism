@@ -45,9 +45,10 @@ impl<S, H> OpProofStoragePruner<S, H> {
     }
 
     /// Set the batch size for pruning operations. The pruner will prune
-    /// at most this many blocks in one database transaction.
+    /// at most this many blocks in one database transaction. A batch size of
+    /// zero is raised to one, since every batch has to make progress.
     pub const fn with_batch_size(mut self, prune_batch_size: u64) -> Self {
-        self.prune_batch_size = prune_batch_size;
+        self.prune_batch_size = if prune_batch_size == 0 { 1 } else { prune_batch_size };
         self
     }
 }
@@ -57,7 +58,8 @@ where
     S: OpProofsStore,
     H: BlockHashReader,
 {
-    /// Run the pruner, returning what it pruned or the error that stopped it.
+    /// Run the pruner, returning what it pruned or the error that stopped it. Every batch
+    /// commits on its own, so an error leaves the batches before it pruned.
     pub fn try_run(&self) -> OpProofStoragePrunerResult {
         let provider_ro = self.store.provider_ro()?;
         let Some((earliest_block, target_earliest_block, mut prune_output)) =
@@ -281,7 +283,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn try_run_and_and_verify_updated_state() {
+    async fn try_run_and_verify_updated_state() {
         // --- env/store ---
         let dir = TempDir::new().unwrap();
         let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
@@ -582,6 +584,52 @@ mod tests {
             assert_eq!(key, k, "key must exist");
             assert_eq!(val, vv, "value must be updated");
         }
+    }
+
+    // The new earliest block is resolved through reth; a block reth does not hold stops the
+    // pruner with an error that names it, and the window stays as it was.
+    #[tokio::test]
+    async fn try_run_reports_a_block_reth_does_not_hold() {
+        use crate::{BlockStateDiff, OpProofsProviderRw};
+
+        let dir = TempDir::new().unwrap();
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        {
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: 0, hash: B256::ZERO })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
+        }
+        {
+            let provider_rw = store.provider_rw().expect("rw");
+            let mut parent = B256::ZERO;
+            for number in 1..=5 {
+                let block_ref = block(number, parent);
+                provider_rw
+                    .store_trie_updates(block_ref, BlockStateDiff::default())
+                    .expect("store");
+                parent = block_ref.block.hash;
+            }
+            OpProofsProviderRw::commit(provider_rw).expect("commit");
+        }
+
+        let mut block_hash_reader = MockBlockHashReader::new();
+        block_hash_reader.expect_block_hash().returning(|_| Ok(None));
+        let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 2);
+
+        let err = pruner.try_run().expect_err("a block reth does not hold must stop the pruner");
+
+        assert!(matches!(err, PrunerError::BlockNotFound(3)), "{err:?}");
+        assert_eq!(err.to_string(), "block 3 not found in the reth database");
+        let window = store.provider_ro().unwrap().get_proof_window().unwrap();
+        assert_eq!((window.earliest.number, window.latest.number), (0, 5));
+    }
+
+    #[test]
+    fn with_batch_size_raises_zero_to_one() {
+        let pruner = OpProofStoragePruner::new((), (), 1).with_batch_size(0);
+        assert_eq!(pruner.prune_batch_size, 1);
     }
 
     // Both latest and earliest blocks are None -> early return default; DB untouched.

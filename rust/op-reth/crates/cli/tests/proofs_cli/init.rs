@@ -17,10 +17,7 @@ fn init_anchors_the_storage_at_the_datadir_tip_and_backfills_a_window(
     let seeded = SeededDatadir::with_blocks(CHAIN_BLOCKS);
     assert!(!seeded.storage_path().exists(), "the storage must not exist before the init");
 
-    let window_arg = format!("--proofs-history.window={window}");
-    let mut args = vec!["init", window_arg.as_str()];
-    args.extend_from_slice(extra_args);
-    seeded.run(&args).expect("init must succeed");
+    seeded.run_with_window("init", window, extra_args).expect("init must succeed");
 
     assert_eq!(seeded.proof_window(), Some(seeded.window_of(expected_earliest, CHAIN_BLOCKS)));
 }

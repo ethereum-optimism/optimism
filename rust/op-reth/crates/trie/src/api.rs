@@ -244,7 +244,9 @@ pub trait OpProofsProviderRw: OpProofsProviderRO {
 
     /// Remove account, storage and trie updates from historical storage for every block from
     /// `to.block.number` (inclusive) up to the latest block, and make `to`'s parent the latest
-    /// block: `(to.block.number - 1, to.parent)`. `to.block.hash` is not read.
+    /// block: `(to.block.number - 1, to.parent)`. Implementations must not rely on
+    /// `to.block.hash`, which callers may not know. A `to` above the latest block is a no-op;
+    /// one at or below the earliest block is an error.
     fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()>;
 
     /// Deletes all updates > `latest_common_block` and replaces them with the new updates.

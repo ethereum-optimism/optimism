@@ -1,6 +1,7 @@
 //! `op-reth proofs backfill`: extending the proofs storage's earliest block backward.
 
 use crate::fixture::SeededDatadir;
+use reth_optimism_trie::{BackfillError, OpProofsStorageError};
 use rstest::rstest;
 
 const CHAIN_BLOCKS: u64 = 8;
@@ -26,10 +27,7 @@ fn backfill_extends_the_earliest_block_to_a_window_behind_the_latest_block(
 ) {
     let seeded = anchored_storage();
 
-    let window_arg = format!("--proofs-history.window={window}");
-    let mut args = vec!["backfill", window_arg.as_str()];
-    args.extend_from_slice(extra_args);
-    seeded.run(&args).expect("backfill must succeed");
+    seeded.run_with_window("backfill", window, extra_args).expect("backfill must succeed");
 
     assert_eq!(seeded.proof_window(), Some(seeded.window_of(expected_earliest, CHAIN_BLOCKS)));
 }
@@ -54,4 +52,23 @@ fn backfill_extends_an_existing_window_further_back() {
     seeded.run(&["backfill", "--proofs-history.window=6"]).expect("backfill must succeed");
 
     assert_eq!(seeded.proof_window(), Some(seeded.window_of(2, CHAIN_BLOCKS)));
+}
+
+#[test]
+fn backfill_of_an_empty_storage_fails() {
+    let seeded = SeededDatadir::with_blocks(CHAIN_BLOCKS);
+
+    let err = seeded
+        .run(&["backfill", "--proofs-history.window=3"])
+        .expect_err("a storage that was never seeded cannot be backfilled");
+
+    let empty_storage = matches!(
+        err.downcast_ref::<OpProofsStorageError>(),
+        Some(OpProofsStorageError::NoBlocksFound)
+    ) || matches!(
+        err.downcast_ref::<BackfillError>(),
+        Some(BackfillError::Storage(OpProofsStorageError::NoBlocksFound))
+    );
+    assert!(empty_storage, "{err}");
+    assert_eq!(seeded.proof_window(), None);
 }

@@ -2,15 +2,17 @@
 //! latest block.
 
 use crate::fixture::SeededDatadir;
+use reth_optimism_trie::PrunerError;
 use rstest::rstest;
 
 const CHAIN_BLOCKS: u64 = 8;
+const EARLIEST: u64 = 2;
 
-/// A datadir of 8 blocks whose proofs storage holds `[2, 8]`.
+/// A datadir of `CHAIN_BLOCKS` blocks whose proofs storage holds `[EARLIEST, CHAIN_BLOCKS]`.
 fn seeded_storage() -> SeededDatadir {
     let seeded = SeededDatadir::with_blocks(CHAIN_BLOCKS);
-    seeded.run(&["init", "--proofs-history.window=6"]).expect("init must succeed");
-    assert_eq!(seeded.proof_window(), Some(seeded.window_of(2, CHAIN_BLOCKS)));
+    seeded.run_with_window("init", CHAIN_BLOCKS - EARLIEST, &[]).expect("init must succeed");
+    assert_eq!(seeded.proof_window(), Some(seeded.window_of(EARLIEST, CHAIN_BLOCKS)));
     seeded
 }
 
@@ -27,12 +29,10 @@ fn prune_keeps_a_window_of_blocks_behind_the_latest_block(
 ) {
     let seeded = seeded_storage();
 
-    let window_arg = format!("--proofs-history.window={window}");
-    let mut args = vec!["prune", window_arg.as_str()];
-    args.extend_from_slice(extra_args);
-    seeded.run(&args).expect("prune must succeed");
+    seeded.run_with_window("prune", window, extra_args).expect("prune must succeed");
 
     assert_eq!(seeded.proof_window(), Some(seeded.window_of(expected_earliest, CHAIN_BLOCKS)));
+    seeded.verify_state_root_at(expected_earliest);
 }
 
 #[test]
@@ -43,8 +43,19 @@ fn prune_rejects_a_batch_size_of_zero() {
         .run(&["prune", "--proofs-history.window=3", "--proofs-history.prune-batch-size=0"])
         .expect_err("a batch size of zero must be rejected");
 
+    let parse_error = err.downcast_ref::<clap::Error>().expect("rejected while parsing");
+    assert_eq!(parse_error.kind(), clap::error::ErrorKind::ValueValidation, "{err}");
     assert!(err.to_string().contains("--proofs-history.prune-batch-size"), "{err}");
-    assert_eq!(seeded.proof_window(), Some(seeded.window_of(2, CHAIN_BLOCKS)));
+    assert_eq!(seeded.proof_window(), Some(seeded.window_of(EARLIEST, CHAIN_BLOCKS)));
+}
+
+#[test]
+fn prune_of_an_empty_storage_does_nothing() {
+    let seeded = SeededDatadir::with_blocks(CHAIN_BLOCKS);
+
+    seeded.run(&["prune", "--proofs-history.window=3"]).expect("prune must succeed");
+
+    assert_eq!(seeded.proof_window(), None);
 }
 
 #[test]
@@ -57,8 +68,11 @@ fn prune_fails_when_the_new_earliest_block_is_not_in_reth() {
         .run(&["prune", "--proofs-history.window=1"])
         .expect_err("pruning up to a block reth does not hold must fail");
 
-    assert!(err.to_string().contains('9'), "the error must name the missing block: {err}");
+    assert!(
+        matches!(err.downcast_ref::<PrunerError>(), Some(PrunerError::BlockNotFound(9))),
+        "{err}"
+    );
     let window = seeded.proof_window().expect("the storage keeps its window");
-    assert_eq!(window.earliest, seeded.window_of(2, CHAIN_BLOCKS).earliest);
+    assert_eq!(window.earliest, seeded.block_num_hash(EARLIEST));
     assert_eq!(window.latest, store_tip);
 }
