@@ -43,6 +43,9 @@ where
     backpressure_threshold: u64,
     /// Current retry delay for the sync arm; grows on failure, resets on success.
     sync_backoff: Duration,
+    /// Earliest instant the next sync step may run: already past unless the last step failed.
+    /// Only a failed step moves it, so no other event can postpone a retry.
+    sync_retry_at: Instant,
 }
 
 impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
@@ -70,6 +73,7 @@ where
             persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
             backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             sync_backoff: Duration::ZERO,
+            sync_retry_at: Instant::now(),
         }
     }
 
@@ -153,8 +157,9 @@ where
     ///   backpressure is active — callers naturally block in their bounded `send` until the
     ///   in-flight save completes and memory is pruned.
     /// - **persistence**: signals a completed background save.
-    /// - **sync**: a zero-duration timer that fires immediately when the engine is behind its sync
-    ///   target and not under backpressure; [`crossbeam_channel::never`] otherwise.
+    /// - **sync**: fires once `sync_retry_at` has passed, at once unless the last step failed,
+    ///   while the engine is behind its sync target and not under backpressure;
+    ///   [`crossbeam_channel::never`] otherwise.
     /// - **idle-flush**: fires after [`IDLE_FLUSH_INTERVAL`] when memory holds buffered blocks but
     ///   the persistence threshold hasn't been reached and no save is in flight. Keeps a paused
     ///   chain from leaving buffered blocks invisible to the proofs RPC indefinitely.
@@ -171,11 +176,11 @@ where
         let incoming_rx: Receiver<EngineAction<BlockTy<Evm::Primitives>>> =
             if backpressure { crossbeam_channel::never() } else { self.incoming.clone() };
 
-        // Fire when there is sync work to do; block indefinitely otherwise. After a failed
-        // sync step we delay by `sync_backoff` so a sustained failure (e.g. a stale sync target
-        // ahead of the provider's tip) doesn't spin the CPU and flood logs.
+        // Fire when there is sync work to do; block indefinitely otherwise. A failed step pushes
+        // `sync_retry_at` out so a sustained failure (e.g. a stale sync target ahead of the
+        // provider's tip) doesn't spin the CPU and flood logs.
         let sync_rx: Receiver<Instant> = if self.needs_sync() && !backpressure {
-            crossbeam_channel::after(self.sync_backoff)
+            crossbeam_channel::at(self.sync_retry_at)
         } else {
             crossbeam_channel::never()
         };
@@ -198,6 +203,7 @@ where
                 Ok(()) => self.sync_backoff = Duration::ZERO,
                 Err(err) => {
                     self.sync_backoff = next_sync_backoff(self.sync_backoff);
+                    self.sync_retry_at = Instant::now() + self.sync_backoff;
                     error!(target: "trie::engine::runner", ?err, backoff = ?self.sync_backoff, "Sync step failed");
                 }
             },
@@ -234,8 +240,93 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX, next_sync_backoff};
-    use std::time::Duration;
+    use super::{Engine, SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX, next_sync_backoff};
+    use crate::{
+        InMemoryProofsStorage, OpProofStoragePruner, OpProofsInitProvider, OpProofsStore,
+        engine::{EngineAction, tasks::SyncToTask},
+    };
+    use alloy_consensus::Header;
+    use alloy_eips::BlockNumHash;
+    use crossbeam_channel::{Sender, bounded};
+    use reth_chainspec::MAINNET;
+    use reth_db_common::init::init_genesis;
+    use reth_ethereum_primitives::Block;
+    use reth_evm_ethereum::EthEvmConfig;
+    use reth_primitives_traits::SealedHeader;
+    use reth_provider::{
+        providers::BlockchainProvider,
+        test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
+    };
+    use std::{
+        ops::ControlFlow,
+        thread,
+        time::{Duration, Instant},
+    };
+
+    type TestEngine =
+        Engine<EthEvmConfig, BlockchainProvider<MockNodeTypesWithDB>, InMemoryProofsStorage>;
+
+    /// An engine whose store is anchored at genesis and whose sync target is block 1, which reth
+    /// reports as its head but does not hold, so that every sync step fails.
+    fn engine_behind_a_missing_block() -> (TestEngine, Sender<EngineAction<Block>>) {
+        let chain_spec = MAINNET.clone();
+        let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+        let genesis_hash = init_genesis(&factory).expect("init genesis");
+        let provider = BlockchainProvider::new(factory).expect("blockchain provider");
+        let missing_head = Header { number: 1, parent_hash: genesis_hash, ..Default::default() };
+        provider
+            .canonical_in_memory_state()
+            .set_canonical_head(SealedHeader::seal_slow(missing_head));
+        let storage = InMemoryProofsStorage::new();
+        let init = storage.initialization_provider().expect("init provider");
+        init.set_initial_state_anchor(BlockNumHash::new(0, genesis_hash)).expect("set anchor");
+        init.commit_initial_state().expect("commit initial state");
+        OpProofsInitProvider::commit(init).expect("commit");
+        let pruner = OpProofStoragePruner::new(storage.clone(), provider.clone(), 1000);
+        let (actions, incoming) = bounded(10);
+        let mut engine =
+            Engine::new(EthEvmConfig::ethereum(chain_spec), provider, storage, pruner, incoming);
+        engine.state.sync_target = 1;
+        (engine, actions)
+    }
+
+    fn step(engine: &mut TestEngine) {
+        assert_eq!(engine.process_next_event(), ControlFlow::Continue(()));
+    }
+
+    /// Sync-target updates arriving faster than the retry delay neither postpone the retry
+    /// (ethereum-optimism/protocol-team#477) nor bring it forward.
+    #[test]
+    fn sync_retry_is_not_postponed_by_incoming_actions() {
+        let (mut engine, actions) = engine_behind_a_missing_block();
+        // Three failed steps grow the retry delay to four times the initial one.
+        for _ in 0..3 {
+            step(&mut engine);
+        }
+        let third_failure = Instant::now();
+        let retry_delay = engine.sync_backoff;
+        assert_eq!(retry_delay, 4 * SYNC_BACKOFF_INITIAL);
+        let action_gap = retry_delay / 8;
+        let patience = 10 * retry_delay;
+
+        // Every step finds an action queued, which is what kept re-arming the retry timer.
+        let deadline = Instant::now() + patience;
+        while engine.sync_backoff == retry_delay {
+            assert!(
+                Instant::now() < deadline,
+                "no sync step within {patience:?} while actions kept arriving every {action_gap:?}"
+            );
+            actions.send(EngineAction::SyncTo(SyncToTask { target: 1 })).expect("engine alive");
+            step(&mut engine);
+            thread::sleep(action_gap);
+        }
+
+        assert_eq!(engine.sync_backoff, 2 * retry_delay, "the step ran once and failed again");
+        assert!(
+            third_failure.elapsed() >= retry_delay - action_gap,
+            "the step ran before its retry delay had passed"
+        );
+    }
 
     #[test]
     fn zero_backoff_jumps_to_initial() {
