@@ -65,16 +65,15 @@ func (s *ETHSend) RefundCall() bindings.TypedCall[any] {
 	return s.bridge.RefundETH(s.Message.Destination, s.Message.Nonce, s.recipient, s.amount)
 }
 
-// Refund claims this send's refund as `user` on `source`, the chain it was sent from, requires
-// the refund to succeed, and returns its gas cost.
-func (s *ETHSend) Refund(user *EOA, source *L2Network) eth.ETH {
-	s.require.Equal(s.Message.Source, source.ChainID(), "the refund must be priced on the send's source chain")
+// Refund claims this send's refund as `user` on the chain it was sent from, requires the refund
+// to succeed, and returns its receipt.
+func (s *ETHSend) Refund(user *EOA) *types.Receipt {
 	s.require.Equal(s.Message.Source, user.ChainID(), "the refund must be claimed on the send's source chain")
 	s.log.Info("Refunding the ETH send", "messageHash", s.Message.Hash, "user", user.Address())
 	rcpt, err := contractio.Write(s.RefundCall(), s.ctx, user.Plan())
 	s.require.NoError(err, "refund of message %s failed: %v", s.Message.Hash, errutil.TryAddRevertReason(err))
 	s.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "refund of message %s failed", s.Message.Hash)
-	return receiptGasCost(s.commonImpl, rcpt, source.inner.RollupConfig(), source.PrimaryEL().EthClient())
+	return rcpt
 }
 
 // Refunded reports whether the source chain's SuperchainETHBridge has refunded this send.
