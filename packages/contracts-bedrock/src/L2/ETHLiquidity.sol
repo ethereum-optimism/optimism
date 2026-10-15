@@ -22,8 +22,10 @@ import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 ///         needing to modify the EVM to generate new ETH. Contract comes "pre-loaded" with
 ///         uint128.max balance to prevent liquidity shortages. It mirrors the chain's pause on
 ///         L1: while that is paused, ETH can't be burned or minted, so the SuperchainETHBridge
-///         can't send or relay ETH. Anyone can sync the pause from L1 through
-///         `L1CrossDomainMessenger.syncETHLiquidityPause`.
+///         can't send, relay or refund ETH. Anyone can sync the pause from L1 through
+///         `L1CrossDomainMessenger.syncETHLiquidityPause`. A pause longer than the message expiry
+///         window leaves sends in flight to expire, and only senders that can call `refundETH`
+///         get that ETH back.
 contract ETHLiquidity is ISemver {
     /// @notice Thrown when burning or minting ETH liquidity while the contract is paused.
     error ETHLiquidity_Paused();
@@ -41,21 +43,21 @@ contract ETHLiquidity is ISemver {
     event LiquidityFunded(address indexed funder, uint256 amount);
 
     /// @notice Emitted when the pause state synced from L1 is applied.
-    /// @param paused      Whether the contract is now paused.
-    /// @param l1Timestamp L1 timestamp at which the pause state was read.
-    event PausedSet(bool paused, uint256 l1Timestamp);
+    /// @param paused       Whether the contract is now paused.
+    /// @param messageNonce Nonce of the L1CrossDomainMessenger message that sent it.
+    event PausedSet(bool paused, uint256 messageNonce);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
-    /// @notice Whether burning and minting ETH liquidity is paused, as this chain was on L1 at
-    ///         `pausedL1Timestamp`.
+    /// @notice Whether burning and minting ETH liquidity is paused, as this chain was on L1 when
+    ///         the L1CrossDomainMessenger sent message `pausedMessageNonce`.
     bool public paused;
 
-    /// @notice L1 timestamp at which the applied pause state was read on L1. An update read
-    ///         earlier is ignored.
-    uint256 public pausedL1Timestamp;
+    /// @notice Nonce of the L1CrossDomainMessenger message that sent the applied pause state. An
+    ///         update from an earlier message is ignored.
+    uint256 public pausedMessageNonce;
 
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {
@@ -80,13 +82,14 @@ contract ETHLiquidity is ISemver {
         emit LiquidityFunded(msg.sender, msg.value);
     }
 
-    /// @notice Applies this chain's pause state on L1, as read there at `_l1Timestamp`. Only this
-    ///         chain's L1CrossDomainMessenger can send it, through
-    ///         `L1CrossDomainMessenger.syncETHLiquidityPause`. An update read before the applied
-    ///         one changes nothing, so replaying an older failed message can't undo a newer state.
-    /// @param _paused      Whether this chain is paused on L1.
-    /// @param _l1Timestamp L1 timestamp at which `_paused` was read.
-    function setPaused(bool _paused, uint256 _l1Timestamp) external {
+    /// @notice Applies this chain's pause state on L1, as sent by this chain's
+    ///         L1CrossDomainMessenger through `L1CrossDomainMessenger.syncETHLiquidityPause`. That
+    ///         messenger sends it as itself, which no message it relays can be, so no one else
+    ///         can. An update from an earlier message than the applied one changes nothing, so
+    ///         replaying an older failed message can't undo a newer state.
+    /// @param _paused       Whether this chain is paused on L1.
+    /// @param _messageNonce Nonce of the L1CrossDomainMessenger message that sends this.
+    function setPaused(bool _paused, uint256 _messageNonce) external {
         if (
             msg.sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER
                 || ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).xDomainMessageSender()
@@ -94,11 +97,11 @@ contract ETHLiquidity is ISemver {
         ) {
             revert ETHLiquidity_NotL1CrossDomainMessenger();
         }
-        if (_l1Timestamp < pausedL1Timestamp) return;
+        if (_messageNonce <= pausedMessageNonce) return;
 
         paused = _paused;
-        pausedL1Timestamp = _l1Timestamp;
+        pausedMessageNonce = _messageNonce;
 
-        emit PausedSet(_paused, _l1Timestamp);
+        emit PausedSet(_paused, _messageNonce);
     }
 }

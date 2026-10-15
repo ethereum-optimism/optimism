@@ -1604,35 +1604,12 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
 /// @title L1CrossDomainMessenger_SyncETHLiquidityPause_Test
 /// @notice Tests the `syncETHLiquidityPause` function of the `L1CrossDomainMessenger` contract.
 contract L1CrossDomainMessenger_SyncETHLiquidityPause_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Test setup.
     function setUp() public override {
         super.setUp();
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(true)
         );
-    }
-
-    /// @notice Expects the deposit and event that send `setPaused(_paused, block.timestamp)` to
-    ///         ETHLiquidity as this messenger.
-    function _expectSync(bool _paused) internal {
-        bytes memory setPaused = abi.encodeCall(IETHLiquidity.setPaused, (_paused, block.timestamp));
-        uint256 nonce = l1CrossDomainMessenger.messageNonce();
-        vm.expectCall(
-            address(optimismPortal2),
-            abi.encodeCall(
-                IOptimismPortal2.depositTransaction,
-                (
-                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-                    0,
-                    l1CrossDomainMessenger.baseGas(setPaused, 100_000),
-                    false,
-                    Encoding.encodeCrossDomainMessage(
-                        nonce, address(l1CrossDomainMessenger), Predeploys.ETH_LIQUIDITY, 0, 100_000, setPaused
-                    )
-                )
-            )
-        );
-        vm.expectEmit(address(l1CrossDomainMessenger));
-        emit SentMessage(Predeploys.ETH_LIQUIDITY, address(l1CrossDomainMessenger), setPaused, nonce, 100_000);
     }
 
     /// @notice Tests that anyone can send the unpaused state of an unpaused chain.
@@ -1658,7 +1635,6 @@ contract L1CrossDomainMessenger_SyncETHLiquidityPause_Test is L1CrossDomainMesse
 
         vm.prank(superchainConfig.guardian());
         superchainConfig.unpause(address(0));
-        vm.warp(block.timestamp + 1);
 
         _expectSync(false);
         vm.prank(bob);
@@ -1676,17 +1652,50 @@ contract L1CrossDomainMessenger_SyncETHLiquidityPause_Test is L1CrossDomainMesse
         l1CrossDomainMessenger.syncETHLiquidityPause();
     }
 
+    /// @notice Tests that the sync sends the unpaused state once the pause has expired.
+    function test_syncETHLiquidityPause_pauseExpired_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        vm.warp(superchainConfig.expiration(address(0)) + 1);
+        assertFalse(l1CrossDomainMessenger.paused());
+
+        _expectSync(false);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
     /// @notice Tests that the sync is off on a chain that does not run interop.
     function test_syncETHLiquidityPause_interopNotEnabled_reverts() external {
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(false)
         );
-        uint256 nonce = l1CrossDomainMessenger.messageNonce();
 
         vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_InteropNotEnabled.selector);
         vm.prank(alice);
         l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
 
-        assertEq(l1CrossDomainMessenger.messageNonce(), nonce);
+    /// @notice Expects the deposit and event that send `setPaused(_paused, nonce)` to ETHLiquidity
+    ///         as this messenger, where `nonce` is the nonce of that very message.
+    function _expectSync(bool _paused) internal {
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
+        bytes memory setPaused = abi.encodeCall(IETHLiquidity.setPaused, (_paused, nonce));
+        vm.expectCall(
+            address(optimismPortal2),
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    0,
+                    l1CrossDomainMessenger.baseGas(setPaused, 100_000),
+                    false,
+                    Encoding.encodeCrossDomainMessage(
+                        nonce, address(l1CrossDomainMessenger), Predeploys.ETH_LIQUIDITY, 0, 100_000, setPaused
+                    )
+                )
+            )
+        );
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(Predeploys.ETH_LIQUIDITY, address(l1CrossDomainMessenger), setPaused, nonce, 100_000);
     }
 }
