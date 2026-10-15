@@ -2,20 +2,18 @@
 //! keep building after the batch lands. The batch is parked inside the write transaction the
 //! persistence service opens before it writes anything, so the test controls when it lands.
 
+use crate::engine_driver::{EngineDriver, StartedPayloadJob, wait_until, within_timeout};
 use alloy_genesis::Genesis;
 use alloy_primitives::B256;
-use alloy_rpc_types_engine::{ForkchoiceState, PayloadId, PayloadStatus};
 use jsonrpsee::{core::client::ClientT, rpc_params};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use reth_chainspec::EthChainSpec;
 use reth_db::test_utils::{create_test_rw_db_with_datadir, tempdir_path};
 use reth_db_api::{Database, DatabaseError, database_metrics::DatabaseMetrics};
 use reth_e2e_test_utils::{transaction::TransactionTestContext, wallet::Wallet};
-use reth_node_api::ConsensusEngineHandle;
 use reth_node_builder::{Node, NodeBuilder, NodeConfig};
 use reth_node_core::args::{DatadirArgs, RpcServerArgs};
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_optimism_node::{OpEngineTypes, OpNode, utils::optimism_payload_attributes};
+use reth_optimism_node::{OpEngineTypes, OpNode};
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_provider::{BlockNumReader, ChainSpecProvider, DatabaseProviderFactory};
 use reth_tasks::Runtime;
@@ -23,7 +21,7 @@ use rstest::rstest;
 use std::{
     path::PathBuf,
     sync::{Arc, Condvar, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 /// The block time the payload job is held to, OP Mainnet's.
@@ -31,9 +29,6 @@ const BLOCK_TIME: Duration = Duration::from_secs(2);
 /// How often a payload job rebuilds, so a transaction sent to the pool mid-job lands in the
 /// job's payload well inside the block time.
 const BUILDER_INTERVAL: Duration = Duration::from_millis(50);
-/// Bounds every other engine call and wait, so a stalled engine fails the test instead of
-/// hanging it.
-const ENGINE_CALL_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Parks database write transactions while closed. The persistence service opens one at the
 /// start of every batch, so a closed gate keeps a batch in flight, inside its transaction with
@@ -119,105 +114,8 @@ impl<DB: Database> Database for WriteGatedDatabase<DB> {
 
 impl<DB> DatabaseMetrics for WriteGatedDatabase<DB> {}
 
-/// A payload job the engine has started but not resolved.
-struct StartedPayloadJob {
-    number: u64,
-    payload_id: PayloadId,
-    started_at: Instant,
-}
-
-/// Builds blocks the way a consensus client does, through the engine API.
-struct EngineDriver<C> {
-    client: C,
-    engine: ConsensusEngineHandle<OpEngineTypes>,
-    head: B256,
-    wallet: Wallet,
-}
-
-impl<C: ClientT + Sync> EngineDriver<C> {
-    async fn build_block(&mut self, number: u64) -> eyre::Result<Duration> {
-        let job = self.start_payload_job(number).await?;
-        self.finish_payload_job(job).await
-    }
-
-    /// Starts a payload job on the head, with the block's L1 info deposit as its only
-    /// sequencer transaction.
-    async fn start_payload_job(&self, number: u64) -> eyre::Result<StartedPayloadJob> {
-        let mut attrs = optimism_payload_attributes(number);
-        attrs.0.transactions = Some(vec![
-            TransactionTestContext::optimism_l1_block_info_tx(
-                self.wallet.chain_id,
-                self.wallet.inner.clone(),
-                number - 1,
-            )
-            .await,
-        ]);
-        let started_at = Instant::now();
-        let fcu = within_timeout(
-            "forkchoice update with attributes stalled",
-            self.engine.fork_choice_updated(ForkchoiceState::same_hash(self.head), Some(attrs)),
-        )
-        .await?;
-        assert!(fcu.payload_status.is_valid(), "forkchoice update for block {number}: {fcu:?}");
-        let payload_id = fcu.payload_id.expect("a payload job must start");
-        Ok(StartedPayloadJob { number, payload_id, started_at })
-    }
-
-    /// Fetches the job's payload and makes it canonical. Returns how long the job took, from the
-    /// forkchoice update that started it to the payload being returned.
-    async fn finish_payload_job(&mut self, job: StartedPayloadJob) -> eyre::Result<Duration> {
-        let payload: OpExecutionPayloadEnvelopeV3 = within_timeout(
-            "getPayload stalled",
-            self.client.request("engine_getPayloadV3", rpc_params![job.payload_id]),
-        )
-        .await?;
-        let job_duration = job.started_at.elapsed();
-
-        let block = &payload.execution_payload.payload_inner.payload_inner;
-        assert_eq!(block.block_number, job.number);
-        assert!(!block.transactions.is_empty(), "block {} lacks its L1 info deposit", job.number);
-        self.head = block.block_hash;
-        let status: PayloadStatus = within_timeout(
-            "newPayload stalled",
-            self.client.request(
-                "engine_newPayloadV3",
-                rpc_params![
-                    payload.execution_payload,
-                    Vec::<B256>::new(),
-                    payload.parent_beacon_block_root
-                ],
-            ),
-        )
-        .await?;
-        assert!(status.is_valid(), "newPayload for block {}: {status:?}", job.number);
-        let fcu = within_timeout(
-            "canonical forkchoice update stalled",
-            self.engine.fork_choice_updated(ForkchoiceState::same_hash(self.head), None),
-        )
-        .await?;
-        assert!(
-            fcu.payload_status.is_valid(),
-            "forkchoice update to block {}: {fcu:?}",
-            job.number
-        );
-        Ok(job_duration)
-    }
-}
-
-async fn within_timeout<T>(message: &str, future: impl Future<Output = T>) -> T {
-    tokio::time::timeout(ENGINE_CALL_TIMEOUT, future).await.unwrap_or_else(|_| panic!("{message}"))
-}
-
-async fn wait_until(message: &str, mut ready: impl FnMut() -> bool) {
-    within_timeout(message, async {
-        while !ready() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-}
-
-/// Waits for the job's best payload to hold the block's deposit and the pool transaction.
+/// Waits for the job's best payload to hold the block's L1 info transaction and the pool
+/// transaction.
 async fn wait_for_pool_transaction_built(
     builder: &PayloadBuilderHandle<OpEngineTypes>,
     job: &StartedPayloadJob,
@@ -323,8 +221,7 @@ async fn run_scenario(persistence_threshold: u64) -> eyre::Result<()> {
     let job = driver.start_payload_job(batch_tip + 2).await?;
     drop(open_on_drop);
     wait_until("the released batch never reached the disk", || disk_height() == batch_tip).await;
-    // From a second funded account: the deposits the wallet signs have used up its nonces.
-    let pool_sender = Wallet::new(2).with_chain_id(driver.wallet.chain_id).wallet_gen().remove(1);
+    let pool_sender = driver.spare_signer();
     let pool_transaction =
         TransactionTestContext::transfer_tx_bytes(driver.wallet.chain_id, pool_sender).await;
     let _: B256 =
