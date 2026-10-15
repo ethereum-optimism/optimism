@@ -7,8 +7,11 @@
 mod spn;
 
 pub use spn::NetworkProofProvider;
+pub(crate) use spn::PROOF_STATUS_POLL_INTERVAL;
+#[cfg(test)]
+pub(crate) use spn::scripted;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use alloy_primitives::B256;
 use anyhow::{Context, Result, bail};
@@ -160,6 +163,14 @@ impl ProofProvider {
         }
     }
 
+    /// Submits a compressed log-commitment batch proof request.
+    pub async fn request_log_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> Result<ProofId> {
+        match self {
+            Self::Network(provider) => provider.request_log_proof(keys, stdin).await,
+            Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
+        }
+    }
+
     /// Submits an on-chain aggregation proof request.
     pub async fn request_aggregation_proof(
         &self,
@@ -177,8 +188,17 @@ impl ProofProvider {
         &self,
         proof_id: ProofId,
     ) -> Result<SP1ProofWithPublicValues, ProofWaitError> {
+        self.wait_for_proof_every(proof_id, PROOF_STATUS_POLL_INTERVAL).await
+    }
+
+    /// Polls an existing proof request every `interval` until it finishes.
+    pub(crate) async fn wait_for_proof_every(
+        &self,
+        proof_id: ProofId,
+        interval: Duration,
+    ) -> Result<SP1ProofWithPublicValues, ProofWaitError> {
         match self {
-            Self::Network(provider) => provider.wait_for_proof(proof_id).await,
+            Self::Network(provider) => provider.wait_for_proof(proof_id, interval).await,
             Self::Mock(_) => Err(ProofWaitError::Uncertain(anyhow::anyhow!(
                 "mock provider owns no SP1 proof requests"
             ))),
@@ -194,6 +214,18 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.verify(proof, keys.range_vk.as_ref()),
             Self::Mock(_) => bail!("mock provider produces no SP1 range proofs"),
+        }
+    }
+
+    /// Verifies a compressed log-commitment batch proof locally.
+    pub fn verify_log_proof(
+        &self,
+        keys: &ProofKeys,
+        proof: &SP1ProofWithPublicValues,
+    ) -> Result<()> {
+        match self {
+            Self::Network(provider) => provider.verify(proof, keys.log_vk.as_ref()),
+            Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
         }
     }
 

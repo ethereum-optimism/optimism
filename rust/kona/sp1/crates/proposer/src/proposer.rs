@@ -35,7 +35,7 @@ use tracing::Instrument;
 use crate::{
     L1Provider, TxErrorExt, ZK_GAME_TYPE,
     adapters::{
-        ProductionActionExecutor, ProductionL1View, ProductionProofEngine,
+        ProductionActionExecutor, ProductionL1View, ProductionL2BlockSource, ProductionProofEngine,
         ProductionSuperRootSource, SystemQueryTime,
     },
     config::{PrestatePrograms, ProofProviderKind, ProposalSafety, ProposerConfig, load_prestate},
@@ -49,7 +49,9 @@ use crate::{
         QueryTime, SuperRootSource,
     },
     prover::{ProofKeys, ProofProvider, setup_proof_keys},
-    proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
+    proving::{
+        GameProofInputs, LogProofSettings, fetch_span_responses, is_unprovable, response_trusted,
+    },
     signer::SignerLock,
     superroot::{SuperrootClient, zk_extra_data},
     tx_sender::FeeCaps,
@@ -964,6 +966,13 @@ impl Proposer {
             host_inputs,
             config.range_split_count,
             config.max_concurrent_range_proofs,
+            Arc::new(ProductionL2BlockSource::new(config.l2_rpcs.clone())),
+            LogProofSettings {
+                path: config.log_path,
+                range_gas_limit: config.proof_provider_config.range_gas_limit,
+                log_gas_limit: config.proof_provider_config.log_gas_limit,
+                scratch_dir: config.scratch_dir.clone(),
+            },
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
             signer,
@@ -5553,9 +5562,14 @@ mod tests {
                 range_gas_limit: 1,
                 agg_cycle_limit: 1,
                 agg_gas_limit: 1,
+                log_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+                log_cycle_limit: 1,
+                log_gas_limit: 1,
                 max_price_per_pgu: Some(std::num::NonZeroU64::MIN),
                 min_auction_period: 1,
             },
+            log_path: crate::config::LogPath::Auto,
+            scratch_dir: std::env::temp_dir(),
         }
     }
 

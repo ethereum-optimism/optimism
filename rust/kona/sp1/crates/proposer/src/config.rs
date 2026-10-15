@@ -18,8 +18,11 @@ use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
 use kona_registry::{CHAINS, OPCHAINS};
 use kona_sources::redacted_url;
-use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
-use sp1_sdk::network::FulfillmentStrategy;
+use kona_sp1_host_utils::{
+    metrics::MetricsListen,
+    network::{determine_network_mode, parse_fulfillment_strategy},
+};
+use sp1_sdk::network::{FulfillmentStrategy, NetworkMode};
 
 use crate::{env_var, proposer::MAX_GAME_DEADLINE_LAG};
 
@@ -66,6 +69,31 @@ impl FromStr for ProofProviderKind {
             "network" => Ok(Self::Network),
             "mock" => Ok(Self::Mock),
             other => bail!("{other} (expected network|mock)"),
+        }
+    }
+}
+
+/// The consolidation path of a game's references to blocks below a local-safe head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogPath {
+    /// The receipts path when every consolidation request of the game fits on it, otherwise the
+    /// table path.
+    Auto,
+    /// The receipts path: no log-commitment batch proofs.
+    Receipts,
+    /// The table path: a batch proof for every referenced block below a head.
+    Table,
+}
+
+impl FromStr for LogPath {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "auto" => Ok(Self::Auto),
+            "receipts" => Ok(Self::Receipts),
+            "table" => Ok(Self::Table),
+            other => bail!("{other} (expected auto|receipts|table)"),
         }
     }
 }
@@ -181,6 +209,12 @@ pub struct ProposerConfig {
 
     /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
+
+    /// Consolidation path for blocks below a local-safe head.
+    pub log_path: LogPath,
+
+    /// Directory for the temporary preimage stores of witness collections.
+    pub scratch_dir: PathBuf,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -357,6 +391,8 @@ impl ProposerConfig {
                 NonZeroU64::MIN,
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
+            log_path: parsed_env_or("LOG_PATH", LogPath::Auto)?,
+            scratch_dir: optional_env("SCRATCH_DIR").map_or_else(env::temp_dir, PathBuf::from),
         })
     }
 }
@@ -375,6 +411,9 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
 const DEFAULT_PROOF_CYCLE_LIMIT: u64 = 1_000_000_000_000;
 const DEFAULT_RANGE_GAS_LIMIT: u64 = 200_000_000_000;
 const DEFAULT_AGG_GAS_LIMIT: u64 = 1_000_000_000;
+/// A full batch, about 0.44 of the limit in measured PGU, takes about 45 minutes on a fast prover,
+/// so bidders accept it under the default timeout.
+const DEFAULT_LOG_GAS_LIMIT: u64 = 100_000_000_000;
 
 /// Floor on how long an auction stays open, so the field can bid and undercut
 /// rather than the fastest poller winning at the ceiling. Observed arrivals are
@@ -416,6 +455,12 @@ pub struct ProofProviderConfig {
     pub agg_cycle_limit: u64,
     /// Gas limit for the aggregation proof request.
     pub agg_gas_limit: u64,
+    /// Fulfillment strategy for log-commitment batch proofs.
+    pub log_proof_strategy: FulfillmentStrategy,
+    /// Cycle limit for log-commitment batch proof requests.
+    pub log_cycle_limit: u64,
+    /// Gas limit for log-commitment batch proof requests. Batches fill to 80% of it by estimate.
+    pub log_gas_limit: u64,
     /// Optional maximum price per proving gas unit.
     pub max_price_per_pgu: Option<NonZeroU64>,
     /// Minimum auction period in seconds.
@@ -469,10 +514,29 @@ impl ProofProviderConfig {
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_RANGE_GAS_LIMIT)?,
             agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
             agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_AGG_GAS_LIMIT)?,
+            log_proof_strategy: parse_fulfillment_strategy(env_or("LOG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("LOG_PROOF_STRATEGY")))?,
+            log_cycle_limit: parsed_env_or("LOG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            log_gas_limit: parsed_env_or("LOG_GAS_LIMIT", DEFAULT_LOG_GAS_LIMIT)?,
             max_price_per_pgu: parsed_optional_env::<u64>("MAX_PRICE_PER_PGU")?
                 .and_then(NonZeroU64::new),
             min_auction_period,
         })
+    }
+
+    /// The SPN network mode of the request strategies. The log strategy must give the mode of the
+    /// range and aggregation strategies.
+    pub fn network_mode(&self) -> Result<NetworkMode> {
+        let mode = determine_network_mode(self.range_proof_strategy, self.agg_proof_strategy)?;
+        let log_mode = determine_network_mode(self.range_proof_strategy, self.log_proof_strategy)
+            .with_context(|| format!("invalid {}", env_var("LOG_PROOF_STRATEGY")))?;
+        anyhow::ensure!(
+            log_mode == mode,
+            "{} gives network mode {log_mode:?}, but the range and aggregation strategies give \
+             {mode:?}",
+            env_var("LOG_PROOF_STRATEGY"),
+        );
+        Ok(mode)
     }
 }
 
@@ -1032,6 +1096,73 @@ mod tests {
                 err.contains("OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
                 "unexpected error: {err}"
             );
+        }
+
+        fn set_required_mock_env() {
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+        }
+
+        /// Pins the log request defaults and their overrides.
+        #[test]
+        #[serial]
+        fn log_settings_request_defaults_and_overrides() {
+            clear_proposer_env();
+            let config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.log_gas_limit, 100_000_000_000);
+            assert_eq!(config.log_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Auction);
+
+            set_proposer_env("LOG_GAS_LIMIT", "5");
+            set_proposer_env("LOG_CYCLE_LIMIT", "6");
+            set_proposer_env("LOG_PROOF_STRATEGY", "reserved");
+            let config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.log_gas_limit, 5);
+            assert_eq!(config.log_cycle_limit, 6);
+            assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Reserved);
+        }
+
+        /// Pins the path and scratch-directory defaults, their overrides, and an unknown path.
+        #[test]
+        #[serial]
+        fn log_settings_path_and_scratch_dir() {
+            clear_proposer_env();
+            set_required_mock_env();
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Auto);
+            assert_eq!(config.scratch_dir, env::temp_dir());
+
+            set_proposer_env("LOG_PATH", "Table");
+            set_proposer_env("SCRATCH_DIR", "/var/scratch");
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Table);
+            assert_eq!(config.scratch_dir, PathBuf::from("/var/scratch"));
+
+            set_proposer_env("LOG_PATH", "sometimes");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_LOG_PATH"), "unexpected error: {err}");
+        }
+
+        /// Pins a startup error for a log strategy in another network mode.
+        #[test]
+        #[serial]
+        fn log_strategy_must_match_network_mode() {
+            clear_proposer_env();
+            let mut config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.network_mode().unwrap(), NetworkMode::Mainnet);
+
+            config.log_proof_strategy = FulfillmentStrategy::Reserved;
+            let err = format!("{:#}", config.network_mode().unwrap_err());
+            assert!(err.contains("OP_ZK_PROPOSER_LOG_PROOF_STRATEGY"), "unexpected error: {err}");
+
+            config.range_proof_strategy = FulfillmentStrategy::Reserved;
+            config.agg_proof_strategy = FulfillmentStrategy::Hosted;
+            assert_eq!(config.network_mode().unwrap(), NetworkMode::Reserved);
         }
 
         /// Pins startup rejection of each zero SPN timeout.

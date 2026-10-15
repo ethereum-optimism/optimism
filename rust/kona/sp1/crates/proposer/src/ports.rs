@@ -2,11 +2,13 @@
 
 use std::sync::Arc;
 
+use alloy_consensus::{Header, Sealed};
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use anyhow::Result;
 use async_trait::async_trait;
 use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
+use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::{
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
@@ -249,6 +251,21 @@ pub(crate) trait L1View: Send + Sync {
 pub(crate) trait SuperRootSource: Send + Sync {
     async fn proposal_horizon(&self, timestamp: u64) -> Result<ProposalHorizon>;
     async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp>;
+}
+
+/// L2 block reads by chain. A read by hash, and receipts, are checked against their hashes.
+#[async_trait]
+pub(crate) trait L2BlockSource: Send + Sync {
+    async fn header_by_hash(&self, chain_id: u64, hash: B256) -> Result<Header>;
+    /// The canonical header at `number`.
+    async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Sealed<Header>>;
+    /// The receipts of block `hash`, which must hash to `receipts_root`.
+    async fn receipts(
+        &self,
+        chain_id: u64,
+        hash: B256,
+        receipts_root: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>>;
 }
 
 /// Expensive witness collection and SP1 proof execution.
