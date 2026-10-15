@@ -33,6 +33,8 @@ The rollup node software and associated services, including:
 - **op-conductor**: High-availability sequencer service
 - **op-supernode**: Multi-chain consensus-layer host that runs multiple OP Stack chains in a single process and performs in-process cross-chain safety verification
 
+The Go module is moving off the op-geth fork to upstream go-ethereum. If a Go change uses a new go-ethereum API — an import, field, method or changed signature — run `just opgeth-ratchet` before pushing. The required CI check of the same name fails on any op-geth-only use that is not in its allowlist. To avoid such a use, see [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md).
+
 ### Smart Contracts (`packages/contracts-bedrock`)
 
 Solidity smart contracts for the OP Stack, including the core protocol contracts deployed on L1 and L2.
