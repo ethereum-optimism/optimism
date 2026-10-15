@@ -136,8 +136,8 @@ engine actor which will kick off execution layer sync on the
 will start to show that it is fetching past L2 blocks to sync the
 chain to tip.
 
-Once EL sync is finished, `kona-node`'s derivation actor will
-kick off the derivation pipeline and begin deriving the L2 chain.
+Once EL sync is finished, `kona-node`'s derivation actor begins
+deriving the L2 chain from the engine's safe head.
 All the while, the P2P stack is separately receiving unsafe L2
 blocks from the chain's sequencer, and sending them off to the
 engine actor to insert into the chain.

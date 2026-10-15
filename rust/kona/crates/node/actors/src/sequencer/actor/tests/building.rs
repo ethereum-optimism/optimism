@@ -5,6 +5,7 @@ use super::{
 use crate::{
     ConductorError, EngineClientError, MockConductor, MockOrigin, MockSequencerEngineClient,
     engine::{BuildTaskError, EngineBuildError, InsertTaskError, SealTaskError},
+    origin::OriginError,
     sequencer::{ActorError, MockSigner, handle::Message},
 };
 use alloy_rpc_types_engine::PayloadId;
@@ -36,8 +37,6 @@ async fn build_handles_payload_attributes_errors(
     client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
     // Must not be called on critical error
     client.expect_start_build_block().times(0);
-    let resets = usize::from(matches!(&forced_error, PipelineErrorKind::Reset(_)));
-    client.expect_reset_engine_forkchoice().times(resets).returning(|| Ok(()));
 
     let l1_origin = BlockInfo::default();
     let mut origin = MockOrigin::new();
@@ -60,6 +59,22 @@ async fn build_handles_payload_attributes_errors(
     } else {
         assert_eq!(result.unwrap(), LastBuild::NothingStarted);
     }
+}
+
+/// L1 reorging out the unsafe head's L1 origin leaves nothing to build on until the engine,
+/// which follows L1, resets.
+#[tokio::test(start_paused = true)]
+async fn build_waits_out_a_reorged_origin() {
+    let mut client = MockSequencerEngineClient::new();
+    client.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
+    client.expect_start_build_block().times(0);
+    let mut origin = MockOrigin::new();
+    origin.expect_next().times(1).return_once(|parent| Err(OriginError::Reorged(parent.l1_origin)));
+    let mut actor = test_actor();
+    actor.origin = origin;
+    actor.engine_client = client;
+
+    assert_eq!(actor.build(LastBuild::NothingStarted).await.unwrap(), LastBuild::NothingStarted);
 }
 
 /// The engine reports build failures instead of retrying them. A refused build is reported, so that
@@ -327,7 +342,6 @@ async fn a_committed_block_that_fails_to_become_canonical(
 #[tokio::test(start_paused = true)]
 async fn full_signer_queue_pauses_building_but_admin_queries_are_answered() {
     let (mut actor, _, handle) = test_actor_with_config(true, None);
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     // No block is built while the queue is full.
     actor.engine_client.expect_start_build_block().times(0);
     actor
@@ -352,7 +366,6 @@ async fn full_signer_queue_pauses_building_but_admin_queries_are_answered() {
 async fn building_starts_as_soon_as_the_signer_queue_drains() {
     // The handle and command sender are dropped, so the actor gets no commands.
     let (mut actor, _, _) = test_actor_with_config(true, None);
-    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
     actor
         .engine_client
         .expect_get_unsafe_head()

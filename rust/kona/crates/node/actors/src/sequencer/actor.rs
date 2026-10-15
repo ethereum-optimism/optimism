@@ -360,7 +360,7 @@ where
     ) -> Result<Option<UnsealedPayloadHandle>, ActorError> {
         let unsafe_head = self.engine_client.get_unsafe_head().await?;
 
-        let Some(l1_origin) = self.get_next_payload_l1_origin(unsafe_head).await? else {
+        let Some(l1_origin) = self.get_next_payload_l1_origin(unsafe_head)? else {
             // Temporary error - retry on next tick.
             return Ok(None);
         };
@@ -396,7 +396,10 @@ where
 
     /// Determines and validates the L1 origin block for the provided L2 unsafe head.
     /// Returns `Ok(None)` for temporary errors that should be retried.
-    async fn get_next_payload_l1_origin(
+    ///
+    /// L1 reorging out the unsafe head's L1 origin is one: the engine resets for it once it checks
+    /// the L1 head.
+    fn get_next_payload_l1_origin(
         &self,
         unsafe_head: L2BlockInfo,
     ) -> Result<Option<BlockInfo>, ActorError> {
@@ -406,9 +409,8 @@ where
                 warn!(
                     target: "sequencer",
                     ?origin,
-                    "L1 reorged out the unsafe head's L1 origin, resetting engine"
+                    "L1 reorged out the unsafe head's L1 origin; waiting for the engine to reset"
                 );
-                self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);
             }
             Err(OriginError::Unavailable) => {
@@ -426,9 +428,8 @@ where
                 l1_origin = ?l1_origin,
                 unsafe_head_hash = %unsafe_head.l1_origin.hash,
                 unsafe_head_l1_origin = ?unsafe_head.l1_origin,
-                "Cannot build new L2 block on inconsistent L1 origin, resetting engine"
+                "Cannot build new L2 block on inconsistent L1 origin; retrying"
             );
-            self.engine_client.reset_engine_forkchoice().await?;
             return Ok(None);
         }
         Ok(Some(l1_origin))
@@ -451,16 +452,10 @@ where
                 // Temporary error - retry on next tick.
                 return Ok(None);
             }
-            Err(PipelineErrorKind::Reset(_)) => {
-                if let Err(err) = self.engine_client.reset_engine_forkchoice().await {
-                    error!(target: "sequencer", ?err, "Failed to reset engine");
-                    return Err(ActorError::ChannelClosed);
-                }
-
-                warn!(
-                    target: "sequencer",
-                    "Resetting engine due to pipeline error while preparing payload attributes"
-                );
+            Err(PipelineErrorKind::Reset(err)) => {
+                // Typically an L1 reorg under the origin, for which the engine resets once it
+                // checks the L1 head.
+                warn!(target: "sequencer", ?err, "Failed to prepare payload attributes; retrying");
                 return Ok(None);
             }
             Err(err @ PipelineErrorKind::Critical(_)) => {
@@ -540,17 +535,6 @@ where
         // above.
         true
     }
-
-    /// Schedules the initial engine reset request and waits for the unsafe head to be updated.
-    async fn schedule_initial_reset(&self) -> Result<(), ActorError> {
-        // Reset the engine, in order to initialize the engine state.
-        // NB: this call waits for confirmation that the reset succeeded and we can proceed with
-        // post-reset logic.
-        self.engine_client.reset_engine_forkchoice().await.map_err(|err| {
-            error!(target: "sequencer", ?err, "Failed to send reset request to engine");
-            err.into()
-        })
-    }
 }
 
 impl<AttributesBuilder_, Conductor_, Origin_, SequencerEngineClient_, Signer_>
@@ -565,8 +549,6 @@ where
     async fn run(mut self) -> Result<(), ActorError> {
         // Publish the initial state and metrics before beginning block building.
         self.update_state();
-        // Reset the engine state prior to beginning block building.
-        self.schedule_initial_reset().await?;
         let block_time = Duration::from_secs(self.rollup_config.block_time);
         let mut last = LastBuild::NothingStarted;
         loop {

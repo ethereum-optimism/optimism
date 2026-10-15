@@ -1,94 +1,24 @@
-//! Derivation actors and handle.
+//! Derivation: what decides the engine's safe and finalized heads.
 //!
-//! The [`Builder`] creates the [`Handle`] before any dependencies exist, then builds one of two
-//! actors: [`Builder::build`] derives payload attributes from L1 with a derivation pipeline, and
-//! [`Builder::build_delegated`] follows the safe head of an external derivation delegate.
+//! The engine drives derivation through [`engine::Safety`](crate::engine::Safety): from its first
+//! reset, it asks what to make safe next on top of its safe head, makes it safe, and asks again,
+//! and it reports its resets. Derivation never asks anything of the engine.
 //!
-//! Derivation drives the engine: it starts by resetting the engine once the execution layer is
-//! synced, and it learns every result from the engine's replies and published resets. The engine
-//! only replies to requests and publishes its state and resets. Whenever the engine resets, by
-//! any actor's request, derivation resets its pipeline onto the engine's safe head.
+//! [`untrusted`] derives payload attributes from L1 with a derivation pipeline. [`trusted`] follows
+//! the safe and finalized heads of an external derivation delegate, and also implements
+//! [`engine::Finality`](crate::engine::Finality).
 
-mod actor;
+pub mod untrusted;
+pub use untrusted::{L1, L1ChainProvider, L1ChainProviderError};
 
-mod delegated;
-pub use delegated::{
+pub mod trusted;
+pub use trusted::{
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
 };
 
-mod engine;
-pub use engine::Engine;
+use thiserror::Error;
 
-mod l1;
-pub use l1::L1;
-
-mod chain_provider;
-pub use chain_provider::{L1ChainProvider, L1ChainProviderError};
-
-mod error;
-pub use error::ActorError;
-
-mod handle;
-
-mod status;
-pub use status::DerivationStatus;
-
-use crate::EngineClientError;
-use tokio::{
-    sync::watch,
-    time::{self, Duration},
-};
-
-/// How long to wait before asking the engine to reset again while the execution layer syncs.
-const ENGINE_RESET_RETRY_INTERVAL: Duration = Duration::from_secs(1);
-
-/// Constructs the handle and one of the derivation actors.
-#[derive(Debug)]
-pub struct Builder {
-    handle: Handle,
-    status_tx: watch::Sender<DerivationStatus>,
-}
-
-impl Builder {
-    /// Creates the builder with no derivation progress.
-    pub fn new() -> Self {
-        let (status_tx, status_rx) = watch::channel(DerivationStatus::default());
-        Self { handle: Handle { status: status_rx }, status_tx }
-    }
-
-    /// Returns a handle that can be wired into other components before the actor starts.
-    pub fn handle(&self) -> Handle {
-        self.handle.clone()
-    }
-}
-
-impl Default for Builder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// The derivation actor's published progress.
-#[derive(Debug, Clone)]
-pub struct Handle {
-    status: watch::Receiver<DerivationStatus>,
-}
-
-/// Resets the engine, asking again while the execution layer syncs. The engine publishes the
-/// reset before it replies.
-async fn reset_engine(engine: &impl Engine) -> Result<(), ActorError> {
-    loop {
-        match engine.reset().await.map(|_| ()) {
-            Err(EngineClientError::ElSyncing) => {
-                debug!(target: "derivation", "Waiting for the execution layer to sync");
-                time::sleep(ENGINE_RESET_RETRY_INTERVAL).await;
-            }
-            result => {
-                return result.map_err(|err| {
-                    error!(target: "derivation", ?err, "Failed to reset the engine");
-                    err.into()
-                });
-            }
-        }
-    }
-}
+/// A derivation actor stopped.
+#[derive(Debug, Clone, Copy, Error)]
+#[error("the derivation actor stopped")]
+pub struct Stopped;

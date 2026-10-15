@@ -10,10 +10,6 @@ use std::fmt::Debug;
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait SequencerEngineClient: Debug + Send + Sync {
-    /// Resets the engine's forkchoice, awaiting confirmation that it succeeded or returning the
-    /// error in performing the reset.
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()>;
-
     /// Starts building a block with the provided attributes.
     ///
     /// Returns a `PayloadId` that can be used to seal the block later.

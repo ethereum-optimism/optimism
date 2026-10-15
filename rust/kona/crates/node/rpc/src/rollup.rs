@@ -13,13 +13,13 @@ use jsonrpsee::{
 };
 use kona_genesis::RollupConfig;
 use kona_node_actors::{engine::EngineState, l1};
-use kona_protocol::{FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
+use kona_protocol::{BlockInfo, FromBlockError, L2BlockInfo, OutputRoot, Predeploys, SyncStatus};
 use op_alloy_network::Optimism;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::watch;
 
-use crate::{DerivationStatus, RollupNodeApiServer};
+use crate::RollupNodeApiServer;
 
 /// An [output response][or] for Optimism Rollup.
 ///
@@ -136,11 +136,17 @@ impl L1Status for l1::Handle {
     }
 }
 
+/// Derivation's progress, as [`RollupRpc`] reads it.
+pub trait Derivation: Send + Sync {
+    /// Returns the L1 block derivation has read up to, which may not be fully derived yet.
+    fn current_l1(&self) -> BlockInfo;
+}
+
 /// `RollupRpc`
 ///
 /// This is a server implementation of [`crate::RollupNodeApiServer`].
 #[derive(Debug)]
-pub struct RollupRpc<L2, L1> {
+pub struct RollupRpc<L2, L1, D> {
     /// The application version.
     pub version: String,
     /// The rollup configuration.
@@ -151,11 +157,11 @@ pub struct RollupRpc<L2, L1> {
     l2: L2,
     /// The latest L1 blocks.
     l1: L1,
-    /// The progress published by the derivation actor.
-    pub derivation_status: watch::Receiver<DerivationStatus>,
+    /// Derivation, whose progress the sync status reports.
+    derivation: D,
 }
 
-impl<L2, L1: L1Status> RollupRpc<L2, L1> {
+impl<L2, L1: L1Status, D: Derivation> RollupRpc<L2, L1, D> {
     /// Constructs a new [`RollupRpc`] from the application version, configuration, state, and
     /// clients.
     pub const fn new(
@@ -164,24 +170,19 @@ impl<L2, L1: L1Status> RollupRpc<L2, L1> {
         engine_state: watch::Receiver<EngineState>,
         l2: L2,
         l1: L1,
-        derivation_status: watch::Receiver<DerivationStatus>,
+        derivation: D,
     ) -> Self {
-        Self { version, config, engine_state, l2, l1, derivation_status }
+        Self { version, config, engine_state, l2, l1, derivation }
     }
 
     async fn sync_status(&self) -> RpcResult<SyncStatus> {
-        // Do not serve a stale snapshot after a publisher exits.
-        self.derivation_status
-            .has_changed()
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
         let l1::Status { head: head_l1, safe: safe_l1, finalized: finalized_l1 } =
             self.l1.l1_status().ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?;
         let l2_sync_status = *self.engine_state.borrow();
-        let derivation_status = *self.derivation_status.borrow();
 
         // Zero-out the fields that can't be derived yet to follow op-node's behaviour.
         Ok(SyncStatus {
-            current_l1: derivation_status.current_l1.unwrap_or_default(),
+            current_l1: self.derivation.current_l1(),
             current_l1_finalized: finalized_l1,
             head_l1,
             safe_l1,
@@ -195,8 +196,8 @@ impl<L2, L1: L1Status> RollupRpc<L2, L1> {
 }
 
 #[async_trait]
-impl<L2: OutputProvider + 'static, L1: L1Status + 'static> RollupNodeApiServer
-    for RollupRpc<L2, L1>
+impl<L2: OutputProvider + 'static, L1: L1Status + 'static, D: Derivation + 'static>
+    RollupNodeApiServer for RollupRpc<L2, L1, D>
 {
     async fn op_output_at_block(&self, block_num: BlockNumberOrTag) -> RpcResult<OutputResponse> {
         let (l2_block_info, output_root) =
@@ -237,6 +238,12 @@ mod tests {
         fn l1_status(&self) -> Option<l1::Status> {
             self.has_changed().ok()?;
             Some(*self.borrow())
+        }
+    }
+
+    impl Derivation for watch::Receiver<BlockInfo> {
+        fn current_l1(&self) -> BlockInfo {
+            *self.borrow()
         }
     }
 
@@ -307,7 +314,7 @@ mod tests {
         let (_, state_rx) = watch::channel(EngineState::default());
         let head_l1 = BlockInfo { number: 42, ..Default::default() };
         let (_l1_tx, l1_rx) = watch::channel(l1::Status { head: head_l1, ..Default::default() });
-        let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
+        let (_derivation_tx, derivation_status) = watch::channel(BlockInfo::default());
         let rpc = RollupRpc::new(
             "test".to_owned(),
             config.clone(),
@@ -345,7 +352,7 @@ mod tests {
         let client = l2.provider::<Optimism>();
         let (state_tx, state_rx) = watch::channel(EngineState::default());
         let (l1_tx, l1_rx) = watch::channel(l1::Status::default());
-        let (derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
+        let (derivation_tx, derivation_status) = watch::channel(BlockInfo::default());
         let rpc = RollupRpc::new(
             "1.2.3-test".to_owned(),
             config.clone(),
@@ -372,7 +379,7 @@ mod tests {
         let finalized_l1 = BlockInfo { number: 38, ..Default::default() };
         l1_tx.send_replace(l1::Status { head: head_l1, safe: safe_l1, finalized: finalized_l1 });
         let current_l1 = BlockInfo { number: 35, ..Default::default() };
-        derivation_tx.send_replace(DerivationStatus { current_l1: Some(current_l1) });
+        derivation_tx.send_replace(current_l1);
         let status = rpc.op_sync_status().await.unwrap();
         assert_eq!(status.unsafe_l2, head);
         assert_eq!(status.current_l1, current_l1);
@@ -388,38 +395,27 @@ mod tests {
         assert_eq!(status.safe_l1, safe_l1);
         assert_eq!(status.finalized_l1, finalized_l1);
 
-        drop(derivation_tx);
-        assert_eq!(rpc.op_sync_status().await.unwrap_err().code(), ErrorCode::InternalError.code());
         drop(l1_tx);
         assert_eq!(rpc.op_sync_status().await.unwrap_err().code(), ErrorCode::InternalError.code());
         l2.assert_finished();
     }
 
     #[tokio::test]
-    async fn rejects_closed_publishers() {
-        for close_l1 in [true, false] {
-            let (_, engine_state) = watch::channel(EngineState::default());
-            let (l1_tx, l1_rx) = watch::channel(l1::Status::default());
-            let (derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
-            let rpc = RollupRpc::new(
-                "test".to_owned(),
-                Arc::new(RollupConfig::default()),
-                engine_state,
-                TestOutputProvider { block: BlockNumberOrTag::Number(0), output: Err("unused") },
-                l1_rx,
-                derivation_status,
-            );
-            assert!(rpc.op_sync_status().await.is_ok());
-            if close_l1 {
-                drop(l1_tx);
-            } else {
-                drop(derivation_tx);
-            }
-            assert_eq!(
-                rpc.op_sync_status().await.unwrap_err().code(),
-                ErrorCode::InternalError.code()
-            );
-        }
+    async fn rejects_a_closed_l1_publisher() {
+        let (_, engine_state) = watch::channel(EngineState::default());
+        let (l1_tx, l1_rx) = watch::channel(l1::Status::default());
+        let (_derivation_tx, derivation_status) = watch::channel(BlockInfo::default());
+        let rpc = RollupRpc::new(
+            "test".to_owned(),
+            Arc::new(RollupConfig::default()),
+            engine_state,
+            TestOutputProvider { block: BlockNumberOrTag::Number(0), output: Err("unused") },
+            l1_rx,
+            derivation_status,
+        );
+        assert!(rpc.op_sync_status().await.is_ok());
+        drop(l1_tx);
+        assert_eq!(rpc.op_sync_status().await.unwrap_err().code(), ErrorCode::InternalError.code());
     }
 
     #[tokio::test]
@@ -429,7 +425,7 @@ mod tests {
         let client = l2.provider::<Optimism>();
         let (_, state_rx) = watch::channel(EngineState::default());
         let (_l1_tx, l1_rx) = watch::channel(l1::Status::default());
-        let (_derivation_tx, derivation_status) = watch::channel(DerivationStatus::default());
+        let (_derivation_tx, derivation_status) = watch::channel(BlockInfo::default());
 
         for version in ["1.2.3-test", "0.0.0-dev"] {
             let rpc = RollupRpc::new(

@@ -5,42 +5,30 @@ use async_trait::async_trait;
 use discv5::Enr;
 use kona_node_actors::{
     EngineClientError, EngineClientResult, SequencerEngineClient, derivation, discovery, engine,
-    engine::{Consolidation, EngineState, FinalizeBlockId},
+    engine::{Derived, Safe},
     finality, l1, l1_signer_updater, network, sequencer, signer,
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashSet, time::Duration};
-use tokio::sync::{
-    mpsc::error::{SendError, TrySendError},
-    watch,
-};
+use tokio::sync::mpsc::error::{SendError, TrySendError};
 
 /// Adapts the engine handle to the traits of the actors that use the engine.
 #[derive(Debug, Clone)]
 pub(super) struct Engine {
     handle: engine::Handle,
-    /// The engine's resets after this adapter was created.
-    resets: watch::Receiver<EngineState>,
 }
 
 impl Engine {
-    /// Creates the adapter, which sees the engine's resets from now on.
-    pub(super) fn new(handle: engine::Handle) -> Self {
-        Self { resets: handle.resets(), handle }
+    /// Creates the adapter.
+    pub(super) const fn new(handle: engine::Handle) -> Self {
+        Self { handle }
     }
 }
 
 #[async_trait]
 impl SequencerEngineClient for Engine {
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
-        info!(target: "sequencer", "Sending reset request to engine.");
-        let state = self.handle.reset().await?;
-        info!(target: "sequencer", safe_head = ?state.safe_head(), "Engine reset successfully.");
-        Ok(())
-    }
-
     async fn start_build_block(
         &self,
         attributes: OpAttributesWithParent,
@@ -84,49 +72,6 @@ impl SequencerEngineClient for Engine {
     }
 }
 
-#[async_trait]
-impl derivation::Engine for Engine {
-    async fn reset(&self) -> EngineClientResult<EngineState> {
-        info!(target: "derivation", "Sending reset request to engine.");
-        self.handle.reset_if_el_synced().await.inspect(
-            |state| info!(target: "derivation", safe_head = ?state.safe_head(), "Engine reset successfully."),
-        )
-    }
-
-    async fn consolidate(
-        &self,
-        attributes: OpAttributesWithParent,
-    ) -> EngineClientResult<Consolidation> {
-        trace!(target: "derivation", ?attributes, "Sending derived attributes to engine.");
-        self.handle.consolidate(attributes).await
-    }
-
-    async fn next_reset(&mut self) -> EngineClientResult<EngineState> {
-        self.resets.changed().await.map_err(|_| {
-            EngineClientError::RequestError("engine reset channel closed".to_string())
-        })?;
-        Ok(*self.resets.borrow_and_update())
-    }
-
-    async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
-        trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
-        self.handle.finalize(block_id).await
-    }
-
-    async fn follow_safe_head(&self, safe_head: L2BlockInfo) -> EngineClientResult<()> {
-        trace!(target: "derivation", ?safe_head, "Sending delegated safe head to engine.");
-        self.handle.follow_safe_head(safe_head).await
-    }
-}
-
-#[async_trait]
-impl finality::Engine for Engine {
-    async fn finalize(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
-        trace!(target: "finality", ?block_id, "Sending finalized L2 block id to engine.");
-        self.handle.finalize(block_id).await
-    }
-}
-
 impl network::Engine for Engine {
     fn try_insert_unsafe_block(
         &self,
@@ -134,6 +79,75 @@ impl network::Engine for Engine {
     ) -> Result<(), TrySendError<()>> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
         self.handle.try_insert_unsafe_block(block)
+    }
+}
+
+/// What decides the node's safe head: derivation from L1, or a trusted source. The engine drives
+/// it, and the rollup RPC reads its progress.
+#[derive(Debug, Clone)]
+pub(super) enum Safety {
+    /// Derivation from L1.
+    Untrusted(derivation::untrusted::Handle),
+    /// Derivation delegated to a trusted source, which needs no resets or flushes.
+    Trusted(Box<derivation::trusted::Handle>),
+}
+
+#[async_trait]
+impl engine::Safety for Safety {
+    type Error = derivation::Stopped;
+
+    async fn next(&mut self, safe_head: L2BlockInfo) -> Result<Derived, derivation::Stopped> {
+        match self {
+            Self::Untrusted(handle) => engine::Safety::next(handle, safe_head).await,
+            Self::Trusted(handle) => handle.next_safe(safe_head).await.map(Derived::Safe),
+        }
+    }
+
+    async fn reset(&mut self, safe: L2BlockInfo) -> Result<(), derivation::Stopped> {
+        match self {
+            Self::Untrusted(handle) => engine::Safety::reset(handle, safe).await,
+            Self::Trusted(_) => Ok(()),
+        }
+    }
+
+    async fn flush(&mut self) -> Result<(), derivation::Stopped> {
+        match self {
+            Self::Untrusted(handle) => engine::Safety::flush(handle).await,
+            Self::Trusted(_) => Ok(()),
+        }
+    }
+}
+
+impl kona_rpc::Derivation for Safety {
+    fn current_l1(&self) -> BlockInfo {
+        match self {
+            Self::Untrusted(handle) => handle.current_l1(),
+            Self::Trusted(handle) => handle.current_l1(),
+        }
+    }
+}
+
+/// What decides the node's finalized head: the finality actor, from the L1 blocks the safe heads
+/// were derived from, or a trusted source.
+#[derive(Debug, Clone)]
+pub(super) enum Finality {
+    /// The finality actor.
+    Untrusted(finality::Handle),
+    /// A trusted source.
+    Trusted(Box<derivation::trusted::Handle>),
+}
+
+#[async_trait]
+impl engine::Finality for Finality {
+    type Error = finality::Stopped;
+
+    async fn next(&mut self, safe: Safe) -> Result<L2BlockInfo, finality::Stopped> {
+        match self {
+            Self::Untrusted(handle) => engine::Finality::next(handle, safe).await,
+            Self::Trusted(handle) => {
+                engine::Finality::next(handle.as_mut(), safe).await.map_err(|_| finality::Stopped)
+            }
+        }
     }
 }
 
@@ -233,16 +247,64 @@ mod tests {
 
     #[tokio::test]
     async fn engine_reports_a_closed_queue() {
-        let builder = engine::Builder::new(EngineState::default());
-        let mut engine = Engine::new(builder.handle());
+        let builder = engine::Builder::new(engine::EngineState::default());
+        let engine = Engine::new(builder.handle());
         drop(builder);
         assert!(matches!(
-            derivation::Engine::finalize(&engine, FinalizeBlockId::ByNumber(1)).await,
+            engine
+                .start_build_block(OpAttributesWithParent::new(
+                    Default::default(),
+                    L2BlockInfo::default(),
+                    None,
+                    false
+                ))
+                .await,
             Err(EngineClientError::RequestError(_))
         ));
+    }
+
+    /// Trusted safety needs no resets or flushes, and reports a stopped actor, as does trusted
+    /// finality.
+    #[tokio::test]
+    async fn trusted_safety_needs_no_resets_or_flushes() {
+        let builder = derivation::trusted::Builder::new();
+        let mut safety = Safety::Trusted(Box::new(builder.handle()));
+        let mut finality = Finality::Trusted(Box::new(builder.handle()));
+        let block = L2BlockInfo::default();
+        assert_eq!(kona_rpc::Derivation::current_l1(&safety), BlockInfo::default());
+        engine::Safety::reset(&mut safety, block).await.unwrap();
+        engine::Safety::flush(&mut safety).await.unwrap();
+        drop(builder);
+        assert!(matches!(engine::Safety::next(&mut safety, block).await, Err(derivation::Stopped)));
+        let safe = Safe { head: block, source: BlockInfo::default() };
         assert!(matches!(
-            derivation::Engine::next_reset(&mut engine).await,
-            Err(EngineClientError::RequestError(_))
+            engine::Finality::next(&mut finality, safe).await,
+            Err(finality::Stopped)
+        ));
+    }
+
+    /// Untrusted safety and finality report stopped actors on every request.
+    #[tokio::test]
+    async fn untrusted_safety_and_finality_report_stopped_actors() {
+        let builder = derivation::untrusted::Builder::new();
+        let mut safety = Safety::Untrusted(builder.handle());
+        let block = L2BlockInfo::default();
+        assert_eq!(kona_rpc::Derivation::current_l1(&safety), BlockInfo::default());
+        drop(builder);
+        assert!(matches!(
+            engine::Safety::reset(&mut safety, block).await,
+            Err(derivation::Stopped)
+        ));
+        assert!(matches!(engine::Safety::flush(&mut safety).await, Err(derivation::Stopped)));
+        assert!(matches!(engine::Safety::next(&mut safety, block).await, Err(derivation::Stopped)));
+
+        let builder = finality::Builder::new();
+        let mut finality = Finality::Untrusted(builder.handle());
+        drop(builder);
+        let safe = Safe { head: block, source: BlockInfo::default() };
+        assert!(matches!(
+            engine::Finality::next(&mut finality, safe).await,
+            Err(finality::Stopped)
         ));
     }
 

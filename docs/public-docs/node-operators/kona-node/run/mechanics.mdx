@@ -52,25 +52,28 @@ Additionally, an RPC server exposes essential methods, including the
 The `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
-   When starting, the engine has no work to do.
+   When starting, the engine takes the execution layer's own heads,
+   checks them against L1, and sends them as its forkchoice.
    Once an unsafe block is received from P2P gossip, the engine
    inserts the payload and sends a forkchoice update through the
-   engine api. Since the engine state is lazily
-   initialized (the safe and finalized heads are zero), the forkchoice
-   update kicks off EL sync on the execution layer (EL) client (such
-   as op-reth or op-geth). EL sync instructs the execution client to
-   fetch and sync L2 blocks directly from peers. During this phase,
-   the `kona-node` effectively waits for the EL client to reach the
-   chain tip, when it returns that it is `synced`. No L2 blocks
-   are derived from L1 during this period.
+   engine api, which kicks off EL sync on the execution layer (EL)
+   client (such as op-reth or op-geth). EL sync instructs the
+   execution client to fetch and sync L2 blocks directly from peers.
+   During this phase, the EL client answers the engine's forkchoice
+   updates with `SYNCING`, until it reaches the chain tip and answers
+   `VALID`. No L2 blocks are derived from L1 during this period. An
+   EL client that had finalized blocks past genesis when the node
+   started skips this phase.
 
 2. **Consensus Layer (CL) Sync:**
-   Once the EL client is fully synced to the tip, the node transitions
-   to consensus layer (CL) sync. In this phase, `kona-node` begins
+   Once the EL client is fully synced to the tip, the node
+   transitions to consensus layer (CL) sync. In this phase, `kona-node` begins
    deriving new L2 payload attributes from the L1 chain, following
-   the rollup derivation process. `OpAttributesWithParent` values
-   derived this way are consolidated by the engine, which submits
-   the payloads to the execution engine for validation and execution.
+   the rollup derivation process. Derivation compares each
+   `OpAttributesWithParent` it derives with the unsafe block at its
+   height: the engine makes a matching block safe, and otherwise
+   builds the attributes into a block, which it submits to the
+   execution engine for validation and execution.
 
 <Note>
 - `kona-node` does **not** support historical CL sync or backfilling

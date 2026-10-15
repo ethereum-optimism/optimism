@@ -121,16 +121,12 @@ mod tests {
         time::Duration,
     };
 
-    /// Completes the sequencer's startup reset and reports a fixed unsafe head.
+    /// Reports a fixed unsafe head.
     #[derive(Debug)]
     struct IdleEngine;
 
     #[async_trait]
     impl SequencerEngineClient for IdleEngine {
-        async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
-            Ok(())
-        }
-
         async fn start_build_block(
             &self,
             _attributes: OpAttributesWithParent,
@@ -162,13 +158,43 @@ mod tests {
         }
     }
 
+    /// Makes nothing safe, and finalizes nothing.
+    #[derive(Debug)]
+    struct Idle;
+
+    #[async_trait]
+    impl engine::Safety for Idle {
+        type Error = std::convert::Infallible;
+
+        async fn next(&mut self, _safe_head: L2BlockInfo) -> Result<engine::Derived, Self::Error> {
+            std::future::pending().await
+        }
+
+        async fn reset(&mut self, _safe: L2BlockInfo) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
+        async fn flush(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl engine::Finality for Idle {
+        type Error = std::convert::Infallible;
+
+        async fn next(&mut self, _safe: engine::Safe) -> Result<L2BlockInfo, Self::Error> {
+            std::future::pending().await
+        }
+    }
+
     /// Returns a handle to an engine that never runs.
     fn idle_engine() -> engine::Handle {
         engine::Builder::new(engine::EngineState::default()).handle()
     }
 
-    /// Returns an engine whose execution client completes one reset, on an L1 chain that holds
-    /// only the L1 origin of the genesis block.
+    /// Returns an engine whose execution client completes its startup reset and one more, on an
+    /// L1 chain that holds only the L1 origin of the genesis block.
     fn resetting_engine()
     -> (engine::Handle, impl Future<Output = Result<(), engine::ActorError>> + Send + 'static) {
         let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
@@ -184,6 +210,10 @@ mod tests {
             "engine_forkchoiceUpdatedV3",
             ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
         );
+        // The second reset finds the same heads, so it sends no forkchoice.
+        for _ in 0..3 {
+            l2.expect("eth_getBlockByNumber", &block);
+        }
         // The genesis block's L1 origin is the default L1 block, which the L1 chain starts at.
         let l1 = kona_node_actors::l1::Builder::new(
             kona_sources::UntrustedRpc::new(RpcMock::default().provider())
@@ -192,7 +222,14 @@ mod tests {
         );
         let builder = engine::Builder::new(engine::EngineState::default());
         let handle = builder.handle();
-        let engine = builder.build(Arc::new(client), l1.handle(), config, Arc::new(NoopBlockSink));
+        let engine = builder.build(
+            Arc::new(client),
+            l1.handle(),
+            config,
+            Arc::new(NoopBlockSink),
+            Idle,
+            Idle,
+        );
         // The L1 chain lasts as long as the engine.
         (handle, async move {
             let _l1 = l1;
