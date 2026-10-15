@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"os"
+	"os/exec"
 	"slices"
 	"strings"
 	"sync"
@@ -148,6 +150,11 @@ type OpReth struct {
 	authRPC   string
 	userRPC   string
 
+	chainConfigPath string
+	dataDirPath     string
+	// proofsHistoryDir is the proofs store's path, empty when proofs history is disabled.
+	proofsHistoryDir string
+
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
 
@@ -172,6 +179,7 @@ type OpReth struct {
 var (
 	_ L2ELNode                  = (*OpReth)(nil)
 	_ stack.BinarySwitchable    = (*OpReth)(nil)
+	_ stack.DatadirWipeable     = (*OpReth)(nil)
 	_ stack.LogObservable       = (*OpReth)(nil)
 	_ stack.UngracefulLifecycle = (*OpReth)(nil)
 )
@@ -332,6 +340,49 @@ func (n *OpReth) SwitchBinary(binary string) {
 	execPath := ResolveOpRethBinary(n.p, binary)
 	n.p.Logger().Info("Switching op-reth binary", "name", n.name, "chain", n.chainID, "binary", binary, "from", n.execPath, "to", execPath)
 	n.execPath = execPath
+}
+
+// WipeDatadir empties the node's datadir and, when enabled, its proofs store, and initializes
+// both afresh, so the next Start runs the node's binary and arguments on an empty chain, the way
+// an operator replaces a node's storage. The node must be stopped.
+func (n *OpReth) WipeDatadir() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Truef(n.sub == nil, "op-reth %s must be stopped before its datadir is wiped", n.name)
+	n.p.Require().NotEmptyf(n.dataDirPath, "op-reth %s has no datadir to wipe", n.name)
+	n.p.Logger().Info("Wiping op-reth datadir", "name", n.name, "chain", n.chainID, "datadir", n.dataDirPath, "proofs_store", n.proofsHistoryDir)
+	n.p.Require().NoError(os.RemoveAll(n.dataDirPath), "must remove datadir")
+	n.p.Require().NoError(os.MkdirAll(n.dataDirPath, 0o755), "must create datadir")
+	initOpRethDatadir(n.p, n.execPath, n.dataDirPath, n.chainConfigPath)
+	if n.proofsHistoryDir != "" {
+		n.p.Require().NoError(os.RemoveAll(n.proofsHistoryDir), "must remove proofs store")
+		initOpRethProofsStore(n.p, n.execPath, n.dataDirPath, n.chainConfigPath, n.proofsHistoryDir)
+	}
+	n.p.Logger().Info("Wiped op-reth datadir", "name", n.name, "chain", n.chainID)
+}
+
+// initOpRethDatadir writes the chain's genesis into an empty datadir.
+func initOpRethDatadir(t devtest.T, execPath, dataDirPath, chainConfigPath string) {
+	initArgs := []string{
+		"init",
+		"--datadir=" + dataDirPath,
+		"--chain=" + chainConfigPath,
+	}
+	initOut, err := exec.CommandContext(t.Ctx(), execPath, initArgs...).CombinedOutput()
+	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
+}
+
+// initOpRethProofsStore creates an empty proofs-history store at storagePath for the datadir.
+func initOpRethProofsStore(t devtest.T, execPath, dataDirPath, chainConfigPath, storagePath string) {
+	initProofsArgs := []string{
+		"proofs",
+		"init",
+		"--datadir=" + dataDirPath,
+		"--chain=" + chainConfigPath,
+		"--proofs-history.storage-path=" + storagePath,
+	}
+	initOut, err := exec.CommandContext(t.Ctx(), execPath, initProofsArgs...).CombinedOutput()
+	t.Require().NoError(err, "must init op-reth proof history: %s", string(initOut))
 }
 
 // ObserveLogs registers observer for every stdout and stderr entry the op-reth process emits,

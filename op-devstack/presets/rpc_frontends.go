@@ -160,11 +160,13 @@ type l2ELFrontend struct {
 	lifecycle    stack.Lifecycle
 	logs         stack.LogObservable
 	ungraceful   stack.UngracefulLifecycle
+	wipeable     stack.DatadirWipeable
 }
 
 var (
 	_ stack.L2ELNode            = (*l2ELFrontend)(nil)
 	_ stack.BinarySwitchable    = (*l2ELFrontend)(nil)
+	_ stack.DatadirWipeable     = (*l2ELFrontend)(nil)
 	_ stack.LogObservable       = (*l2ELFrontend)(nil)
 	_ stack.UngracefulLifecycle = (*l2ELFrontend)(nil)
 )
@@ -211,6 +213,11 @@ func (r *l2ELFrontend) StopUngracefully() {
 func (r *l2ELFrontend) SwitchBinary(binary string) {
 	r.require().NotNil(r.binarySwitch, "L2EL node %s cannot switch its binary", r.Name())
 	r.binarySwitch.SwitchBinary(binary)
+}
+
+func (r *l2ELFrontend) WipeDatadir() {
+	r.require().NotNil(r.wipeable, "L2EL node %s cannot wipe its datadir", r.Name())
+	r.wipeable.WipeDatadir()
 }
 
 func (r *l2ELFrontend) ObserveLogs(observer func(logpipe.LogEntry)) func() {
