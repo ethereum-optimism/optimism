@@ -604,22 +604,28 @@ func (w *Withdrawal) ProveAndFinalize(user *EOA, maxGameClock time.Duration) {
 }
 
 func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
+	return receiptGasCost(b.commonImpl, rcpt, b.rollupCfg, client)
+}
+
+// receiptGasCost returns what the sender of the transaction in rcpt paid for it on a chain with
+// rollupCfg. client reads the block timestamp that the operator fee depends on.
+func receiptGasCost(c commonImpl, rcpt *types.Receipt, rollupCfg *rollup.Config, client apis.EthClient) eth.ETH {
 	var blockTimestamp *uint64
 	if hasOperatorFee(rcpt) {
-		b.require.NotNil(client, "client is required to resolve operator fee timestamp")
-		blockTimestamp = b.receiptTimestamp(rcpt, client)
+		c.require.NotNil(client, "client is required to resolve operator fee timestamp")
+		blockTimestamp = receiptTimestamp(c, rcpt, client)
 	}
-	return gasCost(rcpt, b.rollupCfg, blockTimestamp)
+	return gasCost(rcpt, rollupCfg, blockTimestamp)
 }
 
 func hasOperatorFee(rcpt *types.Receipt) bool {
 	return rcpt.OperatorFeeConstant != nil && rcpt.OperatorFeeScalar != nil
 }
 
-func (b *StandardBridge) receiptTimestamp(rcpt *types.Receipt, client apis.EthClient) *uint64 {
-	b.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
-	blockInfo, err := client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
-	b.require.NoError(err, "failed to fetch block info for receipt")
+func receiptTimestamp(c commonImpl, rcpt *types.Receipt, client apis.EthClient) *uint64 {
+	c.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
+	blockInfo, err := client.InfoByNumber(c.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
+	c.require.NoError(err, "failed to fetch block info for receipt")
 	ts := blockInfo.Time()
 	return &ts
 }

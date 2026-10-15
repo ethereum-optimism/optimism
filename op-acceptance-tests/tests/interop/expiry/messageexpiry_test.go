@@ -5,7 +5,6 @@
 package expiry
 
 import (
-	"math/big"
 	"slices"
 	"testing"
 	"time"
@@ -126,6 +125,7 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	_, err := contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(sender.Address()))
 	require.ErrorContains(errutil.TryAddRevertReason(err),
 		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "an unexpired send must not be refundable")
+	require.False(send.Refunded(), "an unexpired send must not be marked refunded")
 }
 
 // TestUnrelayedMessageExpiresAndIsRefunded runs the expiry path to a refund: A sends ETH that B
@@ -166,10 +166,9 @@ func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	_, err := contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(recipient.Address()))
 	require.ErrorContains(errutil.TryAddRevertReason(err),
 		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "only the sender may claim the refund")
-	rcpt := contract.Write(sender, send.RefundCall())
-	fee := new(big.Int).Mul(new(big.Int).SetUint64(rcpt.GasUsed), rcpt.EffectiveGasPrice)
-	fee.Add(fee, rcpt.L1Fee)
-	sender.VerifyBalanceExact(balanceAfterSend.Add(eth.HalfEther).Sub(eth.WeiBig(fee)))
+	require.False(send.Refunded(), "the send must not be marked refunded before the refund")
+	fee := send.Refund(sender, sys.L2ChainA)
+	sender.VerifyBalanceExact(balanceAfterSend.Add(eth.HalfEther).Sub(fee))
 	require.True(send.Refunded(), "the send must be marked refunded")
 	_, err = contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(sender.Address()))
 	require.ErrorContains(errutil.TryAddRevertReason(err),
