@@ -397,7 +397,7 @@ In this section we change `Greeter.sol` to emit a separate event in it receives 
                     }
             ```
 
-            If we see that we got a message from `L2ToL2CrossDomainMessenger`, we call [`L2ToL2CrossDomainMessenger.crossDomainMessageContext`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L118-L126).
+            If we see that we got a message from `L2ToL2CrossDomainMessenger`, we call `L2ToL2CrossDomainMessenger.crossDomainMessageContext`.
         </Accordion>
 
     2.  Redeploy the contracts.
