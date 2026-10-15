@@ -13,11 +13,14 @@ import (
 // DeployImplementations.s.sol input struct exactly — script ABI matching is
 // checked at load time.
 type DeployImplementationsInput struct {
-	WithdrawalDelaySeconds *big.Int
-	MinProposalSizeBytes   *big.Int
-	ChallengePeriodSeconds *big.Int
-	// Bounds for the per-chain withdrawal delays. The delays themselves are per-chain inputs
-	// to DeployOPChain; the implementations only carry the sanctioned range.
+	// For per-chain withdrawal delays, bounds are defined in the implementation and values are set in DeployOPChain.
+	MinWithdrawalDelaySeconds *big.Int
+	MaxWithdrawalDelaySeconds *big.Int
+	MinProposalSizeBytes      *big.Int
+	ChallengePeriodSeconds    *big.Int
+	// Bounds for the per-chain proof maturity and dispute game finality delays. The delays
+	// themselves are per-chain inputs to DeployOPChain; the implementations only carry the
+	// sanctioned range.
 	MinProofMaturityDelaySeconds       *big.Int
 	MaxProofMaturityDelaySeconds       *big.Int
 	MinDisputeGameFinalityDelaySeconds *big.Int

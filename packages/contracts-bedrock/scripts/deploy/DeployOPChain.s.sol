@@ -196,7 +196,8 @@ contract DeployOPChain is Script {
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: _input.useCustomGasToken,
             proofMaturityDelaySeconds: _input.proofMaturityDelaySeconds,
-            disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds
+            disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds,
+            withdrawalDelaySeconds: _input.withdrawalDelaySeconds
         });
     }
 
@@ -352,6 +353,7 @@ contract DeployOPChain is Script {
 
         require(_i.proofMaturityDelaySeconds != 0, "DeployOPChainInput: proofMaturityDelaySeconds not set");
         require(_i.disputeGameFinalityDelaySeconds != 0, "DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+        require(_i.withdrawalDelaySeconds != 0, "DeployOPChainInput: withdrawalDelaySeconds not set");
         _assertDelaysWithinBounds(_i);
 
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
@@ -427,6 +429,11 @@ contract DeployOPChain is Script {
                 && _i.disputeGameFinalityDelaySeconds <= asrImpl.maxDisputeGameFinalityDelaySeconds(),
             "DeployOPChainInput: disputeGameFinalityDelaySeconds out of bounds"
         );
+        IDelayedWETH wethImpl = IDelayedWETH(payable(impls.delayedWETHImpl));
+        require(
+            _i.withdrawalDelaySeconds >= wethImpl.minDelay() && _i.withdrawalDelaySeconds <= wethImpl.maxDelay(),
+            "DeployOPChainInput: withdrawalDelaySeconds out of bounds"
+        );
     }
 
     /// @notice Asserts that the deploy is valid.
@@ -457,6 +464,10 @@ contract DeployOPChain is Script {
         require(
             _o.anchorStateRegistryProxy.disputeGameFinalityDelaySeconds() == _i.disputeGameFinalityDelaySeconds,
             "DeployOPChain: disputeGameFinalityDelaySeconds mismatch"
+        );
+        require(
+            _o.delayedWETHPermissionlessGameProxy.delay() == _i.withdrawalDelaySeconds,
+            "DeployOPChain: withdrawalDelaySeconds mismatch"
         );
 
         // Check dispute games and get superchain config

@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 4.2.0
-    string public constant version = "4.2.0";
+    /// @custom:semver 5.0.0
+    string public constant version = "5.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -57,9 +57,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice The challenger address for permissioned dispute games.
     address public challenger;
-
-    /// @notice The withdrawal delay in seconds for the DelayedWETH contract.
-    uint256 public withdrawalDelaySeconds;
 
     // Implementation addresses as state variables
 
@@ -175,13 +172,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,
-        uint256 _withdrawalDelaySeconds,
         bytes32 _devFeatureBitmap
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
         challenger = _challenger;
-        withdrawalDelaySeconds = _withdrawalDelaySeconds;
         devFeatureBitmap = _devFeatureBitmap;
         standardValidatorUtils = _standardValidatorUtils;
         migrationValidator = _migrationValidator;
@@ -770,9 +765,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (DisputeGameConfig memory)
     {
-        return DisputeGameConfig({
-            l1PAOMultisig: expectedL1PAOMultisig(_overrides), withdrawalDelaySeconds: withdrawalDelaySeconds
-        });
+        return DisputeGameConfig({ l1PAOMultisig: expectedL1PAOMultisig(_overrides) });
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.
@@ -853,9 +846,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Builds the SharedConfig struct from this validator's state.
     function _buildSharedConfig() private view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
-            l1PAOMultisig: l1PAOMultisig,
-            withdrawalDelaySeconds: withdrawalDelaySeconds,
-            superchainConfig: superchainConfig
+            l1PAOMultisig: l1PAOMultisig, superchainConfig: superchainConfig
         });
     }
 
@@ -1132,7 +1123,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             _admin,
             expectedL1PAOMultisig(_overrides),
             delayedWETHImpl,
-            withdrawalDelaySeconds,
             _errorPrefix
         );
         _errors = standardValidatorUtils.assertValidAnchorStateRegistry(

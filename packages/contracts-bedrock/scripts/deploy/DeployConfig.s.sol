@@ -77,6 +77,8 @@ contract DeployConfig is Script {
     uint256 public maxProofMaturityDelaySeconds;
     uint256 public minDisputeGameFinalityDelaySeconds;
     uint256 public maxDisputeGameFinalityDelaySeconds;
+    uint256 public minWithdrawalDelaySeconds;
+    uint256 public maxWithdrawalDelaySeconds;
     uint256 public respectedGameType;
     bool public useAltDA;
     string public daCommitmentType;
@@ -183,6 +185,8 @@ contract DeployConfig is Script {
         maxProofMaturityDelaySeconds = _readOr(_json, "$.maxProofMaturityDelaySeconds", uint256(604800));
         minDisputeGameFinalityDelaySeconds = _readOr(_json, "$.minDisputeGameFinalityDelaySeconds", uint256(43200));
         maxDisputeGameFinalityDelaySeconds = _readOr(_json, "$.maxDisputeGameFinalityDelaySeconds", uint256(302400));
+        minWithdrawalDelaySeconds = _readOr(_json, "$.minWithdrawalDelaySeconds", uint256(43200));
+        maxWithdrawalDelaySeconds = _readOr(_json, "$.maxWithdrawalDelaySeconds", uint256(604800));
         respectedGameType = _readOr(_json, "$.respectedGameType", uint256(0));
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
@@ -391,6 +395,8 @@ contract DeployConfig is Script {
         maxProofMaturityDelaySeconds = 604800;
         minDisputeGameFinalityDelaySeconds = 43200;
         maxDisputeGameFinalityDelaySeconds = 302400;
+        minWithdrawalDelaySeconds = 43200;
+        maxWithdrawalDelaySeconds = 604800;
         respectedGameType = 0;
         useAltDA = false;
         daCommitmentType = "KeccakCommitment";

@@ -227,6 +227,11 @@
             "internalType": "uint256",
             "name": "disputeGameFinalityDelaySeconds",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",

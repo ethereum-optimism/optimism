@@ -223,6 +223,7 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 		},
 		intent.GlobalDeployOverrides,
 		chain.DeployOverrides,
@@ -564,6 +565,7 @@ func BuildDeployOPChainInput(
 		UseCustomGasToken:               chain.IsCustomGasTokenEnabled(),
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
 	}
 }
 

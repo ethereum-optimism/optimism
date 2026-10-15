@@ -10,7 +10,8 @@ import (
 
 const (
 	OutfileFlagName                            = "outfile"
-	WithdrawalDelaySecondsFlagName             = "withdrawal-delay-seconds"
+	MinWithdrawalDelaySecondsFlagName          = "min-withdrawal-delay-seconds"
+	MaxWithdrawalDelaySecondsFlagName          = "max-withdrawal-delay-seconds"
 	MinProposalSizeBytesFlagName               = "min-proposal-size-bytes"
 	ChallengePeriodSecondsFlagName             = "challenge-period-seconds"
 	MinProofMaturityDelaySecondsFlagName       = "min-proof-maturity-delay-seconds"
@@ -33,11 +34,17 @@ var (
 		EnvVars: deployer.PrefixEnvVar("OUTFILE"),
 		Value:   "-",
 	}
-	WithdrawalDelaySecondsFlag = &cli.Uint64Flag{
-		Name:    WithdrawalDelaySecondsFlagName,
-		Usage:   "Withdrawal delay in seconds.",
-		EnvVars: deployer.PrefixEnvVar("WITHDRAWAL_DELAY_SECONDS"),
-		Value:   standard.WithdrawalDelaySeconds,
+	MinWithdrawalDelaySecondsFlag = &cli.Uint64Flag{
+		Name:    MinWithdrawalDelaySecondsFlagName,
+		Usage:   "Lowest withdrawal delay in seconds a chain may configure on the DelayedWETH.",
+		EnvVars: deployer.PrefixEnvVar("MIN_WITHDRAWAL_DELAY_SECONDS"),
+		Value:   standard.MinWithdrawalDelaySeconds,
+	}
+	MaxWithdrawalDelaySecondsFlag = &cli.Uint64Flag{
+		Name:    MaxWithdrawalDelaySecondsFlagName,
+		Usage:   "Highest withdrawal delay in seconds a chain may configure on the DelayedWETH.",
+		EnvVars: deployer.PrefixEnvVar("MAX_WITHDRAWAL_DELAY_SECONDS"),
+		Value:   standard.MaxWithdrawalDelaySeconds,
 	}
 	MinProposalSizeBytesFlag = &cli.Uint64Flag{
 		Name:    MinProposalSizeBytesFlagName,
@@ -176,7 +183,8 @@ var ImplementationsFlags = []cli.Flag{
 	MIPSVersionFlag,
 	DevFeatureBitmapFlag,
 	SP1VerifierAddressFlag,
-	WithdrawalDelaySecondsFlag,
+	MinWithdrawalDelaySecondsFlag,
+	MaxWithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,
 	ChallengePeriodSecondsFlag,
 	MinProofMaturityDelaySecondsFlag,

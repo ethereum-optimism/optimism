@@ -28,6 +28,31 @@ type sp1VerifierOverride struct {
 	SP1Verifier common.Address `json:"sp1Verifier"`
 }
 
+// ResolveSuperchainProofParams merges the standard superchain-level proof parameters with the
+// intent's global deploy overrides. These are the inputs the implementations are deployed with;
+// per-chain values are resolved by ResolveChainProofParams.
+func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofParams, error) {
+	return jsonutil.MergeJSON(
+		state.SuperchainProofParams{
+			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+			MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+			MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+			MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+			MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+			DisputeMaxGameDepth:                standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:                  standard.DisputeSplitDepth,
+			DisputeClockExtension:              standard.DisputeClockExtension,
+			DisputeMaxClockDuration:            standard.DisputeMaxClockDuration,
+			MIPSVersion:                        standard.MIPSVersion,
+			DevFeatureBitmap:                   common.Hash{},
+		},
+		intent.GlobalDeployOverrides,
+	)
+}
+
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
 	if env.DeployMockSP1Verifier && !env.IsGenesis {
@@ -41,24 +66,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
 		return fmt.Errorf("sp1Verifier override must not be zero")
 	}
-	proofParams, err := jsonutil.MergeJSON(
-		state.SuperchainProofParams{
-			WithdrawalDelaySeconds:             standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
-			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
-			MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
-			MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
-			MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
-			DisputeMaxGameDepth:                standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:                  standard.DisputeSplitDepth,
-			DisputeClockExtension:              standard.DisputeClockExtension,
-			DisputeMaxClockDuration:            standard.DisputeMaxClockDuration,
-			MIPSVersion:                        standard.MIPSVersion,
-			DevFeatureBitmap:                   common.Hash{},
-		},
-		intent.GlobalDeployOverrides,
-	)
+	proofParams, err := ResolveSuperchainProofParams(intent)
 	if err != nil {
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
@@ -105,7 +113,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 
 	var dio opcm.DeployImplementationsOutput
 	input := opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:             new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
+		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MinWithdrawalDelaySeconds),
+		MaxWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MaxWithdrawalDelaySeconds),
 		MinProposalSizeBytes:               new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
 		ChallengePeriodSeconds:             new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
 		MinProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MinProofMaturityDelaySeconds),

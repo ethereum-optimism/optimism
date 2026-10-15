@@ -27,7 +27,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     DeployImplementations deployImplementations;
 
     // Define default inputs for testing.
-    uint256 withdrawalDelaySeconds = 100;
+    uint256 minWithdrawalDelaySeconds = 1;
+    uint256 maxWithdrawalDelaySeconds = 604800;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
     uint256 minProofMaturityDelaySeconds = 1;
@@ -127,6 +128,15 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         }
     }
 
+    /// @notice Test that the DelayedWETH implementation is deployed with the configured delay bounds
+    ///         and no delay of its own; the delay lives in per-chain proxy storage.
+    function test_run_delayedWETHBounds_succeeds() public {
+        DeployImplementations.Output memory output = deployImplementations.run(defaultInput());
+        assertEq(output.delayedWETHImpl.minDelay(), minWithdrawalDelaySeconds, "DelayedWETH minDelay");
+        assertEq(output.delayedWETHImpl.maxDelay(), maxWithdrawalDelaySeconds, "DelayedWETH maxDelay");
+        assertEq(output.delayedWETHImpl.delay(), 0, "DelayedWETH impl delay");
+    }
+
     /// @notice Test that the deployImplementations function succeeds when reusing the same valid input.
     /// It should produce the same output addresses for each deployment.
     function test_reuseImplementation_succeeds() public {
@@ -177,7 +187,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     /// @notice Test that the deployImplementations script succeeds with a range of input values.
     function testFuzz_run_memory_succeeds(
-        uint256 _withdrawalDelaySeconds,
+        uint256 _minWithdrawalDelaySeconds,
         uint256 _minProposalSizeBytes,
         uint64 _challengePeriodSeconds,
         uint256 _minProofMaturityDelaySeconds,
@@ -191,7 +201,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     )
         public
     {
-        _withdrawalDelaySeconds = bound(_withdrawalDelaySeconds, 1, type(uint256).max);
+        _minWithdrawalDelaySeconds = bound(_minWithdrawalDelaySeconds, 1, type(uint128).max);
         _minProposalSizeBytes = bound(_minProposalSizeBytes, 1, 1000000);
         _challengePeriodSeconds = uint64(bound(uint256(_challengePeriodSeconds), 1, type(uint64).max));
         // The upper bounds are derived (2x the lower bound) to keep the fuzz signature within the
@@ -229,7 +239,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
 
         DeployImplementations.Input memory input = DeployImplementations.Input(
-            _withdrawalDelaySeconds,
+            _minWithdrawalDelaySeconds,
+            _minWithdrawalDelaySeconds * 2,
             _minProposalSizeBytes,
             uint256(_challengePeriodSeconds),
             _minProofMaturityDelaySeconds,
@@ -270,7 +281,9 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.faultDisputeGameImpl), address(0), "V2 should be deployed when enabled");
         assertNotEq(address(output.permissionedDisputeGameImpl), address(0), "V2 should be deployed when enabled");
 
-        // Verify the per-chain delay bounds match fuzz inputs
+        // Verify the per-chain delay bounds match fuzz inputs. The DelayedWETH bounds are checked in
+        // test_run_delayedWETHBounds_succeeds: asserting them here pushes this function past the
+        // stack limit.
         assertEq(
             output.optimismPortalImpl.minProofMaturityDelaySeconds(),
             _minProofMaturityDelaySeconds,
@@ -428,8 +441,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         DeployImplementations.Input memory input;
 
         input = defaultInput();
-        input.withdrawalDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: withdrawalDelaySeconds not set");
+        input.minWithdrawalDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minWithdrawalDelaySeconds not set");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minWithdrawalDelaySeconds = input.maxWithdrawalDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: withdrawalDelaySeconds bounds inverted");
         deployImplementations.run(input);
 
         input = defaultInput();
@@ -571,7 +589,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     function defaultInput() private view returns (DeployImplementations.Input memory input_) {
         input_ = DeployImplementations.Input(
-            withdrawalDelaySeconds,
+            minWithdrawalDelaySeconds,
+            maxWithdrawalDelaySeconds,
             minProposalSizeBytes,
             challengePeriodSeconds,
             minProofMaturityDelaySeconds,

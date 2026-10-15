@@ -49,7 +49,8 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		// Now we run the deploy script
 		mipsVersion := int64(standard.MIPSVersion)
 		output, err := deployImplementations.Run(DeployImplementationsInput{
-			WithdrawalDelaySeconds:             big.NewInt(1),
+			MinWithdrawalDelaySeconds:          big.NewInt(1),
+			MaxWithdrawalDelaySeconds:          big.NewInt(2),
 			MinProposalSizeBytes:               big.NewInt(2),
 			ChallengePeriodSeconds:             big.NewInt(3),
 			MinProofMaturityDelaySeconds:       big.NewInt(4),

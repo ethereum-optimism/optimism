@@ -73,6 +73,7 @@ type DeployOPChainInput struct {
 
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
+	WithdrawalDelaySeconds          *big.Int
 }
 
 type DeployOPChainOutput struct {

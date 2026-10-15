@@ -32,7 +32,8 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 		PrivateKey:                         testutil.AnvilDefaultPrivateKey,
 		ArtifactsLocator:                   artifacts.EmbeddedLocator,
 		MIPSVersion:                        int(standard.MIPSVersion),
-		WithdrawalDelaySeconds:             1,
+		MinWithdrawalDelaySeconds:          1,
+		MaxWithdrawalDelaySeconds:          1,
 		MinProposalSizeBytes:               1,
 		ChallengePeriodSeconds:             1,
 		MinProofMaturityDelaySeconds:       1,
@@ -93,6 +94,19 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 		cfg.MinDisputeGameFinalityDelaySeconds = 2
 		cfg.MaxDisputeGameFinalityDelaySeconds = 1
 		require.ErrorContains(t, cfg.Check(), "must not exceed the maximum")
+	})
+
+	t.Run("zero min withdrawal delay rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.MinWithdrawalDelaySeconds = 0
+		require.ErrorContains(t, cfg.Check(), "minimum withdrawal delay")
+	})
+
+	t.Run("inverted withdrawal delay bounds rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.MinWithdrawalDelaySeconds = 2
+		cfg.MaxWithdrawalDelaySeconds = 1
+		require.ErrorContains(t, cfg.Check(), "minimum withdrawal delay must not exceed")
 	})
 }
 
@@ -190,7 +204,8 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 			PrivateKey:                         testutil.AnvilDefaultPrivateKey,
 			ArtifactsLocator:                   loc,
 			Logger:                             lgr,
-			WithdrawalDelaySeconds:             standard.WithdrawalDelaySeconds,
+			MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
 			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
 			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
