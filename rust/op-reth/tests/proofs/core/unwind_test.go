@@ -69,7 +69,7 @@ func TestProofsFollowerServesTheWindowAfterItsStoreIsUnwoundAndRestarted(gt *tes
 		sysgo.OpRethWithExtraArgs(engineArgs(unwindPersistenceThreshold)...),
 	)
 	follower, followerCL, reference := sys.L2ELValidator, sys.L2CLValidator, sys.L2ELSequencer
-	w := newWorkload(t, sys.FunderL2)
+	w := newWorkload(t, sys)
 
 	head := w.driveUntilBlock(w.setupBlock + unwoundBlocks)
 	follower.Reached(eth.Unsafe, head, blockAttempts)
