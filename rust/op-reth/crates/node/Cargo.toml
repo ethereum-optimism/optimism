@@ -105,8 +105,21 @@ reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
 reth-storage-overlay.workspace = true
 reth-trie-db.workspace = true
+reth-config.workspace = true
+reth-downloaders.workspace = true
+reth-ethereum-primitives.workspace = true
+reth-evm-ethereum.workspace = true
+reth-network-p2p.workspace = true
+reth-prune-types.workspace = true
+reth-stages.workspace = true
+reth-stages-api.workspace = true
+reth-static-file.workspace = true
+reth-storage-api.workspace = true
+reth-testing-utils.workspace = true
+reth-trie.workspace = true
 
 alloy-network.workspace = true
+alloy-eips.workspace = true
 alloy-op-evm.workspace = true
 alloy-op-hardforks.workspace = true
 alloy-rlp.workspace = true
@@ -118,6 +131,9 @@ jsonrpsee.workspace = true
 metrics-util = { workspace = true, features = ["debugging"] }
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
+secp256k1 = "0.30"
+tempfile.workspace = true
+wait-timeout = "0.2"
 op-alloy-network.workspace = true
 
 [features]

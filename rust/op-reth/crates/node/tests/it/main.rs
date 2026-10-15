@@ -22,4 +22,6 @@ mod p2p_version;
 
 mod payload_handoff;
 
+mod interrupted_unwind;
+
 const fn main() {}
