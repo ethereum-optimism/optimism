@@ -42,6 +42,11 @@ const (
 
 // Generate an abi-encoded `trieTestCase` of a specified variant
 func FuzzTrie() {
+	var err error
+	trieReplayEntropy, err = trieReplayReader(os.Getenv("OP_CI_FFI_REPLAY_SEED"), os.Args[1:], os.Getenv("CI"), os.Getenv("FOUNDRY_PROFILE"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	variant := os.Args[2]
 	if len(variant) < 1 {
 		log.Fatal("Must pass a variant to the trie fuzzer!")
@@ -69,7 +74,7 @@ func FuzzTrie() {
 		// Do not update the encoded length
 		idx := randRange(0, int64(len(testCase.Proof)))
 		b := make([]byte, randRange(1, 512))
-		if _, err := rand.Read(b); err != nil {
+		if _, err := trieRead(b); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
 		testCase.Proof[idx] = append(testCase.Proof[idx], b...)
@@ -81,7 +86,7 @@ func FuzzTrie() {
 		// bytes to overwrite.
 		idx := randRange(1, int64(len(testCase.Proof)))
 		b := make([]byte, 4)
-		if _, err := rand.Read(b); err != nil {
+		if _, err := trieRead(b); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
 		testCase.Proof[idx] = append(
@@ -96,7 +101,7 @@ func FuzzTrie() {
 		// Assign the last proof element to an encoded list containing a
 		// random 29 byte value
 		b := make([]byte, 29)
-		if _, err := rand.Read(b); err != nil {
+		if _, err := trieRead(b); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
 		e, _ := rlp.EncodeToBytes(b)
@@ -105,7 +110,7 @@ func FuzzTrie() {
 		testCase = genTrieTestCase(false)
 
 		b := make([]byte, randRange(1, 16))
-		if _, err := rand.Read(b); err != nil {
+		if _, err := trieRead(b); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
 		testCase.Key = append(b, testCase.Key...)
@@ -153,10 +158,10 @@ func genTrieTestCase(selectEmptyKey bool) trieTestCase {
 	// Add `randN` elements to the trie
 	for i := int64(0); i < randN; i++ {
 		// Randomize the contents of `randKey` and `randValue`
-		if _, err := rand.Read(randKey); err != nil {
+		if _, err := trieRead(randKey); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
-		if _, err := rand.Read(randValue); err != nil {
+		if _, err := trieRead(randValue); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
 
@@ -228,10 +233,13 @@ func (t *trieTestCase) AbiEncode() string {
 	return hexutil.Encode(packed[32:])
 }
 
-// Helper that generates a cryptographically secure random 64-bit integer
-// between the range [min, max)
+// Helper that samples an integer in [min, max), with replay only for CI coverage.
 func randRange(min int64, max int64) int64 {
-	r, err := rand.Int(rand.Reader, new(big.Int).Sub(new(big.Int).SetInt64(max), new(big.Int).SetInt64(min)))
+	reader := rand.Reader
+	if trieReplayEntropy != nil {
+		reader = trieReplayEntropy
+	}
+	r, err := rand.Int(reader, new(big.Int).Sub(new(big.Int).SetInt64(max), new(big.Int).SetInt64(min)))
 	if err != nil {
 		log.Fatal("Failed to generate random number within bounds")
 	}

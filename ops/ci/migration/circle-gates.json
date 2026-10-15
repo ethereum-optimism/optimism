@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "repository": "ethereum-optimism/optimism",
+  "gates": {
+    "required-rust-ci": {
+      "circle_config": ".circleci/continue/rust-ci.yml",
+      "workflow": "rust-ci"
+    },
+    "ci-gate": {
+      "circle_config": ".circleci/continue/main.yml",
+      "workflow": "main"
+    },
+    "required-contracts-ci": {
+      "circle_config": ".circleci/continue/main.yml",
+      "workflow": "contracts-feature-tests"
+    }
+  }
+}

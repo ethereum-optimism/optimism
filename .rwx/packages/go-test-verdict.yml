@@ -1,0 +1,78 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    shard-index:
+      required: true
+    shard-total:
+      required: true
+    test-parallel:
+      required: true
+    go-artifact:
+      default: .ci/go-tests/dependencies/go
+    contract-artifact:
+      default: .ci/go-tests/dependencies/contracts
+    kona-artifact:
+      default: .ci/go-tests/dependencies/kona
+    reth-artifact:
+      default: .ci/go-tests/dependencies/op-reth
+    prestate-artifact:
+      default: .ci/go-tests/dependencies/prestate
+    cache-key:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/runtime/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CIRCLE_BRANCH: ${{ params.branch }}
+      CI_SHARD_INDEX: ${{ params.shard-index }}
+      CI_SHARD_TOTAL: ${{ params.shard-total }}
+      PARALLEL: ${{ params.test-parallel }}
+      GO_ARTIFACT: ${{ params.go-artifact }}
+      CONTRACT_ARTIFACT: ${{ params.contract-artifact }}
+      KONA_ARTIFACT: ${{ params.kona-artifact }}
+      RETH_ARTIFACT: ${{ params.reth-artifact }}
+      PRESTATE_ARTIFACT: ${{ params.prestate-artifact }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+    filter: ['!.ci/go-cache', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts']

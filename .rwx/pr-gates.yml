@@ -1,0 +1,623 @@
+# Genuine optional PR gates; Circle continues to own every required gate.
+on:
+  github:
+    push:
+      if: ${{ event.git.branch == 'codex/rwx-ci-pilot' || event.git.branch == 'develop' }}
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+      status-checks:
+        default:
+          name: optimism-rwx-pr-coordinator
+        custom:
+          - name: optimism-pilot
+            tasks: native-fmt
+          - name: optimism-rust-shadow
+            tasks: native-workspace
+          - name: optimism-op-reth-shadow
+            tasks: native-op-reth
+          - name: optimism-rust-gate-shadow
+            tasks: gate-status
+          - name: optimism-pr-checks-shadow
+            tasks: native-pr-checks
+          - name: optimism-go-tests-shadow
+            tasks: native-go
+          - name: optimism-acceptance-shadow
+            tasks: native-acceptance
+          - name: optimism-cannon-go-shadow
+            tasks: native-cannon
+          - name: optimism-nut-prefork-shadow
+            tasks: native-nut-prefork
+          - name: optimism-nut-provenance-shadow
+            tasks: native-nut-provenance
+          - name: optimism-fetcher-artifacts-shadow
+            tasks: native-fetcher
+          - name: optimism-sp1-guest-shadow
+            tasks: native-sp1
+          - name: optimism-kontrol-build-shadow
+            tasks: native-kontrol
+          - name: optimism-main-gate-shadow
+            tasks: main-gate-status
+          - name: optimism-contracts-shadow
+            tasks: native-contracts
+          - name: optimism-contract-upgrades-shadow
+            tasks: native-contract-upgrades
+          - name: optimism-contract-coverage-shadow
+            tasks: native-contract-coverage
+          - name: optimism-contract-l2-fork-shadow
+            tasks: native-contract-l2-fork
+          - name: optimism-contracts-gate-shadow
+            tasks: contracts-gate-status
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci/runtime
+        - key: apt-script
+          path: ops/ci/runtime/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: helper-tests
+    use: [code, tools]
+    run: |
+      python3 -m unittest discover -s ops/ci/tests -p 'test_pr_gate.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_pr_gate_parity.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
+      python3 ops/ci/migration/circle-alignment.py
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_local_packages.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_report.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_source.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_layout.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_report_evidence.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_ci.py' -v
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: native-fmt
+    call: ${{ run.dir }}/pilot.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+
+  - key: native-workspace
+    call: ${{ run.dir }}/rust.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: v1
+      cargo-incremental: "1"
+
+  - key: native-op-reth
+    call: ${{ run.dir }}/op-reth.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      codec-base-sha: ""
+
+  - key: aggregate
+    use: [code, tools]
+    after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
+    if: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded && tasks.native-fmt.tasks.rust-gate-receipt.succeeded && tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-rust-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_RUST_FMT_REPORT: ${{ tasks.native-fmt.tasks.rust-gate-receipt.artifacts.receipt }}
+      GROUP_RUST_FMT_SUCCEEDED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_FMT_FAILED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_FMT_SKIPPED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.skipped }}
+      GROUP_RUST_WORKSPACE_REPORT: ${{ tasks.native-workspace.tasks.rust-gate-receipt.artifacts.receipt }}
+      GROUP_RUST_WORKSPACE_SUCCEEDED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_WORKSPACE_FAILED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_WORKSPACE_SKIPPED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.skipped }}
+      GROUP_OP_RETH_RUST_REPORT: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.artifacts.receipt }}
+      GROUP_OP_RETH_RUST_SUCCEEDED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded }}
+      GROUP_OP_RETH_RUST_FAILED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.failed }}
+      GROUP_OP_RETH_RUST_SKIPPED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate
+
+  # RWX custom checks fail on skipped tasks. Observe both mutually exclusive
+  # collectors, then publish one executed verdict with their actual outcomes.
+  - key: gate-status
+    use: [code, tools]
+    after: ${{ (aggregate.succeeded || aggregate.failed || aggregate.skipped) && (gate-failure.succeeded || gate-failure.failed || gate-failure.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status required-rust-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.aggregate.succeeded }}
+      OBSERVER_AGGREGATE_FAILED: ${{ tasks.aggregate.failed }}
+      OBSERVER_AGGREGATE_SKIPPED: ${{ tasks.aggregate.skipped }}
+      OBSERVER_GATE_FAILURE_SUCCEEDED: ${{ tasks.gate-failure.succeeded }}
+      OBSERVER_GATE_FAILURE_FAILED: ${{ tasks.gate-failure.failed }}
+      OBSERVER_GATE_FAILURE_SKIPPED: ${{ tasks.gate-failure.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-rust-ci
+
+  - key: gate-failure
+    use: [code, tools]
+    after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
+    if: ${{ (tasks.native-op-reth.tasks.rust-gate-receipt.failed || tasks.native-op-reth.tasks.rust-gate-receipt.skipped) || (tasks.native-fmt.tasks.rust-gate-receipt.failed || tasks.native-fmt.tasks.rust-gate-receipt.skipped) || (tasks.native-workspace.tasks.rust-gate-receipt.failed || tasks.native-workspace.tasks.rust-gate-receipt.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-rust-ci --failed
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_RUST_FMT_SUCCEEDED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_FMT_FAILED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_FMT_SKIPPED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.skipped }}
+      GROUP_RUST_WORKSPACE_SUCCEEDED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_WORKSPACE_FAILED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_WORKSPACE_SKIPPED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.skipped }}
+      GROUP_OP_RETH_RUST_SUCCEEDED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded }}
+      GROUP_OP_RETH_RUST_FAILED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.failed }}
+      GROUP_OP_RETH_RUST_SKIPPED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate
+
+  - key: native-pr-checks
+    call: ${{ run.dir }}/pr-checks.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-go
+    call: ${{ run.dir }}/go-tests.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      build-probe: ""
+      target-cache-mode: "keep"
+      shard-total: "12"
+      test-parallel: "8"
+
+  - key: native-acceptance
+    call: ${{ run.dir }}/acceptance.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      build-probe: ""
+      target-cache-mode: "keep"
+      shard-total: "8"
+
+  - key: native-cannon
+    call: ${{ run.dir }}/cannon-go.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-nut-prefork
+    call: ${{ run.dir }}/nut-prefork.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-nut-provenance
+    call: ${{ run.dir }}/nut-provenance.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-fetcher
+    call: ${{ run.dir }}/fetcher-artifacts.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-sp1
+    call: ${{ run.dir }}/sp1-guest.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      target-cache-mode: "keep"
+
+  - key: native-kontrol
+    call: ${{ run.dir }}/kontrol-build.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: main-aggregate
+    use: [code, tools]
+    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-fetcher.succeeded || native-fetcher.failed || native-fetcher.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
+    if: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded && tasks.native-cannon.tasks.main-gate-receipt.succeeded && tasks.native-pr-checks.tasks.main-gate-receipt.succeeded && tasks.native-fetcher.tasks.main-gate-receipt.succeeded && tasks.native-go.tasks.main-gate-receipt.succeeded && tasks.native-kontrol.tasks.main-gate-receipt.succeeded && tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded && tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded && tasks.native-fmt.tasks.main-gate-receipt.succeeded && tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
+    run: python3 ops/ci/runtime/pr-gate.py aggregate ci-gate
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_MAIN_ACCEPTANCE_REPORT: ${{ tasks.native-acceptance.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_ACCEPTANCE_SUCCEEDED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_ACCEPTANCE_FAILED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_ACCEPTANCE_SKIPPED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_CANNON_REPORT: ${{ tasks.native-cannon.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_CANNON_SUCCEEDED: ${{ tasks.native-cannon.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_CANNON_FAILED: ${{ tasks.native-cannon.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_CANNON_SKIPPED: ${{ tasks.native-cannon.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_CHECKS_REPORT: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_FETCHER_REPORT: ${{ tasks.native-fetcher.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_FETCHER_SUCCEEDED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_FETCHER_FAILED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_FETCHER_SKIPPED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_GO_REPORT: ${{ tasks.native-go.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_GO_SUCCEEDED: ${{ tasks.native-go.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_GO_FAILED: ${{ tasks.native-go.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_GO_SKIPPED: ${{ tasks.native-go.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_KONTROL_REPORT: ${{ tasks.native-kontrol.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_KONTROL_SUCCEEDED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_KONTROL_FAILED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_KONTROL_SKIPPED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_NUT_PREFORK_REPORT: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_NUT_PREFORK_SUCCEEDED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_NUT_PREFORK_FAILED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_NUT_PREFORK_SKIPPED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_NUT_PROVENANCE_REPORT: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_NUT_PROVENANCE_SUCCEEDED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_NUT_PROVENANCE_FAILED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_NUT_PROVENANCE_SKIPPED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_PILOT_REPORT: ${{ tasks.native-fmt.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_PILOT_SUCCEEDED: ${{ tasks.native-fmt.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_PILOT_FAILED: ${{ tasks.native-fmt.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_PILOT_SKIPPED: ${{ tasks.native-fmt.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_SP1_REPORT: ${{ tasks.native-sp1.tasks.main-gate-receipt.artifacts.receipt }}
+      GROUP_MAIN_SP1_SUCCEEDED: ${{ tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_SP1_FAILED: ${{ tasks.native-sp1.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_SP1_SKIPPED: ${{ tasks.native-sp1.tasks.main-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate
+
+  - key: main-gate-failure
+    use: [code, tools]
+    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-fetcher.succeeded || native-fetcher.failed || native-fetcher.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
+    if: ${{ (tasks.native-acceptance.tasks.main-gate-receipt.failed || tasks.native-acceptance.tasks.main-gate-receipt.skipped) || (tasks.native-cannon.tasks.main-gate-receipt.failed || tasks.native-cannon.tasks.main-gate-receipt.skipped) || (tasks.native-pr-checks.tasks.main-gate-receipt.failed || tasks.native-pr-checks.tasks.main-gate-receipt.skipped) || (tasks.native-fetcher.tasks.main-gate-receipt.failed || tasks.native-fetcher.tasks.main-gate-receipt.skipped) || (tasks.native-go.tasks.main-gate-receipt.failed || tasks.native-go.tasks.main-gate-receipt.skipped) || (tasks.native-kontrol.tasks.main-gate-receipt.failed || tasks.native-kontrol.tasks.main-gate-receipt.skipped) || (tasks.native-nut-prefork.tasks.main-gate-receipt.failed || tasks.native-nut-prefork.tasks.main-gate-receipt.skipped) || (tasks.native-nut-provenance.tasks.main-gate-receipt.failed || tasks.native-nut-provenance.tasks.main-gate-receipt.skipped) || (tasks.native-fmt.tasks.main-gate-receipt.failed || tasks.native-fmt.tasks.main-gate-receipt.skipped) || (tasks.native-sp1.tasks.main-gate-receipt.failed || tasks.native-sp1.tasks.main-gate-receipt.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py aggregate ci-gate --failed
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_MAIN_ACCEPTANCE_SUCCEEDED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_ACCEPTANCE_FAILED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_ACCEPTANCE_SKIPPED: ${{ tasks.native-acceptance.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_CANNON_SUCCEEDED: ${{ tasks.native-cannon.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_CANNON_FAILED: ${{ tasks.native-cannon.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_CANNON_SKIPPED: ${{ tasks.native-cannon.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_FETCHER_SUCCEEDED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_FETCHER_FAILED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_FETCHER_SKIPPED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_GO_SUCCEEDED: ${{ tasks.native-go.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_GO_FAILED: ${{ tasks.native-go.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_GO_SKIPPED: ${{ tasks.native-go.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_KONTROL_SUCCEEDED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_KONTROL_FAILED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_KONTROL_SKIPPED: ${{ tasks.native-kontrol.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_NUT_PREFORK_SUCCEEDED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_NUT_PREFORK_FAILED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_NUT_PREFORK_SKIPPED: ${{ tasks.native-nut-prefork.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_NUT_PROVENANCE_SUCCEEDED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_NUT_PROVENANCE_FAILED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_NUT_PROVENANCE_SKIPPED: ${{ tasks.native-nut-provenance.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_PILOT_SUCCEEDED: ${{ tasks.native-fmt.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_PILOT_FAILED: ${{ tasks.native-fmt.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_PILOT_SKIPPED: ${{ tasks.native-fmt.tasks.main-gate-receipt.skipped }}
+      GROUP_MAIN_SP1_SUCCEEDED: ${{ tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
+      GROUP_MAIN_SP1_FAILED: ${{ tasks.native-sp1.tasks.main-gate-receipt.failed }}
+      GROUP_MAIN_SP1_SKIPPED: ${{ tasks.native-sp1.tasks.main-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate
+
+  - key: main-gate-status
+    use: [code, tools]
+    after: ${{ (main-aggregate.succeeded || main-aggregate.failed || main-aggregate.skipped) && (main-gate-failure.succeeded || main-gate-failure.failed || main-gate-failure.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status ci-gate
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.main-aggregate.succeeded }}
+      OBSERVER_AGGREGATE_FAILED: ${{ tasks.main-aggregate.failed }}
+      OBSERVER_AGGREGATE_SKIPPED: ${{ tasks.main-aggregate.skipped }}
+      OBSERVER_GATE_FAILURE_SUCCEEDED: ${{ tasks.main-gate-failure.succeeded }}
+      OBSERVER_GATE_FAILURE_FAILED: ${{ tasks.main-gate-failure.failed }}
+      OBSERVER_GATE_FAILURE_SKIPPED: ${{ tasks.main-gate-failure.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/ci-gate
+
+  # Contracts shares the existing fast-check child and executes all matrices once.
+  - key: native-contracts
+    call: ${{ run.dir }}/contracts.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      build-probe: ""
+
+  - key: native-contract-upgrades
+    call: ${{ run.dir }}/contract-upgrades.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-contract-coverage
+    call: ${{ run.dir }}/contract-coverage.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-contract-l2-fork
+    call: ${{ run.dir }}/contract-l2-fork.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      fork-block: "latest"
+
+  - key: contracts-aggregate
+    use: [code, tools]
+    after: ${{ (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-contract-coverage.succeeded || native-contract-coverage.failed || native-contract-coverage.skipped) && (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) }}
+    if: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded && tasks.native-contracts.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-contracts-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_CONTRACTS_CHECKS_REPORT: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_COVERAGE_REPORT: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_COVERAGE_SUCCEEDED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_COVERAGE_FAILED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_COVERAGE_SKIPPED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_L2_FORK_REPORT: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_L2_FORK_SUCCEEDED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_L2_FORK_FAILED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_L2_FORK_SKIPPED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_SUITES_REPORT: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_SUITES_SUCCEEDED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_SUITES_FAILED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_SUITES_SKIPPED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_UPGRADES_REPORT: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_UPGRADES_SUCCEEDED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_UPGRADES_FAILED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_UPGRADES_SKIPPED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate/required-contracts-ci
+
+  - key: contracts-gate-failure
+    use: [code, tools]
+    after: ${{ (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-contract-coverage.succeeded || native-contract-coverage.failed || native-contract-coverage.skipped) && (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) }}
+    if: ${{ (tasks.native-pr-checks.tasks.contracts-gate-receipt.failed || tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed || tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed || tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped) || (tasks.native-contracts.tasks.contracts-gate-receipt.failed || tasks.native-contracts.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed || tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-contracts-ci --failed
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_CONTRACTS_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_COVERAGE_SUCCEEDED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_COVERAGE_FAILED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_COVERAGE_SKIPPED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_L2_FORK_SUCCEEDED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_L2_FORK_FAILED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_L2_FORK_SKIPPED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_SUITES_SUCCEEDED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_SUITES_FAILED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_SUITES_SKIPPED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_UPGRADES_SUCCEEDED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_UPGRADES_FAILED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_UPGRADES_SKIPPED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate/required-contracts-ci
+
+  - key: contracts-gate-status
+    use: [code, tools]
+    after: ${{ (contracts-aggregate.succeeded || contracts-aggregate.failed || contracts-aggregate.skipped) && (contracts-gate-failure.succeeded || contracts-gate-failure.failed || contracts-gate-failure.skipped) }}
+    run: python3 ops/ci/runtime/pr-gate.py status required-contracts-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.contracts-aggregate.succeeded }}
+      OBSERVER_AGGREGATE_FAILED: ${{ tasks.contracts-aggregate.failed }}
+      OBSERVER_AGGREGATE_SKIPPED: ${{ tasks.contracts-aggregate.skipped }}
+      OBSERVER_GATE_FAILURE_SUCCEEDED: ${{ tasks.contracts-gate-failure.succeeded }}
+      OBSERVER_GATE_FAILURE_FAILED: ${{ tasks.contracts-gate-failure.failed }}
+      OBSERVER_GATE_FAILURE_SKIPPED: ${{ tasks.contracts-gate-failure.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-contracts-ci

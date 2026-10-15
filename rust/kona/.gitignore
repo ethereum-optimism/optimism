@@ -30,6 +30,7 @@ jwt.hex
 
 # FPVM artifacts
 state.bin.gz
+out.bin.gz
 meta.json
 out.json
 

@@ -1,0 +1,730 @@
+{
+  "version": 4,
+  "repository": "ethereum-optimism/optimism",
+  "gates": {
+    "required-rust-ci": {
+      "route": "run-rust-ci",
+      "dependencies": [
+        {
+          "name": "rust-fmt",
+          "group": "rust-fmt",
+          "tasks": [
+            "rust-fmt"
+          ]
+        },
+        {
+          "name": "rust-clippy",
+          "group": "rust-workspace",
+          "tasks": [
+            "clippy"
+          ]
+        },
+        {
+          "name": "rust-typos",
+          "group": "rust-workspace",
+          "tasks": [
+            "typos"
+          ]
+        },
+        {
+          "name": "rust-zepter",
+          "group": "rust-workspace",
+          "tasks": [
+            "zepter"
+          ]
+        },
+        {
+          "name": "rust-tests",
+          "group": "rust-workspace",
+          "tasks": [
+            "tests-unit",
+            "tests-compiler",
+            "tests"
+          ]
+        },
+        {
+          "name": "interop-deposits-diff",
+          "group": "rust-workspace",
+          "tasks": [
+            "interop"
+          ]
+        },
+        {
+          "name": "rust-doctest",
+          "group": "rust-workspace",
+          "tasks": [
+            "doctest"
+          ]
+        },
+        {
+          "name": "rust-docs",
+          "group": "rust-workspace",
+          "tasks": [
+            "docs"
+          ]
+        },
+        {
+          "name": "rust-udeps",
+          "group": "rust-workspace",
+          "tasks": [
+            "udeps"
+          ]
+        },
+        {
+          "name": "rust-cargo-hack",
+          "group": "rust-workspace",
+          "tasks": [
+            "features-0",
+            "features-1",
+            "features-2",
+            "features-3",
+            "features-4",
+            "features-5",
+            "features-6",
+            "features-7",
+            "features-8",
+            "features-9"
+          ]
+        },
+        {
+          "name": "rust-build",
+          "group": "rust-workspace",
+          "tasks": [
+            "build"
+          ]
+        },
+        {
+          "name": "rust-check-no-std",
+          "group": "rust-workspace",
+          "tasks": [
+            "no-std"
+          ]
+        },
+        {
+          "name": "rust-wasm-unknown",
+          "group": "rust-workspace",
+          "tasks": [
+            "wasm-unknown"
+          ]
+        },
+        {
+          "name": "rust-wasm-wasi",
+          "group": "rust-workspace",
+          "tasks": [
+            "wasm-wasi"
+          ]
+        },
+        {
+          "name": "op-reth-compact-codec",
+          "group": "op-reth-rust",
+          "tasks": [
+            "codec"
+          ]
+        },
+        {
+          "name": "op-reth-integration-tests",
+          "group": "op-reth-rust",
+          "tasks": [
+            "integration"
+          ]
+        },
+        {
+          "name": "kona-lint-cannon",
+          "group": "rust-workspace",
+          "tasks": [
+            "cannon-lint"
+          ]
+        },
+        {
+          "name": "kona-build-fpvm-cannon-client",
+          "group": "rust-workspace",
+          "tasks": [
+            "cannon-build"
+          ]
+        },
+        {
+          "name": "kona-host-client-offline-cannon",
+          "group": "rust-workspace",
+          "tasks": [
+            "cannon-offline"
+          ]
+        },
+        {
+          "name": "kona-registry-snapshot-check",
+          "group": "rust-workspace",
+          "tasks": [
+            "registry"
+          ]
+        },
+        {
+          "name": "op-reth-superchain-snapshot-check",
+          "group": "op-reth-rust",
+          "tasks": [
+            "snapshot"
+          ]
+        }
+      ],
+      "native_config": ".rwx/pr-gates.yml",
+      "check_name": "optimism-rust-gate-shadow",
+      "observer_tasks": {
+        "aggregate": "aggregate",
+        "failure": "gate-failure",
+        "status": "gate-status"
+      }
+    },
+    "ci-gate": {
+      "route": "run-main",
+      "dependencies": [
+        {
+          "name": "check-kontrol-build",
+          "group": "main-kontrol",
+          "tasks": [
+            "check"
+          ]
+        },
+        {
+          "name": "shell-check",
+          "group": "main-checks",
+          "tasks": [
+            "shell-check"
+          ]
+        },
+        {
+          "name": "go-lint",
+          "group": "main-pilot",
+          "tasks": [
+            "go-lint"
+          ]
+        },
+        {
+          "name": "semgrep-scan-local",
+          "group": "main-checks",
+          "tasks": [
+            "semgrep-scan-local"
+          ]
+        },
+        {
+          "name": "semgrep-test",
+          "group": "main-checks",
+          "tasks": [
+            "semgrep-test"
+          ]
+        },
+        {
+          "name": "go-tests",
+          "group": "main-go",
+          "tasks": [
+            "verdict-0",
+            "verdict-1",
+            "verdict-2",
+            "verdict-3",
+            "verdict-4",
+            "verdict-5",
+            "verdict-6",
+            "verdict-7",
+            "verdict-8",
+            "verdict-9",
+            "verdict-10",
+            "verdict-11"
+          ]
+        },
+        {
+          "name": "memory-all-opn-op-reth-fusaka",
+          "group": "main-acceptance",
+          "tasks": [
+            "verdict-opn-0",
+            "verdict-opn-1",
+            "verdict-opn-2",
+            "verdict-opn-3",
+            "verdict-opn-4",
+            "verdict-opn-5",
+            "verdict-opn-6",
+            "verdict-opn-7"
+          ]
+        },
+        {
+          "name": "memory-all-kona-op-reth-fusaka",
+          "group": "main-acceptance",
+          "tasks": [
+            "verdict-kona-0",
+            "verdict-kona-1",
+            "verdict-kona-2",
+            "verdict-kona-3",
+            "verdict-kona-4",
+            "verdict-kona-5",
+            "verdict-kona-6",
+            "verdict-kona-7"
+          ]
+        },
+        {
+          "name": "kona-build-sp1-elfs",
+          "group": "main-sp1",
+          "tasks": [
+            "check"
+          ]
+        },
+        {
+          "name": "cannon-go-lint-and-test",
+          "group": "main-cannon",
+          "tasks": [
+            "tests"
+          ]
+        },
+        {
+          "name": "check-generated-mocks-op-node",
+          "group": "main-checks",
+          "tasks": [
+            "check-generated-mocks-op-node"
+          ]
+        },
+        {
+          "name": "check-generated-mocks-op-service",
+          "group": "main-checks",
+          "tasks": [
+            "check-generated-mocks-op-service"
+          ]
+        },
+        {
+          "name": "check-nut-locks",
+          "group": "main-checks",
+          "tasks": [
+            "check-nut-locks"
+          ]
+        },
+        {
+          "name": "check-nut-prefork-states",
+          "group": "main-nut-prefork",
+          "tasks": [
+            "tests"
+          ]
+        },
+        {
+          "name": "check-op-geth-version",
+          "group": "main-checks",
+          "tasks": [
+            "check-op-geth-version"
+          ]
+        },
+        {
+          "name": "op-deployer-forge-version",
+          "group": "main-checks",
+          "tasks": [
+            "op-deployer-forge-version"
+          ]
+        },
+        {
+          "name": "l2-chains-sync-check",
+          "group": "main-checks",
+          "tasks": [
+            "l2-chains-sync-check"
+          ]
+        },
+        {
+          "name": "nut-provenance-verify",
+          "group": "main-nut-provenance",
+          "tasks": [
+            "verify"
+          ]
+        },
+        {
+          "name": "diff-fetcher-forge-artifacts",
+          "group": "main-fetcher",
+          "tasks": [
+            "check"
+          ]
+        }
+      ],
+      "native_config": ".rwx/pr-gates.yml",
+      "check_name": "optimism-main-gate-shadow",
+      "observer_tasks": {
+        "aggregate": "main-aggregate",
+        "failure": "main-gate-failure",
+        "status": "main-gate-status"
+      }
+    },
+    "required-contracts-ci": {
+      "route": "run-contracts-feature-tests",
+      "dependencies": [
+        {
+          "name": "contracts-bedrock-tests main",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests CUSTOM_GAS_TOKEN",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests ZK_DISPUTE_GAME",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified main",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage main",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage CUSTOM_GAS_TOKEN",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage ZK_DISPUTE_GAME",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet main",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-chain-op"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade ink-mainnet",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-chain-ink"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade unichain-mainnet",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-chain-unichain"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-l2-fork op-mainnet",
+          "group": "contracts-l2-fork",
+          "tasks": [
+            "verdict"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-checks-fast-feature-tests",
+          "group": "contracts-checks",
+          "tasks": [
+            "contracts-fast"
+          ]
+        }
+      ],
+      "native_config": ".rwx/pr-gates.yml",
+      "check_name": "optimism-contracts-gate-shadow",
+      "observer_tasks": {
+        "aggregate": "contracts-aggregate",
+        "failure": "contracts-gate-failure",
+        "status": "contracts-gate-status"
+      }
+    }
+  },
+  "groups": {
+    "rust-fmt": {
+      "config": ".rwx/pilot.yml",
+      "receipt_task": "rust-gate-receipt",
+      "route": "run-rust-ci",
+      "embedded_task": "native-fmt",
+      "check_name": "optimism-pilot",
+      "init": {}
+    },
+    "rust-workspace": {
+      "config": ".rwx/rust.yml",
+      "receipt_task": "rust-gate-receipt",
+      "route": "run-rust-ci",
+      "embedded_task": "native-workspace",
+      "check_name": "optimism-rust-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "cargo-incremental": "1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "op-reth-rust": {
+      "config": ".rwx/op-reth.yml",
+      "receipt_task": "rust-gate-receipt",
+      "route": "run-rust-ci",
+      "embedded_task": "native-op-reth",
+      "check_name": "optimism-op-reth-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": "",
+        "target-cache-mode": "keep",
+        "codec-base-sha": ""
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-pilot": {
+      "config": ".rwx/pilot.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-fmt",
+      "check_name": "optimism-pilot",
+      "init": {}
+    },
+    "main-checks": {
+      "config": ".rwx/pr-checks.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-pr-checks",
+      "check_name": "optimism-pr-checks-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-go": {
+      "config": ".rwx/go-tests.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-go",
+      "check_name": "optimism-go-tests-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": "",
+        "target-cache-mode": "keep",
+        "shard-total": "12",
+        "test-parallel": "8"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '12' }}"
+    },
+    "main-acceptance": {
+      "config": ".rwx/acceptance.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-acceptance",
+      "check_name": "optimism-acceptance-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": "",
+        "target-cache-mode": "keep",
+        "shard-total": "8"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '8' }}"
+    },
+    "main-cannon": {
+      "config": ".rwx/cannon-go.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-cannon",
+      "check_name": "optimism-cannon-go-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-nut-prefork": {
+      "config": ".rwx/nut-prefork.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-nut-prefork",
+      "check_name": "optimism-nut-prefork-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-nut-provenance": {
+      "config": ".rwx/nut-provenance.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-nut-provenance",
+      "check_name": "optimism-nut-provenance-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-fetcher": {
+      "config": ".rwx/fetcher-artifacts.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-fetcher",
+      "check_name": "optimism-fetcher-artifacts-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-sp1": {
+      "config": ".rwx/sp1-guest.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-sp1",
+      "check_name": "optimism-sp1-guest-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "target-cache-mode": "keep"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-kontrol": {
+      "config": ".rwx/kontrol-build.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-kontrol",
+      "check_name": "optimism-kontrol-build-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-suites": {
+      "config": ".rwx/contracts.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contracts",
+      "check_name": "optimism-contracts-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": ""
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-upgrades": {
+      "config": ".rwx/contract-upgrades.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contract-upgrades",
+      "check_name": "optimism-contract-upgrades-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-coverage": {
+      "config": ".rwx/contract-coverage.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contract-coverage",
+      "check_name": "optimism-contract-coverage-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}",
+      "workspace": "project"
+    },
+    "contracts-l2-fork": {
+      "config": ".rwx/contract-l2-fork.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contract-l2-fork",
+      "check_name": "optimism-contract-l2-fork-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "fork-block": "latest"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-checks": {
+      "config": ".rwx/pr-checks.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-pr-checks",
+      "check_name": "optimism-pr-checks-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    }
+  }
+}

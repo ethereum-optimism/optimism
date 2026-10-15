@@ -1,6 +1,16 @@
 # Shared command helpers merged into every continuation config (see
 # .circleci/scripts/merge-configs.sh). Defining them here once avoids
 # duplicating the definitions across main.yml and rust-e2e.yml.
+executors:
+  ci-default-docker:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+  ci-memory-machine:
+    # The pilot matches RWX's 16 CPU / 64 GB allocation without reducing the
+    # acceptance suite's observed 38.5 GiB peak to a 32 GiB Docker worker.
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+
 commands:
   # Shared Go module cache. There is a single Go module in the repo, so the
   # downloaded module set is identical for every job at a given go.sum. It is
