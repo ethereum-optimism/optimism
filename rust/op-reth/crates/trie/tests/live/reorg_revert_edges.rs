@@ -1,7 +1,7 @@
-//! Drives the engine's reorg and unwind tasks at the boundaries the model-based test may not
-//! reach: a reorg whose first block does not build on the stored fork block, a target at or
-//! below the window's earliest block, a revert that only touches the buffer, and a reorg or a
-//! revert that arrives while a save is in flight.
+//! Drives the engine's reorg and unwind tasks at boundaries a random chain rarely reaches: a
+//! reorg whose first block does not build on the stored fork block, a target at or below the
+//! window's earliest block, a revert that only touches the buffer, and a reorg or a revert that
+//! arrives while a save is in flight.
 //!
 //! Every case commits the same transfer chain to reth, indexes it under the case's flush cadence
 //! and settles, then acts. The engine's tip is read through the parent check of a probe block,
@@ -9,9 +9,9 @@
 //! chain once a save has carried the case's blocks to disk.
 
 use super::{
-    Backend, BlockSpec, FlushCadence, TxSpec, chain_spec_with_address, create_block_from_spec,
-    create_mdbx_proofs_storage, initialize_storage, public_key_to_address,
-    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer},
+    Backend, BlockSpec, FlushCadence, TxSpec, WHOLE_WINDOW, chain_spec_with_address,
+    create_block_from_spec, create_mdbx_proofs_storage, initialize_storage, public_key_to_address,
+    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer, index_executed_block},
     store_view::{BlockView, ProofTarget, assert_same_view},
 };
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
@@ -30,6 +30,7 @@ use rstest::rstest;
 use secp256k1::Keypair;
 use serial_test::serial;
 use std::{
+    collections::BTreeMap,
     fmt,
     ops::RangeInclusive,
     sync::{
@@ -37,6 +38,7 @@ use std::{
         mpsc::{Receiver, SyncSender, sync_channel},
     },
     thread,
+    time::Duration,
 };
 
 /// Blocks every case commits and settles before it acts.
@@ -53,11 +55,11 @@ const RETH_PERSISTENCE_THRESHOLD: u64 = 2 * MAX_BLOCKS_PER_CASE;
 /// under either cadence.
 const PRUNED_WINDOW: u64 = 3;
 
-/// A window no chain here fills, so that the earliest block stays the anchor.
-const WHOLE_WINDOW: u64 = 1000;
-
 /// A parent hash no block here has.
 const UNRELATED_PARENT: B256 = B256::repeat_byte(0xBA);
+
+/// How long a case waits for the engine's persistence thread to reach a held write.
+const HELD_WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
 const fn recipient(number: u64) -> Address {
     Address::repeat_byte(0x40 + number as u8)
@@ -110,21 +112,34 @@ const fn settled_disk_tip(cadence: FlushCadence, base: u64, buffered: u64) -> u6
 enum ReorgPath {
     Execute,
     Index,
+    /// Executes every other block, starting with the first, as the ExEx does when the
+    /// verification interval falls inside the new chain.
+    Mixed,
+}
+
+impl ReorgPath {
+    /// The way the ExEx hands the `position`th block of a reorg to the engine along this path.
+    fn reorg_block(self, position: usize, block: &ExecutedBlock) -> ReorgBlock<Block> {
+        let execute = match self {
+            Self::Execute => true,
+            Self::Index => false,
+            Self::Mixed => position.is_multiple_of(2),
+        };
+        if execute {
+            ReorgBlock::Execute(Arc::clone(&block.recovered_block))
+        } else {
+            ReorgBlock::Index {
+                block: block.recovered_block().block_with_parent(),
+                hashed_state: block.hashed_state(),
+                trie_updates: block.trie_updates(),
+            }
+        }
+    }
 }
 
 /// `blocks` the way the ExEx hands a reorg to the engine along `path`.
 fn reorg_blocks(blocks: &[ExecutedBlock], path: ReorgPath) -> Vec<ReorgBlock<Block>> {
-    blocks
-        .iter()
-        .map(|block| match path {
-            ReorgPath::Execute => ReorgBlock::Execute(Arc::clone(&block.recovered_block)),
-            ReorgPath::Index => ReorgBlock::Index {
-                block: block.recovered_block().block_with_parent(),
-                hashed_state: block.hashed_state(),
-                trie_updates: block.trie_updates(),
-            },
-        })
-        .collect()
+    blocks.iter().enumerate().map(|(position, block)| path.reorg_block(position, block)).collect()
 }
 
 /// The reorg task's input for `block` without trie data, enough to reach the unwind checks.
@@ -138,27 +153,48 @@ fn reorg_block_without_data(block: BlockWithParent) -> ReorgBlock<Block> {
 
 /// Which engine task unwinds.
 #[derive(Clone, Copy, Debug)]
-enum Task {
+enum UnwindingTask {
     Reorg,
     Unwind,
 }
 
+impl UnwindingTask {
+    fn run(self, engine: &EngineHandle<Block>, to: BlockWithParent) -> Result<(), EngineError> {
+        match self {
+            Self::Reorg => engine.reorg(vec![reorg_block_without_data(to)]),
+            Self::Unwind => engine.unwind(to),
+        }
+    }
+}
+
 /// Where an unwind target sits relative to the proof window.
 #[derive(Clone, Copy, Debug)]
-enum Target {
+enum UnwindTarget {
     /// The init anchor, block 0: the earliest block of a whole window, below a pruned one.
     Anchor,
     BelowEarliest,
     Earliest,
 }
 
-/// The store's end of a held write.
-struct WriteHold {
+impl UnwindTarget {
+    const fn block_number(self, earliest: u64) -> u64 {
+        match self {
+            Self::Anchor => 0,
+            Self::BelowEarliest => {
+                earliest.checked_sub(1).expect("the window must have been pruned past the anchor")
+            }
+            Self::Earliest => earliest,
+        }
+    }
+}
+
+/// The store's side of a held write: signals the write and waits to be let through.
+struct WriteBarrier {
     entered: SyncSender<()>,
     release: Receiver<()>,
 }
 
-/// The case's end of a held write.
+/// The case's side of a held write.
 struct HeldWrite {
     entered: Receiver<()>,
     release: SyncSender<()>,
@@ -167,7 +203,9 @@ struct HeldWrite {
 impl HeldWrite {
     /// Blocks until the engine's persistence thread is inside the held write.
     fn wait_until_entered(&self) {
-        self.entered.recv().expect("the store keeps the hold until a write enters it");
+        self.entered
+            .recv_timeout(HELD_WRITE_TIMEOUT)
+            .expect("the engine's persistence thread reaches the held write");
     }
 
     /// Lets the held write go on, or the next write through if none is held yet.
@@ -181,7 +219,7 @@ impl HeldWrite {
 #[derive(Clone)]
 struct StoreWithWriteGate<S> {
     inner: S,
-    next_write: Arc<Mutex<Option<WriteHold>>>,
+    next_write: Arc<Mutex<Option<WriteBarrier>>>,
 }
 
 impl<S> StoreWithWriteGate<S> {
@@ -192,7 +230,7 @@ impl<S> StoreWithWriteGate<S> {
     fn hold_next_write(&self) -> HeldWrite {
         let (entered_tx, entered_rx) = sync_channel(1);
         let (release_tx, release_rx) = sync_channel(1);
-        *self.next_write.lock() = Some(WriteHold { entered: entered_tx, release: release_rx });
+        *self.next_write.lock() = Some(WriteBarrier { entered: entered_tx, release: release_rx });
         HeldWrite { entered: entered_rx, release: release_tx }
     }
 }
@@ -224,10 +262,12 @@ impl<S: OpProofsStore> OpProofsStore for StoreWithWriteGate<S> {
     }
 
     fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
-        let hold = self.next_write.lock().take();
-        if let Some(hold) = hold {
-            let _ = hold.entered.send(());
-            let _ = hold.release.recv();
+        // The lock must be released before blocking, or a case arming the next hold meanwhile
+        // deadlocks against this thread.
+        let barrier = self.next_write.lock().take();
+        if let Some(barrier) = barrier {
+            let _ = barrier.entered.send(());
+            let _ = barrier.release.recv();
         }
         self.inner.provider_rw()
     }
@@ -239,7 +279,7 @@ impl<S: OpProofsStore> OpProofsStore for StoreWithWriteGate<S> {
 
 /// What the store serves at one moment: its window and every persisted view in it.
 struct DiskSnapshot {
-    views: Vec<(u64, BlockView)>,
+    views: BTreeMap<u64, BlockView>,
     window: ProofWindowRange,
 }
 
@@ -248,11 +288,12 @@ struct Scenario<S> {
     cadence: FlushCadence,
     chain_spec: Arc<ChainSpec>,
     engine: EngineHandle<Block>,
-    gated: StoreWithWriteGate<S>,
+    gated_store: StoreWithWriteGate<S>,
     key_pair: Keypair,
     reth: SimulatedReth,
     store: S,
     targets: Vec<ProofTarget>,
+    window: u64,
 }
 
 impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
@@ -269,22 +310,18 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         let reth = SimulatedReth::new(chain_spec.clone(), key_pair, persistence)?;
         let store = make_store();
         initialize_storage(store.clone(), &reth.factory, reth.head())?;
-        let gated = StoreWithWriteGate::new(store.clone());
-        let engine = reth.spawn_engine_with_window(
-            gated.clone(),
-            cadence.persistence,
-            cadence.backpressure,
-            window,
-        );
+        let gated_store = StoreWithWriteGate::new(store.clone());
+        let engine = Self::spawn_engine(&reth, &gated_store, cadence, window);
         let mut scenario = Self {
             cadence,
             chain_spec,
             engine,
-            gated,
+            gated_store,
             key_pair,
             reth,
             store,
             targets: proof_targets(sender),
+            window,
         };
         for number in 1..=CHAIN_LENGTH {
             scenario.commit(&chain_block(number))?;
@@ -294,19 +331,43 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         Ok(scenario)
     }
 
+    fn spawn_engine(
+        reth: &SimulatedReth,
+        gated_store: &StoreWithWriteGate<S>,
+        cadence: FlushCadence,
+        window: u64,
+    ) -> EngineHandle<Block> {
+        reth.spawn_engine_with_window(
+            gated_store.clone(),
+            cadence.persistence,
+            cadence.backpressure,
+            window,
+        )
+    }
+
+    /// Replaces the engine with one started over the same store, as a restart does.
+    fn restart_engine(self) -> Self {
+        let Self {
+            cadence,
+            chain_spec,
+            engine,
+            gated_store,
+            key_pair,
+            reth,
+            store,
+            targets,
+            window,
+        } = self;
+        drop(engine);
+        let engine = Self::spawn_engine(&reth, &gated_store, cadence, window);
+        Self { cadence, chain_spec, engine, gated_store, key_pair, reth, store, targets, window }
+    }
+
     /// Commits `spec` to reth and indexes it.
     fn commit(&mut self, spec: &BlockSpec) -> eyre::Result<()> {
         let block = self.reth.commit(spec)?;
-        self.index(&block)?;
+        index_executed_block(&self.engine, &block)?;
         Ok(())
-    }
-
-    fn index(&self, block: &ExecutedBlock) -> Result<(), EngineError> {
-        self.engine.index_block(
-            block.recovered_block().block_with_parent(),
-            (*block.trie_updates()).clone(),
-            (*block.hashed_state()).clone(),
-        )
     }
 
     /// Commits enough blocks for a save to carry everything buffered to disk, and settles.
@@ -326,38 +387,28 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         for _ in 0..=MAX_BLOCKS_PER_CASE {
             self.engine.flush();
         }
-        Ok(self.window()?.latest)
+        Ok(self.proof_window()?.latest)
     }
 
-    fn window(&self) -> eyre::Result<ProofWindowRange> {
+    fn proof_window(&self) -> eyre::Result<ProofWindowRange> {
         Ok(self.store.provider_ro()?.get_proof_window()?)
     }
 
     /// Arms a hold on the engine's next write, the save the following commits start.
     fn hold_next_save(&self) -> HeldWrite {
-        self.gated.hold_next_write()
+        self.gated_store.hold_next_write()
     }
 
     /// Commits blocks until the buffer reaches the persistence threshold and the save it starts
     /// is inside `hold`.
     fn commit_until_a_save_is_in_flight(&mut self, hold: &HeldWrite) -> eyre::Result<()> {
-        let buffered = self.reth.head().number - self.window()?.latest.number;
+        let buffered = self.reth.head().number - self.proof_window()?.latest.number;
         for _ in buffered..self.cadence.persistence {
             let number = self.reth.head().number + 1;
             self.commit(&chain_block(number))?;
         }
         hold.wait_until_entered();
         Ok(())
-    }
-
-    /// Replaces the engine with one started over the same store, as a restart does.
-    fn restart_engine(&mut self, window: u64) {
-        self.engine = self.reth.spawn_engine_with_window(
-            self.gated.clone(),
-            self.cadence.persistence,
-            self.cadence.backpressure,
-            window,
-        );
     }
 
     /// The canonical block `number` as an unwind target: the target's parent is the block below.
@@ -372,14 +423,16 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
     /// A one-block reorg at `number` whose block builds on a parent no block here has.
     fn reorg_on_unrelated_parent(&self, number: u64, path: ReorgPath) -> Vec<ReorgBlock<Block>> {
         let block = match path {
-            ReorgPath::Execute => ReorgBlock::Execute(Arc::new(create_block_from_spec(
-                &BlockSpec::empty(),
-                number,
-                UNRELATED_PARENT,
-                &self.chain_spec,
-                self.key_pair,
-                &mut 0,
-            ))),
+            ReorgPath::Execute | ReorgPath::Mixed => {
+                ReorgBlock::Execute(Arc::new(create_block_from_spec(
+                    &BlockSpec::empty(),
+                    number,
+                    UNRELATED_PARENT,
+                    &self.chain_spec,
+                    self.key_pair,
+                    &mut 0,
+                )))
+            }
             ReorgPath::Index => reorg_block_without_data(BlockWithParent::new(
                 UNRELATED_PARENT,
                 NumHash::new(number, B256::repeat_byte(0xB1)),
@@ -389,7 +442,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
     }
 
     fn disk_snapshot(&self) -> eyre::Result<DiskSnapshot> {
-        let window = self.window()?;
+        let window = self.proof_window()?;
         let views = (window.earliest.number..=window.latest.number)
             .map(|number| Ok((number, BlockView::read(&self.store, number, &self.targets)?)))
             .collect::<eyre::Result<_>>()?;
@@ -398,10 +451,10 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
 
     /// The store's window and every persisted view are as in `before`.
     fn assert_disk_unchanged(&self, before: &DiskSnapshot) -> eyre::Result<()> {
-        assert_eq!(self.window()?, before.window, "proof window");
+        assert_eq!(self.proof_window()?, before.window, "proof window");
         for (number, expected) in &before.views {
             let actual = BlockView::read(&self.store, *number, &self.targets)?;
-            assert_same_view(*number, "unwound", expected, &actual)?;
+            assert_same_view(*number, "under test", expected, &actual)?;
         }
         Ok(())
     }
@@ -426,7 +479,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
     /// The store's persisted history reaches `through` and is what a fresh store indexed over
     /// reth's canonical chain serves, with proofs that hash to reth's state roots.
     fn assert_disk_matches_reth_through(&self, through: u64) -> eyre::Result<()> {
-        let window = self.window()?;
+        let window = self.proof_window()?;
         eyre::ensure!(
             window.latest.number >= through,
             "the disk tip {} is below block {through}",
@@ -458,12 +511,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         let engine = self.reth.spawn_engine(store.clone(), 1, 2);
         let head = self.reth.head().number;
         for number in 1..=head {
-            let block = self.reth.executed_block(number);
-            engine.index_block(
-                block.recovered_block().block_with_parent(),
-                (*block.trie_updates()).clone(),
-                (*block.hashed_state()).clone(),
-            )?;
+            index_executed_block(&engine, self.reth.executed_block(number))?;
         }
         for _ in 0..=head {
             engine.flush();
@@ -474,16 +522,6 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         );
         Ok(store)
     }
-}
-
-/// Runs `$run` over a fresh store of `$backend`.
-macro_rules! over_backend {
-    ($backend:expr, $run:ident($($arg:expr),*)) => {
-        match $backend {
-            Backend::InMemory => $run(InMemoryProofsStorage::new, $($arg),*),
-            Backend::Mdbx => $run(create_mdbx_proofs_storage, $($arg),*),
-        }
-    };
 }
 
 fn run_reorg_case<S: OpProofsStore + Clone + 'static>(
@@ -502,11 +540,12 @@ fn run_reorg_case<S: OpProofsStore + Clone + 'static>(
     scenario.assert_disk_matches_reth_through(fork + 3)
 }
 
-/// A reorg replaces the stored blocks above the fork with the new chain, indexed or executed,
-/// whether the fork is buffered (block 6 under the slower cadence) or on disk.
+/// A reorg replaces the stored blocks above the fork with the new chain, indexed, executed or
+/// both, whether the fork is buffered (block 6 under the slower cadence) or on disk.
 #[rstest]
 #[case::indexed_from_block_six(ReorgPath::Index, 6)]
 #[case::executed_from_block_three(ReorgPath::Execute, 3)]
+#[case::mixed_from_block_four(ReorgPath::Mixed, 4)]
 #[serial]
 fn reorg_replaces_the_stored_blocks_above_the_fork(
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
@@ -567,9 +606,9 @@ fn run_restarted_engine_case<S: OpProofsStore + Clone + 'static>(
     make_store: impl FnOnce() -> S,
 ) -> eyre::Result<()> {
     let fork = 2;
-    let mut scenario = Scenario::new(make_store, FlushCadence::EVERY_BLOCK, WHOLE_WINDOW)?;
+    let scenario = Scenario::new(make_store, FlushCadence::EVERY_BLOCK, WHOLE_WINDOW)?;
     let before = scenario.disk_snapshot()?;
-    scenario.restart_engine(WHOLE_WINDOW);
+    let scenario = scenario.restart_engine();
 
     let err = scenario
         .engine
@@ -595,26 +634,19 @@ fn restarted_engine_rejects_a_reorg_not_building_on_a_block_below_its_disk_tip(
 fn run_below_window_case<S: OpProofsStore + Clone + 'static>(
     make_store: impl FnOnce() -> S,
     cadence: FlushCadence,
-    task: Task,
-    target: Target,
+    task: UnwindingTask,
+    target: UnwindTarget,
     window: u64,
 ) -> eyre::Result<()> {
     let scenario = Scenario::new(make_store, cadence, window)?;
     let before = scenario.disk_snapshot()?;
     let earliest = before.window.earliest.number;
-    let number = match target {
-        Target::Anchor => 0,
-        Target::BelowEarliest => earliest - 1,
-        Target::Earliest => earliest,
-    };
-    let to = scenario.canonical_target(number);
+    let number = target.block_number(earliest);
 
-    let result = match task {
-        Task::Reorg => scenario.engine.reorg(vec![reorg_block_without_data(to)]),
-        Task::Unwind => scenario.engine.unwind(to),
-    };
+    let err = task
+        .run(&scenario.engine, scenario.canonical_target(number))
+        .expect_err("the unwind would remove the window's earliest block");
 
-    let err = result.expect_err("the unwind would remove the window's earliest block");
     assert!(
         matches!(
             err,
@@ -633,16 +665,28 @@ fn run_below_window_case<S: OpProofsStore + Clone + 'static>(
 /// An unwind or a reorg whose target is at or below the window's earliest block, the init anchor
 /// or a block pruning moved the window past, fails before touching the store or the buffer.
 #[rstest]
-#[case::unwind_at_the_earliest_block(Task::Unwind, Target::Earliest, PRUNED_WINDOW)]
-#[case::reorg_below_the_earliest_block(Task::Reorg, Target::BelowEarliest, PRUNED_WINDOW)]
-#[case::reorg_at_the_anchor_below_the_window(Task::Reorg, Target::Anchor, PRUNED_WINDOW)]
-#[case::unwind_at_the_anchor_as_earliest_block(Task::Unwind, Target::Anchor, WHOLE_WINDOW)]
+#[case::unwind_at_the_earliest_block(UnwindingTask::Unwind, UnwindTarget::Earliest, PRUNED_WINDOW)]
+#[case::reorg_below_the_earliest_block(
+    UnwindingTask::Reorg,
+    UnwindTarget::BelowEarliest,
+    PRUNED_WINDOW
+)]
+#[case::reorg_at_the_anchor_below_the_window(
+    UnwindingTask::Reorg,
+    UnwindTarget::Anchor,
+    PRUNED_WINDOW
+)]
+#[case::unwind_at_the_anchor_as_earliest_block(
+    UnwindingTask::Unwind,
+    UnwindTarget::Anchor,
+    WHOLE_WINDOW
+)]
 #[serial]
 fn unwind_or_reorg_at_or_below_the_earliest_block_fails_and_changes_nothing(
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
     #[values(FlushCadence::EVERY_BLOCK, FlushCadence::EVERY_FIFTH_BLOCK)] cadence: FlushCadence,
-    #[case] task: Task,
-    #[case] target: Target,
+    #[case] task: UnwindingTask,
+    #[case] target: UnwindTarget,
     #[case] window: u64,
 ) -> eyre::Result<()> {
     over_backend!(backend, run_below_window_case(cadence, task, target, window))
@@ -653,14 +697,14 @@ fn run_unwind_to_above_earliest_case<S: OpProofsStore + Clone + 'static>(
     cadence: FlushCadence,
 ) -> eyre::Result<()> {
     let mut scenario = Scenario::new(make_store, cadence, PRUNED_WINDOW)?;
-    let earliest = scenario.window()?.earliest;
+    let earliest = scenario.proof_window()?.earliest;
 
     scenario.engine.unwind(scenario.canonical_target(earliest.number + 1))?;
 
-    assert_eq!(scenario.window()?, ProofWindowRange { earliest, latest: earliest });
+    assert_eq!(scenario.proof_window()?, ProofWindowRange { earliest, latest: earliest });
     scenario.assert_tip(earliest);
     for number in earliest.number + 1..=CHAIN_LENGTH {
-        scenario.index(scenario.reth.executed_block(number))?;
+        index_executed_block(&scenario.engine, scenario.reth.executed_block(number))?;
     }
     scenario.commit_through_a_save()?;
     scenario.assert_disk_matches_reth_through(CHAIN_LENGTH)
@@ -675,6 +719,57 @@ fn unwind_to_the_block_above_the_earliest_keeps_only_the_earliest(
     #[values(FlushCadence::EVERY_BLOCK, FlushCadence::EVERY_FIFTH_BLOCK)] cadence: FlushCadence,
 ) -> eyre::Result<()> {
     over_backend!(backend, run_unwind_to_above_earliest_case(cadence))
+}
+
+fn run_unwind_at_a_block_the_save_prunes_case<S: OpProofsStore + Clone + 'static>(
+    make_store: impl FnOnce() -> S,
+    cadence: FlushCadence,
+) -> eyre::Result<()> {
+    let mut scenario = Scenario::new(make_store, cadence, PRUNED_WINDOW)?;
+    let earliest_before = scenario.proof_window()?.earliest.number;
+    let hold = scenario.hold_next_save();
+    scenario.commit_until_a_save_is_in_flight(&hold)?;
+    let head = scenario.reth.head();
+    // The save carries the chain through the head and prunes the window to end at the head.
+    let target = head.number - PRUNED_WINDOW;
+    assert!(target > earliest_before, "the target is inside the window until the save prunes it");
+    let to = scenario.canonical_target(target);
+    let engine = scenario.engine.clone();
+
+    let unwinding = thread::spawn(move || engine.unwind(to));
+    hold.release();
+    let err = unwinding
+        .join()
+        .expect("the unwind thread finishes")
+        .expect_err("the save moved the earliest block up to the target");
+
+    assert!(
+        matches!(
+            err,
+            EngineError::Storage(OpProofsStorageError::UnwindBeyondEarliest {
+                unwind_block_number,
+                earliest_block_number,
+            }) if unwind_block_number == target && earliest_block_number == target
+        ),
+        "got {err:?}"
+    );
+    assert_eq!(
+        scenario.proof_window()?,
+        ProofWindowRange { earliest: scenario.reth.num_hash(target), latest: head }
+    );
+    scenario.assert_tip(head);
+    scenario.assert_disk_matches_reth_through(head.number)
+}
+
+/// An unwind whose target the in-flight save's pruning moves the window past is refused against
+/// the window as the save leaves it, before the persistence service sees the unwind.
+#[rstest]
+#[serial]
+fn unwind_at_a_block_the_in_flight_save_prunes_fails_after_the_save(
+    #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
+    #[values(FlushCadence::EVERY_BLOCK, FlushCadence::EVERY_FIFTH_BLOCK)] cadence: FlushCadence,
+) -> eyre::Result<()> {
+    over_backend!(backend, run_unwind_at_a_block_the_save_prunes_case(cadence))
 }
 
 fn run_buffered_revert_case<S: OpProofsStore + Clone + 'static>(
@@ -693,7 +788,7 @@ fn run_buffered_revert_case<S: OpProofsStore + Clone + 'static>(
     let new_chain =
         scenario.reth.reorg_with(revert_from, &fork_blocks(revert_from..=CHAIN_LENGTH))?;
     for block in &new_chain {
-        scenario.index(block)?;
+        index_executed_block(&scenario.engine, block)?;
     }
     scenario.commit_through_a_save()?;
     scenario.assert_disk_matches_reth_through(CHAIN_LENGTH)
@@ -733,17 +828,18 @@ fn run_revert_during_save_case<S: OpProofsStore + Clone + 'static>(
         .reth
         .reorg_with(disk_tip.number + 1, &fork_blocks(disk_tip.number + 1..=disk_tip.number + 3))?;
     for block in &new_chain {
-        scenario.index(block)?;
+        index_executed_block(&scenario.engine, block)?;
     }
     scenario.commit_through_a_save()?;
     scenario.assert_disk_matches_reth_through(disk_tip.number + 3)
 }
 
-/// A revert of every block above the disk tip while their save is in flight waits for the save,
-/// then removes them again: the disk ends as it was and the tip is the disk tip.
+/// A revert of every block above the disk tip, sent while their save is in flight, ends with the
+/// disk as it was and the tip at the disk tip: the engine either drains the save before the
+/// unwind or sees its completion first, and both orders must end the same.
 #[rstest]
 #[serial]
-fn revert_during_an_in_flight_save_waits_for_the_save(
+fn revert_sent_during_an_in_flight_save_ends_with_the_disk_as_it_was(
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
     #[values(FlushCadence::EVERY_BLOCK, FlushCadence::EVERY_FIFTH_BLOCK)] cadence: FlushCadence,
 ) -> eyre::Result<()> {
@@ -756,7 +852,7 @@ fn run_reorg_during_save_case<S: OpProofsStore + Clone + 'static>(
     path: ReorgPath,
 ) -> eyre::Result<()> {
     let mut scenario = Scenario::new(make_store, cadence, WHOLE_WINDOW)?;
-    let fork = scenario.window()?.latest.number - 2;
+    let fork = scenario.proof_window()?.latest.number - 2;
     let hold = scenario.hold_next_save();
     scenario.commit_until_a_save_is_in_flight(&hold)?;
     let new_chain = scenario.reth.reorg_with(fork + 1, &fork_blocks(fork + 1..=fork + 3))?;
@@ -775,12 +871,12 @@ fn run_reorg_during_save_case<S: OpProofsStore + Clone + 'static>(
     scenario.assert_disk_matches_reth_through(fork + 3)
 }
 
-/// A reorg from a fork on disk while a save of the blocks above it is in flight waits for the
-/// save, unwinds the disk to the fork and buffers the new chain, so that the disk and the buffer
-/// agree with reth.
+/// A reorg from a fork on disk, sent while a save of the blocks above it is in flight, ends with
+/// the disk unwound to the fork and the new chain buffered, so that the disk and the buffer agree
+/// with reth whichever of the save and the reorg the engine handles first.
 #[rstest]
 #[serial]
-fn reorg_from_a_disk_fork_during_an_in_flight_save_waits_for_the_save(
+fn reorg_sent_during_an_in_flight_save_ends_consistent_with_reth(
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
     #[values(FlushCadence::EVERY_BLOCK, FlushCadence::EVERY_FIFTH_BLOCK)] cadence: FlushCadence,
     #[values(ReorgPath::Index, ReorgPath::Execute)] path: ReorgPath,

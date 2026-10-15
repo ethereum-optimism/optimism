@@ -16,7 +16,7 @@ use super::{
         initcode_returning, slot_writer_calldata, slot_writer_runtime,
     },
     create_mdbx_proofs_storage, funded, initialize_storage, public_key_to_address,
-    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer},
+    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer, index_executed_block},
     store_view::{BlockView, ProofTarget, assert_same_view},
 };
 use alloy_eips::{
@@ -389,13 +389,8 @@ where
         reth.spawn_engine(executed.clone(), cadence.persistence, cadence.backpressure);
     for spec in &blocks {
         let reth_block = reth.commit(spec)?;
-        let block = reth_block.recovered_block();
-        indexed_engine.index_block(
-            block.block_with_parent(),
-            (*reth_block.trie_updates()).clone(),
-            (*reth_block.hashed_state()).clone(),
-        )?;
-        executed_engine.execute_block(block)?;
+        index_executed_block(&indexed_engine, &reth_block)?;
+        executed_engine.execute_block(reth_block.recovered_block())?;
     }
     flush_until_persisted(&indexed_engine, &indexed, reth.head())?;
     flush_until_persisted(&executed_engine, &executed, reth.head())?;
@@ -476,8 +471,5 @@ fn index_execute_and_backfill_stores_agree(
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
     #[case] change: StateChange,
 ) -> eyre::Result<()> {
-    match backend {
-        Backend::InMemory => run_parity_case(InMemoryProofsStorage::new, cadence, change),
-        Backend::Mdbx => run_parity_case(create_mdbx_proofs_storage, cadence, change),
-    }
+    over_backend!(backend, run_parity_case(cadence, change))
 }

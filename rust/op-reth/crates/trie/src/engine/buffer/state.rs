@@ -9,8 +9,8 @@ use alloy_primitives::{B256, map::HashMap};
 use parking_lot::RwLock;
 use std::{collections::BTreeMap, sync::Arc};
 
-/// Persisted block hashes the buffer keeps. A reorg reaches at most reth's in-memory chain below
-/// its head, far fewer blocks than this.
+/// Persisted block hashes the buffer keeps; an unwind onto an older block has only the window's
+/// ends to check against.
 const RETAINED_PERSISTED_HASHES: usize = 1024;
 
 /// Buffer for holding blocks waiting to be persisted.
