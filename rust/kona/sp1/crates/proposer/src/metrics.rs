@@ -196,12 +196,6 @@ pub enum ProposerGauge {
         message = "Duration of the most recent L1 send that reached the required confirmations, in seconds"
     )]
     TxSendDurationSeconds,
-    /// Total L1 fees (`gas_used * effective_gas_price`) of confirmed or reverted sends, in ETH.
-    #[strum(
-        serialize = "op_zk_proposer_tx_fees_eth",
-        message = "Total L1 fees paid by confirmed or reverted sends, in ETH"
-    )]
-    TxFeesEth,
     /// Total number of times a proving deadline was observed approaching
     /// (within half of `maxProveDuration` for defense tasks, half of
     /// `maxChallengeDuration` for fast finality tasks).
@@ -276,6 +270,7 @@ const SPN_REQUESTER: &str = "op_zk_proposer_spn_requester_info";
 const TX_SENDS: &str = "op_zk_proposer_tx_sends_total";
 const TX_PUBLISH_ERRORS: &str = "op_zk_proposer_tx_publish_errors_total";
 const TX_FEE_BUMPS: &str = "op_zk_proposer_tx_fee_bumps_total";
+const TX_FEES: &str = "op_zk_proposer_tx_fees_gwei_total";
 
 /// Outcomes of an L1 send: confirmed with status 1, confirmed with status 0, or no receipt.
 const TX_SEND_OUTCOMES: [&str; 3] = ["confirmed", "reverted", "failed"];
@@ -313,13 +308,18 @@ pub fn register_metrics(network: bool) {
     }
     describe_counter!(
         TX_PUBLISH_ERRORS,
-        "L1 publishes that returned an error or no answer, by reason; no_response may still have reached the pool"
+        "L1 publishes that returned an error or no answer, and fee bumps that failed, by reason; no_response may still have reached the pool"
     );
     for reason in PUBLISH_ERROR_REASONS {
         counter!(TX_PUBLISH_ERRORS, "reason" => reason).increment(0);
     }
-    describe_counter!(TX_FEE_BUMPS, "Fee bumps that signed a replacement L1 transaction");
+    describe_counter!(TX_FEE_BUMPS, "Fee-bumped replacement L1 transactions sent to the node");
     counter!(TX_FEE_BUMPS).increment(0);
+    describe_counter!(
+        TX_FEES,
+        "L1 fees (gas_used * effective_gas_price) of confirmed or reverted sends, in whole gwei"
+    );
+    counter!(TX_FEES).increment(0);
 }
 
 /// Publishes the SPN requester address as a label so dashboards can link to its requests.
@@ -352,15 +352,17 @@ pub(crate) fn record_tx_send(result: &anyhow::Result<TransactionReceipt>, elapse
     let outcome = if receipt.status() { "confirmed" } else { "reverted" };
     counter!(TX_SENDS, "outcome" => outcome).increment(1);
     ProposerGauge::TxSendDurationSeconds.set(elapsed.as_secs_f64());
-    let fee = U256::from(receipt.gas_used) * U256::from(receipt.effective_gas_price);
-    ProposerGauge::TxFeesEth.increment(token_balance(fee));
+    let fee_gwei = u128::from(receipt.gas_used) * receipt.effective_gas_price / 1_000_000_000;
+    counter!(TX_FEES).increment(u64::try_from(fee_gwei).unwrap_or(u64::MAX));
 }
 
-/// `reason` is one of [`PUBLISH_ERROR_REASONS`].
+/// Counts a publish that returned an error or no answer, or a failed fee bump; `reason` is one
+/// of [`PUBLISH_ERROR_REASONS`].
 pub(crate) fn record_tx_publish_error(reason: &'static str) {
     counter!(TX_PUBLISH_ERRORS, "reason" => reason).increment(1);
 }
 
+/// Counts a fee-bumped replacement that is about to be sent.
 pub(crate) fn record_tx_fee_bump() {
     counter!(TX_FEE_BUMPS).increment(1);
 }

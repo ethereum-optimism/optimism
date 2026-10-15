@@ -397,11 +397,13 @@ including the L1 transaction path. Use the task-stats log to investigate stuck w
 
 L1 send diagnostics: `op_zk_proposer_tx_publish_errors_total` counts publishes that
 returned an error or no answer, by `reason` (`underpriced`, `nonce_too_low`,
-`no_response`, `rejected`); a `no_response` publish may still have reached the pool.
-`op_zk_proposer_tx_fee_bumps_total` counts replacements signed at higher fees.
+`rejected`, `no_response`); a `no_response` publish may still have reached the pool.
+Its `bump_failed` reason counts fee bumps that failed, for example when
+`OP_ZK_PROPOSER_MAX_FEE_PER_GAS` blocks the replacement.
+`op_zk_proposer_tx_fee_bumps_total` counts fee-bumped replacements sent to the node.
 `op_zk_proposer_tx_send_duration_seconds` is the duration of the latest send that
-got a receipt, and `op_zk_proposer_tx_fees_eth` totals `gas_used * effective_gas_price`
-over those sends.
+got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
+`gas_used * effective_gas_price` over those sends, in whole gwei.
 
 ### Environment
 

@@ -211,7 +211,7 @@ pub(crate) async fn send_transaction<P: Provider>(
     let result = timeout(send_timeout, send(provider, signer, request, caps))
         .await
         .map_err(|_| anyhow!("transaction not confirmed within {}s", send_timeout.as_secs()))
-        .and_then(|result| result);
+        .flatten();
     metrics::record_tx_send(&result, start.elapsed());
     result
 }
@@ -283,30 +283,46 @@ async fn poll_receipts<P: Provider>(
     }
 }
 
-/// Why a publish did not return a hash.
+/// Why a publish did not return a hash, parsed once from the node's answer.
 enum PublishError {
-    /// The node answered with an error, so it did not accept this version.
+    /// The pool already holds this version.
+    AlreadyKnown,
+    /// The pool wants a higher price for this version.
+    Underpriced(String),
+    /// Another transaction already used the nonce.
+    NonceTooLow(String),
+    /// Any other error answer: the node did not accept this version.
     Rejected(String),
     /// No answer from the node (timeout or transport failure); it may have accepted this version.
     Unknown(String),
 }
 
-/// Every label [`PublishError::reason`] returns, so the metric series start at 0.
-pub(crate) const PUBLISH_ERROR_REASONS: [&str; 4] =
-    ["underpriced", "nonce_too_low", "no_response", "rejected"];
+/// Every `reason` label of the publish-error metric, so its series start at 0.
+pub(crate) const PUBLISH_ERROR_REASONS: [&str; 5] =
+    ["underpriced", "nonce_too_low", "rejected", "no_response", "bump_failed"];
 
 impl PublishError {
-    /// Metrics label for a publish that returned an error or no answer; `None` for "already
-    /// known", which is not an error.
-    fn reason(&self) -> Option<&'static str> {
+    /// Classifies an error answer by the geth messages txmgr matches.
+    fn from_error_answer(message: String) -> Self {
+        if message.contains("already known") {
+            Self::AlreadyKnown
+        } else if message.contains("transaction underpriced") {
+            Self::Underpriced(message)
+        } else if message.contains("nonce too low") {
+            Self::NonceTooLow(message)
+        } else {
+            Self::Rejected(message)
+        }
+    }
+
+    /// Metrics label; `None` for "already known", which is not an error.
+    const fn reason(&self) -> Option<&'static str> {
         match self {
-            Self::Unknown(_) => Some("no_response"),
-            Self::Rejected(error) if error.contains("already known") => None,
-            Self::Rejected(error) if error.contains("transaction underpriced") => {
-                Some("underpriced")
-            }
-            Self::Rejected(error) if error.contains("nonce too low") => Some("nonce_too_low"),
+            Self::AlreadyKnown => None,
+            Self::Underpriced(_) => Some("underpriced"),
+            Self::NonceTooLow(_) => Some("nonce_too_low"),
             Self::Rejected(_) => Some("rejected"),
+            Self::Unknown(_) => Some("no_response"),
         }
     }
 }
@@ -331,12 +347,13 @@ impl<P: Provider> Publisher<'_, P> {
             if bump {
                 match self.bump_fees().await {
                     Ok(()) if state.lock().is_waiting_for_confirmation() => return,
-                    Ok(()) => {}
+                    Ok(()) => metrics::record_tx_fee_bump(),
                     Err(error) => {
                         tracing::warn!(
                             error = format!("{error:#}"),
                             "Unable to bump fees, republishing the current transaction"
                         );
+                        metrics::record_tx_publish_error("bump_failed");
                         bump_failed = true;
                     }
                 }
@@ -346,9 +363,7 @@ impl<P: Provider> Publisher<'_, P> {
                 metrics::record_tx_publish_error(reason);
             }
             match result {
-                Err(PublishError::Rejected(error))
-                    if !bump_failed && error.contains("transaction underpriced") =>
-                {
+                Err(PublishError::Underpriced(error)) if !bump_failed => {
                     tracing::warn!(error, "Transaction underpriced, bumping fees");
                     bump = true;
                 }
@@ -362,7 +377,7 @@ impl<P: Provider> Publisher<'_, P> {
         match timeout(NETWORK_TIMEOUT, self.provider.send_raw_transaction(&raw)).await {
             Ok(Ok(_)) => Ok(()),
             Ok(Err(error)) if error.as_error_resp().is_some() => {
-                Err(PublishError::Rejected(error.to_string()))
+                Err(PublishError::from_error_answer(error.to_string()))
             }
             Ok(Err(error)) => Err(PublishError::Unknown(error.to_string())),
             Err(_) => Err(PublishError::Unknown(format!(
@@ -390,16 +405,18 @@ impl<P: Provider> Publisher<'_, P> {
                 fee_cap = self.fees.fee_cap,
                 "Published transaction"
             ),
-            Err(PublishError::Rejected(error)) if error.contains("already known") => {
+            Err(PublishError::AlreadyKnown) => {
                 tracing::debug!(%hash, nonce, "Transaction already in the pool");
             }
             Err(PublishError::Unknown(error)) => {
                 tracing::warn!(%hash, nonce, error, "Publish outcome unknown, polling the transaction");
             }
-            Err(PublishError::Rejected(error)) => {
-                if error.contains("nonce too low") {
-                    state.nonce_too_low += 1;
-                }
+            Err(PublishError::NonceTooLow(error)) => {
+                state.nonce_too_low += 1;
+                tracing::warn!(%hash, nonce, error, "Unable to publish transaction");
+                return;
+            }
+            Err(PublishError::Underpriced(error) | PublishError::Rejected(error)) => {
                 tracing::warn!(%hash, nonce, error, "Unable to publish transaction");
                 return;
             }
@@ -423,7 +440,6 @@ impl<P: Provider> Publisher<'_, P> {
         );
         self.tx = sign(self.signer, &self.request, fees).await?;
         self.fees = fees;
-        metrics::record_tx_fee_bump();
         Ok(())
     }
 }
