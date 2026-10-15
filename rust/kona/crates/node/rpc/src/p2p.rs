@@ -326,25 +326,8 @@ impl OpP2PApiServer for P2pRpc {
             )
         })?;
 
-        // We need to wait until both peers are connected to each other to return from this method.
-        // We try with an exponential backoff and return an error if we fail to connect to the peer.
-        let is_connected = async || {
-            let peers = self.opp2p_peers(true).await?;
-            Ok::<bool, ErrorObject<'_>>(peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peer not connected",
-                None,
-            ));
-        }
-
-        Ok(())
+        // Return only once the peers are connected to each other.
+        self.wait_for_peer(peer_id, true, "Peer not connected").await
     }
 
     async fn opp2p_disconnect_peer(&self, peer_id: String) -> RpcResult<()> {
@@ -358,30 +341,36 @@ impl OpP2PApiServer for P2pRpc {
 
         self.network.disconnect_peer(peer_id).await.map_err(internal_error)?;
 
-        // We need to wait until both peers are fully disconnected to each other to return from this
-        // method. We try with an exponential backoff and return an error if we fail to
-        // disconnect from the peer.
-        let is_not_connected = async || {
-            let peers = self.opp2p_peers(true).await?;
-            Ok::<bool, ErrorObject<'_>>(!peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_not_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peers are still connected",
-                None,
-            ));
-        }
-
-        Ok(())
+        // Return only once the peers are disconnected from each other.
+        self.wait_for_peer(peer_id, false, "Peers are still connected").await
     }
 }
 
 impl P2pRpc {
+    /// Waits, with exponential backoff for up to 10 seconds, until `peer_id` is connected if
+    /// `connected`, or disconnected otherwise. Fails with `InvalidParams` and `message` if it never
+    /// is.
+    async fn wait_for_peer(
+        &self,
+        peer_id: PeerId,
+        connected: bool,
+        message: &'static str,
+    ) -> RpcResult<()> {
+        let peer_id = peer_id.to_string();
+        // The backoff retries only on an error, so a peer not yet in the wanted state is one.
+        let check = async || {
+            let peers = self.opp2p_peers(true).await?;
+            if peers.peers.contains_key(&peer_id) == connected {
+                Ok(())
+            } else {
+                Err(ErrorObject::borrowed(ErrorCode::InvalidParams.code(), message, None))
+            }
+        };
+        check
+            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
+            .await
+    }
+
     /// Constructs an RPC server for the L2 chain with ID `chain_id`. It reads the gossip state
     /// the network actor publishes from `gossip`, usually [`network::Handle::state`]. A node
     /// without discovery passes no `discovery` handle, and reports no ENR and an empty table.
@@ -635,6 +624,25 @@ mod tests {
         assert_eq!(info.node_id, format!("{peer_node_id:?}"));
         assert_eq!(info.enr, None);
         assert_eq!(info.connectedness, Connectedness::Connected);
+    }
+
+    /// Connecting or disconnecting a peer returns only once the gossip state shows it, which the
+    /// network actor publishes later, and fails if it never does.
+    #[tokio::test]
+    async fn waiting_for_a_peer_retries_until_the_gossip_state_shows_it() {
+        let Fixture { rpc, state_tx, driver } = fixture(true);
+        let peer = Keypair::generate_secp256k1().public().to_peer_id();
+        let mut state = driver.snapshot();
+        state.connected_peers.insert(peer);
+
+        let (connected, ()) = tokio::join!(rpc.wait_for_peer(peer, true, "not connected"), async {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            state_tx.send_replace(Arc::new(state));
+        });
+        connected.unwrap();
+        let error = rpc.wait_for_peer(peer, false, "still connected").await.unwrap_err();
+        assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        assert_eq!(error.message(), "still connected");
     }
 
     #[test]
