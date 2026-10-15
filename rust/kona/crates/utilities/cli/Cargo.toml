@@ -28,7 +28,6 @@ alloy-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true
-rstest.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true

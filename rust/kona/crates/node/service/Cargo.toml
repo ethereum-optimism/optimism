@@ -66,11 +66,9 @@ alloy-json-rpc.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 enr.workspace = true
-rstest.workspace = true
 arbitrary.workspace = true
 rand.workspace = true
 anyhow.workspace = true
-mockall.workspace = true
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
