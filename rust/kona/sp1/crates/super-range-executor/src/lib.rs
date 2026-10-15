@@ -51,10 +51,10 @@ use sp1_sdk::{
 
 mod cost;
 pub use cost::{
-    ConsolidationCost, LogBatchBlock, MAX_ENTRIES_PER_BATCH, MAX_WITNESS_BYTES,
-    ScannedTimestampCost, bound_receipts_path_pgu, bound_receipts_path_witness_bytes,
-    estimate_consolidation_pgu, estimate_log_block_pgu, estimate_log_commitment_pgu,
-    pack_log_commitment_batches, receipts_trie_bytes,
+    BATCH_PROOF_BYTES, ConsolidationCost, LogBatchBlock, MAX_ENTRIES_PER_BATCH, MAX_STDIN_BYTES,
+    MAX_WITNESS_BYTES, ScannedTimestampCost, bound_receipts_path_pgu,
+    bound_receipts_path_witness_bytes, estimate_consolidation_pgu, estimate_log_block_pgu,
+    estimate_log_commitment_pgu, pack_log_commitment_batches, receipts_trie_bytes,
 };
 mod l2;
 pub use l2::L2BlockClient;

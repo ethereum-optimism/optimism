@@ -18,6 +18,7 @@ const (
 	stateWaitTimeout           = 10 * time.Minute
 	defenseTasksSpawnedMetric  = "op_zk_proposer_games_defense_spawned"
 	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
+	logBatchesSubmittedMetric  = "op_zk_proposer_log_batches_submitted"
 	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
@@ -43,11 +44,12 @@ func New(t devtest.T, runtime Runtime) *ZKProposer {
 	return &ZKProposer{t: t, log: t.Logger(), metrics: metricsClient}
 }
 
-// StateExpectation describes one exact proposer-state observation.
+// StateExpectation describes one proposer-state observation.
 type StateExpectation struct {
 	description string
 	expected    int
 	metric      string
+	atLeast     bool
 }
 
 // DefenseTasksSpawned expects the exact number of spawned defense tasks.
@@ -65,6 +67,17 @@ func ProvingFailures(expected int) *StateExpectation {
 		description: "proving failures",
 		expected:    expected,
 		metric:      gameProvingFailuresMetric,
+	}
+}
+
+// LogBatchesSubmittedAtLeast expects at least minimum log-commitment batch
+// proof requests.
+func LogBatchesSubmittedAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "log batches submitted",
+		expected:    minimum,
+		metric:      logBatchesSubmittedMetric,
+		atLeast:     true,
 	}
 }
 
@@ -106,18 +119,24 @@ func (p *ZKProposer) verifyState(ctx context.Context, expectations ...*StateExpe
 					p.log.Info("ZK proposer state observation unavailable",
 						"expectation", expectation.description,
 						"expected", expectation.expected,
+						"at_least", expectation.atLeast,
 						"err", err)
 				} else {
 					p.log.Info("Observed ZK proposer state",
 						"expectation", expectation.description,
 						"expected", expectation.expected,
+						"at_least", expectation.atLeast,
 						"observed", observed)
 				}
 			}
 			if err != nil {
 				return fmt.Errorf("%s: %w", expectation.description, err)
 			}
-			if observed != float64(expectation.expected) {
+			if expectation.atLeast {
+				if observed < float64(expectation.expected) {
+					return fmt.Errorf("%s expected at least %d but observed %v", expectation.description, expectation.expected, observed)
+				}
+			} else if observed != float64(expectation.expected) {
 				return fmt.Errorf("%s expected %d but observed %v", expectation.description, expectation.expected, observed)
 			}
 		}
