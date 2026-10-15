@@ -374,7 +374,7 @@ func TestSequencerOpRethCrashKeepsPostedBlocksWithBatcherRunning(gt *testing.T) 
 		t.Run(c.name(), func(t devtest.T) {
 			t.Parallel()
 			skipUnsupported(t)
-			sysgo.SkipOnKonaNode(t, "fails on develop under kona-node (#23386): at threshold 50 the restarted sequencer's "+
+			sysgo.SkipOnKonaNode(t, "fails on develop under kona-node (ethereum-optimism/protocol-team#483): at threshold 50 the restarted sequencer's "+
 				"build loop fails every forkchoice update with `error code -38002: Invalid forkchoice state` and reth's safe "+
 				"label stays unresolvable, so the wait for the posted blocks to be safe fails with `failed to determine "+
 				"L2BlockRef of safe, could not get payload: not found`; at threshold 7 the sequencer resumes, but the "+
