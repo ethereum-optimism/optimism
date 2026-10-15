@@ -31,6 +31,9 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use test_case::test_case;
 
+#[path = "live/parent_states.rs"]
+mod parent_states;
+
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap().keep();
     Arc::new(MdbxProofsStorage::new(&path).unwrap())
@@ -76,6 +79,16 @@ impl TxSpec {
             value,
             nonce: None,
         }
+    }
+
+    /// Create a contract deployment running `initcode`.
+    const fn create(initcode: Bytes, gas_limit: u64) -> Self {
+        Self { to: TxKind::Create, data: initcode, gas_limit, value: U256::ZERO, nonce: None }
+    }
+
+    /// Create a call to `contract` with `data` as input.
+    const fn call(contract: Address, data: Bytes, gas_limit: u64) -> Self {
+        Self { to: TxKind::Call(contract), data, gas_limit, value: U256::ZERO, nonce: None }
     }
 }
 
@@ -208,29 +221,66 @@ where
             Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
         > + NodeTypesWithDB,
 {
-    let execution_outcome = ExecutionOutcome {
-        bundle: execution_output.state.clone(),
-        receipts: vec![execution_output.receipts.clone()],
-        first_block: block.number(),
-        requests: vec![execution_output.requests.clone()],
-    };
+    commit_blocks_to_database([(block, execution_output)], provider_factory)
+}
+
+/// Commits consecutive blocks and their execution outputs to the database in one transaction,
+/// the way reth's persistence task does.
+fn commit_blocks_to_database<'a, N>(
+    blocks: impl IntoIterator<
+        Item = (&'a RecoveredBlock<Block>, &'a reth_evm::execute::BlockExecutionOutput<Receipt>),
+    >,
+    provider_factory: &ProviderFactory<N>,
+) -> eyre::Result<()>
+where
+    N: ProviderNodeTypes<
+            Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
+        > + NodeTypesWithDB,
+{
+    let mut recovered_blocks = Vec::new();
+    let mut execution_outcome: Option<ExecutionOutcome> = None;
+    for (block, execution_output) in blocks {
+        let block_outcome = ExecutionOutcome {
+            bundle: execution_output.state.clone(),
+            receipts: vec![execution_output.receipts.clone()],
+            first_block: block.number(),
+            requests: vec![execution_output.requests.clone()],
+        };
+        match execution_outcome.as_mut() {
+            Some(outcome) => outcome.extend(block_outcome),
+            None => execution_outcome = Some(block_outcome),
+        }
+        recovered_blocks.push(block.clone());
+    }
+    let Some(execution_outcome) = execution_outcome else { return Ok(()) };
 
     // Calculate hashed state from execution result
     let state_provider = provider_factory.provider()?;
     let hashed_state = HashedPostStateProvider::hashed_post_state(
         &LatestStateProviderRef::new(&state_provider),
-        &execution_output.state,
+        &execution_outcome.bundle,
     )?;
 
     let provider_rw = provider_factory.provider_rw()?;
     provider_rw.append_blocks_with_state(
-        vec![block.clone()],
+        recovered_blocks,
         &execution_outcome,
         hashed_state.into_sorted(),
     )?;
     provider_rw.commit()?;
 
     Ok(())
+}
+
+/// The layout of reth's trie tables, which the initialization job copies from.
+fn reth_trie_layout<N: NodeTypesWithDB>(
+    provider_factory: &ProviderFactory<N>,
+) -> RethTrieStorageLayout {
+    if provider_factory.cached_storage_settings().is_v2() {
+        RethTrieStorageLayout::Packed
+    } else {
+        RethTrieStorageLayout::Legacy
+    }
 }
 
 /// Runs a test scenario with the given configuration
@@ -273,14 +323,10 @@ where
     }
 
     {
-        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
-            RethTrieStorageLayout::Packed
-        } else {
-            RethTrieStorageLayout::Legacy
-        };
         let provider = provider_factory.db_ref();
         let tx = provider.tx()?;
-        let initialization_job = InitializationJob::new(storage.clone(), tx, trie_layout);
+        let initialization_job =
+            InitializationJob::new(storage.clone(), tx, reth_trie_layout(&provider_factory));
         initialization_job.run(last_block_number, last_block_hash)?;
     }
 
