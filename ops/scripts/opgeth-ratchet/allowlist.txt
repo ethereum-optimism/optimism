@@ -59,7 +59,6 @@ op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.Optimism | #21281 
 op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.RegolithTime | #21281 genesis tooling
 op-chain-ops/genesis | missing go-ethereum/params.OptimismConfig | #21281 genesis tooling
 op-chain-ops/genesis (tests) | missing go-ethereum/params.ChainConfig.RegolithTime | #21281 genesis tooling
-op-chain-ops/pkg/sdm | missing go-ethereum/core/types.DepositTxType | #23409 swap to op-core
 op-chain-ops/pkg/sdm (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 op-chain-ops/pkg/sdm (tests) | missing go-ethereum/core/types.PostExecTx | #23405 test and DSL swaps to op-core
 op-chain-ops/script | missing go-ethereum/core/vm.BlockContext.L1CostFunc | #23300 forge as the only script engine
@@ -79,7 +78,6 @@ op-chain-ops/script | missing go-ethereum/params.ChainConfig.Optimism | #23300 f
 op-chain-ops/script | missing go-ethereum/params.ChainConfig.RegolithTime | #23300 forge as the only script engine
 op-chain-ops/script (tests) | missing go-ethereum/core/vm.Config.NoMaxCodeSize | #23300 forge as the only script engine
 op-chain-ops/script/forking | missing go-ethereum/core/state.StateUpdate | upstream backport, in go-ethereum v1.17.7
-op-core/fees | missing go-ethereum/core/types.DepositTxType | #23409 swap to op-core
 op-core/fees (tests) | missing go-ethereum/core/types.CalcDAFootprint | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.DepositTx | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.ExtractDAFootprintGasScalar | #20266 op-core transition code, removed at the cutover
@@ -145,7 +143,6 @@ op-core/types (tests) | missing go-ethereum/core/types.Transaction.SourceHash | 
 op-deployer/pkg/deployer/opcm | missing go-ethereum/params.BuilderDepositAddress | upstream backport, in go-ethereum v1.17.7
 op-deployer/pkg/deployer/opcm | missing go-ethereum/params.BuilderExitAddress | upstream backport, in go-ethereum v1.17.7
 op-deployer/pkg/deployer/pipeline | missing go-ethereum/core.Genesis.StateHash | #23217 genesis readers
-op-deployer/pkg/deployer/pipeline | missing go-ethereum/params.ChainConfig.IsOptimismIsthmus | #23409 swap to op-core
 op-deployer/pkg/deployer/pipeline (tests) | missing go-ethereum/core.Genesis.StateHash | #23217 genesis readers
 op-devstack/dsl | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.FlzCompressLen | #23405 test and DSL swaps to op-core
@@ -274,7 +271,6 @@ op-interop-mon/monitor (tests) | missing go-ethereum/params.InteropCrossL2InboxA
 op-node | missing go-ethereum/params.ChainConfig.IsOptimism | #23406 non-test swaps
 op-node (tests) | missing go-ethereum/params.ChainConfig.Optimism | #23406 non-test swaps
 op-node (tests) | missing go-ethereum/params.OptimismConfig | #23406 non-test swaps
-op-node/rollup/attributes | missing go-ethereum/core/types.EcotoneL1AttributesSelector | #23409 swap to op-core
 op-node/rollup/derive (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeOptimismExtraData | #23405 test and DSL swaps to op-core
 op-node/rollup/derive (tests) | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
 op-node/rollup/derive (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
