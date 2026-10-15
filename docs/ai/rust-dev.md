@@ -140,7 +140,7 @@ This builds affected crates for the `riscv32imac-unknown-none-elf` target.
 
 ## Dependency Auditing
 
-The workspace uses `cargo-deny` for license, advisory, and dependency checks. Configuration is in `rust/deny.toml`.
+The workspace uses `cargo-deny` for license, banned-crate, and crate-source checks. Advisories are not checked; dependency vulnerabilities are tracked through image scanning. Configuration is in `rust/deny.toml`.
 
 ```bash
 cd rust

@@ -103,26 +103,29 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		require.NoError(t, err)
 
 		impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
-			L1RPCUrl:                        l1RPC,
-			PrivateKey:                      pkHex,
-			ArtifactsLocator:                loc,
-			MIPSVersion:                     int(standard.MIPSVersion),
-			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DevFeatureBitmap:                common.Hash{},
-			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
-			L1ProxyAdminOwner:               superchainPAO,
-			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
-			CacheDir:                        testCacheDir,
-			Logger:                          lgr,
-			Challenger:                      common.Address{'C'},
-			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-			FaultGameSplitDepth:             standard.DisputeSplitDepth,
-			FaultGameClockExtension:         standard.DisputeClockExtension,
-			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+			L1RPCUrl:                           l1RPC,
+			PrivateKey:                         pkHex,
+			ArtifactsLocator:                   loc,
+			MIPSVersion:                        int(standard.MIPSVersion),
+			MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+			MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+			MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+			MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+			DevFeatureBitmap:                   common.Hash{},
+			SuperchainConfigProxy:              bstrap.SuperchainConfigProxy,
+			L1ProxyAdminOwner:                  superchainPAO,
+			SuperchainProxyAdmin:               bstrap.SuperchainProxyAdmin,
+			CacheDir:                           testCacheDir,
+			Logger:                             lgr,
+			Challenger:                         common.Address{'C'},
+			FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+			FaultGameSplitDepth:                standard.DisputeSplitDepth,
+			FaultGameClockExtension:            standard.DisputeClockExtension,
+			FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 		})
 		require.NoError(t, err)
 
@@ -189,25 +192,28 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := bootstrap.ImplementationsConfig{
-		L1RPCUrl:                        forkedL1.RPCUrl(),
-		PrivateKey:                      pkHex,
-		ArtifactsLocator:                loc,
-		MIPSVersion:                     int(standard.MIPSVersion),
-		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-		SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-		L1ProxyAdminOwner:               superchainProxyAdminOwner,
-		SuperchainProxyAdmin:            superchainProxyAdmin,
-		CacheDir:                        testCacheDir,
-		Logger:                          lgr,
-		Challenger:                      common.Address{'C'},
-		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-		FaultGameSplitDepth:             standard.DisputeSplitDepth,
-		FaultGameClockExtension:         standard.DisputeClockExtension,
-		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+		L1RPCUrl:                           forkedL1.RPCUrl(),
+		PrivateKey:                         pkHex,
+		ArtifactsLocator:                   loc,
+		MIPSVersion:                        int(standard.MIPSVersion),
+		MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+		MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+		MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+		MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+		MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+		MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+		MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+		SuperchainConfigProxy:              superchain.SuperchainConfigAddr,
+		L1ProxyAdminOwner:                  superchainProxyAdminOwner,
+		SuperchainProxyAdmin:               superchainProxyAdmin,
+		CacheDir:                           testCacheDir,
+		Logger:                             lgr,
+		Challenger:                         common.Address{'C'},
+		FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:                standard.DisputeSplitDepth,
+		FaultGameClockExtension:            standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 	}
 
 	runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
@@ -732,11 +738,18 @@ func TestProofParamOverrides(t *testing.T) {
 
 	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	intent.GlobalDeployOverrides = map[string]any{
-		"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
-		"preimageOracleMinProposalSize":           standard.MinProposalSizeBytes + 1,
-		"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
+		"preimageOracleMinProposalSize": standard.MinProposalSizeBytes + 1,
+		"preimageOracleChallengePeriod": standard.ChallengePeriodSeconds + 1,
+		// Implementation bounds, and per-chain delays that sit inside them.
+		"minProofMaturityDelaySeconds":            standard.MinProofMaturityDelaySeconds + 1,
+		"maxProofMaturityDelaySeconds":            standard.MaxProofMaturityDelaySeconds + 1,
+		"minDisputeGameFinalityDelaySeconds":      standard.MinDisputeGameFinalityDelaySeconds + 1,
+		"maxDisputeGameFinalityDelaySeconds":      standard.MaxDisputeGameFinalityDelaySeconds + 1,
+		"minWithdrawalDelaySeconds":               standard.MinWithdrawalDelaySeconds + 1,
+		"maxWithdrawalDelaySeconds":               standard.MaxWithdrawalDelaySeconds + 1,
 		"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
 		"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
+		"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
 		"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
 		"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
 		"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
@@ -763,7 +776,12 @@ func TestProofParamOverrides(t *testing.T) {
 		address common.Address
 	}{
 		{
-			"faultGameWithdrawalDelay",
+			"minWithdrawalDelaySeconds",
+			uint64Caster,
+			st.ImplementationsDeployment.DelayedWethImpl,
+		},
+		{
+			"maxWithdrawalDelaySeconds",
 			uint64Caster,
 			st.ImplementationsDeployment.DelayedWethImpl,
 		},
@@ -778,12 +796,22 @@ func TestProofParamOverrides(t *testing.T) {
 			st.ImplementationsDeployment.PreimageOracleImpl,
 		},
 		{
-			"proofMaturityDelaySeconds",
+			"minProofMaturityDelaySeconds",
 			uint64Caster,
 			st.ImplementationsDeployment.OptimismPortalImpl,
 		},
 		{
-			"disputeGameFinalityDelaySeconds",
+			"maxProofMaturityDelaySeconds",
+			uint64Caster,
+			st.ImplementationsDeployment.OptimismPortalImpl,
+		},
+		{
+			"minDisputeGameFinalityDelaySeconds",
+			uint64Caster,
+			st.ImplementationsDeployment.AnchorStateRegistryImpl,
+		},
+		{
+			"maxDisputeGameFinalityDelaySeconds",
 			uint64Caster,
 			st.ImplementationsDeployment.AnchorStateRegistryImpl,
 		},
@@ -813,6 +841,33 @@ func TestProofParamOverrides(t *testing.T) {
 			checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
 		})
 	}
+
+	// The per-chain delays are no longer immutables: they live in proxy storage on the
+	// OptimismPortal (slot 64), the AnchorStateRegistry (slot 7) and the DelayedWETH (slot 6).
+	chainState := st.Chains[0]
+	t.Run("faultGameWithdrawalDelay", func(t *testing.T) {
+		expected := uint64Caster(t, intent.GlobalDeployOverrides["faultGameWithdrawalDelay"])
+		checkStorageSlot(t, allocs, chainState.DelayedWethPermissionlessGameProxy, common.BigToHash(big.NewInt(6)), expected)
+		checkStorageSlot(t, allocs, chainState.DelayedWethPermissionedGameProxy, common.BigToHash(big.NewInt(6)), expected)
+	})
+	t.Run("proofMaturityDelaySeconds", func(t *testing.T) {
+		checkStorageSlot(
+			t,
+			allocs,
+			chainState.OptimismPortalProxy,
+			common.BigToHash(big.NewInt(64)),
+			uint64Caster(t, intent.GlobalDeployOverrides["proofMaturityDelaySeconds"]),
+		)
+	})
+	t.Run("disputeGameFinalityDelaySeconds", func(t *testing.T) {
+		checkStorageSlot(
+			t,
+			allocs,
+			chainState.AnchorStateRegistryProxy,
+			common.BigToHash(big.NewInt(7)),
+			uint64Caster(t, intent.GlobalDeployOverrides["disputeGameFinalityDelaySeconds"]),
+		)
+	})
 }
 
 func TestAltDADeployment(t *testing.T) {

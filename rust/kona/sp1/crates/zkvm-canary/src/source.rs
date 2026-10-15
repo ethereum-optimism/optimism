@@ -191,16 +191,9 @@ impl SnapshotSource {
             self.resolve_pin(discovery.current_l1).await.map_err(BuildFailure::into_anyhow)?;
         let responses =
             self.fetch_responses(agreed, target).await.map_err(FetchFailure::into_anyhow)?;
-        self.validate_snapshot(
-            span,
-            pin,
-            responses,
-            pin_bounds,
-            discovery.current_l1,
-            artifact_identity,
-        )
-        .await
-        .map_err(BuildFailure::into_anyhow)
+        self.validate_snapshot(span, pin, responses, pin_bounds, artifact_identity)
+            .await
+            .map_err(BuildFailure::into_anyhow)
     }
 
     async fn fetch_responses(
@@ -315,8 +308,6 @@ impl SnapshotSource {
                 "CurrentL1 0 has no fully processed predecessor"
             )));
         }
-        self.require_canonical(current_l1, "discovery CurrentL1").await?;
-
         let supernode_horizon = current_l1.number - 1;
         let l1_finalized = self
             .fetch_l1_finalized()
@@ -346,7 +337,6 @@ impl SnapshotSource {
         pin: BlockId,
         responses: Vec<SuperRootAtTimestampResponse>,
         pin_bounds: PinBounds,
-        discovery_current_l1: BlockId,
         artifact_identity: ArtifactIdentity,
     ) -> std::result::Result<ValidatedSnapshot, BuildFailure> {
         let agreed = span.start - 1;
@@ -364,7 +354,6 @@ impl SnapshotSource {
         let mut references = BTreeMap::new();
         insert_reference(&mut references, pin, "pinned L1")?;
         insert_reference(&mut references, pin_bounds.l1_finalized, "L1 finalized head")?;
-        insert_reference(&mut references, discovery_current_l1, "discovery CurrentL1")?;
         for (offset, response) in responses.iter().enumerate() {
             let timestamp = agreed + offset as u64;
             self.validate_response(
@@ -380,18 +369,8 @@ impl SnapshotSource {
         synthesize_execution(span, pin.hash, pin.number, &responses)
             .map_err(|error| BuildFailure::Invalid(error.context("snapshot synthesis failed")))?;
 
-        for (number, expected) in references {
-            let actual =
-                self.fetch_l1_block(number).await.map_err(BuildFailure::Unavailable)?.ok_or_else(
-                    || BuildFailure::Invalid(anyhow!("referenced L1 block {number} not found")),
-                )?;
-            if actual.hash != expected.hash {
-                return Err(BuildFailure::Invalid(anyhow!(
-                    "referenced L1 block {number} has hash {}, expected {}",
-                    actual.hash,
-                    expected.hash,
-                )));
-            }
+        for expected in references.into_values() {
+            self.require_canonical(expected, "referenced L1 block").await?;
         }
 
         let executed_l2_gas = self.sum_executed_l2_gas(span, &responses).await?;
@@ -483,7 +462,6 @@ impl SnapshotSource {
             );
             return Err(error);
         }
-        insert_reference(references, response.current_l1, "CurrentL1")?;
         insert_required_reference(references, data.verified_required_l1, "verified required L1")?;
 
         let optimistic_chain_ids = response
@@ -537,7 +515,7 @@ impl SnapshotSource {
         &self,
         expected: BlockId,
         label: &str,
-    ) -> std::result::Result<CanonicalL1Block, BuildFailure> {
+    ) -> std::result::Result<(), BuildFailure> {
         let actual = self
             .fetch_l1_block(expected.number)
             .await
@@ -553,7 +531,7 @@ impl SnapshotSource {
                 expected.hash,
             )));
         }
-        Ok(CanonicalL1Block { block: actual })
+        Ok(())
     }
 
     async fn sum_executed_l2_gas(
@@ -1383,6 +1361,130 @@ mod tests {
         let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
 
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
+    }
+
+    #[tokio::test]
+    async fn selects_finalized_snapshot_without_fetching_current_l1() {
+        let server = MockServer::start();
+        let responses = base_responses();
+        let _ = register_superroot(&server, NOW, &discovery());
+        let _ = register_l1_finalized(&server, &block_json(block(100)));
+        for (timestamp, response) in (AGREED..=TARGET).zip(&responses) {
+            let _ = register_superroot(&server, timestamp, response);
+        }
+        for number in 99..=100 {
+            let _ = register_l1(&server, number, &block_json(block(number)));
+        }
+        let current_l1 = register_l1(&server, 101, &Value::Null);
+        register_l2_span(&server, &responses);
+        let source = SnapshotSource::new(&config(&server)).unwrap();
+
+        let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
+
+        assert_eq!(snapshot.pinned_l1().block_id(), block(100));
+        assert_eq!(snapshot.span(), TimestampSpan::new(11, TARGET).unwrap());
+        snapshot.synthesize_execution().unwrap();
+        for request in current_l1 {
+            request.assert_calls(0);
+        }
+    }
+
+    #[tokio::test]
+    async fn selects_snapshot_without_fetching_later_response_current_l1() {
+        let server = MockServer::start();
+        let mut responses = base_responses();
+        responses[1].current_l1 = block(102);
+        register_fixture(&server, &responses, &base_blocks());
+        let current_l1 = register_l1(&server, 102, &Value::Null);
+        let source = SnapshotSource::new(&config(&server)).unwrap();
+
+        let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
+
+        assert_eq!(snapshot.pinned_l1().block_id(), block(100));
+        snapshot.synthesize_execution().unwrap();
+        for request in current_l1 {
+            request.assert_calls(0);
+        }
+    }
+
+    #[tokio::test]
+    async fn current_l1_hash_does_not_change_snapshot() {
+        let server = MockServer::start();
+        let mut responses = base_responses();
+        for response in &mut responses {
+            response.current_l1.hash = B256::repeat_byte(0xff);
+        }
+        register_fixture(&server, &responses, &base_blocks());
+        let source = SnapshotSource::new(&config(&server)).unwrap();
+
+        let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
+
+        let expected = snapshot_fingerprint(
+            artifact_identity(),
+            snapshot.span(),
+            block(100),
+            &base_responses(),
+        )
+        .unwrap();
+        assert_eq!(snapshot.fingerprint(), expected);
+        snapshot.synthesize_execution().unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_unavailable_or_inconsistent_l1_pin() {
+        let mut wrong = block(100);
+        wrong.hash = B256::repeat_byte(0xff);
+        for (pin, expected) in [
+            (Value::Null, "chosen L1 pin 100 not found"),
+            (block_json(block(98)), "returned block 98"),
+            (block_json(wrong), "optimistic required L1 conflicts at L1 block 100"),
+        ] {
+            assert_selection_rejected(
+                |_| {},
+                |blocks| {
+                    blocks.insert(100, pin);
+                },
+                expected,
+            )
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_pin_that_is_no_longer_canonical() {
+        let mut wrong = block(100);
+        wrong.hash = B256::repeat_byte(0xff);
+        for (pin, expected) in [
+            (Value::Null, "referenced L1 block 100 not found"),
+            (block_json(wrong), "referenced L1 block 100 has hash"),
+        ] {
+            let server = MockServer::start();
+            let mut responses = base_responses();
+            for response in &mut responses {
+                for output in response.optimistic_at_timestamp.values_mut() {
+                    output.required_l1 = block(99);
+                }
+            }
+            let mut blocks = base_blocks();
+            blocks.insert(100, pin);
+            register_fixture(&server, &responses, &blocks);
+            let source = SnapshotSource::new(&config(&server)).unwrap();
+
+            let error = source
+                .validate_snapshot(
+                    TimestampSpan::new(11, TARGET).unwrap(),
+                    block(100),
+                    responses,
+                    PinBounds { l1_finalized: block(101), supernode_horizon: 100 },
+                    artifact_identity(),
+                )
+                .await
+                .unwrap_err()
+                .into_anyhow();
+
+            let detail = format!("{error:#}");
+            assert!(detail.contains(expected), "expected {expected:?} in {detail}");
+        }
     }
 
     #[tokio::test]

@@ -26,12 +26,16 @@ func (c *L1Config) Check(log log.Logger) error {
 }
 
 type SuperFaultProofConfig struct {
-	WithdrawalDelaySeconds          *big.Int
-	MinProposalSizeBytes            *big.Int
-	ChallengePeriodSeconds          *big.Int
-	ProofMaturityDelaySeconds       *big.Int
-	DisputeGameFinalityDelaySeconds *big.Int
-	MipsVersion                     *big.Int
+	MinProposalSizeBytes   *big.Int
+	ChallengePeriodSeconds *big.Int
+	// Bounds for the per-chain withdrawal delays; the delays themselves are set per L2 in L2Config.
+	MinProofMaturityDelaySeconds       *big.Int
+	MaxProofMaturityDelaySeconds       *big.Int
+	MinDisputeGameFinalityDelaySeconds *big.Int
+	MaxDisputeGameFinalityDelaySeconds *big.Int
+	MinWithdrawalDelaySeconds          *big.Int
+	MaxWithdrawalDelaySeconds          *big.Int
+	MipsVersion                        *big.Int
 }
 
 type OPCMImplementationsConfig struct {
@@ -80,11 +84,25 @@ type L2Config struct {
 	DisputeSplitDepth           uint64
 	DisputeClockExtension       uint64
 	DisputeMaxClockDuration     uint64
+	// Per-chain withdrawal delays, stored on the chain's OptimismPortal, AnchorStateRegistry and
+	// DelayedWETH.
+	ProofMaturityDelaySeconds       uint64
+	DisputeGameFinalityDelaySeconds uint64
+	WithdrawalDelaySeconds          uint64
 }
 
 func (c *L2Config) Check(log log.Logger) error {
 	if c.Deployer == (common.Address{}) {
 		return errors.New("missing L2 deployer address")
+	}
+	if c.ProofMaturityDelaySeconds == 0 {
+		return errors.New("missing L2 proof maturity delay")
+	}
+	if c.DisputeGameFinalityDelaySeconds == 0 {
+		return errors.New("missing L2 dispute game finality delay")
+	}
+	if c.WithdrawalDelaySeconds == 0 {
+		return errors.New("missing L2 withdrawal delay")
 	}
 	if err := c.L2InitializationConfig.Check(log); err != nil {
 		return err

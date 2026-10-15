@@ -84,7 +84,7 @@ change_patterns:
   # least one). Used for the safe-by-default docs-only fast path: any path not
   # enumerated still falls through to the full main workflow.
   all:
-    only_docs_changes: "^docs/public-docs/"
+    only_docs_changes: "^docs/"
 
 # Pipeline parameters forwarded to continuation configs. Everything else in the
 # parameters JSON is stripped before the continuation step (see finalize).

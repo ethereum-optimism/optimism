@@ -47,5 +47,12 @@
     "offset": 0,
     "slot": "5",
     "type": "contract IETHLockbox"
+  },
+  {
+    "bytes": "32",
+    "label": "delay",
+    "offset": 0,
+    "slot": "6",
+    "type": "uint256"
   }
 ]
