@@ -2473,9 +2473,14 @@ pub(super) fn scenario_config() -> ProposerConfig {
             range_gas_limit: 1,
             agg_cycle_limit: 1,
             agg_gas_limit: 1,
+            log_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+            log_cycle_limit: 1,
+            log_gas_limit: 1,
             max_price_per_pgu: Some(NonZeroU64::MIN),
             min_auction_period: 1,
         },
+        log_path: crate::config::LogPath::Auto,
+        scratch_dir: std::env::temp_dir(),
     }
 }
 

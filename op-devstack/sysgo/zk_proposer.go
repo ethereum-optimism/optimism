@@ -71,6 +71,7 @@ type zkProposerConfig struct {
 	ProposalInterval *time.Duration
 	FastFinality     bool
 	Metrics          bool
+	LogPath          string
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -108,6 +109,14 @@ func WithZKFastFinality() ZKProposerOption {
 func WithZKMetrics() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.Metrics = true
+	}
+}
+
+// WithZKLogPath sets how the proposer proves logs below a local safe head:
+// "auto", "receipts", or "table".
+func WithZKLogPath(path string) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.LogPath = path
 	}
 }
 
@@ -231,6 +240,9 @@ func startZKProposer(
 	}
 	if cfg.FastFinality {
 		env = append(env, zkProposerEnv("FAST_FINALITY_MODE", "true"))
+	}
+	if cfg.LogPath != "" {
+		env = append(env, zkProposerEnv("LOG_PATH", cfg.LogPath))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.

@@ -24,6 +24,7 @@ pub mod superroot;
 pub mod tx_sender;
 
 mod adapters;
+mod log_proofs;
 mod ports;
 mod verifier;
 
