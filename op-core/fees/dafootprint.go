@@ -42,7 +42,7 @@ func ExtractDAFootprintGasScalar(data []byte) (uint16, error) {
 // CalcDAFootprint must not be called for pre-Jovian blocks.
 // Deposit and post-exec transactions do not contribute to the footprint.
 func CalcDAFootprint(txs []*types.Transaction) (uint64, error) {
-	if len(txs) == 0 || txs[0].Type() != types.DepositTxType {
+	if len(txs) == 0 || !optypes.IsDepositTx(txs[0]) {
 		return 0, errors.New("missing deposit transaction")
 	}
 
@@ -50,7 +50,7 @@ func CalcDAFootprint(txs []*types.Transaction) (uint64, error) {
 	// it must not have user transactions.
 	data := txs[0].Data()
 	if len(data) == IsthmusL1AttributesLen {
-		if txs[len(txs)-1].Type() != types.DepositTxType {
+		if !optypes.IsDepositTx(txs[len(txs)-1]) {
 			// sufficient to check last transaction because deposits precede non-deposit txs
 			return 0, errors.New("unexpected non-deposit transactions in Jovian activation block")
 		}
@@ -63,7 +63,7 @@ func CalcDAFootprint(txs []*types.Transaction) (uint64, error) {
 	}
 	var daFootprint uint64
 	for _, tx := range txs {
-		if tx.Type() == types.DepositTxType || optypes.IsPostExecTx(tx) {
+		if optypes.IsDepositTx(tx) || optypes.IsPostExecTx(tx) {
 			continue
 		}
 		daFootprint += bigs.Uint64Strict(TxRollupCostData(tx).EstimatedDASize()) * uint64(daFootprintGasScalar)

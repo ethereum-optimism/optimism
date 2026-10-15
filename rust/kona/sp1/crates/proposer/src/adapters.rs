@@ -3,7 +3,7 @@
 use std::{
     num::NonZeroUsize,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use alloy_contract::{CallBuilder, CallDecoder};
@@ -38,8 +38,9 @@ use crate::{
         GameProofInputs, InMemoryProofProgress, ProofRequestCounts, ProveGameRequest,
         prove_game_inner,
     },
-    signer::{FeeCaps, SignerLock},
+    signer::SignerLock,
     superroot::{ResponseSelection, SuperrootClient},
+    tx_sender::FeeCaps,
 };
 
 /// Production L1 reads over Alloy providers and generated contract bindings.
@@ -560,8 +561,7 @@ pub(crate) struct ProductionActionExecutor<P> {
     signer: SignerLock,
     provider: P,
     factory: DisputeGameFactoryInstance<P>,
-    l1_rpc: Url,
-    confirmation_timeout: u64,
+    send_timeout: Duration,
     fee_caps: FeeCaps,
 }
 
@@ -573,21 +573,15 @@ where
         signer: SignerLock,
         provider: P,
         factory: DisputeGameFactoryInstance<P>,
-        l1_rpc: Url,
-        confirmation_timeout: u64,
+        send_timeout: Duration,
         fee_caps: FeeCaps,
     ) -> Self {
-        Self { signer, provider, factory, l1_rpc, confirmation_timeout, fee_caps }
+        Self { signer, provider, factory, send_timeout, fee_caps }
     }
 
     async fn submit(&self, request: TransactionRequest) -> Result<TransactionReceipt> {
         self.signer
-            .send_transaction_request_with_timeout(
-                self.l1_rpc.clone(),
-                request,
-                self.confirmation_timeout,
-                self.fee_caps,
-            )
+            .send_transaction(&self.provider, request, self.send_timeout, self.fee_caps)
             .await
     }
 

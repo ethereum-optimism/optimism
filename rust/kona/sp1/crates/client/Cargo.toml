@@ -42,6 +42,9 @@ spin.workspace = true
 kzg-rs.workspace = true
 cfg-if.workspace = true
 
+# EIP-2537 BLS12-381
+sp1_bls12_381.workspace = true
+
 [dev-dependencies]
 serde_json.workspace = true
 

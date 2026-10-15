@@ -252,12 +252,13 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 		if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chainID, &expected); err != nil {
 			return nil, err
 		}
-		if uint64(*expected.GenesisTime) <= latest.Time {
+		if elapsed, warn := genesisElapsedSeconds(uint64(*expected.GenesisTime), latest.Time); warn {
 			r.cfg.Logger.Warn(
 				"committed genesis time has elapsed",
 				"chainID", chainID.Hex(),
 				"genesisTime", uint64(*expected.GenesisTime),
 				"l1HeadTime", latest.Time,
+				"elapsedSeconds", elapsed,
 			)
 		}
 

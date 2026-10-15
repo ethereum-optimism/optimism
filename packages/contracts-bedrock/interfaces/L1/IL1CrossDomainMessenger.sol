@@ -9,6 +9,9 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 
 interface IL1CrossDomainMessenger is ICrossDomainMessenger, IProxyAdminOwnedBase {
     error ReinitializableBase_ZeroInitVersion();
+    error L1CrossDomainMessenger_InteropNotEnabled();
+    error L1CrossDomainMessenger_NotInteropMessenger();
+    error L1CrossDomainMessenger_Paused();
 
     function PORTAL() external view returns (IOptimismPortal);
     function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external;
@@ -17,6 +20,7 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger, IProxyAdminOwnedBase
     function systemConfig() external view returns (ISystemConfig);
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
+    function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external;
 
     function __constructor__() external;
 }
