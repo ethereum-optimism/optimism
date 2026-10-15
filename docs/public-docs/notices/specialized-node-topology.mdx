@@ -19,7 +19,7 @@ Historically, every `op-node` in a fleet has independently derived the [safe cha
 In the specialized topology, **light nodes** are started with `--l2.follow.source` pointing at a derivation source. The source is an `op-node` for chains without interop activation, or an [`op-supernode`](/op-stack/interop/supernode) for chains in an interop dependency set (one supernode derives every chain in the set together and adds cross-chain message verification). Light nodes disable their own independent derivation and instead receive the safe chain from the source, while continuing to track the unsafe tip via gossip and the engine API.
 
 <Warning>
-  **Required for upcoming interop activation.** This topology is required for node operators on **OP Sepolia** and **Unichain Sepolia** once interop activates on those chains in late June 2026 — see [Prepare for interop on OP Sepolia and Unichain Sepolia](/notices/interop-prep) for the action checklist. The corresponding mainnet activation will carry the same requirement.
+  **Required for upcoming interop activation.** This topology is required for node operators on **OP Sepolia** and **Unichain Sepolia** once interop activates on those chains, targeted for **December 3, 2026**; see [Prepare for interop on OP Sepolia and Unichain Sepolia](/notices/interop-prep) for the action checklist. The corresponding mainnet activation will carry the same requirement.
 </Warning>
 
 ## What this means

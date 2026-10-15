@@ -12,8 +12,7 @@ audit-source:
 ---
 
 <Info>
-  op-supernode is in active development.
-  This page tracks the [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) release candidate and the recommendations may evolve before the stable release.
+  This page tracks the [op-supernode/v1.0.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.4) release.
   For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
 </Info>
 
@@ -46,7 +45,7 @@ Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with o
 Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
 The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
 
-For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configuring-a-blob-archiver).
 
 ### Configure EL retention for supernode backfill
 
