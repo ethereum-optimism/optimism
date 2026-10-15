@@ -21,12 +21,9 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::{Address, Bytes, U256};
 use parking_lot::Mutex;
 use reth_ethereum_primitives::Block;
-use reth_evm_ethereum::EthEvmConfig;
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStorageResult,
-    OpProofsStore,
-    engine::{EngineError, EngineHandle},
-    provider::OpProofsStateProviderRef,
+    MdbxProofsStorage, OpProofsProviderRO, OpProofsStorageResult, OpProofsStore,
+    engine::EngineError, provider::OpProofsStateProviderRef,
 };
 use reth_primitives_traits::RecoveredBlock;
 use reth_provider::{StateProvider, StateRootProvider, noop::NoopProvider};
@@ -199,7 +196,7 @@ impl ProofChain {
     ) -> eyre::Result<Self> {
         let mut blocks = Vec::new();
         for _ in 0..leading {
-            blocks.push(reth.commit(&BlockSpec::new(vec![]))?.recovered_block().clone());
+            blocks.push(reth.commit(&BlockSpec::empty())?.recovered_block().clone());
         }
         let deploy_number = leading + 1;
         let specs = [
@@ -365,7 +362,7 @@ fn run_parent_state_case(
     let contract = sender.create(0);
     let chain_spec = chain_spec_with_address(sender);
     let store = create_mdbx_proofs_storage();
-    let mut reth = SimulatedReth::new(chain_spec.clone(), key_pair, persistence)?;
+    let mut reth = SimulatedReth::new(chain_spec, key_pair, persistence)?;
     initialize_storage(store.clone(), &reth.factory, reth.head())?;
     let chain = ProofChain::commit(
         &mut reth,
@@ -375,10 +372,7 @@ fn run_parent_state_case(
     )?;
     arrange_parent_state(&mut reth, parent_state, &chain)?;
 
-    let provider = reth.provider.clone();
-    let reth = Arc::new(Mutex::new(reth));
     let store_with_hook = StoreWithReadHook::new(store.clone());
-    let pruner = OpProofStoragePruner::new(store_with_hook.clone(), provider.clone(), 1000);
     // The engine writes its buffer to the store once it holds this many blocks, and `flush` only
     // waits for that write, so the threshold is the number of blocks the case stores. It also
     // keeps the preceding blocks buffered while the block under test executes, which the read
@@ -387,14 +381,8 @@ fn run_parent_state_case(
         Outcome::Stored => chain.preceding().len() + 1,
         Outcome::StateRootMismatch => chain.preceding().len(),
     } as u64;
-    let engine = EngineHandle::spawn_with_thresholds(
-        EthEvmConfig::ethereum(chain_spec),
-        provider,
-        store_with_hook.clone(),
-        pruner,
-        stored_blocks,
-        stored_blocks + 1,
-    );
+    let engine = reth.spawn_engine(store_with_hook.clone(), stored_blocks, stored_blocks + 1);
+    let reth = Arc::new(Mutex::new(reth));
     for block in chain.preceding() {
         engine.execute_block(block)?;
     }
