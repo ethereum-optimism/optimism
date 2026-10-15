@@ -32,6 +32,12 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*opgenesis
 	if config.L2ChainID == 0 {
 		return nil, errors.New("must define L2 ChainID")
 	}
+	// Chain ID 10 is OP Mainnet, whose genesis is its Bedrock migration and never built here.
+	// opparams.ChainConfig.GethChainConfig gives any chain ID 10 OP Mainnet's legacy Berlin
+	// and London blocks, so a genesis built here would lack London at genesis.
+	if config.L2ChainID == opparams.OPMainnetChainID {
+		return nil, fmt.Errorf("%w: L2ChainID %d is reserved for OP Mainnet", ErrInvalidDeployConfig, opparams.OPMainnetChainID)
+	}
 
 	eip1559Denom := config.EIP1559Denominator
 	if eip1559Denom == 0 {
