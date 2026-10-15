@@ -1,8 +1,9 @@
 use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
-    RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
+    RethPayloadTransactions, build_post_exec_recovered_tx, is_invalid_derived_payload_error,
+    try_include_post_exec_tx,
 };
-use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
+use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig, error::OpPayloadBuilderError};
 use alloy_consensus::{
     Header, Sealable, SignableTransaction, Transaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
@@ -12,13 +13,15 @@ use alloy_eips::{
     eip2930::{AccessList, AccessListItem},
     eip7702::SignedAuthorization,
 };
-use alloy_evm::RecoveredTx;
+use alloy_evm::{RecoveredTx, block::BlockExecutionError as AlloyBlockExecutionError};
+use alloy_op_evm::block::OpBlockExecutionError;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{Layer, PrefixLayer};
 use op_alloy_consensus::{
-    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, TxDeposit, build_post_exec_tx,
+    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, PostExecPayloadValidationError, SDMGasEntry,
+    TxDeposit, build_post_exec_tx,
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
@@ -38,7 +41,9 @@ use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
+use reth_storage_api::errors::ProviderError;
 use reth_transaction_pool::PoolTransaction;
+use revm::context::result::{EVMError, InvalidTransaction};
 use rstest::rstest;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
 
@@ -1042,4 +1047,129 @@ fn automatic_disable_is_counted_by_reason(
     let count =
         exposition.lines().find_map(|line| line.strip_prefix(series)?.trim().parse::<f64>().ok());
     assert_eq!(count, expected_count, "{exposition}");
+}
+
+/// Only errors caused by the payload's transactions may be classified as invalid: a state-access
+/// error reported as invalid would make the rollup node derive a wrong deposit-only block.
+#[test]
+fn derived_payload_error_classification() {
+    let validation =
+        |err: BlockValidationError| PayloadBuilderError::from(BlockExecutionError::from(err));
+    let op_execution =
+        |err: OpBlockExecutionError| validation(BlockValidationError::Other(Box::new(err)));
+    let op_payload = PayloadBuilderError::other::<OpPayloadBuilderError>;
+    let invalid_post_exec = || OpBlockExecutionError::InvalidPostExecPayload("x".into());
+    let cases = [
+        (
+            validation(BlockValidationError::InvalidTx {
+                hash: B256::ZERO,
+                error: Box::new(InvalidTransaction::NonceTooHigh { tx: 5, state: 0 }),
+            }),
+            true,
+        ),
+        (validation(BlockValidationError::BlockGasExceeded), true),
+        (
+            validation(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit: 2,
+                block_available_gas: 1,
+            }),
+            true,
+        ),
+        (op_execution(invalid_post_exec()), true),
+        (
+            op_execution(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                transaction_da_footprint: 2,
+                available_block_da_footprint: 1,
+            }),
+            true,
+        ),
+        (op_execution(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock), true),
+        (
+            op_execution(OpBlockExecutionError::PostExecSettlementUnderflow {
+                address: Address::ZERO,
+                delta: U256::from(1),
+            }),
+            true,
+        ),
+        (op_execution(OpBlockExecutionError::LoadCacheAccount), false),
+        (op_execution(OpBlockExecutionError::GetJovianDaFootprintScalar("x".into())), false),
+        (PayloadBuilderError::other(alloy_rlp::Error::UnexpectedLength), true),
+        (
+            PayloadBuilderError::other(PostExecPayloadValidationError::UnexpectedPostExecTx {
+                tx_index: 0,
+            }),
+            true,
+        ),
+        (op_payload(OpPayloadBuilderError::TransactionEcRecoverFailed), true),
+        (op_payload(OpPayloadBuilderError::BlobTransactionRejected), true),
+        (op_payload(OpPayloadBuilderError::L1BlockInfoParseFailed), false),
+        (op_payload(OpPayloadBuilderError::AccountLoadFailed(Address::ZERO)), false),
+        (op_payload(OpPayloadBuilderError::ForceCreate2DeployerFail), false),
+        (PayloadBuilderError::invalid_attributes(alloy_rlp::Error::UnexpectedLength), true),
+        (PayloadBuilderError::MissingParentHeader(B256::ZERO), false),
+        // Pins only the classifier. The node test's "empty refund entries" case, rejected during
+        // pre-execution, is what catches `OpBuilder::build` reporting that error as `Internal`.
+        (
+            PayloadBuilderError::Internal(
+                BlockExecutionError::from(BlockValidationError::Other(Box::new(
+                    invalid_post_exec(),
+                )))
+                .into(),
+            ),
+            false,
+        ),
+        // The parent's state is unavailable.
+        (ProviderError::StateForHashNotFound(B256::ZERO).into(), false),
+        (BlockExecutionError::other(ProviderError::StateForHashNotFound(B256::ZERO)).into(), false),
+        // A state read fails while a transaction executes.
+        (
+            PayloadBuilderError::from(AlloyBlockExecutionError::evm(
+                EVMError::<ProviderError, InvalidTransaction>::Database(
+                    ProviderError::StateForHashNotFound(B256::ZERO),
+                ),
+                B256::ZERO,
+            )),
+            false,
+        ),
+    ];
+
+    for (err, expected) in cases {
+        assert_eq!(is_invalid_derived_payload_error(&err), expected, "{err:?}");
+    }
+}
+
+/// A derived block must be reproduced exactly, so an invalid transaction in its attributes fails
+/// the rebuild. A sequencer's own block skips it instead.
+#[test]
+fn invalid_forced_transaction_fails_only_a_derived_rebuild() {
+    let tx = TxEip1559 {
+        chain_id: 10,
+        nonce: 5,
+        gas_limit: MIN_TRANSACTION_GAS,
+        max_fee_per_gas: 1,
+        to: TxKind::Call(Address::ZERO),
+        ..Default::default()
+    };
+    let tx = OpTransactionSigned::Eip1559(tx.into_signed(Signature::test_signature()));
+    let invalid = WithEncoded::new(Bytes::from(tx.encoded_2718()), tx);
+
+    for no_tx_pool in [false, true] {
+        let mut ctx = interop_ctx(no_tx_pool, false, None);
+        ctx.config.attributes.transactions = vec![deposit_with_encoded(), invalid.clone()];
+        let state_provider = StateProviderTest::default();
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+
+        let result = ctx.execute_sequencer_transactions(&mut builder, None);
+
+        if no_tx_pool {
+            let err = result.expect_err("a derived rebuild must fail on an invalid transaction");
+            assert!(is_invalid_derived_payload_error(&err), "{err:?}");
+        } else {
+            assert!(result.is_ok(), "a sequencer skips an invalid forced transaction: {result:?}");
+        }
+    }
 }
