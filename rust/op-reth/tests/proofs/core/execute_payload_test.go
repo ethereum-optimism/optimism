@@ -6,9 +6,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExecutePayloadSuccess(gt *testing.T) {
@@ -20,27 +20,12 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 
 	// Wait for the validator's EL head to reach the sequencer's head.
 	seqHead, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		gt.Fatal(err)
-	}
+	require.NoError(t, err, "must fetch the sequencer's head")
 	opRethELNode.WaitForProofsStoreBlock(seqHead.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
-	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
-	plannedTx := txplan.NewPlannedTx(plannedTxOption)
-	signedTx, err := plannedTx.Signed.Eval(ctx)
-	if err != nil {
-		gt.Fatal(err)
-	}
-
-	raw, err := signedTx.MarshalBinary()
-	if err != nil {
-		gt.Fatal(err)
-	}
-
+	raw := utils.SignedTransfer(t, user, user.Address(), eth.OneWei)
 	lastBlock, err := opRethELNode.Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		gt.Fatal(err)
-	}
+	require.NoError(t, err, "must fetch the validator's head")
 
 	// Wait for the proofs ExEx store to index the parent block. The ExEx processes
 	// ChainCommitted notifications asynchronously, so the EL head can advance before
@@ -48,35 +33,9 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	// fail with "no state found" if it hasn't caught up yet.
 	opRethELNode.WaitForProofsStoreBlock(lastBlock.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
-	blockTime := lastBlock.Time() + 1
-	gasLimit := eth.Uint64Quantity(lastBlock.GasLimit())
-
-	var prevRandao eth.Bytes32
-	copy(prevRandao[:], lastBlock.MixDigest().Bytes())
-
-	var zero1559 eth.Bytes8
-	minBaseFee := uint64(10)
-
-	attrs := eth.PayloadAttributes{
-		Timestamp:             eth.Uint64Quantity(blockTime),
-		PrevRandao:            prevRandao,
-		SuggestedFeeRecipient: lastBlock.Coinbase(),
-		Withdrawals:           nil,
-		ParentBeaconBlockRoot: lastBlock.ParentBeaconRoot(),
-		Transactions:          []eth.Data{eth.Data(raw)},
-		NoTxPool:              true,
-		GasLimit:              &gasLimit,
-		EIP1559Params:         &zero1559,
-		MinBaseFee:            &minBaseFee,
-	}
-
-	witness, err := opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, lastBlock.Hash(), attrs)
-	if err != nil {
-		gt.Fatal(err)
-	}
-	if witness == nil {
-		gt.Fatal("empty witness")
-	}
+	witness, err := opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, lastBlock.Hash(), utils.NextPayloadAttributes(lastBlock, raw))
+	require.NoError(t, err, "debug_executePayload on the head must succeed")
+	require.NotNil(t, witness, "empty witness")
 }
 
 func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
@@ -88,55 +47,16 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 
 	// Wait for the validator's EL head to reach the sequencer's head.
 	seqHead, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		gt.Fatal(err)
-	}
+	require.NoError(t, err, "must fetch the sequencer's head")
 	opRethELNode.WaitForProofsStoreBlock(seqHead.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
-	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
-	plannedTx := txplan.NewPlannedTx(plannedTxOption)
-	signedTx, err := plannedTx.Signed.Eval(ctx)
-	if err != nil {
-		gt.Fatal(err)
-	}
-
-	raw, err := signedTx.MarshalBinary()
-	if err != nil {
-		gt.Fatal(err)
-	}
-
+	raw := utils.SignedTransfer(t, user, user.Address(), eth.OneWei)
 	lastBlock, err := opRethELNode.Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		gt.Fatal(err)
-	}
+	require.NoError(t, err, "must fetch the validator's head")
 
 	// Wait for the proofs ExEx store to index the parent block (same race as TestExecutePayloadSuccess).
 	opRethELNode.WaitForProofsStoreBlock(lastBlock.NumberU64(), dsl.DefaultProofsCatchUpTimeout)
 
-	blockTime := lastBlock.Time() + 1
-	gasLimit := eth.Uint64Quantity(lastBlock.GasLimit())
-
-	var prevRandao eth.Bytes32
-	copy(prevRandao[:], lastBlock.MixDigest().Bytes())
-
-	var zero1559 eth.Bytes8
-	minBaseFee := uint64(10)
-
-	attrs := eth.PayloadAttributes{
-		Timestamp:             eth.Uint64Quantity(blockTime),
-		PrevRandao:            prevRandao,
-		SuggestedFeeRecipient: lastBlock.Coinbase(),
-		Withdrawals:           nil,
-		ParentBeaconBlockRoot: lastBlock.ParentBeaconRoot(),
-		Transactions:          []eth.Data{eth.Data(raw)},
-		NoTxPool:              true,
-		GasLimit:              &gasLimit,
-		EIP1559Params:         &zero1559,
-		MinBaseFee:            &minBaseFee,
-	}
-
-	_, err = opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, common.Hash{}, attrs)
-	if err == nil {
-		gt.Fatal("expected error")
-	}
+	_, err = opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, common.Hash{}, utils.NextPayloadAttributes(lastBlock, raw))
+	require.Error(t, err, "a parent hash no block has must be refused")
 }

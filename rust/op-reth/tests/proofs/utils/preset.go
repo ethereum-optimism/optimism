@@ -39,6 +39,16 @@ type MixedOpProofPreset struct {
 	TestSequencer *dsl.TestSequencer
 }
 
+// MixedOpProofPresetConfig holds the optional settings of NewMixedOpProofPreset.
+type MixedOpProofPresetConfig struct {
+	// DeployerOptions tune the deployment, for example the L2 block time.
+	DeployerOptions []sysgo.DeployerOption
+	// SequencerOpRethOpts and ValidatorOpRethOpts apply to the respective node when it runs
+	// op-reth; a node running op-geth ignores them.
+	SequencerOpRethOpts []sysgo.OpRethOption
+	ValidatorOpRethOpts []sysgo.OpRethOption
+}
+
 func (m *MixedOpProofPreset) L2ELSequencerNode() *dsl.L2ELNode {
 	return m.L2ELSequencer
 }
@@ -65,13 +75,23 @@ func resolveELSpec(t devtest.T, envVar string, defaultKind sysgo.MixedL2ELKind) 
 	}
 }
 
+// ValidatorELKind is the EL client the validator runs, as OP_DEVSTACK_PROOF_VALIDATOR_EL selects it.
+func ValidatorELKind(t devtest.T) sysgo.MixedL2ELKind {
+	return resolveELSpec(t, "OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
+}
+
 // NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime for
 // full control over EL client types.
-func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
+func NewMixedOpProofPreset(t devtest.T, opts ...func(*MixedOpProofPresetConfig)) *MixedOpProofPreset {
+	var cfg MixedOpProofPresetConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	seqKind := resolveELSpec(t, "OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
-	valKind := resolveELSpec(t, "OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
+	valKind := ValidatorELKind(t)
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
+		DeployerOptions: cfg.DeployerOptions,
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
 				ELKey:       "sequencer",
@@ -79,6 +99,7 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 				ELKind:      seqKind,
 				CLKind:      sysgo.MixedL2CLOpNode,
 				IsSequencer: true,
+				OpRethOpts:  cfg.SequencerOpRethOpts,
 			},
 			{
 				ELKey:       "validator",
@@ -86,6 +107,7 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 				ELKind:      valKind,
 				CLKind:      sysgo.MixedL2CLOpNode,
 				IsSequencer: false,
+				OpRethOpts:  cfg.ValidatorOpRethOpts,
 			},
 		},
 		WithTestSequencer: true,
