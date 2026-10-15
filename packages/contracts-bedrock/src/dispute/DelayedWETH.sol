@@ -149,6 +149,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
         WithdrawalRequest storage wd = withdrawals[msg.sender][_guy];
         require(wd.amount >= _wad, "DelayedWETH: insufficient unlocked withdrawal");
         require(wd.timestamp > 0, "DelayedWETH: withdrawal not unlocked");
+        require(delay != 0, "DelayedWETH: delay not set");
         require(wd.timestamp + delay <= block.timestamp, "DelayedWETH: withdrawal delay not met");
         wd.amount -= _wad;
         super.withdraw(_wad);
