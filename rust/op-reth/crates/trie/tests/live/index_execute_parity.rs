@@ -1,57 +1,50 @@
-//! Builds one chain into three proofs stores, one indexed from reth's trie data, one re-executed
-//! by the engine and one initialized at the tip and backfilled, and asserts that they serve the
+//! Builds one chain into four proofs stores, one indexed from reth's trie data, one re-executed
+//! by the engine and two initialized at the tip and backfilled, and asserts that they serve the
 //! same accounts, storage, trie nodes and proofs at every block.
 //!
-//! The index and execute paths are the ExEx's only cross-check of each other, and `proofs init`
-//! plus backfill is the third way a store comes to hold a block, so the three must agree on every
-//! kind of state change a block can make. The engine's buffer is not readable from outside, so
-//! the flush cadence decides whether the execute path reads a parent from the buffer or from
-//! disk, and the comparison runs over the persisted history once everything is flushed.
+//! A store receives a block by indexing reth's trie data, by executing it, or through
+//! `proofs init` plus backfill, so all of them must write the same state for every kind of state
+//! change a block can make. The flush cadence decides whether the execute path reads a parent
+//! from the engine buffer or from disk. The buffer is not readable from outside, so the
+//! comparison runs over the persisted history once everything is flushed.
 
 use super::{
     BlockSpec, TxSpec, block_timestamp, chain_spec_builder,
     contracts::{
-        BLOCK_HASH_RECORDER_RUNTIME, BLOCK_HASH_SLOT, CREATE_AND_SELFDESTRUCT_SLOTS,
+        BLOCK_HASH_RECORDER_RUNTIME, BLOCK_HASH_SLOT, CALLED_SLOT, CREATE_AND_SELFDESTRUCT_SLOTS,
         SLOT_WRITER_SLOTS, block_number_calldata, create_and_selfdestruct_initcode,
         initcode_returning, slot_writer_calldata, slot_writer_runtime,
     },
     create_mdbx_proofs_storage, funded, initialize_storage, public_key_to_address,
     simulated_reth::{RethPersistence, SimulatedReth, fixed_signer},
+    store_view::{BlockView, ProofTarget, assert_same_view},
 };
-use alloy_consensus::BlockHeader;
 use alloy_eips::{
     BlockNumHash,
-    eip1898::BlockWithParent,
     eip4788::{BEACON_ROOTS_ADDRESS, BEACON_ROOTS_CODE},
 };
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, Bytes, U256, keccak256};
 use reth_chainspec::ChainSpec;
 use reth_ethereum_primitives::Block;
-use reth_evm_ethereum::EthEvmConfig;
 use reth_optimism_trie::{
-    BackfillJob, InMemoryProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
-    ProofWindowRange, engine::EngineHandle, proof::DatabaseProof,
+    BackfillJob, InMemoryProofsStorage, MdbxProofsStorage, OpProofsProviderRO, OpProofsStore,
+    ProofWindowRange, engine::EngineHandle,
 };
-use reth_primitives_traits::{Account, RecoveredBlock};
 use reth_provider::DatabaseProviderFactory;
-use reth_trie::{hashed_cursor::HashedCursor, proof::Proof, trie_cursor::TrieCursor};
-use reth_trie_common::{AccountProof, BranchNodeCompact, Nibbles, TrieInput};
 use rstest::rstest;
 use serial_test::serial;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-    sync::Arc,
-};
+use std::{collections::BTreeSet, sync::Arc};
 
-/// Blocks in every chain: a multiple of both persistence thresholds, so the final flush leaves
-/// nothing in the engine buffer.
+/// Blocks in every chain.
 const CHAIN_LENGTH: u64 = 10;
 
-/// Empty blocks before the content, which places the content across the flush at block 5 under
-/// the slower cadence.
+/// Empty blocks before the content, so that multi-block content straddles the flush at block 5
+/// under the slower cadence.
 const LEADING_FILLERS: u64 = 3;
+
+/// Blocks per backfill transaction, so that a backfill commits more than once.
+const BACKFILL_BATCH_SIZE: usize = 3;
 
 /// Covers deploying either contract.
 const DEPLOY_GAS_LIMIT: u64 = 200_000;
@@ -59,9 +52,10 @@ const DEPLOY_GAS_LIMIT: u64 = 200_000;
 /// Covers eight first-time storage writes, or four writes and a self-destruct.
 const WRITE_GAS_LIMIT: u64 = 400_000;
 
-/// reth's persistence threshold: above the chain length, so reth keeps every block in memory
-/// until the backfilled store needs them on disk.
-const RETH_PERSISTENCE_THRESHOLD: u64 = 50;
+/// reth's persistence threshold, above the chain length so that reth's own persistence never
+/// runs: where reth holds a parent is the parent-state cases' concern, and `persist_all` writes
+/// the chain for the backfilled stores at the end.
+const RETH_PERSISTENCE_THRESHOLD: u64 = CHAIN_LENGTH + 1;
 
 /// Slots of the EIP-4788 ring buffer, which every block writes.
 const BEACON_ROOTS_RING_LENGTH: u64 = 8191;
@@ -72,6 +66,10 @@ const BENEFICIARY: Address = Address::repeat_byte(0xBE);
 /// An address no transaction ever funds; touching it creates nothing.
 const NEVER_FUNDED: Address = Address::repeat_byte(0xE2);
 
+fn leading_nibble(hashed: B256) -> u8 {
+    hashed[0] >> 4
+}
+
 /// Three keys from `keys` whose hashes share the first nibble, the first two also the second, so
 /// that a trie holding all three stores a branch node at the first nibble, which removing either
 /// of the pair collapses.
@@ -79,40 +77,39 @@ const NEVER_FUNDED: Address = Address::repeat_byte(0xE2);
 /// reth stores no branch node for keys that all differ in their first nibble, so a small trie of
 /// such keys has nothing to update or remove.
 fn colliding_keys<K: Copy>(keys: impl IntoIterator<Item = K>, hash: impl Fn(K) -> B256) -> [K; 3] {
-    let mut by_first_nibble: BTreeMap<u8, Vec<(u8, K)>> = BTreeMap::new();
-    for key in keys {
-        let hashed = hash(key);
-        by_first_nibble.entry(hashed[0] >> 4).or_default().push((hashed[0] & 0x0f, key));
-    }
-    for group in by_first_nibble.values() {
-        for (position, (second_nibble, key)) in group.iter().enumerate() {
-            let sibling = group[position + 1..].iter().find(|(nibble, _)| nibble == second_nibble);
-            let cousin = group.iter().find(|(nibble, _)| nibble != second_nibble);
-            if let (Some((_, sibling)), Some((_, cousin))) = (sibling, cousin) {
-                return [*key, *sibling, *cousin];
-            }
-        }
-    }
-    panic!("no three keys collide on their leading nibbles")
+    let keys: Vec<(u8, K)> = keys.into_iter().map(|key| (hash(key)[0], key)).collect();
+    keys.iter()
+        .enumerate()
+        .find_map(|(index, &(leading_byte, key))| {
+            let (_, sibling) =
+                keys[index + 1..].iter().find(|(other, _)| *other == leading_byte)?;
+            let (_, cousin) = keys
+                .iter()
+                .find(|(other, _)| other >> 4 == leading_byte >> 4 && *other != leading_byte)?;
+            Some([key, *sibling, *cousin])
+        })
+        .expect("three keys collide on their leading nibbles")
 }
 
 fn hashed_slot(slot: u8) -> B256 {
     keccak256(B256::with_last_byte(slot))
 }
 
-/// The slot writer's slots: three that collide on their leading nibbles, then five under distinct
-/// first nibbles, so that filling them stores branch nodes and zeroing them removes those nodes.
+/// The slot writer's slots: three that collide on their leading nibbles, so that filling them
+/// stores a branch node and zeroing them removes it, then slots under distinct first nibbles to
+/// fill the writer without a second collision.
 fn storage_slots() -> [u8; SLOT_WRITER_SLOTS] {
     let colliding = colliding_keys(0..=u8::MAX, hashed_slot);
-    let mut taken_nibbles = BTreeSet::from([hashed_slot(colliding[0])[0] >> 4]);
-    let mut slots = colliding.to_vec();
-    slots.extend((0..=u8::MAX).filter(|slot| taken_nibbles.insert(hashed_slot(*slot)[0] >> 4)));
-    slots.truncate(SLOT_WRITER_SLOTS);
-    slots.try_into().expect("eight slots")
+    let mut taken_nibbles = BTreeSet::from([leading_nibble(hashed_slot(colliding[0]))]);
+    let spread =
+        (0..=u8::MAX).filter(|&slot| taken_nibbles.insert(leading_nibble(hashed_slot(slot))));
+    let slots: Vec<u8> = colliding.into_iter().chain(spread).take(SLOT_WRITER_SLOTS).collect();
+    slots.try_into().expect("256 slots cover all sixteen leading nibbles")
 }
 
-/// Three genesis accounts colliding on their leading hashed nibbles: the empty one EIP-161
-/// removes once a transaction touches it, its sibling and their cousin, both funded.
+/// Three genesis accounts, above the precompile addresses, colliding on their leading hashed
+/// nibbles: the empty one EIP-161 removes once a transaction touches it, its sibling and their
+/// cousin, both funded.
 fn genesis_neighbors() -> [Address; 3] {
     colliding_keys((0x10..=u8::MAX).map(Address::with_last_byte), keccak256)
 }
@@ -124,30 +121,32 @@ fn empty_in_genesis() -> Address {
 
 /// What the content blocks of the chain do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum BlockContent {
-    /// Deploys the slot writer, then fills its eight slots.
-    DeployThenCall,
-    /// Fills the slot writer's eight slots, zeroes half of them, then all but one.
-    SstoreToZero,
+enum StateChange {
+    /// Stores `BLOCKHASH` of the first block.
+    BlockHashRead,
     /// One transaction creates a contract that writes storage and self-destructs, which EIP-6780
     /// removes with its storage.
     CreateAndSelfdestructInOneTx,
-    /// Self-destructs the slot writer after filling it; after Cancun the code and storage stay.
-    SelfdestructPreExisting,
+    /// Deploys the slot writer, then fills its eight slots.
+    DeployThenCall,
     /// Touches an empty account from genesis, which EIP-161 removes, and an address that never
     /// had anything.
     Eip161Touch,
-    /// Stores `BLOCKHASH` of the first block.
-    BlockHashRead,
+    /// Self-destructs the slot writer after filling it; after Cancun the code and storage stay.
+    SelfdestructPreExisting,
+    /// Fills the slot writer's eight slots, zeroes half of them, then all but one.
+    SstoreToZero,
 }
 
-impl BlockContent {
-    /// The content blocks; the first transaction creates `contract` at the sender's nonce 0.
+impl StateChange {
+    /// The content blocks. `contract` is the address the sender's nonce-0 transaction creates.
     fn blocks(self, contract: Address) -> Vec<BlockSpec> {
-        let deploy_slot_writer = BlockSpec::new(vec![TxSpec::create(
-            initcode_returning(&slot_writer_runtime(BENEFICIARY, storage_slots())),
-            DEPLOY_GAS_LIMIT,
-        )]);
+        let deploy_slot_writer = || {
+            BlockSpec::new(vec![TxSpec::create(
+                initcode_returning(&slot_writer_runtime(BENEFICIARY, storage_slots())),
+                DEPLOY_GAS_LIMIT,
+            )])
+        };
         let write_slots = |values| {
             BlockSpec::new(vec![TxSpec::call(
                 contract,
@@ -156,30 +155,6 @@ impl BlockContent {
             )])
         };
         match self {
-            Self::DeployThenCall => vec![deploy_slot_writer, write_slots([1, 2, 3, 4, 5, 6, 7, 8])],
-            // Zeroing the first colliding slot removes the stored branch the three share; keeping
-            // only the cousin leaves a lone leaf.
-            Self::SstoreToZero => vec![
-                deploy_slot_writer,
-                write_slots([7; SLOT_WRITER_SLOTS]),
-                write_slots([0, 7, 7, 0, 0, 0, 7, 7]),
-                write_slots([0, 0, 7, 0, 0, 0, 0, 0]),
-            ],
-            Self::CreateAndSelfdestructInOneTx => vec![BlockSpec::new(vec![
-                TxSpec::create(create_and_selfdestruct_initcode(BENEFICIARY), WRITE_GAS_LIMIT)
-                    .with_value(U256::from(1)),
-            ])],
-            Self::SelfdestructPreExisting => vec![
-                deploy_slot_writer,
-                write_slots([5; SLOT_WRITER_SLOTS]),
-                BlockSpec::new(vec![
-                    TxSpec::call(contract, Bytes::new(), WRITE_GAS_LIMIT).with_value(U256::from(1)),
-                ]),
-            ],
-            Self::Eip161Touch => vec![BlockSpec::new(vec![
-                TxSpec::transfer(empty_in_genesis(), U256::ZERO),
-                TxSpec::transfer(NEVER_FUNDED, U256::ZERO),
-            ])],
             Self::BlockHashRead => vec![
                 BlockSpec::new(vec![TxSpec::create(
                     initcode_returning(&BLOCK_HASH_RECORDER_RUNTIME),
@@ -188,8 +163,34 @@ impl BlockContent {
                 BlockSpec::new(vec![TxSpec::call(
                     contract,
                     block_number_calldata(1),
-                    DEPLOY_GAS_LIMIT,
+                    WRITE_GAS_LIMIT,
                 )]),
+            ],
+            Self::CreateAndSelfdestructInOneTx => vec![BlockSpec::new(vec![
+                TxSpec::create(create_and_selfdestruct_initcode(BENEFICIARY), WRITE_GAS_LIMIT)
+                    .with_value(U256::from(1)),
+            ])],
+            Self::DeployThenCall => {
+                vec![deploy_slot_writer(), write_slots([1, 2, 3, 4, 5, 6, 7, 8])]
+            }
+            Self::Eip161Touch => vec![BlockSpec::new(vec![
+                TxSpec::transfer(empty_in_genesis(), U256::ZERO),
+                TxSpec::transfer(NEVER_FUNDED, U256::ZERO),
+            ])],
+            Self::SelfdestructPreExisting => vec![
+                deploy_slot_writer(),
+                write_slots([5; SLOT_WRITER_SLOTS]),
+                BlockSpec::new(vec![
+                    TxSpec::call(contract, Bytes::new(), WRITE_GAS_LIMIT).with_value(U256::from(1)),
+                ]),
+            ],
+            // Zeroing the first colliding slot removes the stored branch the three share; keeping
+            // only the cousin leaves a lone leaf.
+            Self::SstoreToZero => vec![
+                deploy_slot_writer(),
+                write_slots([7; SLOT_WRITER_SLOTS]),
+                write_slots([0, 7, 7, 0, 0, 0, 7, 7]),
+                write_slots([0, 0, 7, 0, 0, 0, 0, 0]),
             ],
         }
     }
@@ -199,7 +200,7 @@ impl BlockContent {
         self,
         genesis: &BlockView,
         tip: &BlockView,
-        first_block: &RecoveredBlock<Block>,
+        first_block_hash: B256,
         contract: Address,
     ) -> eyre::Result<()> {
         let hashed_contract = keccak256(contract);
@@ -207,33 +208,34 @@ impl BlockContent {
         let contract_storage = &tip.storages[&hashed_contract];
         let beneficiary_balance = tip.accounts.get(&keccak256(BENEFICIARY)).map(|a| a.balance);
         match self {
-            Self::DeployThenCall => {
-                eyre::ensure!(contract_account.is_some_and(|a| a.bytecode_hash.is_some()));
-                eyre::ensure!(contract_storage.len() == SLOT_WRITER_SLOTS);
-            }
-            Self::SstoreToZero => {
-                let cousin_slot = hashed_slot(storage_slots()[2]);
-                eyre::ensure!(contract_storage.keys().eq([&cousin_slot]), "{contract_storage:?}");
+            Self::BlockHashRead => {
+                let stored = contract_storage.slots.get(&keccak256(BLOCK_HASH_SLOT));
+                eyre::ensure!(stored == Some(&U256::from_be_bytes(first_block_hash.0)));
             }
             Self::CreateAndSelfdestructInOneTx => {
                 eyre::ensure!(contract_account.is_none());
-                eyre::ensure!(contract_storage.is_empty());
-                eyre::ensure!(tip.storage_tries[&hashed_contract].is_empty());
+                eyre::ensure!(contract_storage.slots.is_empty());
+                eyre::ensure!(contract_storage.trie.is_empty());
                 eyre::ensure!(beneficiary_balance == Some(U256::from(1)));
             }
-            Self::SelfdestructPreExisting => {
+            Self::DeployThenCall => {
                 eyre::ensure!(contract_account.is_some_and(|a| a.bytecode_hash.is_some()));
-                eyre::ensure!(contract_storage.len() == SLOT_WRITER_SLOTS);
-                eyre::ensure!(beneficiary_balance == Some(U256::from(1)));
+                eyre::ensure!(contract_storage.slots.len() == SLOT_WRITER_SLOTS);
             }
             Self::Eip161Touch => {
                 eyre::ensure!(genesis.accounts.contains_key(&keccak256(empty_in_genesis())));
                 eyre::ensure!(!tip.accounts.contains_key(&keccak256(empty_in_genesis())));
                 eyre::ensure!(!tip.accounts.contains_key(&keccak256(NEVER_FUNDED)));
             }
-            Self::BlockHashRead => {
-                let stored = contract_storage.get(&keccak256(BLOCK_HASH_SLOT));
-                eyre::ensure!(stored == Some(&U256::from_be_bytes(first_block.hash().0)));
+            Self::SelfdestructPreExisting => {
+                eyre::ensure!(contract_account.is_some_and(|a| a.bytecode_hash.is_some()));
+                eyre::ensure!(contract_storage.slots.len() == SLOT_WRITER_SLOTS);
+                eyre::ensure!(beneficiary_balance == Some(U256::from(1)));
+            }
+            Self::SstoreToZero => {
+                let cousin_slot = hashed_slot(storage_slots()[2]);
+                let remaining = &contract_storage.slots;
+                eyre::ensure!(remaining.keys().eq([&cousin_slot]), "{remaining:?}");
             }
         }
         Ok(())
@@ -248,9 +250,8 @@ struct FlushCadence {
 }
 
 impl FlushCadence {
-    const fn new(persistence: u64, backpressure: u64) -> Self {
-        Self { backpressure, persistence }
-    }
+    const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
+    const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
 }
 
 /// Which store implementation the indexed and executed stores use.
@@ -260,166 +261,69 @@ enum Backend {
     Mdbx,
 }
 
-/// An address whose proof, with these slots, every store must serve identically.
-struct ProofTarget {
-    address: Address,
-    slots: Vec<B256>,
+/// How a backfill reads the trie state it rewinds from.
+#[derive(Clone, Copy, Debug)]
+enum BackfillMode {
+    /// Through the store's history, as `proofs init` does by default.
+    History,
+    /// Through a snapshot of the trie at the window's earliest block.
+    Snapshot,
 }
 
-/// Everything a store serves at one block, read through its cursors and proof builder.
-struct BlockView {
-    accounts: BTreeMap<B256, Account>,
-    account_trie: BTreeMap<Nibbles, BranchNodeCompact>,
-    proofs: BTreeMap<Address, AccountProof>,
-    storage_tries: BTreeMap<B256, BTreeMap<Nibbles, BranchNodeCompact>>,
-    storages: BTreeMap<B256, BTreeMap<B256, U256>>,
+/// The stores under comparison; the indexed store is the reference the others are held to.
+struct ParityStores<S> {
+    backfilled: Arc<MdbxProofsStorage>,
+    executed: S,
+    indexed: S,
+    snapshot_backfilled: Arc<MdbxProofsStorage>,
 }
 
-impl BlockView {
-    /// Reads the store at `number`: every account and trie node, the storage and storage trie
-    /// of each of `hashed_addresses`, and a proof for each target.
-    fn read<S: OpProofsStore>(
-        store: &S,
+impl<S: OpProofsStore> ParityStores<S> {
+    fn assert_proof_windows(&self, expected: ProofWindowRange) -> eyre::Result<()> {
+        assert_proof_window(&self.indexed, "indexed", expected)?;
+        assert_proof_window(&self.executed, "executed", expected)?;
+        assert_proof_window(&self.backfilled, "backfilled", expected)?;
+        assert_proof_window(&self.snapshot_backfilled, "snapshot-backfilled", expected)
+    }
+
+    /// Every store serves the indexed store's view at `number`, and that view's proofs hash to
+    /// `state_root`.
+    fn assert_agree_at(
+        &self,
         number: u64,
-        hashed_addresses: &BTreeSet<B256>,
         targets: &[ProofTarget],
-    ) -> eyre::Result<Self> {
-        let provider = store.provider_ro()?;
-        let mut storages = BTreeMap::new();
-        let mut storage_tries = BTreeMap::new();
-        for hashed_address in hashed_addresses {
-            let storage = collect_hashed(provider.storage_hashed_cursor(*hashed_address, number)?)?;
-            let trie = collect_trie(provider.storage_trie_cursor(*hashed_address, number)?)?;
-            storages.insert(*hashed_address, storage);
-            storage_tries.insert(*hashed_address, trie);
-        }
-        let proofs = targets
-            .iter()
-            .map(|target| {
-                let proof = Proof::overlay_account_proof(
-                    provider.clone(),
-                    number,
-                    TrieInput::default(),
-                    target.address,
-                    &target.slots,
-                )?;
-                Ok((target.address, proof))
-            })
-            .collect::<eyre::Result<_>>()?;
-        Ok(Self {
-            accounts: collect_hashed(provider.account_hashed_cursor(number)?)?,
-            account_trie: collect_trie(provider.account_trie_cursor(number)?)?,
-            proofs,
-            storage_tries,
-            storages,
-        })
-    }
-
-    /// Every proof must hash to the header's state root; this ties the stores to reth, so that
-    /// three stores agreeing on the wrong state still fail.
-    fn verify_proofs(&self, number: u64, store: &str, state_root: B256) -> eyre::Result<()> {
-        for (address, proof) in &self.proofs {
-            proof.verify(state_root).map_err(|err| {
-                eyre::eyre!(
-                    "the {store} store's proof of {address} at block {number} does not verify \
-                     against the header state root: {err}"
-                )
-            })?;
-        }
-        Ok(())
+        state_root: B256,
+    ) -> eyre::Result<()> {
+        let indexed = BlockView::read(&self.indexed, number, targets)?;
+        let executed = BlockView::read(&self.executed, number, targets)?;
+        let backfilled = BlockView::read(&self.backfilled, number, targets)?;
+        let snapshot_backfilled = BlockView::read(&self.snapshot_backfilled, number, targets)?;
+        assert_same_view(number, "executed", &indexed, &executed)?;
+        assert_same_view(number, "backfilled", &indexed, &backfilled)?;
+        assert_same_view(number, "snapshot-backfilled", &indexed, &snapshot_backfilled)?;
+        indexed.verify_proofs(number, state_root)
     }
 }
 
-/// The hashed addresses every store must serve at `number`: the proof targets and every account
-/// any store holds, so that storage a store keeps for an account it dropped is still compared.
-fn hashed_addresses_at<A: OpProofsStore, B: OpProofsStore, C: OpProofsStore>(
-    stores: (&A, &B, &C),
-    number: u64,
-    targets: &[ProofTarget],
-) -> eyre::Result<BTreeSet<B256>> {
-    let mut hashed_addresses: BTreeSet<B256> =
-        targets.iter().map(|target| keccak256(target.address)).collect();
-    hashed_addresses.extend(
-        collect_hashed(stores.0.provider_ro()?.account_hashed_cursor(number)?)?.into_keys(),
-    );
-    hashed_addresses.extend(
-        collect_hashed(stores.1.provider_ro()?.account_hashed_cursor(number)?)?.into_keys(),
-    );
-    hashed_addresses.extend(
-        collect_hashed(stores.2.provider_ro()?.account_hashed_cursor(number)?)?.into_keys(),
-    );
-    Ok(hashed_addresses)
-}
-
-/// Every entry of a hashed cursor, from the lowest key up.
-fn collect_hashed<C: HashedCursor>(mut cursor: C) -> eyre::Result<BTreeMap<B256, C::Value>> {
-    let mut entries = BTreeMap::new();
-    let mut entry = cursor.seek(B256::ZERO)?;
-    while let Some((key, value)) = entry {
-        entries.insert(key, value);
-        entry = cursor.next()?;
-    }
-    Ok(entries)
-}
-
-/// Every node of a trie cursor, from the root path up.
-fn collect_trie<C: TrieCursor>(
-    mut cursor: C,
-) -> eyre::Result<BTreeMap<Nibbles, BranchNodeCompact>> {
-    let mut nodes = BTreeMap::new();
-    let mut entry = cursor.seek(Nibbles::default())?;
-    while let Some((path, node)) = entry {
-        nodes.insert(path, node);
-        entry = cursor.next()?;
-    }
-    Ok(nodes)
-}
-
-/// Fails on the first key at which `actual` differs from the indexed store's `expected`,
-/// naming the block, the table and the key.
-fn assert_same_table<K: fmt::Debug + Ord, V: fmt::Debug + PartialEq>(
-    number: u64,
-    store: &str,
-    table: &str,
-    expected: &BTreeMap<K, V>,
-    actual: &BTreeMap<K, V>,
+fn assert_proof_window<S: OpProofsStore>(
+    store: &S,
+    name: &str,
+    expected: ProofWindowRange,
 ) -> eyre::Result<()> {
-    for key in expected.keys().chain(actual.keys()).collect::<BTreeSet<_>>() {
-        let (want, got) = (expected.get(key), actual.get(key));
-        eyre::ensure!(
-            want == got,
-            "the {store} store differs from the indexed store at block {number} in {table} at \
-             key {key:?}: indexed {want:?}, {store} {got:?}"
-        );
-    }
+    let window = store.provider_ro()?.get_proof_window()?;
+    eyre::ensure!(
+        window == expected,
+        "the {name} store's ProofWindow is {window:?}, not {expected:?}"
+    );
     Ok(())
 }
 
-fn assert_same_view(
-    number: u64,
-    store: &str,
-    expected: &BlockView,
-    actual: &BlockView,
-) -> eyre::Result<()> {
-    assert_same_table(number, store, "HashedAccounts", &expected.accounts, &actual.accounts)?;
-    assert_same_table(number, store, "AccountsTrie", &expected.account_trie, &actual.account_trie)?;
-    for (hashed_address, storage) in &expected.storages {
-        let table = format!("HashedStorages[{hashed_address}]");
-        assert_same_table(number, store, &table, storage, &actual.storages[hashed_address])?;
-    }
-    for (hashed_address, trie) in &expected.storage_tries {
-        let table = format!("StoragesTrie[{hashed_address}]");
-        assert_same_table(number, store, &table, trie, &actual.storage_tries[hashed_address])?;
-    }
-    assert_same_table(number, store, "AccountProof", &expected.proofs, &actual.proofs)
-}
-
 /// The chain: leading fillers, the content, and fillers up to [`CHAIN_LENGTH`].
-fn chain_blocks(content: BlockContent, contract: Address) -> Vec<BlockSpec> {
-    let mut blocks: Vec<BlockSpec> = (0..LEADING_FILLERS).map(|_| BlockSpec::new(vec![])).collect();
-    blocks.extend(content.blocks(contract));
+fn chain_blocks(change: StateChange, contract: Address) -> Vec<BlockSpec> {
+    let mut blocks: Vec<BlockSpec> = (0..LEADING_FILLERS).map(|_| BlockSpec::empty()).collect();
+    blocks.extend(change.blocks(contract));
     assert!(blocks.len() as u64 <= CHAIN_LENGTH, "the content must fit the chain");
-    blocks.resize_with(CHAIN_LENGTH as usize, || BlockSpec::new(vec![]));
+    blocks.resize_with(CHAIN_LENGTH as usize, BlockSpec::empty);
     blocks
 }
 
@@ -427,15 +331,16 @@ fn chain_blocks(content: BlockContent, contract: Address) -> Vec<BlockSpec> {
 /// neighbors, and the EIP-4788 contract every block writes to.
 fn cancun_chain_spec(sender: Address) -> Arc<ChainSpec> {
     let [empty, sibling, cousin] = genesis_neighbors();
-    let one_wei = GenesisAccount { balance: U256::from(1), ..Default::default() };
-    let beacon_roots =
-        GenesisAccount { code: Some(BEACON_ROOTS_CODE.clone()), ..Default::default() };
+    let one_wei = GenesisAccount::default().with_balance(U256::from(1));
     let alloc = [
         funded(sender),
         (empty, GenesisAccount::default()),
         (sibling, one_wei.clone()),
         (cousin, one_wei),
-        (BEACON_ROOTS_ADDRESS, beacon_roots),
+        (
+            BEACON_ROOTS_ADDRESS,
+            GenesisAccount::default().with_code(Some(BEACON_ROOTS_CODE.clone())),
+        ),
     ];
     Arc::new(chain_spec_builder(alloc).cancun_activated().build())
 }
@@ -447,6 +352,7 @@ fn proof_targets(sender: Address, contract: Address) -> Vec<ProofTarget> {
         .into_iter()
         .chain(0..CREATE_AND_SELFDESTRUCT_SLOTS)
         .map(B256::with_last_byte)
+        .chain([CALLED_SLOT, BLOCK_HASH_SLOT])
         .collect();
     let beacon_roots_slots = (1..=CHAIN_LENGTH)
         .flat_map(|number| {
@@ -465,26 +371,6 @@ fn proof_targets(sender: Address, contract: Address) -> Vec<ProofTarget> {
     targets
 }
 
-fn spawn_engine<S>(
-    chain_spec: &Arc<ChainSpec>,
-    reth: &SimulatedReth,
-    store: S,
-    cadence: FlushCadence,
-) -> EngineHandle<Block>
-where
-    S: OpProofsStore + Clone + 'static,
-{
-    let pruner = OpProofStoragePruner::new(store.clone(), reth.provider.clone(), 1000);
-    EngineHandle::spawn_with_thresholds(
-        EthEvmConfig::ethereum(chain_spec.clone()),
-        reth.provider.clone(),
-        store,
-        pruner,
-        cadence.persistence,
-        cadence.backpressure,
-    )
-}
-
 /// `flush` only waits for the save in flight and the engine starts the next save after it
 /// replies, so a buffer above the threshold drains over several flushes.
 fn flush_until_persisted<S: OpProofsStore>(
@@ -501,113 +387,116 @@ fn flush_until_persisted<S: OpProofsStore>(
     eyre::bail!("the engine did not persist through {tip:?}")
 }
 
-fn block_with_parent(block: &RecoveredBlock<Block>) -> BlockWithParent {
-    BlockWithParent::new(block.parent_hash(), block.num_hash())
+/// Commits the chain to reth while feeding every block to an indexing engine over one store and
+/// an executing engine over another, and returns the two stores once both hold the whole chain.
+fn index_and_execute_chain<S>(
+    reth: &mut SimulatedReth,
+    make_store: impl Fn() -> S,
+    cadence: FlushCadence,
+    blocks: Vec<BlockSpec>,
+) -> eyre::Result<(S, S)>
+where
+    S: OpProofsStore + Clone + 'static,
+{
+    let indexed = make_store();
+    let executed = make_store();
+    initialize_storage(indexed.clone(), &reth.factory, reth.head())?;
+    initialize_storage(executed.clone(), &reth.factory, reth.head())?;
+    let indexed_engine =
+        reth.spawn_engine(indexed.clone(), cadence.persistence, cadence.backpressure);
+    let executed_engine =
+        reth.spawn_engine(executed.clone(), cadence.persistence, cadence.backpressure);
+    for spec in &blocks {
+        let reth_block = reth.commit(spec)?;
+        let block = reth_block.recovered_block();
+        indexed_engine.index_block(
+            block.block_with_parent(),
+            (*reth_block.trie_updates()).clone(),
+            (*reth_block.hashed_state()).clone(),
+        )?;
+        executed_engine.execute_block(block)?;
+    }
+    flush_until_persisted(&indexed_engine, &indexed, reth.head())?;
+    flush_until_persisted(&executed_engine, &executed, reth.head())?;
+    Ok((indexed, executed))
+}
+
+/// Builds a store the way `proofs init` does: initialized at reth's database tip, then backfilled
+/// to genesis.
+fn backfill_store(
+    reth: &SimulatedReth,
+    mode: BackfillMode,
+) -> eyre::Result<Arc<MdbxProofsStorage>> {
+    let store = create_mdbx_proofs_storage();
+    initialize_storage(store.clone(), &reth.factory, reth.head())?;
+    let job = BackfillJob::new(reth.factory.database_provider_ro()?, store.clone())
+        .with_batch_size(BACKFILL_BATCH_SIZE);
+    match mode {
+        BackfillMode::History => job.run(0)?,
+        BackfillMode::Snapshot => job.run_with_snapshot(0)?,
+    }
+    Ok(store)
 }
 
 fn run_parity_case<S>(
     make_store: impl Fn() -> S,
     cadence: FlushCadence,
-    content: BlockContent,
+    change: StateChange,
 ) -> eyre::Result<()>
 where
-    S: OpProofsStore + Clone + Send + Sync + fmt::Debug + 'static,
+    S: OpProofsStore + Clone + 'static,
 {
+    assert_eq!(
+        CHAIN_LENGTH % cadence.persistence,
+        0,
+        "the final flush must leave nothing buffered"
+    );
     let key_pair = fixed_signer();
     let sender = public_key_to_address(key_pair.public_key());
     let contract = sender.create(0);
-    let chain_spec = cancun_chain_spec(sender);
     let persistence = RethPersistence::threshold(RETH_PERSISTENCE_THRESHOLD);
-    let mut reth = SimulatedReth::new(chain_spec.clone(), key_pair, persistence)?;
+    let mut reth = SimulatedReth::new(cancun_chain_spec(sender), key_pair, persistence)?;
     let genesis = reth.head();
 
-    let indexed_store = make_store();
-    let executed_store = make_store();
-    initialize_storage(indexed_store.clone(), &reth.factory, genesis)?;
-    initialize_storage(executed_store.clone(), &reth.factory, genesis)?;
-    let indexed_engine = spawn_engine(&chain_spec, &reth, indexed_store.clone(), cadence);
-    let executed_engine = spawn_engine(&chain_spec, &reth, executed_store.clone(), cadence);
-
-    let mut blocks = Vec::new();
-    for spec in chain_blocks(content, contract) {
-        let executed = reth.commit(&spec)?;
-        let block = executed.recovered_block();
-        indexed_engine.index_block(
-            block_with_parent(block),
-            (*executed.trie_updates()).clone(),
-            (*executed.hashed_state()).clone(),
-        )?;
-        executed_engine.execute_block(block)?;
-        blocks.push(block.clone());
-    }
+    let blocks = chain_blocks(change, contract);
+    let (indexed, executed) = index_and_execute_chain(&mut reth, make_store, cadence, blocks)?;
     let tip = reth.head();
-    flush_until_persisted(&indexed_engine, &indexed_store, tip)?;
-    flush_until_persisted(&executed_engine, &executed_store, tip)?;
-
     reth.persist_all()?;
-    let backfilled_store = create_mdbx_proofs_storage();
-    initialize_storage(backfilled_store.clone(), &reth.factory, tip)?;
-    BackfillJob::new(reth.factory.database_provider_ro()?, backfilled_store.clone())
-        .run(genesis.number)?;
+    let stores = ParityStores {
+        backfilled: backfill_store(&reth, BackfillMode::History)?,
+        executed,
+        indexed,
+        snapshot_backfilled: backfill_store(&reth, BackfillMode::Snapshot)?,
+    };
 
     let targets = proof_targets(sender, contract);
-    let window = ProofWindowRange { earliest: genesis, latest: tip };
-    assert_eq!(indexed_store.provider_ro()?.get_proof_window()?, window, "indexed ProofWindow");
-    assert_eq!(executed_store.provider_ro()?.get_proof_window()?, window, "executed ProofWindow");
-    assert_eq!(
-        backfilled_store.provider_ro()?.get_proof_window()?,
-        window,
-        "backfilled ProofWindow"
-    );
-
-    let mut genesis_view = None;
-    let mut tip_view = None;
+    stores.assert_proof_windows(ProofWindowRange { earliest: genesis, latest: tip })?;
     for number in genesis.number..=tip.number {
-        let stores = (&indexed_store, &executed_store, &backfilled_store);
-        let hashed_addresses = hashed_addresses_at(stores, number, &targets)?;
-        let indexed = BlockView::read(&indexed_store, number, &hashed_addresses, &targets)?;
-        let executed = BlockView::read(&executed_store, number, &hashed_addresses, &targets)?;
-        let backfilled = BlockView::read(&backfilled_store, number, &hashed_addresses, &targets)?;
-        assert_same_view(number, "executed", &indexed, &executed)?;
-        assert_same_view(number, "backfilled", &indexed, &backfilled)?;
-
-        let state_root = match number {
-            0 => chain_spec.genesis_header().state_root,
-            _ => blocks[number as usize - 1].state_root(),
-        };
-        indexed.verify_proofs(number, "indexed", state_root)?;
-        executed.verify_proofs(number, "executed", state_root)?;
-        backfilled.verify_proofs(number, "backfilled", state_root)?;
-
-        if number == genesis.number {
-            genesis_view = Some(indexed);
-        } else if number == tip.number {
-            tip_view = Some(indexed);
-        }
+        stores.assert_agree_at(number, &targets, reth.state_root(number))?;
     }
-    let (genesis_view, tip_view) =
-        (genesis_view.expect("genesis read"), tip_view.expect("tip read"));
-    content.assert_effect(&genesis_view, &tip_view, &blocks[0], contract)
+    let genesis_view = BlockView::read(&stores.indexed, genesis.number, &targets)?;
+    let tip_view = BlockView::read(&stores.indexed, tip.number, &targets)?;
+    change.assert_effect(&genesis_view, &tip_view, reth.block(1).hash(), contract)
 }
 
-/// The indexed, executed and backfilled stores serve the same state at every block, whatever the
-/// blocks did, whether the engine flushed every block or every fifth, and on either backend. The
-/// backfilled store is always MDBX, the only backend that supports backfill.
+/// The indexed, executed and both backfilled stores serve the same state at every block, whatever
+/// the blocks did, whether the engine flushed every block or every fifth, and on either backend.
+/// The backfilled stores are always MDBX, the only backend that supports backfill.
 #[rstest]
-#[case::deploy_then_call(BlockContent::DeployThenCall)]
-#[case::sstore_to_zero(BlockContent::SstoreToZero)]
-#[case::create_and_selfdestruct_in_one_tx(BlockContent::CreateAndSelfdestructInOneTx)]
-#[case::selfdestruct_pre_existing(BlockContent::SelfdestructPreExisting)]
-#[case::eip161_touch(BlockContent::Eip161Touch)]
-#[case::block_hash_read(BlockContent::BlockHashRead)]
+#[case::block_hash_read(StateChange::BlockHashRead)]
+#[case::create_and_selfdestruct_in_one_tx(StateChange::CreateAndSelfdestructInOneTx)]
+#[case::deploy_then_call(StateChange::DeployThenCall)]
+#[case::eip161_touch(StateChange::Eip161Touch)]
+#[case::selfdestruct_pre_existing(StateChange::SelfdestructPreExisting)]
+#[case::sstore_to_zero(StateChange::SstoreToZero)]
 #[serial]
 fn index_execute_and_backfill_stores_agree(
-    #[values(FlushCadence::new(1, 2), FlushCadence::new(5, 10))] cadence: FlushCadence,
+    #[values(FlushCadence::EVERY_BLOCK, FlushCadence::EVERY_FIFTH_BLOCK)] cadence: FlushCadence,
     #[values(Backend::InMemory, Backend::Mdbx)] backend: Backend,
-    #[case] content: BlockContent,
+    #[case] change: StateChange,
 ) -> eyre::Result<()> {
     match backend {
-        Backend::InMemory => run_parity_case(InMemoryProofsStorage::new, cadence, content),
-        Backend::Mdbx => run_parity_case(create_mdbx_proofs_storage, cadence, content),
+        Backend::InMemory => run_parity_case(InMemoryProofsStorage::new, cadence, change),
+        Backend::Mdbx => run_parity_case(create_mdbx_proofs_storage, cadence, change),
     }
 }

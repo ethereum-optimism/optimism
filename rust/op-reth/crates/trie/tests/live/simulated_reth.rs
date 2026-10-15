@@ -1,14 +1,17 @@
 //! reth's database and canonical in-memory state, driven the way reth's engine tree and
 //! persistence task drive them.
 
-use super::{BlockSpec, create_block_from_spec};
+use super::{BlockSpec, PRUNE_INTERVAL_BLOCKS, create_block_from_spec};
+use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
+use alloy_primitives::B256;
 use reth_chain_state::{CanonicalInMemoryState, ExecutedBlock, NewCanonicalChain};
 use reth_chainspec::ChainSpec;
 use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::Block;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
+use reth_optimism_trie::{OpProofStoragePruner, OpProofsStore, engine::EngineHandle};
 use reth_primitives_traits::RecoveredBlock;
 use reth_provider::{
     HashedPostStateProvider, ProviderFactory, SaveBlocksInput, StateProviderFactory,
@@ -22,7 +25,7 @@ use secp256k1::{Keypair, Secp256k1};
 use std::sync::Arc;
 
 /// reth's default `--engine.memory-block-buffer-target`.
-pub(super) const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
+const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
 
 /// A fixed signer, so a failing case reproduces with the same addresses and trie shape.
 pub(super) fn fixed_signer() -> Keypair {
@@ -136,10 +139,17 @@ impl SimulatedReth {
         })
     }
 
-    pub(super) fn num_hash(&self, number: u64) -> BlockNumHash {
+    fn num_hash(&self, number: u64) -> BlockNumHash {
         match number {
             0 => BlockNumHash::new(0, self.chain_spec.genesis_hash()),
             _ => self.block(number).num_hash(),
+        }
+    }
+
+    pub(super) fn state_root(&self, number: u64) -> B256 {
+        match number {
+            0 => self.chain_spec.genesis_header().state_root,
+            _ => self.block(number).state_root(),
         }
     }
 
@@ -149,6 +159,28 @@ impl SimulatedReth {
 
     pub(super) fn block(&self, number: u64) -> &RecoveredBlock<Block> {
         self.canonical[number as usize - 1].recovered_block()
+    }
+
+    /// Spawns a proofs engine over `store` that reads reth's state through this chain's provider.
+    pub(super) fn spawn_engine<S>(
+        &self,
+        store: S,
+        persistence_threshold: u64,
+        backpressure_threshold: u64,
+    ) -> EngineHandle<Block>
+    where
+        S: OpProofsStore + Clone + 'static,
+    {
+        let pruner =
+            OpProofStoragePruner::new(store.clone(), self.provider.clone(), PRUNE_INTERVAL_BLOCKS);
+        EngineHandle::spawn_with_thresholds(
+            self.evm_config.clone(),
+            self.provider.clone(),
+            store,
+            pruner,
+            persistence_threshold,
+            backpressure_threshold,
+        )
     }
 
     pub(super) fn locate(&self, block: BlockNumHash) -> Location {
@@ -180,7 +212,7 @@ impl SimulatedReth {
                 self.head().number < limit,
                 "the persistence rule did not reach the requested parent state within one cycle"
             );
-            self.commit(&BlockSpec::new(vec![]))?;
+            self.commit(&BlockSpec::empty())?;
         }
         Ok(())
     }
@@ -190,7 +222,7 @@ impl SimulatedReth {
     pub(super) fn reorg_from(&mut self, number: u64) -> eyre::Result<()> {
         assert!(number > self.last_persisted.number, "only in-memory blocks can be reorged");
         let old = self.canonical.split_off(number as usize - 1);
-        let fork = self.build_block(&BlockSpec::new(vec![]))?;
+        let fork = self.build_block(&BlockSpec::empty())?;
         assert_ne!(
             fork.recovered_block().hash(),
             old[0].recovered_block().hash(),
@@ -199,7 +231,7 @@ impl SimulatedReth {
         let depth = old.len();
         self.make_canonical(NewCanonicalChain::Reorg { new: vec![fork], old });
         for _ in 1..depth {
-            self.commit(&BlockSpec::new(vec![]))?;
+            self.commit(&BlockSpec::empty())?;
         }
         Ok(())
     }

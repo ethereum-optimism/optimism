@@ -44,9 +44,14 @@ mod index_execute_parity;
 mod parent_states;
 #[path = "live/simulated_reth.rs"]
 mod simulated_reth;
+#[path = "live/store_view.rs"]
+mod store_view;
 
 /// Seconds between consecutive blocks.
 const BLOCK_TIME: u64 = 2;
+
+/// Blocks between pruner runs, far beyond any test chain.
+const PRUNE_INTERVAL_BLOCKS: u64 = 1000;
 
 /// Timestamp of the block at `number`.
 const fn block_timestamp(number: u64) -> u64 {
@@ -121,6 +126,13 @@ impl TxSpec {
 struct BlockSpec {
     /// Transactions to include in this block
     txs: Vec<TxSpec>,
+}
+
+impl BlockSpec {
+    /// A block without transactions.
+    const fn empty() -> Self {
+        Self { txs: Vec::new() }
+    }
 }
 
 /// Configuration for a test scenario
@@ -354,7 +366,8 @@ where
     // state between iterations (the new async-persistence architecture requires this).
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let blockchain_db = BlockchainProvider::new(provider_factory.clone())?;
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let pruner =
+        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
     let engine_handle = EngineHandle::spawn(evm_config, blockchain_db, storage, pruner);
 
     for (idx, block_spec) in scenario.blocks_after_initialization.iter().enumerate() {
@@ -457,7 +470,7 @@ where
 
     let mut nonce_counter = 0;
     let incorrect_block = create_block_from_spec(
-        &BlockSpec::new(vec![]),
+        &BlockSpec::empty(),
         incorrect_block_number,
         incorrect_parent_hash,
         &chain_spec,
@@ -466,7 +479,8 @@ where
     );
 
     let blockchain_db = BlockchainProvider::new(provider_factory).unwrap();
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let pruner =
+        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
     let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,
@@ -514,7 +528,8 @@ where
 
     // Generate a second block normally
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let pruner =
+        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
     let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,
@@ -529,7 +544,7 @@ where
     let next_number = 1;
 
     let mut block = create_block_from_spec(
-        &BlockSpec::new(vec![]),
+        &BlockSpec::empty(),
         next_number,
         last_block_hash,
         &chain_spec,
@@ -587,7 +602,8 @@ where
     )?;
 
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let pruner =
+        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
     let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,

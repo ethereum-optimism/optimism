@@ -25,8 +25,8 @@ pub(super) const BLOCK_HASH_RECORDER_RUNTIME: [u8; 19] = [
 /// Number of storage slots the slot writer takes from calldata.
 pub(super) const SLOT_WRITER_SLOTS: usize = 8;
 
-/// Runtime code of the slot writer: a call with calldata stores its first eight 32-byte words
-/// into `slots`, in order; a call without calldata self-destructs to `beneficiary`.
+/// Runtime code of the slot writer: a call with calldata stores one 32-byte calldata word per
+/// entry of `slots`, in order; a call without calldata self-destructs to `beneficiary`.
 ///
 /// ```text
 /// CALLDATASIZE ISZERO PUSH1 <selfdestruct> JUMPI
@@ -56,8 +56,9 @@ pub(super) fn slot_writer_runtime(beneficiary: Address, slots: [u8; SLOT_WRITER_
 /// Number of storage slots [`create_and_selfdestruct_initcode`] writes before self-destructing.
 pub(super) const CREATE_AND_SELFDESTRUCT_SLOTS: u8 = 4;
 
-/// Initcode that stores seven into four slots and then self-destructs to `beneficiary` within
-/// the creating transaction, which under EIP-6780 removes the account with its storage.
+/// Initcode that stores seven into the first [`CREATE_AND_SELFDESTRUCT_SLOTS`] slots and then
+/// self-destructs to `beneficiary` within the creating transaction, which under EIP-6780 removes
+/// the account with its storage.
 ///
 /// ```text
 /// PUSH1 7 PUSH1 0 SSTORE
