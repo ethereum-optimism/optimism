@@ -31,6 +31,12 @@ filter = 'test(=log_estimate_bounds_measured_pgu) | test(=consolidation_tests::c
 slow-timeout = { period = "1m", terminate-after = 10 }
 threads-required = "num-test-threads"
 
+# The proofs engine model test runs its whole proptest as one test, and a failing case shrinks
+# for up to a minute on top of the run.
+[[profile.default.overrides]]
+filter = "binary(engine_model)"
+slow-timeout = { period = "1m", terminate-after = 5 }
+
 # E2E tests using the testsuite framework from crates/e2e-test-utils.
 [[profile.default.overrides]]
 filter = "binary(e2e_testsuite)"
