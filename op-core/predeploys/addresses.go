@@ -115,6 +115,7 @@ func init() {
 	Predeploys["ETHLiquidity"] = &Predeploy{Address: ETHLiquidityAddr}
 	Predeploys["ConditionalDeployer"] = &Predeploy{Address: ConditionalDeployerAddr}
 	Predeploys["L2DevFeatureFlags"] = &Predeploy{Address: L2DevFeatureFlagsAddr}
+	Predeploys["UndeliveredMessageExporter"] = &Predeploy{Address: UndeliveredMessageExporterAddr}
 	Predeploys["GovernanceToken"] = &Predeploy{
 		Address:       GovernanceTokenAddr,
 		ProxyDisabled: true,
