@@ -253,6 +253,9 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := ioutil.Untar(tmpDir, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return fmt.Errorf("failed to create cache directory: %w", err)
+	}
 	if err := ioutil.SafeRename(path.Join(tmpDir, "forge"), path.Join(dest, "forge")); err != nil {
 		return fmt.Errorf("failed to move binary: %w", err)
 	}

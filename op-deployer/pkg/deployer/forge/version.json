@@ -1,11 +1,11 @@
 {
-  "forge": "v1.8.3",
+  "forge": "v1.8.5",
   "checksums": {
-    "darwin_amd64": "1b469229681b31e3c66a07132811b99460b2874a0a48de3b29500234454f47b8",
-    "darwin_arm64": "562f9c2f9094e512f1efc1e005c79de7642c27ffc1e7e9dcf8e31baa54577d6e",
-    "linux_amd64": "7ca48e6ca3cac1bce1403ca67e5bc1dc3bc1fd818199c9957c7165079c228568",
-    "linux_arm64": "93fc23be26c8a902ca58fe54aa6ca28c880b58af95d052674933161df7928e6d",
-    "alpine_amd64": "72a0e8ce069c50655a7d7d939089a42e242debfb902339b26561dd3e8757d6c0",
-    "alpine_arm64": "e48bf466874a9684a4f75ce6b6eb8e068083b7138aec597c7f5b6810ed462010"
+    "darwin_amd64": "b919f69bb4231ad68beaaba9dc8f7d36d9d552cef1a76a8bf69c2bdfd974339a",
+    "darwin_arm64": "56049728e25e44a61c7f2e49438023b0890cb45850ffcb7c882f90cd998baf83",
+    "linux_amd64": "6c66ffcc55fa4249197721baa3098bc208014ea1d8aa04b2ed50ac6bccffb226",
+    "linux_arm64": "5bdce3dade8b6f0a65d4fccf6908426aee4905a988b08dce79d0a72fe7498310",
+    "alpine_amd64": "edc0c55cfb1d38411721bda7bd9f3c8b53eed7be98272be8b823359170286167",
+    "alpine_arm64": "60050ad50ba890217fb0de7d6f76ebb4b5c69ca0f0fafbef2da1422598dbfab1"
   }
 }
