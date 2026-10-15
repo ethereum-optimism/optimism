@@ -3486,6 +3486,7 @@
           {
             "group": "Security",
             "pages": [
+              "op-stack/security/index",
               "op-stack/protocol/privileged-roles",
               "op-stack/security/faq-sec-model",
               "op-stack/security/security-policy",
