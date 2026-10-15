@@ -187,6 +187,12 @@ Cold preparation killed SP1 at 4 CPU / 8 GB on RWX; its matched pilot build and
 check allocations use 8 CPU / 16 GB on both providers. Non-pilot Circle jobs keep
 their existing allocation. Do not infer adequate cold-build headroom from a
 successful cached build.
+The pilot NUT verdict likewise matches 2 CPU / 8 GB: its cold Go build was
+killed at 2 CPU / 4 GB on RWX. Circle uses a machine for this pilot job while
+other branches retain the existing Docker executor.
+Clippy and udeps use 4 CPU / 8 GB on both pilot providers after both cold
+checks were killed at 2 CPU / 4 GB. Circle retains its Rust Docker image and
+normal compiler-cache setup; non-pilot jobs keep their existing allocation.
 
 The general Go contract producer matches Circle's `ci` profile and
 `--deny-warnings --skip test` arguments, sealed in dependency settings. Forge's

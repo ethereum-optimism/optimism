@@ -71,9 +71,10 @@ jobs:
         description: "Clippy command to run"
         type: string
         default: "cargo clippy --workspace --all-targets --all-features"
+    # Preserve the Rust image and compiler cache while matching cold memory.
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "large.gen2" or "medium.gen2" >>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -412,9 +413,10 @@ jobs:
         description: "Command to run for unused dependency check"
         type: string
         default: "just check-udeps"
+    # Preserve the Rust image and compiler cache while matching cold memory.
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
+    resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "large.gen2" or "medium.gen2" >>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless

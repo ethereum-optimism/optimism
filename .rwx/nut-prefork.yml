@@ -183,7 +183,7 @@ tasks:
     timeout: 45m
     runner:
       cpus: 2
-      memory: 4gb
+      memory: 8gb
     outputs:
       filesystem:
         filter:

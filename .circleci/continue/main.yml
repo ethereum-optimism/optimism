@@ -2014,8 +2014,8 @@ jobs:
           namespace: check-nut-locks
 
   check-nut-prefork-states:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+    # Keep two CPUs while matching RWX's cold Go-build memory headroom.
+    executor: << pipeline.git.branch == "codex/rwx-ci-pilot" and "ci-memory-machine" or "ci-default-docker" >>
     resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
