@@ -695,6 +695,56 @@ async fn consolidation_proof_binds_batch_proof() {
     println!("RESULT prove error: {err:#}");
 }
 
+/// Pins a CPU batch proof and a consolidation proof that verifies with it under the log vkey.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "local CPU proving"]
+async fn cpu_proves_batch_and_consolidation() {
+    let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
+    let fixture = small_fixture();
+    let receipts_roots: Vec<B256> =
+        fixture.below_head.iter().map(|block| block.receipts_root).collect();
+    let expected = crate::expected_batch_public_values(
+        &build_log_commitment_stdin_from_receipts(&fixture.below_head).unwrap(),
+    );
+    let proofs = prove_batch(&dir, &fixture).await;
+    assert_eq!(proofs.batches(), [expected]);
+
+    let (native, mut witness) = collect(&fixture, fixture.full_witness(), &proofs.batches()).await;
+    let native = native.unwrap();
+    assert!(native.missing.is_empty());
+    // The test guest reads the chain configs that the native run takes directly.
+    for key in [DEPENDENCY_SET_KEY, L2_ROLLUP_CONFIG_KEY, L1_CONFIG_KEY] {
+        let key = PreimageKey::new_local(key.to());
+        witness.save_preimage(key, fixture.withheld.get(key).await.unwrap()).unwrap();
+    }
+    let mut served = native.served.clone();
+    served.sort();
+    let mut all = receipts_roots;
+    all.sort();
+    assert_eq!(served, all);
+    let log_commitments =
+        LogCommitmentInputs { batches: proofs.batches(), openings: native.openings };
+    let stdin = build_super_consolidation_stdin(
+        &fixture.inputs,
+        DefaultWitnessData::from_parts(witness, BlobData::default()),
+        &log_commitments,
+        Some(&proofs),
+    )
+    .unwrap();
+    assert_eq!(stdin.proofs.len(), 1);
+    assert_eq!(stdin.proofs[0].1, proofs.vk.vk);
+
+    let elf = Arc::<[u8]>::from(load_elf_from(&dir, "super-range-elf").unwrap());
+    let client = ProverClient::builder().cpu().build().await;
+    let pk = client.setup(Elf::Dynamic(elf)).await.unwrap();
+    let mut proof = client.prove(&pk, stdin).compressed().await.unwrap();
+    client.verify(&proof, pk.verifying_key(), None).unwrap();
+    assert_eq!(
+        decode_super_consolidation_public_values(&mut proof.public_values).unwrap(),
+        native.outputs
+    );
+}
+
 async fn prove_batch(dir: &std::path::Path, fixture: &Fixture) -> LogCommitmentProofs {
     let elf = Arc::<[u8]>::from(load_elf_from(dir, "log-commitment-elf").unwrap());
     let client = ProverClient::builder().cpu().build().await;

@@ -23,6 +23,14 @@ func TestSP1SuperRangeELFExecutionValidCrossChainMessageSmoke(gt *testing.T) {
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys, sfp.NewSP1FullProofRunner(executorPath))
 }
 
+func TestSP1SuperRangeELFExecutionBelowHeadMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	executorPath := requireSP1FullELF(t)
+
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunConsolidateBelowHeadMessageTest(t, sys, sfp.NewSP1FullProofRunner(executorPath))
+}
+
 func TestSP1SuperRangeELFExecutionSingleChainSmoke(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	executorPath := requireSP1FullELF(t)
@@ -45,9 +53,12 @@ func requireSP1FullELF(t devtest.T) string {
 	t.Require().NotZero(executorInfo.Mode().Perm()&0o111, "kona-sp1 super-range ELF executor must be executable")
 
 	t.Require().NotEmpty(elfDir, konaSP1ELFDirEnv+" must be set for full-ELF execution")
-	elfInfo, err := os.Stat(filepath.Join(elfDir, "super-range-elf"))
-	t.Require().NoError(err, "stat kona-sp1 super-range ELF")
-	t.Require().False(elfInfo.IsDir(), "kona-sp1 super-range ELF must be a file")
-	t.Require().Positive(elfInfo.Size(), "kona-sp1 super-range ELF must not be empty")
+	// The executor runs log-commitment-elf for blocks below a head that the consolidation reads.
+	for _, name := range []string{"super-range-elf", "log-commitment-elf"} {
+		elfInfo, err := os.Stat(filepath.Join(elfDir, name))
+		t.Require().NoError(err, "stat kona-sp1 %s", name)
+		t.Require().False(elfInfo.IsDir(), "kona-sp1 %s must be a file", name)
+		t.Require().Positive(elfInfo.Size(), "kona-sp1 %s must not be empty", name)
+	}
 	return executorPath
 }

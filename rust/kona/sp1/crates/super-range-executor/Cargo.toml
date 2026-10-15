@@ -22,6 +22,7 @@ kona-sp1-host-utils.workspace = true
 kona-host = { workspace = true, features = ["interop"] }
 kona-interop = { workspace = true, features = ["serde"] }
 kona-preimage = { workspace = true, features = ["std"] }
+kona-mpt.workspace = true
 kona-proof.workspace = true
 kona-proof-interop.workspace = true
 kona-protocol.workspace = true
@@ -29,7 +30,12 @@ kona-registry.workspace = true
 
 # alloy
 alloy-consensus.workspace = true
+alloy-eips.workspace = true
 alloy-primitives.workspace = true
+alloy-provider = { workspace = true, features = ["ws"] }
+alloy-rlp.workspace = true
+alloy-rpc-client.workspace = true
+op-alloy-consensus.workspace = true
 
 # rpc / serialization
 jsonrpsee-http-client.workspace = true
@@ -50,12 +56,8 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["log-commitment-test-utils"] }
 alloy-chains.workspace = true
-alloy-eips.workspace = true
-alloy-rlp.workspace = true
 kona-genesis.workspace = true
 kona-interop = { workspace = true, features = ["test-utils"] }
-kona-mpt.workspace = true
-op-alloy-consensus.workspace = true
 tempfile.workspace = true
 
 [lints]

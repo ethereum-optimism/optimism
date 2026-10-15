@@ -8,14 +8,20 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     num::NonZeroUsize,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{
+        Arc, Mutex, MutexGuard,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use alloy_consensus::Header;
 use alloy_primitives::{Address, B256};
 use anyhow::{Context, Result, anyhow, ensure};
+use async_trait::async_trait;
 use kona_interop::LogCommitment;
-use kona_preimage::CommsClient;
+use kona_preimage::{
+    CommsClient, HintWriterClient, PreimageKey, PreimageOracleClient, errors::PreimageOracleResult,
+};
 use kona_proof::FlushableCache;
 use kona_proof_interop::{HintType, LogCommitmentSource, receipts_from_trie};
 use kona_sp1_client_utils::{
@@ -51,6 +57,9 @@ pub(crate) struct NativeConsolidation {
     pub(crate) missing: Vec<MissingLogCommitment>,
     pub(crate) served: Vec<B256>,
     pub(crate) witness_bytes: u64,
+    pub(crate) read_bytes: u64,
+    pub(crate) log_checks: u64,
+    pub(crate) log_check_siblings: u64,
 }
 
 /// Runs the consolidation natively over `collector`, with the entries of `batches`, the public
@@ -71,18 +80,70 @@ where
     let source =
         NativeLogCommitments::new(batches, collector.preimage_oracle.clone(), record.clone())?;
     let witness = collector.preimage_witness_store.clone();
-    let run = build_consolidation_outputs(inputs, collector, configs, Arc::new(source));
+    let read_bytes = Arc::new(AtomicU64::new(0));
+    let oracle = Arc::new(CountingOracle { inner: collector, bytes: read_bytes.clone() });
+    let run = build_consolidation_outputs(inputs, oracle, configs, Arc::new(source));
     let outputs = tokio::select! {
         biased;
         () = record.failure.notified() => None,
         outputs = run => Some(outputs),
     };
     // A host failure that a log check turned into a verdict comes first.
-    let Recorded { openings, missing, served } = record.finish()?;
+    let Recorded { openings, missing, served, log_checks, log_check_siblings } = record.finish()?;
     let outputs = outputs.context("the consolidation run stopped without a host failure")??;
     let witness_bytes =
         witness.lock().map_err(|_| anyhow!("witness lock poisoned"))?.preimage_bytes() as u64;
-    Ok(NativeConsolidation { outputs, openings, missing, served, witness_bytes })
+    Ok(NativeConsolidation {
+        outputs,
+        openings,
+        missing,
+        served,
+        witness_bytes,
+        read_bytes: read_bytes.load(Ordering::Relaxed),
+        log_checks,
+        log_check_siblings,
+    })
+}
+
+/// An oracle that counts the bytes it returns, with repeats: the reads that the guest repeats.
+#[derive(Debug)]
+struct CountingOracle<O> {
+    inner: Arc<O>,
+    bytes: Arc<AtomicU64>,
+}
+
+impl<O> Clone for CountingOracle<O> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone(), bytes: self.bytes.clone() }
+    }
+}
+
+#[async_trait]
+impl<O> PreimageOracleClient for CountingOracle<O>
+where
+    O: PreimageOracleClient + Send + Sync,
+{
+    async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+        let value = self.inner.get(key).await?;
+        self.bytes.fetch_add(value.len() as u64, Ordering::Relaxed);
+        Ok(value)
+    }
+
+    async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+        self.inner.get_exact(key, buf).await?;
+        self.bytes.fetch_add(buf.len() as u64, Ordering::Relaxed);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<O> HintWriterClient for CountingOracle<O>
+where
+    O: HintWriterClient + Send + Sync,
+{
+    async fn write(&self, hint: &str) -> PreimageOracleResult<()> {
+        self.inner.write(hint).await
+    }
 }
 
 /// What the native run records, shared by every timestamp and round.
@@ -100,6 +161,9 @@ struct RecordState {
     openings: BTreeMap<(B256, u64), LogOpening>,
     missing: BTreeMap<B256, MissingLogCommitment>,
     served: BTreeSet<B256>,
+    /// Log checks against an entry, each verifying an opening, and their siblings.
+    log_checks: u64,
+    log_check_siblings: u64,
     trees: TreeCache,
     /// The first host failure; later log checks answer without host work.
     error: Option<anyhow::Error>,
@@ -111,6 +175,8 @@ struct Recorded {
     openings: Vec<LogOpening>,
     missing: Vec<MissingLogCommitment>,
     served: Vec<B256>,
+    log_checks: u64,
+    log_check_siblings: u64,
 }
 
 impl LogCommitmentRecord {
@@ -133,6 +199,8 @@ impl LogCommitmentRecord {
             openings: std::mem::take(&mut state.openings).into_values().collect(),
             missing: std::mem::take(&mut state.missing).into_values().collect(),
             served: std::mem::take(&mut state.served).into_iter().collect(),
+            log_checks: state.log_checks,
+            log_check_siblings: state.log_check_siblings,
         })
     }
 }
@@ -267,7 +335,13 @@ where
             return false;
         }
         match self.opening(index) {
-            Ok(opening) => opened_log_matches(&self.entry, &opening, origin, payload_hash),
+            Ok(opening) => {
+                let mut state = self.record.state();
+                state.log_checks += 1;
+                state.log_check_siblings += opening.siblings.len() as u64;
+                drop(state);
+                opened_log_matches(&self.entry, &opening, origin, payload_hash)
+            }
             Err(error) => {
                 self.record.record_failure(error);
                 false
@@ -461,7 +535,7 @@ mod tests {
         }
     }
 
-    /// Pins one opening per log across rounds, accepted by the guest's source.
+    /// Pins one opening per log and each log check across rounds, accepted by the guest's source.
     #[tokio::test(flavor = "multi_thread")]
     async fn records_each_opening_once_for_the_guest() {
         let chains = chains();
@@ -472,7 +546,10 @@ mod tests {
                 .unwrap(),
         );
         assert!(chains.resolve(chains.withheld.clone(), native, 2));
-        let Recorded { openings, missing, .. } = record.finish().unwrap();
+        let Recorded { openings, missing, log_checks, log_check_siblings, .. } =
+            record.finish().unwrap();
+        // Each round checks one log of block 1 (three logs) and one of block 2 (one log).
+        assert_eq!((log_checks, log_check_siblings), (4, 4));
         assert!(missing.is_empty());
         let keys: Vec<_> =
             openings.iter().map(|opening| (opening.receipts_root, opening.index)).collect();
@@ -535,7 +612,7 @@ mod tests {
             .unwrap(),
         );
         assert!(!chains.resolve(chains.withheld.clone(), native, 1));
-        let Recorded { openings, missing, served } = record.finish().unwrap();
+        let Recorded { openings, missing, served, .. } = record.finish().unwrap();
         assert!(missing.is_empty());
         let mut expected: Vec<_> = chains.below_head.iter().map(|(root, _)| *root).collect();
         expected.sort();
