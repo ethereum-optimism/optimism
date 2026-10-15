@@ -12,7 +12,6 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -572,14 +571,6 @@ func (el *L2ELNode) RecordLogs(minLevel slog.Level) *LogRecorder {
 	recorder.stop = observable.ObserveLogs(recorder.observe)
 	el.t.Cleanup(recorder.Stop)
 	return recorder
-}
-
-func (el *L2ELNode) PeerWith(peer *L2ELNode) {
-	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
-}
-
-func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
-	sysgo.DisconnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
 
 func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {

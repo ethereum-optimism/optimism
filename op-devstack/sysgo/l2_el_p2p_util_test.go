@@ -134,3 +134,100 @@ func TestPollPeerListOuterBudgetExpiry(t *testing.T) {
 	require.ErrorContains(t, err, "last admin_peers attempt error")
 	require.GreaterOrEqual(t, node.calls, 2, "attempt timeouts must be retried until the outer budget expires")
 }
+
+func TestHighestEthVersionPicksTheHighestEthCapability(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		caps    []string
+		highest uint64
+		fails   bool
+	}{
+		{name: "single", caps: []string{"eth/69"}, highest: 69},
+		{name: "several_unordered", caps: []string{"eth/68", "snap/1", "eth/71", "eth/69"}, highest: 71},
+		{name: "no_eth", caps: []string{"snap/1"}, fails: true},
+		{name: "malformed", caps: []string{"eth/x"}, fails: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			highest, err := HighestEthVersion(tc.caps)
+			if tc.fails {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.highest, highest)
+		})
+	}
+}
+
+func TestHighestCommonEthVersionIntersectsTheCapabilities(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		caps   []string
+		other  []string
+		common uint64
+		fails  bool
+	}{
+		{name: "op_reth_develop_with_op_geth", caps: []string{"eth/66", "eth/67", "eth/68", "eth/69"}, other: []string{"eth/69"}, common: 69},
+		{name: "op_reth_bump_with_op_geth", caps: []string{"eth/66", "eth/67", "eth/68", "eth/69", "eth/70", "eth/71"}, other: []string{"eth/69"}, common: 69},
+		{name: "gap_in_one_side", caps: []string{"eth/68", "eth/71"}, other: []string{"eth/69", "eth/70", "eth/71"}, common: 71},
+		{name: "disjoint", caps: []string{"eth/68"}, other: []string{"eth/69"}, fails: true},
+		{name: "malformed", caps: []string{"eth/x"}, other: []string{"eth/69"}, fails: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			common, err := HighestCommonEthVersion(tc.caps, tc.other)
+			if tc.fails {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.common, common)
+		})
+	}
+}
+
+func TestPeerInfoIsReportedOnceTheEthHandshakeIsDone(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		entry      string
+		negotiated bool
+		info       ELPeerInfo
+	}{
+		{
+			name:       "op_geth_before_handshake",
+			entry:      `{"id":"ab","caps":["eth/69"],"network":{"inbound":true},"protocols":{"eth":"handshake"}}`,
+			negotiated: false,
+			info:       ELPeerInfo{Caps: []string{"eth/69"}, ID: "ab", Inbound: true},
+		},
+		{
+			name:       "op_geth_with_empty_eth_info",
+			entry:      `{"id":"ab","caps":["eth/69"],"network":{},"protocols":{"eth":{}}}`,
+			negotiated: false,
+			info:       ELPeerInfo{Caps: []string{"eth/69"}, ID: "ab"},
+		},
+		{
+			name:       "op_geth_negotiated",
+			entry:      `{"id":"ab","caps":["eth/68","eth/69"],"network":{"localAddress":"127.0.0.1:30303","remoteAddress":"127.0.0.1:50001","inbound":true,"trusted":false,"static":false},"protocols":{"eth":{"version":69,"head":"0x1"}}}`,
+			negotiated: true,
+			info:       ELPeerInfo{Caps: []string{"eth/68", "eth/69"}, EthVersion: 69, ID: "ab", Inbound: true, LocalAddress: "127.0.0.1:30303", RemoteAddress: "127.0.0.1:50001"},
+		},
+		{
+			name:       "op_reth_negotiated",
+			entry:      `{"id":"0xcd","caps":["eth/69","eth/71"],"network":{"localAddress":"127.0.0.1:50002","remoteAddress":"127.0.0.1:30304","inbound":false,"trusted":true,"static":true},"protocols":{"eth":{"version":71}}}`,
+			negotiated: true,
+			info:       ELPeerInfo{Caps: []string{"eth/69", "eth/71"}, EthVersion: 71, ID: "0xcd", LocalAddress: "127.0.0.1:50002", RemoteAddress: "127.0.0.1:30304", Static: true, Trusted: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var entry peer
+			require.NoError(t, json.Unmarshal([]byte(tc.entry), &entry))
+			require.Equal(t, tc.negotiated, entry.negotiated())
+			require.Equal(t, tc.info, entry.info())
+		})
+	}
+}
+
+func TestPeerIDMatchesIgnoresCaseAndPrefix(t *testing.T) {
+	require.True(t, peer{ID: "0xABcd"}.idMatches("abCD"))
+	require.True(t, peer{ID: "abcd"}.idMatches("ABCD"))
+	require.False(t, peer{ID: "abcd"}.idMatches("abce"))
+}
