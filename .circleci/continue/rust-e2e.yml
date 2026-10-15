@@ -235,7 +235,8 @@ jobs:
         default: ""
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: large.gen2
+    # The matched pilot includes RWX's engine RAM reserve in its headroom.
+    resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "xlarge.gen2" or "large.gen2" >>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless

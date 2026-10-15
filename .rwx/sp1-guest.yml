@@ -131,8 +131,8 @@ tasks:
     tool-cache: sp1-guest-canonical-elf-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:
@@ -178,8 +178,8 @@ tasks:
     cache: false
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:

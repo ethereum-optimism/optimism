@@ -978,7 +978,8 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large.gen2
+    # Match the pilot's cold-build memory headroom on both providers.
+    resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "xlarge.gen2" or "large.gen2" >>
     parameters:
       build_args:
         description: Forge build arguments

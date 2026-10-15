@@ -183,6 +183,10 @@ available RAM: RWX reserves 2 GB for its own processes. Report executor differen
 and unmatched bootstrap/control tasks separately, but include them in elapsed
 time and cost. Keep preparation, execution and output processing visible; cache
 phase worker-seconds overlap and must not be added to critical-path time.
+Cold preparation killed the contract dependency and SP1 ELF builds with exit
+137 at 4 CPU / 8 GB on RWX. Their matched pilot allocations use 8 CPU / 16 GB
+on both providers; non-pilot Circle jobs keep their existing allocation. Do not
+infer adequate cold-build headroom from a successful cached build.
 
 Runtime scripts import `ci-report.py` for JSON, hashes, manifest byte verification
 and one subprocess invocation, and `ci-test-results.py` for original Go/JUnit
