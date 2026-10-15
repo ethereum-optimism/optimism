@@ -8,11 +8,14 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
+import urllib.request
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('upgrade', Path(__file__).resolve().parents[1] / 'runtime' / 'contract-upgrades.py')
@@ -20,6 +23,27 @@ UP = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(UP)
 
 
 class UpgradeTests(unittest.TestCase):
+    def test_short_reflected_credentials_are_redacted(self):
+        url='https://user:pass@provider.invalid/v2/short-token?apikey=abc123'
+        redactor=UP.Redactor(url)
+        for value in (url,'user','pass','short-token','abc123'):
+            self.assertNotIn(value.encode(),redactor(value.encode()))
+
+    def test_archive_context_suppresses_nested_bash_env_and_restores_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);bash_env=root/'bash-env'
+            bash_env.write_text('export ETH_RPC_URL=http://bypass.invalid/\n')
+            original={'ETH_RPC_URL':'original','FORK_RPC_URL':'fork','BASH_ENV':str(bash_env)}
+            with patch.dict(os.environ,original):
+                with UP.archive_rpc(root/'rpc','http://upstream.invalid/',lambda x:x) as endpoint:
+                    result=subprocess.check_output(['bash','-c','printf "%s|%s" "$ETH_RPC_URL" "$FORK_RPC_URL"'],text=True)
+                    self.assertEqual(result,endpoint+'|'+endpoint)
+                    self.assertNotIn('BASH_ENV',os.environ)
+                self.assertEqual({k:os.environ[k] for k in original},original)
+            UP.finish(root,0,[])
+            manifest=json.loads((root/'final.json').read_text())
+            self.assertIn('rpc/final.json',manifest['original_sha256'])
+
     def test_selection_includes_every_new_test_and_rejects_duplicate_or_errors(self):
         data = {'test/L1/First.t.sol': {'First': ['test_a()', 'testFuzz_new(uint256)']},
                 'test/cannon/New.t.sol': {'New': ['test_added()']}}
@@ -168,7 +192,7 @@ class LiveForgeTests(unittest.TestCase):
             root = Path(tmp); contracts = root / 'packages/contracts-bedrock'
             (contracts / 'test/L1').mkdir(parents=True); (contracts / 'scripts/go-ffi').mkdir(parents=True)
             (contracts / 'scripts/checks').mkdir(parents=True); (root / 'ops/ci/runtime').mkdir(parents=True)
-            for name in ('contract-upgrades.py', 'git-submodule-report.py', 'ci-report.py'):
+            for name in ('contract-upgrades.py', 'git-submodule-report.py', 'ci-report.py', 'l2-rpc-proxy.py'):
                 shutil.copy2(Path(UP.__file__).with_name(name), root / 'ops/ci/runtime' / name)
             original_just = (UP.CONTRACTS / 'justfile').read_text()
             # Keep the production build/runtime recipes byte for byte. Only the
@@ -187,12 +211,16 @@ class LiveForgeTests(unittest.TestCase):
                 'if e!=nil{panic(e)};defer f.Close();f.WriteString("x");'
                 'v:=1;if os.Getenv("CI_UPGRADE_FIXTURE_FAIL")=="1"{v=0};fmt.Printf("0x%064x",v)}\n')
             (contracts / 'foundry.toml').write_text('[profile.default]\nsrc="src"\ntest="test"\nout="forge-artifacts"\n'
-                'solc="0.8.15"\nffi=true\n[profile.liteci]\noptimizer=true\n[profile.liteci.fuzz]\nruns=1\n')
+                'solc="0.8.15"\nffi=true\nno_storage_caching=true\n[profile.liteci]\noptimizer=true\n[profile.liteci.fuzz]\nruns=1\n')
             (contracts / 'test/L1/Fixture.t.sol').write_text('pragma solidity 0.8.15; interface Vm {'
-                'function skip(bool) external; function ffi(string[] calldata) external returns(bytes memory); } '
+                'function skip(bool) external; function ffi(string[] calldata) external returns(bytes memory); '
+                'function envString(string calldata) external view returns(string memory); '
+                'function createSelectFork(string calldata,uint256) external returns(uint256); } '
                 'contract Fixture { Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code"))))); '
                 'function test_runtimeFFI() public {string[] memory args=new string[](1);args[0]="./scripts/go-ffi/go-ffi";'
                 'assert(abi.decode(vm.ffi(args),(uint256))==1);} '
+                'function test_rpcFork() public {vm.createSelectFork(vm.envString("FORK_RPC_URL"),66);'
+                'assert(address(0xdeadbeef).balance==0);} '
                 'function testFuzz_fresh(uint256 a) public pure { assert(a==a); } '
                 'function test_skip() public { vm.skip(true); } }')
             def git(directory, *args):
@@ -202,13 +230,31 @@ class LiveForgeTests(unittest.TestCase):
             (module / 'original.txt').write_text('original fixture revision\n'); git(module, 'add', '.'); git(module, 'commit', '-qm', 'fixture')
             git(root, 'init', '-q'); git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(module), 'modules/original')
             shutil.rmtree(module); git(root, 'add', '.'); git(root, 'commit', '-qm', 'complete fixture'); sha = git(root, 'rev-parse', 'HEAD')
+            # A real local chain supplies complete block/account shapes. Inject
+            # failures only on account reads, after successful preflight.
+            with socket.socket() as listener:
+                listener.bind(('127.0.0.1',0));anvil_port=listener.getsockname()[1]
+            anvil=subprocess.Popen(['anvil','--silent','--port',str(anvil_port),'--chain-id','1'],
+                                   stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            self.addCleanup(anvil.wait,10);self.addCleanup(anvil.terminate)
+            anvil_url='http://127.0.0.1:'+str(anvil_port)
+            def call_anvil(body):
+                request=urllib.request.Request(anvil_url,data=body,headers={'Content-Type':'application/json'})
+                with urllib.request.urlopen(request,timeout=5) as response:return response.read()
+            for attempt in range(100):
+                try:call_anvil(b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}');break
+                except OSError:time.sleep(0.05)
+            else:self.fail('Pinned Anvil fixture did not start')
+            call_anvil(b'{"jsonrpc":"2.0","id":1,"method":"anvil_mine","params":["0x42"]}')
+            failures=[]
             class Rpc(BaseHTTPRequestHandler):
                 def do_POST(self):
                     if self.headers.get('User-Agent') != 'Go-http-client/1.1':
                         self.send_error(403); return
-                    data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                    values = {'eth_chainId': '0x1', 'eth_getBlockByNumber': {'number': '0x42', 'hash': '0x' + 'a' * 64, 'timestamp': '0x64'}}
-                    response = json.dumps({'jsonrpc':'2.0', 'id':data['id'], 'result':values[data['method']]}).encode()
+                    body=self.rfile.read(int(self.headers['Content-Length']));data=json.loads(body)
+                    if data['method']=='eth_getBalance' and failures:
+                        self.send_response(failures.pop(0));self.end_headers();self.wfile.write(b'gateway for short-token abc123');return
+                    response=call_anvil(body)
                     self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(response)
                 def log_message(self, *_): pass
             server = ThreadingHTTPServer(('127.0.0.1', 0), Rpc); thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
@@ -216,7 +262,7 @@ class LiveForgeTests(unittest.TestCase):
             marker = root / 'fresh-execution.txt'
             env = {'CI_BRANCH':'pilot', 'CI_COMMIT_SHA':sha, 'CI_CONTRACT_PROVIDER':'rwx', 'RWX_RUN_ID':'f' * 32,
                    'RWX_TASK_ATTEMPT_NUMBER':'1', 'CI_UPGRADE_FIXTURE_MARKER':str(marker),
-                   'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL':'http://127.0.0.1:' + str(server.server_port)}
+                   'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL':'http://127.0.0.1:' + str(server.server_port)+'/short-token?apikey=abc123'}
             previous = Path.cwd(); self.addCleanup(os.chdir, previous)
             with patch.object(UP, 'ROOT', root), patch.object(UP, 'CONTRACTS', contracts), patch.dict(os.environ, env):
                 def execute(args):
@@ -227,10 +273,18 @@ class LiveForgeTests(unittest.TestCase):
                 prepared = root / '.ci/contract-upgrades/feature-main/prepare'
                 args = ['run', '--variant', 'feature-main', '--prepared', str(prepared), '--block', str(pinned)]
                 for size in (1, 2):
+                    failures[:]=[502,503]
                     self.assertEqual(execute(args), 0)
                     self.assertEqual(marker.read_text(), 'x' * size)
                     result = json.loads((root / '.ci/contract-upgrades/feature-main/run/coverage.json').read_text())
-                    self.assertEqual(result['outcomes'], {'pass':2, 'skip':1})
+                    self.assertEqual(result['outcomes'], {'pass':3, 'skip':1})
+                    runtime=root/'.ci/contract-upgrades/feature-main/run'
+                    codes=[json.loads(p.read_text())['http_status'] for p in (runtime/'rpc').glob('request-*-attempt-*.metadata.json')]
+                    self.assertIn(502,codes);self.assertIn(503,codes)
+                    self.assertFalse(failures)
+                    for p in runtime.rglob('*'):
+                        if p.is_file():
+                            self.assertNotIn(b'short-token',p.read_bytes());self.assertNotIn(b'abc123',p.read_bytes())
                 ffi = contracts / 'scripts/go-ffi/go-ffi'; original = ffi.read_bytes(); ffi.write_bytes(original + b'corrupt')
                 self.assertEqual(execute(args), 1); self.assertEqual(marker.read_text(), 'xx'); ffi.write_bytes(original)
                 with patch.dict(os.environ, {'CI_UPGRADE_FIXTURE_FAIL':'1'}): self.assertNotEqual(execute(args), 0)

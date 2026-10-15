@@ -19,8 +19,8 @@ tasks:
     tool-cache: pr-checks-go-modules-${{ params.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:

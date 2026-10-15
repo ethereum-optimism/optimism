@@ -144,8 +144,8 @@ tasks:
     tool-cache: nut-provenance-go-compiler-${{ init.cache-epoch }}
     timeout: 45m
     runner:
-      cpus: 8
-      memory: 16gb
+      cpus: 16
+      memory: 32gb
     outputs:
       filesystem:
         filter:

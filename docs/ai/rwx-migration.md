@@ -131,8 +131,9 @@ selected commands remain. Circle, release/prestate builds
 and other Rust jobs retain their current incremental policy. Compare complete
 compile/cache-transfer timings before claiming a speed improvement.
 
-Verdicts execute freshly. Most use `cache: false`; Rust verdicts include run and
-attempt identity in their cache keys so compiler tool caches remain available.
+Verdicts execute freshly. Most use `cache: false`; Rust and contract fork verdicts
+include run and attempt identity in their cache keys so tool-cache reads remain
+available. RWX's `cache: false` disables tool caches as well as result reuse.
 Exclude test results, logs and failure caches from
 reusable outputs. Go/acceptance runtime snapshots exclude build caches and Cargo
 targets, then validate and restore sealed dependency archives. Preserve fixtures,
@@ -157,6 +158,31 @@ supplies Go runtime and contract archive inputs. Availability checks precede
 expensive builds. Values stay in preflight/runtime tasks, outside tool setup,
 compilation, package arguments and retained evidence. No production publishing
 credentials are introduced into RWX.
+
+Contract archive calls use the shared HTTP relay for preflight and Forge runtime.
+It allows one upstream request at a time, at most 20 requests/second per verdict,
+and five attempts for HTTP 429/500/502/503/504 with 2/4/8/16-second backoff.
+JSON-RPC errors returned with HTTP 200, permanent HTTP errors and exhausted
+transport failures still reach Forge unchanged. This is a per-verdict limit,
+not a provider-wide quota. Each attempt retains redacted request/response bytes
+and status; the outer report seals the relay's final manifest too. Nested Bash
+must not reload `BASH_ENV` and replace the loopback RPC environment with the
+original upstream. Diagnostic suite retries never replace an original failure.
+
+For a resource-matched benchmark, freeze one commit and warm both providers
+before measured pairs. Use the committed RWX definitions and protected cache
+vault without private writable namespaces or permission changes. Set Circle's
+`c-go_fresh_tests` and `c-contract_coverage_replay` to true to match RWX's fresh
+Go verdicts and deterministic coverage settings. Record every failed sample.
+Compare actual provider allocations, including producers and shards: the pilot's
+OP Node acceptance and coverage jobs use Circle machines at 16 CPU / 64 GB to
+match RWX without reducing memory below the observed acceptance peak. Circle's
+Docker runner sizes cannot express that allocation. Other branches retain their
+existing Docker executor for those jobs. Equal allocations do not imply equal
+available RAM: RWX reserves 2 GB for its own processes. Report executor differences
+and unmatched bootstrap/control tasks separately, but include them in elapsed
+time and cost. Keep preparation, execution and output processing visible; cache
+phase worker-seconds overlap and must not be added to critical-path time.
 
 Runtime scripts import `ci-report.py` for JSON, hashes, manifest byte verification
 and one subprocess invocation, and `ci-test-results.py` for original Go/JUnit

@@ -142,8 +142,8 @@ tasks:
     cache: false
     timeout: 60m
     runner:
-      cpus: 8
-      memory: 16gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: false
       artifacts:

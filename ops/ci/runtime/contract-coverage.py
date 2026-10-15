@@ -372,8 +372,10 @@ def run(directory, url, redactor, block_path):
             raise ValueError('Stale, unavailable or mismatched coverage archive block')
         preflight = directory / 'archive-preflight'; preflight.mkdir()
         for source in block_path.parent.iterdir():
-            if not source.is_file(): raise ValueError('Unexpected coverage preflight directory')
-            shutil.copy2(source, preflight / ('preflight-manifest.json' if source.name == 'final.json' else source.name))
+            if source.is_dir() and source.name == 'rpc': shutil.copytree(source, preflight / source.name)
+            elif source.is_file():
+                shutil.copy2(source, preflight / ('preflight-manifest.json' if source.name == 'final.json' else source.name))
+            else: raise ValueError('Unexpected coverage preflight directory')
     else: chosen = UP.pinned_block(directory, url, redactor)
     UP.write(directory / 'block.json', chosen); os.environ['FORK_BLOCK_NUMBER'] = str(chosen['number'])
     selected = json.loads((directory / 'selection.json').read_text()); bindings = json.loads((directory / 'signature-bindings.json').read_text())
@@ -412,12 +414,16 @@ def main():
         redactor = UP.Redactor(url) if url else lambda x: x
         if a.mode == 'preflight':
             if not url: raise ValueError('Missing test-only coverage archive RPC')
-            os.environ['ETH_RPC_URL'] = url; UP.write(directory / 'block.json', UP.pinned_block(directory, url, redactor)); status = 0
+            with UP.archive_rpc(directory / 'rpc', url, redactor) as endpoint:
+                UP.write(directory / 'block.json', UP.pinned_block(directory, endpoint, redactor))
+            status = 0
         else:
             if a.mode == 'run' and not url: raise ValueError('Missing test-only coverage archive RPC')
             if a.prepared: restore(directory, a.prepared, a.feature); status = 0
             else: status = prepare(directory, a.feature)
-            if a.mode == 'run' and not status: status = run(directory, url, redactor, a.block)
+            if a.mode == 'run' and not status:
+                with UP.archive_rpc(directory / 'rpc', url, redactor) as endpoint:
+                    status = run(directory, endpoint, redactor, a.block)
             settings = json.loads((directory / 'settings.json').read_text())
             CS.verify_inputs(directory, settings['input_sha256'], 'verdict' if a.mode == 'run' else 'preparation',
                              settings['runtime_output_paths'] if a.mode == 'run' else [])

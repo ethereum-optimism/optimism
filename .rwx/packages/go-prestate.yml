@@ -16,8 +16,8 @@ tasks:
     docker: preserve-data
     timeout: 90m
     runner:
-      cpus: 16
-      memory: 32gb
+      cpus: 4
+      memory: 16gb
     outputs:
       filesystem:
         filter:

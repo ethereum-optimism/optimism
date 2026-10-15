@@ -271,6 +271,18 @@ class GateTests(unittest.TestCase):
         caller.write_text(original.replace('packages/go-test-verdict.yml', 'packages/go-test-compile.yml', 1))
         with self.assertRaisesRegex(ValueError,'fresh'):G.configuration('ci-gate')
 
+    def test_contract_verdicts_preserve_tool_cache_reads_without_reusing_results(self):
+        G.configuration('required-contracts-ci')
+        for name in ('contract-coverage-verdict.yml','contract-upgrades-verdict.yml'):
+            path=self.root/'.rwx/packages'/name;source=path.read_text()
+            self.assertNotIn('    cache: false',source)
+            self.assertIn('    tool-cache:',source)
+            for key in ('RWX_RUN_ID','RWX_TASK_ATTEMPT_NUMBER'):
+                path.write_text(source.replace('      '+key+':\n        cache-key: included\n',''))
+                with self.subTest(package=name,key=key),self.assertRaisesRegex(ValueError,'fresh'):
+                    G.configuration('required-contracts-ci')
+            path.write_text(source)
+
     def test_main_failure_preserves_rust_scope_and_retains_missing_shard_states(self):
         rust=self.reports();main=self.reports(gate='ci-gate');group='main-pilot'
         env={**self.env,'GROUP_SELECTED':'true','TASK_GO_LINT_SUCCEEDED':'false',

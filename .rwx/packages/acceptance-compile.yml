@@ -12,6 +12,8 @@ package:
       default: .ci/go-tests/dependencies/contracts
     cache-key:
       required: true
+    memory:
+      default: 32gb
 tasks:
   - key: build
     use: package.use
@@ -31,7 +33,7 @@ tasks:
     timeout: 60m
     runner:
       cpus: 16
-      memory: 32gb
+      memory: ${{ params.memory }}
     outputs:
       filesystem:
         filter:

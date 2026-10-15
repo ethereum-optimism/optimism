@@ -23,7 +23,7 @@ def report(directory, suite, feature, sha, provider, empty):
         hashes = E.originals(directory, required, empty, provider + '/' + suite + '-' + feature)
     except OSError as error:
         raise ValueError('Missing original contract suite report file') from error
-    physical = {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p.name != 'final.json'}
+    physical = {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p != directory / 'final.json'}
     if physical != set(hashes): raise ValueError('Unsealed or missing original contract suite files')
     settings = json.loads((directory / 'settings.json').read_text())
     if (settings['source_sha'], settings['suite'], settings['feature'], settings['provider']) != \

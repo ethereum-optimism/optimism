@@ -68,6 +68,23 @@ class RpcProxyTests(unittest.TestCase):
                          [b'original capacity denial',b'original unavailable',response])
         self.assertEqual([json.loads((self.directory/f'request-0-attempt-{i}.metadata.json').read_bytes())['http_status'] for i in range(1,4)],[429,503,200])
 
+    def test_authenticated_502_keeps_wire_frames_and_redacts_before_sealing(self):
+        secret=b'short-secret'
+        body=b'{"jsonrpc":"2.0","id":19,"method":"eth_call","params":["short-secret"]}'
+        denial=b'gateway unavailable for short-secret'
+        response=b'{"jsonrpc":"2.0","id":19,"result":"0x01"}'
+        upstream,observed=self.server([(502,denial),(200,response)])
+        redactor=lambda value:value.replace(secret,b'<test-only-rpc>')
+        with P.serve(self.directory,upstream+'short-secret',redactor=redactor,wait=lambda _:None) as endpoint:
+            self.assertEqual(self.request(endpoint,body),(200,response))
+        self.assertEqual([row['body'] for row in observed],[body,body])
+        for path in self.directory.iterdir():self.assertNotIn(secret,path.read_bytes())
+        self.assertEqual((self.directory/'request-0-attempt-1.json').read_bytes(),redactor(denial))
+        metadata=json.loads((self.directory/'request-0-attempt-1.metadata.json').read_text())
+        self.assertEqual(metadata['response_sha256'],P.digest(self.directory/'request-0-attempt-1.json'))
+        final=json.loads((self.directory/'final.json').read_text())
+        self.assertEqual(final['sha256'],{p.name:P.digest(p) for p in self.directory.iterdir() if p.name!='final.json'})
+
     def test_denials_and_rpc_execution_errors_are_returned_once_without_retry(self):
         for status,response in ((403,b'original permanent denial'),(200,b'{"jsonrpc":"2.0","id":1,"error":{"code":3,"message":"execution reverted"}}')):
             with self.subTest(status=status):

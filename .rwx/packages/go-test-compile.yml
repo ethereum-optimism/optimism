@@ -25,8 +25,8 @@ tasks:
     tool-cache: ${{ params.cache-key }}
     timeout: 60m
     runner:
-      cpus: 16
-      memory: 32gb
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:

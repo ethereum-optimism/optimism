@@ -32,7 +32,12 @@ tasks:
       ARCHIVE_PREFLIGHT: ${{ params.archive-preflight }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       CI_CONTRACT_FEATURE: ${{ params.feature }}
-    cache: false
+      # cache:false also disables tool-cache reads. Bind each verdict attempt
+      # while preserving the normal protected, read-only fork-state baseline.
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     tool-cache: ${{ params.cache-key }}
     timeout: 120m
     runner:

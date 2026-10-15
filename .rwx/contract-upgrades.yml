@@ -140,8 +140,8 @@ tasks:
     tool-cache: contract-upgrades-modules-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:

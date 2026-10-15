@@ -56,7 +56,7 @@ def report(directory, feature, sha, provider, empty):
         hashes = E.originals(directory, required, empty, provider + '/coverage-' + feature)
     except OSError as error:
         raise ValueError('Missing original contract coverage report file') from error
-    if {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p.name != 'final.json'} != set(hashes):
+    if {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p != directory / 'final.json'} != set(hashes):
         raise ValueError('Unsealed or missing complete coverage originals')
     settings = json.loads((directory / 'settings.json').read_text()); root = settings['workspace_root']
     seed = '0x' + hashlib.sha256((sha + ':' + feature + ':contract-coverage').encode()).hexdigest()

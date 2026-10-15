@@ -208,6 +208,7 @@ tasks:
       shard-total: ${{ init.shard-total }}
       cl-kind: op-node
       cache-key: acceptance-discovery-opn-${{ init.cache-epoch }}
+      memory: 64gb
 
   - key: verdict-opn-0
     use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]

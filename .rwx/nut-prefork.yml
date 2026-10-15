@@ -182,8 +182,8 @@ tasks:
     tool-cache: nut-prefork-compiler-${{ init.cache-epoch }}
     timeout: 45m
     runner:
-      cpus: 8
-      memory: 16gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:

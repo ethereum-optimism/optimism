@@ -109,6 +109,9 @@ tasks:
     run: mise exec -- just build-superchain-go
     cache: false
     timeout: 15m
+    runner:
+      cpus: 2
+      memory: 4gb
 
   - key: go-lint
     use: prep-superchain
@@ -119,8 +122,8 @@ tasks:
     cache: false
     timeout: 30m
     runner:
-      cpus: 8
-      memory: 32gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem: false
 
@@ -134,6 +137,9 @@ tasks:
       mise exec -- just check-upstream-mirrors
     cache: false
     timeout: 20m
+    runner:
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: false
 

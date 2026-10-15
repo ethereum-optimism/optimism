@@ -320,8 +320,8 @@ tasks:
     tool-cache: rust-workspace-build-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 16
-      memory: 32gb
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem: *compiler-output
       artifacts:
@@ -352,8 +352,8 @@ tasks:
     tool-cache: rust-workspace-clippy-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       artifacts:
@@ -368,8 +368,8 @@ tasks:
     tool-cache: rust-workspace-no-std-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       artifacts:
@@ -384,8 +384,8 @@ tasks:
     tool-cache: rust-workspace-udeps-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       artifacts:
@@ -591,8 +591,8 @@ tasks:
     tool-cache: rust-workspace-wasm-unknown-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -609,8 +609,8 @@ tasks:
     tool-cache: rust-workspace-wasm-wasi-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -628,7 +628,7 @@ tasks:
     timeout: 90m
     runner:
       cpus: 2
-      memory: 8gb
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -646,7 +646,7 @@ tasks:
     timeout: 90m
     runner:
       cpus: 2
-      memory: 8gb
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -663,8 +663,8 @@ tasks:
     tool-cache: rust-workspace-registry-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -681,8 +681,8 @@ tasks:
     tool-cache: rust-workspace-interop-${{ init.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:
@@ -704,7 +704,9 @@ tasks:
     docker: preserve-data
     tool-cache: rust-cannon-env-${{ init.cache-epoch }}
     timeout: 90m
-    runner: *build-runner
+    runner:
+      cpus: 8
+      memory: 32gb
     outputs:
       filesystem: *compiler-output
       artifacts:
@@ -720,7 +722,7 @@ tasks:
     timeout: 30m
     runner:
       cpus: 8
-      memory: 16gb
+      memory: 32gb
     outputs:
       filesystem:
         filter:
@@ -758,7 +760,7 @@ tasks:
     timeout: 90m
     runner:
       cpus: 8
-      memory: 16gb
+      memory: 32gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -777,7 +779,9 @@ tasks:
     docker: preserve-data
     tool-cache: rust-cannon-build-${{ init.cache-epoch }}
     timeout: 90m
-    runner: *build-runner
+    runner:
+      cpus: 8
+      memory: 32gb
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -798,7 +802,9 @@ tasks:
     docker: preserve-data
     tool-cache: rust-cannon-offline-${{ init.cache-epoch }}
     timeout: 90m
-    runner: *build-runner
+    runner:
+      cpus: 8
+      memory: 32gb
     outputs:
       filesystem:
         filter:

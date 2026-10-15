@@ -91,6 +91,16 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
 
     def test_all_original_entries_and_both_passes_match(self): self.assertTrue(self.compare()['verified_parity'])
 
+    def test_nested_transport_manifests_are_required_originals(self):
+        directory=self.dirs['rwx']
+        for relative in ('rpc/final.json','archive-preflight/rpc/final.json'):
+            path=directory/relative;path.parent.mkdir(parents=True,exist_ok=True)
+            self.write(path,{'requests':0,'sha256':{}})
+        C.UP.finish(directory,0,[])
+        self.assertTrue(self.compare()['verified_parity'])
+        (directory/'rpc/final.json').write_text('{}')
+        with self.assertRaises(ValueError):self.compare()
+
     def test_missing_pass_or_original_report_is_rejected(self):
         d = self.dirs['rwx']; (d / 'upgrade/original.lcov.info').unlink()
         with self.assertRaises(ValueError): self.compare()

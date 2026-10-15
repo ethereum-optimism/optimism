@@ -15,8 +15,8 @@ tasks:
     tool-cache: go-full-contracts-ci-${{ params.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 16
-      memory: 32gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem:
         filter:

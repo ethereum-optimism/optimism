@@ -15,8 +15,8 @@ tasks:
     tool-cache: kona-release-${{ params.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 16
-      memory: 32gb
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:

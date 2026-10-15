@@ -272,7 +272,9 @@ tasks:
       CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
     tool-cache: op-reth-codec-base-${{ init.cache-epoch }}
     timeout: 60m
-    runner: *build-runner
+    runner:
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:
@@ -289,7 +291,9 @@ tasks:
     env: *build-env
     tool-cache: op-reth-codec-head-${{ init.cache-epoch }}
     timeout: 60m
-    runner: *build-runner
+    runner:
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:
@@ -313,6 +317,9 @@ tasks:
       CODEC_BASE_ARTIFACT: ${{ tasks.codec-base-build.artifacts.codec-base-build-report }}
     cache: false
     timeout: 10m
+    runner:
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem: false
       artifacts:
@@ -341,6 +348,9 @@ tasks:
       CODEC_VECTORS: ${{ tasks.codec-vectors.artifacts.codec-vectors }}
     cache: false
     timeout: 10m
+    runner:
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem: false
       artifacts:

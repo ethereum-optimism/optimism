@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pace anonymous fork RPC transport and retain every original attempt."""
+"""Pace fork RPC transport and retain every attempt, redacting private inputs."""
 from contextlib import contextmanager
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,10 +24,11 @@ def write(path, value):
 
 
 class Transport:
-    def __init__(self, directory, upstream, policy, opener, clock, wait, stopped):
+    def __init__(self, directory, upstream, policy, opener, clock, wait, stopped, redactor=None):
         self.directory, self.upstream, self.policy = directory, upstream, policy
         self.opener, self.clock, self.wait = opener, clock, wait
         self.stopped = stopped
+        self.redactor = redactor or (lambda value: value)
         self.lock = threading.Lock(); self.next_request = 0; self.count = 0
 
     def forward(self, body):
@@ -36,8 +37,8 @@ class Transport:
         with self.lock:
             number = self.count; self.count += 1
             prefix = self.directory / ('request-' + str(number))
-            request_path = prefix.with_suffix('.json'); request_path.write_bytes(body)
-            write(prefix.with_suffix('.metadata.json'), {'upstream': self.upstream,
+            request_path = prefix.with_suffix('.json'); request_path.write_bytes(self.redactor(body))
+            write(prefix.with_suffix('.metadata.json'), {'upstream': self.redactor(self.upstream.encode()).decode(),
                   'request_sha256': digest(request_path)})
             for attempt in range(1, self.policy['max_attempts'] + 1):
                 self.wait(max(0, self.next_request - self.clock()))
@@ -54,7 +55,9 @@ class Transport:
                     finally: failure.close()
                 except OSError as failure: error = type(failure).__name__
                 response_path = self.directory / ('request-' + str(number) + '-attempt-' + str(attempt) + '.json')
-                response_path.write_bytes(raw)
+                # The client receives the original frame. Evidence is redacted
+                # before hashing: authenticated providers may echo credentials.
+                response_path.write_bytes(self.redactor(raw))
                 write(response_path.with_suffix('.metadata.json'), {'http_status': status, 'error': error,
                       'started_at': started, 'elapsed_seconds': time.time() - started,
                       'response_sha256': digest(response_path)})
@@ -67,12 +70,12 @@ class Transport:
 
 
 @contextmanager
-def serve(directory, upstream, policy=None, opener=None, clock=None, wait=None):
+def serve(directory, upstream, policy=None, opener=None, clock=None, wait=None, redactor=None):
     directory = Path(directory); directory.mkdir()
     policy = dict(POLICY if policy is None else policy)
     stopped = threading.Event()
     transport = Transport(directory, upstream, policy, opener or urllib.request.urlopen,
-                          clock or time.monotonic, wait or stopped.wait, stopped)
+                          clock or time.monotonic, wait or stopped.wait, stopped, redactor)
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -99,7 +102,7 @@ def serve(directory, upstream, policy=None, opener=None, clock=None, wait=None):
     # request is still writing. Forge's process group is reaped before exit.
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     worker = threading.Thread(target=server.serve_forever, daemon=True); worker.start()
-    write(directory / 'settings.json', {'upstream': upstream, 'policy': policy})
+    write(directory / 'settings.json', {'upstream': transport.redactor(upstream.encode()).decode(), 'policy': policy})
     try:
         yield 'http://127.0.0.1:' + str(server.server_port) + '/'
     finally:

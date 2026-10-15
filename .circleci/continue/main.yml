@@ -1267,9 +1267,8 @@ jobs:
           mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-coverage:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge+.gen2
+    executor: << pipeline.git.branch == "codex/rwx-ci-pilot" and "ci-memory-machine" or "ci-default-docker" >>
+    resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "2xlarge.gen2" or "2xlarge+.gen2" >>
     parameters:
       test_timeout:
         description: Timeout for running tests
@@ -1772,7 +1771,7 @@ jobs:
   required-contracts-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
+    resource_class: medium.gen2
     parameters:
       always-succeed:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
@@ -1833,6 +1832,7 @@ jobs:
         default: true
     machine:
       image: <<pipeline.parameters.c-base_image>>
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1911,7 +1911,7 @@ jobs:
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1940,7 +1940,7 @@ jobs:
   prep-superchain:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1994,7 +1994,7 @@ jobs:
   check-nut-locks:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2217,6 +2217,10 @@ jobs:
 
   op-acceptance-tests:
     parameters:
+      executor:
+        description: Execution environment; the pilot matches RWX memory allocation
+        type: executor
+        default: ci-default-docker
       l1_fork:
         description: "L1 fork active at genesis"
         type: string
@@ -2246,8 +2250,7 @@ jobs:
           leaves the justfile default in place"
         type: string
         default: ""
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+    executor: <<parameters.executor>>
     resource_class: <<parameters.resource_class>>
     parallelism: <<parameters.parallelism>>
     steps:
@@ -2350,6 +2353,7 @@ jobs:
   cannon-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2374,7 +2378,7 @@ jobs:
   rust-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
+    resource_class: medium.gen2
     steps:
       - run:
           name: All Rust binaries ready
@@ -2967,11 +2971,14 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # OP Node retains 20 vCPU / 40 GiB after a 38.5 GiB observed peak; Kona trials
-      # 16 vCPU / 32 GiB after a 21.3 GiB observed peak.
+      # Preserve the observed 38.5 GiB OP Node peak. The pilot uses a 16 CPU /
+      # 64 GB machine to match RWX; other branches retain 20 CPU / 40 GB Docker.
+      # Kona retains 16 CPU / 32 GB after a 21.3 GiB observed peak.
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          executor: << pipeline.git.branch == "codex/rwx-ci-pilot" and "ci-memory-machine" or "ci-default-docker" >>
+          resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "2xlarge.gen2" or "2xlarge+.gen2" >>
           matrix:
             parameters:
               l1_fork: &acceptance_l1_forks

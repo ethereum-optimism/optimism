@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run the complete L1 contract upgrade matrices with bound original evidence."""
 import argparse
+from contextlib import contextmanager
 import hashlib
 import html
 import importlib.util
@@ -21,6 +22,8 @@ SPEC = importlib.util.spec_from_file_location('ci_report', Path(__file__).with_n
 REPORT = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(REPORT)
 SPEC = importlib.util.spec_from_file_location('submodules', Path(__file__).with_name('git-submodule-report.py'))
 SUBMODULES = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(SUBMODULES)
+SPEC = importlib.util.spec_from_file_location('fork_rpc', Path(__file__).with_name('l2-rpc-proxy.py'))
+RPC_PROXY = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(RPC_PROXY)
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / 'packages/contracts-bedrock'
 VARIANTS = {'feature-main': ('op', 'main'), 'feature-CUSTOM_GAS_TOKEN': ('op', 'CUSTOM_GAS_TOKEN'),
@@ -30,6 +33,7 @@ VARIANTS = {'feature-main': ('op', 'main'), 'feature-CUSTOM_GAS_TOKEN': ('op', '
 FEATURES = {'CUSTOM_GAS_TOKEN': 'SYS_FEATURE__CUSTOM_GAS_TOKEN',
             'OPTIMISM_PORTAL_INTEROP': 'DEV_FEATURE__OPTIMISM_PORTAL_INTEROP', 'ZK_DISPUTE_GAME': 'DEV_FEATURE__ZK_DISPUTE_GAME'}
 MATCH = 'test/{L1,dispute,cannon}/**'
+ARCHIVE_RPC_POLICY = dict(RPC_PROXY.POLICY, requests_per_second=20)
 
 
 digest = REPORT.digest
@@ -53,9 +57,12 @@ class Redactor:
         parsed = urllib.parse.urlsplit(url)
         if parsed.scheme not in ('http', 'https') or not parsed.hostname: raise ValueError('Invalid test-only RPC configuration')
         parts = [url, html.escape(url, quote=True), urllib.parse.quote(url, safe="")]
-        parts += [v for _, v in urllib.parse.parse_qsl(parsed.query) if len(v) >= 8]
-        parts += [v for v in (parsed.username, parsed.password) if v and len(v) >= 8]
-        parts += [v for v in parsed.path.split('/') if len(v) >= 16]
+        parts += [v for _, v in urllib.parse.parse_qsl(parsed.query) if v]
+        parts += [v for v in (parsed.username, parsed.password) if v]
+        path_parts = [v for v in parsed.path.split('/') if v]
+        # Hosted RPC keys commonly occupy the final path segment. Error pages
+        # can echo that key alone, including keys shorter than sixteen bytes.
+        parts += [v for v in path_parts if len(v) >= 16] + path_parts[-1:]
         parts += [html.escape(v, quote=True) for v in parts] + [urllib.parse.quote(v, safe="") for v in parts]
         self.values = sorted({v.encode() for v in parts}, key=len, reverse=True)
     def __call__(self, data, replacement=b'<test-only-rpc>'):
@@ -70,6 +77,25 @@ class Redactor:
 def stage(directory, name, argv, redactor=lambda x: x, json_output=False):
     return REPORT.stage(directory, name, argv, cwd=CONTRACTS, layout='split',
                         redactor=redactor, stdout_json=json_output)
+
+
+@contextmanager
+def archive_rpc(directory, upstream, redactor):
+    """Retry individual HTTP transients, preserving test failures and originals."""
+    names = ('ETH_RPC_URL', 'FORK_RPC_URL', 'BASH_ENV')
+    previous = {name: os.environ.get(name) for name in names}
+    try:
+        # Circle initializes this process before invoking the runner. Reloading
+        # BASH_ENV in nested Just shells would overwrite the local endpoint.
+        os.environ.pop('BASH_ENV', None)
+        with RPC_PROXY.serve(directory, upstream, policy=ARCHIVE_RPC_POLICY, redactor=redactor) as endpoint:
+            os.environ['ETH_RPC_URL'] = endpoint
+            os.environ['FORK_RPC_URL'] = endpoint
+            yield endpoint
+    finally:
+        for name, value in previous.items():
+            if value is None: os.environ.pop(name, None)
+            else: os.environ[name] = value
 
 
 def originals(directory, required, label):
@@ -226,7 +252,8 @@ def junit(path, discovered, bindings=None):
 
 def inputs():
     paths = command('git', 'ls-files').splitlines()
-    helpers = ['ops/ci/runtime/contract-upgrades.py', 'ops/ci/runtime/git-submodule-report.py', 'ops/ci/runtime/ci-report.py']
+    helpers = ['ops/ci/runtime/contract-upgrades.py', 'ops/ci/runtime/git-submodule-report.py',
+               'ops/ci/runtime/ci-report.py', 'ops/ci/runtime/l2-rpc-proxy.py']
     for helper in helpers:
         if helper not in paths: paths.append(helper)
     chosen = [p for p in paths if p.startswith('packages/contracts-bedrock/') or p in helpers + ['mise.toml', 'go.mod', 'go.sum']]
@@ -269,8 +296,13 @@ def prepare(directory, variant):
 
 
 def finish(directory, status, errors):
+    hashes = REPORT.file_hashes(directory, exclude=('final.json',))
+    # Bind nested transport manifests too; only this report's own seal is
+    # excluded from its hash map.
+    hashes.update({str(p.relative_to(directory)): digest(p) for p in directory.rglob('final.json')
+                   if p != directory / 'final.json'})
     write(directory / 'final.json', {'exit_code': status, 'report_errors': errors,
-          'original_sha256': REPORT.file_hashes(directory, exclude=('final.json',))})
+          'original_sha256': hashes})
     return status
 
 
@@ -289,7 +321,9 @@ def main():
         redact_xml = redactor.xml if url else lambda x: x
         if args.mode == 'preflight':
             if not url: raise ValueError('Missing test-only archive RPC')
-            os.environ['ETH_RPC_URL'] = url; write(directory / 'block.json', pinned_block(directory, url, redactor)); status = 0
+            with archive_rpc(directory / 'rpc', url, redactor) as endpoint:
+                write(directory / 'block.json', pinned_block(directory, endpoint, redactor))
+            status = 0
         else:
             if args.prepared:
                 required = {'settings.json', 'selection.json', 'foundry-config.json', 'foundry-config.stage.json',
@@ -318,24 +352,24 @@ def main():
             else: status = prepare(directory, args.variant)
             if args.mode == 'run' and status == 0:
                 if not url: raise ValueError('Missing test-only archive RPC')
-                os.environ['ETH_RPC_URL'] = url
-                chosen = json.loads(args.block.read_text()) if args.block else pinned_block(directory, url, redactor)
-                if chosen['source_sha'] != revision() or block(url, chosen['number']) != {k:chosen[k] for k in ('chain_id','number','hash','timestamp')}:
-                    raise ValueError('Stale, unavailable or mismatched archive block')
-                write(directory / 'block.json', chosen); os.environ['FORK_BLOCK_NUMBER'] = str(chosen['number'])
-                os.environ['JUNIT_TEST_PATH'] = str(directory / 'original.junit.xml')
-                for path in ('cache/test-failures', 'cache/fuzz', 'cache/invariant'):
-                    p = CONTRACTS / path
-                    if p.is_dir(): shutil.rmtree(p)
-                    elif p.exists(): p.unlink()
-                status = stage(directory, 'tests', ['just', 'test-upgrade'], redactor)
-                # Authentication strings can occur in failing test reasons.
-                if (p := directory / 'original.junit.xml').exists(): p.write_bytes(redact_xml(p.read_bytes()))
-                if status and status < 128:
-                    os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
-                    stage(directory, 'rerun', ['just', 'test-upgrade-rerun'], redactor)
-                elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml',
-                    json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
+                with archive_rpc(directory / 'rpc', url, redactor) as endpoint:
+                    chosen = json.loads(args.block.read_text()) if args.block else pinned_block(directory, endpoint, redactor)
+                    if chosen['source_sha'] != revision() or block(endpoint, chosen['number']) != {k:chosen[k] for k in ('chain_id','number','hash','timestamp')}:
+                        raise ValueError('Stale, unavailable or mismatched archive block')
+                    write(directory / 'block.json', chosen); os.environ['FORK_BLOCK_NUMBER'] = str(chosen['number'])
+                    os.environ['JUNIT_TEST_PATH'] = str(directory / 'original.junit.xml')
+                    for path in ('cache/test-failures', 'cache/fuzz', 'cache/invariant'):
+                        p = CONTRACTS / path
+                        if p.is_dir(): shutil.rmtree(p)
+                        elif p.exists(): p.unlink()
+                    status = stage(directory, 'tests', ['just', 'test-upgrade'], redactor)
+                    # Authentication strings can occur in failing test reasons.
+                    if (p := directory / 'original.junit.xml').exists(): p.write_bytes(redact_xml(p.read_bytes()))
+                    if status and status < 128:
+                        os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
+                        stage(directory, 'rerun', ['just', 'test-upgrade-rerun'], redactor)
+                    elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml',
+                        json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
             for xml in directory.glob('*.xml'): xml.write_bytes(redact_xml(xml.read_bytes()))
             settings = json.loads((directory / 'settings.json').read_text())
             if settings['input_sha256'] != inputs(): raise ValueError('Contract upgrade source changed during execution')

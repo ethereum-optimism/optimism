@@ -152,8 +152,8 @@ tasks:
     tool-cache: contract-coverage-modules-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:

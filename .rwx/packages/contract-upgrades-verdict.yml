@@ -30,7 +30,11 @@ tasks:
       PINNED_BLOCK: ${{ params.pinned-block }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       CI_CONTRACT_VARIANT: ${{ params.variant }}
-    cache: false
+      # Fresh verdicts retain read-only access to protected fork-state caches.
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     tool-cache: ${{ params.cache-key }}
     timeout: 60m
     runner:

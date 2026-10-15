@@ -110,7 +110,9 @@ tasks:
       CI_CHECK_PROVIDER: rwx
     tool-cache: l2-fork-go-modules-${{ init.cache-epoch }}
     timeout: 30m
-    runner: {cpus: 4, memory: 8gb}
+    runner:
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:

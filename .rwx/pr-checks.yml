@@ -148,7 +148,7 @@ tasks:
     cache: false
     timeout: 20m
     runner:
-      cpus: 2
+      cpus: 4
       memory: 8gb
     outputs:
       filesystem: false
@@ -235,8 +235,8 @@ tasks:
     tool-cache: pr-checks-go-modules-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:
@@ -298,6 +298,9 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
     timeout: 15m
+    runner:
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:
@@ -323,8 +326,8 @@ tasks:
     cache: false
     timeout: 30m
     runner:
-      cpus: 2
-      memory: 8gb
+      cpus: 4
+      memory: 16gb
     outputs:
       filesystem: false
       test-results:
@@ -349,7 +352,7 @@ tasks:
     cache: false
     timeout: 30m
     runner:
-      cpus: 2
+      cpus: 4
       memory: 8gb
     outputs:
       filesystem: false
@@ -375,7 +378,7 @@ tasks:
     cache: false
     timeout: 30m
     runner:
-      cpus: 2
+      cpus: 4
       memory: 8gb
     outputs:
       filesystem: false
@@ -404,8 +407,8 @@ tasks:
     tool-cache: main-checks-check-op-geth-version-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:
@@ -436,8 +439,8 @@ tasks:
     tool-cache: main-checks-check-nut-locks-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 4
-      memory: 8gb
+      cpus: 2
+      memory: 4gb
     outputs:
       filesystem:
         filter:
@@ -469,8 +472,8 @@ tasks:
     tool-cache: main-checks-check-generated-mocks-op-node-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 8
-      memory: 16gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem:
         filter:
@@ -502,8 +505,8 @@ tasks:
     tool-cache: main-checks-check-generated-mocks-op-service-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 8
-      memory: 16gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem:
         filter:

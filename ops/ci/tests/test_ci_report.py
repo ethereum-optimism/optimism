@@ -80,7 +80,7 @@ class ReportTests(unittest.TestCase):
 
     def test_runtime_imports_work_without_offline_comparers(self):
         families = {
-            'contract-upgrades.py': ('ci-report.py', 'git-submodule-report.py'),
+            'contract-upgrades.py': ('ci-report.py', 'git-submodule-report.py', 'l2-rpc-proxy.py'),
             'cannon-go.py': ('ci-report.py', 'ci-test-results.py', 'rust-workspace-report.py',
                              'go-artifacts.py', 'go-report.py'),
         }
