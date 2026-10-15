@@ -215,11 +215,14 @@ class LiveForgeTests(unittest.TestCase):
             (contracts / 'test/L1/Fixture.t.sol').write_text('pragma solidity 0.8.15; interface Vm {'
                 'function skip(bool) external; function ffi(string[] calldata) external returns(bytes memory); '
                 'function envString(string calldata) external view returns(string memory); '
-                'function createSelectFork(string calldata,uint256) external returns(uint256); } '
+                'function createSelectFork(string calldata,uint256) external returns(uint256); '
+                'function rpc(string calldata,string calldata) external returns(bytes memory); } '
                 'contract Fixture { Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code"))))); '
                 'function test_runtimeFFI() public {string[] memory args=new string[](1);args[0]="./scripts/go-ffi/go-ffi";'
                 'assert(abi.decode(vm.ffi(args),(uint256))==1);} '
                 'function test_rpcFork() public {vm.createSelectFork(vm.envString("FORK_RPC_URL"),66);'
+                # Explicit RPC bypasses Forge's optional account prefetch/cache path.
+                'vm.rpc("eth_getBalance",\'["0x00000000000000000000000000000000deadbeef","0x42"]\');'
                 'assert(address(0xdeadbeef).balance==0);} '
                 'function testFuzz_fresh(uint256 a) public pure { assert(a==a); } '
                 'function test_skip() public { vm.skip(true); } }')
