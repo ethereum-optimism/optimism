@@ -452,9 +452,9 @@ bench:
 
 ########################## Misc tools ###############################
 
-# Audit dependencies for licenses, advisories, and bans
+# Audit dependencies for licenses, bans, and sources (advisories are tracked via image scanning)
 deny:
-  cargo deny --all-features check all
+  cargo deny --all-features check bans licenses sources
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:

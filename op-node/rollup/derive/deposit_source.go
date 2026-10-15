@@ -15,11 +15,11 @@ type UserDepositSource struct {
 // NOTE: Source domain `3` is deprecated and unused in the protocol. In an early version of the interop feature,
 // it was used to signify the source domain of "deposit context window" transactions. This has since been removed
 // in favor of access-list based checks in the `CrossL2Inbox` predeploy.
+// Source domain `4` is also unused. An early interop design used it for block replacement deposits.
 const (
-	UserDepositSourceDomain      = 0
-	L1InfoDepositSourceDomain    = 1
-	UpgradeDepositSourceDomain   = 2
-	InvalidatedBlockSourceDomain = 4
+	UserDepositSourceDomain    = 0
+	L1InfoDepositSourceDomain  = 1
+	UpgradeDepositSourceDomain = 2
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -65,17 +65,5 @@ func (dep *UpgradeDepositSource) SourceHash() common.Hash {
 	var domainInput [32 * 2]byte
 	binary.BigEndian.PutUint64(domainInput[32-8:32], UpgradeDepositSourceDomain)
 	copy(domainInput[32:], intentHash[:])
-	return crypto.Keccak256Hash(domainInput[:])
-}
-
-// InvalidatedBlockSource identifies the invalidated optimistic-block system deposit-transaction.
-type InvalidatedBlockSource struct {
-	OutputRoot common.Hash
-}
-
-func (dep *InvalidatedBlockSource) SourceHash() common.Hash {
-	var domainInput [32 * 2]byte
-	binary.BigEndian.PutUint64(domainInput[32-8:32], InvalidatedBlockSourceDomain)
-	copy(domainInput[32:], dep.OutputRoot[:])
 	return crypto.Keccak256Hash(domainInput[:])
 }

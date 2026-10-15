@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -487,6 +486,45 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	}
 }
 
+// WithFaultGameMaxClockDuration overrides the fault dispute game's maximum chess-clock
+// duration, i.e. how long an unchallenged game takes to become resolvable
+// (dsl.StandardBridge.GameResolutionDelay). Shrinking it lets a test wait a game out in
+// wall-clock time instead of skipping it with time travel, which matters when the test also
+// depends on L2 origin adoption (time travel advances L1 only, so a large jump stalls
+// deposits for the size of the jump).
+//
+// The game contracts enforce
+// `max(2*clockExtension, clockExtension+preimageOracleChallengePeriod) <= maxClockDuration`,
+// checked in the game constructor and again in initialize(). With the standard
+// clockExtension (10800s) and challenge period (86400s), any max clock duration below
+// ~97200s makes game creation revert with InvalidClockExtension, so shrinking this value
+// requires shrinking the other two as well - see WithFaultGameClockExtension and
+// WithPreimageOracleChallengePeriod.
+func WithFaultGameMaxClockDuration(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("faultGameMaxClockDuration", seconds)
+	}
+}
+
+// WithFaultGameClockExtension overrides the fault dispute game's clock extension. Must be
+// non-zero (DeployImplementations rejects zero) and small enough to satisfy the
+// maxClockDuration relationship documented on WithFaultGameMaxClockDuration.
+func WithFaultGameClockExtension(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("faultGameClockExtension", seconds)
+	}
+}
+
+// WithPreimageOracleChallengePeriod overrides the large-preimage-proposal challenge period
+// of the shared PreimageOracle. It feeds the game's clock-extension bound (see
+// WithFaultGameMaxClockDuration), so it must be shrunk alongside a shortened max clock
+// duration.
+func WithPreimageOracleChallengePeriod(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("preimageOracleChallengePeriod", seconds)
+	}
+}
+
 func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
@@ -632,11 +670,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 		wb.require.NoError(err)
 		prepareDeployment = prepareDeployment || requirements.Permissionless
 	}
-	if prepareDeployment {
-		// Prepare pins L2 genesis one hour after its safe L1 anchor.
-		// Backdate L1, rather than move L2 beyond the sequencer's wall clock.
-		intent.L1DevGenesisParams.BlockParams.Timestamp -= standard.MinGenesisTimeOffsetSeconds
-	}
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(millionEth)
 	wb.require.NoError(pipeline.ValidateInputs(intent, st))
@@ -716,7 +749,6 @@ func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, 
 	wb.require.NoError(deployer.Prepare(wb.p.Ctx(), deployer.PrepareConfig{
 		Workdir: workdir, Logger: wb.logger, PrivateKey: privateKey,
 		L1RPCUrl: opts.L1RPCUrl, CacheDir: opts.CacheDir,
-		GenesisTimeOffset:         standard.MinGenesisTimeOffsetSeconds,
 		AllowUnoptimizedContracts: true,
 	}))
 	st, err := pipeline.ReadState(workdir)

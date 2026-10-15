@@ -9,7 +9,7 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 10
     commit-message:
-      prefix: "dependabot(gomod): "
+      prefix: "deps: "
     labels:
       - "M-dependabot"
 
@@ -19,7 +19,7 @@ updates:
     schedule:
       interval: "daily"
     commit-message:
-      prefix: "dependabot(cargo): "
+      prefix: "deps: "
     labels:
       - "M-dependabot"
       - "F-deps"

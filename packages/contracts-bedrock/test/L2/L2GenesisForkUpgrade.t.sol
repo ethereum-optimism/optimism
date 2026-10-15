@@ -12,6 +12,12 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Interfaces
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
 // Reuse all test logic from L2ForkUpgrade — only setUp differs
 import {
@@ -292,5 +298,32 @@ contract L2GenesisForkUpgrade_CGT_GasProfile_Test is L2GenesisForkUpgrade_CGT_Te
 
     function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_Interop_ExpiryPeriod_Test
+/// @notice Tests that the current bundle keeps the L2ToL2CrossDomainMessenger's expiry period.
+contract L2GenesisForkUpgrade_Interop_ExpiryPeriod_Test is L2GenesisForkUpgrade_Interop_TestInit {
+    /// @notice Tests that after the bundle runs, the messenger runs the implementation the bundle
+    ///         deployed and keeps the expiry period it had before.
+    function test_l2ForkUpgrade_messengerExpiryPeriod_succeeds() public {
+        address genesisImpl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(uint256(5)), bytes32(uint256(1 days)));
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 1 days);
+        _executeCurrentBundle();
+        address impl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        assertTrue(impl != genesisImpl, "the bundle must install its own messenger implementation");
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 1 days);
+    }
+
+    /// @notice Tests that after the bundle runs, a messenger with the production expiry period of
+    ///         8 days keeps it.
+    function test_l2ForkUpgrade_messengerProductionExpiryPeriod_succeeds() public {
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
+            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+        );
+        _executeCurrentBundle();
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 691200);
     }
 }

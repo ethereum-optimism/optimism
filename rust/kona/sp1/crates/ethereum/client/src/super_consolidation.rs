@@ -40,8 +40,8 @@ where
 {
     inputs.validate()?;
 
-    // Deposit-only replacement re-executes blocks through revm, which may hit the KZG
-    // point-evaluation precompile. Install the SP1-compatible crypto provider first.
+    // Deposit-only replacement re-executes blocks through revm; install the SP1-accelerated
+    // crypto provider (see `CustomCrypto`) first.
     revm::precompile::install_crypto(CustomCrypto::default());
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
@@ -785,6 +785,8 @@ mod tests {
         let mut configs = rollup_configs(&[INITIATING_CHAIN, EXECUTING_CHAIN]);
         for config in configs.values_mut() {
             config.hardforks.lagoon_time = Some(0);
+            // Blocks #3/#4 at ts 100/101 sit on the block-time grid (block_time 1).
+            config.genesis.l2_time = 97;
         }
         block_on(async {
             let (oracle, _) =
