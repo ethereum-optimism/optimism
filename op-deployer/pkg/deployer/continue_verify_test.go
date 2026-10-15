@@ -394,6 +394,10 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 		nil,
 		f.dci.StartingAnchorRoot,
 	)
+	f.backend.set(t, f.expected.OptimismPortalProxy, continuationProofMaturityDelayMethod, nil, f.dci.ProofMaturityDelaySeconds)
+	f.backend.set(t, f.expected.AnchorStateRegistryProxy, continuationFinalityDelayMethod, nil, f.dci.DisputeGameFinalityDelaySeconds)
+	f.backend.set(t, f.expected.DelayedWethPermissionedGameProxy, continuationWithdrawalDelayMethod, nil, f.dci.WithdrawalDelaySeconds)
+	f.backend.set(t, f.expected.DelayedWethPermissionlessGameProxy, continuationWithdrawalDelayMethod, nil, f.dci.WithdrawalDelaySeconds)
 
 	attachments := []struct {
 		address common.Address
@@ -920,6 +924,31 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			wantErr: "SystemConfig guardian",
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
 				f.backend.set(t, f.expected.SystemConfigProxy, continuationGuardianMethod, nil, common.Address{0xff})
+			},
+		},
+		{
+			name:    "OptimismPortal proof maturity delay",
+			wantErr: "OptimismPortal proof maturity delay",
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				observed := new(big.Int).Add(f.dci.ProofMaturityDelaySeconds, big.NewInt(1))
+				f.backend.set(t, f.expected.OptimismPortalProxy, continuationProofMaturityDelayMethod, nil, observed)
+			},
+		},
+		{
+			name:    "AnchorStateRegistry dispute game finality delay",
+			wantErr: "AnchorStateRegistry dispute game finality delay",
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				observed := new(big.Int).Add(f.dci.DisputeGameFinalityDelaySeconds, big.NewInt(1))
+				f.backend.set(t, f.expected.AnchorStateRegistryProxy, continuationFinalityDelayMethod, nil, observed)
+			},
+		},
+		{
+			name:         "DelayedWETH withdrawal delay",
+			wantErr:      "DelayedWETH permissioned withdrawal delay",
+			permissioned: true,
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				observed := new(big.Int).Add(f.dci.WithdrawalDelaySeconds, big.NewInt(1))
+				f.backend.set(t, f.expected.DelayedWethPermissionedGameProxy, continuationWithdrawalDelayMethod, nil, observed)
 			},
 		},
 		{
