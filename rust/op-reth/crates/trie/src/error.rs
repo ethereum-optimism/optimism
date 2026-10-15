@@ -103,9 +103,6 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the database.
     #[error(transparent)]
     DatabaseError(DatabaseError),
-    /// Error occurred while trying to acquire a lock.
-    #[error("failed lock attempt")]
-    TryLockError,
     /// Error occurred during block execution.
     #[error(transparent)]
     ExecutionError(Arc<BlockExecutionError>),
