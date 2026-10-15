@@ -764,6 +764,7 @@ async fn prove_chunk_inner(
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         span.end,
+        None,
     )?;
     let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
@@ -781,6 +782,7 @@ async fn prove_chunk_inner(
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         span.end,
+        None,
     )?;
     let CollectedConsolidation {
         witness: consolidation_witness,
