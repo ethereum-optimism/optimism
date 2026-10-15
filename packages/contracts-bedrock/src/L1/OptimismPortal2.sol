@@ -783,22 +783,33 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Placeholder for the bridge hook getter.
+    /// @notice Returns the hook that screens deposits and withdrawal finalizations.
+    /// @return Bridge hook, or the zero address if unset.
     function bridgeHook() external view returns (IBridgeHook) { }
 
-    /// @notice Placeholder for the bridge hook setter.
+    /// @notice Sets the bridge hook. Only callable by the ProxyAdmin owner.
+    ///         A nonzero hook requires the BRIDGE_HOOK feature.
+    /// @param _hook Bridge hook, or the zero address to unset it.
     function setBridgeHook(IBridgeHook _hook) external { }
 
-    /// @notice Placeholder for the held deposits getter.
+    /// @notice Returns whether a deposit is held.
+    /// @param _id Deposit item hash.
+    /// @return True if held.
     function heldDeposits(bytes32 _id) external view returns (bool) { }
 
-    /// @notice Placeholder for the held withdrawals getter.
+    /// @notice Returns whether a withdrawal is held.
+    /// @param _withdrawalHash Withdrawal transaction hash.
+    /// @return True if held.
     function heldWithdrawals(bytes32 _withdrawalHash) external view returns (bool) { }
 
-    /// @notice Placeholder for completing a held deposit.
+    /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    /// @param _item Held deposit.
     function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable { }
 
-    /// @notice Placeholder for completing a held withdrawal.
+    /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    /// @param _item Held withdrawal.
     function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
 
     /// @notice Checks if the ETHLockbox feature is enabled.

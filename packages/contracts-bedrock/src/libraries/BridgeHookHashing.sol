@@ -9,17 +9,19 @@ import { Types } from "src/libraries/Types.sol";
 /// @title BridgeHookHashing
 /// @notice Derives the identifiers of bridge hook items.
 library BridgeHookHashing {
-    /// @notice Hashes every field to identify a deposit or withdrawal and look up its verdict.
+    /// @notice Hashes all item fields to key verdicts and held deposits.
     /// @param _item Item to hash.
-    /// @return Identifier of the item.
+    /// @return Item ID.
     function hashItem(BridgeHookTypes.Item memory _item) internal pure returns (bytes32) {
         return keccak256(abi.encode(_item));
     }
 
-    /// @notice Returns the Portal's withdrawal hash for the withdrawal represented by this item.
-    /// @param _item Withdrawal item to hash.
-    /// @return Withdrawal hash of the item.
+    /// @notice Computes the Portal's withdrawal hash to key held withdrawals.
+    ///         Panics if the item is not a withdrawal.
+    /// @param _item Withdrawal item.
+    /// @return Withdrawal transaction hash.
     function hashWithdrawalItem(BridgeHookTypes.Item memory _item) internal pure returns (bytes32) {
+        assert(_item.direction == BridgeHookTypes.Direction.Withdrawal);
         return Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
                 nonce: _item.nonce,

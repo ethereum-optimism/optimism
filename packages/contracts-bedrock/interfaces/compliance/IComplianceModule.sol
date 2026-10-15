@@ -6,7 +6,7 @@ import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IPolicy } from "interfaces/L1/IPolicy.sol";
+import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 
 interface IComplianceModule is IBridgeHook {
     error ComplianceModule_CallerNotPortal();

@@ -22,7 +22,8 @@ library BridgeHookTypes {
     /// @custom:field direction  Whether the item is a deposit or a withdrawal.
     /// @custom:field asset      ERC20 when the Portal recognizes a transfer between the standard
     ///                          bridges.
-    /// @custom:field from       Deposit sender, aliased if it is a contract, or withdrawal sender.
+    /// @custom:field from       For a deposit, the L1 sender, aliased if it is a contract. For a
+    ///                          withdrawal, the L2 sender.
     /// @custom:field aliased    Whether `from` is aliased.
     /// @custom:field to         Deposit or withdrawal target.
     /// @custom:field ethAmount  A deposit's msg.value or a withdrawal's value. Zero for a token

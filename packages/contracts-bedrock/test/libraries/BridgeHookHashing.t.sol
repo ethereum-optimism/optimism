@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
+import { stdError } from "forge-std/StdError.sol";
 
 // Libraries
 import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
@@ -63,5 +64,15 @@ contract BridgeHookHashing_hashWithdrawalItem_Test is Test {
         });
 
         assertEq(BridgeHookHashing.hashWithdrawalItem(item), Hashing.hashWithdrawal(_tx));
+    }
+
+    /// @notice Tests that hashing a deposit item as a withdrawal panics.
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_hashWithdrawalItem_depositItem_reverts() external {
+        BridgeHookTypes.Item memory item;
+        item.direction = BridgeHookTypes.Direction.Deposit;
+
+        vm.expectRevert(stdError.assertionError);
+        BridgeHookHashing.hashWithdrawalItem(item);
     }
 }

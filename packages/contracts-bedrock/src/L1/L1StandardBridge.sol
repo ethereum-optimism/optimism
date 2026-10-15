@@ -253,10 +253,14 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         return address(otherBridge);
     }
 
-    /// @notice Placeholder for holding ERC20 tokens.
+    /// @notice Moves escrowed tokens to the Portal's bridge hook. Only callable by the Portal.
+    /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
+    /// @param _message Encoded finalizeBridgeERC20 call.
     function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
 
-    /// @notice Placeholder for restoring ERC20 tokens.
+    /// @notice Pulls tokens from the Portal's bridge hook back into escrow. Only callable by the Portal.
+    /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
+    /// @param _message Encoded finalizeBridgeERC20 call.
     function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
 
     /// @notice Internal function for initiating an ETH deposit.
