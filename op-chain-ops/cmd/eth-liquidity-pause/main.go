@@ -81,7 +81,7 @@ var (
 	}
 	Timeout = &cli.DurationFlag{
 		Name:    "timeout",
-		Usage:   "Maximum wait for each L1 receipt and for each L2 to reflect the L1 pause",
+		Usage:   "Maximum wait for each L1 receipt, and then for each L2 to apply that sync's message",
 		EnvVars: op_service.PrefixEnvVar(prefix, "TIMEOUT"),
 		Value:   5 * time.Minute,
 	}

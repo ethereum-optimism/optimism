@@ -34,6 +34,9 @@ type chainStatus struct {
 	// L1CrossDomainMessenger nonce of the last applied sync (0 if never synced); nil if paused()
 	// failed.
 	L2PausedMessageNonce *hexutil.Big `json:"l2PausedMessageNonce,omitempty"`
+	// L2PausedMessageNonceError is set when pausedMessageNonce() reverts, e.g. on an
+	// ETHLiquidity that predates the nonce.
+	L2PausedMessageNonceError string `json:"l2PausedMessageNonceError,omitempty"`
 	// SendETHReverts reports whether the SuperchainETHBridge.sendETH eth_call reverted.
 	SendETHReverts bool        `json:"sendETHReverts"`
 	SendETHRevert  *revertInfo `json:"sendETHRevert,omitempty"`
@@ -114,10 +117,14 @@ func readStatus(ctx context.Context, conn *connection, ch chain, from common.Add
 	case err == nil:
 		st.L2Paused = &paused
 		nonce, err := l2PausedMessageNonce(ctx, ch.L2, nil)
-		if err != nil {
+		switch {
+		case err == nil:
+			st.L2PausedMessageNonce = (*hexutil.Big)(nonce)
+		case decodeRevert(err) != nil:
+			st.L2PausedMessageNonceError = decodeRevert(err).String()
+		default:
 			return st, err
 		}
-		st.L2PausedMessageNonce = (*hexutil.Big)(nonce)
 	case decodeRevert(err) != nil:
 		st.L2PausedError = decodeRevert(err).String()
 	default:
@@ -222,6 +229,8 @@ func printStatus(w io.Writer, statuses []chainStatus) {
 		_, _ = fmt.Fprintf(w, "chain %d (%s)\n", st.ChainID, st.RPC)
 		_, _ = fmt.Fprintf(w, "  L2 ETHLiquidity.paused(): %s", fmtBool(st.L2Paused, st.L2PausedError))
 		switch {
+		case st.L2PausedMessageNonceError != "":
+			_, _ = fmt.Fprintf(w, " (pausedMessageNonce() failed: %s)", st.L2PausedMessageNonceError)
 		case st.L2PausedMessageNonce == nil:
 		case st.L2PausedMessageNonce.ToInt().Sign() == 0:
 			_, _ = fmt.Fprintf(w, " (never synced)")
