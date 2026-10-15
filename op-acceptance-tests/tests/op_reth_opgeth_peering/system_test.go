@@ -7,10 +7,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// l2BlockTimeSeconds keeps the runs short.
-const l2BlockTimeSeconds = 1
+const (
+	// l2BlockTimeSeconds keeps the runs short.
+	l2BlockTimeSeconds = 1
+	// senderSyncAttempts bounds, in 2s polls, how long the sender may take to fill the gap to the
+	// chain through its only execution-layer peer once peered.
+	senderSyncAttempts = 60
+)
 
 // followerKinds are the two execution clients of the pair, in the order the cells list them.
 var followerKinds = []sysgo.MixedL2ELKind{sysgo.MixedL2ELOpReth, sysgo.MixedL2ELOpGeth}
@@ -40,7 +46,8 @@ type pairNode struct {
 // dialed, while the receiver keeps the trusted peering with the sequencer that the mixed runtime
 // sets up. A transaction submitted to the sender can only reach the sequencer through the
 // receiver, so its inclusion proves it crossed the peering under test. The sender's consensus
-// client is peered with the sequencer's, so the sender follows the chain.
+// client is peered with the sequencer's alone, so the sender follows the chain, and it is on the
+// chain by the time the system is returned.
 type pairSystem struct {
 	FunderL2  *dsl.FunderEOA
 	Receiver  pairNode
@@ -105,6 +112,10 @@ func newPairSystem(t devtest.T, sender sysgo.MixedL2ELKind) *pairSystem {
 	sys.Sender.EL.PeerWithBasic(sys.Receiver.EL)
 	sys.Receiver.EL.VerifyPeeredWith(sys.Sender.EL)
 	t.Require().Len(sys.Sender.EL.Peers(), 1, "the sender must have the receiver as its only execution-layer peer")
+	// The sender started behind the chain and can only fill the gap through the receiver; a test
+	// may plan transactions against the sender's state or have it admit them only once it is on
+	// the chain.
+	sys.Sender.EL.Reached(eth.Unsafe, sys.Sequencer.EL.BlockRefByLabel(eth.Unsafe).Number, senderSyncAttempts)
 	return sys
 }
 
