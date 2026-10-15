@@ -37,6 +37,8 @@ pub use service::{
 mod worker;
 pub use worker::FlashblockCachedReceipt;
 
+mod agreement;
+
 mod cache;
 
 mod pending_state;

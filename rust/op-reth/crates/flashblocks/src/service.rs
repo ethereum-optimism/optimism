@@ -1,6 +1,7 @@
 use crate::{
     FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,
     PendingFlashBlock,
+    agreement::{AgreementOutcome, AgreementReport, AgreementTracker},
     cache::{BuildApplyOutcome, BuildTicket, SequenceManager},
     pending_state::PendingStateRegistry,
     tx_cache::TransactionCache,
@@ -78,6 +79,8 @@ pub struct FlashBlockService<
     pending_states: PendingStateRegistry<N>,
     /// Transaction execution cache for incremental flashblock building.
     tx_cache: TransactionCache<N>,
+    /// Compares each sealed block with the flashblocks published for it.
+    agreement: AgreementTracker,
 
     /// Epoch counter for state invalidation.
     ///
@@ -131,6 +134,7 @@ where
             sequences: SequenceManager::new(compute_state_root),
             pending_states: PendingStateRegistry::new(),
             tx_cache: TransactionCache::new(),
+            agreement: AgreementTracker::default(),
             state_epoch: 0,
             max_depth: DEFAULT_MAX_DEPTH,
             metrics: FlashBlockServiceMetrics::default(),
@@ -357,8 +361,14 @@ where
         }
     }
 
-    /// Processes a canonical block notification and reconciles pending state.
+    /// Processes a canonical block notification: checks agreement with the flashblocks published
+    /// for it and reconciles pending state.
     fn process_canonical_block(&mut self, notification: CanonicalBlockNotification) {
+        let reports = self
+            .agreement
+            .observe_sealed_block(notification.block_number, notification.tx_hashes.clone());
+        self.record_agreement_reports(reports);
+
         let canonical_fingerprint = CanonicalBlockFingerprint {
             block_number: notification.block_number,
             block_hash: notification.block_hash,
@@ -398,6 +408,8 @@ where
     /// sequence.
     fn process_flashblock(&mut self, flashblock: FlashBlock) {
         self.notify_received_flashblock(&flashblock);
+        let reports = self.agreement.observe_flashblock(&flashblock);
+        self.record_agreement_reports(reports);
 
         if flashblock.index == 0 {
             self.metrics.last_flashblock_length.record(self.sequences.pending().count() as f64);
@@ -405,6 +417,71 @@ where
 
         if let Err(err) = self.sequences.insert_flashblock(flashblock) {
             debug!(target: "flashblocks", %err, "Failed to insert flashblock");
+        }
+    }
+
+    /// Records each agreement verdict as a metric and a log line.
+    fn record_agreement_reports(&self, reports: Vec<AgreementReport>) {
+        for report in reports {
+            let block_number = report.block_number;
+            let orphaned_payloads = report.orphaned_payloads;
+            self.metrics.agreement_orphaned_payloads.increment(orphaned_payloads as u64);
+            match report.outcome {
+                AgreementOutcome::Match { payload_id } => {
+                    self.metrics.agreement_match.increment(1);
+                    if orphaned_payloads > 0 {
+                        debug!(
+                            target: "flashblocks",
+                            block_number,
+                            %payload_id,
+                            orphaned_payloads,
+                            "Sealed block agrees with its flashblocks; other payloads published for it were orphaned"
+                        );
+                    } else {
+                        trace!(
+                            target: "flashblocks",
+                            block_number,
+                            %payload_id,
+                            "Sealed block agrees with its flashblocks"
+                        );
+                    }
+                }
+                AgreementOutcome::ContentMismatch(divergence) => {
+                    self.metrics.agreement_content_mismatch.increment(1);
+                    warn!(
+                        target: "flashblocks",
+                        block_number,
+                        payload_id = %divergence.payload_id,
+                        first_divergent_index = divergence.first_divergent_index,
+                        published_tx_count = divergence.published_tx_count,
+                        sealed_tx_count = divergence.sealed_tx_count,
+                        unsealed_tx_count = divergence.unsealed_tx_count,
+                        unpublished_tx_count = divergence.unpublished_tx_count,
+                        orphaned_payloads,
+                        "Sealed block transactions differ from the flashblocks published for it"
+                    );
+                }
+                AgreementOutcome::OrderingMismatch(divergence) => {
+                    self.metrics.agreement_ordering_mismatch.increment(1);
+                    warn!(
+                        target: "flashblocks",
+                        block_number,
+                        payload_id = %divergence.payload_id,
+                        first_divergent_index = divergence.first_divergent_index,
+                        tx_count = divergence.sealed_tx_count,
+                        orphaned_payloads,
+                        "Sealed block has the flashblocks' transactions in a different order"
+                    );
+                }
+                AgreementOutcome::Unobserved => {
+                    self.metrics.agreement_unobserved.increment(1);
+                    debug!(
+                        target: "flashblocks",
+                        block_number,
+                        "Sealed block had no flashblocks published for it"
+                    );
+                }
+            }
         }
     }
 
@@ -524,6 +601,17 @@ struct FlashBlockServiceMetrics {
     current_index: Gauge,
     /// Number of reorgs detected during canonical block reconciliation.
     reorg_count: Counter,
+    /// Sealed blocks whose transaction list is exactly what one payload's flashblocks published.
+    agreement_match: Counter,
+    /// Sealed blocks where a published transaction did not seal or a sealed one was never
+    /// published.
+    agreement_content_mismatch: Counter,
+    /// Sealed blocks whose transactions sealed in a different order than published.
+    agreement_ordering_mismatch: Counter,
+    /// Sealed blocks for which no complete flashblock sequence was received.
+    agreement_unobserved: Counter,
+    /// Payloads that published flashblocks for a block but did not seal it.
+    agreement_orphaned_payloads: Counter,
     /// Number of build results discarded due to state invalidation (reorg during build).
     stale_builds_discarded: Counter,
     /// Number of completions rejected because pending sequence identity no longer matched.

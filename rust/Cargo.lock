@@ -13910,6 +13910,7 @@ dependencies = [
  "reth-tasks",
  "reth-trie-common",
  "ringbuffer",
+ "rstest",
  "rustls",
  "serde_json",
  "test-case",
