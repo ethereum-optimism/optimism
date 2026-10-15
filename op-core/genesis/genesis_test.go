@@ -3,13 +3,11 @@ package genesis
 import (
 	"encoding/json"
 	"math/big"
-	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	gethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
 	"github.com/ethereum-optimism/optimism/op-core/params"
+	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
@@ -35,33 +34,6 @@ func opChainConfig(s forkstest.Schedule) *params.ChainConfig {
 		cfg.SetActivationTime(fork, s(fork))
 	}
 	return cfg
-}
-
-// opGethChainConfig is the op-geth chain config for the fork schedule s, built from
-// op-geth's own OP Stack test config independently of params.ChainConfig.GethChainConfig.
-func opGethChainConfig(t *testing.T, s forkstest.Schedule) *gethparams.ChainConfig {
-	cfg := *gethparams.OptimismTestConfig
-	cfg.ChainID = big.NewInt(901)
-	// OptimismTestConfig inherits an ethash config from go-ethereum's merged test config;
-	// the op-geth config that op-chain-ops writes has no consensus engine config.
-	cfg.Ethash = nil
-	cfg.Optimism = &gethparams.OptimismConfig{
-		EIP1559Elasticity:        6,
-		EIP1559Denominator:       50,
-		EIP1559DenominatorCanyon: ptr.New[uint64](250),
-	}
-	fields := reflect.ValueOf(&cfg).Elem()
-	for _, fork := range forkstest.TimestampELForks {
-		name := forkstest.Title(fork) + "Time"
-		field := fields.FieldByName(name)
-		require.Truef(t, field.IsValid(), "op-geth ChainConfig lacks field %s", name)
-		field.Set(reflect.ValueOf(s(fork)))
-	}
-	cfg.ShanghaiTime = s(forks.Canyon)
-	cfg.CancunTime = s(forks.Ecotone)
-	cfg.PragueTime = s(forks.Isthmus)
-	cfg.OsakaTime = s(forks.Karst)
-	return &cfg
 }
 
 func fixtureAlloc() types.GenesisAlloc {
@@ -83,7 +55,7 @@ func fixtureAlloc() types.GenesisAlloc {
 func fixture(t *testing.T, s forkstest.Schedule) (*Genesis, *core.Genesis) {
 	// Built first so that a fork op-geth's config lacks fails the test by name, before
 	// opChainConfig's SetActivationTime panics on a fork ChainConfig lacks.
-	gethConfig := opGethChainConfig(t, s)
+	gethConfig := opgethtest.ChainConfig(t, 901, s)
 	g := &Genesis{
 		Config:        opChainConfig(s),
 		Nonce:         7,

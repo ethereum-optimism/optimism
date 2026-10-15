@@ -39,6 +39,8 @@ op-batcher/batcher | missing go-ethereum/core/types.Header.BlockAccessListHash |
 op-batcher/batcher (tests) | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
 op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
 op-batcher/batcher (tests) | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
+op-chain-ops/genesis (tests) | missing go-ethereum/params.ChainConfig.Optimism | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
+op-chain-ops/genesis (tests) | missing go-ethereum/params.OptimismConfig | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
 op-chain-ops/pkg/sdm (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 op-chain-ops/pkg/sdm (tests) | missing go-ethereum/core/types.PostExecTx | #23405 test and DSL swaps to op-core
 op-chain-ops/script | missing go-ethereum/core/vm.BlockContext.L1CostFunc | #23300 forge as the only script engine
@@ -69,8 +71,6 @@ op-core/fees (tests) | missing go-ethereum/core/types.L1Cost | #20266 op-core tr
 op-core/fees (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.RollupCostData | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #20266 op-core transition code, removed at the cutover
-op-core/genesis (tests) | missing go-ethereum/params.OptimismConfig | #23200 differential tests pin the genesis JSON codec to op-geth's until the cutover
-op-core/genesis (tests) | missing go-ethereum/params.OptimismTestConfig | #23200 differential tests pin the genesis JSON codec to op-geth's until the cutover
 op-core/params | missing go-ethereum/params.ChainConfig.BedrockBlock | #20266 op-core transition code, removed at the cutover
 op-core/params | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 op-core transition code, removed at the cutover
 op-core/params | missing go-ethereum/params.ChainConfig.EcotoneTime | #20266 op-core transition code, removed at the cutover
@@ -89,7 +89,7 @@ op-core/params (tests) | missing go-ethereum/params.ChainConfig.CanyonTime | #20
 op-core/params (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.OptimismConfig | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.OptimismTestConfig | #23200 differential tests pin the chain config JSON codec to op-geth's until the cutover
+op-core/params/opgethtest | missing go-ethereum/params.OptimismTestConfig | #23200 differential tests pin the chain config and genesis JSON codecs to op-geth's until the cutover
 op-core/predeploys (tests) | missing go-ethereum/core/types.L1BlockAddr | #20266 op-core transition code, removed at the cutover
 op-core/types | missing go-ethereum/core/types.Receipt.DepositNonce | #20266 op-core transition code, removed at the cutover
 op-core/types | missing go-ethereum/core/types.Receipt.DepositReceiptVersion | #20266 op-core transition code, removed at the cutover
