@@ -387,6 +387,13 @@ func TestStatusAgainstFakeChains(t *testing.T) {
 		require.Contains(t, out, "L2 ETHLiquidity.paused(): true (synced by L1 message nonce 42 (version 1))")
 		require.Contains(t, out, "OK: every chain is paused")
 	})
+	t.Run("ETHLiquidity without pausedMessageNonce", func(t *testing.T) {
+		l2 := fakeL2(901, false)
+		delete(l2.views[predeploys.ETHLiquidityAddr], sel("pausedMessageNonce()"))
+		out, err := runStatus(t, "--l2", serve(t, l2), "--expect", "unpaused")
+		require.NoError(t, err, out)
+		require.Contains(t, out, "L2 ETHLiquidity.paused(): false (pausedMessageNonce() failed: execution reverted)")
+	})
 	t.Run("never synced", func(t *testing.T) {
 		out, err := runStatus(t, "--l2", serve(t, fakeL2(901, false)))
 		require.NoError(t, err, out)

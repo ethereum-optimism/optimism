@@ -43,9 +43,6 @@ func connectWithL1(ctx context.Context, c *cli.Context) (*connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.String(L1RPC.Name) == "" {
-		return nil, errors.New("--l1 is required")
-	}
 	return connect(ctx, c.String(L1RPC.Name), pairs, true)
 }
 
@@ -108,6 +105,10 @@ func syncChains(ctx context.Context, logger log.Logger, out io.Writer, conn *con
 		tx, err := sendTx(ctx, logger, conn.L1, conn.L1ChainID, key, nonce, ch.L1.Messenger, syncData)
 		if err != nil {
 			errs[i] = fmt.Errorf("chain %d: %s: %w", ch.L2.ChainID, syncSignature, err)
+			// A failed send may still have reached the node, so don't reuse its nonce blindly.
+			if n, err := conn.L1.PendingNonceAt(ctx, sender); err == nil {
+				nonce = n
+			}
 			continue
 		}
 		nonce++
@@ -222,8 +223,10 @@ var (
 func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, timeout time.Duration) (*l2PauseState, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var lastErr error
-	last := new(big.Int)
+	var (
+		lastErr error
+		last    *big.Int // pausedMessageNonce() at the last successful read
+	)
 	for {
 		st, err := readL2Applied(ctx, l2, msg)
 		switch {
@@ -238,9 +241,17 @@ func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, timeout 
 		}
 		select {
 		case <-ctx.Done():
-			err := fmt.Errorf("L2 did not apply %s (ETHLiquidity.pausedMessageNonce() is %s): %w; "+
+			applied := "pausedMessageNonce() never read"
+			switch {
+			case last == nil:
+			case last.Sign() == 0:
+				applied = "L2 never synced"
+			default:
+				applied = "L2 is at " + fmtMessageNonce(last)
+			}
+			err := fmt.Errorf("L2 did not apply %s (%s): %w; "+
 				"L2 may not have derived the sync's L1 block yet, rerun `sync` to check again",
-				fmtMessageNonce(msg.Nonce), last, ctx.Err())
+				fmtMessageNonce(msg.Nonce), applied, ctx.Err())
 			if lastErr != nil {
 				return nil, fmt.Errorf("%w (last error: %w)", err, lastErr)
 			}
