@@ -189,7 +189,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
                 maximumBaseFee: type(uint128).max
             }),
             disputeGameConfigs: dgConfigs,
-            useCustomGasToken: false
+            useCustomGasToken: false,
+            proofMaturityDelaySeconds: 604800,
+            disputeGameFinalityDelaySeconds: 302400
         });
 
         cts_ = opcmV2.deploy(deployConfig);

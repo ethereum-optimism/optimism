@@ -28,24 +28,26 @@ var networks = []string{"mainnet", "sepolia"}
 
 func TestImplementationsConfigSP1Verifier(t *testing.T) {
 	valid := ImplementationsConfig{
-		L1RPCUrl:                        "http://localhost:8545",
-		PrivateKey:                      testutil.AnvilDefaultPrivateKey,
-		ArtifactsLocator:                artifacts.EmbeddedLocator,
-		MIPSVersion:                     int(standard.MIPSVersion),
-		WithdrawalDelaySeconds:          1,
-		MinProposalSizeBytes:            1,
-		ChallengePeriodSeconds:          1,
-		ProofMaturityDelaySeconds:       1,
-		DisputeGameFinalityDelaySeconds: 1,
-		FaultGameMaxGameDepth:           1,
-		FaultGameSplitDepth:             1,
-		FaultGameClockExtension:         1,
-		FaultGameMaxClockDuration:       1,
-		SuperchainConfigProxy:           common.Address{0x01},
-		L1ProxyAdminOwner:               common.Address{0x02},
-		SuperchainProxyAdmin:            common.Address{0x03},
-		Challenger:                      common.Address{0x04},
-		Logger:                          testlog.Logger(t, slog.LevelDebug),
+		L1RPCUrl:                           "http://localhost:8545",
+		PrivateKey:                         testutil.AnvilDefaultPrivateKey,
+		ArtifactsLocator:                   artifacts.EmbeddedLocator,
+		MIPSVersion:                        int(standard.MIPSVersion),
+		WithdrawalDelaySeconds:             1,
+		MinProposalSizeBytes:               1,
+		ChallengePeriodSeconds:             1,
+		MinProofMaturityDelaySeconds:       1,
+		MaxProofMaturityDelaySeconds:       1,
+		MinDisputeGameFinalityDelaySeconds: 1,
+		MaxDisputeGameFinalityDelaySeconds: 1,
+		FaultGameMaxGameDepth:              1,
+		FaultGameSplitDepth:                1,
+		FaultGameClockExtension:            1,
+		FaultGameMaxClockDuration:          1,
+		SuperchainConfigProxy:              common.Address{0x01},
+		L1ProxyAdminOwner:                  common.Address{0x02},
+		SuperchainProxyAdmin:               common.Address{0x03},
+		Challenger:                         common.Address{0x04},
+		Logger:                             testlog.Logger(t, slog.LevelDebug),
 	}
 
 	t.Run("disabled requires zero verifier", func(t *testing.T) {
@@ -65,6 +67,32 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 		cfg.DevFeatureBitmap = devfeatures.ZKDisputeGameFlag
 		cfg.SP1Verifier = common.Address{0x05}
 		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("zero min proof maturity delay rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.MinProofMaturityDelaySeconds = 0
+		require.ErrorContains(t, cfg.Check(), "minimum proof maturity delay")
+	})
+
+	t.Run("inverted proof maturity bounds rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.MinProofMaturityDelaySeconds = 2
+		cfg.MaxProofMaturityDelaySeconds = 1
+		require.ErrorContains(t, cfg.Check(), "must not exceed the maximum")
+	})
+
+	t.Run("zero min dispute game finality delay rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.MinDisputeGameFinalityDelaySeconds = 0
+		require.ErrorContains(t, cfg.Check(), "minimum dispute game finality delay")
+	})
+
+	t.Run("inverted dispute game finality bounds rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.MinDisputeGameFinalityDelaySeconds = 2
+		cfg.MaxDisputeGameFinalityDelaySeconds = 1
+		require.ErrorContains(t, cfg.Check(), "must not exceed the maximum")
 	})
 }
 
@@ -158,26 +186,28 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 	require.NoError(t, err)
 	deploy := func() opcm.DeployImplementationsOutput {
 		out, err := Implementations(ctx, ImplementationsConfig{
-			L1RPCUrl:                        l1RPC,
-			PrivateKey:                      testutil.AnvilDefaultPrivateKey,
-			ArtifactsLocator:                loc,
-			Logger:                          lgr,
-			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			MIPSVersion:                     int(standard.MIPSVersion),
-			DevFeatureBitmap:                common.Hash{},
-			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-			SuperchainProxyAdmin:            proxyAdminOwner,
-			L1ProxyAdminOwner:               proxyAdminOwner,
-			Challenger:                      common.Address{'C'},
-			CacheDir:                        testCacheDir,
-			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-			FaultGameSplitDepth:             standard.DisputeSplitDepth,
-			FaultGameClockExtension:         standard.DisputeClockExtension,
-			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+			L1RPCUrl:                           l1RPC,
+			PrivateKey:                         testutil.AnvilDefaultPrivateKey,
+			ArtifactsLocator:                   loc,
+			Logger:                             lgr,
+			WithdrawalDelaySeconds:             standard.WithdrawalDelaySeconds,
+			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+			MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+			MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+			MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+			MIPSVersion:                        int(standard.MIPSVersion),
+			DevFeatureBitmap:                   common.Hash{},
+			SuperchainConfigProxy:              superchain.SuperchainConfigAddr,
+			SuperchainProxyAdmin:               proxyAdminOwner,
+			L1ProxyAdminOwner:                  proxyAdminOwner,
+			Challenger:                         common.Address{'C'},
+			CacheDir:                           testCacheDir,
+			FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+			FaultGameSplitDepth:                standard.DisputeSplitDepth,
+			FaultGameClockExtension:            standard.DisputeClockExtension,
+			FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 		})
 		require.NoError(t, err)
 		return out

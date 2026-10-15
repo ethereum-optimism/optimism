@@ -70,6 +70,9 @@ type DeployOPChainInput struct {
 	SuperchainConfig    common.Address
 
 	UseCustomGasToken bool
+
+	ProofMaturityDelaySeconds       *big.Int
+	DisputeGameFinalityDelaySeconds *big.Int
 }
 
 type DeployOPChainOutput struct {

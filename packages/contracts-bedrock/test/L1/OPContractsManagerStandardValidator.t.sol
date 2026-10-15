@@ -856,6 +856,15 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
         );
         assertEq("PORTAL-90", _validate(true));
     }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal proof maturity delay is outside the standard range.
+    function test_validate_optimismPortalDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1)
+        );
+        assertEq("PORTAL-100", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_ETHLockbox_Test
@@ -1291,6 +1300,17 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is OPContr
             abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ())
         );
         assertEq("PDDG-ANCHORP-30,CKDG-ANCHORP-30", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry finality delay is outside the standard range.
+    function test_validate_anchorStateRegistryDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(1)
+        );
+        assertEq("PDDG-ANCHORP-80,CKDG-ANCHORP-80", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1909,6 +1929,26 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         );
         assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70", _validate(true));
     }
+
+    /// @notice Tests that the validate function returns PORTAL-100 when the portal's proof maturity
+    ///         delay is outside the standard range.
+    function test_validate_optimismPortalDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1)
+        );
+        assertEq("PORTAL-100", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SPDG-ANCHORP-80 and SCKDG-ANCHORP-80 when
+    ///         the registry's finality delay is outside the standard range.
+    function test_validate_anchorStateRegistryDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(1)
+        );
+        assertEq("SPDG-ANCHORP-80,SCKDG-ANCHORP-80", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_SuperRootDisputeGames_Test
@@ -2050,6 +2090,11 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         );
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
 
         assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20,SPDG-ANCHORP-70", _validate(true));
     }

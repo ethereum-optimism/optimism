@@ -30,6 +30,10 @@ uint256 constant EXPECTED_MAX_CLOCK_DURATION = 302400;
 string constant EXPECTED_PREIMAGE_ORACLE_VERSION = "1.1.5";
 uint256 constant EXPECTED_CHALLENGE_PERIOD = 86400;
 uint256 constant EXPECTED_MIN_PROPOSAL_SIZE = 126000;
+uint256 constant EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS = 86400;
+uint256 constant EXPECTED_MAX_PROOF_MATURITY_DELAY_SECONDS = 604800;
+uint256 constant EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS = 43200;
+uint256 constant EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS = 302400;
 
 /// @notice Struct containing the unified game args for a dispute game implementation.
 struct DisputeGameImplementation {
@@ -304,6 +308,14 @@ contract StandardValidatorUtils {
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         _errors = internalRequire(IProxyAdminOwnedBase(address(_portal)).proxyAdmin() == _admin, "PORTAL-90", _errors);
+        // The proof maturity delay is per chain and "standard" means within the configured bounds.
+        uint256 proofMaturityDelay = _portal.proofMaturityDelaySeconds();
+        _errors = internalRequire(
+            proofMaturityDelay >= EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS
+                && proofMaturityDelay <= EXPECTED_MAX_PROOF_MATURITY_DELAY_SECONDS,
+            "PORTAL-100",
+            _errors
+        );
         return _errors;
     }
 
@@ -412,6 +424,14 @@ contract StandardValidatorUtils {
         _errors = internalRequire(
             IOptimismPortal2(payable(_sysCfg.optimismPortal())).anchorStateRegistry() == _asr,
             string.concat(_errorPrefix, "-70"),
+            _errors
+        );
+        // The finality delay is per chain and "standard" means within the configured bounds.
+        uint256 finalityDelay = _asr.disputeGameFinalityDelaySeconds();
+        _errors = internalRequire(
+            finalityDelay >= EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS
+                && finalityDelay <= EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS,
+            string.concat(_errorPrefix, "-80"),
             _errors
         );
         return _errors;

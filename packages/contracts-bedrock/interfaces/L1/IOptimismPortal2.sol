@@ -41,12 +41,15 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_ZeroAddress();
     error OptimismPortal_LockboxNotAuthorizedForPortal();
     error OptimismPortal_DisputeGameNotInvalidated();
+    error OptimismPortal_InvalidProofMaturityDelayBounds();
+    error OptimismPortal_InvalidProofMaturityDelay();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();
 
     event Initialized(uint8 version);
     event ETHMigrated(address indexed lockbox, uint256 balance);
+    event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,
@@ -87,9 +90,17 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         external;
     function finalizedWithdrawals(bytes32) external view returns (bool);
     function guardian() external view returns (address);
-    function initialize(ISystemConfig _systemConfig, IAnchorStateRegistry _anchorStateRegistry, IETHLockbox _ethLockbox) external;
+    function initialize(
+        ISystemConfig _systemConfig,
+        IAnchorStateRegistry _anchorStateRegistry,
+        IETHLockbox _ethLockbox,
+        uint256 _proofMaturityDelaySeconds
+    )
+        external;
     function initVersion() external view returns (uint8);
     function l2Sender() external view returns (address);
+    function maxProofMaturityDelaySeconds() external view returns (uint256);
+    function minProofMaturityDelaySeconds() external view returns (uint256);
     function migrateLiquidity() external;
     function migrateToSharedDisputeGame(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);
@@ -105,17 +116,12 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         bytes[] memory _withdrawalProof
     )
         external;
-    function provenWithdrawals(
-        bytes32,
-        address
-    )
-        external
-        view
-        returns (IDisputeGame disputeGameProxy, uint64 timestamp);
+    function provenWithdrawals(bytes32, address) external view returns (IDisputeGame disputeGameProxy, uint64 timestamp);
     function respectedGameType() external view returns (GameType);
     function respectedGameTypeUpdatedAt() external view returns (uint64);
+    function setProofMaturityDelaySeconds(uint256 _proofMaturityDelaySeconds) external;
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
 
-    function __constructor__(uint256 _proofMaturityDelaySeconds) external;
+    function __constructor__(uint256 _minProofMaturityDelaySeconds, uint256 _maxProofMaturityDelaySeconds) external;
 }

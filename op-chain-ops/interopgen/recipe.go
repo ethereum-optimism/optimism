@@ -73,12 +73,15 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 		Deployer:        superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
 			FaultProof: SuperFaultProofConfig{
-				WithdrawalDelaySeconds:          big.NewInt(302400),
-				MinProposalSizeBytes:            big.NewInt(10000),
-				ChallengePeriodSeconds:          big.NewInt(120),
-				ProofMaturityDelaySeconds:       big.NewInt(12),
-				DisputeGameFinalityDelaySeconds: big.NewInt(6),
-				MipsVersion:                     big.NewInt(int64(versions.GetExperimentalVersion())),
+				WithdrawalDelaySeconds: big.NewInt(302400),
+				MinProposalSizeBytes:   big.NewInt(10000),
+				ChallengePeriodSeconds: big.NewInt(120),
+				// Dev bounds: admit the short per-L2 delays below while keeping the standard ceiling.
+				MinProofMaturityDelaySeconds:       big.NewInt(1),
+				MaxProofMaturityDelaySeconds:       big.NewInt(604800),
+				MinDisputeGameFinalityDelaySeconds: big.NewInt(1),
+				MaxDisputeGameFinalityDelaySeconds: big.NewInt(302400),
+				MipsVersion:                        big.NewInt(int64(versions.GetExperimentalVersion())),
 			},
 		},
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
@@ -300,6 +303,9 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 		DisputeSplitDepth:           30,
 		DisputeClockExtension:       10800,  // 3 hours (input in seconds)
 		DisputeMaxClockDuration:     302400, // 3.5 days (input in seconds)
+		// Short dev delays; the superchain-level bounds in the recipe admit them.
+		ProofMaturityDelaySeconds:       12,
+		DisputeGameFinalityDelaySeconds: 6,
 	}
 
 	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(r.ChainID))

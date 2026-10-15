@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
@@ -181,7 +182,9 @@ func newContinuationVerificationFixtureWithMode(
 			Root:             startingAnchor.Root,
 			L2SequenceNumber: big.NewInt(7),
 		},
-		SuperchainConfig: common.Address{0xb2},
+		SuperchainConfig:                common.Address{0xb2},
+		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
+		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 	}
 	if gameType == embedded.GameTypeSuperPermissioned {
 		expected.Prestate = common.Hash{}

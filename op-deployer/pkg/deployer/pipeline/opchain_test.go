@@ -797,13 +797,30 @@ func TestResolveChainProofParams(t *testing.T) {
 		got, err := ResolveChainProofParams(&state.Intent{}, &state.ChainIntent{})
 		require.NoError(t, err)
 		require.Equal(t, state.ChainProofParams{
-			DisputeGameType:         standard.DisputeGameType,
-			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:       standard.DisputeSplitDepth,
-			DisputeClockExtension:   standard.DisputeClockExtension,
-			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+			DisputeGameType:                 standard.DisputeGameType,
+			DisputeAbsolutePrestate:         standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:             standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:               standard.DisputeSplitDepth,
+			DisputeClockExtension:           standard.DisputeClockExtension,
+			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
+			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		}, got)
+	})
+
+	t.Run("per-chain delays override global", func(t *testing.T) {
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"proofMaturityDelaySeconds":       uint64(2 * 86400),
+			"disputeGameFinalityDelaySeconds": uint64(86400),
+		}}
+		chain := &state.ChainIntent{DeployOverrides: map[string]any{
+			"proofMaturityDelaySeconds": uint64(3 * 86400),
+		}}
+
+		got, err := ResolveChainProofParams(intent, chain)
+		require.NoError(t, err)
+		require.Equal(t, uint64(3*86400), got.ProofMaturityDelaySeconds)
+		require.Equal(t, uint64(86400), got.DisputeGameFinalityDelaySeconds)
 	})
 
 	t.Run("chain overrides global", func(t *testing.T) {
@@ -1224,31 +1241,33 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	}
 	secondChainID := common.BigToHash(new(big.Int).Add(chainID.Big(), big.NewInt(1)))
 	secondDCI := opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:       common.Address{'A'},
-		SystemConfigOwner:            common.Address{'B'},
-		Batcher:                      common.Address{'C'},
-		UnsafeBlockSigner:            common.Address{'D'},
-		Proposer:                     common.Address{'E'},
-		Challenger:                   common.Address{'F'},
-		BasefeeScalar:                standard.BasefeeScalar,
-		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
-		L2ChainId:                    secondChainID.Big(),
-		Opcm:                         st.ImplementationsDeployment.OpcmV2Impl,
-		SaltMixer:                    "starting-anchor-root-regression",
-		GasLimit:                     60_000_000,
-		DisputeGameType:              standard.DisputeGameType,
-		DisputeAbsolutePrestate:      standard.DisputeAbsolutePrestate,
-		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       standard.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          new(big.Int).SetUint64(standard.DisputeMaxGameDepth),
-		DisputeSplitDepth:            new(big.Int).SetUint64(standard.DisputeSplitDepth),
-		DisputeClockExtension:        standard.DisputeClockExtension,
-		DisputeMaxClockDuration:      standard.DisputeMaxClockDuration,
-		AllowCustomDisputeParameters: false,
-		OperatorFeeScalar:            0,
-		OperatorFeeConstant:          0,
-		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
-		UseCustomGasToken:            false,
+		OpChainProxyAdminOwner:          common.Address{'A'},
+		SystemConfigOwner:               common.Address{'B'},
+		Batcher:                         common.Address{'C'},
+		UnsafeBlockSigner:               common.Address{'D'},
+		Proposer:                        common.Address{'E'},
+		Challenger:                      common.Address{'F'},
+		BasefeeScalar:                   standard.BasefeeScalar,
+		BlobBaseFeeScalar:               standard.BlobBaseFeeScalar,
+		L2ChainId:                       secondChainID.Big(),
+		Opcm:                            st.ImplementationsDeployment.OpcmV2Impl,
+		SaltMixer:                       "starting-anchor-root-regression",
+		GasLimit:                        60_000_000,
+		DisputeGameType:                 standard.DisputeGameType,
+		DisputeAbsolutePrestate:         standard.DisputeAbsolutePrestate,
+		StartingAnchorRoot:              startingAnchorRoot,
+		CannonAbsolutePrestate:          standard.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:             new(big.Int).SetUint64(standard.DisputeMaxGameDepth),
+		DisputeSplitDepth:               new(big.Int).SetUint64(standard.DisputeSplitDepth),
+		DisputeClockExtension:           standard.DisputeClockExtension,
+		DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
+		AllowCustomDisputeParameters:    false,
+		OperatorFeeScalar:               0,
+		OperatorFeeConstant:             0,
+		SuperchainConfig:                st.SuperchainDeployment.SuperchainConfigProxy,
+		UseCustomGasToken:               false,
+		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
+		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 	}
 	beforeExecution, err := json.Marshal(st)
 	require.NoError(t, err)

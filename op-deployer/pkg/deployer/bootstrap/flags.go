@@ -9,19 +9,21 @@ import (
 )
 
 const (
-	OutfileFlagName                         = "outfile"
-	WithdrawalDelaySecondsFlagName          = "withdrawal-delay-seconds"
-	MinProposalSizeBytesFlagName            = "min-proposal-size-bytes"
-	ChallengePeriodSecondsFlagName          = "challenge-period-seconds"
-	ProofMaturityDelaySecondsFlagName       = "proof-maturity-delay-seconds"
-	DisputeGameFinalityDelaySecondsFlagName = "dispute-game-finality-delay-seconds"
-	MIPSVersionFlagName                     = "mips-version"
-	DevFeatureBitmapFlagName                = "dev-feature-bitmap"
-	SP1VerifierAddressFlagName              = "sp1-verifier-address"
-	ProxyOwnerFlagName                      = "proxy-owner"
-	SuperchainProxyAdminOwnerFlagName       = "superchain-proxy-admin-owner"
-	GuardianFlagName                        = "guardian"
-	PausedFlagName                          = "paused"
+	OutfileFlagName                            = "outfile"
+	WithdrawalDelaySecondsFlagName             = "withdrawal-delay-seconds"
+	MinProposalSizeBytesFlagName               = "min-proposal-size-bytes"
+	ChallengePeriodSecondsFlagName             = "challenge-period-seconds"
+	MinProofMaturityDelaySecondsFlagName       = "min-proof-maturity-delay-seconds"
+	MaxProofMaturityDelaySecondsFlagName       = "max-proof-maturity-delay-seconds"
+	MinDisputeGameFinalityDelaySecondsFlagName = "min-dispute-game-finality-delay-seconds"
+	MaxDisputeGameFinalityDelaySecondsFlagName = "max-dispute-game-finality-delay-seconds"
+	MIPSVersionFlagName                        = "mips-version"
+	DevFeatureBitmapFlagName                   = "dev-feature-bitmap"
+	SP1VerifierAddressFlagName                 = "sp1-verifier-address"
+	ProxyOwnerFlagName                         = "proxy-owner"
+	SuperchainProxyAdminOwnerFlagName          = "superchain-proxy-admin-owner"
+	GuardianFlagName                           = "guardian"
+	PausedFlagName                             = "paused"
 )
 
 var (
@@ -49,17 +51,29 @@ var (
 		EnvVars: deployer.PrefixEnvVar("CHALLENGE_PERIOD_SECONDS"),
 		Value:   standard.ChallengePeriodSeconds,
 	}
-	ProofMaturityDelaySecondsFlag = &cli.Uint64Flag{
-		Name:    ProofMaturityDelaySecondsFlagName,
-		Usage:   "Proof maturity delay in seconds.",
-		EnvVars: deployer.PrefixEnvVar("PROOF_MATURITY_DELAY_SECONDS"),
-		Value:   standard.ProofMaturityDelaySeconds,
+	MinProofMaturityDelaySecondsFlag = &cli.Uint64Flag{
+		Name:    MinProofMaturityDelaySecondsFlagName,
+		Usage:   "Lowest proof maturity delay in seconds a chain may configure on the OptimismPortal.",
+		EnvVars: deployer.PrefixEnvVar("MIN_PROOF_MATURITY_DELAY_SECONDS"),
+		Value:   standard.MinProofMaturityDelaySeconds,
 	}
-	DisputeGameFinalityDelaySecondsFlag = &cli.Uint64Flag{
-		Name:    DisputeGameFinalityDelaySecondsFlagName,
-		Usage:   "Dispute game finality delay in seconds.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_FINALITY_DELAY_SECONDS"),
-		Value:   standard.DisputeGameFinalityDelaySeconds,
+	MaxProofMaturityDelaySecondsFlag = &cli.Uint64Flag{
+		Name:    MaxProofMaturityDelaySecondsFlagName,
+		Usage:   "Highest proof maturity delay in seconds a chain may configure on the OptimismPortal.",
+		EnvVars: deployer.PrefixEnvVar("MAX_PROOF_MATURITY_DELAY_SECONDS"),
+		Value:   standard.MaxProofMaturityDelaySeconds,
+	}
+	MinDisputeGameFinalityDelaySecondsFlag = &cli.Uint64Flag{
+		Name:    MinDisputeGameFinalityDelaySecondsFlagName,
+		Usage:   "Lowest dispute game finality delay in seconds a chain may configure on the AnchorStateRegistry.",
+		EnvVars: deployer.PrefixEnvVar("MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS"),
+		Value:   standard.MinDisputeGameFinalityDelaySeconds,
+	}
+	MaxDisputeGameFinalityDelaySecondsFlag = &cli.Uint64Flag{
+		Name:    MaxDisputeGameFinalityDelaySecondsFlagName,
+		Usage:   "Highest dispute game finality delay in seconds a chain may configure on the AnchorStateRegistry.",
+		EnvVars: deployer.PrefixEnvVar("MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS"),
+		Value:   standard.MaxDisputeGameFinalityDelaySeconds,
 	}
 	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
 		Name:    "dispute-max-game-depth",
@@ -165,8 +179,10 @@ var ImplementationsFlags = []cli.Flag{
 	WithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,
 	ChallengePeriodSecondsFlag,
-	ProofMaturityDelaySecondsFlag,
-	DisputeGameFinalityDelaySecondsFlag,
+	MinProofMaturityDelaySecondsFlag,
+	MaxProofMaturityDelaySecondsFlag,
+	MinDisputeGameFinalityDelaySecondsFlag,
+	MaxDisputeGameFinalityDelaySecondsFlag,
 	DisputeMaxGameDepthFlag,
 	DisputeSplitDepthFlag,
 	DisputeClockExtensionFlag,

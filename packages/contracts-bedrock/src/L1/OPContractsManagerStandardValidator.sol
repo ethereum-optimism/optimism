@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 4.1.1
-    string public constant version = "4.1.1";
+    /// @custom:semver 4.2.0
+    string public constant version = "4.2.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;

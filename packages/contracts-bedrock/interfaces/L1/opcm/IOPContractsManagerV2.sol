@@ -63,6 +63,8 @@ interface IOPContractsManagerV2 {
         IResourceMetering.ResourceConfig resourceConfig;
         IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
         bool useCustomGasToken;
+        uint256 proofMaturityDelaySeconds;
+        uint256 disputeGameFinalityDelaySeconds;
     }
 
     struct UpgradeInput {
@@ -86,6 +88,7 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
+    error OPContractsManagerV2_InvalidDelayConfig();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();

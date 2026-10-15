@@ -73,6 +73,10 @@ contract DeployConfig is Script {
     uint256 public systemConfigStartBlock;
     uint256 public proofMaturityDelaySeconds;
     uint256 public disputeGameFinalityDelaySeconds;
+    uint256 public minProofMaturityDelaySeconds;
+    uint256 public maxProofMaturityDelaySeconds;
+    uint256 public minDisputeGameFinalityDelaySeconds;
+    uint256 public maxDisputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useAltDA;
     string public daCommitmentType;
@@ -170,8 +174,15 @@ contract DeployConfig is Script {
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
 
-        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
-        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
+        // Per-chain withdrawal delays default to the standard values; a zero would be rejected at
+        // initialize() time.
+        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(604800));
+        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(302400));
+        // Implementation bounds for the per-chain withdrawal delays.
+        minProofMaturityDelaySeconds = _readOr(_json, "$.minProofMaturityDelaySeconds", uint256(86400));
+        maxProofMaturityDelaySeconds = _readOr(_json, "$.maxProofMaturityDelaySeconds", uint256(604800));
+        minDisputeGameFinalityDelaySeconds = _readOr(_json, "$.minDisputeGameFinalityDelaySeconds", uint256(43200));
+        maxDisputeGameFinalityDelaySeconds = _readOr(_json, "$.maxDisputeGameFinalityDelaySeconds", uint256(302400));
         respectedGameType = _readOr(_json, "$.respectedGameType", uint256(0));
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
@@ -376,6 +387,10 @@ contract DeployConfig is Script {
         systemConfigStartBlock = 0;
         proofMaturityDelaySeconds = 604800;
         disputeGameFinalityDelaySeconds = 302400;
+        minProofMaturityDelaySeconds = 86400;
+        maxProofMaturityDelaySeconds = 604800;
+        minDisputeGameFinalityDelaySeconds = 43200;
+        maxDisputeGameFinalityDelaySeconds = 302400;
         respectedGameType = 0;
         useAltDA = false;
         daCommitmentType = "KeccakCommitment";

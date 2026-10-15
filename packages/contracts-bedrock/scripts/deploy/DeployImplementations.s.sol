@@ -48,8 +48,10 @@ contract DeployImplementations is Script {
         uint256 withdrawalDelaySeconds;
         uint256 minProposalSizeBytes;
         uint256 challengePeriodSeconds;
-        uint256 proofMaturityDelaySeconds;
-        uint256 disputeGameFinalityDelaySeconds;
+        uint256 minProofMaturityDelaySeconds;
+        uint256 maxProofMaturityDelaySeconds;
+        uint256 minDisputeGameFinalityDelaySeconds;
+        uint256 maxDisputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
         // Super and V2 Dispute Game parameters
@@ -341,12 +343,14 @@ contract DeployImplementations is Script {
     // - PermissionedDisputeGame (not proxied)
 
     function deployOptimismPortalImpl(Input memory _input, Output memory _output) private {
-        uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
         IOptimismPortal impl = IOptimismPortal(
             DeployUtils.createDeterministic({
                 _name: "OptimismPortal2",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOptimismPortal.__constructor__, (proofMaturityDelaySeconds))
+                    abi.encodeCall(
+                        IOptimismPortal.__constructor__,
+                        (_input.minProofMaturityDelaySeconds, _input.maxProofMaturityDelaySeconds)
+                    )
                 ),
                 _salt: _salt
             })
@@ -423,12 +427,14 @@ contract DeployImplementations is Script {
     }
 
     function deployAnchorStateRegistryImpl(Input memory _input, Output memory _output) private {
-        uint256 disputeGameFinalityDelaySeconds = _input.disputeGameFinalityDelaySeconds;
         IAnchorStateRegistry impl = IAnchorStateRegistry(
             DeployUtils.createDeterministic({
                 _name: "AnchorStateRegistry",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IAnchorStateRegistry.__constructor__, (disputeGameFinalityDelaySeconds))
+                    abi.encodeCall(
+                        IAnchorStateRegistry.__constructor__,
+                        (_input.minDisputeGameFinalityDelaySeconds, _input.maxDisputeGameFinalityDelaySeconds)
+                    )
                 ),
                 _salt: _salt
             })
@@ -712,10 +718,18 @@ contract DeployImplementations is Script {
         require(
             _input.challengePeriodSeconds <= type(uint64).max, "DeployImplementations: challengePeriodSeconds too large"
         );
-        require(_input.proofMaturityDelaySeconds != 0, "DeployImplementations: proofMaturityDelaySeconds not set");
+        require(_input.minProofMaturityDelaySeconds != 0, "DeployImplementations: minProofMaturityDelaySeconds not set");
         require(
-            _input.disputeGameFinalityDelaySeconds != 0,
-            "DeployImplementations: disputeGameFinalityDelaySeconds not set"
+            _input.minProofMaturityDelaySeconds <= _input.maxProofMaturityDelaySeconds,
+            "DeployImplementations: proofMaturityDelaySeconds bounds inverted"
+        );
+        require(
+            _input.minDisputeGameFinalityDelaySeconds != 0,
+            "DeployImplementations: minDisputeGameFinalityDelaySeconds not set"
+        );
+        require(
+            _input.minDisputeGameFinalityDelaySeconds <= _input.maxDisputeGameFinalityDelaySeconds,
+            "DeployImplementations: disputeGameFinalityDelaySeconds bounds inverted"
         );
         require(_input.mipsVersion != 0, "DeployImplementations: mipsVersion not set");
         require(
@@ -855,7 +869,9 @@ contract DeployImplementations is Script {
             _contracts: impls,
             _superchainConfig: ISuperchainConfig(address(_input.superchainConfigProxy)),
             _opChainProxyAdminOwner: address(0),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: _input.minProofMaturityDelaySeconds,
+            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
@@ -863,7 +879,9 @@ contract DeployImplementations is Script {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            _input.minDisputeGameFinalityDelaySeconds,
+            _input.maxDisputeGameFinalityDelaySeconds
         );
     }
 }

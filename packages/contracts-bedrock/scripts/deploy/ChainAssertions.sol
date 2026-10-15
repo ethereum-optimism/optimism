@@ -251,7 +251,9 @@ library ChainAssertions {
         Types.ContractSet memory _contracts,
         ISuperchainConfig _superchainConfig,
         address _opChainProxyAdminOwner,
-        bool _isProxy
+        bool _isProxy,
+        uint256 _minProofMaturityDelaySeconds,
+        uint256 _maxProofMaturityDelaySeconds
     )
         internal
         view
@@ -285,6 +287,10 @@ library ChainAssertions {
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-130");
+
+        // The proof maturity delay bounds are immutables, so they read the same through the proxy.
+        require(portal.minProofMaturityDelaySeconds() == _minProofMaturityDelaySeconds, "CHECK-OP2-140");
+        require(portal.maxProofMaturityDelaySeconds() == _maxProofMaturityDelaySeconds, "CHECK-OP2-150");
     }
 
     /// @notice Asserts that the ETHLockbox is setup correctly
@@ -390,7 +396,9 @@ library ChainAssertions {
         IAnchorStateRegistry _anchorStateRegistryProxy,
         bool _isProxy,
         GameType _expectedRespectedGameType,
-        Proposal memory _expectedAnchor
+        Proposal memory _expectedAnchor,
+        uint256 _minDisputeGameFinalityDelaySeconds,
+        uint256 _maxDisputeGameFinalityDelaySeconds
     )
         internal
     {
@@ -409,6 +417,16 @@ library ChainAssertions {
         require(_anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30");
         require(actualAnchor.root.raw() == _expectedAnchor.root.raw(), "ANCHORP-40");
         require(actualAnchor.l2SequenceNumber == _expectedAnchor.l2SequenceNumber, "ANCHORP-50");
+
+        // The finality delay bounds are immutables, so they read the same through the proxy.
+        require(
+            _anchorStateRegistryProxy.minDisputeGameFinalityDelaySeconds() == _minDisputeGameFinalityDelaySeconds,
+            "ANCHORP-60"
+        );
+        require(
+            _anchorStateRegistryProxy.maxDisputeGameFinalityDelaySeconds() == _maxDisputeGameFinalityDelaySeconds,
+            "ANCHORP-70"
+        );
     }
 
     /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.
