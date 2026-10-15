@@ -478,6 +478,29 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
         assertEq(address(alice).balance, balance);
     }
 
+    /// @notice Tests that withdrawing fails when the delay was never set, as on a proxy
+    ///         upgraded without initialize.
+    function test_withdraw_delayNotSet_fails() public {
+        // Deposit some WETH.
+        vm.prank(alice);
+        delayedWeth.deposit{ value: 1 ether }();
+        uint256 balance = address(alice).balance;
+
+        // Call unlock.
+        vm.prank(alice);
+        delayedWeth.unlock(alice, 1 ether);
+
+        // Clear the delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("DelayedWETH", "delay");
+        vm.store(address(delayedWeth), bytes32(slot.slot), bytes32(0));
+
+        // Withdraw fails when the delay is not set.
+        vm.expectRevert("DelayedWETH: delay not set");
+        vm.prank(alice);
+        delayedWeth.withdraw(1 ether);
+        assertEq(address(alice).balance, balance);
+    }
+
     /// @notice Tests that withdrawing more than unlocked amount fails.
     function test_withdraw_tooMuch_fails() public {
         // Deposit some WETH.

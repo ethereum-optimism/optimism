@@ -374,7 +374,9 @@ where
 #[test]
 fn fixed_policy_settlement_conserves_total_eth_supply() {
     let beneficiary = Address::from([0x99; 20]);
-    let target = Address::from([0x77; 20]);
+    // A contract call, not a plain transfer: a 21,000-gas transfer sits on the EIP-7623 floor, so
+    // the producer clips any refund on it to its zero net saving.
+    let target = OBSERVER_TEST_CONTRACT;
     let universe = eth_holding_universe(beneficiary, target);
 
     let (total_settled, sender_settled, entries) =
@@ -486,9 +488,82 @@ impl PostExecRefundInspector for FaultyRefundPolicy {
     }
 }
 
+/// EIP-3529 refund quotient from London onward.
+const REFUND_QUOTIENT: u64 = 5;
+
+fn result_gas(spent: u64, refunded: u64, floor: u64) -> ResultGas {
+    ResultGas::default().with_total_gas_spent(spent).with_refunded(refunded).with_floor_gas(floor)
+}
+
 #[test]
 fn producer_refund_at_evm_gas_limit_is_preserved() {
-    assert_eq!(sanitize_producer_refund(42, 42, false), 42);
+    let gas = result_gas(42, 0, 0);
+    assert_eq!(sanitize_producer_refund(42, &gas, REFUND_QUOTIENT, false), 42);
+}
+
+#[test]
+fn producer_refund_is_kept_when_refund_cap_does_not_bind() {
+    // 100,000 spent with 1,000 refunded: the cap (20,000, or 10,000 after the discount) never
+    // binds, so the whole 50,000 discount is saved.
+    let gas = result_gas(100_000, 1_000, 0);
+    assert_eq!(sanitize_producer_refund(50_000, &gas, REFUND_QUOTIENT, false), 50_000);
+}
+
+#[test]
+fn cap_bound_producer_refund_is_clipped_to_net_saving() {
+    // SDM-M5 / C10: 331,655 spent, refund capped at 66,331, 200,000 of block-warm surcharges.
+    // Without the surcharges: 131,655 spent, cap 26,331, 105,324 used. Net saving: 160,000.
+    let gas = result_gas(331_655, 66_331, 0);
+    assert_eq!(gas.tx_gas_used(), 265_324);
+    assert_eq!(sanitize_producer_refund(200_000, &gas, REFUND_QUOTIENT, false), 160_000);
+}
+
+#[test]
+fn refund_binding_only_with_surcharges_is_partially_clipped() {
+    // Raw refund 40,000: capped at 66,331 spent-with-surcharges (so fully paid) but at 26,331
+    // without them. Without the surcharges: 131,655 - 26,331 = 105,324; with: 291,655. Saving
+    // 186,331.
+    let gas = result_gas(331_655, 40_000, 0);
+    assert_eq!(sanitize_producer_refund(200_000, &gas, REFUND_QUOTIENT, false), 186_331);
+}
+
+#[test]
+fn floor_bound_producer_refund_is_zeroed() {
+    // EIP-7623 floor of 60,000 binds with and without the 20,000 discount, so it saves nothing.
+    let gas = result_gas(50_000, 0, 60_000);
+    assert_eq!(gas.tx_gas_used(), 60_000);
+    assert_eq!(sanitize_producer_refund(20_000, &gas, REFUND_QUOTIENT, false), 0);
+}
+
+#[test]
+fn floor_partially_absorbs_producer_refund() {
+    // 80,000 used; the discount takes spend to 50,000, below the 60,000 floor. Saving 20,000.
+    let gas = result_gas(80_000, 0, 60_000);
+    assert_eq!(sanitize_producer_refund(30_000, &gas, REFUND_QUOTIENT, false), 20_000);
+}
+
+#[test]
+fn producer_refund_above_evm_gas_used_is_clipped_to_net_saving() {
+    // A capped native refund can leave gas used (200,000) below an achievable discount (210,000).
+    // Without the discount: 40,000 spent, cap 8,000, 32,000 used. Saving 168,000.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(gas.tx_gas_used(), 200_000);
+    assert_eq!(sanitize_producer_refund(210_000, &gas, REFUND_QUOTIENT, false), 168_000);
+}
+
+#[test]
+fn producer_refund_equal_to_gas_spent_nets_down_to_floor() {
+    // The largest accepted discount leaves only the floor: 200,000 used, 21,000 floor.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(sanitize_producer_refund(250_000, &gas, REFUND_QUOTIENT, false), 179_000);
+}
+
+#[test]
+fn producer_refund_above_gas_spent_is_zeroed() {
+    // No discount can exceed the gas execution spent, so this refund can only come from a faulty
+    // policy.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(sanitize_producer_refund(250_001, &gas, REFUND_QUOTIENT, false), 0);
 }
 
 #[test]
@@ -559,8 +634,11 @@ fn faulty_producer_refunds_increment_correction_metrics() {
     let recorder = DebuggingRecorder::new();
     let snapshotter = recorder.snapshotter();
     metrics::with_local_recorder(&recorder, || {
-        assert_eq!(sanitize_producer_refund(u64::MAX, 42, false), 0);
-        assert_eq!(sanitize_producer_refund(1, 42, true), 0);
+        let gas = result_gas(42, 0, 0);
+        assert_eq!(sanitize_producer_refund(u64::MAX, &gas, REFUND_QUOTIENT, false), 0);
+        assert_eq!(sanitize_producer_refund(1, &gas, REFUND_QUOTIENT, true), 0);
+        let floor_bound = result_gas(50_000, 0, 60_000);
+        assert_eq!(sanitize_producer_refund(1, &floor_bound, REFUND_QUOTIENT, false), 0);
     });
 
     let mut corrections = snapshotter
@@ -583,7 +661,8 @@ fn faulty_producer_refunds_increment_correction_metrics() {
     assert_eq!(
         corrections,
         vec![
-            ("exceeds_evm_gas".to_string(), DebugValue::Counter(1)),
+            ("exceeds_gas_spent".to_string(), DebugValue::Counter(1)),
+            ("exceeds_net_saving".to_string(), DebugValue::Counter(1)),
             ("ineligible_transaction".to_string(), DebugValue::Counter(1)),
         ]
     );
@@ -896,6 +975,45 @@ fn test_mismatched_payload_block_number_fails_pre_execution() {
     let err =
         executor.apply_pre_execution_changes().expect_err("mismatched block number must fail");
     assert_invalid_post_exec(err, "payload block number 42 does not match block number 0");
+}
+
+#[test]
+fn test_resume_rejects_mismatched_payload_block_number() {
+    // Resuming skips pre-execution, so it must raise the payload errors pre-execution would.
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(42, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
+
+    let err = executor.resume_at_tx_index(1).expect_err("mismatched block number must fail");
+    assert_invalid_post_exec(err, "payload block number 42 does not match block number 0");
+}
+
+#[test]
+fn test_resume_rejects_producer() {
+    // A producer's entries and refund-inspector state live in the executor, not the prestate.
+    let mut fixture = JovianExecutorFixture::default();
+    let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+    producer.resume_at_tx_index(1).expect_err("a producer cannot resume mid-block");
+}
+
+#[test]
+fn test_resumed_verifier_applies_entries_at_block_indexes() {
+    // A verifier resumed at index 1 runs the block's second transaction first: it must take the
+    // index-1 refund, treat the index-0 entry as settled by the prefix, and finish clean.
+    const REFUND: u64 = 1_000;
+    let mut fixture = JovianExecutorFixture::default();
+    let target = Address::repeat_byte(0x22);
+    let entries =
+        vec![SDMGasEntry { index: 0, gas_refund: 5 }, SDMGasEntry { index: 1, gas_refund: REFUND }];
+    let mut verifier = fixture.verifier(0, entries.clone());
+    verifier.resume_at_tx_index(1).expect("resume at index 1");
+
+    verifier.execute_transaction(&legacy_tx(0, target)).expect("index-1 tx verifies");
+    assert_eq!(verifier.gas_used, verifier.evm_gas_used - REFUND);
+    verifier
+        .execute_transaction(&recovered_post_exec(0, entries))
+        .expect("post-exec tx verifies at index 2");
+    verifier.finish().expect("no unconsumed entries");
 }
 
 #[test]

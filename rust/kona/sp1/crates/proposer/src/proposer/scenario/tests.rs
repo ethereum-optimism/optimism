@@ -32,8 +32,8 @@ use crate::{
     },
     prover::ProofKeys,
     proving::{GameProofInputs, ProofRequestCounts},
-    signer::NUM_CONFIRMATIONS,
     superroot::{SuperRootAt, zk_extra_data},
+    tx_sender::NUM_CONFIRMATIONS,
 };
 
 use crate::proposer::{
@@ -41,6 +41,8 @@ use crate::proposer::{
     ProvingPurpose, SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskId,
     TaskSuccess,
 };
+
+mod fast_finality;
 
 const HEAD_NUMBER: u64 = 1;
 const HEAD_TIMESTAMP: u64 = 1_000;

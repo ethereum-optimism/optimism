@@ -42,7 +42,11 @@ pub(crate) fn dependency_set(
     override_message_expiry_window: Option<u64>,
 ) -> DependencySet {
     let dependencies = chain_ids.iter().map(|chain_id| (*chain_id, ChainDependency {})).collect();
-    DependencySet { dependencies, override_message_expiry_window }
+    DependencySet {
+        dependencies,
+        override_message_expiry_window: override_message_expiry_window
+            .map(|window| window.try_into().expect("override within the protocol window")),
+    }
 }
 
 pub(crate) fn rollup_config(chain_id: u64, l1_chain_id: u64) -> RollupConfig {

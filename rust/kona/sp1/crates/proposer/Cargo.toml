@@ -58,11 +58,15 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
+alloy-json-rpc.workspace = true
+alloy-transport.workspace = true
+httpmock.workspace = true
 metrics-exporter-prometheus.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 tempfile.workspace = true
 serial_test.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
+tower.workspace = true
 
 [[bin]]
 name = "op-zk-proposer"
