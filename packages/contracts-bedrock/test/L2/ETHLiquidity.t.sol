@@ -616,6 +616,7 @@ contract ETHLiquidity_Integration_Test is ETHLiquidity_TestInit {
     /// @notice Tests that an ETH deposit through the standard bridge still lands on L2 while this
     ///         chain is paused and ETHLiquidity mirrors it.
     function test_finalizeBridgeETH_whilePaused_succeeds() public {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         _setL1Paused(true);
         _relay(_sync(), 0, 1_000_000);
         assertTrue(ethLiquidity.paused());
