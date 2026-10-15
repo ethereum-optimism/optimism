@@ -396,6 +396,55 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 	require.Contains(t, err.Error(), "not yet ingested")
 }
 
+func TestValidateAccessEntry_InitNotBeforeExec_BeforeIngestionGate(t *testing.T) {
+	mock := newMockChainIngester()
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
+	mock.SetLatestTimestamp(100) // Only ingested up to 100
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
+
+	// Access at timestamp 152 is not ingested yet, but it is also at/after the exec
+	// timestamp, which is invalid regardless of ingestion progress (Rule 1).
+	// The definitive ErrConflict must win over the retriable ErrFuture.
+	for _, execTs := range []uint64{152, 150} {
+		access := makeAccess(testChainA, 152, 10, 0, checksum)
+		exec := makeExecDescriptor(testChainA, execTs, 0)
+
+		err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
+		require.Error(t, err)
+		require.ErrorIs(t, err, interop.ErrConflict)
+		require.NotErrorIs(t, err, interop.ErrFuture)
+		require.Contains(t, err.Error(), "not before inclusion")
+	}
+}
+
+func TestValidateAccessEntry_InitNotBeforeExec_BeforeCrossUnsafeGate(t *testing.T) {
+	mock := newMockChainIngester()
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
+	mock.SetLatestTimestamp(100)
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
+
+	// No validation pass has run yet, so there is no cross-validated timestamp, but
+	// init == exec is invalid regardless and must not be reported as ErrFuture.
+	access := makeAccess(testChainA, 100, 10, 0, checksum)
+	exec := makeExecDescriptor(testChainA, 100, 0)
+
+	err := cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
+	require.Error(t, err)
+	require.ErrorIs(t, err, interop.ErrConflict)
+	require.NotErrorIs(t, err, interop.ErrFuture)
+	require.Contains(t, err.Error(), "not before inclusion")
+}
+
 // =============================================================================
 // validateExecutingMessage Timing Tests
 // =============================================================================
