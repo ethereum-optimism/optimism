@@ -100,34 +100,6 @@ pub fn isthmus() -> &'static Precompiles {
 
 /// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
-/// Lagoon replaces the BLS12-381 MSM and pairing precompiles with lower input limits.
-/// Returns precompiles for lagoon spec.
-pub fn lagoon() -> &'static Precompiles {
-    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let mut precompiles = karst().clone();
-
-        let mut to_remove = Precompiles::default();
-        to_remove.extend([
-            bls12_381::JOVIAN_G1_MSM,
-            bls12_381::JOVIAN_G2_MSM,
-            bls12_381::JOVIAN_PAIRING,
-        ]);
-
-        precompiles.difference(&to_remove);
-
-        precompiles.extend([
-            bls12_381::LAGOON_G1_MSM,
-            bls12_381::LAGOON_G2_MSM,
-            bls12_381::LAGOON_PAIRING,
-        ]);
-
-        precompiles
-    })
-}
-
-/// UPSTREAM-MIRROR(set): revm-precompile@42.0.1 `revm_precompile::Precompiles`
-///
 /// Karst replaces the inherited Osaka-sensitive precompiles.
 /// Returns precompiles for karst spec.
 pub fn karst() -> &'static Precompiles {
@@ -142,6 +114,23 @@ pub fn karst() -> &'static Precompiles {
 
         precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA, bn254_pair::KARST]);
 
+        precompiles
+    })
+}
+
+/// UPSTREAM-MIRROR(set): revm-precompile@42.0.1 `revm_precompile::Precompiles`
+///
+/// Lagoon replaces the BLS12-381 MSM and pairing precompiles with lower input limits.
+/// Returns precompiles for lagoon spec.
+pub fn lagoon() -> &'static Precompiles {
+    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = karst().clone();
+        precompiles.extend([
+            bls12_381::LAGOON_G1_MSM,
+            bls12_381::LAGOON_G2_MSM,
+            bls12_381::LAGOON_PAIRING,
+        ]);
         precompiles
     })
 }
