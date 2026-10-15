@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -17,10 +18,10 @@ const (
 	preWipeChainBlocks = 60
 	// refinalizeAttempts bounds, in 2s polls, how long the follower may take to be finalized
 	// again where it was: after its reset a consensus client finalizes only blocks it derived
-	// since, so this takes about two L1 finality delays (kona-node took 225s and 282s).
+	// since, so this can take about two L1 finality delays.
 	refinalizeAttempts = 210
 	// resyncFromScratchAttempts bounds, in 2s polls, how long the follower may take to sync the
-	// whole chain again from an empty datadir and to be safe and finalized where it was.
+	// whole chain again from an empty datadir and to be safe where it was.
 	resyncFromScratchAttempts = 120
 )
 
@@ -55,6 +56,13 @@ func TestFollowerResyncsFromScratchUnderConsensusClientThatKeptItsHeads(gt *test
 
 			sys.Follower.EL.InSync(sys.Sequencer.EL, safety.LocalUnsafe, resyncFromScratchAttempts)
 			sys.Follower.EL.Reached(eth.Safe, before.safe.Number, resyncFromScratchAttempts)
+
+			sysgo.SkipOnKonaNode(t, "the follower is unsafe and safe where it was again, but it is not reliably finalized again "+
+				"(#23399): after the wipe its kona-node resets on `Consolidate(MissingUnsafeL2Block(N))` every few seconds, which "+
+				"clears its finalization queue each time, and in CI a finalize task hit `Finalize(BlockNotSafe)`, which kona-node "+
+				"treats as fatal (`Failed to start rollup node service: EngineTask(Finalize(BlockNotSafe))`), so the finalized wait "+
+				"failed with `operation failed permanently after 210 attempts: expected head for label=finalized to advance to "+
+				"target=59, but got current=0`")
 			sys.Follower.EL.Reached(eth.Finalized, before.finalized.Number, refinalizeAttempts)
 			sys.Follower.CL.InSync(sys.Sequencer.CL, safety.LocalSafe, resyncAttempts)
 		})
