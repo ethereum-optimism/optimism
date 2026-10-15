@@ -7,14 +7,15 @@ use alloy_primitives::{Address, B256, BlockHash, StorageKey};
 use alloy_provider::{EthGetBlock, ProviderCall, RpcWithBlock};
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadInputV2,
-    ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
-    PayloadStatus,
+    ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated,
+    INVALID_PAYLOAD_ATTRIBUTES_ERROR, PayloadId, PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse, Transaction as EthTransaction};
 use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
 use alloy_transport_http::Http;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
+use op_alloy_consensus::DEPOSIT_TX_TYPE_ID;
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction as OpTransaction;
@@ -62,6 +63,11 @@ pub struct MockEngineStorage {
     pub fork_choice_updated_v2_response: Option<ForkchoiceUpdated>,
     /// Storage for `fork_choice_updated_v3` responses.
     pub fork_choice_updated_v3_response: Option<ForkchoiceUpdated>,
+    /// When set, `fork_choice_updated_v3` fails for attributes carrying a non-deposit transaction
+    /// with this JSON-RPC error code.
+    pub fork_choice_updated_v3_non_deposit_attributes_error: Option<i32>,
+    /// Payload attributes received by `fork_choice_updated_v3`, in call order.
+    pub fork_choice_updated_v3_attributes: Vec<Option<OpPayloadAttributes>>,
 
     // Version-specific get_payload responses
     /// Storage for execution payload envelope v2 responses.
@@ -175,6 +181,25 @@ impl MockEngineClientBuilder {
     /// Sets the `fork_choice_updated_v3` response.
     pub fn with_fork_choice_updated_v3_response(mut self, response: ForkchoiceUpdated) -> Self {
         self.storage.fork_choice_updated_v3_response = Some(response);
+        self
+    }
+
+    /// Makes `fork_choice_updated_v3` reject attributes carrying a non-deposit transaction with
+    /// `-38003`, as an execution layer does for invalid derived attributes, while deposit-only
+    /// attributes get the configured response.
+    pub const fn with_fork_choice_updated_v3_rejecting_non_deposit_attributes(self) -> Self {
+        self.with_fork_choice_updated_v3_failing_non_deposit_attributes(
+            INVALID_PAYLOAD_ATTRIBUTES_ERROR,
+        )
+    }
+
+    /// Makes `fork_choice_updated_v3` fail with the JSON-RPC error `code` for attributes carrying
+    /// a non-deposit transaction, while deposit-only attributes get the configured response.
+    pub const fn with_fork_choice_updated_v3_failing_non_deposit_attributes(
+        mut self,
+        code: i32,
+    ) -> Self {
+        self.storage.fork_choice_updated_v3_non_deposit_attributes_error = Some(code);
         self
     }
 
@@ -332,6 +357,11 @@ impl MockEngineClient {
     /// Sets the `fork_choice_updated_v3` response.
     pub async fn set_fork_choice_updated_v3_response(&self, response: ForkchoiceUpdated) {
         self.storage.write().await.fork_choice_updated_v3_response = Some(response);
+    }
+
+    /// Returns the payload attributes received by `fork_choice_updated_v3`, in call order.
+    pub async fn fork_choice_updated_v3_attributes(&self) -> Vec<Option<OpPayloadAttributes>> {
+        self.storage.read().await.fork_choice_updated_v3_attributes.clone()
     }
 
     /// Sets the execution payload v2 response.
@@ -547,9 +577,23 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
     async fn fork_choice_updated_v3(
         &self,
         _fork_choice_state: ForkchoiceState,
-        _payload_attributes: Option<OpPayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        let has_non_deposit_tx = payload_attributes.as_ref().is_some_and(|attrs| {
+            attrs.transactions.iter().flatten().any(|tx| tx.first() != Some(&DEPOSIT_TX_TYPE_ID))
+        });
+        storage.fork_choice_updated_v3_attributes.push(payload_attributes);
+        if let Some(code) = storage.fork_choice_updated_v3_non_deposit_attributes_error &&
+            has_non_deposit_tx
+        {
+            let payload = serde_json::from_value(serde_json::json!({
+                "code": code,
+                "message": "forkchoice update failed",
+            }))
+            .expect("valid JSON-RPC error payload");
+            return Err(TransportError::ErrorResp(payload));
+        }
         storage.fork_choice_updated_v3_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v3 was called but no v3 response configured. \

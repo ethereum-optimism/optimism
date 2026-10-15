@@ -4,7 +4,7 @@ use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
     InsertTask,
     InsertTaskError::{self},
-    task_queue::build_and_seal,
+    task_queue::replace_with_deposits_only,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -147,7 +147,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// This function handles:
     /// 1. Executing the `InsertTask` to import the payload
     /// 2. Handling deposits-only payload failures
-    /// 3. Holocene fallback via `build_and_seal` if needed
+    /// 3. Holocene fallback via `replace_with_deposits_only` if needed
     ///
     /// Returns the inserted block information, or an error if insertion fails.
     async fn insert_payload(
@@ -178,27 +178,15 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                 ) =>
             {
                 warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
-
-                // HOLOCENE: Re-attempt payload import with deposits only
-                // First build the deposits-only payload, then seal it
-                let deposits_only_attrs = self.attributes.as_deposits_only();
-
-                return match build_and_seal(
+                return Err(replace_with_deposits_only(
                     state,
                     self.engine.clone(),
                     self.cfg.clone(),
-                    deposits_only_attrs.clone(),
+                    &self.attributes,
                     self.is_attributes_derived,
                     self.block_sink.clone(),
                 )
-                .await
-                {
-                    Ok(_) => {
-                        info!(target: "engine", "Successfully imported deposits-only payload");
-                        Err(SealTaskError::HoloceneInvalidFlush)
-                    }
-                    Err(_) => Err(SealTaskError::DepositOnlyPayloadReattemptFailed),
-                };
+                .await);
             }
             Err(e) => {
                 error!(target: "engine", "Payload import failed: {e}");
