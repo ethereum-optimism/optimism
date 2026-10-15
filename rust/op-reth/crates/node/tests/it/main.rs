@@ -22,4 +22,6 @@ mod p2p_version;
 
 mod payload_handoff;
 
+mod payload_during_persistence;
+
 const fn main() {}
