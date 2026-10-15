@@ -283,6 +283,7 @@ pub(crate) async fn execute_snapshot(
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         synthesized.range_inputs.span.end,
+        None,
     ) {
         Ok(host) => host,
         Err(error) => {
@@ -388,6 +389,7 @@ pub(crate) async fn execute_snapshot(
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         synthesized.range_inputs.span.end,
+        None,
     ) {
         Ok(host) => host,
         Err(error) => {
