@@ -60,9 +60,11 @@ func (el *L2ELNode) WaitForPooledTransaction(hash common.Hash) {
 		ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 		defer cancel()
 		if err := el.rpc().CallContext(ctx, &tx, "eth_getTransactionByHash", hash); err != nil {
+			el.log.Warn("Transaction lookup failed; will retry", "node", el, "tx", hash, "err", err)
 			return fmt.Errorf("looking up transaction %s on %s: %w", hash, el, err)
 		}
 		if tx == nil {
+			el.log.Info("Transaction not known yet", "node", el, "tx", hash)
 			return fmt.Errorf("transaction %s is not known to %s yet", hash, el)
 		}
 		inBlock = tx.BlockNumber
@@ -102,15 +104,16 @@ func (el *L2ELNode) txPoolStatus() (TxPoolStatus, error) {
 	return TxPoolStatus{Pending: uint64(status.Pending), Queued: uint64(status.Queued)}, nil
 }
 
+// TxPoolStatus reads how many transactions the node's pool holds right now.
 func (el *L2ELNode) TxPoolStatus() TxPoolStatus {
 	status, err := el.txPoolStatus()
 	el.require.NoError(err)
 	return status
 }
 
-// txPoolWait polls the pool once a second, up to attempts times, until accept takes its status,
-// and returns that status.
-func (el *L2ELNode) txPoolWait(attempts int, expectation string, accept func(TxPoolStatus) bool) (TxPoolStatus, error) {
+// txPoolWait polls the pool once a second, up to attempts times, until its status satisfies
+// expectation, and returns that status.
+func (el *L2ELNode) txPoolWait(attempts int, expectation string, satisfied func(TxPoolStatus) bool) TxPoolStatus {
 	el.log.Info("Waiting for the transaction pool", "node", el, "expectation", expectation, "attempts", attempts)
 	var status TxPoolStatus
 	err := retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: txPoolPollInterval}, func() error {
@@ -120,42 +123,30 @@ func (el *L2ELNode) txPoolWait(attempts int, expectation string, accept func(TxP
 			el.log.Warn("Pool status lookup failed; will retry", "node", el, "err", err)
 			return err
 		}
-		if !accept(status) {
-			el.log.Debug("Pool not there yet", "node", el, "expectation", expectation, "status", status)
+		if !satisfied(status) {
+			el.log.Info("Pool not there yet", "node", el, "expectation", expectation, "status", status)
 			return fmt.Errorf("the pool of %s holds %s, expecting %s", el, status, expectation)
 		}
 		return nil
 	})
-	if err == nil {
-		el.log.Info("Transaction pool reached the expectation", "node", el, "expectation", expectation, "status", status)
-	}
-	return status, err
-}
-
-// TxPoolReachedFn waits until the pool holds at least count transactions, pending and queued
-// together.
-func (el *L2ELNode) TxPoolReachedFn(count uint64, attempts int) CheckFunc {
-	return func() error {
-		_, err := el.txPoolWait(attempts, fmt.Sprintf("at least %d transactions", count), func(s TxPoolStatus) bool { return s.Total() >= count })
-		return err
-	}
-}
-
-// TxPoolReached waits like TxPoolReachedFn and returns the status that met the count.
-func (el *L2ELNode) TxPoolReached(count uint64, attempts int) TxPoolStatus {
-	status, err := el.txPoolWait(attempts, fmt.Sprintf("at least %d transactions", count), func(s TxPoolStatus) bool { return s.Total() >= count })
-	el.require.NoError(err)
+	el.require.NoError(err, "the pool of %s did not reach the expectation", el)
+	el.log.Info("Transaction pool reached the expectation", "node", el, "expectation", expectation, "status", status)
 	return status
 }
 
-// TxPoolDrainedFn waits until the pool holds no transaction.
-func (el *L2ELNode) TxPoolDrainedFn(attempts int) CheckFunc {
-	return func() error {
-		_, err := el.txPoolWait(attempts, "no transaction", func(s TxPoolStatus) bool { return s.Total() == 0 })
-		return err
-	}
+// TxPoolReached waits until the pool holds at least count transactions, pending and queued
+// together, and returns the status that met the count.
+func (el *L2ELNode) TxPoolReached(count uint64, attempts int) TxPoolStatus {
+	return el.txPoolWait(attempts, fmt.Sprintf("at least %d transactions", count), func(s TxPoolStatus) bool { return s.Total() >= count })
 }
 
+// TxPoolHoldsAtMost waits until the pool holds at most count transactions, pending and queued
+// together, and returns the status that met the count.
+func (el *L2ELNode) TxPoolHoldsAtMost(count uint64, attempts int) TxPoolStatus {
+	return el.txPoolWait(attempts, fmt.Sprintf("at most %d transactions", count), func(s TxPoolStatus) bool { return s.Total() <= count })
+}
+
+// TxPoolDrained waits until the pool holds no transaction.
 func (el *L2ELNode) TxPoolDrained(attempts int) {
-	el.require.NoError(el.TxPoolDrainedFn(attempts)())
+	el.TxPoolHoldsAtMost(0, attempts)
 }

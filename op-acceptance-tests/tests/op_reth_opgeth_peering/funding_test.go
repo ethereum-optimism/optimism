@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -25,7 +26,8 @@ const (
 var (
 	feeCap = big.NewInt(feeCapGwei * params.GWei)
 	tip    = big.NewInt(tipGwei * params.GWei)
-	// fundingTxCost is the most one funding transfer can cost its sender.
+	// fundingTxCost is the L2 execution cost of one funding transfer at the pinned fee cap. Its
+	// L1 data fee is a small fraction of that on a devnet and is paid from the same margin.
 	fundingTxCost = eth.GWei(feeCapGwei).Mul(params.TxGas)
 )
 
@@ -101,7 +103,7 @@ func fundRound(t devtest.T, sys *pairSystem, payers []*dsl.EOA, count int, amoun
 	var fundedAt uint64
 	for _, last := range lastTransfers {
 		// A payer's earlier transfers are included no later than its last one.
-		fundedAt = max(fundedAt, sys.Sequencer.EL.WaitForReceipt(last.Hash()).BlockNumber.Uint64())
+		fundedAt = max(fundedAt, bigs.Uint64Strict(sys.Sequencer.EL.WaitForReceipt(last.Hash()).BlockNumber))
 	}
 	t.Logger().Info("Funded a round of accounts", "count", len(accounts), "payers", len(payers), "amount", amount, "funded_at", fundedAt)
 	return accounts, fundedAt

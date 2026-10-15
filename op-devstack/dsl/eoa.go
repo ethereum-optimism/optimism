@@ -170,8 +170,9 @@ func (u *EOA) PlanAuth(code common.Address) txplan.Option {
 }
 
 // PlanOffline creates the tx-planning options to sign a transaction with this Key for its chain
-// without reading anything from the EL node. The caller pins the nonce, gas and fees, since
-// nothing else determines them.
+// without reading anything from the EL node. The nonce and gas default to 0 and 21000, so a caller
+// pins what differs; the fee cap must be pinned with WithGasFeeCap, since the default fee cap
+// reads the base fee from a node.
 func (u *EOA) PlanOffline() txplan.Option {
 	return txplan.Combine(
 		u.key.Plan(),

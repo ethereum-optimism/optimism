@@ -159,6 +159,32 @@ func TestHighestEthVersionPicksTheHighestEthCapability(t *testing.T) {
 	}
 }
 
+func TestHighestCommonEthVersionIntersectsTheCapabilities(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		caps   []string
+		other  []string
+		common uint64
+		fails  bool
+	}{
+		{name: "op_reth_develop_with_op_geth", caps: []string{"eth/66", "eth/67", "eth/68", "eth/69"}, other: []string{"eth/69"}, common: 69},
+		{name: "op_reth_bump_with_op_geth", caps: []string{"eth/66", "eth/67", "eth/68", "eth/69", "eth/70", "eth/71"}, other: []string{"eth/69"}, common: 69},
+		{name: "gap_in_one_side", caps: []string{"eth/68", "eth/71"}, other: []string{"eth/69", "eth/70", "eth/71"}, common: 71},
+		{name: "disjoint", caps: []string{"eth/68"}, other: []string{"eth/69"}, fails: true},
+		{name: "malformed", caps: []string{"eth/x"}, other: []string{"eth/69"}, fails: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			common, err := HighestCommonEthVersion(tc.caps, tc.other)
+			if tc.fails {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.common, common)
+		})
+	}
+}
+
 func TestPeerInfoIsReportedOnceTheEthHandshakeIsDone(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -170,6 +196,13 @@ func TestPeerInfoIsReportedOnceTheEthHandshakeIsDone(t *testing.T) {
 			name:       "op_geth_before_handshake",
 			entry:      `{"id":"ab","caps":["eth/69"],"network":{"inbound":true},"protocols":{"eth":"handshake"}}`,
 			negotiated: false,
+			info:       ELPeerInfo{Caps: []string{"eth/69"}, ID: "ab", Inbound: true},
+		},
+		{
+			name:       "op_geth_with_empty_eth_info",
+			entry:      `{"id":"ab","caps":["eth/69"],"network":{},"protocols":{"eth":{}}}`,
+			negotiated: false,
+			info:       ELPeerInfo{Caps: []string{"eth/69"}, ID: "ab"},
 		},
 		{
 			name:       "op_geth_negotiated",
@@ -187,12 +220,8 @@ func TestPeerInfoIsReportedOnceTheEthHandshakeIsDone(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var entry peer
 			require.NoError(t, json.Unmarshal([]byte(tc.entry), &entry))
-			info, negotiated := entry.info()
-			require.Equal(t, tc.negotiated, negotiated)
-			require.Equal(t, tc.negotiated, entry.ethNegotiated())
-			if tc.negotiated {
-				require.Equal(t, tc.info, info)
-			}
+			require.Equal(t, tc.negotiated, entry.negotiated())
+			require.Equal(t, tc.info, entry.info())
 		})
 	}
 }

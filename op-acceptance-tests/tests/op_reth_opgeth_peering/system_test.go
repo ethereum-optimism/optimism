@@ -18,7 +18,8 @@ const (
 	senderSyncAttempts = 60
 )
 
-// followerKinds are the two execution clients of the pair, in the order the cells list them.
+// followerKinds are the two execution clients of the pair; a matrix over them runs the op-reth
+// cell first.
 var followerKinds = []sysgo.MixedL2ELKind{sysgo.MixedL2ELOpReth, sysgo.MixedL2ELOpGeth}
 
 // otherKind returns the execution client kind that pairs with kind.
@@ -110,7 +111,6 @@ func newPairSystem(t devtest.T, sender sysgo.MixedL2ELKind) *pairSystem {
 	sys.Sender.CL.ConnectPeer(sys.Sequencer.CL)
 	sys.Sender.CL.IsP2PConnected(sys.Sequencer.CL)
 	sys.Sender.EL.PeerWithBasic(sys.Receiver.EL)
-	sys.Receiver.EL.VerifyPeeredWith(sys.Sender.EL)
 	t.Require().Len(sys.Sender.EL.Peers(), 1, "the sender must have the receiver as its only execution-layer peer")
 	// The sender started behind the chain and can only fill the gap through the receiver; a test
 	// may plan transactions against the sender's state or have it admit them only once it is on

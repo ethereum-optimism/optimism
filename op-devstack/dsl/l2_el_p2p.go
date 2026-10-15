@@ -20,6 +20,9 @@ func (el *L2ELNode) PeerWithBasic(peer *L2ELNode) {
 	sysgo.ConnectP2PBasic(el.ctx, el.require, el.rpc(), peer.rpc())
 }
 
+// DisconnectPeerWith undoes a PeerWith peering: it drops the trusted entries and the peer on both
+// sides and waits for the session to end. It requires the trusted entries, so it is not the
+// inverse of PeerWithBasic.
 func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
 	el.log.Info("Disconnecting from a peer", "node", el, "peer", peer)
 	sysgo.DisconnectP2P(el.ctx, el.require, el.rpc(), peer.rpc())
@@ -41,7 +44,8 @@ func (el *L2ELNode) PeerInfoOf(peer *L2ELNode) sysgo.ELPeerInfo {
 	return info
 }
 
-// Peers returns what el reports about every peer whose eth session is negotiated.
+// Peers returns what el reports about every peer it is connected to, with an EthVersion of 0 for
+// a session whose eth handshake is still pending.
 func (el *L2ELNode) Peers() []sysgo.ELPeerInfo {
 	peers, err := sysgo.ListPeers(el.ctx, el.rpc())
 	el.require.NoError(err, "failed to list the peers of %s", el)

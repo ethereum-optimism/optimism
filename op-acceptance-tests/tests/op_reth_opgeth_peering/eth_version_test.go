@@ -32,15 +32,17 @@ func TestOpRethAndOpGethNegotiateTheHighestCommonEthVersion(gt *testing.T) {
 
 			rethReports := opReth.PeerInfoOf(opGeth)
 			gethReports := opGeth.PeerInfoOf(opReth)
-			opRethAdvertises := highestEthVersion(t, gethReports.Caps)
-			opGethAdvertises := highestEthVersion(t, rethReports.Caps)
+			// Each side reports the capabilities the other advertised.
+			opRethCaps, opGethCaps := gethReports.Caps, rethReports.Caps
 			t.Logger().Info("Negotiated eth version",
-				"op_reth_advertises", opRethAdvertises, "op_geth_advertises", opGethAdvertises,
+				"op_reth_advertises", highestEthVersion(t, opRethCaps), "op_geth_advertises", highestEthVersion(t, opGethCaps),
 				"op_reth_reports", rethReports.EthVersion, "op_geth_reports", gethReports.EthVersion,
-				"op_reth_caps", gethReports.Caps, "op_geth_caps", rethReports.Caps)
+				"op_reth_caps", opRethCaps, "op_geth_caps", opGethCaps)
 
 			t.Require().Equal(rethReports.EthVersion, gethReports.EthVersion, "both clients must report the same negotiated eth version")
-			t.Require().Equal(min(opRethAdvertises, opGethAdvertises), rethReports.EthVersion, "the pair must negotiate the highest eth version both advertise")
+			highestCommon, err := sysgo.HighestCommonEthVersion(opRethCaps, opGethCaps)
+			t.Require().NoError(err, "the clients must share an eth version")
+			t.Require().Equal(highestCommon, rethReports.EthVersion, "the pair must negotiate the highest eth version both advertise")
 		})
 	}
 }
