@@ -440,6 +440,9 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"preimageOracleChallengePeriod":            120,
 			"proofMaturityDelaySeconds":                12,
 			"disputeGameFinalityDelaySeconds":          6,
+			// The implementation bounds must admit the short per-chain delays above.
+			"minProofMaturityDelaySeconds":       1,
+			"minDisputeGameFinalityDelaySeconds": 1,
 		},
 		Chains: []*state.ChainIntent{
 			{
