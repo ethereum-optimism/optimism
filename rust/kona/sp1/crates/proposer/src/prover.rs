@@ -80,6 +80,10 @@ pub struct ProofKeys {
     /// Verifying key for the super-aggregation program. Its hash is the
     /// on-chain `absolutePrestate()`.
     pub agg_vk: Arc<SP1VerifyingKey>,
+    /// Proving key for the log-commitment program.
+    pub log_pk: Arc<SP1ProvingKey>,
+    /// Verifying key for the log-commitment program.
+    pub log_vk: Arc<SP1VerifyingKey>,
 }
 
 impl std::fmt::Debug for ProofKeys {
@@ -88,7 +92,7 @@ impl std::fmt::Debug for ProofKeys {
     }
 }
 
-/// Runs lightweight SP1 key setup for both of a prestate's programs.
+/// Runs lightweight SP1 key setup for the three programs of a prestate.
 ///
 /// Network proving only needs each ELF and its verifying key. Using the light
 /// prover avoids initializing the local CPU proving machinery and its proving
@@ -105,11 +109,18 @@ pub async fn setup_proof_keys(programs: &PrestatePrograms) -> Result<ProofKeys> 
         .await
         .context("aggregation ELF setup failed")?;
     let agg_vk = agg_pk.verifying_key().clone();
+    let log_pk = prover
+        .setup(Elf::Dynamic(programs.log_commitment_elf.clone().into()))
+        .await
+        .context("log-commitment ELF setup failed")?;
+    let log_vk = log_pk.verifying_key().clone();
     Ok(ProofKeys {
         range_pk: Arc::new(range_pk),
         range_vk: Arc::new(range_vk),
         agg_pk: Arc::new(agg_pk),
         agg_vk: Arc::new(agg_vk),
+        log_pk: Arc::new(log_pk),
+        log_vk: Arc::new(log_vk),
     })
 }
 

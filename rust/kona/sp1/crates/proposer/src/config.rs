@@ -85,18 +85,16 @@ pub struct ProposerConfig {
 
     /// Base URL of a prestate artifact directory, accepting `file://` and
     /// `http(s)://` URIs. Each prestate is keyed by the game's
-    /// `absolutePrestate()` hash (the super-aggregation program vkey, which
-    /// embeds the super-range program vkey and therefore uniquely identifies
-    /// both) and maps to two program ELFs, following the op-challenger
-    /// `--prestates-url` convention:
+    /// `absolutePrestate()` hash and maps to the three [`PrestatePrograms`]
+    /// ELFs, following the op-challenger `--prestates-url` convention:
     /// - `<url>/<vkey>.agg.bin.gz` (super-aggregation program)
     /// - `<url>/<vkey>.range.bin.gz` (super-range program)
+    /// - `<url>/<vkey>.log.bin.gz` (log-commitment program)
     ///
     /// The create path checks artifact availability (creation pauses when
-    /// either artifact is missing, since the proposer could not defend such
+    /// any artifact is missing, since the proposer could not defend such
     /// a game); the defend path loads the ELFs from the same location and,
-    /// in network mode, verifies the aggregation ELF hashes to the prestate
-    /// during proving-key setup.
+    /// in network mode, verifies the vkey chain during proving-key setup.
     pub prestates_url: Url,
 
     /// Minimum spacing, in seconds of super-root timestamps, between the
@@ -570,6 +568,8 @@ pub const AGGREGATION_ARTIFACT_SUFFIX: &str = ".agg.bin.gz";
 /// Artifact suffix for the super-range program ELF (whose vkey the
 /// aggregation program embeds).
 pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
+/// Artifact suffix for the log-commitment program ELF.
+pub const LOG_COMMITMENT_ARTIFACT_SUFFIX: &str = ".log.bin.gz";
 
 /// Returns the artifact URL for `prestate` with the given suffix under the
 /// `base` directory URL: `<base>/<prestate><suffix>`.
@@ -585,33 +585,47 @@ pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result
 }
 
 /// The program ELFs a prestate resolves to: the super-aggregation program
-/// (whose vkey is the on-chain `absolutePrestate()`) and the super-range
-/// program (whose vkey the aggregation program embeds, making the prestate
-/// hash a unique key for both).
+/// (whose vkey is the on-chain `absolutePrestate()`), the super-range
+/// program (whose vkey the aggregation program embeds), and the
+/// log-commitment program (whose vkey the super-range program embeds).
+/// The prestate hash is therefore a unique key for all three.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrestatePrograms {
     /// Decompressed super-aggregation program ELF.
     pub aggregation_elf: Vec<u8>,
     /// Decompressed super-range program ELF.
     pub range_elf: Vec<u8>,
+    /// Decompressed log-commitment program ELF.
+    pub log_commitment_elf: Vec<u8>,
 }
 
-/// Loads and decompresses both program ELFs for `prestate` from `base`
+#[cfg(test)]
+impl PrestatePrograms {
+    /// Programs whose three ELFs are `[byte]`.
+    pub(crate) fn stub(byte: u8) -> Self {
+        Self { aggregation_elf: vec![byte], range_elf: vec![byte], log_commitment_elf: vec![byte] }
+    }
+}
+
+/// Loads and decompresses the three program ELFs for `prestate` from `base`
 /// (`file://` reads the filesystem; `http(s)://` issues GET requests).
 ///
-/// Fails when either artifact is missing, unreadable, or not valid gzip.
+/// Fails when any artifact is missing, unreadable, or not valid gzip.
 /// The create path uses a successful load as the proof that games with this
 /// prestate are defendable; the defend path proves with the returned ELFs.
-/// In network mode, `PrestateCache::proof_keys` later verifies during SP1
-/// proving-key setup that the aggregation ELF actually hashes to `prestate`;
-/// mock mode never executes the artifacts and skips that check.
+/// In network mode, `PrestateCache::proof_keys` later verifies the vkeys
+/// during SP1 proving-key setup; mock mode never executes the artifacts and
+/// skips that check.
 pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestatePrograms> {
     let aggregation_elf =
         fetch_artifact(&prestate_artifact_url(base, prestate, AGGREGATION_ARTIFACT_SUFFIX)?)
             .await?;
     let range_elf =
         fetch_artifact(&prestate_artifact_url(base, prestate, RANGE_ARTIFACT_SUFFIX)?).await?;
-    Ok(PrestatePrograms { aggregation_elf, range_elf })
+    let log_commitment_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, LOG_COMMITMENT_ARTIFACT_SUFFIX)?)
+            .await?;
+    Ok(PrestatePrograms { aggregation_elf, range_elf, log_commitment_elf })
 }
 
 /// Maximum time for fetching a single prestate artifact, matching
@@ -690,6 +704,7 @@ mod tests {
         fn write_artifacts(dir: &std::path::Path) {
             write_artifact(dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
             write_artifact(dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
+            write_artifact(dir, LOG_COMMITMENT_ARTIFACT_SUFFIX, b"log-commitment-elf");
         }
 
         #[test]
@@ -708,13 +723,25 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn loads_and_decompresses_both_programs() {
+        async fn loads_and_decompresses_three_programs() {
             let dir = artifact_dir("present");
             write_artifacts(&dir);
             let base = Url::from_directory_path(&dir).unwrap();
             let programs = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap();
             assert_eq!(programs.aggregation_elf, b"aggregation-elf");
             assert_eq!(programs.range_elf, b"range-elf");
+            assert_eq!(programs.log_commitment_elf, b"log-commitment-elf");
+        }
+
+        /// Pins a failed load when only the log-commitment artifact is missing.
+        #[tokio::test]
+        async fn missing_log_commitment_artifact_fails_to_load() {
+            let dir = artifact_dir("no-log");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            write_artifact(&dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
+            let base = Url::from_directory_path(&dir).unwrap();
+            let err = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap_err();
+            assert!(format!("{err:#}").contains(LOG_COMMITMENT_ARTIFACT_SUFFIX), "{err:#}");
         }
 
         #[tokio::test]
@@ -725,9 +752,8 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn one_missing_artifact_fails_to_load() {
-            // Proving needs both programs: the aggregation ELF alone is not
-            // enough to defend a game.
+        async fn aggregation_artifact_alone_fails_to_load() {
+            // The aggregation ELF alone cannot defend a game.
             let dir = artifact_dir("agg-only");
             write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
             let base = Url::from_directory_path(&dir).unwrap();
