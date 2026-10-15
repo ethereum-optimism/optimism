@@ -126,9 +126,12 @@ func newSyncEnv(t *testing.T, alloc types.GenesisAlloc) *syncEnv {
 	t.Cleanup(func() { _ = env.l1.Close() })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	t.Cleanup(cancel)
 	env.ctx = ctx
+	mined := make(chan struct{})
+	// Registered after Close, so it runs first: the miner stops before the backend closes.
+	t.Cleanup(func() { cancel(); <-mined })
 	go func() {
+		defer close(mined)
 		for {
 			select {
 			case <-ctx.Done():
@@ -242,7 +245,7 @@ func TestSyncL2Failures(t *testing.T) {
 	t.Run("deposit never lands", func(t *testing.T) {
 		env.conn.Chains = nil
 		env.addChain(t, fakeL2(901, false), &l1Contracts{Messenger: messengerA})
-		err := syncChains(env.ctx, env.logger, &bytes.Buffer{}, env.conn, env.key, 200*time.Millisecond, true)
+		err := syncChains(env.ctx, env.logger, &bytes.Buffer{}, env.conn, env.key, 2*time.Second, true)
 		require.ErrorContains(t, err, "L2 did not apply L1 message nonce 3 (version 1)")
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
