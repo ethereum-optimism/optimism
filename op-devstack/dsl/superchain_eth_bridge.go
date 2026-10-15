@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -30,7 +31,8 @@ type ETHSend struct {
 // SendETH sends `amount` of the sender's ETH to `recipient` on `destination` through the
 // SuperchainETHBridge. It requires the send to succeed and returns it; its message is not relayed.
 func SendETH(sender *EOA, recipient common.Address, destination eth.ChainID, amount eth.ETH) *ETHSend {
-	bridge := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithTo(predeploys.SuperchainETHBridgeAddr))
+	bridge := bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sender.el.stackEL().EthClient()),
+		bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(sender.t))
 	call := bridge.SendETH(recipient, destination)
 
 	sender.log.Info("Sending ETH through the SuperchainETHBridge",
@@ -52,16 +54,27 @@ func SendETH(sender *EOA, recipient common.Address, destination eth.ChainID, amo
 		BlockTime:  block.Time,
 		recipient:  recipient,
 		amount:     amount,
-		bridge: bindings.NewBindings[bindings.SuperchainETHBridge](bindings.WithClient(sender.el.stackEL().EthClient()),
-			bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(sender.t)),
-		tx: tx,
+		bridge:     bridge,
+		tx:         tx,
 	}
 }
 
 // RefundCall is the source chain's SuperchainETHBridge.refundETH call that returns this send's ETH
 // to its sender once its message has expired. Only the sender can make it.
 func (s *ETHSend) RefundCall() bindings.TypedCall[any] {
-	return s.bridge.RefundETH(s.Message.Destination, s.Message.Nonce, s.recipient, s.amount.ToBig())
+	return s.bridge.RefundETH(s.Message.Destination, s.Message.Nonce, s.recipient, s.amount)
+}
+
+// Refund claims this send's refund as `user` on `source`, the chain it was sent from, requires
+// the refund to succeed, and returns its gas cost.
+func (s *ETHSend) Refund(user *EOA, source *L2Network) eth.ETH {
+	s.require.Equal(s.Message.Source, source.ChainID(), "the refund must be priced on the send's source chain")
+	s.require.Equal(s.Message.Source, user.ChainID(), "the refund must be claimed on the send's source chain")
+	s.log.Info("Refunding the ETH send", "messageHash", s.Message.Hash, "user", user.Address())
+	rcpt, err := contractio.Write(s.RefundCall(), s.ctx, user.Plan())
+	s.require.NoError(err, "refund of message %s failed: %v", s.Message.Hash, errutil.TryAddRevertReason(err))
+	s.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "refund of message %s failed", s.Message.Hash)
+	return receiptGasCost(s.commonImpl, rcpt, source.inner.RollupConfig(), source.PrimaryEL().EthClient())
 }
 
 // Refunded reports whether the source chain's SuperchainETHBridge has refunded this send.

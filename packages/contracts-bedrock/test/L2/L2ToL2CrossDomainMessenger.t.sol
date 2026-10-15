@@ -938,12 +938,17 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
     }
 
     /// @notice Tests that no word expires a message while the expiry period is unset, as on an
-    ///         implementation installed without being initialized, and that the same word, dated
-    ///         past the period, expires it once the period is set.
+    ///         implementation installed without being initialized, and that word dated past the
+    ///         period expires it once the period is set. Word dated just after the send is the
+    ///         hazardous case: with a zero period it would expire a message the destination can
+    ///         still relay.
     function test_expireMessage_uninitializedPeriod_reverts() external {
         // expiryPeriod is the uint256 at slot 5.
         vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(uint256(5)), bytes32(0));
         assertEq(l2ToL2CrossDomainMessenger.expiryPeriod(), 0);
+
+        vm.expectRevert(L2ToL2CrossDomainMessenger_InvalidExpiryPeriod.selector);
+        _expireMessage(l1Messenger, messageHash, sentAt + 1);
 
         vm.expectRevert(L2ToL2CrossDomainMessenger_InvalidExpiryPeriod.selector);
         _expireMessage(l1Messenger, messageHash, type(uint64).max);

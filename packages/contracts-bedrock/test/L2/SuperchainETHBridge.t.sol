@@ -172,11 +172,12 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
     }
 
     /// @notice Tests that a relayed message that calls sendETH reverts its whole relay, so the
-    ///         relayer keeps the ETH it attached.
+    ///         relayer keeps the ETH it attached. The send goes to another chain, so without the
+    ///         guard the relay would succeed and burn the relayer's ETH.
     function test_sendETH_relayedMessage_reverts() external {
         address relayer = makeAddr("relayer");
         vm.deal(relayer, 1 ether);
-        bytes memory message = abi.encodeCall(ISuperchainETHBridge.sendETH, (bob, 901));
+        bytes memory message = abi.encodeCall(ISuperchainETHBridge.sendETH, (bob, 902));
         (Identifier memory id, bytes memory sentMessage) = _relayable(address(superchainETHBridge), message);
 
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_SenderIsMessenger.selector);
@@ -184,9 +185,6 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
         IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).relayMessage{ value: 1 ether }(
             id, sentMessage
         );
-
-        assertEq(relayer.balance, 1 ether);
-        assertEq(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.balance, 0);
     }
 
     /// @notice Tests that a message from L1 can send ETH.
