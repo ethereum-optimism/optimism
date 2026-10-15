@@ -28,7 +28,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         gas.
     uint32 internal constant EXPIRE_MESSAGE_GAS_LIMIT = 100_000;
 
-    /// @notice Gas limit for ETHLiquidity.setPaused on L2, which uses about 60k gas.
+    /// @notice Gas limit for ETHLiquidity.setPaused on L2.
     uint32 internal constant SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT = 100_000;
 
     /// @notice Thrown when `relayUndeliveredMessage` or `syncETHLiquidityPause` is called on a
@@ -143,21 +143,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     }
 
     /// @notice Sends this chain's current pause state to its ETHLiquidity predeploy, which stops
-    ///         the SuperchainETHBridge on L2 while the chain is paused here. Anyone can call it, and
-    ///         it works while the chain is paused, since that is how the pause reaches L2; call it
-    ///         again after a pause, an unpause or a pause expiry. It is off unless this chain runs
-    ///         interop, since ETHLiquidity exists only on interop chains. The state is sent with
-    ///         this block's timestamp, so L2 ignores a state older than the one it applied, and is
-    ///         sent as this contract, which no relayed message can be (see `_isUnsafeTarget`), so
-    ///         L2 can trust it. If it runs out of gas on L2, it lands in the
-    ///         L2CrossDomainMessenger's failed messages and can be replayed, or this can be called
-    ///         again.
+    ///         the SuperchainETHBridge on L2 while the chain is paused. Anyone can call it, also
+    ///         while paused; call it again after any pause, unpause or pause expiry. L2 ignores a
+    ///         message older, by nonce, than the one it applied. It reverts unless this chain runs
+    ///         interop.
     function syncETHLiquidityPause() external {
         if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_InteropNotEnabled();
 
         this.sendMessage({
             _target: Predeploys.ETH_LIQUIDITY,
-            _message: abi.encodeCall(IETHLiquidity.setPaused, (paused(), block.timestamp)),
+            _message: abi.encodeCall(IETHLiquidity.setPaused, (paused(), messageNonce())),
             _minGasLimit: SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT
         });
     }
