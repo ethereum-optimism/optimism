@@ -183,10 +183,21 @@ available RAM: RWX reserves 2 GB for its own processes. Report executor differen
 and unmatched bootstrap/control tasks separately, but include them in elapsed
 time and cost. Keep preparation, execution and output processing visible; cache
 phase worker-seconds overlap and must not be added to critical-path time.
-Cold preparation killed the contract dependency and SP1 ELF builds with exit
-137 at 4 CPU / 8 GB on RWX. Their matched pilot allocations use 8 CPU / 16 GB
-on both providers; non-pilot Circle jobs keep their existing allocation. Do not
-infer adequate cold-build headroom from a successful cached build.
+Cold preparation killed SP1 at 4 CPU / 8 GB on RWX; its matched pilot build and
+check allocations use 8 CPU / 16 GB on both providers. Non-pilot Circle jobs keep
+their existing allocation. Do not infer adequate cold-build headroom from a
+successful cached build.
+
+The general Go contract producer matches Circle's `ci` profile and
+`--deny-warnings --skip test` arguments, sealed in dependency settings. Forge's
+`test` alias skips `.t.sol` files, retaining helpers such as `MockSP1Verifier.sol`
+under `test/`. Rust E2E retains its original `--skip test` arguments. Compiling
+the extra executable Solidity test graph exhausted 4 CPU / 8 GB and one
+8 CPU / 16 GB cold producer; those failed preparations are separate evidence.
+The corrected general producer uses the normal 4 CPU / 8 GB allocation and a
+production `source-scripts` tool-cache namespace so old full-build artifacts
+cannot enter its dependency archive. This namespace has the same protected
+`develop` write grant; it is not a private writable benchmark cache.
 
 Runtime scripts import `ci-report.py` for JSON, hashes, manifest byte verification
 and one subprocess invocation, and `ci-test-results.py` for original Go/JUnit

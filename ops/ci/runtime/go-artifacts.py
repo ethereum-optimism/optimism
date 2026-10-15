@@ -12,7 +12,8 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[3]
-SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "go-modules": {"verified": True}, "contracts": {"profile": "ci"},
+SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "go-modules": {"verified": True},
+            "contracts": {"profile": "ci", "build_args": ["--deny-warnings", "--skip", "test"]},
             "contracts-e2e": {"profile": "ci", "build_args": ["--skip", "test"]},
             "contracts-kontrol": {"profile": "ci", "build_args": ["--skip", "test"],
                                   "legacy_graph": {"source": "scripts/Artifacts.s.sol", "compiler": "0.8.28"}},

@@ -22,7 +22,9 @@ case "$job" in
   contracts|contracts-e2e)
     git submodule update --init --recursive -- packages/contracts-bedrock/lib
     export FOUNDRY_PROFILE=ci
-    args=()
+    # Match Circle's producer. Forge's "test" alias skips .t.sol files while
+    # retaining non-test helper contracts under test/ (e.g. MockSP1Verifier).
+    args=(--deny-warnings --skip test)
     if [[ "$job" == contracts-e2e ]]; then args=(--skip test); fi
     (cd packages/contracts-bedrock && just forge-build "${args[@]}")
     (cd op-deployer && just copy-contract-artifacts)

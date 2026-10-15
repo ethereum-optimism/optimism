@@ -15,8 +15,8 @@ tasks:
     tool-cache: go-rust-e2e-contracts-ci-${{ params.cache-epoch }}
     timeout: 90m
     runner:
-      cpus: 8
-      memory: 16gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem:
         filter:
