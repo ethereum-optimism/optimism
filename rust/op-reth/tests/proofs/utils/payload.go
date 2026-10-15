@@ -39,13 +39,19 @@ func NextPayloadAttributes(parent eth.BlockInfo, rawTxs ...[]byte) eth.PayloadAt
 	}
 }
 
+// SignedTransaction signs the transaction that plan describes without sending it and returns its
+// encoding.
+func SignedTransaction(t devtest.T, plan txplan.Option) []byte {
+	tx := txplan.NewPlannedTx(plan)
+	signed, err := tx.Signed.Eval(t.Ctx())
+	require.NoError(t, err, "transaction must sign")
+	raw, err := signed.MarshalBinary()
+	require.NoError(t, err, "transaction must encode")
+	return raw
+}
+
 // SignedTransfer signs a transfer of amount from sender to recipient without sending it and
 // returns its encoding. The transfer takes sender's next nonce unless opts say otherwise.
 func SignedTransfer(t devtest.T, sender *dsl.EOA, recipient common.Address, amount eth.ETH, opts ...txplan.Option) []byte {
-	tx := txplan.NewPlannedTx(sender.PlanTransfer(recipient, amount), txplan.Combine(opts...))
-	signed, err := tx.Signed.Eval(t.Ctx())
-	require.NoError(t, err, "transfer must sign")
-	raw, err := signed.MarshalBinary()
-	require.NoError(t, err, "transfer must encode")
-	return raw
+	return SignedTransaction(t, txplan.Combine(sender.PlanTransfer(recipient, amount), txplan.Combine(opts...)))
 }

@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,8 +33,12 @@ const (
 	latencyFloor = 250 * time.Millisecond
 
 	// reorgAttempts bounds, in 2s polls, how long the follower may take to adopt the replacement
-	// block, which it only learns of once a block above it is gossiped.
+	// block, which reaches it through L1: the batcher submits it and the follower derives it.
 	reorgAttempts = 90
+	// blocksAboveReplacement is how many blocks the test sequencer builds on the replacement
+	// block. The store indexes above the replacement only after the unwind, so a store that
+	// serves them has processed the reorg.
+	blocksAboveReplacement = 2
 )
 
 // windowCase is one cell of the matrix the proofs follower runs under.
@@ -126,8 +128,10 @@ func sequenceBlockOn(t devtest.T, sys *utils.MixedOpProofPreset, parent eth.L2Bl
 // verifies and matches the sequencer's own historical state, every block outside it is refused
 // with an error naming the block, never with a proof of another block, and more concurrent
 // witness requests than the follower has tracing permits all succeed. Every subtest starts with
-// the chain stopped; the last two resume it to check a height the store has not flushed yet and
-// the hash of a block a reorg removed.
+// the chain stopped; the last two extend it with the test sequencer, one block at a time, to
+// check a height the store has not flushed yet and the hash of a block a reorg removed. op-node's
+// sequencer stays stopped: resumed, it builds one block per second the chain stood still, which
+// under load moves the window past the heights those subtests check.
 func TestProofsFollowerServesExactlyTheWindowItReports(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	for _, c := range windowMatrix() {
@@ -135,7 +139,7 @@ func TestProofsFollowerServesExactlyTheWindowItReports(gt *testing.T) {
 			t.Parallel()
 			sys := newWindowSystem(t, c)
 			follower, reference := sys.L2ELValidator, sys.L2ELSequencer
-			w := newWorkload(t, sys.FunderL2)
+			w := newWorkload(t, sys)
 
 			w.driveUntilBlock(w.setupBlock + proofsHistoryWindow + windowMargin)
 			follower.WaitForProofsStorePrunedPast(w.setupBlock, pruneTimeout)
@@ -216,33 +220,26 @@ func TestProofsFollowerServesExactlyTheWindowItReports(gt *testing.T) {
 			})
 
 			t.Run("height the store has not flushed is refused until debug_proofsSyncStatus reports it", func(t devtest.T) {
-				// Queue a recorder write before sequencing resumes, so the first blocks after the
-				// restart change the recorder's storage and a proof of the old head would not
-				// verify against them.
-				pending := txplan.NewPlannedTx(w.bob.Plan(), txplan.WithTo(&w.recorder))
-				_, err := pending.Submitted.Eval(t.Ctx())
-				t.Require().NoError(err, "the recorder call must be submitted")
-				sys.L2CLSequencer.StartSequencer()
-				next := head.Number + 1
-				follower.WaitForBlockNumber(next)
+				// The block carries a recorder write, so a proof of the old head would not verify
+				// against its state.
+				next := sequenceBlockOn(t, sys, head, w.signedRecorderCall(t))
+				follower.Reached(eth.Unsafe, next.Number, blockAttempts)
 
 				statusBefore, err := follower.ProofsSyncStatus()
 				t.Require().NoError(err, "debug_proofsSyncStatus must answer before the request")
-				proof, proofErr := normalizedProofAt(t, follower, recorder, blockNumberTag(next))
+				proof, proofErr := normalizedProofAt(t, follower, recorder, blockNumberTag(next.Number))
 				statusAfter, err := follower.ProofsSyncStatus()
 				t.Require().NoError(err, "debug_proofsSyncStatus must answer after the request")
 				t.Logger().Info("eth_getProof at a height just imported", "block", next, "refused", proofErr != nil,
 					"store_before", statusBefore, "store_after", statusAfter)
 				if proofErr != nil {
-					requireProofRefused(t, proofErr, next, fmt.Sprintf("at block %d before the store flushed it", next))
-					t.Require().Lessf(*statusBefore.Latest, next, "the store reported block %d and then refused it: %v", next, proofErr)
+					requireProofRefused(t, proofErr, next.Number, fmt.Sprintf("at block %d before the store flushed it", next.Number))
+					t.Require().Lessf(*statusBefore.Latest, next.Number, "the store reported block %d and then refused it: %v", next.Number, proofErr)
 				} else {
-					t.Require().GreaterOrEqualf(*statusAfter.Latest, next, "the follower served block %d before its store reported it; window %s", next, statusAfter)
-					requireProofVerifies(t, follower, proof, next)
+					t.Require().GreaterOrEqualf(*statusAfter.Latest, next.Number, "the follower served block %d before its store reported it; window %s", next.Number, statusAfter)
+					requireProofVerifies(t, follower, proof, next.Number)
 				}
-				includedBlock(t, pending)
-				follower.VerifyProofsMatchAt(reference, next, w.accounts()...)
-				sys.L2CLSequencer.StopSequencer()
+				follower.VerifyProofsMatchAt(reference, next.Number, w.accounts()...)
 			})
 
 			t.Run("hash of a reorged-out block is refused and the replacement is served", func(t devtest.T) {
@@ -257,11 +254,18 @@ func TestProofsFollowerServesExactlyTheWindowItReports(gt *testing.T) {
 
 				replacement := sequenceBlockOn(t, sys, forkPoint, utils.SignedTransfer(t, w.bob, w.alice.Address(), eth.OneHundredthEther))
 				t.Require().NotEqualf(replaced.Hash, replacement.Hash, "the replacement block must differ from the replaced block at height %d", replacement.Number)
-				sys.L2Batcher.Start()
+				// The follower drops gossip of a block at its own unsafe height and of a block
+				// that does not extend its unsafe head, so it adopts the replacement chain once
+				// the batcher has submitted it and derivation yields it. The test sequencer builds
+				// the blocks above the replacement, so the chain advances exactly this far and the
+				// window keeps the replacement however long the reorg takes.
+				settled := replacement
+				for range blocksAboveReplacement {
+					settled = sequenceBlockOn(t, sys, settled, w.signedRecorderCall(t))
+				}
 				sys.L2CLSequencer.MatchedUnsafe(reference, syncAttempts)
-				sys.L2CLSequencer.StartSequencer()
+				sys.L2Batcher.Start()
 				follower.ReorgExact(replaced, reorgAttempts)
-				follower.InSync(reference, safety.LocalUnsafe, syncAttempts)
 
 				_, err := normalizedProofAt(t, follower, dsl.ProofAccount{Address: w.alice.Address()}, replaced.Hash.String())
 				t.Require().Errorf(err, "eth_getProof by hash of the reorged-out block %s must be refused", replaced)
@@ -270,15 +274,16 @@ func TestProofsFollowerServesExactlyTheWindowItReports(gt *testing.T) {
 				// The store already holds the replaced block at this height, so the window reports
 				// the height before the ExEx has processed the reorg; a proof requested by the
 				// replacement's hash in that gap carries the replaced block's state. Record whether
-				// the gap was hit, then wait for the store to index blocks above the replacement,
-				// which it only does after the unwind.
+				// the gap was hit, then wait for the store to index the blocks above the
+				// replacement, which it only does after the unwind.
 				staleProof, staleErr := normalizedProofAt(t, follower, recorder, replacement.Hash.String())
 				staleHeader, err := follower.EthClient().InfoByHash(t.Ctx(), replacement.Hash)
 				t.Require().NoErrorf(err, "must fetch the replacement block %s", replacement)
 				t.Logger().Info("eth_getProof by hash of the replacement right after the reorg", "block", replacement,
 					"refused", staleErr != nil, "stale", staleErr == nil && dsl.VerifyAccountProof(staleProof, staleHeader.Root()) != nil)
-				settled := w.driveUntilBlock(replacement.Number + 2)
-				follower.WaitForProofsStoreBlock(settled, storeCatchUpTimeout)
+				follower.Reached(eth.Unsafe, settled.Number, blockAttempts)
+				t.Require().Equalf(settled.Hash, follower.BlockRefByNumber(settled.Number).Hash, "the follower must follow the replacement chain to %s", settled)
+				follower.WaitForProofsStoreBlock(settled.Number, storeCatchUpTimeout)
 				requireServedAndMatching(t, follower, reference, w, replacement.Number)
 			})
 		})
