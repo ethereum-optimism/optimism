@@ -2,52 +2,34 @@
 //! after every step are in `invariants.rs`.
 
 use super::{
-    BlockSpec, TxSpec,
+    BlockSpec,
     actions::{Action, Config, Rebuild},
-    chain_spec_with_address,
-    faults::StoreWithSaveFaults,
-    initialize_storage,
+    chain_spec_with_address, initialize_storage,
     model::{Model, ModelBlock, Reply},
-    public_key_to_address,
+    proof_targets_for_transfers, public_key_to_address, serial_transfer_block,
     simulated_reth::{
         SimulatedReth, UNRELATED_PARENT, fixed_signer, index_executed_block, reorg_block,
         reorg_block_without_data,
     },
-    store_view::ProofTarget,
+    store_hooks::StoreWithHooks,
+    store_view::{ProofTarget, proof_window},
+    waits::{CallError, PendingCall},
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::B256;
 use reth_chain_state::ExecutedBlock;
 use reth_ethereum_primitives::Block;
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofsProviderRO, OpProofsStorageError, OpProofsStore, ProofWindowRange,
+    MdbxProofsStorage, OpProofsStorageError, ProofWindowRange,
     engine::{EngineError, EngineHandle, ReorgBlock},
 };
-use std::{
-    mem,
-    ops::ControlFlow,
-    sync::{Arc, mpsc},
-    thread,
-    time::Duration,
-};
+use std::{mem, ops::ControlFlow, sync::Arc, time::Duration};
 use tempfile::TempDir;
 
 /// How long one engine call, or the engine settling after a step, may take before the case
 /// fails instead of hanging.
 pub(super) const STEP_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// Recipients the chain pays in turn.
-const RECIPIENTS: u64 = 4;
-
-const fn recipient(serial: u64) -> Address {
-    Address::repeat_byte(0x40 + (serial % RECIPIENTS) as u8)
-}
-
-/// The block with `serial`: `serial` wei to its recipient, so that no two blocks are alike.
-fn block_spec(serial: u64) -> BlockSpec {
-    BlockSpec::new(vec![TxSpec::transfer(recipient(serial), U256::from(serial))])
-}
 
 fn model_block(block: &ExecutedBlock, serial: u64, persisted_before_commit: u64) -> ModelBlock {
     let recovered = block.recovered_block();
@@ -64,7 +46,7 @@ fn model_block(block: &ExecutedBlock, serial: u64, persisted_before_commit: u64)
 /// store is gone before the store is reopened.
 struct ProofsNode {
     engine: EngineHandle<Block>,
-    store: StoreWithSaveFaults<Arc<MdbxProofsStorage>>,
+    store: StoreWithHooks<Arc<MdbxProofsStorage>>,
 }
 
 pub(super) struct Harness {
@@ -108,12 +90,10 @@ impl Harness {
             SimulatedReth::new(chain_spec, key_pair, config.persistence)?
         };
         let store_dir = TempDir::new()?;
-        let store = StoreWithSaveFaults::new(Arc::new(MdbxProofsStorage::new(store_dir.path())?));
+        let store = StoreWithHooks::new(Arc::new(MdbxProofsStorage::new(store_dir.path())?));
         initialize_storage(store.clone(), &reth.factory, reth.genesis())?;
         let engine = Self::spawn_engine(&reth, &store, config);
-        let targets = ProofTarget::accounts(
-            [sender, Address::ZERO].into_iter().chain((0..RECIPIENTS).map(recipient)),
-        );
+        let targets = proof_targets_for_transfers(sender);
         Ok(Self {
             config,
             engine_hung: false,
@@ -130,7 +110,7 @@ impl Harness {
 
     fn spawn_engine(
         reth: &SimulatedReth,
-        store: &StoreWithSaveFaults<Arc<MdbxProofsStorage>>,
+        store: &StoreWithHooks<Arc<MdbxProofsStorage>>,
         config: Config,
     ) -> EngineHandle<Block> {
         reth.spawn_engine_with_window(
@@ -149,7 +129,7 @@ impl Harness {
         &self.node().engine
     }
 
-    pub(super) const fn store(&self) -> &StoreWithSaveFaults<Arc<MdbxProofsStorage>> {
+    pub(super) const fn store(&self) -> &StoreWithHooks<Arc<MdbxProofsStorage>> {
         &self.node().store
     }
 
@@ -214,28 +194,21 @@ impl Harness {
     /// within [`STEP_TIMEOUT`], which a stalled engine would otherwise turn into a hang.
     pub(super) fn call<T: Send + 'static>(
         &mut self,
-        what: &str,
+        call_name: &'static str,
         call: impl FnOnce(EngineHandle<Block>) -> T + Send + 'static,
     ) -> eyre::Result<T> {
-        let engine = self.engine().clone();
-        let (reply_tx, reply_rx) = mpsc::channel();
-        thread::spawn(move || {
-            let _ = reply_tx.send(call(engine));
-        });
-        match reply_rx.recv_timeout(STEP_TIMEOUT) {
-            Ok(result) => Ok(result),
-            Err(mpsc::RecvTimeoutError::Timeout) => {
+        match PendingCall::spawn(self.engine().clone(), call_name, call).wait(STEP_TIMEOUT) {
+            Ok((result, _)) => Ok(result),
+            Err(err @ CallError::Hung { .. }) => {
                 self.engine_hung = true;
-                eyre::bail!("the engine did not reply to {what} within {STEP_TIMEOUT:?}")
+                Err(err.into())
             }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                eyre::bail!("the engine call {what} panicked")
-            }
+            Err(err) => Err(err.into()),
         }
     }
 
     pub(super) fn window(&self) -> eyre::Result<ProofWindowRange> {
-        Ok(self.store().provider_ro()?.get_proof_window()?)
+        proof_window(self.store())
     }
 
     const fn next_serial(&mut self) -> u64 {
@@ -247,7 +220,7 @@ impl Harness {
     fn commit_block(&mut self) -> eyre::Result<ExecutedBlock> {
         let serial = self.next_serial();
         let persisted_before_commit = self.reth.persisted().number;
-        let block = self.reth.commit(&block_spec(serial))?;
+        let block = self.reth.commit(&serial_transfer_block(serial))?;
         self.model.push(model_block(&block, serial, persisted_before_commit));
         Ok(block)
     }
@@ -255,7 +228,7 @@ impl Harness {
     /// Replaces reth's chain above `fork` with `length` new blocks, in reth and in the model.
     fn fork_chain(&mut self, fork: u64, length: u64) -> eyre::Result<Vec<ExecutedBlock>> {
         let serials: Vec<u64> = (0..length).map(|_| self.next_serial()).collect();
-        let specs: Vec<BlockSpec> = serials.iter().copied().map(block_spec).collect();
+        let specs: Vec<BlockSpec> = serials.iter().copied().map(serial_transfer_block).collect();
         // Every block of the fork becomes canonical with reth persisted at least this far.
         let persisted_before_the_fork = self.reth.persisted().number;
         let new = self.reth.reorg_with(fork + 1, &specs)?;
@@ -458,7 +431,7 @@ impl Harness {
         }
         self.flush()?;
         self.flush()?;
-        if self.store().disarm() {
+        if self.store().disarm_next_write() {
             self.log("  no save started, the injected failure is withdrawn".to_owned());
         }
         Ok(())
@@ -537,8 +510,7 @@ impl Harness {
         });
         self.node = None;
         self.reth.crash_and_restart()?;
-        let store =
-            StoreWithSaveFaults::new(Arc::new(MdbxProofsStorage::new(self.store_dir.path())?));
+        let store = StoreWithHooks::new(Arc::new(MdbxProofsStorage::new(self.store_dir.path())?));
         let engine = Self::spawn_engine(&self.reth, &store, self.config);
         self.node = Some(ProofsNode { engine, store });
         let tip = self.call("tip", |engine| engine.tip())??;
@@ -552,7 +524,7 @@ impl Harness {
         match rebuild {
             Rebuild::Same => {
                 for serial in lost {
-                    let block = self.reth.commit(&block_spec(serial))?;
+                    let block = self.reth.commit(&serial_transfer_block(serial))?;
                     let number = block.recovered_block().number();
                     eyre::ensure!(
                         block.recovered_block().hash() == self.model.block(number).hash,

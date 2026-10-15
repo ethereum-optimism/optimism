@@ -2,7 +2,9 @@
 //! and the comparison of two such views that names the first differing table and key.
 
 use alloy_primitives::{Address, B256, U256, keccak256};
-use reth_optimism_trie::{OpProofsProviderRO, OpProofsStore, proof::DatabaseProof};
+use reth_optimism_trie::{
+    OpProofsProviderRO, OpProofsStore, ProofWindowRange, proof::DatabaseProof,
+};
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::HashedCursor,
@@ -14,6 +16,11 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
+
+/// The store's window: its earliest and latest persisted blocks.
+pub(super) fn proof_window<S: OpProofsStore>(store: &S) -> eyre::Result<ProofWindowRange> {
+    Ok(store.provider_ro()?.get_proof_window()?)
+}
 
 /// An address whose proof, with these slots, every store must serve identically.
 pub(super) struct ProofTarget {
