@@ -87,6 +87,12 @@ func (sp *SubProcess) Exited() <-chan struct{} {
 	return sp.exited
 }
 
+// ExitErr returns what waiting on the process reported, nil for a clean exit. Exited must be
+// closed before it is called; that close is what publishes the value.
+func (sp *SubProcess) ExitErr() error {
+	return sp.waitErr
+}
+
 // Stop waits for the process to stop, interrupting the process if it has not completed and
 // interrupt is true.
 func (sp *SubProcess) Stop(interrupt bool) error {

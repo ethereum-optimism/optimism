@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSelectNewestBinaryPrefersFreshReleaseOverStaleDebug(t *testing.T) {
@@ -56,4 +58,9 @@ func writeStubBinary(t *testing.T, path string, mod time.Time) {
 	if err := os.Chtimes(path, mod, mod); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestOverrideEnvVarNames(t *testing.T) {
+	require.Equal(t, "RUST_BINARY_PATH_KONA_NODE", PathOverrideEnvVar("kona-node"))
+	require.Equal(t, "RUST_SRC_DIR_KONA_NODE", srcDirOverrideEnvVar("kona-node"))
 }
