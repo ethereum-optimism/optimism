@@ -170,6 +170,7 @@ var (
 	_ L2ELNode                       = (*OpReth)(nil)
 	_ stack.LogRecorder              = (*OpReth)(nil)
 	_ stack.ProofsHistoryInitializer = (*OpReth)(nil)
+	_ stack.ProofsHistoryUnwinder    = (*OpReth)(nil)
 	_ stack.UngracefulLifecycle      = (*OpReth)(nil)
 )
 
@@ -322,7 +323,7 @@ func (n *OpReth) nodeArgs() []string {
 // InitProofsHistory runs `op-reth proofs init` against this node's datadir and, when it succeeds,
 // makes the next Start run with proofs history on the seeded store. It does not stop the node:
 // what init does to a datadir the node is still writing to is the caller's concern.
-func (n *OpReth) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHistoryInitReport, error) {
+func (n *OpReth) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHistorySubcommandReport, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	window := n.proofsHistoryWindow
@@ -330,20 +331,48 @@ func (n *OpReth) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHi
 		window = init.Window
 	}
 	args := proofsHistoryInitArgs(n.chainConfigPath, n.dataDirPath, n.proofsHistoryStoragePath, window, init.PlainBackfill)
-	logger := n.p.Logger().New("name", n.name, "chain", n.chainID, "running", n.sub != nil)
-	logger.Info("Running op-reth proofs init", "cmd", n.execPath, "args", args)
-	started := time.Now()
-	output, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
-	report := stack.ProofsHistoryInitReport{Duration: time.Since(started), Output: string(output)}
+	report, err := n.runProofsHistorySubcommand("init", args)
 	if err != nil {
-		logger.Warn("op-reth proofs init failed", "duration", report.Duration, "err", err, "output", report.Output)
-		return report, fmt.Errorf("op-reth proofs init failed after %s: %w\n%s", report.Duration, err, report.Output)
+		return report, err
 	}
 	n.proofsHistoryEnabled = true
 	n.proofsHistoryWindow = window
-	logger.Info("op-reth proofs init succeeded; proofs history is on from the next start",
-		"duration", report.Duration, "window", resolveProofsHistoryWindow(window), "storage_path", n.proofsHistoryStoragePath)
-	logger.Debug("op-reth proofs init output", "output", report.Output)
+	n.p.Logger().Info("op-reth proofs init succeeded; proofs history is on from the next start",
+		"name", n.name, "chain", n.chainID, "duration", report.Duration,
+		"window", resolveProofsHistoryWindow(window), "storage_path", n.proofsHistoryStoragePath)
+	return report, nil
+}
+
+// UnwindProofsHistory runs `op-reth proofs unwind` against this node's datadir, which removes every
+// block above the target from the node's proofs-history store. It refuses a node whose store was
+// never seeded, since op-reth would create an empty store and report nothing to unwind. It does
+// not stop the node: what unwind does to a store the node is still writing to is the caller's
+// concern.
+func (n *OpReth) UnwindProofsHistory(unwind stack.ProofsHistoryUnwind) (stack.ProofsHistorySubcommandReport, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if !n.proofsHistoryEnabled {
+		return stack.ProofsHistorySubcommandReport{}, fmt.Errorf("op-reth %s has no seeded proofs-history store to unwind", n.name)
+	}
+	args := proofsHistoryUnwindArgs(n.chainConfigPath, n.dataDirPath, n.proofsHistoryStoragePath, unwind.Target)
+	return n.runProofsHistorySubcommand("unwind", args)
+}
+
+// runProofsHistorySubcommand runs the op-reth binary with args, a `proofs <subcommand>` invocation,
+// and reports its duration and output. The error of a failed run carries the output. Callers must
+// hold n.mu.
+func (n *OpReth) runProofsHistorySubcommand(subcommand string, args []string) (stack.ProofsHistorySubcommandReport, error) {
+	logger := n.p.Logger().New("name", n.name, "chain", n.chainID, "running", n.sub != nil, "subcommand", subcommand)
+	logger.Info("Running op-reth proofs subcommand", "cmd", n.execPath, "args", args)
+	started := time.Now()
+	output, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
+	report := stack.ProofsHistorySubcommandReport{Duration: time.Since(started), Output: string(output)}
+	if err != nil {
+		logger.Warn("op-reth proofs subcommand failed", "duration", report.Duration, "err", err, "output", report.Output)
+		return report, fmt.Errorf("op-reth proofs %s failed after %s: %w\n%s", subcommand, report.Duration, err, report.Output)
+	}
+	logger.Info("op-reth proofs subcommand succeeded", "duration", report.Duration)
+	logger.Debug("op-reth proofs subcommand output", "output", report.Output)
 	return report, nil
 }
 
@@ -385,6 +414,19 @@ func proofsHistoryInitArgs(chainConfigPath, dataDirPath, storagePath string, win
 		args = append(args, "--proofs-history.use-snapshot=false")
 	}
 	return args
+}
+
+// proofsHistoryUnwindArgs returns the `proofs unwind` invocation that removes every block above
+// target from the store at storagePath.
+func proofsHistoryUnwindArgs(chainConfigPath, dataDirPath, storagePath string, target uint64) []string {
+	return []string{
+		"proofs",
+		"unwind",
+		"--chain=" + chainConfigPath,
+		"--datadir=" + dataDirPath,
+		"--proofs-history.storage-path=" + storagePath,
+		"--target=" + strconv.FormatUint(target, 10),
+	}
 }
 
 // Callers must hold n.mu.

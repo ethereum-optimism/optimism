@@ -42,6 +42,7 @@ reth-tracing.workspace = true
 
 # eth
 alloy-consensus.workspace = true
+alloy-eips.workspace = true
 alloy-genesis.workspace = true
 alloy-primitives.workspace = true
 
@@ -60,8 +61,10 @@ op-alloy-consensus = { workspace = true, optional = true }
 
 [dev-dependencies]
 dirs-next.workspace = true
-tempfile.workspace = true
 metrics-exporter-prometheus.workspace = true
+reth-revm.workspace = true
+rstest.workspace = true
+tempfile.workspace = true
 
 [build-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-configs"] }

@@ -1,6 +1,8 @@
 //! Command that unwinds the OP proofs storage to a specific block number.
 
 use alloy_consensus::{BlockHeader, EMPTY_ROOT_HASH};
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
+use alloy_primitives::B256;
 use clap::Parser;
 use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
@@ -8,7 +10,7 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{
-    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore, ProofWindowRange,
     db::MdbxProofsStorage,
 };
 use reth_primitives_traits::BlockBody;
@@ -18,7 +20,11 @@ use tracing::{info, warn};
 
 /// Unwinds the proofs storage to a specific block number.
 ///
-/// This command removes all proof history and state updates after the target block number.
+/// This command removes all proof history and state updates after the target block number, so
+/// the target becomes the latest block in the proofs storage. A target at or above the latest
+/// block leaves the storage untouched. A target below the earliest block is refused: the earliest
+/// block carries the state the storage was initialized or backfilled to, and nothing below it can
+/// be reconstructed.
 #[derive(Debug, Parser)]
 pub struct UnwindCommand<C: ChainSpecParser> {
     #[command(flatten)]
@@ -30,35 +36,44 @@ pub struct UnwindCommand<C: ChainSpecParser> {
 
     /// The target block number to unwind to.
     ///
-    /// All history *after* this block will be removed.
+    /// All history *after* this block will be removed; the target block stays and becomes the
+    /// latest block in the proofs storage.
     #[arg(long, value_name = "TARGET_BLOCK")]
     pub target: u64,
 }
 
 impl<C: ChainSpecParser> UnwindCommand<C> {
-    /// Validates that the target block number is within a valid range for unwinding.
-    fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
-        let provider_ro = storage.provider_ro()?;
-        let window = match provider_ro.get_proof_window() {
-            Ok(w) => w,
+    /// Returns the proof window when it holds blocks above the target, and `None` when there is
+    /// nothing to unwind. A target below the earliest block is an error.
+    fn window_to_unwind<Store: OpProofsStore>(
+        &self,
+        storage: Store,
+    ) -> eyre::Result<Option<ProofWindowRange>> {
+        let window = match storage.provider_ro()?.get_proof_window() {
+            Ok(window) => window,
             Err(OpProofsStorageError::NoBlocksFound) => {
                 warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
-                return Ok(false);
+                return Ok(None);
             }
             Err(err) => return Err(err.into()),
         };
 
-        if self.target <= window.earliest.number {
-            warn!(target: "reth::cli", unwind_target = ?self.target, earliest = window.earliest.number, "Target block is less than the earliest block in proofs storage. Nothing to unwind.");
-            return Ok(false);
+        if self.target < window.earliest.number {
+            return Err(eyre::eyre!(
+                "Target block {} is below the earliest block {} in proofs storage; the storage \
+                 holds no state below the block it was initialized or backfilled to. Delete the \
+                 storage and run `proofs init` to seed it again instead.",
+                self.target,
+                window.earliest.number
+            ));
         }
 
-        if self.target > window.latest.number {
-            warn!(target: "reth::cli", unwind_target = ?self.target, latest = window.latest.number, "Target block is not less than the latest block in proofs storage. Nothing to unwind.");
-            return Ok(false);
+        if self.target >= window.latest.number {
+            warn!(target: "reth::cli", unwind_target = self.target, latest = window.latest.number, "Target block is not below the latest block in proofs storage. Nothing to unwind.");
+            return Ok(None);
         }
 
-        Ok(true)
+        Ok(Some(window))
     }
 }
 
@@ -86,16 +101,15 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
         Ok(())
     }
 
-    /// Validate the unwind range and unwind the proofs storage to the target block.
+    /// Validate the target against the proof window and remove every block above it.
     fn run_unwind<S, F>(&self, storage: S, provider_factory: &F) -> eyre::Result<()>
     where
         S: OpProofsStore + Clone,
         F: BlockReader,
     {
-        // Validate that the target block is within a valid range for unwinding
-        if !self.validate_unwind_range(storage.clone())? {
+        let Some(window) = self.window_to_unwind(storage.clone())? else {
             return Ok(());
-        }
+        };
 
         // Get the target block from the main database
         let block = provider_factory
@@ -105,7 +119,7 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
             })?;
 
         // Refuse to unwind when reth has pruned the target block's body. The unwind itself
-        // would technically succeed (we only need `block_with_parent()`), but re-backfilling
+        // would technically succeed (we only need the target's hash), but re-backfilling
         // afterward is impossible on the same node, so the operator would be left without a
         // way to resume from this point. Fail fast with a clear remediation instead.
         if block.header().transactions_root() != EMPTY_ROOT_HASH &&
@@ -119,10 +133,28 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
             ));
         }
 
-        info!(target: "reth::cli", block_number = block.number(), block_hash = %block.hash(), "Unwinding to target block");
+        // The storage removes every block from the given block's number on and keeps the given
+        // parent hash as its tip; the removed block's own hash is not part of that contract, and
+        // reth does not hold it when the storage is ahead of reth's tip.
+        let first_removed_block =
+            BlockWithParent::new(block.hash(), NumHash::new(self.target + 1, B256::ZERO));
+
+        info!(
+            target: "reth::cli",
+            target = self.target,
+            target_hash = %block.hash(),
+            latest = window.latest.number,
+            "Unwinding proofs storage to target block"
+        );
         let provider_rw = storage.provider_rw()?;
-        provider_rw.unwind_history(block.block_with_parent())?;
+        provider_rw.unwind_history(first_removed_block)?;
         provider_rw.commit()?;
+        info!(
+            target: "reth::cli",
+            earliest = window.earliest.number,
+            latest = self.target,
+            "Proofs storage unwound"
+        );
 
         Ok(())
     }
