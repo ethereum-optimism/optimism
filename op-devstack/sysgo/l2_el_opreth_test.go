@@ -125,6 +125,58 @@ func TestInitProofsHistoryEnablesProofsHistoryOnSuccessOnly(t *testing.T) {
 	}
 }
 
+func TestProofsHistoryUnwindArgs(t *testing.T) {
+	args := proofsHistoryUnwindArgs("/genesis.json", "/data", "/proofs", 42)
+
+	require.Equal(t, []string{
+		"proofs",
+		"unwind",
+		"--chain=/genesis.json",
+		"--datadir=/data",
+		"--proofs-history.storage-path=/proofs",
+		"--target=42",
+	}, args)
+}
+
+func TestUnwindProofsHistoryReportsTheOutcomeAndLeavesTheNodeConfigAlone(t *testing.T) {
+	const echoedArgs = "proofs unwind --chain=/genesis.json --datadir=/data --proofs-history.storage-path=/proofs --target=42\n"
+	for _, tc := range []struct {
+		name        string
+		exitCode    int
+		storeSeeded bool
+		wantErr     string
+		wantOutput  string
+	}{
+		{name: "success", exitCode: 0, storeSeeded: true, wantErr: "", wantOutput: echoedArgs},
+		{name: "failure carries the output", exitCode: 1, storeSeeded: true, wantErr: "op-reth proofs unwind failed", wantOutput: echoedArgs},
+		{name: "a node without a seeded store is refused before op-reth runs", exitCode: 0, storeSeeded: false, wantErr: "has no seeded proofs-history store", wantOutput: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			n := newTestOpReth(t, fakeOpReth(t, tc.exitCode))
+			n.proofsHistoryEnabled = tc.storeSeeded
+
+			report, err := n.UnwindProofsHistory(stack.ProofsHistoryUnwind{Target: 42})
+
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.wantErr)
+			}
+			if tc.wantOutput != "" {
+				require.Equal(t, tc.wantOutput, report.Output, "the fake binary echoes the arguments it got")
+				require.Positive(t, report.Duration)
+			} else {
+				require.Empty(t, report.Output, "op-reth must not have run")
+			}
+			if tc.exitCode != 0 {
+				require.ErrorContains(t, err, echoedArgs, "the error must carry the subcommand's output")
+			}
+			require.Equal(t, tc.storeSeeded, n.proofsHistoryEnabled, "unwind does not change whether proofs history is on")
+			require.Equal(t, uint64(25), n.proofsHistoryWindow, "unwind does not change the window")
+		})
+	}
+}
+
 // fakeOpReth writes a script that echoes its arguments and exits with exitCode, standing in for
 // the op-reth binary.
 func fakeOpReth(t *testing.T, exitCode int) string {

@@ -69,6 +69,7 @@ pub enum PrunerError {
     Provider(#[from] ProviderError),
 
     /// Block not found in the underlying reth storage provider.
+    #[strum(to_string = "block {0} not found in the reth database")]
     BlockNotFound(u64),
 
     /// The pruner timed out before finishing the prune
