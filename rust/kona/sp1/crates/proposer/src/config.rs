@@ -674,7 +674,29 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
+
+    /// Removes every `OP_ZK_PROPOSER_*` variable.
+    fn clear_proposer_env() {
+        for (name, _) in env::vars_os() {
+            if name.to_string_lossy().starts_with(crate::ENV_VAR_PREFIX) {
+                // SAFETY: The environment-mutating tests in this crate are serialized.
+                unsafe { env::remove_var(name) };
+            }
+        }
+    }
+
+    fn set_proposer_env(suffix: &str, value: &str) {
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { env::set_var(env_var(suffix), value) };
+    }
+
+    fn remove_proposer_env(suffix: &str) {
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { env::remove_var(env_var(suffix)) };
+    }
 
     #[test]
     fn proposal_safety_parsing() {
@@ -810,12 +832,12 @@ mod tests {
             );
         }
 
-        /// Safe under nextest's process-per-test model; environment mutation
-        /// is `unsafe` on edition 2024.
         #[test]
+        #[serial]
         fn empty_explicit_factory_does_not_fall_back() {
+            clear_proposer_env();
+            set_proposer_env("FACTORY_ADDRESS", "");
             let name = env_var("FACTORY_ADDRESS");
-            unsafe { env::set_var(&name, "") };
 
             let explicit_factory_address = explicit_factory_address_env().unwrap();
             let err =
@@ -835,10 +857,6 @@ mod tests {
 
     mod proving_config {
         use super::*;
-
-        fn set_proposer_env(suffix: &str, value: &str) {
-            unsafe { env::set_var(env_var(suffix), value) };
-        }
 
         #[test]
         fn proof_provider_kind_parse_rejects_unknown() {
@@ -906,10 +924,10 @@ mod tests {
             assert!(RangeSplitCount::one().split(6, 5).is_err());
         }
 
-        /// Safe under nextest's process-per-test model; environment mutation
-        /// is `unsafe` on edition 2024.
         #[test]
+        #[serial]
         fn auction_period_crowding_the_cancel_timeout_is_rejected() {
+            clear_proposer_env();
             // An auction needs assignment margin before the cancellation timeout.
             set_proposer_env("AUCTION_TIMEOUT", "300");
             for crowding in ["300", "290"] {
@@ -923,10 +941,10 @@ mod tests {
             assert_eq!(ProofProviderConfig::from_env().unwrap().min_auction_period, 270);
         }
 
-        /// Safe under nextest's process-per-test model; environment mutation
-        /// is `unsafe` on edition 2024.
         #[test]
+        #[serial]
         fn from_env_requires_defend_path_vars() {
+            clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545,http://127.0.0.1:9546");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
@@ -955,7 +973,7 @@ mod tests {
             assert_eq!(config.max_game_deadline_lag, MAX_GAME_DEADLINE_LAG);
             set_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS", "2419200");
             assert_eq!(ProposerConfig::from_env(None).unwrap().max_game_deadline_lag, 2_419_200);
-            unsafe { env::remove_var(env_var("MAX_GAME_DEADLINE_LAG_SECONDS")) };
+            remove_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS");
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
             assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
@@ -981,10 +999,11 @@ mod tests {
             assert_eq!(config.proof_provider_config.max_price_per_pgu, None);
         }
 
-        /// Zero disables the explicit SPN price ceiling while positive values
-        /// are preserved. Safe under nextest's process-per-test model.
+        /// Zero disables the explicit SPN price ceiling while positive values are preserved.
         #[test]
+        #[serial]
         fn max_price_per_pgu_zero_disables_explicit_ceiling() {
+            clear_proposer_env();
             set_proposer_env("MAX_PRICE_PER_PGU", "0");
             assert_eq!(ProofProviderConfig::from_env().unwrap().max_price_per_pgu, None);
 
@@ -995,11 +1014,11 @@ mod tests {
             );
         }
 
-        /// A zero defense cap would silently disable defense entirely;
-        /// `NonZeroU64` parsing rejects it at startup. Safe under nextest's
-        /// process-per-test model; env mutation is `unsafe` on edition 2024.
+        /// Pins startup rejection of a zero `MAX_CONCURRENT_DEFENSE_TASKS`.
         #[test]
+        #[serial]
         fn zero_defense_cap_is_rejected() {
+            clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
@@ -1015,10 +1034,11 @@ mod tests {
             );
         }
 
-        /// Zero SPN timeouts prevent useful polling. Safe under nextest's
-        /// process-per-test model.
+        /// Pins startup rejection of each zero SPN timeout.
         #[test]
+        #[serial]
         fn zero_spn_timeouts_are_rejected() {
+            clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
@@ -1031,7 +1051,7 @@ mod tests {
                 let err = ProposerConfig::from_env(None).unwrap_err().to_string();
                 let name = env_var(var);
                 assert!(err.contains(&name), "expected {name} rejection, got: {err}");
-                unsafe { env::remove_var(name) };
+                remove_proposer_env(var);
             }
         }
     }
