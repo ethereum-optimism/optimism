@@ -9,7 +9,7 @@
 //! comparison runs over the persisted history once everything is flushed.
 
 use super::{
-    BlockSpec, TxSpec, block_timestamp, chain_spec_builder,
+    Backend, BlockSpec, FlushCadence, TxSpec, block_timestamp, chain_spec_builder,
     contracts::{
         BLOCK_HASH_RECORDER_RUNTIME, BLOCK_HASH_SLOT, CALLED_SLOT, CREATE_AND_SELFDESTRUCT_SLOTS,
         SLOT_WRITER_SLOTS, block_number_calldata, create_and_selfdestruct_initcode,
@@ -240,25 +240,6 @@ impl StateChange {
         }
         Ok(())
     }
-}
-
-/// The engine's persistence and backpressure thresholds.
-#[derive(Clone, Copy, Debug)]
-struct FlushCadence {
-    backpressure: u64,
-    persistence: u64,
-}
-
-impl FlushCadence {
-    const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
-    const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
-}
-
-/// Which store implementation the indexed and executed stores use.
-#[derive(Clone, Copy, Debug)]
-enum Backend {
-    InMemory,
-    Mdbx,
 }
 
 /// How a backfill reads the trie state it rewinds from.
