@@ -105,7 +105,7 @@ This behavior differs from [standard ETH transfers](https://docs.base.org/learn/
 
 If the destination never relays the message, it [expires](/app-developers/guides/interoperability/message-expiration). Once the source chain's `L2ToL2CrossDomainMessenger` reports the message in `expiredMessages`, the sender can call `SuperchainETHBridge.refundETH` with the send's destination chain ID, message nonce, recipient and amount, and the ETH goes back to the sender, once, again through `SafeSend`.
 
-Only the address that called `sendETH` can claim the refund. A contract that sends on a user's behalf must call `refundETH` itself and pass the ETH on. A relayed interop message cannot call `sendETH`: the relay reverts. A message from L1 can, but the send's sender is then the `L2CrossDomainMessenger`, which cannot spend a refund, so that ETH is lost if the send expires.
+Only the address that called `sendETH` can claim the refund. A contract that sends on a user's behalf must call `refundETH` itself and pass the ETH on. A relayed interop message cannot call `sendETH`: the relay reverts. A message from L1 can, but the send's sender is then the `L2CrossDomainMessenger`, which cannot spend a refund, so that ETH is lost if the send expires. To send ETH from L1 refundably, deposit it to your own address through the portal and call `sendETH` from there.
 
 ## L1 Treasury
 
