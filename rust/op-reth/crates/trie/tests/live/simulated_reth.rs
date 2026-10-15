@@ -7,6 +7,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use reth_chain_state::{CanonicalInMemoryState, ExecutedBlock, NewCanonicalChain};
 use reth_chainspec::ChainSpec;
+use reth_db::test_utils::{create_test_rw_db_with_datadir, tempdir_path};
 use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::Block;
 use reth_evm::{ConfigureEvm, execute::Executor};
@@ -18,8 +19,8 @@ use reth_optimism_trie::{
 use reth_primitives_traits::RecoveredBlock;
 use reth_provider::{
     HashedPostStateProvider, ProviderFactory, SaveBlocksInput, StateProviderFactory,
-    StateRootProvider,
-    providers::BlockchainProvider,
+    StateRootProvider, StaticFileProviderFactory, StaticFileSegment,
+    providers::{BlockchainProvider, RocksDBBuilder, StaticFileProviderBuilder},
     test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
 };
 use reth_revm::database::StateProviderDatabase;
@@ -136,6 +137,38 @@ impl SimulatedReth {
         persistence: RethPersistence,
     ) -> eyre::Result<Self> {
         let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+        Self::over_factory(chain_spec, key_pair, persistence, factory)
+    }
+
+    /// reth keeping its transactions in static files of `blocks_per_file` blocks, the unit in
+    /// which [`Self::prune_bodies_through`] removes them.
+    pub(super) fn with_body_files_of(
+        chain_spec: Arc<ChainSpec>,
+        key_pair: Keypair,
+        persistence: RethPersistence,
+        blocks_per_file: u64,
+    ) -> eyre::Result<Self> {
+        let datadir = tempdir_path();
+        let static_files = datadir.join("static_files");
+        std::fs::create_dir_all(&static_files)?;
+        let factory = ProviderFactory::new(
+            create_test_rw_db_with_datadir(&datadir),
+            chain_spec.clone(),
+            StaticFileProviderBuilder::read_write(static_files)
+                .with_blocks_per_file_for_segment(StaticFileSegment::Transactions, blocks_per_file)
+                .build()?,
+            RocksDBBuilder::new(datadir.join("rocksdb")).with_default_tables().build()?,
+            reth_tasks::Runtime::test(),
+        )?;
+        Self::over_factory(chain_spec, key_pair, persistence, factory)
+    }
+
+    fn over_factory(
+        chain_spec: Arc<ChainSpec>,
+        key_pair: Keypair,
+        persistence: RethPersistence,
+        factory: ProviderFactory<MockNodeTypesWithDB>,
+    ) -> eyre::Result<Self> {
         init_genesis(&factory)?;
         let provider = BlockchainProvider::new(factory.clone())?;
         let genesis = BlockNumHash::new(0, chain_spec.genesis_hash());
@@ -301,6 +334,22 @@ impl SimulatedReth {
             new.push(self.commit(spec)?);
         }
         Ok(new)
+    }
+
+    /// Deletes bodies reth has persisted at or below `number` the way reth's bodies pruner does
+    /// with `number` as its target: whole static files of transactions, never the newest one, so
+    /// a file reaching past `number` survives. reth then refuses every block below its lowest
+    /// remaining file as `BlockExpired`. Returns the newest block this call pruned.
+    ///
+    /// reth's pruner keeps at least `MINIMUM_DISTANCE` blocks below the height the proofs ExEx
+    /// acknowledged and only runs after a save; a caller passing the acknowledged height itself
+    /// models the worst case.
+    pub(super) fn prune_bodies_through(&self, number: u64) -> eyre::Result<Option<u64>> {
+        let deleted = self
+            .factory
+            .static_file_provider()
+            .delete_segment_below_block(StaticFileSegment::Transactions, number + 1)?;
+        Ok(deleted.iter().filter_map(|header| header.block_range()).map(|range| range.end()).max())
     }
 
     /// Writes every canonical block to the database without evicting any from memory, the state
