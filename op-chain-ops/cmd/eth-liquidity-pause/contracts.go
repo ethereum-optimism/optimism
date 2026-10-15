@@ -18,19 +18,23 @@ import (
 )
 
 // syncSignature is the permissionless L1CrossDomainMessenger entrypoint that reads the chain's
-// L1 pause (SuperchainConfig, scoped to the chain's ETHLockbox) and deposits
-// ETHLiquidity.setPaused(paused, l1Timestamp) to L2.
+// L1 pause (SuperchainConfig, scoped to the chain's ETHLockbox) and sends
+// ETHLiquidity.setPaused(paused, messageNonce) to L2, where messageNonce is the versioned nonce
+// of that cross-domain message.
 const syncSignature = "syncETHLiquidityPause()"
 
 var (
 	// L2 predeploys.
-	pausedFn            = w3.MustNewFunc("paused()", "bool")
-	pausedL1TimestampFn = w3.MustNewFunc("pausedL1Timestamp()", "uint256")
-	sendETHFn           = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
+	pausedFn             = w3.MustNewFunc("paused()", "bool")
+	pausedMessageNonceFn = w3.MustNewFunc("pausedMessageNonce()", "uint256")
+	setPausedFn          = w3.MustNewFunc("setPaused(bool,uint256)", "")
+	sendETHFn            = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
+	failedMessagesFn     = w3.MustNewFunc("failedMessages(bytes32)", "bool")
 
 	// L1CrossDomainMessenger.
 	syncFn         = w3.MustNewFunc(syncSignature, "")
 	systemConfigFn = w3.MustNewFunc("systemConfig()", "address")
+	sentMessageEvt = w3.MustNewEvent("SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit)")
 
 	// SystemConfig.
 	l2ChainIDFn      = w3.MustNewFunc("l2ChainId()", "uint256")
@@ -68,8 +72,8 @@ var knownErrors = func() map[[4]byte]string {
 		"SuperchainConfig_OnlyGuardian()",
 		"SuperchainConfig_AlreadyPaused(address)",
 		"SuperchainConfig_NotAlreadyPaused(address)",
-		"Error(string)",
-		"Panic(uint256)",
+		errorSignature,
+		panicSignature,
 	} {
 		m[selector(sig)] = sig
 	}
@@ -78,6 +82,17 @@ var knownErrors = func() map[[4]byte]string {
 
 // pausedErrorName is the error ETHLiquidity raises from burn() and mint() while paused.
 const pausedErrorName = "ETHLiquidity_Paused()"
+
+// The Solidity built-in errors: require/revert reasons and compiler-inserted panics.
+const (
+	errorSignature = "Error(string)"
+	panicSignature = "Panic(uint256)"
+)
+
+var (
+	errorSelector = selector(errorSignature)
+	panicSelector = selector(panicSignature)
+)
 
 func selector(sig string) [4]byte {
 	var s [4]byte
@@ -138,10 +153,30 @@ func decodeRevert(err error) *revertInfo {
 	copy(sel[:], data[:4])
 	info.Selector = "0x" + hex.EncodeToString(sel[:])
 	info.Name = knownErrors[sel]
-	if reason, err := abi.UnpackRevert(data); err == nil {
-		info.Name = fmt.Sprintf("Error(%q)", reason)
+	switch sel {
+	case errorSelector:
+		if args, err := (abi.Arguments{{Type: stringType}}).Unpack(data[4:]); err == nil {
+			info.Name = fmt.Sprintf("Error(%q)", args[0])
+		}
+	case panicSelector:
+		if args, err := (abi.Arguments{{Type: uint256Type}}).Unpack(data[4:]); err == nil {
+			info.Name = fmt.Sprintf("Panic(%#x)", args[0])
+		}
 	}
 	return info
+}
+
+var (
+	stringType  = mustABIType("string")
+	uint256Type = mustABIType("uint256")
+)
+
+func mustABIType(t string) abi.Type {
+	typ, err := abi.NewType(t, "", nil)
+	if err != nil {
+		panic(err)
+	}
+	return typ
 }
 
 // callView performs an eth_call of fn on to and decodes the result into out. A nil block reads
