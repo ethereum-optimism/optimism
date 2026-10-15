@@ -35,7 +35,6 @@ op-batcher/batcher | missing go-ethereum/core/types.Header.BlockAccessListHash |
 op-batcher/batcher (tests) | changed signature of go-ethereum/core/types.NewBlock | predates the ratchet
 op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | predates the ratchet
 op-batcher/batcher (tests) | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
-op-chain-ops/cmd/receipt-reference-builder | missing go-ethereum/core/types.Transaction.EffectiveNonce | predates the ratchet
 op-chain-ops/genesis | missing go-ethereum/consensus/misc/eip1559.EncodeHoloceneExtraData | predates the ratchet
 op-chain-ops/genesis | missing go-ethereum/consensus/misc/eip1559.EncodeJovianExtraData | predates the ratchet
 op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.BedrockBlock | predates the ratchet
