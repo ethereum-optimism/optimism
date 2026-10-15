@@ -161,6 +161,32 @@ func (el *L2ELNode) VerifyProofsMatchAt(reference *L2ELNode, block uint64, accou
 	el.verifyProofsMatchAt(reference, block, window, accounts, DefaultProofsCatchUpTimeout)
 }
 
+// VerifyWithdrawalsRootAt requires the header of block to carry, as its withdrawalsRoot, the
+// L2ToL1MessagePasser storage root this node's eth_getProof serves at that block, with the proof
+// verifying against the header's state root, and returns the header. Only valid from Isthmus on:
+// before it the field is the hash of an empty withdrawals list and the check fails.
+func (el *L2ELNode) VerifyWithdrawalsRootAt(block uint64) eth.BlockInfo {
+	header := el.awaitHeaderByNumber(block, DefaultProofsCatchUpTimeout)
+	el.require.NotNilf(header.WithdrawalsRoot(), "block %d on %s carries no withdrawalsRoot", block, el.inner.Name())
+	proof := el.awaitProof(header, ProofAccount{Address: predeploys.L2ToL1MessagePasserAddr}, DefaultProofsCatchUpTimeout)
+	NormalizeProofResponse(proof)
+	el.require.NoErrorf(VerifyAccountProof(proof, header.Root()),
+		"block %d (%s): the L2ToL1MessagePasser proof from %s does not verify against state root %s",
+		block, header.Hash(), el.inner.Name(), header.Root())
+	el.requireWithdrawalsRootIsStorageRoot(header, proof.StorageHash)
+	el.log.Debug("Withdrawals root is the message passer's storage root", "name", el.inner.Name(), "block", block,
+		"withdrawals_root", proof.StorageHash)
+	return header
+}
+
+// requireWithdrawalsRootIsStorageRoot requires the header's withdrawalsRoot to be storageRoot, the
+// L2ToL1MessagePasser storage root this node serves at that block.
+func (el *L2ELNode) requireWithdrawalsRootIsStorageRoot(header eth.BlockInfo, storageRoot common.Hash) {
+	el.require.Equalf(*header.WithdrawalsRoot(), storageRoot,
+		"block %d (%s): the withdrawalsRoot on %s is not the L2ToL1MessagePasser storage root its eth_getProof serves",
+		header.NumberU64(), header.Hash(), el.inner.Name())
+}
+
 func (el *L2ELNode) verifyProofsMatchAt(reference *L2ELNode, block uint64, window ProofsSyncStatus, accounts []ProofAccount, catchUpTimeout time.Duration) {
 	el.require.Truef(window.serves(block), "proofs store on %s does not serve block %d: window %s", el.inner.Name(), block, window)
 
@@ -194,8 +220,7 @@ func (el *L2ELNode) verifyAccountProofMatchesAt(reference *L2ELNode, header eth.
 	// Isthmus made withdrawalsRoot the message passer's storage root. Before that the header
 	// carries the hash of an empty withdrawals list, which says nothing about the message passer.
 	if account.Address == predeploys.L2ToL1MessagePasserAddr && header.WithdrawalsRoot() != nil && *header.WithdrawalsRoot() != types.EmptyWithdrawalsHash {
-		el.require.Equalf(*header.WithdrawalsRoot(), proof.StorageHash,
-			"block %d: L2ToL1MessagePasser storage root from %s does not equal the header's withdrawalsRoot", block, el.inner.Name())
+		el.requireWithdrawalsRootIsStorageRoot(header, proof.StorageHash)
 	}
 	el.log.Debug("Historical proof matches the reference", "name", el.inner.Name(), "block", block,
 		"account", account.Address, "storage_keys", len(account.StorageKeys))

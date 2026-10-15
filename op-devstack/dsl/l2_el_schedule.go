@@ -94,6 +94,16 @@ func (el *L2ELNode) AdvancedOnSchedule(blocks uint64, blockTime time.Duration) {
 	el.require.NoError(el.AdvancedOnScheduleFn(blocks, blockTime)())
 }
 
+// CaughtUpToSchedule waits until the unsafe head's slot is still open, that is until a chain that
+// started behind the wall clock and built blocks back to back has caught up with it, and returns
+// that head.
+func (el *L2ELNode) CaughtUpToSchedule(blockTime time.Duration) eth.L2BlockRef {
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "block_time", blockTime)
+	head, err := el.caughtUpToSchedule(logger, blockTime, blockTime/scheduleSamplesPerBlock)
+	el.require.NoError(err)
+	return head
+}
+
 // blockUnderHead returns the block at number, which is head itself or one of its ancestors.
 func (el *L2ELNode) blockUnderHead(head eth.L2BlockRef, number uint64) (eth.L2BlockRef, error) {
 	if number == head.Number {
