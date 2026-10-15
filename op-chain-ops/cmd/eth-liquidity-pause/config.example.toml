@@ -3,14 +3,15 @@
 # Each command ignores keys it doesn't register, so one file can serve every command.
 
 # --- Every command ---
-# One entry per chain. l1-messenger[i] is the L1CrossDomainMessenger proxy of the chain at l2[i].
-# status works without l1 / l1-messenger (L2 side only); sync and devnet-* need them.
-l1 = "http://localhost:8545"
 l2 = ["http://localhost:9545", "http://localhost:9546"]
-l1-messenger = [
-  "0x0000000000000000000000000000000000000000",
-  "0x0000000000000000000000000000000000000000",
-]
+# status works without l1 / l1-messenger (L2 side only); sync and devnet-* need them. Uncomment
+# both and give one l1-messenger per l2 entry, in the same order: l1-messenger[i] is the
+# L1CrossDomainMessenger proxy of the chain at l2[i].
+# l1 = "http://localhost:8545"
+# l1-messenger = [
+#   "<L1CrossDomainMessenger proxy of l2[0]>",
+#   "<L1CrossDomainMessenger proxy of l2[1]>",
+# ]
 
 # --- status ---
 # Sender of the sendETH eth_call; its balance is overridden, so any address works.

@@ -10,11 +10,11 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 const (
@@ -30,9 +30,10 @@ type chainStatus struct {
 	// an ETHLiquidity without the pause).
 	L2Paused      *bool  `json:"l2Paused"`
 	L2PausedError string `json:"l2PausedError,omitempty"`
-	// L2PausedL1Timestamp is ETHLiquidity.pausedL1Timestamp(), the L1 timestamp of the last
-	// applied sync (0 if never synced); nil if paused() failed.
-	L2PausedL1Timestamp *uint64 `json:"l2PausedL1Timestamp,omitempty"`
+	// L2PausedMessageNonce is ETHLiquidity.pausedMessageNonce(), the versioned
+	// L1CrossDomainMessenger nonce of the last applied sync (0 if never synced); nil if paused()
+	// failed.
+	L2PausedMessageNonce *hexutil.Big `json:"l2PausedMessageNonce,omitempty"`
 	// SendETHReverts reports whether the SuperchainETHBridge.sendETH eth_call reverted.
 	SendETHReverts bool        `json:"sendETHReverts"`
 	SendETHRevert  *revertInfo `json:"sendETHRevert,omitempty"`
@@ -55,11 +56,12 @@ func statusAction(c *cli.Context) error {
 	if !common.IsHexAddress(fromStr) {
 		return fmt.Errorf("--from %q is not an address", fromStr)
 	}
-	pairs, err := pairChains(c.StringSlice(L2RPCs.Name), c.StringSlice(L1Messengers.Name), false)
+	messengers := c.StringSlice(L1Messengers.Name)
+	pairs, err := pairChains(c.StringSlice(L2RPCs.Name), messengers, false)
 	if err != nil {
 		return err
 	}
-	conn, err := connect(ctx, c.String(L1RPC.Name), pairs)
+	conn, err := connect(ctx, c.String(L1RPC.Name), pairs, len(messengers) > 0)
 	if err != nil {
 		return err
 	}
@@ -75,7 +77,10 @@ func statusAction(c *cli.Context) error {
 		statuses = append(statuses, st)
 	}
 
+	// In JSON mode stdout carries only the JSON document, so the --expect verdict goes to stderr.
+	verdictOut := c.App.Writer
 	if c.Bool(JSON.Name) {
+		verdictOut = c.App.ErrWriter
 		enc := json.NewEncoder(c.App.Writer)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(statuses); err != nil {
@@ -95,7 +100,7 @@ func statusAction(c *cli.Context) error {
 	if len(problems) > 0 {
 		return fmt.Errorf("expected every chain %s:\n  %s", expect, strings.Join(problems, "\n  "))
 	}
-	_, _ = fmt.Fprintf(c.App.Writer, "OK: every chain is %s\n", expect)
+	_, _ = fmt.Fprintf(verdictOut, "OK: every chain is %s\n", expect)
 	return nil
 }
 
@@ -104,18 +109,15 @@ func statusAction(c *cli.Context) error {
 func readStatus(ctx context.Context, conn *connection, ch chain, from common.Address, destination uint64) (chainStatus, error) {
 	st := chainStatus{ChainID: ch.L2.ChainID, RPC: ch.L2.URL, L1: ch.L1}
 
-	paused, err := l2Paused(ctx, ch.L2)
+	paused, err := l2Paused(ctx, ch.L2, nil)
 	switch {
 	case err == nil:
 		st.L2Paused = &paused
-		var ts big.Int
-		if err := callView(ctx, ch.L2.Eth, predeploys.ETHLiquidityAddr, nil, pausedL1TimestampFn, &ts); err != nil {
-			return st, fmt.Errorf("ETHLiquidity.pausedL1Timestamp(): %w", err)
+		nonce, err := l2PausedMessageNonce(ctx, ch.L2, nil)
+		if err != nil {
+			return st, err
 		}
-		if ts.IsUint64() {
-			v := bigs.Uint64Strict(&ts)
-			st.L2PausedL1Timestamp = &v
-		}
+		st.L2PausedMessageNonce = (*hexutil.Big)(nonce)
 	case decodeRevert(err) != nil:
 		st.L2PausedError = decodeRevert(err).String()
 	default:
@@ -220,11 +222,11 @@ func printStatus(w io.Writer, statuses []chainStatus) {
 		_, _ = fmt.Fprintf(w, "chain %d (%s)\n", st.ChainID, st.RPC)
 		_, _ = fmt.Fprintf(w, "  L2 ETHLiquidity.paused(): %s", fmtBool(st.L2Paused, st.L2PausedError))
 		switch {
-		case st.L2PausedL1Timestamp == nil:
-		case *st.L2PausedL1Timestamp == 0:
+		case st.L2PausedMessageNonce == nil:
+		case st.L2PausedMessageNonce.ToInt().Sign() == 0:
 			_, _ = fmt.Fprintf(w, " (never synced)")
 		default:
-			_, _ = fmt.Fprintf(w, " (synced from L1 timestamp %d)", *st.L2PausedL1Timestamp)
+			_, _ = fmt.Fprintf(w, " (synced by %s)", fmtMessageNonce(st.L2PausedMessageNonce.ToInt()))
 		}
 		_, _ = fmt.Fprintln(w)
 		if st.SendETHReverts {

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
@@ -79,6 +80,9 @@ func pairChains(l2s, messengers []string, requireMessengers bool) ([]chainPair, 
 			return nil, fmt.Errorf("--l1-messenger %q is not an address", messengers[i])
 		}
 		pairs[i].Messenger = common.HexToAddress(messengers[i])
+		if pairs[i].Messenger == (common.Address{}) {
+			return nil, fmt.Errorf("--l1-messenger for --l2 %s is the zero address; give the chain's L1CrossDomainMessenger proxy", l2)
+		}
 	}
 	return pairs, nil
 }
@@ -95,12 +99,18 @@ type l1Backend interface {
 	ethereum.TransactionSender
 }
 
+// l2Reader is the L2 RPC surface the tool reads through; *ethclient.Client implements it.
+type l2Reader interface {
+	ethereum.ContractCaller
+	ethereum.BlockNumberReader
+}
+
 // l2Client is a dialed L2 endpoint. Geth (state-override eth_call) is nil in tests that only
-// read paused().
+// read ETHLiquidity.
 type l2Client struct {
 	URL     string
 	ChainID uint64
-	Eth     ethereum.ContractCaller
+	Eth     l2Reader
 	Geth    *gethclient.Client
 	close   func()
 }
@@ -162,17 +172,20 @@ func (c *connection) l2ChainIDs() []uint64 {
 	return ids
 }
 
-// connect dials every endpoint and resolves each chain's L1 contracts, checking that each
-// messenger's SystemConfig reports the chain ID of the L2 it is paired with.
-func connect(ctx context.Context, l1URL string, pairs []chainPair) (_ *connection, err error) {
+// connect dials every endpoint and, when withL1 is set (the user gave --l1-messenger), resolves
+// each chain's L1 contracts, checking that each messenger's SystemConfig reports the chain ID of
+// the L2 it is paired with.
+func connect(ctx context.Context, l1URL string, pairs []chainPair, withL1 bool) (_ *connection, err error) {
 	conn := &connection{}
 	defer func() {
 		if err != nil {
 			conn.Close()
 		}
 	}()
-	needL1 := pairs[0].Messenger != (common.Address{})
-	if needL1 {
+	if !withL1 && l1URL != "" {
+		return nil, errors.New("--l1 needs one --l1-messenger per --l2, in the same order; drop --l1 to read only L2")
+	}
+	if withL1 {
 		if l1URL == "" {
 			return nil, errors.New("--l1 is required with --l1-messenger")
 		}
@@ -201,7 +214,7 @@ func connect(ctx context.Context, l1URL string, pairs []chainPair) (_ *connectio
 			return nil, fmt.Errorf("--l2 %s and %s are the same chain (%d)", prev, p.L2, l2.ChainID)
 		}
 		seen[l2.ChainID] = p.L2
-		if !needL1 {
+		if !withL1 {
 			continue
 		}
 		l1c, err := resolveL1(ctx, conn.L1, p.Messenger)
@@ -256,13 +269,28 @@ func pauseIdentifiers(chains []chain) []pauseIdentifier {
 	return out
 }
 
-// l2Paused reads ETHLiquidity.paused() on L2.
-func l2Paused(ctx context.Context, l2 *l2Client) (bool, error) {
+// l2Paused reads ETHLiquidity.paused() on L2 at block (nil: latest).
+func l2Paused(ctx context.Context, l2 *l2Client, block *big.Int) (bool, error) {
 	var paused bool
-	if err := callView(ctx, l2.Eth, predeploys.ETHLiquidityAddr, nil, pausedFn, &paused); err != nil {
+	if err := callView(ctx, l2.Eth, predeploys.ETHLiquidityAddr, block, pausedFn, &paused); err != nil {
 		return false, fmt.Errorf("ETHLiquidity.paused(): %w", err)
 	}
 	return paused, nil
+}
+
+// l2PausedMessageNonce reads ETHLiquidity.pausedMessageNonce() on L2 at block (nil: latest).
+func l2PausedMessageNonce(ctx context.Context, l2 *l2Client, block *big.Int) (*big.Int, error) {
+	nonce := new(big.Int)
+	if err := callView(ctx, l2.Eth, predeploys.ETHLiquidityAddr, block, pausedMessageNonceFn, nonce); err != nil {
+		return nil, fmt.Errorf("ETHLiquidity.pausedMessageNonce(): %w", err)
+	}
+	return nonce, nil
+}
+
+// fmtMessageNonce prints a versioned L1CrossDomainMessenger nonce as its plain nonce.
+func fmtMessageNonce(versioned *big.Int) string {
+	nonce, version := crossdomain.DecodeVersionedNonce(versioned)
+	return fmt.Sprintf("L1 message nonce %s (version %s)", nonce, version)
 }
 
 // oneETH funds the status eth_call sender through a state override.

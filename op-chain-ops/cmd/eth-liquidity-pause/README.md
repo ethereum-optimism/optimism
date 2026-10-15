@@ -10,14 +10,17 @@ global pause. While `ETHLiquidity.paused()` is true, `burn()` and `mint()` rever
 revert.
 
 The L1 pause reaches L2 through the permissionless `L1CrossDomainMessenger.syncETHLiquidityPause()`.
-That call reads the L1 pause and sends `ETHLiquidity.setPaused(paused, l1Timestamp)` to L2 as
-a cross-domain message with a 100k gas limit. Anyone can call it, so `sync` only mirrors state
-and needs no privileged key. L2 ignores a state read earlier than the one it already applied.
+That call reads the L1 pause and sends `ETHLiquidity.setPaused(paused, messageNonce)` to L2 as
+a cross-domain message with a 100k gas limit. `messageNonce` is the versioned nonce of that
+message, the same one as in the messenger's `SentMessage` event. Anyone can call it, so `sync`
+only mirrors state and needs no privileged key. L2 records the nonce as `pausedMessageNonce()`
+and ignores a message older than the one it already applied.
 
 Production pauses stay with the guardian's existing DeputyPauseModule flow. This tool reads
-production state (`status`) and can mirror it (`sync`). It never pauses production: the
-`devnet-*` helpers refuse OP Mainnet, Ink, Unichain, their Sepolia chains and an L1 of
-Ethereum mainnet.
+production state (`status`) and can mirror it (`sync`). The `devnet-*` helpers refuse OP
+Mainnet, Ink, Unichain, their Sepolia chains and an L1 of Ethereum mainnet. That list is a
+convenience guard against a misconfigured endpoint. The real protection is that the helpers
+need the SuperchainConfig guardian's key, and production guardians are Safes.
 
 ## Commands
 
@@ -26,8 +29,8 @@ Ethereum mainnet.
 For each `--l2`, `status` reads:
 
 - the chain ID;
-- `ETHLiquidity.paused()` and `pausedL1Timestamp()` (the L1 timestamp of the last applied
-  sync);
+- `ETHLiquidity.paused()` and `pausedMessageNonce()` (the L1CrossDomainMessenger nonce of the
+  last applied sync, 0 if L2 was never synced);
 - whether an `eth_call` of `SuperchainETHBridge.sendETH(from, destination)` with 1 wei
   reverts, and with which error.
 
@@ -35,7 +38,8 @@ The call uses a state override to fund `--from`, so the default dummy sender wor
 chain. The destination defaults to the chain's own ID + 1.
 
 With `--l1` and one `--l1-messenger` per `--l2` (in the same order), `status` also reads the L1
-side. It reads `L1CrossDomainMessenger.paused()`, which is the ETHLockbox pause. It flags any
+side. `--l1` without messengers, and a zero messenger address, are errors rather than an
+L2-only read. It reads `L1CrossDomainMessenger.paused()`, which is the ETHLockbox pause. It flags any
 chain where the two sides differ, for example:
 
 ```
@@ -53,7 +57,8 @@ chain 901 (http://localhost:9545)
 - if read, L1 is paused.
 
 `--expect unpaused` is the reverse. It also fails when `paused()` itself reverts, which is
-what a pre-pause ETHLiquidity does. `--json` prints machine-readable output.
+what a pre-pause ETHLiquidity does. `--json` prints machine-readable output on stdout; with
+`--expect`, the `OK` line goes to stderr so stdout stays valid JSON.
 
 ```bash
 # Devnet gate interop.eth-liquidity-pause, or production verification.
@@ -65,26 +70,33 @@ go run ./op-chain-ops/cmd/eth-liquidity-pause status \
 
 ### sync
 
-`sync` mirrors the L1 pause to L2 on each chain. For each chain it:
+`sync` mirrors the L1 pause to L2 on each chain. It:
 
-1. checks that the messenger's `SystemConfig.l2ChainId()` matches the paired `--l2`;
-2. prints both sides;
-3. calls `syncETHLiquidityPause()` from `--key` (any funded L1 account) on every chain whose
-   L2 differs from L1;
-4. waits for the L1 receipt;
-5. polls L2 until `paused()` equals the L1 pause as of the sync's block, or `--timeout`
-   passes.
+1. checks that each messenger's `SystemConfig.l2ChainId()` matches the paired `--l2`;
+2. prints both sides of each chain;
+3. sends `syncETHLiquidityPause()` from `--key` (any funded L1 account) for every chain whose
+   L2 differs from L1, all before waiting on any of them;
+4. waits for all of them together. For each chain it waits for the L1 receipt, reads the
+   message nonce from the messenger's `SentMessage` event, then polls L2 until
+   `pausedMessageNonce()` reaches that nonce, or `--timeout` passes. Once L2 has applied the
+   message, `paused()` must equal the pause the message carried.
 
-Chains that are already in sync are skipped unless you pass `--force`. A timeout usually means
-that L2 has not derived the L1 block yet. It can also mean that the message failed on L2 and
-is waiting in the L2CrossDomainMessenger's failed messages. In that case, run `sync` again.
+`paused()` alone can't tell whether this sync landed: L2 may already show the same value from
+an earlier sync. Waiting for the nonce can.
+
+Chains whose two sides match right now are skipped unless you pass `--force`. That compares
+current state only, so a sync still in flight from an earlier run is not taken into account.
+
+If the message fails on L2, the L2CrossDomainMessenger records it in `failedMessages` and
+`sync` stops with an error saying so. A timeout usually means that L2 has not derived the L1
+block yet. In either case, run `sync` again.
 
 ```bash
+export ETH_LIQUIDITY_PAUSE_KEY=<funded-l1-key>
 go run ./op-chain-ops/cmd/eth-liquidity-pause sync \
   --l1 http://localhost:8545 \
   --l2 http://localhost:9545 --l1-messenger 0x... \
-  --l2 http://localhost:9546 --l1-messenger 0x... \
-  --key <funded-l1-key>
+  --l2 http://localhost:9546 --l1-messenger 0x...
 ```
 
 ### devnet-pause / devnet-unpause
@@ -99,9 +111,15 @@ The command checks that `--guardian-key` is the SuperchainConfig guardian. It th
 - `pause(lockbox)`, or `extend(lockbox)` if an earlier pause has expired;
 - or `unpause(lockbox)`.
 
-Then it runs `sync` from `--key`, or from the guardian key if `--key` is not set.
+Then it runs `sync` with `--force` from `--key`, or from the guardian key if `--key` is not set.
+The sync is always forced, because L2 can already show the wanted value while an older sync
+is in flight. If a guardian call fails, the chains of the other identifiers are still synced,
+and the error says which chains were not; rerun the command to retry them.
 `devnet-unpause` warns when a global pause (`address(0)`) is active, because L1 stays paused
 until that pause is cleared.
+
+Put the keys in the config file (`guardian-key`, `key`) or in `ETH_LIQUIDITY_PAUSE_GUARDIAN_KEY`
+and `ETH_LIQUIDITY_PAUSE_KEY`, not on the command line, where they end up in shell history.
 
 ```bash
 go run ./op-chain-ops/cmd/eth-liquidity-pause devnet-pause --config devnet.toml
@@ -112,7 +130,8 @@ go run ./op-chain-ops/cmd/eth-liquidity-pause status --config devnet.toml --expe
 
 ## Config
 
-Copy `config.example.toml`, fill it in, and pass it with `--config`. Keys are the flag names,
+Copy `config.example.toml`, fill it in, and pass it with `--config`. The L1 lines ship
+commented out; uncomment them for `sync`, `devnet-*` and L1-side `status`. Keys are the flag names,
 and repeatable flags are TOML arrays. Your copy may hold private keys, so every `*.toml` in this
 directory except the example is gitignored. CLI flags and `ETH_LIQUIDITY_PAUSE_*` env vars
 override the file.
