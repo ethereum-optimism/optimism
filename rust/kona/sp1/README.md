@@ -168,12 +168,12 @@ CircleCI publishes the standard ELFs, built with the Docker recipe `just build-e
 configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
 <https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/>. The publish job refuses to
 upload unless `elf/vkeys.toml` records exactly the pipeline commit as `git_sha`, with no `-dirty`
-or `-custom` suffix, and both vkeys are nonzero.
+or `-custom` suffix, and all three vkeys are nonzero.
 
 | Trigger | Workflow | Objects |
 |---|---|---|
-| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
-| Push to `develop` | `kona-sp1-publish-prestates` | `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
+| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.log.bin.gz`, `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
+| Push to `develop` | `kona-sp1-publish-prestates` | `develop.log.bin.gz`, `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
 
 - **Tag objects** are content-addressed by the lowercase `0x`-prefixed super-aggregation vkey.
   That is the layout `OP_ZK_PROPOSER_PRESTATES_URL` resolves through `absolutePrestate()`, and
@@ -296,9 +296,11 @@ proposer loses the ability to defend, resolve, and claim those games.
 ### Proof providers
 
 - `OP_ZK_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
-  Proving keys are set up per prestate on first use, and the aggregation
-  verifying key must hash to the on-chain prestate (mismatches poison the
-  prestate and remove its games from the owned set). The registered prestate's
+  Proving keys are set up per prestate on first use. The aggregation
+  verifying key must hash to the on-chain prestate, the aggregation ELF must
+  pin the super-range vkey, and the super-range ELF must pin the
+  log-commitment vkey (mismatches poison the prestate and remove its games
+  from the owned set). The registered prestate's
   keys are verified BEFORE any game is created on it, so the proposer never
   bonds a game it has not proven it can defend.
   The proposer also reads the verifier behind each `SP1PlonkAdapter` it is about to rely on
@@ -433,7 +435,7 @@ Required core configuration:
 | `OP_ZK_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
 | `OP_ZK_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `OP_ZK_PROPOSER_FACTORY_ADDRESS` |
 | `OP_ZK_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
-| `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
+| `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`) |
 | `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
 | `OP_ZK_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
 | `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |

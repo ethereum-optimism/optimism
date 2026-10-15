@@ -91,6 +91,19 @@ case "$1" in
         [[ "$TEST_SCENARIO" != "uppercase-vkey" ]] || hash=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
         [[ "$TEST_SCENARIO" != "zero-vkey" ]] || hash=0x0000000000000000000000000000000000000000000000000000000000000000
         printf 'super-aggregation = "%s"\n' "$hash" > elf/vkeys.toml
+        case "$TEST_SCENARIO" in
+          log-commitment|log-vkey-mismatch)
+            printf 'elf' > elf/log-commitment-elf
+            printf 'log-commitment = "%s"\n' "$hash" >> elf/vkeys.toml ;;
+          log-missing-elf) printf 'log-commitment = "%s"\n' "$hash" >> elf/vkeys.toml ;;
+          log-missing-vkey) printf 'elf' > elf/log-commitment-elf ;;
+          log-malformed-vkey)
+            printf 'elf' > elf/log-commitment-elf
+            printf 'log-commitment = "0x1234"\n' >> elf/vkeys.toml ;;
+          log-duplicate-vkey)
+            printf 'elf' > elf/log-commitment-elf
+            printf 'log-commitment = "%s"\nlog-commitment = "%s"\n' "$hash" "$hash" >> elf/vkeys.toml ;;
+        esac
         [[ "$TEST_SCENARIO" != "test-build-marker" ]] || printf 'git_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test"\n' >> elf/vkeys.toml
         [[ "$TEST_SCENARIO" != "duplicate-vkey" ]] || printf 'super-aggregation = "%s"\n' "$hash" >> elf/vkeys.toml ;;
       "cargo metadata")
@@ -102,6 +115,7 @@ case "$1" in
       "cargo prove")
         hash="$TEST_HASH"
         [[ "$TEST_SCENARIO" != "vkey-mismatch" ]] || hash="$TEST_OTHER"
+        [[ "$TEST_SCENARIO" != "log-vkey-mismatch" || "$5" != */log-commitment-elf ]] || hash="$TEST_OTHER"
         [[ "$TEST_SCENARIO" != "derived-long" ]] || hash="${hash}1"
         [[ "$TEST_SCENARIO" != "uppercase-vkey" ]] || hash=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         printf 'Verification key: %s\n' "$hash" ;;
@@ -143,6 +157,14 @@ STUB
   elif [[ "$scenario" == "test-build-marker" || "$scenario" == "test-elf-marker" ]]; then
     grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
     [[ "$(cat "$root/count")" -eq 1 ]] || { echo 'expected one SP1 build before marker rejection' >&2; exit 1; }
+  elif [[ "$scenario" == "log-missing-elf" ]]; then
+    grep -q 'no log-commitment ELF' "$root/output" || { cat "$root/output"; exit 1; }
+  elif [[ "$scenario" == "log-vkey-mismatch" ]]; then
+    grep -q 'manifest log-commitment vkey .* differs' "$root/output" || { cat "$root/output"; exit 1; }
+  elif [[ "$scenario" == "log-missing-vkey" ]]; then
+    grep -q 'no log-commitment vkey in the manifest' "$root/output" || { cat "$root/output"; exit 1; }
+  elif [[ "$scenario" == "log-malformed-vkey" || "$scenario" == "log-duplicate-vkey" ]]; then
+    grep -q 'duplicate or malformed log-commitment vkey' "$root/output" || { cat "$root/output"; exit 1; }
   elif [[ "$scenario" == "symlink-parent" ]]; then
     [[ -f "$root/outside/docker/marker" ]] || { echo 'cleanup followed a symlink outside the worktree' >&2; exit 1; }
   fi
@@ -150,11 +172,12 @@ STUB
 }
 
 run_case success success
+run_case log-commitment success
 run_case zero zero
 run_case sudo-fails success
 run_case symlink-parent success
 run_case stdin-consumer two
-for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker; do
+for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker log-missing-elf log-missing-vkey log-malformed-vkey log-duplicate-vkey log-vkey-mismatch; do
   run_case "$scenario" failure
 done
 echo "Kona SP1 build driver fixtures passed"
