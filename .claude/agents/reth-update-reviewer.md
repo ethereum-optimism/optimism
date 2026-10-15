@@ -22,6 +22,9 @@ Run the guide's forward sweep the same way, over each family's range from the ta
 upstream's latest commit, and report its fixes with the cherry-pick-or-retarget
 recommendation so the human can decide before the bump merges.
 
+When the bump touches transaction execution, gas, or receipts, also run the
+[`deposit-reviewer`](deposit-reviewer.md) agent as a separate review.
+
 Before reading the upstream diff:
 
 1. Determine the PR's merge base. Inspect every `UPSTREAM-MIRROR` tag changed or

@@ -6,6 +6,10 @@ See [go-dev.md](go-dev.md) for Go workflow, [rust-dev.md](rust-dev.md) for the R
 kona-client workflow, and [contract-dev.md](contract-dev.md) for the Solidity dispute game
 contracts.
 
+kona-client is the only fault proof program. op-program was deleted in
+ethereum-optimism/optimism#21271 and is not supported. Do not compare against op-program or
+ask for op-program changes.
+
 ## Scope
 
 - `cannon/` — MIPS32 VM that executes kona-client in single-step mode.
@@ -24,6 +28,8 @@ contracts.
 - **Kona-SP1 acceptance boundary**: tests exercise the shipping super-root path through the
   `super-range` and `super-aggregation` programs. Single-chain coverage uses a dependency set of
   size one.
+- **Kona-SP1 proof limits**: if an honest kona-sp1 proof exceeds a resource limit, the proposer
+  loses its `ZKDisputeGame`. See [kona-sp1-proof-limits.md](kona-sp1-proof-limits.md).
 
 ## Invariants
 

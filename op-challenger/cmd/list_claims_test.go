@@ -21,12 +21,12 @@ import (
 
 func sampleReport() claimsReport {
 	return claimsReport{
-		Status:        "In Progress",
-		L2StartBlock:  100,
-		L2BlockNumber: 200,
-		SplitDepth:    30,
-		MaxDepth:      73,
-		ClaimCount:    3,
+		Status:                "In Progress",
+		L2StartSequenceNumber: 100,
+		L2EndSequenceNumber:   200,
+		SplitDepth:            30,
+		MaxDepth:              73,
+		ClaimCount:            3,
 		Claims: []claimRecord{
 			{
 				Index: 0, Move: "Attack", ParentIndex: -1, Depth: 0, TraceIndex: "1073741823",
@@ -95,7 +95,7 @@ func TestRenderText(t *testing.T) {
 	require.NoError(t, renderText(&buf, sampleReport(), false))
 	out := buf.String()
 
-	require.Contains(t, out, "Status: In Progress • L2 Blocks: 100 to 200 (Unchallenged)")
+	require.Contains(t, out, "Status: In Progress • L2 Sequence: 100 to 200 • Block Num Challenge: none")
 	require.Contains(t, out, "Idx Move")
 	require.Contains(t, out, "fa2c59..c571a7") // terminal (short) value in non-verbose
 	require.Contains(t, out, "0.08000000")     // 8-decimal bond preserved
@@ -134,15 +134,15 @@ func TestBuildZKGameReport(t *testing.T) {
 		report, err := buildZKGameReport(context.Background(), setup(t, contracts.ProposalStatusChallengedAndValidProofProvided, gameTypes.GameStatusInProgress))
 		require.NoError(t, err)
 		require.Equal(t, zkGameReport{
-			Status:                     "In Progress",
-			ProposalStatus:             "ChallengedAndValidProofProvided",
-			ParentIndex:                3,
-			RootClaim:                  rootClaim.Hex(),
-			StartingSuperRootTimestamp: 100,
-			ProposalSuperRootTimestamp: 200,
-			Challenger:                 challenger.Hex(),
-			Prover:                     prover.Hex(),
-			Deadline:                   deadline.Format(time.RFC3339),
+			Status:                "In Progress",
+			ProposalStatus:        "ChallengedAndValidProofProvided",
+			ParentIndex:           3,
+			RootClaim:             rootClaim.Hex(),
+			L2StartSequenceNumber: 100,
+			L2EndSequenceNumber:   200,
+			Challenger:            challenger.Hex(),
+			Prover:                prover.Hex(),
+			Deadline:              deadline.Format(time.RFC3339),
 		}, report)
 	})
 
@@ -150,16 +150,16 @@ func TestBuildZKGameReport(t *testing.T) {
 		report, err := buildZKGameReport(context.Background(), setup(t, contracts.ProposalStatusResolved, gameTypes.GameStatusDefenderWon))
 		require.NoError(t, err)
 		require.Equal(t, zkGameReport{
-			Status:                     "Defender Won",
-			ResolutionTime:             resolvedAt.Format(time.RFC3339),
-			ProposalStatus:             "Resolved",
-			ParentIndex:                3,
-			RootClaim:                  rootClaim.Hex(),
-			StartingSuperRootTimestamp: 100,
-			ProposalSuperRootTimestamp: 200,
-			Challenger:                 challenger.Hex(),
-			Prover:                     prover.Hex(),
-			Deadline:                   deadline.Format(time.RFC3339),
+			Status:                "Defender Won",
+			ResolutionTime:        resolvedAt.Format(time.RFC3339),
+			ProposalStatus:        "Resolved",
+			ParentIndex:           3,
+			RootClaim:             rootClaim.Hex(),
+			L2StartSequenceNumber: 100,
+			L2EndSequenceNumber:   200,
+			Challenger:            challenger.Hex(),
+			Prover:                prover.Hex(),
+			Deadline:              deadline.Format(time.RFC3339),
 		}, report)
 	})
 }

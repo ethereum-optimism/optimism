@@ -50,8 +50,9 @@ use crate::{
     },
     prover::{ProofKeys, ProofProvider, setup_proof_keys},
     proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
-    signer::{FeeCaps, SignerLock},
+    signer::SignerLock,
     superroot::{SuperrootClient, zk_extra_data},
+    tx_sender::FeeCaps,
     verifier::check_verifier_hash,
 };
 
@@ -968,8 +969,7 @@ impl Proposer {
             signer,
             l1_provider,
             factory,
-            config.l1_rpc.clone(),
-            config.tx_confirmation_timeout,
+            Duration::from_secs(config.tx_confirmation_timeout),
             Self::fee_caps_for(&config),
         ));
         Self::new_with_dependencies(
