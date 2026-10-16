@@ -18,8 +18,11 @@ use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
 use kona_registry::{CHAINS, OPCHAINS};
 use kona_sources::redacted_url;
-use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
-use sp1_sdk::network::FulfillmentStrategy;
+use kona_sp1_host_utils::{
+    metrics::MetricsListen,
+    network::{determine_network_mode, parse_fulfillment_strategy},
+};
+use sp1_sdk::network::{FulfillmentStrategy, NetworkMode};
 
 use crate::{env_var, proposer::MAX_GAME_DEADLINE_LAG};
 
@@ -70,6 +73,31 @@ impl FromStr for ProofProviderKind {
     }
 }
 
+/// The consolidation path of a game's references to blocks below a local-safe head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogPath {
+    /// The receipts path when every consolidation request of the game fits on it, otherwise the
+    /// table path.
+    Auto,
+    /// The receipts path: no log-commitment batch proofs.
+    Receipts,
+    /// The table path: a batch proof for every referenced block below a head.
+    Table,
+}
+
+impl FromStr for LogPath {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "auto" => Ok(Self::Auto),
+            "receipts" => Ok(Self::Receipts),
+            "table" => Ok(Self::Table),
+            other => bail!("{other} (expected auto|receipts|table)"),
+        }
+    }
+}
+
 /// Runtime configuration for the proposer.
 #[derive(Debug, Clone)]
 pub struct ProposerConfig {
@@ -85,18 +113,16 @@ pub struct ProposerConfig {
 
     /// Base URL of a prestate artifact directory, accepting `file://` and
     /// `http(s)://` URIs. Each prestate is keyed by the game's
-    /// `absolutePrestate()` hash (the super-aggregation program vkey, which
-    /// embeds the super-range program vkey and therefore uniquely identifies
-    /// both) and maps to two program ELFs, following the op-challenger
-    /// `--prestates-url` convention:
+    /// `absolutePrestate()` hash and maps to the three [`PrestatePrograms`]
+    /// ELFs, following the op-challenger `--prestates-url` convention:
     /// - `<url>/<vkey>.agg.bin.gz` (super-aggregation program)
     /// - `<url>/<vkey>.range.bin.gz` (super-range program)
+    /// - `<url>/<vkey>.log.bin.gz` (log-commitment program)
     ///
     /// The create path checks artifact availability (creation pauses when
-    /// either artifact is missing, since the proposer could not defend such
+    /// any artifact is missing, since the proposer could not defend such
     /// a game); the defend path loads the ELFs from the same location and,
-    /// in network mode, verifies the aggregation ELF hashes to the prestate
-    /// during proving-key setup.
+    /// in network mode, verifies the vkey chain during proving-key setup.
     pub prestates_url: Url,
 
     /// Minimum spacing, in seconds of super-root timestamps, between the
@@ -183,6 +209,9 @@ pub struct ProposerConfig {
 
     /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
+
+    /// Consolidation path for blocks below a local-safe head.
+    pub log_path: LogPath,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -359,6 +388,7 @@ impl ProposerConfig {
                 NonZeroU64::MIN,
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
+            log_path: parsed_env_or("LOG_PATH", LogPath::Auto)?,
         })
     }
 }
@@ -377,6 +407,9 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
 const DEFAULT_PROOF_CYCLE_LIMIT: u64 = 1_000_000_000_000;
 const DEFAULT_RANGE_GAS_LIMIT: u64 = 200_000_000_000;
 const DEFAULT_AGG_GAS_LIMIT: u64 = 1_000_000_000;
+/// A full batch, about 0.44 of the limit in measured PGU, takes about 45 minutes on a fast prover,
+/// so bidders accept it under the default timeout.
+const DEFAULT_LOG_GAS_LIMIT: u64 = 100_000_000_000;
 
 /// Floor on how long an auction stays open, so the field can bid and undercut
 /// rather than the fastest poller winning at the ceiling. Observed arrivals are
@@ -418,6 +451,12 @@ pub struct ProofProviderConfig {
     pub agg_cycle_limit: u64,
     /// Gas limit for the aggregation proof request.
     pub agg_gas_limit: u64,
+    /// Fulfillment strategy for log-commitment batch proofs.
+    pub log_proof_strategy: FulfillmentStrategy,
+    /// Cycle limit for log-commitment batch proof requests.
+    pub log_cycle_limit: u64,
+    /// Gas limit for log-commitment batch proof requests. Batches fill to 80% of it by estimate.
+    pub log_gas_limit: u64,
     /// Optional maximum price per proving gas unit.
     pub max_price_per_pgu: Option<NonZeroU64>,
     /// Minimum auction period in seconds.
@@ -471,10 +510,29 @@ impl ProofProviderConfig {
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_RANGE_GAS_LIMIT)?,
             agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
             agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_AGG_GAS_LIMIT)?,
+            log_proof_strategy: parse_fulfillment_strategy(env_or("LOG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("LOG_PROOF_STRATEGY")))?,
+            log_cycle_limit: parsed_env_or("LOG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            log_gas_limit: parsed_env_or("LOG_GAS_LIMIT", DEFAULT_LOG_GAS_LIMIT)?,
             max_price_per_pgu: parsed_optional_env::<u64>("MAX_PRICE_PER_PGU")?
                 .and_then(NonZeroU64::new),
             min_auction_period,
         })
+    }
+
+    /// The SPN network mode of the request strategies. The log strategy must give the mode of the
+    /// range and aggregation strategies.
+    pub fn network_mode(&self) -> Result<NetworkMode> {
+        let mode = determine_network_mode(self.range_proof_strategy, self.agg_proof_strategy)?;
+        let log_mode = determine_network_mode(self.range_proof_strategy, self.log_proof_strategy)
+            .with_context(|| format!("invalid {}", env_var("LOG_PROOF_STRATEGY")))?;
+        anyhow::ensure!(
+            log_mode == mode,
+            "{} gives network mode {log_mode:?}, but the range and aggregation strategies give \
+             {mode:?}",
+            env_var("LOG_PROOF_STRATEGY"),
+        );
+        Ok(mode)
     }
 }
 
@@ -570,6 +628,8 @@ pub const AGGREGATION_ARTIFACT_SUFFIX: &str = ".agg.bin.gz";
 /// Artifact suffix for the super-range program ELF (whose vkey the
 /// aggregation program embeds).
 pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
+/// Artifact suffix for the log-commitment program ELF.
+pub const LOG_COMMITMENT_ARTIFACT_SUFFIX: &str = ".log.bin.gz";
 
 /// Returns the artifact URL for `prestate` with the given suffix under the
 /// `base` directory URL: `<base>/<prestate><suffix>`.
@@ -585,33 +645,47 @@ pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result
 }
 
 /// The program ELFs a prestate resolves to: the super-aggregation program
-/// (whose vkey is the on-chain `absolutePrestate()`) and the super-range
-/// program (whose vkey the aggregation program embeds, making the prestate
-/// hash a unique key for both).
+/// (whose vkey is the on-chain `absolutePrestate()`), the super-range
+/// program (whose vkey the aggregation program embeds), and the
+/// log-commitment program (whose vkey the super-range program embeds).
+/// The prestate hash is therefore a unique key for all three.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrestatePrograms {
     /// Decompressed super-aggregation program ELF.
     pub aggregation_elf: Vec<u8>,
     /// Decompressed super-range program ELF.
     pub range_elf: Vec<u8>,
+    /// Decompressed log-commitment program ELF.
+    pub log_commitment_elf: Vec<u8>,
 }
 
-/// Loads and decompresses both program ELFs for `prestate` from `base`
+#[cfg(test)]
+impl PrestatePrograms {
+    /// Programs whose three ELFs are `[byte]`.
+    pub(crate) fn stub(byte: u8) -> Self {
+        Self { aggregation_elf: vec![byte], range_elf: vec![byte], log_commitment_elf: vec![byte] }
+    }
+}
+
+/// Loads and decompresses the three program ELFs for `prestate` from `base`
 /// (`file://` reads the filesystem; `http(s)://` issues GET requests).
 ///
-/// Fails when either artifact is missing, unreadable, or not valid gzip.
+/// Fails when any artifact is missing, unreadable, or not valid gzip.
 /// The create path uses a successful load as the proof that games with this
 /// prestate are defendable; the defend path proves with the returned ELFs.
-/// In network mode, `PrestateCache::proof_keys` later verifies during SP1
-/// proving-key setup that the aggregation ELF actually hashes to `prestate`;
-/// mock mode never executes the artifacts and skips that check.
+/// In network mode, `PrestateCache::proof_keys` later verifies the vkeys
+/// during SP1 proving-key setup; mock mode never executes the artifacts and
+/// skips that check.
 pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestatePrograms> {
     let aggregation_elf =
         fetch_artifact(&prestate_artifact_url(base, prestate, AGGREGATION_ARTIFACT_SUFFIX)?)
             .await?;
     let range_elf =
         fetch_artifact(&prestate_artifact_url(base, prestate, RANGE_ARTIFACT_SUFFIX)?).await?;
-    Ok(PrestatePrograms { aggregation_elf, range_elf })
+    let log_commitment_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, LOG_COMMITMENT_ARTIFACT_SUFFIX)?)
+            .await?;
+    Ok(PrestatePrograms { aggregation_elf, range_elf, log_commitment_elf })
 }
 
 /// Maximum time for fetching a single prestate artifact, matching
@@ -660,7 +734,29 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
+
+    /// Removes every `OP_ZK_PROPOSER_*` variable.
+    fn clear_proposer_env() {
+        for (name, _) in env::vars_os() {
+            if name.to_string_lossy().starts_with(crate::ENV_VAR_PREFIX) {
+                // SAFETY: The environment-mutating tests in this crate are serialized.
+                unsafe { env::remove_var(name) };
+            }
+        }
+    }
+
+    fn set_proposer_env(suffix: &str, value: &str) {
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { env::set_var(env_var(suffix), value) };
+    }
+
+    fn remove_proposer_env(suffix: &str) {
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { env::remove_var(env_var(suffix)) };
+    }
 
     #[test]
     fn proposal_safety_parsing() {
@@ -690,6 +786,7 @@ mod tests {
         fn write_artifacts(dir: &std::path::Path) {
             write_artifact(dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
             write_artifact(dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
+            write_artifact(dir, LOG_COMMITMENT_ARTIFACT_SUFFIX, b"log-commitment-elf");
         }
 
         #[test]
@@ -708,13 +805,25 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn loads_and_decompresses_both_programs() {
+        async fn loads_and_decompresses_three_programs() {
             let dir = artifact_dir("present");
             write_artifacts(&dir);
             let base = Url::from_directory_path(&dir).unwrap();
             let programs = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap();
             assert_eq!(programs.aggregation_elf, b"aggregation-elf");
             assert_eq!(programs.range_elf, b"range-elf");
+            assert_eq!(programs.log_commitment_elf, b"log-commitment-elf");
+        }
+
+        /// Pins a failed load when only the log-commitment artifact is missing.
+        #[tokio::test]
+        async fn missing_log_commitment_artifact_fails_to_load() {
+            let dir = artifact_dir("no-log");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            write_artifact(&dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
+            let base = Url::from_directory_path(&dir).unwrap();
+            let err = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap_err();
+            assert!(format!("{err:#}").contains(LOG_COMMITMENT_ARTIFACT_SUFFIX), "{err:#}");
         }
 
         #[tokio::test]
@@ -725,9 +834,8 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn one_missing_artifact_fails_to_load() {
-            // Proving needs both programs: the aggregation ELF alone is not
-            // enough to defend a game.
+        async fn aggregation_artifact_alone_fails_to_load() {
+            // The aggregation ELF alone cannot defend a game.
             let dir = artifact_dir("agg-only");
             write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
             let base = Url::from_directory_path(&dir).unwrap();
@@ -784,12 +892,12 @@ mod tests {
             );
         }
 
-        /// Safe under nextest's process-per-test model; environment mutation
-        /// is `unsafe` on edition 2024.
         #[test]
+        #[serial]
         fn empty_explicit_factory_does_not_fall_back() {
+            clear_proposer_env();
+            set_proposer_env("FACTORY_ADDRESS", "");
             let name = env_var("FACTORY_ADDRESS");
-            unsafe { env::set_var(&name, "") };
 
             let explicit_factory_address = explicit_factory_address_env().unwrap();
             let err =
@@ -809,10 +917,6 @@ mod tests {
 
     mod proving_config {
         use super::*;
-
-        fn set_proposer_env(suffix: &str, value: &str) {
-            unsafe { env::set_var(env_var(suffix), value) };
-        }
 
         #[test]
         fn proof_provider_kind_parse_rejects_unknown() {
@@ -880,10 +984,10 @@ mod tests {
             assert!(RangeSplitCount::one().split(6, 5).is_err());
         }
 
-        /// Safe under nextest's process-per-test model; environment mutation
-        /// is `unsafe` on edition 2024.
         #[test]
+        #[serial]
         fn auction_period_crowding_the_cancel_timeout_is_rejected() {
+            clear_proposer_env();
             // An auction needs assignment margin before the cancellation timeout.
             set_proposer_env("AUCTION_TIMEOUT", "300");
             for crowding in ["300", "290"] {
@@ -897,10 +1001,10 @@ mod tests {
             assert_eq!(ProofProviderConfig::from_env().unwrap().min_auction_period, 270);
         }
 
-        /// Safe under nextest's process-per-test model; environment mutation
-        /// is `unsafe` on edition 2024.
         #[test]
+        #[serial]
         fn from_env_requires_defend_path_vars() {
+            clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545,http://127.0.0.1:9546");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
@@ -929,7 +1033,7 @@ mod tests {
             assert_eq!(config.max_game_deadline_lag, MAX_GAME_DEADLINE_LAG);
             set_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS", "2419200");
             assert_eq!(ProposerConfig::from_env(None).unwrap().max_game_deadline_lag, 2_419_200);
-            unsafe { env::remove_var(env_var("MAX_GAME_DEADLINE_LAG_SECONDS")) };
+            remove_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS");
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
             assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
@@ -955,10 +1059,11 @@ mod tests {
             assert_eq!(config.proof_provider_config.max_price_per_pgu, None);
         }
 
-        /// Zero disables the explicit SPN price ceiling while positive values
-        /// are preserved. Safe under nextest's process-per-test model.
+        /// Zero disables the explicit SPN price ceiling while positive values are preserved.
         #[test]
+        #[serial]
         fn max_price_per_pgu_zero_disables_explicit_ceiling() {
+            clear_proposer_env();
             set_proposer_env("MAX_PRICE_PER_PGU", "0");
             assert_eq!(ProofProviderConfig::from_env().unwrap().max_price_per_pgu, None);
 
@@ -969,11 +1074,11 @@ mod tests {
             );
         }
 
-        /// A zero defense cap would silently disable defense entirely;
-        /// `NonZeroU64` parsing rejects it at startup. Safe under nextest's
-        /// process-per-test model; env mutation is `unsafe` on edition 2024.
+        /// Pins startup rejection of a zero `MAX_CONCURRENT_DEFENSE_TASKS`.
         #[test]
+        #[serial]
         fn zero_defense_cap_is_rejected() {
+            clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
@@ -989,10 +1094,75 @@ mod tests {
             );
         }
 
-        /// Zero SPN timeouts prevent useful polling. Safe under nextest's
-        /// process-per-test model.
+        fn set_required_mock_env() {
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+        }
+
+        /// Pins the log request defaults and their overrides.
         #[test]
+        #[serial]
+        fn log_settings_request_defaults_and_overrides() {
+            clear_proposer_env();
+            let config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.log_gas_limit, 100_000_000_000);
+            assert_eq!(config.log_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Auction);
+
+            set_proposer_env("LOG_GAS_LIMIT", "5");
+            set_proposer_env("LOG_CYCLE_LIMIT", "6");
+            set_proposer_env("LOG_PROOF_STRATEGY", "reserved");
+            let config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.log_gas_limit, 5);
+            assert_eq!(config.log_cycle_limit, 6);
+            assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Reserved);
+        }
+
+        /// Pins the path default, its override, and an unknown path.
+        #[test]
+        #[serial]
+        fn log_settings_path() {
+            clear_proposer_env();
+            set_required_mock_env();
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Auto);
+
+            set_proposer_env("LOG_PATH", "Table");
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Table);
+
+            set_proposer_env("LOG_PATH", "sometimes");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_LOG_PATH"), "unexpected error: {err}");
+        }
+
+        /// Pins a startup error for a log strategy in another network mode.
+        #[test]
+        #[serial]
+        fn log_strategy_must_match_network_mode() {
+            clear_proposer_env();
+            let mut config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.network_mode().unwrap(), NetworkMode::Mainnet);
+
+            config.log_proof_strategy = FulfillmentStrategy::Reserved;
+            let err = format!("{:#}", config.network_mode().unwrap_err());
+            assert!(err.contains("OP_ZK_PROPOSER_LOG_PROOF_STRATEGY"), "unexpected error: {err}");
+
+            config.range_proof_strategy = FulfillmentStrategy::Reserved;
+            config.agg_proof_strategy = FulfillmentStrategy::Hosted;
+            assert_eq!(config.network_mode().unwrap(), NetworkMode::Reserved);
+        }
+
+        /// Pins startup rejection of each zero SPN timeout.
+        #[test]
+        #[serial]
         fn zero_spn_timeouts_are_rejected() {
+            clear_proposer_env();
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
             set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
@@ -1005,7 +1175,7 @@ mod tests {
                 let err = ProposerConfig::from_env(None).unwrap_err().to_string();
                 let name = env_var(var);
                 assert!(err.contains(&name), "expected {name} rejection, got: {err}");
-                unsafe { env::remove_var(name) };
+                remove_proposer_env(var);
             }
         }
     }

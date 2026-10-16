@@ -246,13 +246,26 @@ pub enum ProposerGauge {
         message = "Total number of challenged games with an unknown or poisoned prestate"
     )]
     UnknownPrestateChallenged,
-    /// Total number of prestates whose aggregation ELF failed verification
-    /// against the on-chain prestate hash during proving-key setup.
+    /// Total number of prestates that failed vkey verification (prestate
+    /// hash or pinned vkeys) during proving-key setup.
     #[strum(
         serialize = "op_zk_proposer_prestate_vkey_mismatch",
         message = "Total number of prestates failing vkey verification"
     )]
     PrestateVkeyMismatch,
+    /// Total number of log-commitment batch proof requests submitted. Unlike
+    /// `proof_requests`, it keeps counting after a game's progress clears.
+    #[strum(
+        serialize = "op_zk_proposer_log_batches_submitted",
+        message = "Total number of log-commitment batch proof requests submitted"
+    )]
+    LogBatchesSubmitted,
+    /// Total number of log-commitment batch proofs that failed, each failing its game attempt.
+    #[strum(
+        serialize = "op_zk_proposer_log_batch_error",
+        message = "Total number of failed log-commitment batch proofs"
+    )]
+    LogBatchError,
     /// Total number of games found permanently unprovable (claim data
     /// diverged or required L1 beyond the game's L1 head).
     #[strum(

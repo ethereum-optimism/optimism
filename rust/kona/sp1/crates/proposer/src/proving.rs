@@ -11,27 +11,35 @@ use std::{
     future::Future,
     num::NonZeroUsize,
     ops::AsyncFnOnce,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_sol_types::SolValue;
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::{
+    FutureExt,
+    future::{BoxFuture, Shared},
+    stream::{FuturesUnordered, StreamExt},
+};
 use kona_sp1_client_utils::{
     log_commitment::LogCommitmentInputs,
     super_root::{
-        SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationInputs,
-        SuperConsolidationOutputs, SuperRangeInputs, SuperRangeOutputs, TimestampSpan,
+        SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationOutputs,
+        SuperRangeInputs, SuperRangeOutputs, TimestampSpan,
     },
     witness::DefaultWitnessData,
 };
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    CollectedConsolidation, HostInputs, SuperRootAtTimestampResponse, SynthesizedExecution,
-    build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
-    collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
-    decode_super_range_public_values, deployment_chain_configs, proof_from_super_v1,
+    HostInputs, LogCommitmentProofs, ScannedTimestampCost, SuperRootAtTimestampResponse,
+    SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
+    build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
+    decode_super_consolidation_public_values, decode_super_range_public_values,
+    deployment_chain_configs, estimate_consolidation_pgu, proof_from_super_v1,
     synthesize_execution,
 };
 use parking_lot::Mutex;
@@ -42,9 +50,15 @@ use tracing::Instrument;
 pub use crate::ports::GameProofInputs;
 
 use crate::{
-    config::RangeSplitCount,
+    config::{LogPath, RangeSplitCount},
+    log_proofs::{
+        CollectedRequest, LogBatch, LogBatchProver, MockLogProver, NetworkLogProver, RequestBound,
+        check_collected, check_table_path_fits, choose_log_path, consolidation_cost, cover,
+        log_batch_poll_interval, make_log_batches, receipts_path_costs, referenced_roots,
+        request_budget, scan::scan_span,
+    },
     metrics::ProposerGauge,
-    ports::SuperRootSource,
+    ports::{L2BlockSource, SuperRootSource},
     prover::{
         MOCK_PROOF_BYTES, ProofId, ProofKeys, ProofProvider, ProofTerminalState, ProofWaitError,
     },
@@ -217,7 +231,7 @@ struct ChunkIdentity {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ProviderIdentity {
     Mock,
-    Network { range_vkey: B256, aggregation_vkey: B256 },
+    Network { range_vkey: B256, aggregation_vkey: B256, log_vkey: [u32; 8] },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -231,6 +245,10 @@ struct ChunkPlan {
     index: usize,
     agreed_timestamp: u64,
     claimed_timestamp: u64,
+    /// The chunk's responses are `first..=last` of the game's span; its transitions are
+    /// `first..last` of the span's transition timestamps.
+    first: usize,
+    last: usize,
     synthesized: SynthesizedExecution,
 }
 
@@ -245,7 +263,7 @@ enum RequestState {
 }
 
 /// SPN request kinds of one game proof, as named by [`GameProgress::requests`].
-pub(crate) const PROOF_REQUEST_KINDS: [&str; 3] = ["range", "consolidation", "aggregation"];
+pub(crate) const PROOF_REQUEST_KINDS: [&str; 4] = ["range", "consolidation", "aggregation", "log"];
 /// Request states reported by [`InMemoryProofProgress::request_counts`].
 pub(crate) const PROOF_REQUEST_STATES: [&str; 4] =
     ["submitting", "submitted", "fulfilled", "terminal"];
@@ -279,16 +297,51 @@ struct ChunkProgress {
     consolidation_request: Mutex<RequestState>,
 }
 
+/// A log-commitment batch of a game and its proof request.
+struct LogBatchProgress {
+    batch: LogBatch,
+    request: Mutex<RequestState>,
+}
+
 struct GameProgress {
     identity: AttemptIdentity,
     chunks: Vec<ChunkProgress>,
     aggregation_request: Mutex<RequestState>,
+    log_stage: Mutex<Option<Arc<LogStage>>>,
 }
 
 impl GameProgress {
     fn new(identity: AttemptIdentity) -> Self {
         let chunks = (0..identity.chunks.len()).map(|_| ChunkProgress::default()).collect();
-        Self { identity, chunks, aggregation_request: Mutex::new(RequestState::Missing) }
+        Self {
+            identity,
+            chunks,
+            aggregation_request: Mutex::new(RequestState::Missing),
+            log_stage: Mutex::new(None),
+        }
+    }
+
+    fn log_stage(&self) -> Option<Arc<LogStage>> {
+        self.log_stage.lock().clone()
+    }
+
+    fn store_log_stage(&self, stage: LogStage) -> Arc<LogStage> {
+        let stage = Arc::new(stage);
+        *self.log_stage.lock() = Some(Arc::clone(&stage));
+        stage
+    }
+
+    /// Visits every request slot with its chunk index and kind, including the log stage's.
+    fn visit_requests(
+        &self,
+        mut visit: impl FnMut(Option<usize>, &'static str, &Mutex<RequestState>),
+    ) {
+        for (chunk_index, kind, request) in self.requests() {
+            visit(chunk_index, kind, request);
+        }
+        for progress in self.log_stage.lock().iter().flat_map(|stage| stage.batches.iter()) {
+            visit(None, "log", &progress.request);
+        }
     }
 
     fn requests(
@@ -307,6 +360,12 @@ impl GameProgress {
     }
 
     fn check_terminal_requests(&self) -> Result<()> {
+        let stage = self.log_stage();
+        for progress in stage.iter().flat_map(|stage| stage.batches.iter()) {
+            if let RequestState::Terminal(outcome) = &*progress.request.lock() {
+                bail!("{} proof request reached terminal state: {outcome:?}", progress.batch);
+            }
+        }
         for (chunk_index, kind, request) in self.requests() {
             match &*request.lock() {
                 RequestState::Terminal(outcome) => {
@@ -334,9 +393,7 @@ impl GameProgress {
             RequestState::Fulfilled(_) => summary.fulfilled += 1,
             RequestState::Missing | RequestState::Terminal(_) => {}
         };
-        for (_, _, request) in self.requests() {
-            record(request);
-        }
+        self.visit_requests(|_, _, request| record(request));
         summary
     }
 }
@@ -393,7 +450,7 @@ impl InMemoryProofProgress {
             return 0;
         };
         let mut reset = 0;
-        for (_, _, request) in progress.requests() {
+        progress.visit_requests(|_, _, request| {
             let mut state = request.lock();
             match &*state {
                 RequestState::Terminal(_) => {
@@ -405,7 +462,7 @@ impl InMemoryProofProgress {
                 RequestState::Submitted(_) |
                 RequestState::Fulfilled(_) => {}
             }
-        }
+        });
         reset
     }
 
@@ -414,11 +471,11 @@ impl InMemoryProofProgress {
     pub(crate) fn request_counts(&self) -> ProofRequestCounts {
         let mut counts = ProofRequestCounts::new();
         for progress in self.games.lock().values() {
-            for (_, kind, request) in progress.requests() {
+            progress.visit_requests(|_, kind, request| {
                 if let Some(state) = request.lock().metric_state() {
                     *counts.entry((kind, state)).or_default() += 1;
                 }
-            }
+            });
         }
         counts
     }
@@ -441,6 +498,7 @@ fn provider_identity(
     Ok(ProviderIdentity::Network {
         range_vkey: B256::from(keys.range_vk.bytes32_raw()),
         aggregation_vkey: B256::from(keys.agg_vk.bytes32_raw()),
+        log_vkey: keys.log_vk.hash_u32(),
     })
 }
 
@@ -464,40 +522,50 @@ const fn terminal_request_can_retry(outcome: ProofTerminalState) -> bool {
     }
 }
 
+/// A request slot after [`ensure_submitted`].
+enum Claimed {
+    Submitted(ProofId),
+    Fulfilled(Arc<SP1ProofWithPublicValues>),
+}
+
+/// Submits the request of a missing slot. A submitted or fulfilled slot is left as it is.
+async fn ensure_submitted(
+    state: &Mutex<RequestState>,
+    submit: impl AsyncFnOnce() -> Result<ProofId>,
+) -> Result<Claimed> {
+    {
+        let mut state = state.lock();
+        match &*state {
+            RequestState::Missing => *state = RequestState::Submitting,
+            RequestState::Submitting => bail!("proof request submission is already in progress"),
+            RequestState::Submitted(proof_id) => return Ok(Claimed::Submitted(*proof_id)),
+            RequestState::Fulfilled(proof) => return Ok(Claimed::Fulfilled(Arc::clone(proof))),
+            RequestState::Terminal(outcome) => {
+                bail!("proof request reached terminal state: {outcome:?}")
+            }
+        }
+    }
+    match submit().await {
+        Ok(proof_id) => {
+            *state.lock() = RequestState::Submitted(proof_id);
+            Ok(Claimed::Submitted(proof_id))
+        }
+        Err(err) => {
+            *state.lock() = RequestState::Missing;
+            Err(err)
+        }
+    }
+}
+
 async fn complete_request(
     state: &Mutex<RequestState>,
     submit: impl AsyncFnOnce() -> Result<ProofId>,
     poll: impl AsyncFnOnce(ProofId) -> Result<SP1ProofWithPublicValues, ProofWaitError>,
     verify: impl FnOnce(&SP1ProofWithPublicValues) -> Result<()>,
 ) -> Result<Arc<SP1ProofWithPublicValues>> {
-    let existing = {
-        let mut state = state.lock();
-        match &*state {
-            RequestState::Missing => {
-                *state = RequestState::Submitting;
-                None
-            }
-            RequestState::Submitting => bail!("proof request submission is already in progress"),
-            RequestState::Submitted(proof_id) => Some(*proof_id),
-            RequestState::Fulfilled(proof) => return Ok(Arc::clone(proof)),
-            RequestState::Terminal(outcome) => {
-                bail!("proof request reached terminal state: {outcome:?}")
-            }
-        }
-    };
-
-    let proof_id = match existing {
-        Some(proof_id) => proof_id,
-        None => match submit().await {
-            Ok(proof_id) => {
-                *state.lock() = RequestState::Submitted(proof_id);
-                proof_id
-            }
-            Err(err) => {
-                *state.lock() = RequestState::Missing;
-                return Err(err);
-            }
-        },
+    let proof_id = match ensure_submitted(state, submit).await? {
+        Claimed::Submitted(proof_id) => proof_id,
+        Claimed::Fulfilled(proof) => return Ok(proof),
     };
 
     let proof = match poll(proof_id).await {
@@ -520,6 +588,49 @@ async fn complete_request(
     let proof = Arc::new(proof);
     *state.lock() = RequestState::Fulfilled(Arc::clone(&proof));
     Ok(proof)
+}
+
+/// Submits the batch request of `prover` for `batch`, and counts it.
+async fn submit_log_batch(prover: &dyn LogBatchProver, batch: &LogBatch) -> Result<ProofId> {
+    let proof_id = prover.submit(batch).await?;
+    ProposerGauge::LogBatchesSubmitted.increment(1.0);
+    tracing::info!(%proof_id, batch = %batch, "Submitted a log-commitment batch proof request");
+    Ok(proof_id)
+}
+
+/// Submits every batch request that is not submitted yet, before any wait.
+async fn submit_log_batches(
+    prover: &dyn LogBatchProver,
+    batches: &[LogBatchProgress],
+) -> Result<()> {
+    for progress in batches {
+        let batch = &progress.batch;
+        ensure_submitted(&progress.request, async || submit_log_batch(prover, batch).await)
+            .await
+            .with_context(|| format!("failed to submit {batch}"))?;
+    }
+    Ok(())
+}
+
+/// Waits for every batch proof, in batch order. A batch that fails ends the wait.
+async fn wait_for_log_batches(
+    prover: &dyn LogBatchProver,
+    batches: &[LogBatchProgress],
+) -> Result<BatchProofs> {
+    let proofs = futures::future::try_join_all(batches.iter().map(|progress| async move {
+        let batch = &progress.batch;
+        complete_request(
+            &progress.request,
+            async || submit_log_batch(prover, batch).await,
+            async |proof_id| prover.poll(batch, proof_id).await,
+            |proof| prover.verify(batch, proof),
+        )
+        .await
+        .inspect_err(|_| ProposerGauge::LogBatchError.increment(1.0))
+        .with_context(|| format!("{batch} failed"))
+    }))
+    .await?;
+    Ok(proofs.into())
 }
 
 /// Terminal requests are rejected by the preflight in `plan_game_attempt`.
@@ -679,13 +790,10 @@ async fn prove_range_request(
 async fn prove_consolidation_request(
     provider: &ProofProvider,
     keys: &ProofKeys,
-    inputs: &SuperConsolidationInputs,
-    witness: DefaultWitnessData,
+    stdin: SP1Stdin,
     expected: &SuperConsolidationOutputs,
     state: &Mutex<RequestState>,
 ) -> Result<Arc<SP1ProofWithPublicValues>> {
-    let stdin =
-        build_super_consolidation_stdin(inputs, witness, &LogCommitmentInputs::default(), None)?;
     complete_request(
         state,
         async move || provider.request_range_proof(keys, stdin).await,
@@ -709,10 +817,7 @@ async fn prove_consolidation_request(
 /// Per-stage request state lives in `progress`. The caller caches this function's result only
 /// after both child proofs complete.
 async fn prove_chunk(
-    provider: &ProofProvider,
-    keys: Option<&ProofKeys>,
-    host_inputs: &HostInputs,
-    game: &GameProofInputs,
+    attempt: &GameAttempt<'_, '_>,
     plan: ChunkPlan,
     chunk_count: usize,
     progress: Arc<GameProgress>,
@@ -726,8 +831,7 @@ async fn prove_chunk(
         agreed_timestamp,
         claimed_timestamp,
         async move {
-            let result =
-                prove_chunk_inner(provider, keys, host_inputs, game, plan, progress).await;
+            let result = prove_chunk_inner(attempt, plan, progress).await;
             match &result {
                 Ok(chunk) => tracing::info!(
                     range_transition_count = chunk.range_outputs.transitions.len(),
@@ -747,24 +851,26 @@ async fn prove_chunk(
 }
 
 async fn prove_chunk_inner(
-    provider: &ProofProvider,
-    keys: Option<&ProofKeys>,
-    host_inputs: &HostInputs,
-    game: &GameProofInputs,
+    attempt: &GameAttempt<'_, '_>,
     plan: ChunkPlan,
     progress: Arc<GameProgress>,
 ) -> Result<ChunkResult> {
+    let GameAttempt { provider, keys, host_inputs, game, logs, settings } = *attempt;
+    check_log_batches(&logs.proofs)?;
     let index = plan.index;
     let chunk_progress = &progress.chunks[index];
     let synthesized = &plan.synthesized;
     let span = synthesized.range_inputs.span;
-    let range_host = build_interop_host(
-        host_inputs,
-        game.l1_head,
-        &synthesized.previous_super_root_proof_bytes,
-        synthesized.current_super_root,
-        span.end,
-    )?;
+    let host = || {
+        build_interop_host(
+            host_inputs,
+            game.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            span.end,
+        )
+    };
+    let range_host = host()?;
     let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
@@ -775,31 +881,10 @@ async fn prove_chunk_inner(
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
 
-    let consolidation_host = build_interop_host(
-        host_inputs,
-        game.l1_head,
-        &synthesized.previous_super_root_proof_bytes,
-        synthesized.current_super_root,
-        span.end,
-    )?;
-    let CollectedConsolidation {
-        witness: consolidation_witness,
-        outputs: consolidation_outputs,
-        ..
-    } = collect_consolidation_witness(
-        consolidation_host,
-        &synthesized.consolidation_inputs,
-        &synthesized.preloaded_preimages,
-        Some(&configs),
-        &[],
-    )
-    .await
-    .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
-
-    let proofs = match (provider, keys) {
+    let range_proof = match (provider, keys) {
         (ProofProvider::Mock(_), _) => None,
-        (provider, Some(keys)) => {
-            let range_proof = prove_range_request(
+        (provider, Some(keys)) => Some(
+            prove_range_request(
                 provider,
                 keys,
                 &synthesized.range_inputs,
@@ -807,22 +892,283 @@ async fn prove_chunk_inner(
                 &range_outputs,
                 &chunk_progress.range_request,
             )
-            .await?;
-            let consolidation_proof = prove_consolidation_request(
-                provider,
-                keys,
-                &synthesized.consolidation_inputs,
-                consolidation_witness,
-                &consolidation_outputs,
-                &chunk_progress.consolidation_request,
-            )
-            .await?;
-            Some(ChildProofs { range: range_proof, consolidation: consolidation_proof })
-        }
+            .await?,
+        ),
         (_, None) => bail!("network proving requires prestate proving keys"),
     };
 
-    Ok(ChunkResult { index, range_outputs, consolidation_outputs, proofs })
+    let batch_proofs = logs.proofs.clone().await.map_err(|err| anyhow!("{err:#}"))?;
+    let batch_public_values: Vec<Vec<u8>> =
+        batch_proofs.iter().map(|proof| proof.public_values.to_vec()).collect();
+    let collected = collect_consolidation_witness(
+        host()?,
+        &synthesized.consolidation_inputs,
+        &synthesized.preloaded_preimages,
+        Some(&configs),
+        &batch_public_values,
+    )
+    .await
+    .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
+
+    let stage = &logs.stage;
+    let batches: Vec<&LogBatch> = stage.batches.iter().map(|progress| &progress.batch).collect();
+    let covering = cover(&batches, &collected.served)?;
+    let carried: Vec<&LogBatch> = covering.iter().map(|&index| batches[index]).collect();
+    let estimate =
+        estimate_consolidation_pgu(&consolidation_cost(&stage.costs[index], &collected, &carried));
+    if stage.table && !collected.missing.is_empty() {
+        // A block read without an entry means the stage's scan is out of date or wrong.
+        stage.mark_stale();
+    }
+    let log_commitments = LogCommitmentInputs {
+        batches: covering.iter().map(|&index| batch_public_values[index].clone()).collect(),
+        openings: collected.openings,
+    };
+    let request = CollectedRequest {
+        span,
+        missing: &collected.missing,
+        estimate,
+        witness_bytes: collected.witness_bytes,
+        batch_proofs: covering.len(),
+        log_commitment_bytes: log_commitments.encode().len() as u64,
+    };
+    check_collected(stage.table, &request, settings.range_gas_limit)?;
+    tracing::info!(
+        estimate,
+        budget = request_budget(settings.range_gas_limit),
+        batch_proofs = covering.len(),
+        receipts_path_blocks = collected.missing.len(),
+        witness_bytes = collected.witness_bytes,
+        read_bytes = collected.read_bytes,
+        log_checks = collected.log_checks,
+        "Checked the consolidation request"
+    );
+
+    let proofs = match (provider, keys, range_proof) {
+        (ProofProvider::Mock(_), _, _) => None,
+        (provider, Some(keys), Some(range)) => {
+            let carried_proofs = LogCommitmentProofs {
+                vk: (*keys.log_vk).clone(),
+                proofs: covering.iter().map(|&index| (*batch_proofs[index]).clone()).collect(),
+            };
+            let stdin = build_super_consolidation_stdin(
+                &synthesized.consolidation_inputs,
+                collected.witness,
+                &log_commitments,
+                Some(&carried_proofs),
+            )?;
+            let consolidation = prove_consolidation_request(
+                provider,
+                keys,
+                stdin,
+                &collected.outputs,
+                &chunk_progress.consolidation_request,
+            )
+            .await?;
+            Some(ChildProofs { range, consolidation })
+        }
+        _ => bail!("network proving requires prestate proving keys"),
+    };
+
+    Ok(ChunkResult { index, range_outputs, consolidation_outputs: collected.outputs, proofs })
+}
+
+/// The batch proofs of a game, in batch order.
+type BatchProofs = Arc<[Arc<SP1ProofWithPublicValues>]>;
+
+/// The proofs of a game's batches, in batch order, shared by its chunk tasks.
+type LogBatchProofs<'a> = Shared<BoxFuture<'a, Result<BatchProofs, Arc<anyhow::Error>>>>;
+
+/// The log-commitment stage of a game: its path and, on the table path, its batches. It serves
+/// later attempts until a collection reads a block without an entry.
+#[derive(Default)]
+struct LogStage {
+    table: bool,
+    /// The receipts-path costs of each chunk's transitions, by chunk index.
+    costs: Vec<Vec<ScannedTimestampCost>>,
+    /// The table path's batches; empty on the receipts path.
+    batches: Vec<LogBatchProgress>,
+    /// Set when the next attempt must scan the span again.
+    stale: AtomicBool,
+}
+
+impl LogStage {
+    fn mark_stale(&self) {
+        self.stale.store(true, Ordering::Relaxed);
+    }
+
+    fn is_stale(&self) -> bool {
+        self.stale.load(Ordering::Relaxed)
+    }
+}
+
+/// The log-commitment stage of one game attempt.
+struct GameLogs<'a> {
+    stage: Arc<LogStage>,
+    /// Chunk tasks await these before their consolidation collection.
+    proofs: LogBatchProofs<'a>,
+}
+
+impl GameLogs<'_> {
+    fn without_batches(stage: Arc<LogStage>) -> Self {
+        Self { stage, proofs: futures::future::ready(Ok(BatchProofs::from([]))).boxed().shared() }
+    }
+}
+
+/// What the chunk tasks of one game attempt share.
+#[derive(Clone, Copy)]
+struct GameAttempt<'a, 'b> {
+    provider: &'a ProofProvider,
+    keys: Option<&'a ProofKeys>,
+    host_inputs: &'a HostInputs,
+    game: &'a GameProofInputs,
+    logs: &'b GameLogs<'a>,
+    settings: &'a LogProofSettings,
+}
+
+/// The game's log stage, from `progress` or from a new scan, with every batch request submitted
+/// before any wait.
+async fn start_game_logs<'a>(
+    provider: &'a ProofProvider,
+    keys: Option<&'a ProofKeys>,
+    host_inputs: &HostInputs,
+    request: &ProveGameRequest<'a>,
+    plans: &[ChunkPlan],
+    progress: &GameProgress,
+) -> Result<GameLogs<'a>> {
+    let stage = match progress.log_stage() {
+        Some(stage) if !stage.is_stale() => stage,
+        previous => progress.store_log_stage(
+            scan_log_stage(host_inputs, request, plans, previous.as_deref()).await?,
+        ),
+    };
+    if !stage.table {
+        return Ok(GameLogs::without_batches(stage));
+    }
+    let prover: Arc<dyn LogBatchProver + 'a> = match (provider, keys) {
+        (ProofProvider::Mock(_), _) => Arc::new(MockLogProver),
+        (provider, Some(keys)) => Arc::new(NetworkLogProver {
+            provider,
+            keys,
+            l2: request.l2,
+            poll_interval: log_batch_poll_interval(stage.batches.len()),
+        }),
+        (_, None) => bail!("network proving requires prestate proving keys"),
+    };
+    let proofs = start_log_batches(prover, Arc::clone(&stage)).await?;
+    Ok(GameLogs { stage, proofs })
+}
+
+/// Scans the span, chooses the game's path, and on the table path makes the batches, with the
+/// requests of `previous` (see [`batch_progress`]).
+async fn scan_log_stage(
+    host_inputs: &HostInputs,
+    request: &ProveGameRequest<'_>,
+    plans: &[ChunkPlan],
+    previous: Option<&LogStage>,
+) -> Result<LogStage> {
+    let first = plans.first().context("game proof has no chunks")?;
+    let host = build_interop_host(
+        host_inputs,
+        request.game.l1_head,
+        &first.synthesized.previous_super_root_proof_bytes,
+        first.synthesized.current_super_root,
+        first.claimed_timestamp,
+    )?;
+    let configs = deployment_chain_configs(&host, &first.synthesized.range_inputs.chain_ids)?;
+    let scan = scan_span(request.l2, request.responses, &configs)
+        .await
+        .context("failed to scan the span's executing messages")?;
+    let costs: Vec<_> =
+        plans.iter().map(|plan| receipts_path_costs(&scan, plan.first, plan.last)).collect();
+    let bounds: Vec<RequestBound> = costs.iter().map(|costs| RequestBound::of(costs)).collect();
+    let settings = request.log;
+    let choice = choose_log_path(settings.path, &bounds, settings.range_gas_limit);
+    tracing::info!(
+        table = choice.table,
+        setting = ?settings.path,
+        largest_receipts_path_bound = choice.largest_bound,
+        budget = request_budget(settings.range_gas_limit),
+        referenced_blocks = scan.blocks.len(),
+        "Chose the consolidation path"
+    );
+    let batches = if choice.table {
+        // TODO(proofs-team#31): reuse the batches of earlier games from a persistent cache keyed
+        // by receipts root and log vkey.
+        let batches = make_log_batches(request.l2, &scan, settings.log_gas_limit).await?;
+        for (plan, chunk_costs) in plans.iter().zip(&costs) {
+            check_table_path_fits(
+                plan.synthesized.range_inputs.span,
+                chunk_costs,
+                &referenced_roots(&scan, plan.first, plan.last),
+                &batches,
+                settings.range_gas_limit,
+            )
+            .context("the game does not fit on the table path, so it requests no batch")?;
+        }
+        batch_progress(batches, previous)
+    } else {
+        Vec::new()
+    };
+    Ok(LogStage { table: choice.table, costs, batches, stale: AtomicBool::new(false) })
+}
+
+/// The progress of `batches`. A batch of `previous` with the same ID keeps its request.
+fn batch_progress(batches: Vec<LogBatch>, previous: Option<&LogStage>) -> Vec<LogBatchProgress> {
+    let mut requests: HashMap<B256, RequestState> = previous
+        .iter()
+        .flat_map(|previous| &previous.batches)
+        .map(|progress| (progress.batch.id, progress.request.lock().clone()))
+        .collect();
+    batches
+        .into_iter()
+        .map(|batch| {
+            let request = requests.remove(&batch.id).unwrap_or_default();
+            LogBatchProgress { batch, request: Mutex::new(request) }
+        })
+        .collect()
+}
+
+/// Submits every batch request of `stage` that is not submitted yet, and returns the wait for
+/// their proofs.
+async fn start_log_batches<'a>(
+    prover: Arc<dyn LogBatchProver + 'a>,
+    stage: Arc<LogStage>,
+) -> Result<LogBatchProofs<'a>> {
+    submit_log_batches(prover.as_ref(), &stage.batches).await?;
+    Ok(async move { wait_for_log_batches(prover.as_ref(), &stage.batches).await.map_err(Arc::new) }
+        .boxed()
+        .shared())
+}
+
+/// Fails once the batch proofs failed, so a chunk admitted after a batch failure does no work.
+fn check_log_batches(proofs: &LogBatchProofs<'_>) -> Result<()> {
+    if let Some(Err(err)) = proofs.peek() {
+        bail!("{err:#}");
+    }
+    Ok(())
+}
+
+/// Runs `chunks` while it polls the batch proofs, so batch requests progress during the first
+/// range proofs. After a batch failure, the admitted chunks run to their end and the attempt
+/// returns the batch error.
+async fn run_with_log_batches<T>(
+    chunks: impl Future<Output = Result<T>>,
+    mut proofs: LogBatchProofs<'_>,
+) -> Result<T> {
+    tokio::pin!(chunks);
+    let mut batch_error = None;
+    let mut waiting = true;
+    let result = loop {
+        tokio::select! {
+            result = &mut chunks => break result,
+            batches = &mut proofs, if waiting => {
+                waiting = false;
+                batch_error = batches.err();
+            }
+        }
+    };
+    batch_error.map_or(result, |err| Err(anyhow!("{err:#}")))
 }
 
 /// Selects cached progress and rejects terminal attempts before returning executable chunks.
@@ -856,6 +1202,8 @@ fn plan_game_attempt(
             index,
             agreed_timestamp: agreed_ts,
             claimed_timestamp: claimed_ts,
+            first,
+            last,
             synthesized,
         });
     }
@@ -869,28 +1217,39 @@ fn plan_game_attempt(
     Ok((plans, progress))
 }
 
+/// Log-commitment settings of game proofs.
+#[derive(Debug, Clone)]
+pub(crate) struct LogProofSettings {
+    pub(crate) path: LogPath,
+    /// The range and consolidation request gas limit.
+    pub(crate) range_gas_limit: u64,
+    pub(crate) log_gas_limit: u64,
+}
+
 /// Inputs for one in-process game-proving attempt.
-#[derive(Debug)]
-pub struct ProveGameRequest<'a> {
+pub(crate) struct ProveGameRequest<'a> {
     /// Dispute game whose work owns the cache entry.
-    pub game_address: Address,
+    pub(crate) game_address: Address,
     /// Immutable inputs bound into the proof.
-    pub game: &'a GameProofInputs,
+    pub(crate) game: &'a GameProofInputs,
     /// Validated super-root responses covering the game span.
-    pub responses: &'a [SuperRootAtTimestampResponse],
+    pub(crate) responses: &'a [SuperRootAtTimestampResponse],
     /// Number of chunks used for the span.
-    pub split: RangeSplitCount,
+    pub(crate) split: RangeSplitCount,
     /// Maximum number of concurrently active chunk tasks.
-    pub max_concurrent: NonZeroUsize,
+    pub(crate) max_concurrent: NonZeroUsize,
     /// Process-local progress retained between scheduler attempts.
-    pub proof_progress: &'a InMemoryProofProgress,
+    pub(crate) proof_progress: &'a InMemoryProofProgress,
+    /// L2 reads for the message scan and the log-commitment batches.
+    pub(crate) l2: &'a dyn L2BlockSource,
+    pub(crate) log: &'a LogProofSettings,
 }
 
 /// Proves the game's span end to end and returns the on-chain proof bytes.
 ///
 /// `keys` must be `Some` in network mode (resolved per-prestate through the
 /// prestate cache) and may be `None` in mock mode.
-pub async fn prove_game_inner(
+pub(crate) async fn prove_game_inner(
     provider: &ProofProvider,
     keys: Option<&ProofKeys>,
     host_inputs: &HostInputs,
@@ -900,7 +1259,7 @@ pub async fn prove_game_inner(
         ensure!(keys.is_some(), "network proving requires prestate proving keys");
     }
     let (plans, progress) = plan_game_attempt(provider, keys, &request)?;
-    let ProveGameRequest { game, responses, max_concurrent, .. } = request;
+    let ProveGameRequest { game, responses, max_concurrent, log, .. } = request;
     let chunk_count = plans.len();
     tracing::info!(
         starting_ts = game.starting_ts,
@@ -919,26 +1278,26 @@ pub async fn prove_game_inner(
         return Ok(proof);
     }
 
+    let logs = if progress.chunks.iter().all(|chunk| chunk.completed.lock().is_some()) {
+        GameLogs::without_batches(Arc::default())
+    } else {
+        start_game_logs(provider, keys, host_inputs, &request, &plans, &progress).await?
+    };
+    let attempt = GameAttempt { provider, keys, host_inputs, game, logs: &logs, settings: log };
     let attempts = plans
         .into_iter()
         .map(|plan| {
             let index = plan.index;
-            let attempt = prove_chunk(
-                provider,
-                keys,
-                host_inputs,
-                game,
-                plan,
-                chunk_count,
-                Arc::clone(&progress),
-            );
-            (index, attempt)
+            (index, prove_chunk(&attempt, plan, chunk_count, Arc::clone(&progress)))
         })
         .collect();
 
     let max_concurrent = max_concurrent.get().min(chunk_count);
-    let results =
-        run_chunk_attempts_with_progress(attempts, Arc::clone(&progress), max_concurrent).await?;
+    let results = run_with_log_batches(
+        run_chunk_attempts_with_progress(attempts, Arc::clone(&progress), max_concurrent),
+        logs.proofs.clone(),
+    )
+    .await?;
 
     let mut range_outputs = vec![None; chunk_count];
     let mut consolidation_outputs = vec![None; chunk_count];
@@ -1036,6 +1395,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, HashMap},
         fmt::Write,
+        path::Path,
         sync::{
             Arc, Mutex as StdMutex,
             atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -1126,6 +1486,41 @@ mod tests {
         fn exit(&self, span: &Id) {
             assert_eq!(self.0.lock().unwrap().entered.pop(), Some(span.clone().into_u64()));
         }
+    }
+
+    /// An L2 source for tests that make no L2 reads.
+    struct NoL2;
+
+    #[async_trait::async_trait]
+    impl L2BlockSource for NoL2 {
+        async fn header_by_hash(
+            &self,
+            _chain_id: u64,
+            _hash: B256,
+        ) -> Result<alloy_consensus::Header> {
+            bail!("no L2 reads in this test")
+        }
+
+        async fn header_by_number(
+            &self,
+            _chain_id: u64,
+            _number: u64,
+        ) -> Result<alloy_consensus::Sealed<alloy_consensus::Header>> {
+            bail!("no L2 reads in this test")
+        }
+
+        async fn receipts(
+            &self,
+            _chain_id: u64,
+            _hash: B256,
+            _receipts_root: B256,
+        ) -> Result<Vec<op_alloy_consensus::OpReceiptEnvelope>> {
+            bail!("no L2 reads in this test")
+        }
+    }
+
+    fn log_settings() -> LogProofSettings {
+        LogProofSettings { path: LogPath::Auto, range_gas_limit: 1, log_gas_limit: 1 }
     }
 
     /// Builds a self-consistent supernode response trusted by default.
@@ -1292,6 +1687,8 @@ mod tests {
             split: RangeSplitCount::one(),
             max_concurrent: NonZeroUsize::MIN,
             proof_progress: &cache,
+            l2: &NoL2,
+            log: &log_settings(),
         };
         let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
         *progress.chunks[0].range_request.lock() =
@@ -1331,6 +1728,8 @@ mod tests {
                 split: RangeSplitCount::new(2).unwrap(),
                 max_concurrent: NonZeroUsize::MIN,
                 proof_progress: &cache,
+                l2: &NoL2,
+                log: &log_settings(),
             };
             let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
             let (_, _, request_state) = progress.requests().nth(slot).unwrap();
@@ -1442,12 +1841,14 @@ mod tests {
         identity.provider = ProviderIdentity::Network {
             range_vkey: B256::repeat_byte(0x10),
             aggregation_vkey: B256::repeat_byte(0x11),
+            log_vkey: [0x12; 8],
         };
         let first = cache.load_or_create(game_address, identity.clone());
 
         identity.provider = ProviderIdentity::Network {
             range_vkey: B256::repeat_byte(0x12),
             aggregation_vkey: B256::repeat_byte(0x11),
+            log_vkey: [0x12; 8],
         };
         let changed = cache.load_or_create(game_address, identity);
 
@@ -1905,6 +2306,262 @@ mod tests {
             "admitted sibling was dropped before completion"
         );
         assert!(!queued_started.load(Ordering::SeqCst), "queued chunk started after sibling error");
+    }
+
+    /// A batch prover that records each submit and poll, fails a batch's poll once with a
+    /// retryable terminal state when the batch is in `cancel_once`, and fails the verification of
+    /// a batch in `fail_verify`.
+    #[derive(Default)]
+    struct ScriptedLogProver {
+        events: StdMutex<Vec<String>>,
+        cancel_once: StdMutex<std::collections::HashSet<B256>>,
+        fail_verify: StdMutex<std::collections::HashSet<B256>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LogBatchProver for ScriptedLogProver {
+        async fn submit(&self, batch: &LogBatch) -> Result<ProofId> {
+            self.events.lock().unwrap().push(format!("submit {}", batch.blocks[0].number));
+            Ok(batch.id)
+        }
+
+        async fn poll(
+            &self,
+            batch: &LogBatch,
+            proof_id: ProofId,
+        ) -> Result<SP1ProofWithPublicValues, ProofWaitError> {
+            self.events.lock().unwrap().push(format!("poll {}", batch.blocks[0].number));
+            if self.cancel_once.lock().unwrap().remove(&batch.id) {
+                return Err(ProofWaitError::Terminal {
+                    proof_id,
+                    state: ProofTerminalState::Cancelled,
+                    fulfillment_status: 0,
+                    execution_status: 0,
+                });
+            }
+            Ok(SP1ProofWithPublicValues {
+                public_values: SP1PublicValues::from(&batch.expected),
+                ..fulfilled_proof()
+            })
+        }
+
+        fn verify(&self, batch: &LogBatch, proof: &SP1ProofWithPublicValues) -> Result<()> {
+            ensure!(!self.fail_verify.lock().unwrap().contains(&batch.id), "scripted failure");
+            ensure!(
+                proof.public_values.as_slice() == batch.expected,
+                "{batch} commits other entries"
+            );
+            Ok(())
+        }
+    }
+
+    fn log_batch(number: u64) -> LogBatch {
+        let block = kona_sp1_super_range_executor::LogBatchBlock {
+            chain_id: 1,
+            number,
+            hash: B256::repeat_byte(number as u8),
+            receipts_root: B256::repeat_byte(number as u8),
+            pgu: 1,
+            witness_bytes: 1,
+        };
+        LogBatch {
+            id: B256::repeat_byte(number as u8),
+            blocks: vec![block],
+            expected: vec![number as u8; 72],
+        }
+    }
+
+    fn game_identity() -> AttemptIdentity {
+        attempt_identity(game_for(&response_at(100, 1, 5), &response_at(102, 3, 5), 10))
+    }
+
+    fn table_stage(batches: impl IntoIterator<Item = LogBatch>) -> LogStage {
+        LogStage {
+            table: true,
+            batches: batch_progress(batches.into_iter().collect(), None),
+            ..Default::default()
+        }
+    }
+
+    /// Pins every batch request submitted before the first poll.
+    #[tokio::test]
+    async fn all_batches_are_submitted_before_any_wait() {
+        let stage = Arc::new(table_stage((1..=3).map(log_batch)));
+        let prover = Arc::new(ScriptedLogProver::default());
+        let proofs = start_log_batches(prover.clone(), Arc::clone(&stage)).await.unwrap();
+        assert_eq!(*prover.events.lock().unwrap(), ["submit 1", "submit 2", "submit 3"]);
+        let proofs = proofs.await.unwrap();
+        assert_eq!(prover.events.lock().unwrap().len(), 6);
+        let committed: Vec<_> = proofs.iter().map(|proof| proof.public_values.to_vec()).collect();
+        let expected: Vec<_> = stage.batches.iter().map(|b| b.batch.expected.clone()).collect();
+        assert_eq!(committed, expected);
+    }
+
+    /// Pins a batch error after the admitted chunk ends, and no work in a chunk admitted later.
+    #[tokio::test]
+    async fn batch_failure_drains_admitted_chunks() {
+        let stage = Arc::new(table_stage([log_batch(1)]));
+        let failed = stage.batches[0].batch.to_string();
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.cancel_once.lock().unwrap().insert(stage.batches[0].batch.id);
+        let proofs = start_log_batches(prover, stage).await.unwrap();
+        let (release, released) = tokio::sync::oneshot::channel();
+        let work = StdMutex::new(Vec::new());
+        let admitted = async {
+            released.await.unwrap();
+            work.lock().unwrap().push(0);
+            Ok(0)
+        };
+        let later = async {
+            check_log_batches(&proofs)?;
+            work.lock().unwrap().push(1);
+            Ok(1)
+        };
+        let chunks = run_chunk_tasks_until_error([admitted.boxed_local(), later.boxed_local()], 1);
+        let (result, ()) = tokio::join!(run_with_log_batches(chunks, proofs.clone()), async {
+            proofs.clone().await.unwrap_err();
+            release.send(()).unwrap();
+        });
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains(&failed), "{err}");
+        assert_eq!(*work.lock().unwrap(), [0]);
+    }
+
+    /// Pins a retry that reuses a fulfilled batch and requests a cancelled one again.
+    #[tokio::test]
+    async fn retry_reuses_fulfilled_batches() {
+        let progress = GameProgress::new(game_identity());
+        let stage = progress.store_log_stage(table_stage((1..=2).map(log_batch)));
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.cancel_once.lock().unwrap().insert(stage.batches[1].batch.id);
+        start_log_batches(prover.clone(), stage).await.unwrap().await.unwrap_err();
+
+        prover.events.lock().unwrap().clear();
+        let stage = progress.log_stage().expect("a batch failure keeps the stage");
+        start_log_batches(prover.clone(), stage).await.unwrap().await.unwrap();
+        assert_eq!(*prover.events.lock().unwrap(), ["submit 2", "poll 2"]);
+
+        progress.log_stage().unwrap().mark_stale();
+        assert!(progress.log_stage().unwrap().is_stale());
+    }
+
+    /// Pins a rescan that keeps the request of each batch with an unchanged ID.
+    #[test]
+    fn rescan_keeps_requests_of_unchanged_batches() {
+        let previous = table_stage((1..=2).map(log_batch));
+        *previous.batches[0].request.lock() = RequestState::Submitted(B256::repeat_byte(9));
+        let batches = batch_progress(vec![log_batch(1), log_batch(3)], Some(&previous));
+        assert!(
+            matches!(*batches[0].request.lock(), RequestState::Submitted(id) if id == B256::repeat_byte(9))
+        );
+        assert!(matches!(*batches[1].request.lock(), RequestState::Missing));
+    }
+
+    /// Pins a batch that fails verification as a terminal log request until a retry signal.
+    #[tokio::test]
+    async fn failed_batch_verification_is_terminal_until_retry() {
+        let cache = InMemoryProofProgress::default();
+        let game_address = Address::repeat_byte(0x47);
+        let progress = cache.load_or_create(game_address, game_identity());
+        let stage = progress.store_log_stage(table_stage([log_batch(1)]));
+        let failed = stage.batches[0].batch.to_string();
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.fail_verify.lock().unwrap().insert(stage.batches[0].batch.id);
+        start_log_batches(prover, stage).await.unwrap().await.unwrap_err();
+
+        let err = progress.check_terminal_requests().unwrap_err();
+        assert!(err.to_string().contains(&failed), "{err}");
+        assert_eq!(cache.request_counts().get(&("log", "terminal")), Some(&1));
+        assert_eq!(cache.retry_terminal_requests(game_address), 1);
+        progress.check_terminal_requests().unwrap();
+    }
+
+    /// An L2 source whose every block has no receipts.
+    struct EmptyReceiptsL2;
+
+    #[async_trait::async_trait]
+    impl L2BlockSource for EmptyReceiptsL2 {
+        async fn header_by_hash(
+            &self,
+            _chain_id: u64,
+            _hash: B256,
+        ) -> Result<alloy_consensus::Header> {
+            bail!("no header reads in this test")
+        }
+
+        async fn header_by_number(
+            &self,
+            _chain_id: u64,
+            _number: u64,
+        ) -> Result<alloy_consensus::Sealed<alloy_consensus::Header>> {
+            bail!("no header reads in this test")
+        }
+
+        async fn receipts(
+            &self,
+            _chain_id: u64,
+            _hash: B256,
+            _receipts_root: B256,
+        ) -> Result<Vec<op_alloy_consensus::OpReceiptEnvelope>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Pins each prestate's log key on its batch request and arrival check.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn real_elf_two_prestates_route_log_requests_by_vkey() {
+        use crate::prover::{
+            NetworkProofProvider,
+            scripted::{ScriptedNetworkApi, fulfilled},
+        };
+        use sp1_sdk::network::NetworkMode;
+
+        let Ok(dir) = std::env::var("KONA_SP1_ELF_DIR") else { return };
+        let read = |name: &str| std::fs::read(Path::new(&dir).join(name)).unwrap();
+        let programs = crate::config::PrestatePrograms {
+            aggregation_elf: read("super-aggregation-elf"),
+            range_elf: read("super-range-elf"),
+            log_commitment_elf: read("log-commitment-elf"),
+        };
+        let first = crate::prover::setup_proof_keys(&programs).await.unwrap();
+        let second = crate::prover::setup_proof_keys(&crate::config::PrestatePrograms {
+            log_commitment_elf: programs.aggregation_elf.clone(),
+            ..programs
+        })
+        .await
+        .unwrap();
+        assert_ne!(first.log_vk.hash_u32(), second.log_vk.hash_u32());
+
+        let mut batch = log_batch(1);
+        batch.blocks[0].receipts_root = alloy_consensus::EMPTY_ROOT_HASH;
+        let api = Arc::new(ScriptedNetworkApi::new(Vec::new(), None));
+        let config = crate::config::ProofProviderConfig::from_env().unwrap();
+        let provider = ProofProvider::Network(NetworkProofProvider::scripted(
+            api.clone(),
+            config,
+            NetworkMode::Reserved,
+        ));
+        for keys in [&first, &second] {
+            let stage = Arc::new(table_stage([batch.clone()]));
+            api.log_request_ids.lock().push_back(batch.id);
+            api.statuses.lock().push_back(fulfilled(SP1ProofWithPublicValues {
+                public_values: SP1PublicValues::from(&batch.expected),
+                ..fulfilled_proof()
+            }));
+            let prover = Arc::new(NetworkLogProver {
+                provider: &provider,
+                keys,
+                l2: &EmptyReceiptsL2,
+                poll_interval: std::time::Duration::ZERO,
+            });
+            start_log_batches(prover, stage).await.unwrap().await.unwrap();
+        }
+        let requested: Vec<_> =
+            api.log_requests.lock().iter().map(|request| request.vkey).collect();
+        let expected = [first.log_vk.hash_u32(), second.log_vk.hash_u32()];
+        assert_eq!(requested, expected);
+        assert_eq!(*api.verified.lock(), expected);
     }
 
     #[tokio::test]

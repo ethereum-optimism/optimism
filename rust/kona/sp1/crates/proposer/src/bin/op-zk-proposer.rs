@@ -11,7 +11,7 @@ use kona_sources::redacted_url;
 use kona_sp1_host_utils::{
     logger::setup_logger,
     metrics::{MetricsGauge, init_metrics},
-    network::{build_network_prover_from_env, determine_network_mode},
+    network::build_network_prover_from_env,
 };
 use op_zk_proposer::{
     ENV_VAR_PREFIX,
@@ -72,6 +72,8 @@ async fn main() -> Result<()> {
         max_concurrent_defense_tasks = %config.max_concurrent_defense_tasks,
         fast_finality_mode = config.fast_finality_mode,
         fast_finality_proving_limit = %config.fast_finality_proving_limit,
+        log_path = ?config.log_path,
+        log_gas_limit = config.proof_provider_config.log_gas_limit,
         "Resolved proposer configuration"
     );
 
@@ -80,10 +82,7 @@ async fn main() -> Result<()> {
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
-            let network_mode = determine_network_mode(
-                provider_config.range_proof_strategy,
-                provider_config.agg_proof_strategy,
-            )?;
+            let network_mode = provider_config.network_mode()?;
             let network_prover =
                 build_network_prover_from_env(ENV_VAR_PREFIX, provider_config.range_proof_strategy)
                     .await?;

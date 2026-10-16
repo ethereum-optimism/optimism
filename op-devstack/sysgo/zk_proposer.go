@@ -71,6 +71,7 @@ type zkProposerConfig struct {
 	ProposalInterval *time.Duration
 	FastFinality     bool
 	Metrics          bool
+	LogPath          string
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -108,6 +109,14 @@ func WithZKFastFinality() ZKProposerOption {
 func WithZKMetrics() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.Metrics = true
+	}
+}
+
+// WithZKLogPath sets how the proposer proves logs below a local safe head:
+// "auto", "receipts", or "table".
+func WithZKLogPath(path string) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.LogPath = path
 	}
 }
 
@@ -164,17 +173,19 @@ func startZKProposer(
 	require.NotEmpty(execPath, "op-zk-proposer binary path resolved")
 
 	// The proposer checks and loads program artifacts at
-	// OP_ZK_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
-	// op-challenger's --prestates-url convention. The aggregation vkey embeds
-	// the range program's vkey, so it keys both ELFs. Devstack publishes the
-	// real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise stub bytes
-	// suffice, since the devstack deploys the mock verifier and the mock
-	// proof provider never executes the ELFs and skips vkey verification.
+	// OP_ZK_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz, .range.bin.gz, and
+	// .log.bin.gz, mirroring op-challenger's --prestates-url convention. The
+	// aggregation vkey embeds the range program's vkey, which embeds the
+	// log-commitment program's vkey, so it keys all three ELFs. Devstack
+	// publishes the real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise
+	// stub bytes suffice, since the devstack deploys the mock verifier and the
+	// mock proof provider never executes the ELFs and skips vkey verification.
 	// Either way the file:// path is exercised.
 	prestatesDir := t.TempDir()
 	sources := map[string]func() (io.ReadCloser, error){
 		".agg.bin.gz":   elfSource(elfDir, "super-aggregation-elf"),
 		".range.bin.gz": elfSource(elfDir, "super-range-elf"),
+		".log.bin.gz":   elfSource(elfDir, "log-commitment-elf"),
 	}
 	for suffix, open := range sources {
 		writePrestateArtifact(t, open, filepath.Join(prestatesDir, programVKey.Hex()+suffix))
@@ -229,6 +240,9 @@ func startZKProposer(
 	}
 	if cfg.FastFinality {
 		env = append(env, zkProposerEnv("FAST_FINALITY_MODE", "true"))
+	}
+	if cfg.LogPath != "" {
+		env = append(env, zkProposerEnv("LOG_PATH", cfg.LogPath))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.
@@ -326,8 +340,7 @@ func elfSource(elfDir, name string) func() (io.ReadCloser, error) {
 }
 
 // writePrestateArtifact gzips the program ELF from open into dst, one of the
-// `<vkey>.agg.bin.gz` / `<vkey>.range.bin.gz` artifacts the proposer's
-// prestate check looks for.
+// prestate artifacts the proposer loads.
 func writePrestateArtifact(t devtest.T, open func() (io.ReadCloser, error), dst string) {
 	require := t.Require()
 	in, err := open()

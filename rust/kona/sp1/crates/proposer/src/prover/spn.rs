@@ -33,7 +33,7 @@ use anyhow::Context;
 
 /// Polling interval (in seconds) for checking proof status.
 /// Matches the SP1 SDK's internal polling interval.
-const PROOF_STATUS_POLL_INTERVAL: u64 = 2;
+pub(crate) const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(2);
 fn current_timestamp() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -45,6 +45,13 @@ trait NetworkProverApi: Send + Sync {
     async fn get_balance(&self) -> Result<U256>;
 
     async fn request_range_proof(
+        &self,
+        proving_key: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        config: &ProofProviderConfig,
+    ) -> Result<ProofId>;
+
+    async fn request_log_proof(
         &self,
         proving_key: &SP1ProvingKey,
         stdin: SP1Stdin,
@@ -100,6 +107,25 @@ impl NetworkProverApi for Sp1NetworkProverApi {
             .min_auction_period(config.min_auction_period)
             .cycle_limit(config.range_cycle_limit)
             .gas_limit(config.range_gas_limit);
+        Self::with_max_price(request, config.max_price_per_pgu).request().await
+    }
+
+    async fn request_log_proof(
+        &self,
+        proving_key: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        config: &ProofProviderConfig,
+    ) -> Result<ProofId> {
+        let request = self
+            .prover
+            .prove(proving_key, stdin)
+            .compressed()
+            .skip_simulation(true)
+            .strategy(config.log_proof_strategy)
+            .timeout(Duration::from_secs(config.timeout))
+            .min_auction_period(config.min_auction_period)
+            .cycle_limit(config.log_cycle_limit)
+            .gas_limit(config.log_gas_limit);
         Self::with_max_price(request, config.max_price_per_pgu).request().await
     }
 
@@ -212,6 +238,18 @@ impl NetworkProofProvider {
         Ok(proof_id)
     }
 
+    pub(super) async fn request_log_proof(
+        &self,
+        keys: &ProofKeys,
+        stdin: SP1Stdin,
+    ) -> Result<ProofId> {
+        tracing::info!("Requesting log-commitment proof via network");
+        let proof_id =
+            self.api.request_log_proof(keys.log_pk.as_ref(), stdin, &self.config).await?;
+        tracing::info!(proof_id = %proof_id, "Log-commitment proof request submitted");
+        Ok(proof_id)
+    }
+
     pub(super) async fn request_aggregation_proof(
         &self,
         keys: &ProofKeys,
@@ -232,10 +270,11 @@ impl NetworkProofProvider {
         self.api.verify(proof, verifying_key)
     }
 
-    /// Waits for an existing proof request to finish.
+    /// Waits for an existing proof request to finish, with a status poll every `interval`.
     pub(super) async fn wait_for_proof(
         &self,
         proof_id: ProofId,
+        interval: Duration,
     ) -> Result<SP1ProofWithPublicValues, ProofWaitError> {
         let started_at = std::time::Instant::now();
         loop {
@@ -243,7 +282,7 @@ impl NetworkProofProvider {
             if let Some(proof) = self.poll_once(proof_id).await? {
                 return Ok(proof);
             }
-            sleep(Duration::from_secs(PROOF_STATUS_POLL_INTERVAL)).await;
+            sleep(interval).await;
         }
     }
 
@@ -614,34 +653,45 @@ fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
         _ => ProofStatus::Pending,
     }
 }
+/// A scripted SP1 network API for tests.
 #[cfg(test)]
-mod tests {
+pub(crate) mod scripted {
     use std::{
         collections::VecDeque,
         sync::atomic::{AtomicUsize, Ordering},
-        time::Duration,
     };
 
     use parking_lot::Mutex;
-
-    use sp1_sdk::{
-        SP1Proof, SP1PublicValues,
-        network::{FulfillmentStrategy, proto::auction_types},
-    };
+    use sp1_sdk::{HashableKey, ProvingKey};
 
     use super::*;
 
-    struct ScriptedNetworkApi {
-        statuses:
+    /// A log-commitment request that [`ScriptedNetworkApi`] received.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct ScriptedLogRequest {
+        /// `hash_u32` of the request's verifying key.
+        pub(crate) vkey: [u32; 8],
+        pub(crate) cycle_limit: u64,
+        pub(crate) gas_limit: u64,
+    }
+
+    /// Answers status polls from a script, gives log requests scripted IDs, and records what it
+    /// was asked.
+    pub(crate) struct ScriptedNetworkApi {
+        pub(crate) statuses:
             Mutex<VecDeque<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)>>,
-        details: Mutex<Option<ProofRequest>>,
-        status_ids: Mutex<Vec<ProofId>>,
-        request_calls: AtomicUsize,
-        status_calls: AtomicUsize,
+        pub(crate) details: Mutex<Option<ProofRequest>>,
+        pub(crate) status_ids: Mutex<Vec<ProofId>>,
+        pub(crate) request_calls: AtomicUsize,
+        pub(crate) status_calls: AtomicUsize,
+        pub(crate) log_request_ids: Mutex<VecDeque<ProofId>>,
+        pub(crate) log_requests: Mutex<Vec<ScriptedLogRequest>>,
+        /// `hash_u32` of each verifying key that `verify` used.
+        pub(crate) verified: Mutex<Vec<[u32; 8]>>,
     }
 
     impl ScriptedNetworkApi {
-        fn new(
+        pub(crate) fn new(
             statuses: Vec<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)>,
             details: Option<ProofRequest>,
         ) -> Self {
@@ -651,6 +701,9 @@ mod tests {
                 status_ids: Mutex::new(Vec::new()),
                 request_calls: AtomicUsize::new(0),
                 status_calls: AtomicUsize::new(0),
+                log_request_ids: Mutex::new(VecDeque::new()),
+                log_requests: Mutex::new(Vec::new()),
+                verified: Mutex::new(Vec::new()),
             }
         }
     }
@@ -669,6 +722,21 @@ mod tests {
         ) -> Result<ProofId> {
             self.request_calls.fetch_add(1, Ordering::SeqCst);
             bail!("unexpected range proof request")
+        }
+
+        async fn request_log_proof(
+            &self,
+            proving_key: &SP1ProvingKey,
+            _stdin: SP1Stdin,
+            config: &ProofProviderConfig,
+        ) -> Result<ProofId> {
+            self.request_calls.fetch_add(1, Ordering::SeqCst);
+            self.log_requests.lock().push(ScriptedLogRequest {
+                vkey: proving_key.verifying_key().hash_u32(),
+                cycle_limit: config.log_cycle_limit,
+                gas_limit: config.log_gas_limit,
+            });
+            self.log_request_ids.lock().pop_front().context("no scripted log request ID")
         }
 
         async fn request_aggregation_proof(
@@ -704,11 +772,53 @@ mod tests {
         fn verify(
             &self,
             _proof: &SP1ProofWithPublicValues,
-            _verifying_key: &SP1VerifyingKey,
+            verifying_key: &SP1VerifyingKey,
         ) -> Result<()> {
+            self.verified.lock().push(verifying_key.hash_u32());
             Ok(())
         }
     }
+
+    /// A fulfilled status with `proof`.
+    pub(crate) fn fulfilled(
+        proof: SP1ProofWithPublicValues,
+    ) -> (GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>) {
+        let status = sp1_sdk::network::proto::auction_types::GetProofRequestStatusResponse {
+            fulfillment_status: FulfillmentStatus::Fulfilled as i32,
+            execution_status: ExecutionStatus::Executed as i32,
+            deadline: u64::MAX,
+            ..Default::default()
+        };
+        (status.into(), Some(proof))
+    }
+
+    impl NetworkProofProvider {
+        /// A provider over `api`.
+        pub(crate) fn scripted(
+            api: Arc<ScriptedNetworkApi>,
+            config: ProofProviderConfig,
+            network_mode: NetworkMode,
+        ) -> Self {
+            Self::with_api(api, config, network_mode)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::atomic::Ordering, time::Duration};
+
+    use sp1_sdk::{
+        SP1Proof, SP1PublicValues,
+        network::{FulfillmentStrategy, proto::auction_types},
+    };
+
+    use sp1_sdk::HashableKey;
+
+    use super::{
+        scripted::{ScriptedLogRequest, ScriptedNetworkApi},
+        *,
+    };
 
     fn provider_with_api(
         api: Arc<dyn NetworkProverApi>,
@@ -726,6 +836,9 @@ mod tests {
                 range_gas_limit: 1,
                 agg_cycle_limit: 1,
                 agg_gas_limit: 1,
+                log_proof_strategy: FulfillmentStrategy::Auction,
+                log_cycle_limit: 1,
+                log_gas_limit: 1,
                 max_price_per_pgu: Some(NonZeroU64::MIN),
                 min_auction_period: 1,
             },
@@ -891,12 +1004,43 @@ mod tests {
         ));
         let provider = provider_with_api(api.clone(), NetworkMode::Reserved);
 
-        let proof = provider.wait_for_proof(B256::repeat_byte(0x33)).await.unwrap();
+        let proof = provider
+            .wait_for_proof(B256::repeat_byte(0x33), PROOF_STATUS_POLL_INTERVAL)
+            .await
+            .unwrap();
 
         assert!(proof.public_values.as_slice().is_empty());
         assert_eq!(api.status_calls.load(Ordering::SeqCst), 1);
         assert_eq!(api.request_calls.load(Ordering::SeqCst), 0);
         assert_eq!(api.status_ids.lock().as_slice(), &[B256::repeat_byte(0x33)]);
+    }
+
+    /// Pins the log key and the log limits on a log request. Skipped without `KONA_SP1_ELF_DIR`.
+    #[tokio::test]
+    async fn real_elf_log_request_uses_log_key_and_limits() {
+        let Ok(dir) = std::env::var("KONA_SP1_ELF_DIR") else { return };
+        let read = |name: &str| std::fs::read(std::path::Path::new(&dir).join(name)).unwrap();
+        let keys = crate::prover::setup_proof_keys(&crate::config::PrestatePrograms {
+            aggregation_elf: read("super-aggregation-elf"),
+            range_elf: read("super-range-elf"),
+            log_commitment_elf: read("log-commitment-elf"),
+        })
+        .await
+        .unwrap();
+        let api = Arc::new(ScriptedNetworkApi::new(Vec::new(), None));
+        api.log_request_ids.lock().push_back(B256::repeat_byte(0x51));
+        let mut config = provider_with_api(api.clone(), NetworkMode::Reserved).config;
+        config.log_cycle_limit = 7;
+        config.log_gas_limit = 9;
+        let provider = NetworkProofProvider::scripted(api.clone(), config, NetworkMode::Reserved);
+
+        let proof_id = provider.request_log_proof(&keys, SP1Stdin::new()).await.unwrap();
+
+        assert_eq!(proof_id, B256::repeat_byte(0x51));
+        assert_eq!(
+            *api.log_requests.lock(),
+            [ScriptedLogRequest { vkey: keys.log_vk.hash_u32(), cycle_limit: 7, gas_limit: 9 }]
+        );
     }
 
     #[tokio::test]
@@ -913,7 +1057,10 @@ mod tests {
         ));
         let provider = provider_with_api(api, NetworkMode::Mainnet);
 
-        let err = provider.wait_for_proof(B256::repeat_byte(0x44)).await.unwrap_err();
+        let err = provider
+            .wait_for_proof(B256::repeat_byte(0x44), PROOF_STATUS_POLL_INTERVAL)
+            .await
+            .unwrap_err();
         assert!(matches!(
             err,
             ProofWaitError::Terminal { state: ProofTerminalState::Cancelled, .. }

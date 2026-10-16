@@ -5,16 +5,23 @@
 //! no receipts trie node of a served block.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    sync::{Arc, Mutex},
+    num::NonZeroUsize,
+    sync::{
+        Arc, Mutex, MutexGuard,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use alloy_consensus::Header;
 use alloy_primitives::{Address, B256};
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
+use async_trait::async_trait;
 use kona_interop::LogCommitment;
-use kona_preimage::CommsClient;
+use kona_preimage::{
+    CommsClient, HintWriterClient, PreimageKey, PreimageOracleClient, errors::PreimageOracleResult,
+};
 use kona_proof::FlushableCache;
 use kona_proof_interop::{HintType, LogCommitmentSource, receipts_from_trie};
 use kona_sp1_client_utils::{
@@ -27,6 +34,8 @@ use kona_sp1_ethereum_client_utils::{
     chain_config::ChainConfigs, super_consolidation::build_consolidation_outputs,
 };
 use kona_sp1_host_utils::witness_generation::PreimageWitnessCollector;
+use lru::LruCache;
+use tokio::sync::Notify;
 
 /// A block below a local safe head that the consolidation read through its receipts, because the
 /// entry table had no entry for its receipts root.
@@ -46,10 +55,18 @@ pub(crate) struct NativeConsolidation {
     pub(crate) outputs: SuperConsolidationOutputs,
     pub(crate) openings: Vec<LogOpening>,
     pub(crate) missing: Vec<MissingLogCommitment>,
+    pub(crate) served: Vec<B256>,
+    pub(crate) witness_bytes: u64,
+    pub(crate) read_bytes: u64,
+    pub(crate) log_checks: u64,
+    pub(crate) log_check_siblings: u64,
 }
 
 /// Runs the consolidation natively over `collector`, with the entries of `batches`, the public
 /// values of the batch proofs that the stdin will carry.
+///
+/// After a host failure, the run stops at its next asynchronous host read. A read inside a trie
+/// walk is synchronous, so a check that is already running finishes first.
 pub(crate) async fn run_native_consolidation<P>(
     collector: Arc<PreimageWitnessCollector<P>>,
     inputs: SuperConsolidationInputs,
@@ -59,37 +76,156 @@ pub(crate) async fn run_native_consolidation<P>(
 where
     P: CommsClient + FlushableCache + Debug + Send + Sync + Clone + 'static,
 {
-    let record = Arc::new(Mutex::new(LogCommitmentRecord::default()));
+    let record = Arc::new(LogCommitmentRecord::default());
     let source =
         NativeLogCommitments::new(batches, collector.preimage_oracle.clone(), record.clone())?;
-    let outputs = build_consolidation_outputs(inputs, collector, configs, Arc::new(source)).await;
-    // Check the record before `outputs`: on a host failure, `log_matches` returns a bogus `false`.
-    let (openings, missing) =
-        record.lock().map_err(|_| anyhow!("record lock poisoned"))?.finish()?;
-    Ok(NativeConsolidation { outputs: outputs?, openings, missing })
+    let witness = collector.preimage_witness_store.clone();
+    let read_bytes = Arc::new(AtomicU64::new(0));
+    let oracle = Arc::new(CountingOracle { inner: collector, bytes: read_bytes.clone() });
+    let run = build_consolidation_outputs(inputs, oracle, configs, Arc::new(source));
+    let outputs = tokio::select! {
+        biased;
+        () = record.failure.notified() => None,
+        outputs = run => Some(outputs),
+    };
+    // Check the record first: after a host failure, `outputs` is `None` or holds bogus verdicts.
+    let Recorded { openings, missing, served, log_checks, log_check_siblings } = record.finish()?;
+    let outputs = outputs.context("the consolidation run stopped without a host failure")??;
+    let witness_bytes =
+        witness.lock().map_err(|_| anyhow!("witness lock poisoned"))?.preimage_bytes() as u64;
+    Ok(NativeConsolidation {
+        outputs,
+        openings,
+        missing,
+        served,
+        witness_bytes,
+        read_bytes: read_bytes.load(Ordering::Relaxed),
+        log_checks,
+        log_check_siblings,
+    })
+}
+
+/// An oracle that counts the bytes it returns, with repeats: the reads that the guest repeats.
+#[derive(Debug)]
+struct CountingOracle<O> {
+    inner: Arc<O>,
+    bytes: Arc<AtomicU64>,
+}
+
+impl<O> Clone for CountingOracle<O> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone(), bytes: self.bytes.clone() }
+    }
+}
+
+#[async_trait]
+impl<O> PreimageOracleClient for CountingOracle<O>
+where
+    O: PreimageOracleClient + Send + Sync,
+{
+    async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+        let value = self.inner.get(key).await?;
+        self.bytes.fetch_add(value.len() as u64, Ordering::Relaxed);
+        Ok(value)
+    }
+
+    async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+        self.inner.get_exact(key, buf).await?;
+        self.bytes.fetch_add(buf.len() as u64, Ordering::Relaxed);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<O> HintWriterClient for CountingOracle<O>
+where
+    O: HintWriterClient + Send + Sync,
+{
+    async fn write(&self, hint: &str) -> PreimageOracleResult<()> {
+        self.inner.write(hint).await
+    }
 }
 
 /// What the native run records, shared by every timestamp and round.
 #[derive(Debug, Default)]
 struct LogCommitmentRecord {
+    state: Mutex<RecordState>,
+    /// Wakes [`run_native_consolidation`] on the first host failure.
+    failure: Notify,
+}
+
+#[derive(Debug, Default)]
+struct RecordState {
     /// One per `(receipts root, index)`: a log is checked in each round, at each timestamp, and
     /// for each message into it, and the guest rejects a second opening.
     openings: BTreeMap<(B256, u64), LogOpening>,
     missing: BTreeMap<B256, MissingLogCommitment>,
-    trees: BTreeMap<B256, Arc<LogTree>>,
+    served: BTreeSet<B256>,
+    /// Log checks against an entry, each verifying an opening, and their siblings.
+    log_checks: u64,
+    log_check_siblings: u64,
+    trees: TreeCache,
+    /// The first host failure; later log checks answer without host work.
     error: Option<anyhow::Error>,
 }
 
+/// What [`LogCommitmentRecord::finish`] returns.
+#[derive(Debug)]
+struct Recorded {
+    openings: Vec<LogOpening>,
+    missing: Vec<MissingLogCommitment>,
+    served: Vec<B256>,
+    log_checks: u64,
+    log_check_siblings: u64,
+}
+
 impl LogCommitmentRecord {
-    /// The openings and the missing blocks, or the first host failure.
-    fn finish(&mut self) -> Result<(Vec<LogOpening>, Vec<MissingLogCommitment>)> {
-        if let Some(error) = self.error.take() {
+    fn state(&self) -> MutexGuard<'_, RecordState> {
+        self.state.lock().expect("record lock")
+    }
+
+    fn record_failure(&self, error: anyhow::Error) {
+        self.state().error.get_or_insert(error);
+        self.failure.notify_one();
+    }
+
+    /// The openings, the missing blocks, and the served receipts roots, or the first host failure.
+    fn finish(&self) -> Result<Recorded> {
+        let mut state = self.state();
+        if let Some(error) = state.error.take() {
             return Err(error.context("failed to open a committed log from the host's receipts"));
         }
-        Ok((
-            std::mem::take(&mut self.openings).into_values().collect(),
-            std::mem::take(&mut self.missing).into_values().collect(),
-        ))
+        Ok(Recorded {
+            openings: std::mem::take(&mut state.openings).into_values().collect(),
+            missing: std::mem::take(&mut state.missing).into_values().collect(),
+            served: std::mem::take(&mut state.served).into_iter().collect(),
+            log_checks: state.log_checks,
+            log_check_siblings: state.log_check_siblings,
+        })
+    }
+}
+
+/// The most log trees kept. `resolve` sorts messages by initiating block, so a tree is built again
+/// only when a later timestamp or round reads its block.
+const MAX_CACHED_TREES: usize = 4;
+
+/// Recently built log trees by receipts root.
+#[derive(Debug)]
+struct TreeCache(LruCache<B256, Arc<LogTree>>);
+
+impl Default for TreeCache {
+    fn default() -> Self {
+        Self(LruCache::new(NonZeroUsize::new(MAX_CACHED_TREES).expect("nonzero tree count")))
+    }
+}
+
+impl TreeCache {
+    fn get(&mut self, receipts_root: &B256) -> Option<Arc<LogTree>> {
+        self.0.get(receipts_root).cloned()
+    }
+
+    fn insert(&mut self, receipts_root: B256, tree: Arc<LogTree>) {
+        self.0.put(receipts_root, tree);
     }
 }
 
@@ -99,7 +235,7 @@ impl LogCommitmentRecord {
 struct NativeLogCommitments<O> {
     table: LogCommitmentTable,
     receipts_oracle: Arc<O>,
-    record: Arc<Mutex<LogCommitmentRecord>>,
+    record: Arc<LogCommitmentRecord>,
 }
 
 impl<O> NativeLogCommitments<O> {
@@ -107,7 +243,7 @@ impl<O> NativeLogCommitments<O> {
     fn new(
         batches: &[Vec<u8>],
         receipts_oracle: Arc<O>,
-        record: Arc<Mutex<LogCommitmentRecord>>,
+        record: Arc<LogCommitmentRecord>,
     ) -> Result<Self> {
         Ok(Self { table: LogCommitmentTable::from_batches(batches)?, receipts_oracle, record })
     }
@@ -121,14 +257,14 @@ where
         let block_hash = header.hash_slow();
         let receipts_root = header.receipts_root;
         let Some(entry) = self.table.get(&receipts_root) else {
-            self.record
-                .lock()
-                .expect("record lock")
-                .missing
-                .entry(receipts_root)
-                .or_insert(MissingLogCommitment { chain_id, block_hash, receipts_root });
+            self.record.state().missing.entry(receipts_root).or_insert(MissingLogCommitment {
+                chain_id,
+                block_hash,
+                receipts_root,
+            });
             return None;
         };
+        self.record.state().served.insert(receipts_root);
         Some(Box::new(NativeBlock {
             entry: *entry,
             chain_id,
@@ -145,7 +281,7 @@ struct NativeBlock<O> {
     chain_id: u64,
     block_hash: B256,
     receipts_oracle: Arc<O>,
-    record: Arc<Mutex<LogCommitmentRecord>>,
+    record: Arc<LogCommitmentRecord>,
 }
 
 impl<O> NativeBlock<O>
@@ -154,24 +290,18 @@ where
 {
     fn opening(&self, index: u64) -> Result<LogOpening> {
         let receipts_root = self.entry.receipts_root;
-        if let Some(opening) =
-            self.record.lock().expect("record lock").openings.get(&(receipts_root, index))
-        {
+        if let Some(opening) = self.record.state().openings.get(&(receipts_root, index)) {
             return Ok(opening.clone());
         }
         let opening = self.tree()?.opening(receipts_root, index);
-        self.record
-            .lock()
-            .expect("record lock")
-            .openings
-            .insert((receipts_root, index), opening.clone());
+        self.record.state().openings.insert((receipts_root, index), opening.clone());
         Ok(opening)
     }
 
     fn tree(&self) -> Result<Arc<LogTree>> {
         let receipts_root = self.entry.receipts_root;
-        if let Some(tree) = self.record.lock().expect("record lock").trees.get(&receipts_root) {
-            return Ok(tree.clone());
+        if let Some(tree) = self.record.state().trees.get(&receipts_root) {
+            return Ok(tree);
         }
         kona_proof::block_on(
             HintType::L2Receipts
@@ -187,7 +317,7 @@ where
             self.block_hash,
         );
         let tree = Arc::new(tree);
-        self.record.lock().expect("record lock").trees.insert(receipts_root, tree.clone());
+        self.record.state().trees.insert(receipts_root, tree.clone());
         Ok(tree)
     }
 }
@@ -201,10 +331,19 @@ where
     }
 
     fn log_matches(&self, index: u64, origin: &Address, payload_hash: &B256) -> bool {
+        if self.record.state().error.is_some() {
+            return false;
+        }
         match self.opening(index) {
-            Ok(opening) => opened_log_matches(&self.entry, &opening, origin, payload_hash),
+            Ok(opening) => {
+                let mut state = self.record.state();
+                state.log_checks += 1;
+                state.log_check_siblings += opening.siblings.len() as u64;
+                drop(state);
+                opened_log_matches(&self.entry, &opening, origin, payload_hash)
+            }
             Err(error) => {
-                self.record.lock().expect("record lock").error.get_or_insert(error);
+                self.record.record_failure(error);
                 false
             }
         }
@@ -236,8 +375,8 @@ mod tests {
     const A: u64 = 1;
     const B: u64 = 2;
 
-    /// Chain A's blocks 1 and 2 sit below its head, block 3; chain B's head executes two
-    /// messages into one log of block 1 and one into block 2.
+    /// Chain A's blocks 1 and 2 sit below its head, block 3; chain B's head executes messages
+    /// into them.
     struct Chains {
         /// Every preimage except the receipts tries of blocks 1 and 2.
         withheld: PreimageStore,
@@ -247,7 +386,14 @@ mod tests {
         boot: BootInfo,
     }
 
+    /// Two messages into one log of block 1 and one into block 2.
     fn chains() -> Chains {
+        chains_with(&[(1, 1, 2), (1, 1, 2), (2, 0, 4)])
+    }
+
+    /// Block 1 holds logs with seeds 1 to 3 and block 2 one log with seed 4. Each message is
+    /// `(block number, log index, seed)`, carrying the origin and payload of the seed's log.
+    fn chains_with(messages: &[(u64, u64, u8)]) -> Chains {
         let log = |seed: u8| alloy_primitives::Log {
             address: Address::repeat_byte(seed),
             data: LogData::new_unchecked(vec![B256::repeat_byte(seed)], Bytes::from(vec![seed])),
@@ -260,14 +406,14 @@ mod tests {
         };
         let blocks = [vec![receipt(vec![log(1), log(2), log(3)])], vec![receipt(vec![log(4)])]];
         let mut executing = ChainBuilder::default();
-        for (number, seed) in [(1, 2), (1, 2), (2, 4)] {
+        for &(number, index, seed) in messages {
             executing.add_executing_message(
                 ExecutingMessageBuilder::default()
                     .with_origin_address(Address::repeat_byte(seed))
                     .with_message_hash(keccak256(RawMessagePayload::from(&log(seed)).as_ref()))
                     .with_origin_chain_id(A)
                     .with_origin_block_number(number)
-                    .with_origin_log_index(u64::from(seed) - 1 - 3 * (number - 1))
+                    .with_origin_log_index(index)
                     .with_origin_timestamp(2 * number),
             );
         }
@@ -367,18 +513,21 @@ mod tests {
         }
     }
 
-    /// Pins one opening per log across rounds, accepted by the guest's source.
+    /// Pins one opening per log and each log check across rounds, accepted by the guest's source.
     #[tokio::test(flavor = "multi_thread")]
     async fn records_each_opening_once_for_the_guest() {
         let chains = chains();
-        let record = Arc::new(Mutex::new(LogCommitmentRecord::default()));
+        let record = Arc::new(LogCommitmentRecord::default());
         let batches = vec![chains.batch()];
         let native = Arc::new(
             NativeLogCommitments::new(&batches, Arc::new(chains.full.clone()), record.clone())
                 .unwrap(),
         );
         assert!(chains.resolve(chains.withheld.clone(), native, 2));
-        let (openings, missing) = record.lock().unwrap().finish().unwrap();
+        let Recorded { openings, missing, log_checks, log_check_siblings, .. } =
+            record.finish().unwrap();
+        // Each round checks one log of block 1 (three logs) and one of block 2 (one log).
+        assert_eq!((log_checks, log_check_siblings), (4, 4));
         assert!(missing.is_empty());
         let keys: Vec<_> =
             openings.iter().map(|opening| (opening.receipts_root, opening.index)).collect();
@@ -394,17 +543,57 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn records_each_missing_block_once() {
         let chains = chains();
-        let record = Arc::new(Mutex::new(LogCommitmentRecord::default()));
+        let record = Arc::new(LogCommitmentRecord::default());
         let native = Arc::new(
             NativeLogCommitments::new(&[], Arc::new(chains.full.clone()), record.clone()).unwrap(),
         );
         assert!(chains.resolve(chains.full.clone(), native, 2));
-        let (openings, missing) = record.lock().unwrap().finish().unwrap();
+        let Recorded { openings, missing, .. } = record.finish().unwrap();
         assert!(openings.is_empty());
         let roots: Vec<_> = missing.iter().map(|block| block.receipts_root).collect();
         let mut expected: Vec<_> = chains.below_head.iter().map(|(root, _)| *root).collect();
         expected.sort();
         assert_eq!(roots, expected);
         assert!(missing.iter().all(|block| block.chain_id == A));
+    }
+
+    /// Pins a served root for every looked-up block with an entry, also when no log is opened.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn records_served_roots() {
+        // Block 2 has one log, so its only message, at index 5, is rejected without an opening.
+        let chains = chains_with(&[(1, 1, 2), (2, 5, 4)]);
+        let record = Arc::new(LogCommitmentRecord::default());
+        let native = Arc::new(
+            NativeLogCommitments::new(
+                &[chains.batch()],
+                Arc::new(chains.full.clone()),
+                record.clone(),
+            )
+            .unwrap(),
+        );
+        assert!(!chains.resolve(chains.withheld.clone(), native, 1));
+        let Recorded { openings, missing, served, .. } = record.finish().unwrap();
+        assert!(missing.is_empty());
+        let mut expected: Vec<_> = chains.below_head.iter().map(|(root, _)| *root).collect();
+        expected.sort();
+        assert_eq!(served, expected);
+        let opened: Vec<_> = openings.iter().map(|opening| opening.receipts_root).collect();
+        assert_eq!(opened, [chains.below_head[0].0]);
+    }
+
+    /// Pins at most [`MAX_CACHED_TREES`] trees, evicting the least recently used.
+    #[test]
+    fn tree_cache_is_bounded() {
+        let mut cache = TreeCache::default();
+        let tree = Arc::new(LogTree::new(vec![B256::ZERO]));
+        let roots: Vec<_> = (0..=MAX_CACHED_TREES as u8).map(B256::repeat_byte).collect();
+        for root in &roots[..MAX_CACHED_TREES] {
+            cache.insert(*root, tree.clone());
+        }
+        assert!(cache.get(&roots[0]).is_some());
+        cache.insert(roots[MAX_CACHED_TREES], tree);
+        assert_eq!(cache.0.len(), MAX_CACHED_TREES);
+        assert!(cache.get(&roots[1]).is_none(), "the least recently used tree stays");
+        assert!(cache.get(&roots[0]).is_some());
     }
 }
