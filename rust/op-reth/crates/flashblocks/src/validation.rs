@@ -200,7 +200,11 @@ impl ReorgDetector {
         tracked: &TrackedBlockFingerprint,
         canonical: &CanonicalBlockFingerprint,
     ) -> ReorgDetectionResult {
-        if tracked.block_hash == canonical.block_hash &&
+        // A zero tracked block hash carries no information (no header was sealed per
+        // flashblock), so only a real one is compared.
+        let block_hash_matches =
+            tracked.block_hash.is_zero() || tracked.block_hash == canonical.block_hash;
+        if block_hash_matches &&
             tracked.parent_hash == canonical.parent_hash &&
             tracked.tx_hashes == canonical.tx_hashes
         {
@@ -453,6 +457,15 @@ mod tests {
                 ReorgDetector::detect(&tracked, &canonical),
                 ReorgDetectionResult::ReorgDetected
             );
+        }
+
+        #[test]
+        fn test_no_reorg_when_tracked_block_hash_is_zero() {
+            let hashes = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+            let tracked = tracked(B256::ZERO, B256::repeat_byte(0x11), hashes.clone());
+            let canonical = canonical(B256::repeat_byte(0xBB), B256::repeat_byte(0x11), hashes);
+
+            assert_eq!(ReorgDetector::detect(&tracked, &canonical), ReorgDetectionResult::NoReorg);
         }
 
         #[test]

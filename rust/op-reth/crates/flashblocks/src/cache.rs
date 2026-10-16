@@ -768,35 +768,43 @@ impl<T: SignedTransaction> SequenceManager<T> {
 
     /// Returns the tracked block fingerprint for the given block number from pending or cached
     /// sequences, if available.
-    fn tracked_fingerprint_for_block(&self, block_number: u64) -> Option<TrackedBlockFingerprint> {
-        // Check pending sequence
-        if self.pending.sequence.block_number() == Some(block_number) {
-            let base = self.pending.sequence.payload_base()?;
-            let last_flashblock = self.pending.sequence.last_flashblock()?;
-            let tx_hashes = self.pending.tx_hashes();
-            return Some(TrackedBlockFingerprint {
+    /// Every tracked variant of `block_number`: the pending sequence and each cached sequence.
+    ///
+    /// Several payloads can publish for the same block number, for example across a sequencer
+    /// leadership transfer, and any one of them may be the one that sealed.
+    fn tracked_fingerprints_for_block(&self, block_number: u64) -> Vec<TrackedBlockFingerprint> {
+        let mut fingerprints = Vec::new();
+
+        if self.pending.sequence.block_number() == Some(block_number) &&
+            let Some(base) = self.pending.sequence.payload_base() &&
+            let Some(last_flashblock) = self.pending.sequence.last_flashblock()
+        {
+            fingerprints.push(TrackedBlockFingerprint {
                 block_number,
                 block_hash: last_flashblock.diff.block_hash,
                 parent_hash: base.parent_hash,
-                tx_hashes,
+                tx_hashes: self.pending.tx_hashes(),
             });
         }
 
-        // Check cached sequences (newest first). Multiple payload variants for the same block
-        // number can coexist in cache; reorg checks must use the newest tracked variant.
         for (seq, txs) in self.completed_cache.iter().rev() {
             if seq.block_number() == block_number {
-                let tx_hashes = txs.iter().map(|tx| *tx.tx_hash()).collect();
-                return Some(TrackedBlockFingerprint {
+                fingerprints.push(TrackedBlockFingerprint {
                     block_number,
                     block_hash: seq.last().diff.block_hash,
                     parent_hash: seq.payload_base().parent_hash,
-                    tx_hashes,
+                    tx_hashes: txs.iter().map(|tx| *tx.tx_hash()).collect(),
                 });
             }
         }
 
-        None
+        fingerprints
+    }
+
+    /// The newest tracked variant of `block_number`.
+    #[cfg(test)]
+    fn tracked_fingerprint_for_block(&self, block_number: u64) -> Option<TrackedBlockFingerprint> {
+        self.tracked_fingerprints_for_block(block_number).into_iter().next()
     }
 
     /// Processes a canonical block and reconciles pending state.
@@ -818,11 +826,11 @@ impl<T: SignedTransaction> SequenceManager<T> {
         let earliest = self.earliest_block_number();
         let latest = self.latest_block_number();
 
-        // Only run reorg detection if we actually track the canonical block number.
-        let reorg_detected = self
-            .tracked_fingerprint_for_block(canonical_block_number)
-            .map(|tracked| ReorgDetector::detect(&tracked, &canonical).is_reorg())
-            .unwrap_or(false);
+        // A reorg needs every tracked variant of the block to disagree with canonical; a block
+        // that is not tracked at all cannot be judged.
+        let tracked = self.tracked_fingerprints_for_block(canonical_block_number);
+        let reorg_detected = !tracked.is_empty() &&
+            tracked.iter().all(|tracked| ReorgDetector::detect(tracked, &canonical).is_reorg());
 
         // Determine reconciliation strategy
         let strategy = CanonicalBlockReconciler::reconcile(
@@ -1334,6 +1342,44 @@ mod tests {
             .cached_entry_mut_by_id(seq_b_id)
             .expect("sequence B should be found by exact id");
         assert_eq!(seq_b.payload_id(), payload_b);
+    }
+
+    #[test]
+    fn test_canonical_matching_an_older_cached_variant_is_not_a_reorg() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        let shared_parent = B256::repeat_byte(0x66);
+        let fb_a0 = factory
+            .flashblock_at(0)
+            .block_number(100)
+            .parent_hash(shared_parent)
+            .payload_id(PayloadId::new([0x2A; 8]))
+            .block_hash(B256::repeat_byte(0xA2))
+            .build();
+        manager.insert_flashblock(fb_a0.clone()).unwrap();
+        let fb_b0 = factory
+            .flashblock_at(0)
+            .block_number(100)
+            .parent_hash(shared_parent)
+            .payload_id(PayloadId::new([0x2B; 8]))
+            .block_hash(B256::repeat_byte(0xB2))
+            .build();
+        manager.insert_flashblock(fb_b0.clone()).unwrap();
+        let fb_next = factory.flashblock_for_next_block(&fb_b0).build();
+        manager.insert_flashblock(fb_next).unwrap();
+
+        // The deposed leader's variant A sealed even though B published last.
+        let canonical = CanonicalBlockFingerprint {
+            block_number: 100,
+            block_hash: fb_a0.diff.block_hash,
+            parent_hash: shared_parent,
+            tx_hashes: vec![],
+        };
+
+        let strategy = manager.process_canonical_block(canonical, 64);
+        assert_eq!(strategy, ReconciliationStrategy::Continue);
+        assert_eq!(manager.pending().block_number(), Some(101));
     }
 
     #[test]

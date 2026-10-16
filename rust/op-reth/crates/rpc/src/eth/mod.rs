@@ -13,7 +13,7 @@ use crate::{
     OpEthApiError, SequencerClient,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
-use alloy_consensus::Header;
+use alloy_consensus::{BlockHeader, Header, transaction::TxHashRef};
 use alloy_primitives::U256;
 use alloy_rpc_types_eth::Filter;
 use eyre::WrapErr;
@@ -23,16 +23,18 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
+use reth_chain_state::{CanonStateNotificationStream, CanonStateSubscriptions};
 use reth_chainspec::{EthereumHardforks, Hardforks};
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_flashblocks::{
-    FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
-    FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
-    FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
+    CanonicalBlockNotification, FlashBlockBuildInfo, FlashBlockCompleteSequence,
+    FlashBlockCompleteSequenceRx, FlashBlockConsensusClient, FlashBlockRx, FlashBlockService,
+    FlashblockCachedReceipt, FlashblocksListeners, PendingBlockRx, PendingFlashBlock,
+    WsFlashBlockStream, create_canonical_block_channel,
 };
-use reth_primitives_traits::{NodePrimitives, SealedHeader};
+use reth_primitives_traits::{BlockBody, NodePrimitives, SealedHeader};
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcLog, RpcNodeCore,
@@ -56,9 +58,12 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::{sync::watch, time};
+use tokio::{
+    sync::{mpsc, watch},
+    time,
+};
 use tokio_stream::{Stream, wrappers::BroadcastStream};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Maximum duration to wait for a fresh flashblock when one is being built.
 const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
@@ -579,6 +584,28 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     }
 }
 
+/// Forwards every committed canonical block to the flashblock service, until either side closes.
+async fn forward_canonical_blocks<N: NodePrimitives>(
+    mut canonical_blocks: CanonStateNotificationStream<N>,
+    sender: mpsc::Sender<CanonicalBlockNotification>,
+) {
+    while let Some(notification) = canonical_blocks.next().await {
+        for block in notification.committed().blocks_iter() {
+            let notification = CanonicalBlockNotification {
+                block_number: block.number(),
+                block_hash: block.hash(),
+                parent_hash: block.parent_hash(),
+                tx_hashes: block.body().transactions().iter().map(|tx| *tx.tx_hash()).collect(),
+            };
+            if sender.send(notification).await.is_err() {
+                debug!(target: "reth::cli", "Flashblock service stopped taking canonical blocks");
+                return;
+            }
+        }
+    }
+    debug!(target: "reth::cli", "Canonical block stream ended");
+}
+
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
     N: FullNodeComponents<
@@ -635,6 +662,7 @@ where
 
             let (tx, pending_rx) = watch::channel(None);
             let stream = WsFlashBlockStream::new(ws_url);
+            let (canonical_block_tx, canonical_block_rx) = create_canonical_block_channel();
             let service = FlashBlockService::new(
                 stream,
                 ctx.components.evm_config().clone(),
@@ -642,7 +670,12 @@ where
                 ctx.components.task_executor().clone(),
                 // enable state root calculation if flashblock_consensus is enabled.
                 flashblock_consensus,
-            );
+            )
+            .with_canonical_block_rx(canonical_block_rx);
+            ctx.components.task_executor().spawn_task(Box::pin(forward_canonical_blocks(
+                ctx.components.provider().canonical_state_stream(),
+                canonical_block_tx,
+            )));
 
             let flashblocks_sequence = service.block_sequence_broadcaster().clone();
             let received_flashblocks = service.flashblocks_broadcaster().clone();
