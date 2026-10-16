@@ -3,7 +3,7 @@
 # yq is installed via mise (see mise.toml).
 # The merged file is written to /tmp/merged-config.yml for the continuation step.
 #
-# Merge order: helpers → main → rust-ci → rust-e2e → rust-nightly-bump
+# Merge order: helpers → main → rust-ci → rust-e2e → rust-nightly-bump → docs-ci
 # Later files win on key conflicts (same as path-filtering orb behaviour).
 # helpers.yml holds shared command definitions (e.g. the Go cache helpers) so
 # they live in one place instead of being duplicated across the configs.
@@ -21,6 +21,7 @@ yq eval-all 'explode(.) | . as $item ireduce ({}; . * $item)' \
   .circleci/continue/rust-ci.yml \
   .circleci/continue/rust-e2e.yml \
   .circleci/continue/rust-nightly-bump.yml \
+  .circleci/continue/docs-ci.yml \
   > /tmp/merged-config.yml
 
 echo "Merged config written to /tmp/merged-config.yml ($(wc -l < /tmp/merged-config.yml) lines)"

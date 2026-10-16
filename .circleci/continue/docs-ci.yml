@@ -1,0 +1,196 @@
+version: 2.1
+
+# Continuation config for docs.optimism.io (docs/public-docs) CI.
+# Merged into the final pipeline by .circleci/scripts/merge-configs.sh.
+#
+# Jobs:
+#   docs-lint              The deterministic docs lints (navigation, redirects,
+#                          component reference, link policy). Runs on every PR
+#                          through `main`, and on the docs-only fast path
+#                          through `docs-only-ci` (both in main.yml), where it
+#                          is what ci-gate verifies. Replaces the Mintlify
+#                          automation that used to run these lints but could
+#                          not gate a merge. Everything it checks is a function
+#                          of the tree alone, so a PR cannot go red because of
+#                          something that happened elsewhere.
+#   docs-release-pages     Regenerates docs/public-docs/releases/ from GitHub
+#                          Releases with scripts/generate-releases.ts and opens
+#                          (or force-updates) one rolling PR. Replaces the
+#                          Mintlify automation that paraphrased the same pages
+#                          by prompt and drifted from the script.
+#   docs-unreleased-sweep  Runs the reference lint in strict mode, which fails
+#                          on an <Unreleased> callout whose release has since
+#                          been tagged. That check depends on tags, not on the
+#                          tree, so it belongs here and not in docs-lint.
+#
+# The last two run weekly via the build_weekly schedule (routing.yml), or on
+# demand via the docs_release_pages_dispatch flag. All jobs run on bun, which
+# mise pins; no pnpm install is needed because the docs scripts have no
+# dependencies beyond Node builtins.
+#
+# Convention these jobs enforce: the "Component reference" section of
+# docs/public-docs/op-stack/contribute/content-guide.mdx.
+
+parameters:
+  c-run_scheduled_docs_release_pages:
+    type: boolean
+    default: false
+  # Setup-pipeline dispatch flag, declared here only so continuation validation
+  # accepts it when forwarded; consumed by compute-workflow-conditions.sh.
+  docs_release_pages_dispatch:
+    type: boolean
+    default: false
+
+orbs:
+  github-cli: circleci/github-cli@2.7.0
+  slack: circleci/slack@6.0.0
+
+commands:
+  run-docs-lints:
+    description: Run every docs lint under bun; nonzero if any fails.
+    parameters:
+      extra-args:
+        description: Extra arguments passed to each validate-*.ts lint (for example --strict)
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: Run the docs lints
+          command: |
+            set -euo pipefail
+            # Every validate-*.ts under scripts/lint is a lint; new ones join
+            # by existing. Each exits nonzero on violations.
+            status=0
+            for lint in docs/public-docs/scripts/lint/validate-*.ts; do
+              echo "==> ${lint} << parameters.extra-args >>"
+              bun "${lint}" << parameters.extra-args >> || status=1
+            done
+            echo "==> link policy"
+            bun docs/public-docs/scripts/lint-link-policy.mjs \
+              --baseline docs/public-docs/scripts/lint-link-policy.baseline.json || status=1
+            exit "${status}"
+
+jobs:
+  docs-lint:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run-docs-lints
+      - notify-failures-on-develop:
+          channel: C04MUMR9339
+
+  docs-unreleased-sweep:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      # --strict turns the reference lint's stale-callout warning into an
+      # error. The lint reads tags from the checkout, falling back to
+      # `git ls-remote --tags origin` in a shallow clone.
+      - run-docs-lints:
+          extra-args: --strict
+      - notify-failures-on-develop:
+          channel: C04MUMR9339
+
+  docs-release-pages:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    parameters:
+      slack-channel:
+        description: Slack channel that hears about an opened or updated PR (defaults to #docs)
+        type: string
+        default: C04MUMR9339
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - github-cli/install
+      - run:
+          name: Regenerate the release history pages
+          command: |
+            set -euo pipefail
+            BRANCH="ci/docs-release-pages"
+            cd docs/public-docs
+            GITHUB_TOKEN="${GITHUB_TOKEN_GOVERNANCE}" bun scripts/generate-releases.ts
+            cd ../..
+            # Stage the whole directory first so a page for a component newly
+            # added to the generator (untracked until now) counts as a change.
+            git add -A docs/public-docs/releases
+            if git diff --cached --quiet HEAD -- docs/public-docs/releases; then
+              echo "Release pages already match GitHub Releases; nothing to do."
+              # Halt marks the job successful and skips the remaining steps
+              # (PR and Slack), so a no-op week is silent.
+              circleci-agent step halt
+              exit 0
+            fi
+            # If last week's PR is still open, compare against it, not against
+            # develop, so an unchanged regeneration does not force-push a new
+            # commit, rerun its CI, and re-notify.
+            if git fetch --quiet origin "${BRANCH}" 2>/dev/null \
+              && git diff --cached --quiet FETCH_HEAD -- docs/public-docs/releases; then
+              echo "Open ${BRANCH} PR already carries this output; nothing to do."
+              circleci-agent step halt
+              exit 0
+            fi
+            git --no-pager diff --cached --stat -- docs/public-docs/releases
+      - run:
+          name: Open or update the release-pages PR
+          command: |
+            set -euo pipefail
+            BRANCH="ci/docs-release-pages"
+            TITLE="docs: refresh the release history pages"
+            BODY="Weekly regeneration of docs/public-docs/releases from GitHub Releases by scripts/generate-releases.ts (scheduled CI job docs-release-pages). The pages carry no editorial content; review the diff for anything unexpected and merge. The next run force-pushes this branch with the latest output, so there is only ever one of these PRs open."
+
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN_GOVERNANCE}@github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git checkout -b "${BRANCH}"
+            # The regenerated pages were staged by the previous step.
+            git -c user.email=ci@oplabs.co -c user.name="OP Labs CI" commit -m "${TITLE}"
+            git push --force origin "${BRANCH}"
+
+            EXISTING=$(GH_TOKEN="${GITHUB_TOKEN_GOVERNANCE}" gh pr list \
+              --head "${BRANCH}" --base develop --state open --json url --jq '.[0].url // empty')
+            if [ -n "${EXISTING}" ]; then
+              SUMMARY="Updated ${EXISTING}"
+            else
+              PR_URL=$(GH_TOKEN="${GITHUB_TOKEN_GOVERNANCE}" gh pr create \
+                --title "${TITLE}" --body "${BODY}" --base develop --head "${BRANCH}")
+              SUMMARY="Opened ${PR_URL}"
+            fi
+            echo "${SUMMARY}"
+            # Recorded for the Slack notification below.
+            printf 'export RELEASE_PAGES_SUMMARY=%q\n' "${SUMMARY}" >> "$BASH_ENV"
+      - slack/notify:
+          event: pass
+          branch_pattern: develop
+          channel: << parameters.slack-channel >>
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":page_facing_up: *Release history pages* regenerated from GitHub Releases.\n${RELEASE_PAGES_SUMMARY}\nReview and merge; the next weekly run updates the same PR."
+                  }
+                }
+              ]
+            }
+      - notify-failures-on-develop:
+          channel: << parameters.slack-channel >>
+
+workflows:
+  scheduled-docs-release-pages:
+    when: << pipeline.parameters.c-run_scheduled_docs_release_pages >>
+    jobs:
+      - docs-release-pages:
+          context:
+            - circleci-repo-optimism
+            - slack
+      - docs-unreleased-sweep:
+          context:
+            - slack

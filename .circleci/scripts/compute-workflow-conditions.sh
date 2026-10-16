@@ -53,11 +53,12 @@ case "${TRIGGER_SOURCE}" in
     # 1. PR (feature branch push)
     #    Runs on every push to a feature branch.
     #    Path-based gating: only changed areas are tested.
-    #    Docs-only changes skip main/release entirely.
+    #    Docs-only changes run the docs lints and emit the required gates
+    #    without the test suites (docs_only_ci).
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
       if is_true only_docs_changes; then
-        run ci_gate_skip
+        run docs_only_ci
         run contracts_feature_tests_short
         run rust_ci_gate_short
         run rust_e2e_gate_skip
@@ -88,7 +89,7 @@ case "${TRIGGER_SOURCE}" in
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
       if is_true only_docs_changes; then
-        run ci_gate_skip
+        run docs_only_ci
         run contracts_feature_tests_short
         run rust_ci_gate_short
         run rust_e2e_gate_skip

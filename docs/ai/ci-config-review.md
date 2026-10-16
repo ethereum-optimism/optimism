@@ -19,7 +19,7 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   decide which entries fire. Add a schedule/dispatch/pattern by editing `routing.yml`.
 - **The real config is merged from fragments** under `.circleci/continue/`
   (`helpers.yml` → `main.yml` → `rust-ci.yml` → `rust-e2e.yml` →
-  `rust-nightly-bump.yml`) by `merge-configs.sh`. **Merge is later-wins**: a key
+  `rust-nightly-bump.yml` → `docs-ci.yml`) by `merge-configs.sh`. **Merge is later-wins**: a key
   (job, command, anchor) redefined in a later fragment silently overrides the
   earlier one.
 - **Change detection**: `collect-params.sh str`/`bool` turn `c-*` env vars into
