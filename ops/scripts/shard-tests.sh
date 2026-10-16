@@ -30,4 +30,7 @@ if [ -z "${CIRCLE_NODE_TOTAL:-}" ] || [ "${CIRCLE_NODE_TOTAL:-1}" -le 1 ]; then
   exit 0
 fi
 
-circleci tests split --split-by=timings --timings-type=testname "$ALL_TESTS_FILE"
+# Canceled runs can leave partial history. CircleCI's tiny default weight for
+# missing timings can put every unknown test on the same otherwise-light shard.
+# Give unknown acceptance tests a realistic setup/runtime budget instead.
+circleci tests split --split-by=timings --timings-type=testname --time-default=1m "$ALL_TESTS_FILE"
