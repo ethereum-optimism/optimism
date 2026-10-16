@@ -11,7 +11,6 @@ use std::{
     future::Future,
     num::NonZeroUsize,
     ops::AsyncFnOnce,
-    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -862,18 +861,16 @@ async fn prove_chunk_inner(
     let chunk_progress = &progress.chunks[index];
     let synthesized = &plan.synthesized;
     let span = synthesized.range_inputs.span;
-    let host = |data_dir: &Path| {
+    let host = || {
         build_interop_host(
             host_inputs,
             game.l1_head,
             &synthesized.previous_super_root_proof_bytes,
             synthesized.current_super_root,
             span.end,
-            Some(data_dir),
         )
     };
-    let range_dir = collection_dir(&settings.scratch_dir)?;
-    let range_host = host(range_dir.path())?;
+    let range_host = host()?;
     let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
@@ -883,7 +880,6 @@ async fn prove_chunk_inner(
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
-    drop(range_dir);
 
     let range_proof = match (provider, keys) {
         (ProofProvider::Mock(_), _) => None,
@@ -904,9 +900,8 @@ async fn prove_chunk_inner(
     let batch_proofs = logs.proofs.clone().await.map_err(|err| anyhow!("{err:#}"))?;
     let batch_public_values: Vec<Vec<u8>> =
         batch_proofs.iter().map(|proof| proof.public_values.to_vec()).collect();
-    let consolidation_dir = collection_dir(&settings.scratch_dir)?;
     let collected = collect_consolidation_witness(
-        host(consolidation_dir.path())?,
+        host()?,
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
@@ -914,7 +909,6 @@ async fn prove_chunk_inner(
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
-    drop(consolidation_dir);
 
     let stage = &logs.stage;
     let batches: Vec<&LogBatch> = stage.batches.iter().map(|progress| &progress.batch).collect();
@@ -977,16 +971,6 @@ async fn prove_chunk_inner(
     };
 
     Ok(ChunkResult { index, range_outputs, consolidation_outputs: collected.outputs, proofs })
-}
-
-/// A fresh directory for one collection's preimage store, removed when dropped.
-fn collection_dir(scratch_dir: &Path) -> Result<tempfile::TempDir> {
-    tempfile::Builder::new()
-        .prefix("op-zk-proposer-collection-")
-        .tempdir_in(scratch_dir)
-        .with_context(|| {
-            format!("failed to create a preimage store directory under {}", scratch_dir.display())
-        })
 }
 
 /// The batch proofs of a game, in batch order.
@@ -1090,7 +1074,6 @@ async fn scan_log_stage(
         &first.synthesized.previous_super_root_proof_bytes,
         first.synthesized.current_super_root,
         first.claimed_timestamp,
-        None,
     )?;
     let configs = deployment_chain_configs(&host, &first.synthesized.range_inputs.chain_ids)?;
     let scan = scan_span(request.l2, request.responses, &configs)
@@ -1241,8 +1224,6 @@ pub(crate) struct LogProofSettings {
     /// The range and consolidation request gas limit.
     pub(crate) range_gas_limit: u64,
     pub(crate) log_gas_limit: u64,
-    /// Where each collection keeps its temporary preimage store.
-    pub(crate) scratch_dir: PathBuf,
 }
 
 /// Inputs for one in-process game-proving attempt.
@@ -1414,6 +1395,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, HashMap},
         fmt::Write,
+        path::Path,
         sync::{
             Arc, Mutex as StdMutex,
             atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -1538,12 +1520,7 @@ mod tests {
     }
 
     fn log_settings() -> LogProofSettings {
-        LogProofSettings {
-            path: LogPath::Auto,
-            range_gas_limit: 1,
-            log_gas_limit: 1,
-            scratch_dir: std::env::temp_dir(),
-        }
+        LogProofSettings { path: LogPath::Auto, range_gas_limit: 1, log_gas_limit: 1 }
     }
 
     /// Builds a self-consistent supernode response trusted by default.
