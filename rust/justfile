@@ -316,6 +316,9 @@ check-sp1-guest-precompile-patches:
   # The aggregation guest verifies proofs but does not execute L2 EVM precompiles.
   verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
 
+  # The log-commitment guest hashes every log with keccak.
+  verify_program_patches kona-sp1-log-commitment "${common_patches[@]}"
+
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.
 # Refresh the SP1 guest Cargo.lock after changing kona crates it depends on

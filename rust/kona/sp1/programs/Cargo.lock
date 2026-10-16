@@ -1886,6 +1886,7 @@ dependencies = [
  "alloy-evm",
  "alloy-op-evm",
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
@@ -1895,8 +1896,10 @@ dependencies = [
  "kona-executor",
  "kona-genesis",
  "kona-interop",
+ "kona-mpt",
  "kona-preimage",
  "kona-proof",
+ "kona-proof-interop",
  "kona-protocol",
  "kzg-rs",
  "op-alloy-consensus",
@@ -1933,6 +1936,16 @@ dependencies = [
  "kona-sp1-client-utils",
  "revm",
  "spin 0.10.0",
+]
+
+[[package]]
+name = "kona-sp1-log-commitment"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "kona-sp1-build-info",
+ "kona-sp1-client-utils",
+ "sp1-zkvm",
 ]
 
 [[package]]

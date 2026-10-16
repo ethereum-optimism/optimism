@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "log-commitment",
   "super-range",
   "super-aggregation",
   "tests/bls12-381-check",
@@ -116,6 +117,7 @@ too_long_first_doc_paragraph = "allow"
 # END SHARED WORKSPACE LINTS
 
 [workspace.dependencies]
+alloy-primitives = { version = "1.6.1", default-features = false, features = ["serde"] }
 kona-preimage = { path = "../../crates/proof/preimage", default-features = false }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc"] }
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
