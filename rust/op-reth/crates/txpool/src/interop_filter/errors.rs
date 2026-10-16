@@ -1,5 +1,5 @@
 use alloy_json_rpc::RpcError;
-use core::error;
+use core::{error, fmt};
 use op_alloy_rpc_types::SuperchainDAError;
 
 /// Dedicated JSON-RPC error code emitted by the op-interop-filter server when its failsafe is
@@ -77,9 +77,25 @@ pub enum InteropTxValidatorError {
         invalid: usize,
     },
 
-    /// Catch-all variant.
-    #[error("interop filter server error: {0}")]
+    /// Catch-all variant. The source chain is rendered too: reqwest's `Display` names only the
+    /// outermost frame, so the connect, DNS or TLS reason would otherwise be lost.
+    #[error("interop filter server error: {}", ErrorChain(&**.0))]
     Other(Box<dyn error::Error + Send + Sync>),
+}
+
+/// Renders an error together with its source chain, `outer: inner: innermost`.
+struct ErrorChain<'a>(&'a (dyn error::Error + 'static));
+
+impl fmt::Display for ErrorChain<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)?;
+        let mut source = self.0.source();
+        while let Some(cause) = source {
+            write!(f, ": {cause}")?;
+            source = cause.source();
+        }
+        Ok(())
+    }
 }
 
 impl InteropTxValidatorError {
@@ -152,5 +168,44 @@ impl InteropTxValidatorError {
 
         // Any other error response is a definitive rejection; preserve the real code + message.
         Self::Rejected { code, message: error_payload.message.to_string() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An error that owns its cause, like the reqwest/hyper stack this wraps.
+    #[derive(Debug)]
+    struct Layer(&'static str, Option<Box<dyn error::Error + Send + Sync>>);
+
+    impl fmt::Display for Layer {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+
+    impl error::Error for Layer {
+        fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+            self.1.as_ref().map(|cause| &**cause as &(dyn error::Error + 'static))
+        }
+    }
+
+    #[test]
+    fn other_display_names_the_underlying_cause() {
+        // reqwest keeps the connect reason in the source chain, so a Display that stops at the
+        // outermost frame reports "error sending request" and nothing an operator can act on.
+        let err = InteropTxValidatorError::other(Layer(
+            "error sending request",
+            Some(Box::new(Layer(
+                "tcp connect error",
+                Some(Box::new(Layer("connection refused", None))),
+            ))),
+        ));
+        assert_eq!(
+            err.to_string(),
+            "interop filter server error: error sending request: tcp connect error: connection \
+             refused"
+        );
     }
 }
