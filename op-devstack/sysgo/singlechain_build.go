@@ -129,7 +129,7 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, isSequencer, nil)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
@@ -175,18 +175,15 @@ func startStoppedSequencerCL(
 		unsupported.ConductorRPCTimeout = 0
 		unsupported.SafeDBPath = ""
 		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor settings cannot be applied to kona-node")
-		extraEnv := []string{"KONA_NODE_SEQUENCER_STOPPED=true"}
+		var extraEnv []string
 		if konaCfg.ConductorRPC != "" {
-			t.Require().Positive(konaCfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
-			// kona-node parses this flag but does not apply it yet (#21906).
-			t.Require().Zero(konaCfg.ConductorRPCTimeout%time.Second, "Kona conductor RPC timeout must use whole seconds")
-			extraEnv = append(extraEnv,
-				"KONA_NODE_CONDUCTOR_RPC="+konaCfg.ConductorRPC,
-				fmt.Sprintf("KONA_NODE_CONDUCTOR_RPC_TIMEOUT=%d", konaCfg.ConductorRPCTimeout/time.Second),
-			)
+			extraEnv = append(extraEnv, "KONA_NODE_SEQUENCER_CONDUCTOR_URL="+konaCfg.ConductorRPC)
+			if konaCfg.ConductorRPCTimeout > 0 {
+				extraEnv = append(extraEnv, "KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT="+konaCfg.ConductorRPCTimeout.String())
+			}
 		}
 		return startMixedKonaNode(
-			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, nil,
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, false, nil,
 			extraEnv...,
 		)
 	default: // op-node

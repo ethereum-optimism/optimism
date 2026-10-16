@@ -3,7 +3,9 @@ title: "P2P RPC Methods"
 diataxis: reference
 ---
 
-The `p2p` api provides methods for interacting with Kona's P2P stack.
+The `p2p` api provides methods for interacting with Kona's P2P stack. Kona serves it only with `--p2p.enabled`.
+
+Without `--p2p.discovery.enabled`, the node runs no discovery: `opp2p_self` and `opp2p_peers` report no ENR, `opp2p_peerCount` reports no `connectedDiscovery`, and `opp2p_discoveryTable` is empty.
 
 ## Peer Information Methods
 

@@ -11,35 +11,17 @@ extern crate tracing;
 
 mod service;
 pub use service::{
-    DerivationDelegateConfig, L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder,
+    ChainSpec, ListenProtocol, RollupNode, RollupNodeClients, RollupNodeClientsError,
+    RollupNodeConfig, RollupNodeEndpoints, RollupNodeError,
 };
 
-mod actors;
-pub use actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
-    DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationClientError, DerivationClientResult,
-    DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, EngineActor, EngineActorRequest,
-    EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
-    EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher, L1OriginSelector,
-    L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError,
-    L1WatcherChain, L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
-    NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
-    NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor, RpcActorError, RpcServerHandle,
-    RpcServerLauncher, SealRequest, SequencerActor, SequencerActorError, SequencerAdminQuery,
-    SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
-    UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
+pub use kona_node_actors::{
+    Conductor, ConductorClient, ConductorError, DerivationDelegateClient,
+    DerivationDelegateClientError, DerivationDelegateProvider, EngineClientError,
+    EngineClientResult, NetworkConfig, SequencerConfig, SequencerEngineClient, derivation,
+    discovery, engine, l1, l1_signer_updater, network, origin, sequencer, signer,
 };
 
-mod metrics;
-pub use metrics::Metrics;
+pub use kona_node_actors::Metrics;
 
-#[cfg(test)]
-pub use actors::{
-    MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-};
+pub use kona_sources::BlockSigner;

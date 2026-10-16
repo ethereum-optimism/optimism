@@ -73,20 +73,26 @@ services:
     environment:
       L1_PROVIDER_RPC: ${L1_PROVIDER_RPC:?}
       L1_BEACON_API: ${L1_BEACON_API:?}
-      RUST_LOG: ${RUST_LOG:-}
+      RUST_LOG:
     command: >
+      node
       --chain optimism-sepolia
+      --logs.enabled
       --metrics.enabled
       --metrics.port 9002
-      node
-      --l1 $L1_PROVIDER_RPC
-      --l1-beacon $L1_BEACON_API
-      --l2 http://op-reth:8551
-      --l2-engine-jwt-secret /root/jwt/jwt.hex
+      --l1.eth-url $L1_PROVIDER_RPC
+      --l1.beacon-url $L1_BEACON_API
+      --l2.engine.url http://op-reth:8551
+      --l2.engine.jwt-secret-path /root/jwt/jwt.hex
+      --rpc.enabled
+      --rpc.addr 0.0.0.0
       --rpc.port 5060
-      --p2p.listen.tcp 9223
-      --p2p.listen.udp 9223
-      --p2p.bootstore /db
+      --p2p.enabled
+      --p2p.listen.tcp-port 9223
+      --p2p.listen.udp-port 9223
+      --p2p.discovery.enabled
+      --p2p.discovery.bootstore.enabled
+      --p2p.discovery.bootstore.path /db/bootstore.json
 
 volumes:
   prometheus_data:

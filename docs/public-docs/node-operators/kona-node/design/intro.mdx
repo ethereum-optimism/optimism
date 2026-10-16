@@ -5,20 +5,22 @@ diataxis: explanation
 
 The entry-point for the `kona-node` is the [`RollupNode`][node] service,
 which encapsulates the core wiring for the node. A `RollupNode` is
-constructed through the [`RollupNodeBuilder`][builder], and its
-[`start` method][start] handles connecting all the different components
-of the node, running each in a spawned task. As such, each node
-component is considered an actor.
+created from a [`RollupNodeConfig`][config], plain data saying what the
+node does, and a [`RollupNodeClients`][clients], the clients it talks to
+L1 and L2 with, which `RollupNodeClients::connect` builds from the
+[`RollupNodeEndpoints`][clients] saying where those are. Its
+[`start` method][start] handles connecting the different components of
+the node and running its actors in spawned tasks.
 
-The `RollupNode` abstracts individual actors through the
-[`NodeActor` trait][actor], a minimal interface with a single `step`
-method that the service drives in a loop until the actor reports a
-fatal error or the node shuts down.
+Most actors are built with a builder that hands out the actor's handle
+before its dependencies exist, and expose a lifetime future that the
+service spawns. The node stops when any actor reports a fatal error,
+the RPC server stops, or the node shuts down.
 
-Kona provides implementations for all `NodeActor`s required to run a
-`RollupNode`. Actors are defined in the [actors][actors] module of the
-`kona-node-service` crate, and the `RollupNode` wiring lives in the
-[service][service] module.
+Kona provides implementations for all actors required to run a
+`RollupNode`. Actors are defined in the [`kona-node-actors`][actors]
+crate, and the `RollupNode` wiring lives in the [service][service]
+module of the `kona-node-service` crate.
 
 
 ### Actors
@@ -34,20 +36,31 @@ The [`RollupNode`][node] builds and starts the following actors.
   attributes prepared this way are forwarded to the Engine
   Actor to be executed. The [derivation][derivation] docs
   dive deeper into how the derivation actor works.
+- **Discovery Actor**: Finds peers with `discv5` and passes
+  them to the network actor to dial. See the [network][p2p]
+  docs.
 - **Engine Actor**: Brokers the connection to the execution
   layer client (or "execution engine"). The engine actor
   turns messages from other actors into engine "tasks"
-  that are executed in priority order against the EL client.
-  A companion engine RPC actor serves read-only engine
-  queries. The [engine][engine] docs expand on this.
-- **L1 Watcher Actor**: Watches the L1 chain for new
-  head and finalized blocks and relays them to the
-  derivation actor. It also keeps the unsafe block
-  signer current from the `SystemConfig` contract, for
-  gossip validation and the signer actor.
-- **Network Actor**: Manages the P2P Network for the rollup
-  node. The P2P stack consists of `discv5` peer discovery
-  and block gossip through libp2p. Visit the [network][p2p]
+  that are executed one at a time, in arrival order, against
+  the EL client.
+  Read-only engine queries are served directly by `RollupRpc`.
+  The [engine][engine] docs expand on this.
+- **L1 Actors**: Poll head, safe, and finalized blocks and
+  publish the latest observations through watch channels.
+  Derivation, finality, sequencing, and rollup RPC subscribe
+  directly.
+- **Finality Actor**: Finalizes derived L2 blocks once the
+  L1 blocks they were derived from finalize, following the
+  engine's published state. See the [derivation][derivation]
+  docs.
+- **L1 Signer Updater Actor**: Keeps the unsafe block signer
+  current from the `SystemConfig` contract, for gossip
+  validation and the signer actor.
+- **Network Actor**: Runs the libp2p gossip swarm. It
+  publishes the sequencer's signed blocks, passes the
+  blocks it receives to the engine actor, and dials the
+  peers the discovery actor finds. Visit the [network][p2p]
   docs for more detail.
 - **Sequencer Actor**: The sequencer actor extends the
   `kona-node` to be run as a sequencer. Sequencing is
@@ -56,9 +69,12 @@ The [`RollupNode`][node] builds and starts the following actors.
 - **Signer Actor**: Runs alongside the sequencer actor.
   It signs each block the sequencer builds, in order,
   and passes it to the network actor to gossip.
-- **RPC Actor**: The RPC actor spins up and serves an
-  RPC server that exposes the rpc methods required by
-  the [OP Stack Specs][specs].
+
+The node also runs a JSON-RPC server, which is not an actor:
+jsonrpsee dispatches requests straight to the registered
+modules, including `RollupRpc`, which serves the rollup methods
+required by the [OP Stack Specs][specs]. The modules read the
+state the actors publish and send requests to their handles.
 
 
 [p2p]: ./p2p
@@ -69,8 +85,8 @@ The [`RollupNode`][node] builds and starts the following actors.
 [specs]: https://specs.optimism.io/protocol/rollup-node.html
 
 [service]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service/src/service
-[actors]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service/src/actors
-[actor]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/actors/traits.rs
+[actors]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/actors
 [start]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
 [node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
-[builder]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/builder.rs
+[config]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/config.rs
+[clients]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/clients.rs

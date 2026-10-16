@@ -1,232 +1,367 @@
-use std::path::PathBuf;
+//! Block signer CLI Flags
 
 use alloy_primitives::{Address, B256};
-use alloy_signer::{Signer, k256::ecdsa};
+use alloy_signer::k256::ecdsa;
 use alloy_signer_local::PrivateKeySigner;
-use clap::Parser;
-use kona_cli::SecretKeyLoader;
+use anyhow::Context;
+use clap::{Args, error::ErrorKind};
 use kona_sources::{BlockSigner, ClientCert, RemoteSigner};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use std::str::FromStr;
+use reqwest::header::{HeaderName, HeaderValue};
+use std::{path::PathBuf, str::FromStr};
 use url::Url;
 
-use crate::flags::GlobalArgs;
-
-/// Signer CLI Flags
-#[derive(Debug, Clone, Parser, Default, PartialEq, Eq)]
+/// The flags that choose the block signer, which signs a sequencer's blocks for gossip: a local
+/// key read from a file, or a remote op-signer.
+///
+/// A node signs blocks only when it can sequence and gossips them: with `--sequencer.enabled` and
+/// `--p2p.enabled`. It then needs a signer, and these flags must choose exactly one. Otherwise they
+/// are ignored: clap still parses each value, but how they combine is not checked, and the key
+/// file is not read.
+#[derive(Debug, Clone, Args, PartialEq, Eq)]
+#[command(next_help_heading = "Signer")]
 pub struct SignerArgs {
-    /// An optional flag to specify a local private key for the sequencer to sign unsafe blocks.
-    #[arg(
-        long = "p2p.sequencer.key",
-        env = "KONA_NODE_P2P_SEQUENCER_KEY",
-        conflicts_with = "endpoint"
-    )]
-    pub sequencer_key: Option<B256>,
-    /// An optional path to a file containing the sequencer private key.
-    /// This is mutually exclusive with `p2p.sequencer.key`.
-    #[arg(
-        long = "p2p.sequencer.key.path",
-        env = "KONA_NODE_P2P_SEQUENCER_KEY_PATH",
-        conflicts_with = "sequencer_key"
-    )]
-    pub sequencer_key_path: Option<PathBuf>,
-    /// The URL of the remote signer endpoint. If not provided, remote signer will be disabled.
-    /// This is mutually exclusive with `p2p.sequencer.key`.
-    /// This is required if any of the other signer flags are provided.
-    #[arg(
-        long = "p2p.signer.endpoint",
-        env = "KONA_NODE_P2P_SIGNER_ENDPOINT",
-        requires = "address"
-    )]
-    pub endpoint: Option<Url>,
-    /// The address to sign transactions for. Required if `signer.endpoint` is provided.
-    #[arg(
-        long = "p2p.signer.address",
-        env = "KONA_NODE_P2P_SIGNER_ADDRESS",
-        requires = "endpoint"
-    )]
-    pub address: Option<Address>,
-    /// Headers to pass to the remote signer. Format `key=value`. Value can contain any character
-    /// allowed in a HTTP header. When using env vars, split with commas. When using flags one
-    /// key value pair per flag.
-    #[arg(long = "p2p.signer.header", env = "KONA_NODE_P2P_SIGNER_HEADER", requires = "endpoint")]
-    pub header: Vec<String>,
-    /// An optional path to CA certificates to be used for the remote signer.
-    #[arg(long = "p2p.signer.tls.ca", env = "KONA_NODE_P2P_SIGNER_TLS_CA", requires = "endpoint")]
-    pub ca_cert: Option<PathBuf>,
-    /// An optional path to the client certificate for the remote signer. If specified,
-    /// `signer.tls.key` must also be specified.
-    #[arg(
-        long = "p2p.signer.tls.cert",
-        env = "KONA_NODE_P2P_SIGNER_TLS_CERT",
-        requires = "key",
-        requires = "endpoint"
-    )]
-    pub cert: Option<PathBuf>,
-    /// An optional path to the client key for the remote signer. If specified,
-    /// `signer.tls.cert` must also be specified.
-    #[arg(
-        long = "p2p.signer.tls.key",
-        env = "KONA_NODE_P2P_SIGNER_TLS_KEY",
-        requires = "cert",
-        requires = "endpoint"
-    )]
-    pub key: Option<PathBuf>,
+    /// Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The
+    /// file must exist. Give this or `--signer.remote.url`. Used and required only when
+    /// `--sequencer.enabled` and `--p2p.enabled`.
+    #[arg(long = "signer.key-path", value_name = "PATH", env = "KONA_NODE_SIGNER_KEY_PATH")]
+    pub key_path: Option<PathBuf>,
+    /// A remote op-signer that signs the sequencer's blocks.
+    #[command(flatten)]
+    pub remote: RemoteSignerArgs,
 }
 
-/// Errors that can occur when parsing the signer arguments.
-#[derive(Debug, thiserror::Error)]
-pub enum SignerArgsParseError {
-    /// The local sequencer key and remote signer cannot be specified at the same time.
-    #[error("A local sequencer key and a remote signer cannot be specified at the same time.")]
-    LocalAndRemoteSigner,
-    /// Both sequencer key and sequencer key path cannot be specified at the same time.
-    #[error(
-        "Both sequencer key and sequencer key path cannot be specified at the same time. Use either --p2p.sequencer.key or --p2p.sequencer.key.path."
+/// The flags that configure a remote op-signer.
+///
+/// Each requires the URL, which requires the address: so a remote signer has the URL and the
+/// address, and a node without one gives none of these flags.
+#[derive(Debug, Clone, Args, PartialEq, Eq)]
+pub struct RemoteSignerArgs {
+    /// The URL of a remote op-signer that signs the sequencer's blocks. Give this or
+    /// `--signer.key-path`. Used and required only when `--sequencer.enabled` and `--p2p.enabled`.
+    #[arg(long = "signer.remote.url", env = "KONA_NODE_SIGNER_REMOTE_URL")]
+    pub url: Option<Url>,
+    /// The address of the remote op-signer's key. Requires `--signer.remote.url`.
+    #[arg(long = "signer.remote.address", env = "KONA_NODE_SIGNER_REMOTE_ADDRESS")]
+    pub address: Option<Address>,
+    /// A header to send to the remote op-signer, as `name=value`. Pass the flag once per header;
+    /// the environment variable sets a single header, whose value may contain commas. Requires
+    /// `--signer.remote.url`.
+    #[arg(
+        long = "signer.remote.header",
+        value_name = "NAME=VALUE",
+        env = "KONA_NODE_SIGNER_REMOTE_HEADER"
     )]
-    ConflictingSequencerKeyInputs,
-    /// The sequencer key is invalid.
-    #[error("The sequencer key is invalid.")]
-    SequencerKeyInvalid(#[from] ecdsa::Error),
-    /// Failed to load sequencer key from file.
-    #[error("Failed to load sequencer key from file")]
-    SequencerKeyFileError(#[from] kona_cli::KeypairError),
-    /// The address is required if `signer.endpoint` is provided.
-    #[error("The address is required if `signer.endpoint` is provided.")]
-    AddressRequired,
-    /// The header is invalid.
-    #[error("The header is invalid.")]
-    InvalidHeader,
-    /// The private key field is required if `signer.tls.cert` is provided.
-    #[error("The private key field is required if `signer.tls.cert` is provided.")]
-    KeyRequired,
-    /// The header name is invalid.
-    #[error("The header name is invalid.")]
-    InvalidHeaderName(#[from] reqwest::header::InvalidHeaderName),
-    /// The header value is invalid.
-    #[error("The header value is invalid.")]
-    InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
+    pub headers: Vec<SignerHeader>,
+    /// Path to the CA certificates that verify the remote op-signer. Requires
+    /// `--signer.remote.url`.
+    #[arg(
+        long = "signer.remote.tls.ca-path",
+        value_name = "PATH",
+        env = "KONA_NODE_SIGNER_REMOTE_TLS_CA_PATH"
+    )]
+    pub ca_cert: Option<PathBuf>,
+    /// Path to the client certificate presented to the remote op-signer. Requires
+    /// `--signer.remote.url` and `--signer.remote.tls.key-path`.
+    #[arg(
+        long = "signer.remote.tls.cert-path",
+        value_name = "PATH",
+        env = "KONA_NODE_SIGNER_REMOTE_TLS_CERT_PATH"
+    )]
+    pub client_cert: Option<PathBuf>,
+    /// Path to the private key of the client certificate. Requires `--signer.remote.url` and
+    /// `--signer.remote.tls.cert-path`.
+    #[arg(
+        long = "signer.remote.tls.key-path",
+        value_name = "PATH",
+        env = "KONA_NODE_SIGNER_REMOTE_TLS_KEY_PATH"
+    )]
+    pub client_key: Option<PathBuf>,
+}
+
+/// A header sent to the remote op-signer, parsed from `name=value`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignerHeader {
+    /// The header's name.
+    pub name: HeaderName,
+    /// The header's value.
+    pub value: HeaderValue,
+}
+
+impl FromStr for SignerHeader {
+    type Err = anyhow::Error;
+
+    fn from_str(header: &str) -> Result<Self, Self::Err> {
+        let (name, value) = header.split_once('=').context("expected name=value")?;
+        Ok(Self { name: name.parse()?, value: value.parse()? })
+    }
+}
+
+/// An error in the block signer's flags, or reading the signing key they name.
+#[derive(Debug, thiserror::Error)]
+pub enum SignerError {
+    /// No signer was given.
+    #[error(
+        "--sequencer.enabled with --p2p.enabled requires a block signer: --signer.key-path, or \
+         --signer.remote.url with --signer.remote.address"
+    )]
+    NoSigner,
+    /// Both a local key and a remote signer were given.
+    #[error("give --signer.key-path or --signer.remote.url, not both")]
+    TwoSigners,
+    /// A remote signer was given without its URL, or without its address.
+    #[error("--signer.remote.url and --signer.remote.address must be given together")]
+    IncompleteRemoteSigner,
+    /// A remote signer option was given without a remote signer.
+    #[error("{0} requires --signer.remote.url")]
+    NoRemoteSigner(&'static str),
+    /// A client certificate was given without its key, or a key without its certificate.
+    #[error(
+        "--signer.remote.tls.cert-path and --signer.remote.tls.key-path must be given together"
+    )]
+    IncompleteClientCert,
+    /// The key file could not be read.
+    #[error("failed to read the signer key file {0}")]
+    Read(PathBuf, #[source] std::io::Error),
+    /// The key file does not hold a hex-encoded 32-byte key.
+    #[error("the signer key file {0} does not hold a hex-encoded 32-byte key")]
+    Decode(PathBuf, #[source] alloy_primitives::hex::FromHexError),
+    /// The key is not a valid secp256k1 private key.
+    #[error("the signer key in {0} is not a valid secp256k1 private key")]
+    Invalid(PathBuf, #[source] ecdsa::Error),
+}
+
+impl SignerError {
+    /// The kind of clap error an error in how the flags combine is, or `None` for an error in the
+    /// key file they name.
+    pub const fn kind(&self) -> Option<ErrorKind> {
+        match self {
+            Self::TwoSigners => Some(ErrorKind::ArgumentConflict),
+            Self::NoSigner |
+            Self::IncompleteRemoteSigner |
+            Self::NoRemoteSigner(_) |
+            Self::IncompleteClientCert => Some(ErrorKind::MissingRequiredArgument),
+            Self::Read(..) | Self::Decode(..) | Self::Invalid(..) => None,
+        }
+    }
+}
+
+/// The signer the flags choose, before its key file is read.
+enum Choice {
+    Local(PathBuf),
+    Remote(Box<RemoteSigner>),
 }
 
 impl SignerArgs {
-    /// Creates a [`BlockSigner`] from the [`SignerArgs`].
-    pub fn config(self, args: &GlobalArgs) -> Result<Option<BlockSigner>, SignerArgsParseError> {
-        // First, resolve the sequencer key from either raw input or file
-        let sequencer_key = self.resolve_sequencer_key()?;
-
-        // The sequencer signer obtained from the CLI arguments.
-        let gossip_signer: Option<BlockSigner> = match (sequencer_key, self.config_remote()?) {
-            (Some(_), Some(_)) => return Err(SignerArgsParseError::LocalAndRemoteSigner),
-            (Some(key), None) => {
-                let signer: BlockSigner = PrivateKeySigner::from_bytes(&key)?
-                    .with_chain_id(Some(args.l2_chain_id.into()))
-                    .into();
-                Some(signer)
-            }
-            (None, Some(signer)) => Some(signer.into()),
-            (None, None) => None,
-        };
-
-        Ok(gossip_signer)
+    /// Checks that the flags choose exactly one complete signer, without reading its key file.
+    pub fn check(&self) -> Result<(), SignerError> {
+        self.clone().choose().map(drop)
     }
 
-    /// Resolves the sequencer key from either the raw key or the key file.
-    fn resolve_sequencer_key(&self) -> Result<Option<B256>, SignerArgsParseError> {
-        match (self.sequencer_key, &self.sequencer_key_path) {
-            (Some(key), None) => Ok(Some(key)),
-            (None, Some(path)) => {
-                let keypair = SecretKeyLoader::load(path)?;
-                // Extract the private key bytes from the secp256k1 keypair
-                keypair.try_into_secp256k1().map_or_else(
-                    |_| Err(SignerArgsParseError::SequencerKeyInvalid(ecdsa::Error::new())),
-                    |secp256k1_keypair| {
-                        let private_key_bytes = secp256k1_keypair.secret().to_bytes();
-                        let key = B256::from_slice(&private_key_bytes);
-                        Ok(Some(key))
-                    },
-                )
+    /// Returns the block signer the flags choose, reading its key file.
+    pub fn config(self) -> Result<BlockSigner, SignerError> {
+        match self.choose()? {
+            Choice::Local(path) => {
+                let contents = std::fs::read_to_string(&path)
+                    .map_err(|e| SignerError::Read(path.clone(), e))?;
+                let key = B256::from_str(contents.trim())
+                    .map_err(|e| SignerError::Decode(path.clone(), e))?;
+                let signer = PrivateKeySigner::from_bytes(&key)
+                    .map_err(|e| SignerError::Invalid(path, e))?;
+                Ok(signer.into())
             }
-            (Some(_), Some(_)) => Err(SignerArgsParseError::ConflictingSequencerKeyInputs),
-            (None, None) => Ok(None),
+            Choice::Remote(remote) => Ok((*remote).into()),
         }
     }
 
-    /// Creates a [`RemoteSigner`] from the [`SignerArgs`].
-    fn config_remote(self) -> Result<Option<RemoteSigner>, SignerArgsParseError> {
-        let Some(endpoint) = self.endpoint else {
-            return Ok(None);
+    fn choose(self) -> Result<Choice, SignerError> {
+        // Check the remote signer's flags first, so that none is ignored beside a local key.
+        match (self.key_path, self.remote.config()?) {
+            (Some(_), Some(_)) => Err(SignerError::TwoSigners),
+            (Some(path), None) => Ok(Choice::Local(path)),
+            (None, Some(remote)) => Ok(Choice::Remote(Box::new(remote))),
+            (None, None) => Err(SignerError::NoSigner),
+        }
+    }
+}
+
+impl RemoteSignerArgs {
+    /// Returns the remote signer the flags configure, or `None` if they configure none.
+    fn config(self) -> Result<Option<RemoteSigner>, SignerError> {
+        let (endpoint, address) = match (self.url, self.address) {
+            (Some(url), Some(address)) => (url, address),
+            (None, None) => {
+                let options = [
+                    ("--signer.remote.header", !self.headers.is_empty()),
+                    ("--signer.remote.tls.ca-path", self.ca_cert.is_some()),
+                    ("--signer.remote.tls.cert-path", self.client_cert.is_some()),
+                    ("--signer.remote.tls.key-path", self.client_key.is_some()),
+                ];
+                return match options.into_iter().find(|(_, given)| *given) {
+                    Some((flag, _)) => Err(SignerError::NoRemoteSigner(flag)),
+                    None => Ok(None),
+                };
+            }
+            _ => return Err(SignerError::IncompleteRemoteSigner),
         };
-
-        let Some(address) = self.address else {
-            return Err(SignerArgsParseError::AddressRequired);
+        let client_cert = match (self.client_cert, self.client_key) {
+            (Some(cert), Some(key)) => Some(ClientCert { cert, key }),
+            (None, None) => None,
+            _ => return Err(SignerError::IncompleteClientCert),
         };
-
-        let headers = self
-            .header
-            .iter()
-            .map(|h| {
-                let (key, value) = h.split_once('=').ok_or(SignerArgsParseError::InvalidHeader)?;
-                Ok((HeaderName::from_str(key)?, HeaderValue::from_str(value)?))
-            })
-            .collect::<Result<HeaderMap, SignerArgsParseError>>()?;
-
-        let client_cert = self
-            .cert
-            .clone()
-            .map(|cert| {
-                Ok::<_, SignerArgsParseError>(ClientCert {
-                    cert,
-                    key: self.key.clone().ok_or(SignerArgsParseError::KeyRequired)?,
-                })
-            })
-            .transpose()?;
-
         Ok(Some(RemoteSigner {
             address,
             endpoint,
-            ca_cert: self.ca_cert.clone(),
+            ca_cert: self.ca_cert,
             client_cert,
-            headers,
+            headers: self.headers.into_iter().map(|header| (header.name, header.value)).collect(),
         }))
+    }
+}
+
+/// Signing keys for tests.
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use std::io::Write;
+
+    /// A valid hex-encoded signing key.
+    pub(crate) const KEY: &str =
+        "0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be";
+
+    /// A file holding `contents`, for `--signer.key-path`. It is deleted on drop.
+    pub(crate) fn key_file(contents: &str) -> tempfile::NamedTempFile {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        write!(file, "{contents}").unwrap();
+        file
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use alloy_primitives::b256;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
+    use super::{
+        test_utils::{KEY, key_file},
+        *,
+    };
+    use clap::{Parser, error::ErrorKind};
+
+    #[derive(Parser, Debug)]
+    struct TestCli {
+        #[command(flatten)]
+        signer: SignerArgs,
+    }
+
+    /// Parses the signer flags `args`.
+    fn parse(args: &[&str]) -> Result<SignerArgs, clap::Error> {
+        TestCli::try_parse_from(std::iter::once("node").chain(args.iter().copied()))
+            .map(|cli| cli.signer)
+    }
+
+    const ADDRESS: &str = "0x0000000000000000000000000000000000000001";
 
     #[test]
-    fn test_resolve_sequencer_key_from_file() {
-        // Create a temporary file with a private key
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
-        let hex = alloy_primitives::hex::encode(key.0);
-        write!(temp_file, "{hex}").unwrap();
+    fn reads_the_local_key_from_its_file() {
+        let file = key_file(&format!("{KEY}\n"));
+        let args = parse(&["--signer.key-path", file.path().to_str().unwrap()]).unwrap();
 
-        let signer_args = SignerArgs {
-            sequencer_key: None,
-            sequencer_key_path: Some(temp_file.path().to_path_buf()),
-            ..Default::default()
+        let BlockSigner::Local(signer) = args.config().unwrap() else {
+            panic!("expected a local signer")
         };
+        assert_eq!(signer.to_bytes(), B256::from_str(KEY).unwrap());
+    }
 
-        let resolved = signer_args.resolve_sequencer_key().unwrap();
-        assert_eq!(resolved, Some(key));
+    /// The key file is read when the signer is configured, not when the flags are checked.
+    #[test]
+    fn rejects_a_missing_or_malformed_key_file() {
+        let args = parse(&["--signer.key-path", "/nonexistent/sequencer.key"]).unwrap();
+        args.check().unwrap();
+        assert!(matches!(args.config(), Err(SignerError::Read(..))));
+
+        let file = key_file("not hex");
+        let args = parse(&["--signer.key-path", file.path().to_str().unwrap()]).unwrap();
+        assert!(matches!(args.config(), Err(SignerError::Decode(..))));
+
+        let file = key_file(&B256::ZERO.to_string());
+        let args = parse(&["--signer.key-path", file.path().to_str().unwrap()]).unwrap();
+        assert!(matches!(args.config(), Err(SignerError::Invalid(..))));
     }
 
     #[test]
-    fn test_resolve_sequencer_key_conflicting_inputs() {
-        let signer_args = SignerArgs {
-            sequencer_key: Some(b256!(
-                "bcc617ea05150ff60490d3c6058630ba94ae9f12a02a87efd291349ca0e54e0a"
-            )),
-            sequencer_key_path: Some(PathBuf::from("/path/to/key.txt")),
-            ..Default::default()
-        };
+    fn configures_a_remote_signer() {
+        let args = parse(&[
+            "--signer.remote.url",
+            "http://127.0.0.1:8080",
+            "--signer.remote.address",
+            ADDRESS,
+            "--signer.remote.header",
+            "x-api-key=secret,with,commas",
+            "--signer.remote.tls.cert-path",
+            "/cert.pem",
+            "--signer.remote.tls.key-path",
+            "/key.pem",
+        ])
+        .unwrap();
 
-        let result = signer_args.resolve_sequencer_key();
-        assert!(matches!(result, Err(SignerArgsParseError::ConflictingSequencerKeyInputs)));
+        let BlockSigner::Remote(signer) = args.config().unwrap() else {
+            panic!("expected a remote signer")
+        };
+        assert_eq!(signer.endpoint.as_str(), "http://127.0.0.1:8080/");
+        assert_eq!(signer.address, Address::with_last_byte(1));
+        assert_eq!(signer.headers["x-api-key"], "secret,with,commas");
+        let cert = signer.client_cert.unwrap();
+        assert_eq!((cert.cert, cert.key), (PathBuf::from("/cert.pem"), PathBuf::from("/key.pem")));
+    }
+
+    #[test]
+    fn rejects_inconsistent_signer_flags() {
+        let remote = ["--signer.remote.url", "http://a", "--signer.remote.address", ADDRESS];
+        let with_remote = |extra: &[&'static str]| [&remote[..], extra].concat();
+        let cases: [(Vec<&str>, SignerError); 10] = [
+            // no signer
+            (vec![], SignerError::NoSigner),
+            // two signers
+            (with_remote(&["--signer.key-path", "/key"]), SignerError::TwoSigners),
+            // remote signer options beside a local key
+            (
+                vec!["--signer.key-path", "/key", "--signer.remote.address", ADDRESS],
+                SignerError::IncompleteRemoteSigner,
+            ),
+            (
+                vec!["--signer.key-path", "/key", "--signer.remote.header", "a=b"],
+                SignerError::NoRemoteSigner("--signer.remote.header"),
+            ),
+            // a remote signer without its address, or its URL
+            (vec!["--signer.remote.url", "http://a"], SignerError::IncompleteRemoteSigner),
+            (vec!["--signer.remote.address", ADDRESS], SignerError::IncompleteRemoteSigner),
+            // remote signer options without a remote signer
+            (
+                vec!["--signer.remote.header", "a=b"],
+                SignerError::NoRemoteSigner("--signer.remote.header"),
+            ),
+            (
+                vec!["--signer.remote.tls.ca-path", "/ca.pem"],
+                SignerError::NoRemoteSigner("--signer.remote.tls.ca-path"),
+            ),
+            // a client certificate without its key, or a key without its certificate
+            (
+                with_remote(&["--signer.remote.tls.cert-path", "/c"]),
+                SignerError::IncompleteClientCert,
+            ),
+            (
+                with_remote(&["--signer.remote.tls.key-path", "/k"]),
+                SignerError::IncompleteClientCert,
+            ),
+        ];
+        for (raw, expected) in cases {
+            let args = parse(&raw).unwrap();
+            let error = args.check().unwrap_err();
+            assert!(error.kind().is_some(), "{raw:?}");
+            assert_eq!(error.to_string(), expected.to_string(), "{raw:?}");
+            assert_eq!(args.config().unwrap_err().to_string(), expected.to_string(), "{raw:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_a_malformed_header() {
+        let error = parse(&["--signer.remote.header", "no-value"]).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ValueValidation);
     }
 }

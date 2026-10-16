@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import KonaNodePorts from "/snippets/kona-node-ports.mdx"
+import { Unreleased } from "/snippets/unreleased.mdx"
 
 This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
 
@@ -12,155 +13,200 @@ This document lists all CLI flags for the `kona-node node` subcommand, grouped b
 For more details on each flag, see the inline help (`kona-node node --help`) or the source code.
 </Note>
 
+Flags that take a duration accept a number and a unit, such as `500ms`, `5s`, `30m` or `1h`.
+
 ## Default Ports
 
 <KonaNodePorts />
 
 ## Core Node Arguments
 
-| Flag | Env | Description | Required | Default |
-|------|-----|-------------|----------|---------|
-| `--mode <validator/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | No | `validator` |
-| `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
-| `--l1-trust-rpc <true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `true` |
-| `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
-| `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
-| `--l2-trust-rpc <true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
-| `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | No | - |
-| `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
-| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
-
-## Global Arguments
+<Unreleased component="kona-node" />
 
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--l2-chain-id <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string) | No | `10` (Optimism) |
+| `--l1.eth-url <URL>` | `KONA_NODE_L1_ETH_URL` | URL of the L1 execution client RPC API | Yes | - |
+| `--l1.beacon-url <URL>` | `KONA_NODE_L1_BEACON_URL` | URL of the L1 beacon API | Yes | - |
+| `--l2.engine.url <URL>` | `KONA_NODE_L2_ENGINE_URL` | URL of the engine API endpoint of an L2 execution client | Yes | - |
+| `--l2.engine.jwt-secret-path <PATH>` | `KONA_NODE_L2_ENGINE_JWT_SECRET_PATH` | Path to file containing the hex-encoded JWT secret for the execution client | Yes | - |
+| `--derivation-trusted-l2-cl-url <URL>` | `KONA_NODE_DERIVATION_TRUSTED_L2_CL_URL` | URL of an OP Stack L2 consensus-layer node to follow instead of deriving the chain from L1. Its RPC must serve `optimism_syncStatus` | No | - |
+
+## Chain Arguments
+
+<Unreleased component="kona-node" />
+
+| Flag | Env | Description | Required | Default |
+|------|-----|-------------|----------|---------|
+| `--chain <ID/NAME>` | `KONA_NODE_CHAIN` | L2 chain ID (numeric) or chain name (string) to load the rollup config for from the superchain registry | One of these two | - |
+| `--chain.rollup-config-path <PATH>` | `KONA_NODE_CHAIN_ROLLUP_CONFIG_PATH` | Path to an L2 rollup configuration file, for a chain that is not in the superchain registry | One of these two | - |
+| `--chain.l1-config-path <PATH>` | `KONA_NODE_CHAIN_L1_CONFIG_PATH` | Path to the L1 chain config, or to an L1 genesis file whose `config` field holds it | No | Looked up by the rollup config's L1 chain ID |
+| `--chain.dependency-set-path <PATH>` | `KONA_NODE_CHAIN_DEPENDENCY_SET_PATH` | Path to the JSON file describing the interop dependency set for this chain, like op-node's `--interop.dependency-set`. Required when the rollup config schedules the Lagoon hardfork for a chain outside the superchain registry | No | The registry's set for the chain, or else a set containing only this chain |
+| `--chain.hardfork.<NAME>-time <TIMESTAMP>` | `KONA_NODE_CHAIN_HARDFORK_<NAME>_TIME` | Overrides a hardfork's activation timestamp: `canyon`, `delta`, `ecotone`, `fjord`, `granite`, `holocene`, `pectra-blob-schedule`, `isthmus`, `jovian`, `karst` or `lagoon` | No | - |
+| `--chain.keep-karst-upgrade-gas <BOOL>` | `KONA_NODE_CHAIN_KEEP_KARST_UPGRADE_GAS` | Overrides the rollup config's `keep_karst_upgrade_gas` | No | - |
+
+`kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
+flag group.
 
 ### Chain ID Support
 
-The `--l2-chain-id` flag supports flexible chain identification using the `alloy_chains` crate:
+The `--chain` flag supports flexible chain identification using the `alloy_chains` crate:
 
 **Numeric Chain IDs:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
-kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
-kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+kona-node node --chain 10 [args...]      # OP Mainnet
+kona-node node --chain 8453 [args...]    # Base mainnet
 ```
 
 **String Chain Names:**
 ```bash
-kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id base node [args...]
-kona-node --l2-chain-id mainnet node [args...]
+kona-node node --chain optimism [args...]
+kona-node node --chain base [args...]
 ```
 
-**Short Flag and Environment Variable:**
+**Environment Variable:**
 ```bash
-kona-node -c optimism node [args...]
-export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
+export KONA_NODE_CHAIN=optimism && kona-node node [args...]
 ```
 
-Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`, `mainnet`). Unknown numeric chain IDs are accepted for custom networks.
+Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`). The chain must be in the superchain registry; for a custom network, use `--chain.rollup-config-path` instead.
 
 ## P2P Arguments
 
+The other P2P flags apply only with `--p2p.enabled`.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery) | `false` |
-| `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
-| `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
-| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port to advertise | `0` |
-| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port to advertise | `0` |
-| `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | IP to bind LibP2P/Discv5 to | `0.0.0.0` |
-| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to bind LibP2P to | `9222` |
-| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port to bind Discv5 to | `9223` |
-| `--p2p.peers.lo <N>` | `KONA_NODE_P2P_PEERS_LO` | Low-tide peer count | `20` |
-| `--p2p.peers.hi <N>` | `KONA_NODE_P2P_PEERS_HI` | High-tide peer count | `30` |
-| `--p2p.peers.grace <SECONDS>` | `KONA_NODE_P2P_PEERS_GRACE` | Grace period for new peers | `30` |
-| `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target count | `8` |
-| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLO` | GossipSub mesh low watermark | `6` |
-| `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark | `12` |
-| `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target | `6` |
-| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH` | Publish to all known peers | `false` |
-| `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
-| `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
-| `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
-| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `60` |
-| `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
-| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
-| `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
-| `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
-| `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
-| `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
-| `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A sequencer needs this, `--p2p.sequencer.key.path`, or a remote signer | - |
-| `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
-| `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
-| `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
+| `--p2p.enabled[=<BOOL>]` | `KONA_NODE_P2P_ENABLED` | Receive and gossip blocks over P2P. When disabled, the node only follows the safe chain (unless it is a sequencer, when it also produces the ungossiped unsafe chain) | `false` |
+| `--p2p.priv-path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to a file holding the hex-encoded 32-byte private key of the node's peer ID, created with a new key if it does not exist. Keep it across restarts to keep the peer ID | A new peer ID at each start |
+| `--p2p.listen.addr <HOST>` | `KONA_NODE_P2P_LISTEN_ADDR` | IP address or DNS hostname to listen for peers on. A hostname is resolved when the node starts | `0.0.0.0` |
+| `--p2p.listen.tcp-port <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | TCP port to listen for peers on. `0` picks any free port | `9222` |
+| `--p2p.listen.udp-port <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | UDP port for discovery to listen on. `0` picks any free port | `9223` |
+| `--p2p.advertise.addr <HOST>` | `KONA_NODE_P2P_ADVERTISE_ADDR` | IP address or DNS hostname for discovery to advertise to peers, such as a public address behind a NAT. Setting it stops discovery from updating the advertised address from what peers report. Used only with `--p2p.discovery.enabled` | The listen address |
+| `--p2p.advertise.tcp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | TCP port for discovery to advertise to peers | The listen TCP port |
+| `--p2p.advertise.udp-port <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | UDP port for discovery to advertise to peers | The listen UDP port |
+| `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub mesh target degree: how many peers to keep in the mesh and send blocks to | `8` |
+| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_LO` | GossipSub mesh low watermark: with fewer peers in the mesh, the node adds more | `6` |
+| `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub mesh high watermark: with more peers in the mesh, the node prunes it | `12` |
+| `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip target: how many peers outside the mesh to announce blocks to, without sending them the blocks | `6` |
+| `--p2p.gossip.mesh.flood-publish.enabled[=<BOOL>]` | `KONA_NODE_P2P_GOSSIP_MESH_FLOOD_PUBLISH_ENABLED` | Publish the node's own blocks to every known peer on the topic, not only to its mesh | `false` |
+| `--p2p.peer-scoring <LEVEL>` | `KONA_NODE_P2P_PEER_SCORING` | How to score peers by their behavior: `off` or `light` | `light` |
+| `--p2p.topic-scoring.enabled[=<BOOL>]` | `KONA_NODE_P2P_TOPIC_SCORING_ENABLED` | Also score peers by their behavior on each gossip topic. Kept for compatibility and debugging: op-node is phasing topic scoring out | `false` |
+| `--p2p.ban.enabled[=<BOOL>]` | `KONA_NODE_P2P_BAN_ENABLED` | Ban peers whose score falls below `--p2p.ban.threshold`, for `--p2p.ban.duration` | `false` |
+| `--p2p.ban.threshold <SCORE>` | `KONA_NODE_P2P_BAN_THRESHOLD` | The score below which a peer is banned | `-100` |
+| `--p2p.ban.duration <DURATION>` | `KONA_NODE_P2P_BAN_DURATION` | How long to ban a peer for | `1h` |
+| `--p2p.redial.max-attempts <N>` | `KONA_NODE_P2P_REDIAL_MAX_ATTEMPTS` | How many times to redial a peer that disconnects, within each `--p2p.redial.period`. `0` redials it indefinitely | `500` |
+| `--p2p.redial.period <DURATION>` | `KONA_NODE_P2P_REDIAL_PERIOD` | How long after a peer was last dialed its count of redials resets | `1h` |
+| `--p2p.discovery.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_ENABLED` | Find peers with discv5. Without it, the node keeps only the peers it is told to connect to, and those that connect to it, and ignores the other discovery flags | `false` |
+| `--p2p.discovery.bootnodes <ENR,...>` | `KONA_NODE_P2P_DISCOVERY_BOOTNODES` | Comma-separated ENRs or enode URLs of nodes to start discovery from, in addition to the chain's built-in bootnodes | - |
+| `--p2p.discovery.interval <DURATION>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | How often discovery looks for new peers | `5s` |
+| `--p2p.discovery.randomize <DURATION>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | How often to drop a random peer from discovery, so that it finds a wider set of peers | Never |
+| `--p2p.discovery.bootstore.enabled[=<BOOL>]` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_ENABLED` | Keep the peers discovery finds in a bootstore, to find them again after a restart | `false` |
+| `--p2p.discovery.bootstore.path <PATH>` | `KONA_NODE_P2P_DISCOVERY_BOOTSTORE_PATH` | Path to the bootstore file | `~/.kona/<CHAIN_ID>/bootstore.json` |
 
 ## RPC Arguments
 
+The RPC server starts once. If it stops unexpectedly, the node shuts down with an error.
+
+<Unreleased component="kona-node" />
+
+The node serves RPC only with `--rpc.enabled`. A sequencer requires it: its sequencer starts stopped, and is started through the admin API. The address and port apply only while RPC is enabled.
+
+The RPC server always serves the [admin API](/node-operators/kona-node/rpc/admin), which can stop the sequencer and reset the node. Keep the RPC port off untrusted networks.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | Disable the RPC server | `false` |
-| `--rpc.no-restart` | `KONA_NODE_RPC_NO_RESTART` | Prevent RPC server from restarting | `false` |
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
-| `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
-| `--rpc.ws-enabled` | `KONA_NODE_RPC_WS_ENABLED` | Enable websocket RPC server | `false` |
+| `--rpc.enabled[=<BOOL>]` | `KONA_NODE_RPC_ENABLED` | Serve the RPC API, including the admin API. The flag alone means `true` | `false` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address. Set it to `0.0.0.0` to reach the RPC from outside a container | `127.0.0.1` |
+| `--rpc.port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
 
 ## Sequencer Arguments
 
-| Flag | Env | Description | Default |
-|------|-----|-------------|---------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | Start sequencer in stopped state | `false` |
-| `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
-| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
-| `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
-| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
-| `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
+<Unreleased component="kona-node" />
 
-## Interop Arguments
+A node run with `--sequencer.enabled` can sequence. It requires `--rpc.enabled`, and with `--p2p.enabled` a block signer: see [Signer Arguments](#signer-arguments). Its sequencer starts stopped: call `admin_startSequencer` to begin block production. A node without `--sequencer.enabled` does not serve the sequencer's admin methods. The other sequencer flags apply only with `--sequencer.enabled`, and are ignored without it, so `--sequencer.enabled=false` turns a sequencer into a follower without unsetting them.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+| `--sequencer.enabled[=<BOOL>]` | `KONA_NODE_SEQUENCER_ENABLED` | Run the sequencer. Requires `--rpc.enabled`, and with `--p2p.enabled` a block signer. The flag alone means `true` | `false` |
+| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | How many blocks behind the L1 head the sequencer picks its L1 origins | `4` |
+| `--sequencer.conductor.url <URL>` | `KONA_NODE_SEQUENCER_CONDUCTOR_URL` | URL of the op-conductor RPC API. Setting it puts the sequencer behind the conductor | - |
+| `--sequencer.conductor.timeout <DURATION>` | `KONA_NODE_SEQUENCER_CONDUCTOR_TIMEOUT` | How long a conductor request may take before it fails and the sequencer tries again later | `1s` |
 
-`kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
-flag group. `--interop.dependency-set` is the node's only interop flag.
+## Signer Arguments
 
-## RPC Trust Flags
+<Unreleased component="kona-node" />
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
+The block signer signs the blocks a sequencer builds, so that it can gossip them. A node uses and requires one only when `--sequencer.enabled` and `--p2p.enabled`: give `--signer.key-path`, or `--signer.remote.url` with `--signer.remote.address`. Any other node ignores the signer flags: it still parses each value, but does not check how they combine, nor read the key file.
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--signer.key-path <PATH>` | `KONA_NODE_SIGNER_KEY_PATH` | Path to a file holding the hex-encoded private key that signs the sequencer's blocks. The file must exist. Give this or `--signer.remote.url` | - |
+| `--signer.remote.url <URL>` | `KONA_NODE_SIGNER_REMOTE_URL` | Remote op-signer that signs the sequencer's blocks. Give this or `--signer.key-path` | - |
+| `--signer.remote.address <ADDRESS>` | `KONA_NODE_SIGNER_REMOTE_ADDRESS` | Address of the remote op-signer's key. Requires `--signer.remote.url` | - |
+| `--signer.remote.header <NAME=VALUE>` | `KONA_NODE_SIGNER_REMOTE_HEADER` | Header to send to the remote op-signer. Pass the flag once per header; the environment variable sets a single header. Requires `--signer.remote.url` | - |
+| `--signer.remote.tls.ca-path <PATH>` | `KONA_NODE_SIGNER_REMOTE_TLS_CA_PATH` | CA certificates that verify the remote op-signer. Requires `--signer.remote.url` | - |
+| `--signer.remote.tls.cert-path <PATH>` | `KONA_NODE_SIGNER_REMOTE_TLS_CERT_PATH` | Client certificate presented to the remote op-signer. Requires `--signer.remote.url` and `--signer.remote.tls.key-path` | - |
+| `--signer.remote.tls.key-path <PATH>` | `KONA_NODE_SIGNER_REMOTE_TLS_KEY_PATH` | Private key of the client certificate. Requires `--signer.remote.url` and `--signer.remote.tls.cert-path` | - |
+
+## Logging Arguments
+
+<Unreleased component="kona-node" />
+
+`kona-node` logs to stdout only. Redirect stdout to keep its logs in a file.
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--logs.enabled[=<BOOL>]` | `KONA_NODE_LOGS_ENABLED` | Print logs to stdout. The flag alone means `true` | `false` |
+| `--logs.filter <FILTER>` | `RUST_LOG` | Which logs to keep, in [`RUST_LOG` syntax](/node-operators/kona-node/monitoring#logging): a level such as `debug`, or directives such as `info,engine=debug`. An invalid directive is an error | `info` |
+| `--logs.format <FORMAT>` | `KONA_NODE_LOGS_FORMAT` | The format of the logs: `full`, `json`, `pretty`, `compact` or `logfmt` | `full` |
+
+## Metrics Arguments
+
+<Unreleased component="kona-node" />
+
+| Flag | Env | Description | Default |
+|------|-----|-------------|---------|
+| `--metrics.enabled[=<BOOL>]` | `KONA_NODE_METRICS_ENABLED` | Serve Prometheus metrics. The flag alone means `true` | `false` |
+| `--metrics.addr <IP>` | `KONA_NODE_METRICS_ADDR` | The IP address to serve metrics on. Ignored while metrics are disabled | `0.0.0.0` |
+| `--metrics.port <PORT>` | `KONA_NODE_METRICS_PORT` | The port to serve metrics on. Ignored while metrics are disabled | `9090` |
+
+## RPC Response Verification
+
+`kona-node` does not trust the L1 RPC: every L1 header and block it fetches by hash is checked
+to hash to the hash it asked for, so an RPC cannot serve different block contents under a
+requested hash. It trusts the L2 execution client given by `--l2.engine.url`, which should be
+the node's own, authenticated with the JWT secret. Neither behavior is configurable.
 
 ## Default Behavior
 
 Unless overridden by the flags above, a `kona-node node` run has the following defaults:
 
-- The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
-  to receive block gossip. The `discv5` discovery service runs on
-  UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `0.0.0.0:9545`. Websocket connections
-  are disabled by default.
+- P2P is disabled: the node follows the chain by deriving it from L1.
+  With `--p2p.enabled`, the libp2p swarm listens on TCP `9222` to
+  receive and gossip blocks, with peer scoring. Peer discovery is
+  disabled even then; with `--p2p.discovery.enabled`, the `discv5`
+  discovery service runs on UDP port `9223`.
+- No RPC is served. Enable it with `--rpc.enabled`; it is then served at
+  `127.0.0.1:9545`, configurable via the `--rpc.addr` and `--rpc.port` flags.
+- Logs are disabled. Enable them with `--logs.enabled`; they are then
+  printed to stdout.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
   configurable via the `--metrics.port` and `--metrics.addr` flags.
 
 ## Rollup Configuration Loading
 
-If a file path to a rollup config is _not_ specified via the
-`--l2-config-file` cli flag, the Rollup Config will be loaded
-via the [superchain registry][scr].
+The rollup config comes from exactly one of two sources:
 
-A custom rollup config can either be specified through the
-`--l2-config-file` flag, or specific values may be overridden
-using a set of override flags provided by the `kona-node`.
+- `--chain` loads it from the [superchain registry][scr].
+- `--chain.rollup-config-path` loads it from a file, for a chain that is not in the registry.
 
-Override flags (for example `--canyon-override`) can be viewed
-in the help menu by running `kona-node node --help`. The only
-overrides currently supported are hardfork timestamps in seconds.
+`kona-node` exits with an error if neither or both are set.
+
+Override flags (`--chain.hardfork.<NAME>-time` and `--chain.keep-karst-upgrade-gas`) change values in
+the rollup config from either source. They can be viewed in the help
+menu by running `kona-node node --help`. They override hardfork
+activation timestamps, in seconds, and `keep_karst_upgrade_gas`.
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
 

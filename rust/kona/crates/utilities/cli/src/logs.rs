@@ -2,11 +2,9 @@
 
 use std::path::PathBuf;
 
+use crate::{LogArgs, LogFilter, LogFormat};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use tracing::level_filters::LevelFilter;
-
-use crate::{LogArgs, LogFormat};
 
 /// The rotation of the log files.
 #[derive(Debug, Clone, Serialize, Deserialize, ValueEnum, Default)]
@@ -45,8 +43,8 @@ pub struct StdoutLogConfig {
 /// Default is to only print logs to stdout in full format.
 #[derive(Debug, Clone)]
 pub struct LogConfig {
-    /// Global verbosity level for logging.
-    pub global_level: LevelFilter,
+    /// Which logs to keep, for both stdout and file logging.
+    pub filter: LogFilter,
     /// The configuration for stdout logging.
     pub stdout_logs: Option<StdoutLogConfig>,
     /// The configuration for file logging.
@@ -56,7 +54,7 @@ pub struct LogConfig {
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            global_level: LevelFilter::INFO,
+            filter: LogFilter::default(),
             stdout_logs: Some(StdoutLogConfig { format: LogFormat::Full }),
             file_logs: None,
         }
@@ -72,14 +70,6 @@ impl From<LogArgs> for LogConfig {
 impl LogConfig {
     /// Creates a new `LogConfig` from `LogArgs`.
     pub fn new(args: LogArgs) -> Self {
-        let level = match args.level {
-            1 => LevelFilter::ERROR,
-            2 => LevelFilter::WARN,
-            3 => LevelFilter::INFO,
-            4 => LevelFilter::DEBUG,
-            _ => LevelFilter::TRACE,
-        };
-
         let stdout_logs = if args.stdout_quiet {
             None
         } else {
@@ -92,6 +82,6 @@ impl LogConfig {
             rotation: args.file_rotation,
         });
 
-        Self { global_level: level, stdout_logs, file_logs }
+        Self { filter: args.filter, stdout_logs, file_logs }
     }
 }

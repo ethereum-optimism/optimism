@@ -4,6 +4,10 @@ description: "Run the kona-node binary against an op-reth execution client, from
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
+<Unreleased component="kona-node" />
+
 <Note>
 If you don't have a `kona-node` binary yet, download the latest pre-built
 binary from the [GitHub releases page](https://github.com/ethereum-optimism/optimism/releases),
@@ -24,7 +28,7 @@ of [`op-reth`][op-reth].
 Out of the box, the `kona-node` can be used for any `OP Stack` chain
 that is part of the [`superchain-registry`][scr]. In order to use an
 out-of-band `OP Stack` chain, for example a new devnet, you'll need
-to specify the rollup config using the custom `--l2-config-file`
+to specify the rollup config using the custom `--chain.rollup-config-path`
 cli flag. See [rollup configuration loading](/node-operators/kona-node/configuration#rollup-configuration-loading)
 for details.
 
@@ -41,11 +45,11 @@ configuration. It is encouraged to follow the
 
 The `kona-node` requires a few CLI flags.
 
-- `--l1-eth-rpc <L1_ETH_RPC>`
+- `--l1.eth-url <URL>`
   URL of the L1 execution client RPC API.
-- `--l1-beacon <L1_BEACON>`
+- `--l1.beacon-url <URL>`
   URL of the L1 beacon API.
-- `--l2-engine-rpc <L2_ENGINE_RPC>`
+- `--l2.engine.url <URL>`
   URL of the engine API endpoint of an L2 execution client.
 
 The L2 engine RPC points to the execution layer client's engine API,
@@ -69,8 +73,8 @@ op-reth node \
     --authrpc.jwtsecret /path/to/jwt.hex
 ```
 
-Kona has a `generate-jwt` justfile target that can be used to
-create the `jwt.hex` file. Run `just generate-jwt`.
+Create the `jwt.hex` file with a random 32-byte secret, for example
+with `openssl rand -hex 32 > jwt.hex`.
 
 
 <Info>
@@ -80,34 +84,34 @@ The JWT token file path passed into `--authrpc.jwtsecret`
 This JWT token is how the `op-reth` client authenticates
 requests made by the `kona-node` to the engine rpc.
 
-By default, the `kona-node` will attempt to read a JWT token
-from a `jwt.hex` file in the local directory. If it cannot
-find one, it will create a JWT token in a new `jwt.hex` file.
-
-To specify the path to the file that contains the JWT token,
-pass the file path into the `--l2.jwt-secret` CLI flag or
-use the `KONA_NODE_L2_ENGINE_AUTH` environment variable.
+Pass the path to the file that contains the JWT token to
+`kona-node` with the `--l2.engine.jwt-secret-path` flag or the
+`KONA_NODE_L2_ENGINE_JWT_SECRET_PATH` environment variable. `kona-node`
+does not start without it.
 </Info>
 
 Then, run the `kona-node` using Base's chain id - `8453`.
 
 ```
 kona-node node \
+    --logs.enabled \
+    --p2p.enabled \
+    --p2p.discovery.enabled \
     --chain 8453 \
-    --l1-eth-rpc <L1_RPC_URL> \
-    --l1-beacon <L1_BEACON_URL> \
-    --l2-engine-rpc http://127.0.0.1:9551 \
+    --l1.eth-url <L1_RPC_URL> \
+    --l1.beacon-url <L1_BEACON_URL> \
+    --l2.engine.url http://127.0.0.1:9551 \
+    --l2.engine.jwt-secret-path /path/to/jwt.hex
 ```
 
 That's it! Your node should connect to P2P and start syncing
 quickly.
 
 <Note>
-By default, `kona-node` trusts its RPC providers and doesn't perform
-additional verification, which is suitable for local nodes. When
-pointing the node at public RPC endpoints, follow
-[configure RPC trust](/node-operators/kona-node/run/rpc-trust) to enable
-block hash verification.
+`kona-node` checks that every L1 header and block it fetches by hash
+hashes to the requested hash, so it does not trust the L1 RPC. It does
+trust the L2 execution client, which should be your own. See
+[RPC response verification](/node-operators/kona-node/configuration#rpc-response-verification).
 </Note>
 
 
@@ -132,8 +136,8 @@ engine actor which will kick off execution layer sync on the
 will start to show that it is fetching past L2 blocks to sync the
 chain to tip.
 
-Once EL sync is finished, `kona-node`'s derivation actor will
-kick off the derivation pipeline and begin deriving the L2 chain.
+Once EL sync is finished, `kona-node`'s derivation actor begins
+deriving the L2 chain from the engine's safe head.
 All the while, the P2P stack is separately receiving unsafe L2
 blocks from the chain's sequencer, and sending them off to the
 engine actor to insert into the chain.

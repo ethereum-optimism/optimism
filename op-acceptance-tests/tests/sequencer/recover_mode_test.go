@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +23,7 @@ import (
 // protects against a regeression in that behavior.
 func TestRecoverModeWhenChainHealthy(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	sysgo.SkipOnKonaNode(t, "recovery mode is not supported")
 	sys := presets.NewMinimal(t)
 	tracer := t.Tracer()
 	ctx := t.Ctx()

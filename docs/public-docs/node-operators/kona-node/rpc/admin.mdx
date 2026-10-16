@@ -3,11 +3,17 @@ title: "Admin RPC Methods"
 diataxis: reference
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 The `admin` api provides methods for controlling and monitoring Kona's consensus node operations.
+
+<Unreleased component="kona-node" />
+
+The RPC server always serves the `admin` api. Its methods can stop the sequencer and reset the node, so keep the RPC port off untrusted networks.
 
 ## `admin_postUnsafePayload`
 
-Posts an unsafe payload to the network.
+Queues an unsafe payload for the engine to insert, waiting while the engine is busy with an earlier request. The payload is not gossiped. A payload whose block hash does not match its contents is rejected with an invalid params error.
 
 | Client | Method invocation                                           |
 | ------ | ----------------------------------------------------------- |
@@ -39,24 +45,24 @@ Returns whether the sequencer is currently active.
 {"jsonrpc":"2.0","id":1,"result":true}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_startSequencer`
 
-Starts the sequencer.
+Starts the sequencer on the unsafe head with the given hash. It fails unless the hash is the node's unsafe head, and, for a sequencer behind op-conductor, unless the conductor reports leadership. A sequencer that is already running stays running.
 
-| Client | Method invocation                                   |
-| ------ | --------------------------------------------------- |
-| RPC    | `{"method": "admin_startSequencer"}`                |
+| Client | Method invocation                                          |
+| ------ | ---------------------------------------------------------- |
+| RPC    | `{"method": "admin_startSequencer", "params": [unsafeHead]}` |
 
 ### Example
 
 ```js
-// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":["0x2a2a…2a2a"]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_stopSequencer`
 
@@ -73,7 +79,7 @@ Stops the sequencer and returns the hash of the last processed block.
 {"jsonrpc":"2.0","id":1,"result":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_conductorEnabled`
 
@@ -90,32 +96,11 @@ Returns whether the conductor is enabled.
 {"jsonrpc":"2.0","id":1,"result":false}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
-
-## `admin_setRecoverMode`
-
-Sets the recovery mode for the sequencer.
-
-| Client | Method invocation                                         |
-| ------ | --------------------------------------------------------- |
-| RPC    | `{"method": "admin_setRecoverMode", "params": [mode]}`    |
-
-### Parameters
-
-- `mode` (`bool`): Whether to enable recovery mode (true) or disable it (false)
-
-### Example
-
-```js
-// > {"jsonrpc":"2.0","id":1,"method":"admin_setRecoverMode","params":[true]}
-{"jsonrpc":"2.0","id":1,"result":null}
-```
-
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.
 
 ## `admin_overrideLeader`
 
-Overrides the leader in the conductor.
+Lets the sequencer run without its conductor, for disaster recovery after the conductor cluster lost quorum, as op-node's. Until the node restarts, `admin_startSequencer` no longer asks the conductor whether it leads, and the sequencer no longer commits its blocks to the conductor before publishing them. The conductor's own leader override, `conductor_overrideLeader`, is separate: it opens the conductor's RPC proxy to the sequencer. Fails without a conductor.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |
@@ -128,4 +113,4 @@ Overrides the leader in the conductor.
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+**Note**: This method will return a "Method not found" error if the node runs without `--sequencer.enabled`.

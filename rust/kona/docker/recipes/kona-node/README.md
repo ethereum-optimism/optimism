@@ -74,14 +74,15 @@ network parameters. Specifically:
     - `--chain` must specify the desired chain.
     - `--rollup.sequencer-http` must specify the sequencer endpoint.
 1. `kona-node`
-    - `--chain` must specify the chain ID of the desired chain.
+    - `--chain` must specify the chain ID of the desired chain. For a chain that is not in the superchain registry,
+      replace `--chain` with `--chain.rollup-config-path` and the path to its rollup config.
 
 ### Adjusting log filters
 
-Log filters can be adjusted by setting the `RUST_LOG` environment variable. This environment variable will be forwarded
-to the `kona-node` container's entrypoint.
+Log filters can be adjusted by setting the `RUST_LOG` environment variable, in the syntax of `kona-node`'s `--logs.filter`. This environment variable will be forwarded
+to the `kona-node` container's entrypoint. When it is not set, `kona-node` logs at the `info` level.
 
-Example: `export RUST_LOG=engine_builder=trace,runtime=debug`
+Example: `export RUST_LOG=info,engine=debug`
 
 [op-sepolia]: https://sepolia-optimism.etherscan.io
 [op-reth]: https://github.com/paradigmxyz/reth

@@ -13,7 +13,6 @@ use tracing_subscriber::{
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use tracing_subscriber::EnvFilter;
 
 use crate::{LogConfig, LogRotation};
 
@@ -73,18 +72,8 @@ where
 }
 
 impl LogConfig {
-    /// Initializes the tracing subscriber
-    ///
-    /// # Arguments
-    /// * `verbosity_level` - The verbosity level (0-5). If `0`, no logs are printed.
-    /// * `env_filter` - Optional environment filter for the subscriber.
-    ///
-    /// # Returns
-    /// * `Result<()>` - Ok if successful, Err otherwise.
-    pub fn init_tracing_subscriber(
-        &self,
-        env_filter: Option<EnvFilter>,
-    ) -> Result<(), TryInitError> {
+    /// Initializes the tracing subscriber, keeping the logs that [`Self::filter`] keeps.
+    pub fn init_tracing_subscriber(&self) -> Result<(), TryInitError> {
         let file_layer = self.file_logs.as_ref().map(|file_logs| {
             let directory_path = file_logs.directory_path.clone();
 
@@ -127,12 +116,8 @@ impl LogConfig {
             }
         });
 
-        let env_filter = env_filter
-            .unwrap_or_else(EnvFilter::from_default_env)
-            .add_directive(self.global_level.into());
-
         tracing_subscriber::registry()
-            .with(env_filter)
+            .with(self.filter.env_filter())
             .with(file_layer)
             .with(stdout_layer)
             .try_init()?;
@@ -141,12 +126,10 @@ impl LogConfig {
     }
 }
 
-/// This provides function for init tracing in testing
-///
-/// # Functions
-/// - `init_test_tracing`: A helper function for initializing tracing in test environments.
-/// - `init_tracing_subscriber`: Initializes the tracing subscriber with a specified verbosity level
-///   and optional environment filter.
+/// Initializes tracing for a test, filtered by `RUST_LOG` if it holds a valid filter and at the
+/// `info` level otherwise. It does nothing if tracing is already initialized.
 pub fn init_test_tracing() {
-    let _ = LogConfig::default().init_tracing_subscriber(None::<EnvFilter>);
+    let filter = std::env::var("RUST_LOG").ok().and_then(|filter| filter.parse().ok());
+    let _ = LogConfig { filter: filter.unwrap_or_default(), ..Default::default() }
+        .init_tracing_subscriber();
 }

@@ -21,7 +21,12 @@ use clap::Parser;
 use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::{Discv5Builder, LocalNode};
-use std::net::{IpAddr, Ipv4Addr};
+use kona_node_actors::discovery;
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
+use tokio::sync::mpsc;
 
 /// The discovery command.
 #[derive(Parser, Debug, Clone)]
@@ -46,9 +51,7 @@ pub struct DiscCommand {
 impl DiscCommand {
     /// Run the discovery subcommand.
     pub async fn run(self) -> anyhow::Result<()> {
-        let filter = tracing_subscriber::EnvFilter::from_default_env()
-            .add_directive("discv5=error".parse()?);
-        LogConfig::new(self.v).init_tracing_subscriber(Some(filter))?;
+        LogConfig::new(self.v).init_tracing_subscriber()?;
 
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
@@ -62,7 +65,7 @@ impl DiscCommand {
         );
         tracing::info!(target: "discovery", "Starting discovery service on {:?}", socket);
 
-        let discovery_builder = Discv5Builder::new(
+        let driver = Discv5Builder::new(
             socket,
             self.l2_chain_id,
             discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
@@ -70,37 +73,30 @@ impl DiscCommand {
                 port: self.disc_port,
             })
             .build(),
-        );
-        let mut discovery = discovery_builder.build()?;
-        discovery.interval = std::time::Duration::from_secs(self.interval);
-        discovery.forward = false;
-        let (handler, mut enr_receiver) = discovery.start();
+        )
+        .with_interval(Duration::from_secs(self.interval))
+        .build()?;
+        let builder = discovery::Builder::new();
+        let handle = builder.handle();
+        let (peers_tx, mut peers) = mpsc::channel(1024);
+        let mut actor = tokio::spawn(builder.build(driver, peers_tx));
         tracing::info!(target: "discovery", "Discovery service started, receiving peers.");
 
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
         loop {
             tokio::select! {
-                enr = enr_receiver.recv() => {
-                    match enr {
-                        Some(enr) => {
-                            tracing::debug!(target: "discovery", "Received peer: {:?}", enr);
-                        }
-                        None => {
-                            tracing::warn!(target: "discovery", "Failed to receive peer");
-                        }
-                    }
+                result = &mut actor => {
+                    result??;
+                    return Ok(());
+                }
+                Some(enr) = peers.recv() => {
+                    tracing::debug!(target: "discovery", "Received peer: {:?}", enr);
                 }
                 _ = interval.tick() => {
-                    let metrics = handler.metrics();
-                    let peer_count = handler.peer_count();
-                    tokio::spawn(async move {
-                        if let Ok(metrics) = metrics.await {
-                            tracing::debug!(target: "discovery", "Discovery metrics: {:?}", metrics);
-                        }
-                        if let Ok(pc) = peer_count.await {
-                            tracing::debug!(target: "discovery", "Discovery peer count: {:?}", pc);
-                        }
-                    });
+                    match handle.peer_count().await {
+                        Ok(count) => tracing::debug!(target: "discovery", "Discovery peer count: {count}"),
+                        Err(err) => tracing::warn!(target: "discovery", ?err, "Failed to read the peer count"),
+                    }
                 }
             }
         }

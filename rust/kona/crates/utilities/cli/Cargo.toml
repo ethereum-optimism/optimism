@@ -12,13 +12,6 @@ homepage.workspace = true
 workspace = true
 
 [dependencies]
-# Workspace
-kona-genesis.workspace = true
-kona-registry.workspace = true
-
-# Alloy
-alloy-chains.workspace = true
-
 # General
 tracing.workspace = true
 serde = { workspace = true, features = ["derive"]}
@@ -31,14 +24,14 @@ thiserror.workspace = true
 
 # `secrets` feature
 libp2p = { workspace = true, features = ["secp256k1"], optional = true }
-alloy-primitives.workspace = true
+alloy-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
-rstest.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
 [features]
 default = []
-secrets = [ "dep:libp2p" ]
+secrets = [ "dep:alloy-primitives", "dep:libp2p" ]

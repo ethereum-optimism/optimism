@@ -31,7 +31,7 @@ mod any;
 pub use any::{AnyNode, DialOptsError};
 
 mod boot;
-pub use boot::BootNode;
+pub use boot::{BootNode, BootNodeParseError};
 
 mod record;
 pub use record::{NodeRecord, NodeRecordParseError};

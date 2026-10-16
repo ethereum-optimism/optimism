@@ -90,20 +90,25 @@ services:
     networks:
       - stf-net
     command: >
-      -vvv
+      node
       --chain optimism-sepolia
+      --logs.enabled
       --metrics.enabled
       --metrics.port ${KONA_NODE_METRICS_PORT:-9002}
-      node
-      --l1 ${L1_PROVIDER_RPC:?}
-      --l1-beacon ${L1_BEACON_API:?}
-      --l2 "http://op-rs-op-sepolia-reth:${OP_RETH_ENGINE_PORT:-8551}"
-      --l2-engine-jwt-secret /jwt.hex
+      --l1.eth-url ${L1_PROVIDER_RPC:?}
+      --l1.beacon-url ${L1_BEACON_API:?}
+      --l2.engine.url "http://op-rs-op-sepolia-reth:${OP_RETH_ENGINE_PORT:-8551}"
+      --l2.engine.jwt-secret-path /jwt.hex
+      --rpc.enabled
+      --rpc.addr 0.0.0.0
       --rpc.port ${KONA_NODE_RPC_PORT:-5060}
-      --p2p.listen.tcp ${KONA_NODE_DISCOVERY_PORT:-9223}
-      --p2p.listen.udp ${KONA_NODE_DISCOVERY_PORT:-9223}
-      --p2p.scoring light
-      --p2p.bootstore /db
+      --p2p.enabled
+      --p2p.listen.tcp-port ${KONA_NODE_DISCOVERY_PORT:-9223}
+      --p2p.listen.udp-port ${KONA_NODE_DISCOVERY_PORT:-9223}
+      --p2p.peer-scoring light
+      --p2p.discovery.enabled
+      --p2p.discovery.bootstore.enabled
+      --p2p.discovery.bootstore.path /db/bootstore.json
 
 
 

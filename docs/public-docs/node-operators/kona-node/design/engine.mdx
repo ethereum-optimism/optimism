@@ -3,37 +3,18 @@ title: "Execution Engine"
 diataxis: explanation
 ---
 
-The `kona-engine` crate provides a modular execution engine implementation for the OP Stack rollup node. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through a sophisticated task queue system.
+The engine actor in `kona_node_actors::engine` is the OP Stack rollup node's execution engine. It serves as the bridge between the rollup protocol and the execution layer (EL), managing Engine API interactions through operations performed one at a time. It talks to the execution layer through the Engine API client in the `kona-sources` crate, which selects each method's version.
 
 ## Architecture Overview
 
 The execution engine is built around several key components:
 
-- **Engine Task Queue**: A priority-ordered queue that manages Engine API operations
-- **Trait Abstractions**: Extensible interfaces for tasks, errors, and state management  
-- **Engine Client**: HTTP client for communicating with the execution layer
-- **Actor Integration**: Service layer integration through the `EngineActor`
+- **Engine Operations**: Engine API operations the engine actor performs one at a time against the engine state
+- **Error Severities**: Each operation's errors say how to recover
+- **Engine API Client**: `EngineApi`, the HTTP client for the execution layer's Engine API, from `kona-sources`
+- **Actor Integration**: Service layer integration through the engine actor's handle
 
-## Core Trait Abstractions
-
-### EngineTaskExt
-
-The `EngineTaskExt` trait defines the interface for all engine tasks:
-
-```rust
-#[async_trait]
-pub trait EngineTaskExt {
-    type Output;
-    type Error: EngineTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
-}
-```
-
-This trait enables:
-- **Atomic operations** over the `EngineState`
-- **Extensible task implementation** for custom operations
-- **Async execution** with proper error handling
+## Error Severity
 
 ### EngineTaskError
 
@@ -47,257 +28,107 @@ pub trait EngineTaskError {
 pub enum EngineTaskErrorSeverity {
     Temporary,  // Retry the task
     Critical,   // Propagate to engine actor
-    Reset,      // Request derivation reset
-    Flush,      // Request derivation flush
+    Reset,      // Reset the engine
+    Flush,      // Replace the block with a deposits-only block
 }
 ```
 
-This allows tasks to signal different recovery strategies based on the error type.
+This allows operations to signal different recovery strategies based on the error type. The trait and the error types live in `kona_node_actors::engine`.
 
-## Task Queue System
+## Operations
 
-The engine uses a priority-based task queue (a binary heap ordered by the `EngineTask` `Ord` implementation) where tasks are ordered according to OP Stack synchronization requirements. Tasks are generic over an `EngineClient` implementation.
+The engine actor performs one operation at a time, giving it exclusive access to the `EngineState`, and publishes the state after every request, whether or not it succeeds. It also publishes before replying to a canonicalization or reset, so the caller reads the new heads. Besides replying to requests and publishing its state, the engine drives derivation, as described under [Driving Safety and Finality](#driving-safety-and-finality). A request whose operation is retried publishes after its last attempt, not between attempts. Builds, seals and canonicalizations return their failures to the caller, which decides whether to retry them; the actor retries the other operations' temporary errors as described under [Communication Channels](#communication-channels). Operations run in the order their requests arrive; there is no priority ordering among requests. They use the concrete `EngineApi`, which talks only to the Engine API; a reset, and following L1, also ask the L1 actor's handle whether L1 blocks are canonical. Tests supply a mock transport to the same client, and a test L1 chain to the handle.
 
-### Task Priority (Highest to Lowest)
+Each operation updates the execution layer's forkchoice state with `engine_forkchoiceUpdated` as part of its work, and tracks whether the execution layer has finished syncing.
 
-1. **Seal** - Seals blocks that have finished building (sequencer mode)
-2. **Build** - Builds new blocks (sequencer mode)
-3. **Insert** - Inserts unsafe blocks from gossip
-4. **Consolidate** - Advances safe chain via derivation
-5. **Finalize** - Finalizes L2 blocks
+- **`insert_unsafe_block`** inserts an unsafe payload, received from gossip or the admin API, with `engine_newPayload`, then makes it the unsafe head. A payload the execution layer reports as `INVALID` or `ACCEPTED` is dropped.
+- **`start_build`** starts building a block from payload attributes for the sequencer, and returns the payload ID. Its failures are returned to the caller instead of being retried by the actor; the sequencer retries a failed build on its next block-time tick.
+- **`seal`** retrieves a started block with the version-specific `engine_getPayload` call, without importing it. It fails if the unsafe head moved since the build started.
+- **`canonicalize`** imports a sealed block and makes it the unsafe head. It fails if the unsafe head is no longer the block's parent. Unlike a derived block, a block the execution layer rejects is not replaced with a deposits-only block, because the conductor has not committed the replacement; the sequencer drops the block and builds another at its height.
+- **`reset`** finds a plausible sync starting point: it walks the unsafe head back until its L1 origin is the canonical L1 block at that height, or is after the L1 actor's head, where it may yet be. An origin L1 reorged out does not count, though L1 may still serve it by hash. The reset reorgs the execution layer to it, publishes the state, and replies with it.
 
-Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
+The engine resets itself as soon as it starts, which checks the execution layer's heads against L1, and follows L1 from then on. Safety and finality start once the execution layer has synced. An execution layer that has finalized a block past genesis is not doing its first sync, so they start right after the startup reset. Otherwise they wait until the execution layer validates a forkchoice whose unsafe head is past the startup reset's, such as one for a block gossip gave the engine or the sequencer canonicalized: until then, deriving would build blocks the execution layer is still syncing, and move its sync target. A node restarted while its execution layer syncs points it back at its own heads with the startup reset, until the next gossiped block sends it on again.
 
-### Task Types
+### Driving Safety and Finality
 
-#### SynchronizeTask
+Once safety and finality start, the engine drives what decides its safe and finalized heads, through the `engine::Safety` and `engine::Finality` traits, which `engine::Builder::build` takes. It asks `Safety::next` what to make safe next on top of its safe head, makes it safe, and asks again on top of the new safe head, between requests:
 
-Updates the execution layer's forkchoice state. It is invoked by the other tasks rather than queued directly:
+- **`Derived::Attributes`**: attributes derived from L1 that no unsafe block matches. The engine builds and seals them into its next safe block, reorging any unsafe chain past the safe head. The L1 block they were derived from becomes the safe head's source.
+- **`Derived::Safe`**: a block the execution layer has, such as the unsafe block derivation found matching the attributes it derived. If it is the unsafe head, or the unsafe block at its height, it becomes safe; otherwise it becomes the unsafe and safe head. Either way the engine sends a forkchoice update. The L1 block it was derived from becomes the safe head's source.
 
-```rust
-pub struct SynchronizeTask<EngineClient_: EngineClient> {
-    /// The engine client.
-    pub client: Arc<EngineClient_>,
-    /// The rollup config.
-    pub rollup: Arc<RollupConfig>,
-    /// The sync state update to apply to the engine state.
-    pub state_update: EngineSyncStateUpdate,
-}
-```
+After Holocene, a derived payload that the execution layer does not accept as valid is replaced by a deposits-only block built from the same attributes, unless the attributes were already deposits-only, and the engine calls `flush`, so derivation drops the rest of the block's channel. After each of its resets, whatever caused it, the engine calls `Safety::reset` with its new safe head; starting safety resets it too.
 
-Handles:
-- Forkchoice synchronization via `engine_forkchoiceUpdated`
-- EL sync status management
+The engine gives `Finality::next` its safe head with the L1 block it was derived from, once it knows that block, and finalizes the block finality returns, if it is past the finalized head. A block above the safe head, which a reset can leave behind, is not finalized, and neither is a block the execution layer's canonical chain does not hold at its height, such as one finality decided on before a reset replaced it.
 
-#### BuildTask
+Asking either trait again loses nothing, so a request or an L1 check may run first.
 
-Starts building a new block in sequencer mode, producing a payload ID:
+### Following L1
 
-```rust
-pub struct BuildTask<EngineClient_: EngineClient> {
-    /// The engine API client.
-    pub engine: Arc<EngineClient_>,
-    /// The RollupConfig.
-    pub cfg: Arc<RollupConfig>,
-    /// The OpAttributesWithParent to instruct the execution layer to build.
-    pub attributes: OpAttributesWithParent,
-    /// The optional sender through which the PayloadId will be sent
-    /// after the block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
-}
-```
-
-Handles payload building initiation with `engine_forkchoiceUpdated`.
-
-#### SealTask
-
-Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
-
-```rust
-pub struct SealTask<EngineClient_: EngineClient> {
-    /// The engine API client.
-    pub engine: Arc<EngineClient_>,
-    /// The RollupConfig.
-    pub cfg: Arc<RollupConfig>,
-    /// The PayloadId being sealed.
-    pub payload_id: PayloadId,
-    /// The OpAttributesWithParent to instruct the execution layer to build.
-    pub attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
-    /// An optional sender for the built OpExecutionPayloadEnvelope or the
-    /// SealTaskError that occurred during processing.
-    pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
-}
-```
-
-#### InsertTask
-
-Inserts payloads (for example unsafe blocks received from gossip) into the execution engine:
-
-```rust
-pub struct InsertTask<EngineClient_: EngineClient> {
-    /// The engine client.
-    client: Arc<EngineClient_>,
-    /// The rollup config.
-    rollup_config: Arc<RollupConfig>,
-    /// The network payload envelope.
-    envelope: OpExecutionPayloadEnvelope,
-    /// If the payload is safe this is true.
-    is_payload_safe: bool,
-}
-```
-
-#### ConsolidateTask
-
-Advances the safe chain through derivation:
-
-```rust
-pub struct ConsolidateTask<EngineClient_: EngineClient> {
-    /// The engine client.
-    pub client: Arc<EngineClient_>,
-    /// The RollupConfig.
-    pub cfg: Arc<RollupConfig>,
-    /// The input for consolidation (either attributes or block info).
-    pub input: ConsolidateInput,
-}
-```
-
-If consolidation fails, the task reverts to payload attribute processing via the `BuildTask`.
-
-#### FinalizeTask
-
-Finalizes L2 blocks:
-
-```rust
-pub struct FinalizeTask<EngineClient_: EngineClient> {
-    /// The engine client.
-    pub client: Arc<EngineClient_>,
-    /// The rollup config.
-    pub cfg: Arc<RollupConfig>,
-    /// Identifier of the L2 block to finalize.
-    pub block_id: FinalizeBlockId,
-}
-```
+From its startup reset, the engine follows L1 reorgs itself. It checks the L1 blocks its heads rest on against the L1 head: the unsafe head's L1 origin, and the L1 block the safe head was derived from, or the safe head's L1 origin where that is unknown. It checks them whenever the L1 actor's head changes, and at once whenever its heads come to rest on other L1 blocks, such as a safe head derived from data read before an L1 reorg. If L1 has another block at the height of either, the engine resets. An L1 origin after the L1 head cannot be checked yet, and a later L1 head checks it; a block before the finalized L1 block cannot reorg any more, and is not checked again. The engine checks L1 before further requests; a request that arrives while a check waits on L1 runs first, and the check is done again after it.
 
 ## Engine State Management
 
-The `EngineState` tracks the current state of the execution engine:
+The `EngineState` in `kona_node_actors::engine` tracks the engine's view of the L2 chain:
 
 ```rust
 pub struct EngineState {
-    /// The sync state of the engine.
-    pub sync_state: EngineSyncState,
-    /// Whether or not the EL has finished syncing.
-    pub el_sync_finished: bool,
-    /// Tracks when the rollup node changes the forkchoice to restore a
-    /// previously known unsafe chain (e.g. an unsafe reorg caused by an
-    /// invalid span batch).
-    pub need_fcu_call_backup_unsafe_reorg: bool,
+    unsafe_head: L2BlockInfo,
+    local_safe_head: L2BlockInfo,
+    safe_head: L2BlockInfo,
+    finalized_head: L2BlockInfo,
+    safe_head_source: Option<BlockInfo>,
 }
 ```
 
-The unsafe, safe, and finalized heads live in the nested `EngineSyncState`. State updates are communicated through watch channels, enabling reactive programming patterns across the system.
+The heads are read through accessors such as `EngineState::safe_head`, and change only through `EngineState::apply_update`, which also records each head's block number in the `kona_node_block_labels` gauge. `EngineState::safe_head_source` is the L1 block the safe head was derived from, which making a derived block safe records, and which the engine gives finality with the safe head; it is forgotten when the safe head changes otherwise, and on a reset. The engine actor publishes the state through a watch channel, which `Handle::state` subscribes to.
 
 ## Integration with kona-node
 
-The `kona-node` service layer integrates the engine through the `EngineActor`:
+The `kona-node` service layer integrates the engine through the engine actor in `kona_node_actors::engine`.
 
-### Actor Pattern
+### Builder, Handle, and Actor
 
-The `EngineActor` implements the `NodeActor` trait:
-
-```rust
-#[async_trait]
-pub trait NodeActor: Send + 'static {
-    /// The error type for the actor.
-    type Error: std::fmt::Debug;
-
-    /// Handle the next inbound request, event, or scheduled tick.
-    async fn step(&mut self) -> Result<(), Self::Error>;
-}
-```
+`engine::Builder::new` creates the actor's bounded request queue and engine state publisher before any dependencies exist, so the node can give `engine::Handle` clones to the network, the sequencer, and the admin RPC before building the actor. It takes the state the engine starts from: the execution layer's latest, safe and finalized blocks, which `engine::execution_layer_state` reads when the node starts. Handles read those heads from the start, so the node never reports empty heads, until the engine's startup reset checks them against L1 and replaces them. The engine sends no forkchoice for them; its startup reset sends one, even when it settles on the same heads. `Builder::build` takes the Engine API client, rollup configuration, imported block sink, safety and finality, and returns the actor's lifetime future. The node supervisor spawns that future; dropping it stops the actor.
 
 ### Communication Channels
 
-The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it shares the engine client and a watch over the engine state and queue length, but is constrained to a read-only subset of the engine client so it cannot reach Engine API mutation methods.
+The engine actor receives all state-mutating input through its handle, besides what it asks safety and finality for: unsafe blocks from gossip and the admin API, reset requests (from the admin API only), and block building requests (from the sequencer only). Reset, build, seal, and canonicalize requests wait for the actor's reply; the others return once the request is queued. The actor executes one request at a time, in the order requests arrive, with one handler per request. Builds, seals, and canonicalizations reply to their caller, which decides whether to retry them. For the other operations, the actor retries a temporary failure in place with backoff, starting at 100 ms and doubling up to 5 s, while later requests wait for room in the handle's queue, which holds one request; the network drops the unsafe blocks it receives over gossip while the queue is full. An operation still failing after 60 seconds is abandoned and the engine is reset; a reset is retried until it succeeds. A flush completes its operation, because the deposits-only replacement block has already been imported. `Handle::state` subscribes to the engine state the actor publishes after each request. The node service adapts the handle to the narrow engine-client traits that the network and the sequencer depend on. The `RollupRpc` module serves read-only RPC requests directly. It reads L2 through the node's L2 provider, constrained by the `OutputProvider` trait to query only `output_at_block`, and reads engine state through that subscription.
 
-### Engine Queries
+### Rollup RPC Reads
 
-The engine supports queries for:
-
-```rust
-pub enum EngineQueries {
-    /// Request the current rollup configuration.
-    Config(Sender<RollupConfig>),
-    /// Request the current EngineState snapshot.
-    State(Sender<EngineState>),
-    /// Request the L2 output root for a specific block.
-    OutputAtBlock { block: BlockNumberOrTag, sender: Sender<(L2BlockInfo, OutputRoot, EngineState)> },
-    /// Subscribe to engine state updates via a watch channel receiver.
-    StateReceiver(Sender<tokio::sync::watch::Receiver<EngineState>>),
-    /// Development API: Subscribe to task queue length updates.
-    QueueLengthReceiver(Sender<tokio::sync::watch::Receiver<usize>>),
-    /// Development API: Get the current number of pending tasks in the queue.
-    TaskQueueLength(Sender<usize>),
-}
-```
+`RollupRpc` clones the rollup configuration for `optimism_rollupConfig`, combines published engine and L1 block snapshots with derivation's current L1 block for `optimism_syncStatus`, and calls `OutputProvider::output_at_block` with its rollup configuration for `optimism_outputAtBlock`. The L1 actor's handle reports the head, safe, and finalized L1 blocks from one view of L1; derivation reports its current L1 block through the `kona_rpc::Derivation` trait. Sync-status reads do not queue actor requests or make L1 RPC calls. The legacy `current_l1_finalized` field uses the finalized L1 block. Any Alloy `Provider<Optimism>` implements the output trait without dynamic dispatch or boxed futures. The RPC module computes the output using the configured genesis and fork rules. These reads run in jsonrpsee request handlers, so a slow output-root query does not block other state reads.
 
 ## Usage Patterns
 
 ### Basic Engine Setup
 
 ```rust
-// Create an engine client. The `EngineClient` trait is implemented by
-// `OpEngineClient`, constructed through the `EngineClientBuilder`.
-let client = EngineClientBuilder {
-    l2: l2_engine_url,
-    l2_jwt: jwt_secret,
-    l1_rpc: l1_rpc_url,
-    cfg: rollup_config,
-}
-.build();
+// Create the Engine API client from an authenticated Engine API provider.
+let client =
+    EngineApi::new(kona_sources::l2_provider(l2_engine_url, jwt_secret), rollup_config.clone());
 
-// Initialize engine state
-let state = EngineState::default();
-let (state_sender, state_receiver) = watch::channel(state);
-let (queue_length_sender, queue_length_receiver) = watch::channel(0);
+// Start from the execution layer's heads, then create the request queue and state publisher,
+// and hand out handles.
+let state = engine::execution_layer_state(&rollup_config, &client).await?;
+let builder = engine::Builder::new(state);
+let handle = builder.handle();
 
-// Create engine with task queue
-let engine = Engine::new(state, state_sender, queue_length_sender);
+// Supply the dependencies and spawn the actor's lifetime future. The engine asks the L1 actor,
+// through `l1`, whether L1 blocks are canonical, to find a plausible sync starting point on a
+// reset and to follow L1 reorgs.
+let actor = builder.build(Arc::new(client), l1, rollup_config, block_sink, safety, finality);
+tokio::spawn(actor);
 ```
 
-### Adding Tasks
+### Performing Operations
+
+`engine::Handle` has one method per operation: `insert_unsafe_block`, `start_build`, `seal`, `canonicalize`, and `reset`. Builds, seals, canonicalizations, and resets reply with the operation's result; the sequencer classifies a failed build by its error.
 
 ```rust
-// Add a consolidate task
-let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
-    client.clone(),
-    rollup_config.clone(),
-    input,
-)));
-
-engine.enqueue(task);
-```
-
-### Draining the Queue
-
-```rust
-// Process all pending tasks
-match engine.drain().await {
-    Ok(()) => info!("Tasks completed successfully"),
-    Err(e) => match e.severity() {
-        EngineTaskErrorSeverity::Reset => {
-            // Request derivation reset
-        },
-        EngineTaskErrorSeverity::Critical => {
-            // Handle critical error
-        },
-        _ => {
-            // Handle other error types
-        }
-    }
-}
+let payload_id = handle.start_build(attributes.clone()).await?;
+let payload = handle.seal(payload_id, attributes.clone()).await?;
+// A sequencer behind op-conductor commits the payload to its conductor here.
+handle.canonicalize(payload, attributes).await?;
 ```
 
 ## Error Handling and Recovery
@@ -306,14 +137,16 @@ The engine provides robust error handling through:
 
 ### Severity-Based Recovery
 
-- **Temporary errors**: Automatically retried
-- **Critical errors**: Propagated to the actor
-- **Reset errors**: Trigger derivation pipeline reset
-- **Flush errors**: Trigger derivation pipeline flush
+- **Temporary errors**: Retried by the engine actor
+- **Critical errors**: Stop the engine actor
+- **Reset errors**: Reset the engine, which resets safety
+- **Flush errors**: Replace the rejected block with a deposits-only block, and tell derivation to flush its channel
+
+A verdict from the execution layer is not a temporary error, because retrying returns the same verdict. An unsafe payload that `engine_newPayload` reports as `INVALID` or `ACCEPTED` is dropped. A forkchoice update reported as `INVALID` or `ACCEPTED` is a reset error: the engine actor resets the engine for the operations it retries itself, while builds, seals, and canonicalizations return the error to their caller.
 
 ### State Consistency
 
-Tasks operate atomically on the `EngineState`, ensuring consistency even during error conditions.
+Operations run atomically on the `EngineState`, ensuring consistency even during error conditions.
 
 ## Version Support
 
@@ -326,20 +159,13 @@ The engine automatically selects appropriate Engine API versions based on hardfo
 
 ## Metrics and Observability
 
-When the `metrics` feature is enabled, the engine provides comprehensive metrics for:
+The engine always includes metrics instrumentation for:
 
-- Task execution times
+- Task execution success and failure counts
 - Error rates by task type
 - Engine state transitions
 - API call latencies
 
 ## Extensibility
 
-The trait-based architecture allows for:
-
-- **Custom task implementations** via `EngineTaskExt`
-- **Custom error handling** via `EngineTaskError`
-- **Custom state management** extensions
-- **Testing and mocking** support
-
-This modular design ensures the engine can adapt to future OP Stack protocol changes while maintaining backward compatibility.
+Each operation's error type implements `EngineTaskError`, whose severity decides how the engine actor recovers from the operation's failure. Tests run the operations against mock RPC transports through the same `EngineApi`.

@@ -24,7 +24,8 @@
 //!
 //! ## RPC Methods
 //!
-//! The [`P2pRpcRequest`] enum defines all available RPC methods, including:
+//! The network actor publishes [`GossipState`] snapshots and applies network changes. Together
+//! with discovery queries, these support:
 //! - Node identity and status queries
 //! - Peer listing and statistics
 //! - Connection management (block/unblock peers)
@@ -43,8 +44,8 @@
 //! can affect network connectivity and peer relationships. Consider implementing
 //! appropriate authentication and access controls in production deployments.
 
-mod request;
-pub use request::P2pRpcRequest;
+mod state;
+pub use state::GossipState;
 
 mod types;
 pub use types::{

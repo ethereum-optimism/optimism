@@ -1,4 +1,8 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    collections::HashSet,
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use alloy_chains::Chain;
 use alloy_signer::k256;
@@ -10,15 +14,19 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
-};
+use kona_node_service::{NetworkConfig, discovery, network, signer};
 use kona_peers::BootNode;
+use kona_rpc::P2pRpc;
 use kona_sources::BlockSignerHandler;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{
+    mpsc::{
+        self,
+        error::{SendError, TrySendError},
+    },
+    watch,
+};
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -89,77 +97,91 @@ impl TestNetworkBuilder {
         gossip_multiaddr.push(Protocol::Tcp(0));
 
         // Create a new network actor. No external connections
-        let builder = NetworkBuilder::new(
-            // Create a new rollup config. We don't need to specify any of the fields.
-            self.rollup_config(),
-            self.unsafe_block_signer,
-            gossip_multiaddr,
+        let config = NetworkConfig {
             keypair,
-            LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
-        )
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
-
-        let handler = builder.build().expect("build network").start().await.expect("start network");
+            bootnodes: bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into(),
+            ..NetworkConfig::new(
+                // Create a new rollup config. We don't need to specify any of the fields.
+                self.rollup_config(),
+                LocalNode::new(local_node_key, node_addr, 0, 0),
+                gossip_multiaddr,
+            )
+        };
+        let (gossip, discovery_driver) =
+            config.start(watch::channel(self.unsafe_block_signer).1).await.expect("start network");
+        let discovery_builder = discovery::Builder::new();
+        let discovery = discovery_builder.handle();
+        let network_builder = network::Builder::new(gossip);
+        let network = network_builder.handle();
+        let discovery_actor = discovery_builder
+            .build(discovery_driver.expect("discovery is on"), Network(network.clone()));
+        tokio::spawn(async move {
+            if let Err(err) = discovery_actor.await {
+                error!(target: "net", ?err, "Discovery actor failed");
+            }
+        });
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
+        let signer_builder = signer::Builder::new();
+        let signer_handle = signer_builder.handle();
 
-        let mut actor = NetworkActor::new(
-            ForwardingNetworkEngineClient { blocks_tx },
-            handler,
-            p2p_rpc_rx,
-            admin_rpc_rx,
-            signed_payload_rx,
-        );
+        let network_actor = network_builder
+            // The network passes the blocks it receives to the test, and stops once the test drops
+            // the receiver.
+            .build(blocks_tx, BanningDiscovery(discovery.clone()));
 
-        // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
+        let p2p_rpc = P2pRpc::new(network.state(), network.clone(), Some(discovery), self.chain_id);
+
+        // Every test network can sign: payloads sent to `signer_handle` are signed with this
         // node's key and then gossiped.
-        let mut signer = SignerActor::new(
+        let signer = signer_builder.build(
             BlockSignerHandler::Local(block_signer),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
-            gossip_payload_rx,
-            signed_payload_tx,
+            Network(network),
         );
         tokio::spawn(async move {
-            let err = loop {
-                if let Err(err) = signer.step().await {
-                    break err;
-                }
-            };
-            error!(target: "net", ?err, "Signer actor failed");
-        });
-
-        let handle = tokio::spawn(async move {
-            loop {
-                actor.step().await?;
+            if let Err(err) = signer.await {
+                error!(target: "net", ?err, "Signer actor failed");
             }
-            // Unreachable: the loop above only exits via Err.
-            #[allow(unreachable_code)]
-            Ok(())
         });
 
-        TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        let handle = tokio::spawn(network_actor);
+
+        TestNetwork { p2p_rpc, signer: signer_handle, blocks_rx, handle }
     }
 }
 
-#[derive(Debug)]
-struct ForwardingNetworkEngineClient {
-    blocks_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+/// Passes the peers discovery finds and the payloads the signer signs to the network actor.
+#[derive(Debug, Clone)]
+struct Network(network::Handle);
+
+impl discovery::Network for Network {
+    fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
+        self.0.dial(enr)
+    }
 }
 
 #[async_trait]
-impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .blocks_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-        Ok(())
+impl signer::Network for Network {
+    type Error = SendError<signer::Payload>;
+
+    async fn publish(&self, payload: signer::Payload) -> Result<(), Self::Error> {
+        self.0.publish(payload).await
+    }
+}
+
+/// Passes the network actor's bans to the discovery actor.
+#[derive(Debug)]
+struct BanningDiscovery(discovery::Handle);
+
+impl network::Discovery for BanningDiscovery {
+    fn try_ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), TrySendError<()>> {
+        self.0.try_ban(addrs, duration)
     }
 }

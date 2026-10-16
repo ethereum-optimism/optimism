@@ -7,14 +7,32 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod engine;
+pub use engine::{EngineApi, EngineApiError};
+
+mod metrics;
+pub use metrics::Metrics;
+
+mod providers;
+pub use providers::{conductor_rpc, l1_provider, l2_provider};
+
+mod rpc_client;
+pub use rpc_client::{RpcClientLayer, RpcClientService};
+
 mod signer;
 pub use signer::{
     BlockSigner, BlockSignerError, BlockSignerHandler, BlockSignerStartError, RemoteSigner,
     RemoteSignerError, RemoteSignerHandler, RemoteSignerStartError,
 };
 
+mod untrusted_rpc;
+pub use untrusted_rpc::{RetryingRpc, UntrustedRpc, UntrustedRpcError};
+
 mod tls;
 pub use tls::{
     CertificateError, ClientCert, ReloadingRpcClient, ReloadingRpcClientError, TlsPaths,
     redacted_url,
 };
+
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;

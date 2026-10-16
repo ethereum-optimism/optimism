@@ -1222,7 +1222,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "kona_node_engine_method_request_duration{instance=~\"$instance\", method=\"engine_newPayload\"}",
+              "expr": "kona_node_rpc_client_request_duration_seconds{instance=~\"$instance\", client=\"l2\", method=~\"engine_newPayloadV[0-9]+\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -1312,7 +1312,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "kona_node_engine_method_request_duration{instance=~\"$instance\", method=\"engine_forkchoiceUpdated\"}",
+              "expr": "kona_node_rpc_client_request_duration_seconds{instance=~\"$instance\", client=\"l2\", method=~\"engine_forkchoiceUpdatedV[0-9]+\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -1402,7 +1402,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "kona_node_engine_method_request_duration{instance=~\"$instance\", method=\"engine_getPayload\"}",
+              "expr": "kona_node_rpc_client_request_duration_seconds{instance=~\"$instance\", client=\"l2\", method=~\"engine_getPayloadV[0-9]+\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -1430,7 +1430,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "Tasks Enqueued / min",
+                "axisLabel": "Tasks Executed / min",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1514,7 +1514,7 @@
               "useBackend": false
             }
           ],
-          "title": "Engine Task Enqueue Rate / min",
+          "title": "Engine Tasks Executed / min",
           "transparent": true,
           "type": "timeseries"
         },
@@ -6129,7 +6129,7 @@
               "disableTextWrap": false,
               "editorMode": "builder",
               "exemplar": false,
-              "expr": "kona_node_sequencer_state{instance=~\"$instance\"}",
+              "expr": "kona_node_sequencer_state{instance=~\"$instance\", active=\"true\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": true,
@@ -6140,80 +6140,6 @@
             }
           ],
           "title": "Sequencer Active",
-          "transparent": true,
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 6,
-            "x": 6,
-            "y": 48
-          },
-          "id": 97,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "name",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.5.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "exemplar": false,
-              "expr": "kona_node_sequencer_state{instance=~\"$instance\"}",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": true,
-              "legendFormat": "{{recovery}}",
-              "range": false,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Recovery Mode",
           "transparent": true,
           "type": "stat"
         },
@@ -7855,84 +7781,6 @@
           "type": "stat"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "Low-tide peer count. The discv5 service will automatically search for peers if its peer count falls below this number.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "continuous-YlRd"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 2,
-            "w": 4,
-            "x": 16,
-            "y": 128
-          },
-          "id": 53,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "text": {
-              "valueSize": 25
-            },
-            "textMode": "name",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.2.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "exemplar": false,
-              "expr": "kona_cli_opts{instance=~\"$instance\"}",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": true,
-              "legendFormat": "{{kona_node_peers_lo}}",
-              "range": false,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Discv5 Peers Lo",
-          "transparent": true,
-          "type": "stat"
-        },
-        {
           "fieldConfig": {
             "defaults": {},
             "overrides": []
@@ -8267,84 +8115,6 @@
             }
           ],
           "title": "Gossip Mesh D Lo",
-          "transparent": true,
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "High-tide peer count. The discv5 service will start pruning peer connections slowly after reaching this number.",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "continuous-YlRd"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 2,
-            "w": 4,
-            "x": 16,
-            "y": 130
-          },
-          "id": 54,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "text": {
-              "valueSize": 25
-            },
-            "textMode": "name",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.2.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "exemplar": false,
-              "expr": "kona_cli_opts{instance=~\"$instance\"}",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": true,
-              "legendFormat": "{{kona_node_peers_hi}}",
-              "range": false,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Discv5 Peers Hi",
           "transparent": true,
           "type": "stat"
         },

@@ -17,40 +17,46 @@
 
 #![warn(unused_crate_dependencies)]
 
-use async_trait::async_trait;
 use clap::Parser;
+use discv5::Enr;
 use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
-use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
-};
+use kona_node_service::{NetworkConfig, discovery, network};
 use kona_registry::ROLLUP_CONFIGS;
-use libp2p::{Multiaddr, identity::Keypair};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use libp2p::Multiaddr;
 use std::{
+    collections::HashSet,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     time::Duration,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{
+    mpsc::{self, error::TrySendError},
+    watch,
+};
 use tracing::error;
-use tracing_subscriber::EnvFilter;
 
+/// Passes the peers discovery finds to the network actor.
 #[derive(Debug)]
-struct ForwardingNetworkEngineClient {
-    block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+struct DialingNetwork(network::Handle);
+
+impl discovery::Network for DialingNetwork {
+    fn dial(&self, enr: Enr) -> Result<(), TrySendError<Enr>> {
+        self.0.dial(enr)
+    }
 }
 
-#[async_trait]
-impl NetworkEngineClient for ForwardingNetworkEngineClient {
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .block_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
+/// Passes the network actor's bans to the discovery actor.
+#[derive(Debug)]
+struct BanningDiscovery(discovery::Handle);
 
-        Ok(())
+impl network::Discovery for BanningDiscovery {
+    fn try_ban(
+        &self,
+        addrs: HashSet<Multiaddr>,
+        duration: Duration,
+    ) -> Result<(), TrySendError<()>> {
+        self.0.try_ban(addrs, duration)
     }
 }
 
@@ -77,7 +83,7 @@ pub struct GossipCommand {
 impl GossipCommand {
     /// Run the gossip subcommand.
     pub async fn run(self) -> anyhow::Result<()> {
-        LogConfig::new(self.v).init_tracing_subscriber(None::<EnvFilter>)?;
+        LogConfig::new(self.v).init_tracing_subscriber()?;
 
         let rollup_config = ROLLUP_CONFIGS
             .get(&self.l2_chain_id)
@@ -105,68 +111,38 @@ impl GossipCommand {
             LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
-        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        // This example only consumes inbound gossip blocks; the other channels exist solely to
-        // satisfy NetworkActor::new and are held to keep them open.
-        let _unused_senders = (p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx);
 
-        let network_config: kona_node_service::NetworkBuilder = NetworkConfig {
-            discovery_address: disc_addr,
-            gossip_address: gossip_addr,
-            unsafe_block_signer: signer,
-            discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
-                ip: disc_ip,
-                port: self.disc_port,
-            })
-            .build(),
+        let network_config = NetworkConfig {
             discovery_interval: Duration::from_secs(self.interval),
-            discovery_randomize: None,
-            keypair: Keypair::generate_secp256k1(),
-            gossip_config: Default::default(),
-            scoring: Default::default(),
-            topic_scoring: Default::default(),
-            monitor_peers: Default::default(),
-            bootstore: None,
-            gater_config: Default::default(),
-            bootnodes: Default::default(),
-            rollup_config: rollup_config.clone(),
-            gossip_signer: None,
-            enr_update: true,
-        }
-        .into();
-
-        let handler = network_config.build()?.start().await?;
-
-        let mut network = NetworkActor::new(
-            ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
-            handler,
-            p2p_rpc_rx,
-            admin_rpc_rx,
-            gossip_payload_rx,
-        );
-
+            ..NetworkConfig::new(rollup_config.clone(), disc_addr, gossip_addr)
+        };
+        let (gossip, discovery_driver) = network_config.start(watch::channel(signer).1).await?;
+        let discovery_builder = discovery::Builder::new();
+        let discovery = discovery_builder.handle();
+        let network_builder = network::Builder::new(gossip);
+        // `NetworkConfig::new` enables discovery.
+        let discovery_driver = discovery_driver.expect("discovery is enabled");
+        let discovery_actor =
+            discovery_builder.build(discovery_driver, DialingNetwork(network_builder.handle()));
         tokio::spawn(async move {
-            loop {
-                if let Err(e) = network.step().await {
-                    error!(target: "gossip", "Network actor error: {e:?}");
-                    return;
-                }
+            if let Err(e) = discovery_actor.await {
+                error!(target: "gossip", "Discovery actor error: {e:?}");
+            }
+        });
+
+        let network_actor = network_builder.build(unsafe_blocks_tx, BanningDiscovery(discovery));
+        tokio::spawn(async move {
+            if let Err(e) = network_actor.await {
+                error!(target: "gossip", "Network actor error: {e:?}");
             }
         });
 
         tracing::info!(target: "gossip", "Gossip driver started, receiving blocks.");
-        loop {
-            match unsafe_blocks_rx.recv().await {
-                Some(block) => {
-                    tracing::info!(target: "gossip", "Received unsafe block: {:?}", block);
-                }
-                None => {
-                    tracing::warn!(target: "gossip", "unsafe block gossip channel closed");
-                }
-            }
+        while let Some(block) = unsafe_blocks_rx.recv().await {
+            tracing::info!(target: "gossip", "Received unsafe block: {:?}", block);
         }
+        tracing::warn!(target: "gossip", "unsafe block gossip channel closed");
+        Ok(())
     }
 }
 

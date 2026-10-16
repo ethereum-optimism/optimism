@@ -2057,7 +2057,11 @@
     },
     {
       "source": "/rust/kona/node/run/rpc-trust",
-      "destination": "/node-operators/kona-node/run/rpc-trust"
+      "destination": "/node-operators/kona-node/configuration#rpc-response-verification"
+    },
+    {
+      "source": "/node-operators/kona-node/run/rpc-trust",
+      "destination": "/node-operators/kona-node/configuration#rpc-response-verification"
     },
     {
       "source": "/rust/kona/node/run/sequencer",
@@ -2995,7 +2999,6 @@
                       "node-operators/kona-node/run/binary",
                       "node-operators/kona-node/run/docker",
                       "node-operators/kona-node/run/mechanics",
-                      "node-operators/kona-node/run/rpc-trust",
                       "node-operators/kona-node/run/sequencer"
                     ]
                   },

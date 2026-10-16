@@ -1,19 +1,21 @@
 ---
-title: "Sequencer Mode"
-description: "Understand how the kona-node sequencer actor builds L2 blocks, and the trait abstractions and programmatic configuration behind sequencer mode."
+title: "Sequencer"
+description: "Understand how the kona-node sequencer actor builds L2 blocks, and the trait abstractions and programmatic configuration behind sequencing."
 diataxis: explanation
 ---
 
-The Kona node can operate in **sequencer mode** to build and produce new L2 blocks. In this mode, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+import { Unreleased } from "/snippets/unreleased.mdx"
 
-This page explains the design of sequencer mode and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
+A Kona node run with `--sequencer.enabled` can **sequence**: build and produce new L2 blocks. When sequencing, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+
+This page explains the design of the sequencer and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
 
 ## Overview
 
-When running in sequencer mode, the Kona node:
+When sequencing, the Kona node:
 
 - **Builds L2 blocks** by collecting transactions from the mempool and constructing new blocks
-- **Selects L1 origins** for new L2 blocks based on finalized L1 data
+- **Selects L1 origins** for new L2 blocks from confirmed L1 blocks, through the origin actor
 - **Manages block production timing** and ensures proper sequencing constraints
 - **Integrates with conductor services** for leader election in multi-sequencer setups
 - **Handles recovery scenarios** when the sequencer needs to catch up with L1
@@ -22,40 +24,43 @@ The sequencer uses the same core derivation pipeline as validator nodes but oper
 
 ## Core Components
 
-### `NodeMode`
+### Sequencing capability
 
-The node's operational mode is expressed by the `NodeMode` enum, carried on the node's `EngineConfig`:
+<Unreleased component="kona-node" />
 
-```rust
-pub enum NodeMode {
-    /// Validator mode.
-    Validator,
-    /// Sequencer mode.
-    Sequencer,
-}
-```
+Whether a node can sequence is the `sequencer` of its `RollupNodeConfig`, an `Option<SequencerConfig>`. A node with a `SequencerConfig` runs the sequencer actor, and serves the sequencer's admin RPC methods (`admin_startSequencer`, `admin_stopSequencer`, `admin_sequencerActive`, `admin_conductorEnabled` and `admin_overrideLeader`). A node without one follows the chain only, and calls to those methods fail with "method not found".
+
+A sequencer with P2P gossips the blocks it builds, signed by the `signer` of its `RollupNodeConfig`, an `Option<BlockSigner>`: a local key or a remote op-signer. Such a node fails to start without one, with `RollupNodeError::NoBlockSigner`. Any other node ignores the signer, and neither signs nor gossips the blocks it builds.
 
 ### `SequencerActor`
 
-The core actor responsible for block production. Like every node component, it implements the `NodeActor` trait:
+The core actor responsible for block production. It:
 
 - Builds L2 blocks using the attributes builder
-- Manages timing and L1 origin selection
+- Manages timing, and asks the origin actor for each block's L1 origin
 - Handles admin RPC commands for sequencer control
 - Coordinates with conductor services for leader election
 
+### Publishing a block
+
+The sequencer seals each block it built with the engine's `seal`, which does not import it. Behind op-conductor, it then commits the block to its conductor. Only a committed block is made canonical, with the engine's `canonicalize`, and then queued for gossip: a sequencer that lost leadership cannot fork the unsafe chain. A block the conductor does not commit is kept, and committed again a second later, unless the unsafe head has moved past its parent, in which case it is dropped. A committed block the engine fails to make canonical for a temporary reason is tried again as it is; one whose parent is no longer the unsafe head, or that the execution layer rejects, is dropped. Stopping the sequencer, or dropping its future, drops whatever it built. That may include a block the conductor committed but the engine has not yet made canonical, leaving the node one block behind the conductor's log. op-conductor recovers it, as it does for op-node: before it starts a sequencer one block behind its log, it posts the missing block to the node. `kona_node_sequencer_sealed_blocks_total` counts each attempt to publish a sealed block by its `outcome`: `published`, `conductor_refused`, `canonicalize_retried`, `dropped_stale` or `dropped_rejected`. After `admin_overrideLeader`, for disaster recovery, the sequencer skips the conductor and publishes each block it seals.
+
+### Origin actor
+
+The origin actor, in `kona_node_actors::origin`, keeps the sequencer's next L1 origin ready, so that block production never waits on L1. It holds a window of L1 blocks: the L1 origin of the engine's unsafe head, then the canonical L1 blocks after it that are `l1_conf_delay` blocks below the L1 head. It follows the engine's published state and the L1 actor, does all of the L1 reads, and drops the blocks L1 reorgs out.
+
+The sequencer asks `origin::Handle::next` for the L1 origin of the child of its unsafe head. The handle answers from the window without waiting: the child stays on its parent's origin until its timestamp reaches the next L1 block, and must move to the next block once past the sequencer drift. It fails with `OriginError::Unavailable` when there is no origin to build on yet, because the window does not hold the parent's origin yet, such as right after an engine reset, or because the child would pass the drift and L1 has no next origin yet; the sequencer retries on its next tick. It fails with `OriginError::Reorged` when L1 reorged out the parent's origin; the sequencer builds nothing and tries again, since the engine resets for that reorg once it checks the L1 head. The sequencer never resets the engine: a failure to prepare payload attributes that asks for a reset, typically an L1 reorg under the origin, is retried the same way. The sequencer never waits on L1, so it keeps serving its admin commands.
+
 ### `SequencerConfig`
 
-Sequencer behavior is configured through the `SequencerConfig` struct:
+Sequencers start stopped. Issue `admin_startSequencer` to begin block production. Sequencer behavior is configured through the `SequencerConfig` struct:
 
 ```rust
 pub struct SequencerConfig {
-    /// Whether or not the sequencer is enabled at startup.
-    pub sequencer_stopped: bool,
-    /// Whether or not the sequencer is in recovery mode.
-    pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
+    /// How long a conductor request may take before it fails.
+    pub conductor_rpc_timeout: Duration,
     /// The confirmation delay for the sequencer.
     pub l1_conf_delay: u64,
 }
@@ -63,48 +68,56 @@ pub struct SequencerConfig {
 
 ## Programmatic Configuration
 
-### Using the RollupNodeBuilder
+### Using the RollupNodeConfig
 
-To configure a Kona node programmatically for sequencer mode, set `NodeMode::Sequencer` on the `EngineConfig` and pass a `SequencerConfig` to the `RollupNodeBuilder`:
+<Unreleased component="kona-node" />
+
+To configure a Kona node programmatically to sequence, give its `RollupNodeConfig` a `SequencerConfig`, and, with P2P, a `BlockSigner`:
 
 ```rust
-use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
+use kona_node_service::{
+    RollupNode, RollupNodeClients, RollupNodeConfig, RollupNodeEndpoints, SequencerConfig,
+};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
-    sequencer_stopped: false,           // Start sequencer immediately
-    sequencer_recovery_mode: false,     // Normal operation mode
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
     ),
+    conductor_rpc_timeout: Duration::from_secs(1),
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
-// engine_config carries `mode: NodeMode::Sequencer` along with the
-// L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
-// signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
-RollupNodeBuilder::new(
-    rollup_config,
-    l1_config_builder,
-    l2_trust_rpc,
-    engine_config,
+// `chain` is a `ChainSpec`: the rollup config, the L1 chain config and the
+// interop dependency set.
+let config = RollupNodeConfig {
+    version,
+    chain,
     p2p_config,
-    rpc_config,
-)
-.with_sequencer_config(sequencer_config)
-.build()
-.start()
-.await?;
+    rpc_addr,
+    sequencer: Some(sequencer_config),
+    signer: Some(signer),               // A `BlockSigner`: a local key or a remote op-signer
+};
+// Where the L1 and L2 endpoints are. Pass your own `RollupNodeClients`
+// to `RollupNode::new` instead to connect to them differently.
+let endpoints = RollupNodeEndpoints {
+    l1_rpc,
+    l1_beacon,
+    l2_engine,
+    l2_jwt_secret,
+    derivation_delegate: None,
+};
+let clients = RollupNodeClients::connect(&endpoints)?;
+RollupNode::new(config, clients).start().await?;
 ```
 
 ### Configuration Options
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `sequencer_stopped` | Start sequencer in stopped state | `false` |
-| `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
-| `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
-| `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
+| Field | Description | CLI default |
+|-------|-------------|-------------|
+| `signer` | Signs the blocks the sequencer gossips | - |
+| `conductor_rpc_url` | Conductor service endpoint for leader election | - |
+| `l1_conf_delay` | Confirmation delay for L1 origin selection | `4` |
 
 ## Next Steps
 

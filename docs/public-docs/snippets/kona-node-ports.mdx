@@ -16,17 +16,20 @@
 
 | Service         | Default Port | Flag/Env                                 |
 |-----------------|--------------|------------------------------------------|
-| RPC HTTP        | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
-| RPC WebSocket   | 9545         | (same as HTTP, enabled with `--rpc.ws-enabled`) |
-| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
-| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+| RPC HTTP        | 9545         | `--rpc.port` / `KONA_NODE_RPC_PORT`  |
+| RPC WebSocket   | 9545         | (same as HTTP, available by default) |
+| P2P TCP         | 9222         | `--p2p.listen.tcp-port` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
+| P2P UDP         | 9223         | `--p2p.listen.udp-port` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+
+The node listens on these ports only with the feature that uses them: the RPC ports with
+`--rpc.enabled`, the P2P TCP port with `--p2p.enabled`, and the P2P UDP port with both
+`--p2p.enabled` and `--p2p.discovery.enabled`.
 
 `kona-node` does not run a supervisor RPC server: the binary has no `--supervisor.*`
-flag group. Its only interop flag, `--interop.dependency-set`
-(`KONA_NODE_INTEROP_DEPENDENCY_SET`), takes a path to a dependency-set JSON file
-rather than a port.
+flag group. Its interop dependency set, `--chain.dependency-set-path`
+(`KONA_NODE_CHAIN_DEPENDENCY_SET_PATH`), is a path to a JSON file rather than a port.
 
-`--conductor.rpc` (`KONA_NODE_CONDUCTOR_RPC`) is not a listening port either. It is
+`--sequencer.conductor.url` (`KONA_NODE_SEQUENCER_CONDUCTOR_URL`) is not a listening port either. It is
 the RPC endpoint URL of an external conductor service that the node dials out to,
-and it has no default value. Supplying it enables the conductor integration when the
-node runs in sequencer mode (`--mode sequencer`); in validator mode it has no effect.
+and it has no default value. Supplying it enables the conductor integration. It
+applies only with `--sequencer.enabled`, and is ignored otherwise.

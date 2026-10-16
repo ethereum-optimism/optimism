@@ -283,8 +283,8 @@ kona-hardforks = { path = "kona/crates/protocol/hardforks", version = "0.4.5", d
 # Node
 kona-rpc = { path = "kona/crates/node/rpc", version = "0.3.2", default-features = false }
 kona-peers = { path = "kona/crates/node/peers", version = "0.1.2", default-features = false }
-kona-engine = { path = "kona/crates/node/engine", version = "0.1.2", default-features = false }
 kona-sources = { path = "kona/crates/node/sources", version = "0.1.2", default-features = false }
+kona-node-actors = { path = "kona/crates/node/actors", version = "0.1.0", default-features = false }
 kona-node-service = { path = "kona/crates/node/service", version = "0.1.3", default-features = false }
 kona-disc = { path = "kona/crates/node/disc", version = "0.1.2", default-features = false }
 kona-gossip = { path = "kona/crates/node/gossip", version = "0.1.2", default-features = false }
@@ -512,7 +512,6 @@ sp1-verifier = { version = "6.8.1", default-features = false, features = ["full"
 # ==================== ASYNC ====================
 async-channel = "2.5"
 async-compression = { version = "0.4", default-features = false }
-async-stream = "0.3.6"
 async-trait = "0.1.89"
 futures = "0.3.31"
 futures-core = "0.3"
@@ -728,7 +727,6 @@ spin = "0.10.0"
 strum = { version = "0.27", default-features = false }
 strum_macros = "0.27"
 syn = "2.0"
-tabled = { version = "0.20.0", default-features = false }
 tar = "0.4.44"
 thiserror = { version = "2.0.18", default-features = false }
 unsigned-varint = "0.8.0"

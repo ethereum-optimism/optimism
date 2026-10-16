@@ -289,6 +289,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.CLKey,
 				spec.ELKey,
 				spec.IsSequencer,
+				spec.IsSequencer,
 				depSet,
 			)
 		default:
@@ -542,6 +543,7 @@ func startMixedKonaNode(
 	clKey string,
 	elKey string,
 	isSequencer bool,
+	startSequencer bool,
 	depSet coredepset.DependencySet,
 	extraEnv ...string,
 ) *KonaNode {
@@ -560,23 +562,24 @@ func startMixedKonaNode(
 	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o640))
 
 	envVars := []string{
-		"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
-		"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
-		"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
-		"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
-		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
-		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
+		"KONA_NODE_L1_ETH_URL=" + l1EL.UserRPC(),
+		"KONA_NODE_L1_BEACON_URL=" + l1CL.beaconHTTPAddr,
+		"KONA_NODE_L2_ENGINE_URL=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
+		"KONA_NODE_L2_ENGINE_JWT_SECRET_PATH=" + l2EL.JWTPath(),
+		"KONA_NODE_CHAIN_ROLLUP_CONFIG_PATH=" + tempRollupCfgPath,
+		"KONA_NODE_CHAIN_L1_CONFIG_PATH=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
+		"KONA_NODE_RPC_ENABLED=true",
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
-		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
-		// kona only registers when admin is enabled. op-node's devstack node enables it too.
-		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
-		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
-		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
-		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
+		"KONA_NODE_LOGS_ENABLED=true",
+		// kona-node reports its RPC address in an info log with the target `rpc`, which
+		// startup waits for, so keep that target at info whatever RUST_LOG holds. An `rpc`
+		// directive in RUST_LOG comes later and still wins.
+		"RUST_LOG=rpc=info," + getEnvVarOrDefault("RUST_LOG", "info"),
+		propagateEnvVarOrDefault("KONA_NODE_LOGS_FORMAT", "json"),
+		"KONA_NODE_P2P_ENABLED=true",
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 	}
@@ -589,7 +592,7 @@ func startMixedKonaNode(
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
-		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
+		envVars = append(envVars, "KONA_NODE_CHAIN_DEPENDENCY_SET_PATH="+tempDepSetPath)
 	}
 
 	if isSequencer {
@@ -599,12 +602,10 @@ func startMixedKonaNode(
 		tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
 		t.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o640))
 		envVars = append(envVars,
-			"KONA_NODE_P2P_SEQUENCER_KEY_PATH="+tempSeqKeyPath,
+			"KONA_NODE_SEQUENCER_ENABLED=true",
+			"KONA_NODE_SIGNER_KEY_PATH="+tempSeqKeyPath,
 			"KONA_NODE_SEQUENCER_L1_CONFS=2",
-			"KONA_NODE_MODE=Sequencer",
 		)
-	} else {
-		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 	envVars = append(envVars, extraEnv...)
 
@@ -617,13 +618,14 @@ func startMixedKonaNode(
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 
 	k := &KonaNode{
-		name:     clKey,
-		chainID:  l2Net.ChainID(),
-		userRPC:  "",
-		execPath: execPath,
-		args:     []string{"node"},
-		env:      envVars,
-		p:        t,
+		name:           clKey,
+		chainID:        l2Net.ChainID(),
+		userRPC:        "",
+		execPath:       execPath,
+		args:           []string{"node"},
+		env:            envVars,
+		startSequencer: startSequencer,
+		p:              t,
 	}
 	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
 	k.Start()

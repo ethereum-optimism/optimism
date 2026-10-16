@@ -22,7 +22,6 @@ use kona_cli::{LogArgs, LogConfig};
 use kona_executor::test_utils::ExecutorTestFixtureCreator;
 use std::path::PathBuf;
 use tracing::info;
-use tracing_subscriber::EnvFilter;
 use url::Url;
 
 /// The execution fixture creation command.
@@ -45,7 +44,7 @@ pub struct ExecutionFixtureCommand {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = ExecutionFixtureCommand::parse();
-    LogConfig::new(cli.v).init_tracing_subscriber(None::<EnvFilter>)?;
+    LogConfig::new(cli.v).init_tracing_subscriber()?;
 
     let output_dir = if let Some(output_dir) = cli.output_dir {
         output_dir

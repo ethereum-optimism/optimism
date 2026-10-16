@@ -4,6 +4,10 @@ description: "Run kona-node with op-reth using Kona's pre-packaged docker-compos
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
+<Unreleased component="kona-node" />
+
 <Info>
 This guide uses Kona's pre-packaged docker config.
 
@@ -91,32 +95,7 @@ By default, the recipe is configured for **OP Sepolia**. To sync a different OP 
 2. Modify the docker-compose.yaml:
    - Update `op-reth --chain` parameter
    - Update `op-reth --rollup.sequencer-http` endpoint
-   - Update `kona-node --chain` parameter
-
-### RPC Trust Configuration
-
-By default, `kona-node` trusts RPC providers (both L1 and L2). When using public or untrusted RPC endpoints, you should disable trust to enable block hash verification:
-
-```bash
-# In cfg.env or as environment variables:
-KONA_NODE_L1_TRUST_RPC=false
-KONA_NODE_L2_TRUST_RPC=false
-```
-
-Or modify the docker-compose.yaml command:
-```yaml
-kona-node:
-  command: |
-    node
-    --chain op-sepolia
-    --l1-eth-rpc ${L1_PROVIDER_RPC}
-    --l1-beacon ${L1_BEACON_API}
-    --l1-trust-rpc false  # Add this for untrusted L1 RPCs
-    --l2-engine-rpc ws://op-reth:8551
-    --l2-trust-rpc false  # Add this for untrusted L2 RPCs
-```
-
-See [configure RPC trust](/node-operators/kona-node/run/rpc-trust) for more details on RPC trust settings.
+   - Update `kona-node --chain` parameter, or replace it with `--chain.rollup-config-path` for a chain that is not in the superchain registry
 
 ### Port Configuration
 
@@ -140,10 +119,12 @@ PROMETHEUS_PORT=9090
 
 ### Logging
 
-Adjust log levels by setting the `RUST_LOG` environment variable:
+Choose which logs to keep by setting the `RUST_LOG` environment variable, which `kona-node`
+reads when `--logs.filter` is not set. For example, to keep `info` logs and `debug` logs from the
+`engine` target:
 
 ```bash
-export RUST_LOG=engine_builder=trace,runtime=debug
+export RUST_LOG=info,engine=debug
 ```
 
 ## Management Commands

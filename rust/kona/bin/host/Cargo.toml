@@ -63,7 +63,6 @@ rocksdb = { workspace = true, features = ["snappy", "bindgen-runtime"] }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 clap = { workspace = true, features = ["derive", "env"] }
-tracing-subscriber = { workspace = true, features = ["fmt"] }
 thiserror.workspace = true
 tempfile.workspace = true
 

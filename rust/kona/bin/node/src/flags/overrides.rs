@@ -3,48 +3,97 @@
 use clap::Parser;
 use kona_genesis::RollupConfig;
 
-/// Override Flags.
+/// Flags that override the rollup config's hardfork schedule.
 #[derive(Parser, Debug, Clone, Copy, PartialEq, Eq)]
+#[command(next_help_heading = "Hardfork Overrides")]
 pub struct OverrideArgs {
     /// Manually specify the timestamp for the Canyon fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_CANYON")]
-    pub canyon_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.canyon-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_CANYON_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub canyon: Option<u64>,
     /// Manually specify the timestamp for the Delta fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_DELTA")]
-    pub delta_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.delta-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_DELTA_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub delta: Option<u64>,
     /// Manually specify the timestamp for the Ecotone fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_ECOTONE")]
-    pub ecotone_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.ecotone-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_ECOTONE_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub ecotone: Option<u64>,
     /// Manually specify the timestamp for the Fjord fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_FJORD")]
-    pub fjord_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.fjord-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_FJORD_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub fjord: Option<u64>,
     /// Manually specify the timestamp for the Granite fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_GRANITE")]
-    pub granite_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.granite-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_GRANITE_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub granite: Option<u64>,
     /// Manually specify the timestamp for the Holocene fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_HOLOCENE")]
-    pub holocene_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.holocene-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_HOLOCENE_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub holocene: Option<u64>,
     /// Manually specify the timestamp for the Isthmus fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_ISTHMUS")]
-    pub isthmus_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.isthmus-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_ISTHMUS_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub isthmus: Option<u64>,
     /// Manually specify the timestamp for the Jovian fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_JOVIAN")]
-    pub jovian_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.jovian-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_JOVIAN_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub jovian: Option<u64>,
     /// Manually specify the timestamp for the Karst fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_KARST")]
-    pub karst_override: Option<u64>,
-    /// Manually specify the timestamp for the pectra blob schedule, overriding the bundled
+    #[arg(
+        long = "chain.hardfork.karst-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_KARST_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub karst: Option<u64>,
+    /// Manually specify the timestamp for the Pectra blob schedule, overriding the bundled
     /// setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_PECTRA_BLOB_SCHEDULE")]
-    pub pectra_blob_schedule_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.pectra-blob-schedule-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_PECTRA_BLOB_SCHEDULE_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub pectra_blob_schedule: Option<u64>,
     /// Manually specify the timestamp for the Lagoon fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_LAGOON")]
-    pub lagoon_override: Option<u64>,
+    #[arg(
+        long = "chain.hardfork.lagoon-time",
+        env = "KONA_NODE_CHAIN_HARDFORK_LAGOON_TIME",
+        value_name = "TIMESTAMP"
+    )]
+    pub lagoon: Option<u64>,
     /// Manually set `keep_karst_upgrade_gas`, overriding the bundled setting. When true, the Karst
     /// activation block's one-time upgrade gas is kept on every later block (for chains that
     /// activated Karst with the leak baked into their history).
-    #[arg(long, env = "KONA_NODE_OVERRIDE_KEEP_KARST_UPGRADE_GAS")]
-    pub keep_karst_upgrade_gas_override: Option<bool>,
+    #[arg(
+        long = "chain.keep-karst-upgrade-gas",
+        env = "KONA_NODE_CHAIN_KEEP_KARST_UPGRADE_GAS",
+        value_name = "BOOL"
+    )]
+    pub keep_karst_upgrade_gas: Option<bool>,
 }
 
 impl Default for OverrideArgs {
@@ -60,26 +109,23 @@ impl OverrideArgs {
     pub fn apply(&self, config: RollupConfig) -> RollupConfig {
         let hardforks = kona_genesis::HardForkConfig {
             regolith_time: config.hardforks.regolith_time,
-            canyon_time: self.canyon_override.map(Some).unwrap_or(config.hardforks.canyon_time),
-            delta_time: self.delta_override.map(Some).unwrap_or(config.hardforks.delta_time),
-            ecotone_time: self.ecotone_override.map(Some).unwrap_or(config.hardforks.ecotone_time),
-            fjord_time: self.fjord_override.map(Some).unwrap_or(config.hardforks.fjord_time),
-            granite_time: self.granite_override.map(Some).unwrap_or(config.hardforks.granite_time),
-            holocene_time: self
-                .holocene_override
-                .map(Some)
-                .unwrap_or(config.hardforks.holocene_time),
+            canyon_time: self.canyon.map(Some).unwrap_or(config.hardforks.canyon_time),
+            delta_time: self.delta.map(Some).unwrap_or(config.hardforks.delta_time),
+            ecotone_time: self.ecotone.map(Some).unwrap_or(config.hardforks.ecotone_time),
+            fjord_time: self.fjord.map(Some).unwrap_or(config.hardforks.fjord_time),
+            granite_time: self.granite.map(Some).unwrap_or(config.hardforks.granite_time),
+            holocene_time: self.holocene.map(Some).unwrap_or(config.hardforks.holocene_time),
             pectra_blob_schedule_time: self
-                .pectra_blob_schedule_override
+                .pectra_blob_schedule
                 .map(Some)
                 .unwrap_or(config.hardforks.pectra_blob_schedule_time),
-            isthmus_time: self.isthmus_override.map(Some).unwrap_or(config.hardforks.isthmus_time),
-            jovian_time: self.jovian_override.map(Some).unwrap_or(config.hardforks.jovian_time),
-            karst_time: self.karst_override.map(Some).unwrap_or(config.hardforks.karst_time),
+            isthmus_time: self.isthmus.map(Some).unwrap_or(config.hardforks.isthmus_time),
+            jovian_time: self.jovian.map(Some).unwrap_or(config.hardforks.jovian_time),
+            karst_time: self.karst.map(Some).unwrap_or(config.hardforks.karst_time),
             keep_karst_upgrade_gas: self
-                .keep_karst_upgrade_gas_override
+                .keep_karst_upgrade_gas
                 .unwrap_or(config.hardforks.keep_karst_upgrade_gas),
-            lagoon_time: self.lagoon_override.map(Some).unwrap_or(config.hardforks.lagoon_time),
+            lagoon_time: self.lagoon.map(Some).unwrap_or(config.hardforks.lagoon_time),
         };
         RollupConfig { hardforks, ..config }
     }
@@ -102,29 +148,29 @@ mod tests {
     fn test_apply_overrides() {
         let args = MockCommand::parse_from([
             "test",
-            "--canyon-override",
+            "--chain.hardfork.canyon-time",
             "1699981200",
-            "--delta-override",
+            "--chain.hardfork.delta-time",
             "1703203200",
-            "--ecotone-override",
+            "--chain.hardfork.ecotone-time",
             "1708534800",
-            "--fjord-override",
+            "--chain.hardfork.fjord-time",
             "1716998400",
-            "--granite-override",
+            "--chain.hardfork.granite-time",
             "1723478400",
-            "--holocene-override",
+            "--chain.hardfork.holocene-time",
             "1732633200",
-            "--pectra-blob-schedule-override",
+            "--chain.hardfork.pectra-blob-schedule-time",
             "1745000000",
-            "--isthmus-override",
+            "--chain.hardfork.isthmus-time",
             "1740000000",
-            "--jovian-override",
+            "--chain.hardfork.jovian-time",
             "1745000001",
-            "--karst-override",
+            "--chain.hardfork.karst-time",
             "1750000000",
-            "--lagoon-override",
+            "--chain.hardfork.lagoon-time",
             "1755000000",
-            "--keep-karst-upgrade-gas-override",
+            "--chain.keep-karst-upgrade-gas",
             "true",
         ]);
         let config = RollupConfig::default();
@@ -168,18 +214,18 @@ mod tests {
         assert_eq!(
             args.override_flags,
             OverrideArgs {
-                canyon_override: None,
-                delta_override: None,
-                ecotone_override: None,
-                fjord_override: None,
-                granite_override: None,
-                holocene_override: None,
-                pectra_blob_schedule_override: None,
-                isthmus_override: None,
-                jovian_override: None,
-                karst_override: None,
-                lagoon_override: None,
-                keep_karst_upgrade_gas_override: None,
+                canyon: None,
+                delta: None,
+                ecotone: None,
+                fjord: None,
+                granite: None,
+                holocene: None,
+                pectra_blob_schedule: None,
+                isthmus: None,
+                jovian: None,
+                karst: None,
+                lagoon: None,
+                keep_karst_upgrade_gas: None,
             }
         );
         // Sanity check that the default impl matches the expected default values.

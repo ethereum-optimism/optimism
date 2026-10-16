@@ -13,4 +13,3 @@ kona-cli.workspace = true
 kona-executor = { workspace = true, features = ["test-utils"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }

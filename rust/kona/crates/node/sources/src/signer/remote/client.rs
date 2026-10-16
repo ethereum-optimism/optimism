@@ -5,7 +5,8 @@ use thiserror::Error;
 use url::Url;
 
 use crate::{
-    ClientCert, ReloadingRpcClient, ReloadingRpcClientError, RemoteSignerHandler, TlsPaths,
+    ClientCert, ReloadingRpcClient, ReloadingRpcClientError, RemoteSignerHandler, RpcClientLayer,
+    TlsPaths,
 };
 
 /// Deadline for each request to the remote signer, including reading its response. It also
@@ -57,6 +58,7 @@ impl RemoteSigner {
     /// TLS material is reloaded when it changes on disk; see [`ReloadingRpcClient`].
     pub async fn start(self) -> Result<RemoteSignerHandler, RemoteSignerStartError> {
         let client = ReloadingRpcClient::new(
+            RpcClientLayer::new("signer"),
             self.endpoint,
             TlsPaths { ca_cert: self.ca_cert, client_cert: self.client_cert },
             self.headers,

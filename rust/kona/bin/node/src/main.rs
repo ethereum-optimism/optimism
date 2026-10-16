@@ -19,7 +19,9 @@ fn main() {
     kona_cli::sigsegv_handler::install();
     kona_cli::backtrace::enable();
 
-    if let Err(err) = cli::Cli::parse().run() {
+    let cli = cli::Cli::parse();
+    cli.check().unwrap_or_else(|error| error.exit());
+    if let Err(err) = cli.run() {
         eprintln!("Error: {err:?}");
         std::process::exit(1);
     }

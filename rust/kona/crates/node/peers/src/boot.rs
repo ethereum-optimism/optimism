@@ -47,16 +47,39 @@ impl BootNode {
         }
     }
 
-    /// Helper method to parse a bootnode from a string.
+    /// Parses a bootnode that is known to be valid, such as one of the built-in bootnodes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `raw` is not a valid bootnode. Parse untrusted input with [`FromStr`] instead.
     pub fn parse_bootnode(raw: &str) -> Self {
-        // If the string starts with "enr:" it is an ENR record.
+        raw.parse().unwrap_or_else(|error| panic!("invalid bootnode {raw}: {error}"))
+    }
+}
+
+/// An error parsing a [`BootNode`].
+#[derive(Debug, thiserror::Error)]
+pub enum BootNodeParseError {
+    /// An `enr:` record is malformed.
+    #[error("invalid ENR: {0}")]
+    Enr(String),
+    /// An `enode://` record is malformed.
+    #[error("invalid node record: {0}")]
+    NodeRecord(#[from] crate::NodeRecordParseError),
+    /// An `enode://` record's ID is not a valid peer ID.
+    #[error(transparent)]
+    PeerId(#[from] PeerIdConversionError),
+}
+
+impl FromStr for BootNode {
+    type Err = BootNodeParseError;
+
+    /// Parses a bootnode from an `enr:` record, or from an `enode://` node record.
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
         if raw.starts_with("enr:") {
-            let enr = Enr::from_str(raw).unwrap();
-            return Self::from(enr);
+            return Enr::from_str(raw).map(Self::from).map_err(BootNodeParseError::Enr);
         }
-        // Otherwise, attempt to use the Node Record format.
-        let record = NodeRecord::from_str(raw).unwrap();
-        Self::from_unsigned(record).unwrap()
+        Ok(Self::from_unsigned(NodeRecord::from_str(raw)?)?)
     }
 }
 
@@ -69,6 +92,13 @@ mod tests {
 
     use super::*;
     use std::{net::Ipv4Addr, str::FromStr};
+
+    #[test]
+    fn a_malformed_bootnode_is_an_error() {
+        for raw in ["enr:not-base64", "enode://a@1.2.3.4:30303", "not a node"] {
+            assert!(BootNode::from_str(raw).is_err(), "{raw}");
+        }
+    }
 
     #[test]
     fn test_derive_bootnode_enode_multiaddr() {
