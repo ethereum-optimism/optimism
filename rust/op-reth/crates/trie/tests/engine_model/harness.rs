@@ -49,11 +49,12 @@ fn block_spec(serial: u64) -> BlockSpec {
     BlockSpec::new(vec![TxSpec::transfer(recipient(serial), U256::from(serial))])
 }
 
-fn model_block(block: &ExecutedBlock, serial: u64) -> ModelBlock {
+fn model_block(block: &ExecutedBlock, serial: u64, persisted_before_commit: u64) -> ModelBlock {
     let recovered = block.recovered_block();
     ModelBlock {
         hash: recovered.hash(),
         parent: recovered.parent_hash(),
+        persisted_before_commit,
         serial,
         state_root: recovered.state_root(),
     }
@@ -97,6 +98,7 @@ impl Harness {
         let genesis = ModelBlock {
             hash: chain_spec.genesis_hash(),
             parent: B256::ZERO,
+            persisted_before_commit: 0,
             serial: 0,
             state_root: chain_spec.genesis_header().state_root,
         };
@@ -244,8 +246,9 @@ impl Harness {
     /// Commits a new block to reth and to the model.
     fn commit_block(&mut self) -> eyre::Result<ExecutedBlock> {
         let serial = self.next_serial();
+        let persisted_before_commit = self.reth.persisted().number;
         let block = self.reth.commit(&block_spec(serial))?;
-        self.model.push(model_block(&block, serial));
+        self.model.push(model_block(&block, serial, persisted_before_commit));
         Ok(block)
     }
 
@@ -253,10 +256,12 @@ impl Harness {
     fn fork_chain(&mut self, fork: u64, length: u64) -> eyre::Result<Vec<ExecutedBlock>> {
         let serials: Vec<u64> = (0..length).map(|_| self.next_serial()).collect();
         let specs: Vec<BlockSpec> = serials.iter().copied().map(block_spec).collect();
+        // Every block of the fork becomes canonical with reth persisted at least this far.
+        let persisted_before_the_fork = self.reth.persisted().number;
         let new = self.reth.reorg_with(fork + 1, &specs)?;
         self.model.truncate(fork);
         for (block, serial) in new.iter().zip(serials) {
-            self.model.push(model_block(block, serial));
+            self.model.push(model_block(block, serial, persisted_before_the_fork));
         }
         Ok(new)
     }

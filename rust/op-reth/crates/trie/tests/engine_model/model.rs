@@ -5,12 +5,16 @@
 
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use alloy_primitives::B256;
+use std::ops::RangeInclusive;
 
 /// A canonical block: what the store must agree with at its height.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ModelBlock {
     pub(super) hash: B256,
     pub(super) parent: B256,
+    /// reth's persisted head just before reth committed the block; reth's persisted head never
+    /// falls, so every save of the block sees at least this.
+    pub(super) persisted_before_commit: u64,
     /// The serial of the transfer the block carries; rebuilding it on the same parent gives the
     /// same block.
     pub(super) serial: u64,
@@ -41,6 +45,8 @@ pub(super) struct Model {
     candidates: Vec<EngineCandidate>,
     /// The canonical chain, genesis first.
     canonical: Vec<ModelBlock>,
+    /// The highest head the chain has had, which no save's tip exceeds.
+    highest_head: u64,
     /// The lowest block whose hash the engine has held since it started, through its tip.
     known_from: u64,
     /// The store has persisted at least through this block.
@@ -54,6 +60,7 @@ impl Model {
         Self {
             candidates: vec![EngineCandidate { target: 0, tip: NumHash::new(0, genesis.hash) }],
             canonical: vec![genesis],
+            highest_head: 0,
             known_from: 1,
             persisted_at_least: 0,
             window,
@@ -82,6 +89,7 @@ impl Model {
 
     pub(super) fn push(&mut self, block: ModelBlock) {
         self.canonical.push(block);
+        self.highest_head = self.highest_head.max(self.head());
     }
 
     /// Keeps the chain through `head`.
@@ -96,6 +104,19 @@ impl Model {
 
     pub(super) const fn window(&self) -> u64 {
         self.window
+    }
+
+    /// Where the store's earliest block may lie while its latest block is `latest`. Every save
+    /// with tip `t` prunes to `t - window`, or not past reth's persisted head when the pruner
+    /// caps it there. The save that wrote `latest` had a tip at or above it and saw reth
+    /// persisted at least through `persisted_before_commit` of `latest`, and the earliest block
+    /// never moves down, which gives the lower end. No save's tip exceeds the highest head,
+    /// which gives the upper end.
+    pub(super) fn earliest_bounds(&self, latest: u64) -> RangeInclusive<u64> {
+        let persisted_before_the_save = self.block(latest).persisted_before_commit;
+        let lowest = latest.saturating_sub(self.window).min(persisted_before_the_save);
+        let highest = self.highest_head.saturating_sub(self.window);
+        lowest..=highest
     }
 
     pub(super) const fn persisted_at_least(&self) -> u64 {
@@ -380,6 +401,7 @@ mod tests {
         ModelBlock {
             hash: canonical(number).hash,
             parent: canonical(number.saturating_sub(1)).hash,
+            persisted_before_commit: 0,
             serial: number,
             state_root: B256::ZERO,
         }
@@ -473,5 +495,41 @@ mod tests {
         let mut model = model(3, &[at(canonical(3), 3)]);
         model.note_persisted(2);
         assert_eq!(model.restart(canonical(tip)).is_ok(), consistent);
+    }
+
+    /// A chain through `head` under `window`, whose block `n` was committed with reth persisted
+    /// through `min(n, persisted)`.
+    fn model_with_reth_persisted(window: u64, head: u64, persisted: u64) -> Model {
+        let mut model = Model::new(block(0), window);
+        for number in 1..=head {
+            let persisted_before_commit = persisted.min(number);
+            model.push(ModelBlock { persisted_before_commit, ..block(number) });
+        }
+        model
+    }
+
+    #[rstest]
+    #[case::whole_window(WINDOW, 7, 7, 7, 0..=0)]
+    #[case::reth_persisted_through_the_prune_target(4, 8, 8, 8, 4..=4)]
+    #[case::reth_persisted_below_the_prune_target(4, 8, 8, 3, 3..=4)]
+    #[case::latest_unwound_below_the_highest_head(4, 8, 5, 8, 1..=4)]
+    #[case::latest_within_a_window_of_genesis(4, 8, 2, 8, 0..=4)]
+    fn earliest_bounds(
+        #[case] window: u64,
+        #[case] head: u64,
+        #[case] latest: u64,
+        #[case] persisted: u64,
+        #[case] expected: RangeInclusive<u64>,
+    ) {
+        let model = model_with_reth_persisted(window, head, persisted);
+        assert_eq!(model.earliest_bounds(latest), expected);
+    }
+
+    #[test]
+    fn earliest_bounds_keep_the_highest_head_through_a_reorg() {
+        let mut model = model_with_reth_persisted(4, 8, 5);
+        model.truncate(5);
+        model.push(ModelBlock { persisted_before_commit: 5, ..block(6) });
+        assert_eq!(model.earliest_bounds(6), 2..=4);
     }
 }
