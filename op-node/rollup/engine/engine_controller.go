@@ -427,6 +427,7 @@ func (e *EngineController) applyFinalizedHeadCacheChecks(br eth.L2BlockRef, sour
 		}
 	}
 	e.superAuthorityFinalizedHead = br
+	e.metrics.RecordL2Ref("l2_super_authority_finalized", br)
 	return br
 }
 
