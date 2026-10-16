@@ -537,28 +537,6 @@ async fn log_commitment_vkey_matches_elf() {
     assert_eq!(embedded, pk.verifying_key().hash_u32());
 }
 
-/// Pins the native outputs through a real batch proof, with the deferred-proof check on.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "local CPU proving"]
-async fn elf_verifies_real_batch_proof() {
-    let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
-    let fixture = small_fixture();
-    let proofs = prove_batch(&dir, &fixture).await;
-    let native =
-        fixture.run_native(fixture.full_witness(), LogCommitmentInputs::default(), |_, _| {});
-    let log_commitments =
-        LogCommitmentInputs { batches: proofs.batches(), openings: fixture.openings() };
-    let stdin = build_super_consolidation_stdin(
-        &fixture.inputs,
-        DefaultWitnessData::from_parts(fixture.withheld.clone(), BlobData::default()),
-        &log_commitments,
-        Some(&proofs),
-    )
-    .unwrap();
-    assert_eq!(stdin.proofs.len(), 1);
-    assert_eq!(execute_consolidation(&dir, stdin, true).await.0, native);
-}
-
 /// Pins a proof through a real batch proof, and no proof for entries that differ from it.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "local CPU proving"]

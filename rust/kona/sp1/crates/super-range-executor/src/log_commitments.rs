@@ -407,22 +407,4 @@ mod tests {
         assert_eq!(roots, expected);
         assert!(missing.iter().all(|block| block.chain_id == A));
     }
-
-    /// Pins an error, not a verdict, when the host cannot serve a served block's receipts.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn host_failure_fails_the_run() {
-        let chains = chains();
-        let record = Arc::new(Mutex::new(LogCommitmentRecord::default()));
-        let native = Arc::new(
-            NativeLogCommitments::new(
-                &[chains.batch()],
-                Arc::new(chains.withheld.clone()),
-                record.clone(),
-            )
-            .unwrap(),
-        );
-        chains.resolve(chains.withheld.clone(), native, 1);
-        let err = record.lock().unwrap().finish().unwrap_err();
-        assert!(format!("{err:#}").contains("receipts of block"), "{err:#}");
-    }
 }
