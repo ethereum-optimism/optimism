@@ -26,6 +26,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -229,7 +230,7 @@ type worldBuilder struct {
 	output          *state.State
 	outL1Genesis    *core.Genesis
 	l2Chains        []eth.ChainID
-	outL2Genesis    map[eth.ChainID]*core.Genesis
+	outL2Genesis    map[eth.ChainID]*opgenesis.Genesis
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
@@ -594,7 +595,7 @@ func (wb *worldBuilder) finalizeL2Allocs() {
 }
 
 func (wb *worldBuilder) buildL2Genesis() {
-	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
+	wb.outL2Genesis = make(map[eth.ChainID]*opgenesis.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
 		l2Genesis, l2RollupCfg, err := pipeline.RenderGenesisAndRollup(wb.output, ch.ID, wb.intent)

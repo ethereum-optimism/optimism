@@ -303,27 +303,3 @@ func TestUnmarshalRejects(t *testing.T) {
 		})
 	}
 }
-
-// TestGethGenesisToBlock checks that the genesis block computed through GethGenesis is
-// the one op-geth computes from the genesis that op-chain-ops builds, including the
-// Isthmus withdrawals root (the L2ToL1MessagePasser storage root), for a staggered
-// schedule and for every timestamp fork as the latest at genesis.
-func TestGethGenesisToBlock(t *testing.T) {
-	schedules := map[string]forkstest.Schedule{"staggered": forkstest.Staggered()}
-	for _, fork := range forkstest.TimestampELForks {
-		schedules["through "+string(fork)] = forkstest.AtGenesisThrough(fork)
-	}
-	for name, s := range schedules {
-		t.Run(name, func(t *testing.T) {
-			g, gg := fixture(t, s)
-			want := gg.ToBlock()
-			got := g.GethGenesis().ToBlock()
-			require.Equal(t, want.Header(), got.Header())
-			require.Equal(t, want.Hash(), got.Hash())
-			if g.Config.IsIsthmus(g.Timestamp) {
-				require.NotEqual(t, types.EmptyWithdrawalsHash, *got.Header().WithdrawalsHash,
-					"Isthmus withdrawals root is the message passer's storage root")
-			}
-		})
-	}
-}

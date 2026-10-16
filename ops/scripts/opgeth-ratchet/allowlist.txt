@@ -39,26 +39,6 @@ op-batcher/batcher | missing go-ethereum/core/types.Header.BlockAccessListHash |
 op-batcher/batcher (tests) | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
 op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
 op-batcher/batcher (tests) | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
-op-chain-ops/genesis | missing go-ethereum/consensus/misc/eip1559.EncodeHoloceneExtraData | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/consensus/misc/eip1559.EncodeJovianExtraData | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.BedrockBlock | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.CanyonTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.EcotoneTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.FjordTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.GraniteTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.HoloceneTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.IsEcotone | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.IsHolocene | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.IsIsthmus | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.IsJovian | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.IsthmusTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.JovianTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.KarstTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.LagoonTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.Optimism | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.ChainConfig.RegolithTime | #21281 genesis tooling
-op-chain-ops/genesis | missing go-ethereum/params.OptimismConfig | #21281 genesis tooling
-op-chain-ops/genesis (tests) | missing go-ethereum/params.ChainConfig.RegolithTime | #21281 genesis tooling
 op-chain-ops/pkg/sdm (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 op-chain-ops/pkg/sdm (tests) | missing go-ethereum/core/types.PostExecTx | #23405 test and DSL swaps to op-core
 op-chain-ops/script | missing go-ethereum/core/vm.BlockContext.L1CostFunc | #23300 forge as the only script engine
@@ -151,8 +131,6 @@ op-devstack/sysgo | missing go-ethereum/core.Genesis.StateHash | #23217 genesis 
 op-devstack/sysgo | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMempoolFiltering | #21744 in-process op-geth L2 EL
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMessageRPC | #21744 in-process op-geth L2 EL
-op-devstack/sysgo | missing go-ethereum/params.ChainConfig.KarstTime | #21744 in-process op-geth L2 EL
-op-devstack/sysgo | missing go-ethereum/params.ChainConfig.LagoonTime | #23217 genesis readers
 op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.L1Cost | #23405 test and DSL swaps to op-core
 op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.FeeScalar | #23405 test and DSL swaps to op-core
 op-e2e/actions/derivation (tests) | missing go-ethereum/core/types.Receipt.L1BaseFeeScalar | #23405 test and DSL swaps to op-core

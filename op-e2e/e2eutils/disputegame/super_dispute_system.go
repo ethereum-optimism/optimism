@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -101,9 +102,9 @@ func (s *SuperDisputeSystem) L1Genesis() *core.Genesis {
 	return s.sys.L1Genesis()
 }
 
-func (s *SuperDisputeSystem) L2Geneses() []*core.Genesis {
+func (s *SuperDisputeSystem) L2Geneses() []*opgenesis.Genesis {
 	networks := s.sys.L2IDs()
-	cfgs := make([]*core.Genesis, len(networks))
+	cfgs := make([]*opgenesis.Genesis, len(networks))
 	for i, network := range networks {
 		cfgs[i] = s.sys.L2Genesis(network)
 	}

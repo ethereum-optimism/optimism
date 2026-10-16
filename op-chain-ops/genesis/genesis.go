@@ -6,11 +6,13 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -26,7 +28,7 @@ var HoloceneExtraData = eip1559.EncodeHoloceneExtraData(250, 6)
 var MinBaseFeeExtraData = eip1559.EncodeJovianExtraData(250, 6, 0)
 
 // NewL2Genesis will create a new L2 genesis
-func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Genesis, error) {
+func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*opgenesis.Genesis, error) {
 	if config.L2ChainID == 0 {
 		return nil, errors.New("must define L2 ChainID")
 	}
@@ -49,40 +51,20 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		return nil, err
 	}
 
-	optimismChainConfig := params.ChainConfig{
-		ChainID:                 new(big.Int).SetUint64(config.L2ChainID),
-		HomesteadBlock:          big.NewInt(0),
-		DAOForkBlock:            nil,
-		DAOForkSupport:          false,
-		EIP150Block:             big.NewInt(0),
-		EIP155Block:             big.NewInt(0),
-		EIP158Block:             big.NewInt(0),
-		ByzantiumBlock:          big.NewInt(0),
-		ConstantinopleBlock:     big.NewInt(0),
-		PetersburgBlock:         big.NewInt(0),
-		IstanbulBlock:           big.NewInt(0),
-		MuirGlacierBlock:        big.NewInt(0),
-		BerlinBlock:             big.NewInt(0),
-		LondonBlock:             big.NewInt(0),
-		ArrowGlacierBlock:       big.NewInt(0),
-		GrayGlacierBlock:        big.NewInt(0),
-		MergeNetsplitBlock:      big.NewInt(0),
-		TerminalTotalDifficulty: big.NewInt(0),
-		BedrockBlock:            new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
-		RegolithTime:            config.RegolithTime(l2GenesisTime),
-		CanyonTime:              config.CanyonTime(l2GenesisTime),
-		ShanghaiTime:            config.CanyonTime(l2GenesisTime),
-		CancunTime:              config.EcotoneTime(l2GenesisTime),
-		EcotoneTime:             config.EcotoneTime(l2GenesisTime),
-		FjordTime:               config.FjordTime(l2GenesisTime),
-		GraniteTime:             config.GraniteTime(l2GenesisTime),
-		HoloceneTime:            config.HoloceneTime(l2GenesisTime),
-		IsthmusTime:             config.IsthmusTime(l2GenesisTime),
-		JovianTime:              config.JovianTime(l2GenesisTime),
-		KarstTime:               config.KarstTime(l2GenesisTime),
-		PragueTime:              config.IsthmusTime(l2GenesisTime),
-		LagoonTime:              config.LagoonTime(l2GenesisTime),
-		Optimism: &params.OptimismConfig{
+	chainConfig := &opparams.ChainConfig{
+		ChainID:      new(big.Int).SetUint64(config.L2ChainID),
+		BedrockBlock: new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
+		RegolithTime: config.RegolithTime(l2GenesisTime),
+		CanyonTime:   config.CanyonTime(l2GenesisTime),
+		EcotoneTime:  config.EcotoneTime(l2GenesisTime),
+		FjordTime:    config.FjordTime(l2GenesisTime),
+		GraniteTime:  config.GraniteTime(l2GenesisTime),
+		HoloceneTime: config.HoloceneTime(l2GenesisTime),
+		IsthmusTime:  config.IsthmusTime(l2GenesisTime),
+		JovianTime:   config.JovianTime(l2GenesisTime),
+		KarstTime:    config.KarstTime(l2GenesisTime),
+		LagoonTime:   config.LagoonTime(l2GenesisTime),
+		Optimism: &opparams.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
 			EIP1559Elasticity:        eip1559Elasticity,
 			EIP1559DenominatorCanyon: &eip1559DenomCanyon,
@@ -102,8 +84,8 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		difficulty = newHexBig(0)
 	}
 
-	genesis := &core.Genesis{
-		Config:     &optimismChainConfig,
+	genesis := &opgenesis.Genesis{
+		Config:     chainConfig,
 		Nonce:      uint64(config.L2GenesisBlockNonce),
 		Timestamp:  l2GenesisTime,
 		GasLimit:   uint64(gasLimit),
@@ -117,17 +99,17 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		Alloc:      map[common.Address]types.Account{},
 	}
 
-	if optimismChainConfig.IsEcotone(genesis.Timestamp) {
+	if chainConfig.IsEcotone(genesis.Timestamp) {
 		genesis.BlobGasUsed = u64ptr(0)
 		genesis.ExcessBlobGas = u64ptr(0)
 	}
-	if optimismChainConfig.IsHolocene(genesis.Timestamp) {
+	if chainConfig.IsHolocene(genesis.Timestamp) {
 		genesis.ExtraData = HoloceneExtraData
 	}
-	if optimismChainConfig.IsIsthmus(genesis.Timestamp) {
+	if chainConfig.IsIsthmus(genesis.Timestamp) {
 		genesis.Alloc[params.HistoryStorageAddress] = types.Account{Nonce: 1, Code: params.HistoryStorageCode, Balance: common.Big0}
 	}
-	if optimismChainConfig.IsJovian(genesis.Timestamp) {
+	if chainConfig.IsJovian(genesis.Timestamp) {
 		genesis.ExtraData = MinBaseFeeExtraData
 	}
 
