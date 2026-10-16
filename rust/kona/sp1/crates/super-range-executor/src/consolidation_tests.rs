@@ -37,8 +37,13 @@ use kona_sp1_ethereum_client_utils::{
 use kona_sp1_host_utils::witness_generation::PreimageWitnessCollector;
 use op_alloy_consensus::OpReceiptEnvelope;
 use sp1_sdk::{
-    Elf, ExecutionReport, ProveRequest, Prover, ProverClient, ProvingKey, SP1PublicValues, SP1Stdin,
+    Elf, ExecutionReport, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey,
+    SP1PublicValues, SP1Stdin,
 };
+
+#[allow(dead_code)]
+#[path = "../../range-vkeys/src/codec.rs"]
+mod vkey_codec;
 
 use crate::{
     LogCommitmentProofs, build_log_commitment_stdin_from_receipts, build_super_consolidation_stdin,
@@ -515,6 +520,21 @@ async fn elf_matches_native_with_entries() {
         LogCommitmentInputs { batches: vec![batch], openings: fixture.openings() };
     let stdin = fixture.stdin(fixture.withheld.clone(), &log_commitments);
     assert_eq!(execute_consolidation(&dir, stdin, false).await.0, native);
+}
+
+/// Pins the `log-commitment` key in `vkeys.toml`, decoded as for the guest, to the ELF's key.
+#[tokio::test(flavor = "multi_thread")]
+async fn log_commitment_vkey_matches_elf() {
+    let Some(dir) = elf_dir() else { return };
+    let manifest = std::fs::read_to_string(dir.join("vkeys.toml")).unwrap();
+    let embedded = vkey_codec::unpack_vkey_bytes32(&vkey_codec::parse_hex32(vkey_codec::vkey_hex(
+        &manifest,
+        "log-commitment",
+    )));
+    let elf = Arc::<[u8]>::from(load_elf_from(&dir, "log-commitment-elf").unwrap());
+    let client = ProverClient::builder().cpu().build().await;
+    let pk = client.setup(Elf::Dynamic(elf)).await.unwrap();
+    assert_eq!(embedded, pk.verifying_key().hash_u32());
 }
 
 /// Pins the native outputs through a real batch proof, with the deferred-proof check on.
