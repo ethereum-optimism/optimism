@@ -224,7 +224,7 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
     function test_callWithMinGas_valueToEmptyAccount_reverts() external {
         (bool success, bytes memory returndata) = _callWithMinGasBelowNewAccountGas(makeAddr("empty"), 1);
         assertFalse(success);
-        assertEq(returndata, abi.encodeWithSignature("Error(string)", "SafeCall: Not enough gas"));
+        assertEq(returndata, bytes.concat(bytes4(0x08c379a0), abi.encode("SafeCall: Not enough gas")));
     }
 
     /// @notice Tests that `callWithMinGas` does not reserve `NEW_ACCOUNT_STATE_GAS` for a call to an
