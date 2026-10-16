@@ -19,7 +19,7 @@ pub(crate) fn chain_spec() -> eyre::Result<Arc<OpChainSpec>> {
 }
 
 /// Payload attributes carrying the Jovian fields a Lagoon block requires.
-pub(crate) fn payload_attributes(timestamp: u64) -> OpPayloadAttrs {
+pub(crate) const fn payload_attributes(timestamp: u64) -> OpPayloadAttrs {
     let mut attributes = optimism_payload_attributes(timestamp);
     attributes.0.eip_1559_params = Some(B64::ZERO);
     attributes.0.min_base_fee = Some(0);
