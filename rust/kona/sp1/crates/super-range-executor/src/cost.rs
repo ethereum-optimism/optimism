@@ -84,8 +84,7 @@ pub const MAX_WITNESS_BYTES: u64 = 3 << 29;
 /// Stdin bytes of one compressed batch proof: 1.27 MB measured with SP1 6.8.1, with margin.
 pub const BATCH_PROOF_BYTES: u64 = 1_400_000;
 
-/// The most stdin bytes of one request: under the 5 GB upload limit, and at several times its
-/// size in memory, under the 24 GB executor cap.
+/// The most stdin bytes of one request, with its batch proofs: under the 5 GB upload limit.
 pub const MAX_STDIN_BYTES: u64 = 4 << 30;
 
 /// The most entries in one batch, so the consolidation's decode of a batch stays small.
