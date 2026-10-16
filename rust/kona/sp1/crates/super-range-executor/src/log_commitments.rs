@@ -691,6 +691,33 @@ mod tests {
         assert_eq!(run(&chains.withheld), built);
     }
 
+    /// Pins a failed run, not a verdict, for a stored tree that does not give its entry.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn corrupt_stored_tree_fails_the_run() {
+        let chains = chains();
+        let dir = tempfile::tempdir().unwrap();
+        for (receipts_root, receipts) in &chains.below_head {
+            let mut leaves = log_leaves(receipts);
+            leaves[0] = B256::repeat_byte(0xff);
+            std::fs::write(dir.path().join(receipts_root.to_string()), leaves.concat()).unwrap();
+        }
+        let record = Arc::new(LogCommitmentRecord {
+            tree_dir: Some(dir.path().to_path_buf()),
+            ..Default::default()
+        });
+        let native = Arc::new(
+            NativeLogCommitments::new(
+                &[chains.batch()],
+                Arc::new(chains.withheld.clone()),
+                record.clone(),
+            )
+            .unwrap(),
+        );
+        chains.resolve(chains.withheld.clone(), native, 1);
+        let err = record.finish().unwrap_err();
+        assert!(format!("{err:#}").contains("does not give the entry"), "{err:#}");
+    }
+
     /// Pins at most [`MAX_CACHED_TREES`] trees, evicting the least recently used.
     #[test]
     fn tree_cache_is_bounded() {

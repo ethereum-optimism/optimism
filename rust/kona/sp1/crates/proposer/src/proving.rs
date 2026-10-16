@@ -1014,7 +1014,9 @@ pub(crate) fn prepare_data_dir(data_dir: &Path) -> Result<()> {
     let entries = fs::read_dir(data_dir)
         .with_context(|| format!("failed to read data directory {}", data_dir.display()))?;
     for entry in entries {
-        let path = entry?.path();
+        let path = entry
+            .with_context(|| format!("failed to read data directory {}", data_dir.display()))?
+            .path();
         let owned = path
             .file_name()
             .and_then(|name| name.to_str())
