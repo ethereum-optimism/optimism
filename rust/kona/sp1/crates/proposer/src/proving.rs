@@ -44,7 +44,7 @@ use tracing::Instrument;
 pub use crate::ports::GameProofInputs;
 
 use crate::{
-    config::{RangeSplitCount, WitnessByteLimit},
+    config::{RangeSplitCount, StdinByteLimit, WitnessByteLimit},
     metrics::ProposerGauge,
     ports::SuperRootSource,
     prover::{
@@ -673,6 +673,39 @@ where
     run_chunk_tasks_until_error(tasks, max_concurrent).await
 }
 
+/// A proof request's stdin exceeds `OP_ZK_PROPOSER_MAX_STDIN_BYTES`.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{kind} stdin is {bytes} encoded bytes, above the {limit}-byte stdin limit")]
+pub struct StdinTooLarge {
+    /// Request kind: `range`, `consolidation` or `aggregation`.
+    pub kind: &'static str,
+    /// Encoded stdin bytes.
+    pub bytes: u64,
+    /// The configured limit.
+    pub limit: u64,
+}
+
+/// Bytes of `stdin` as the SP1 SDK uploads it, before compression: bincode 1 of the input
+/// buffers, the read pointer, and every embedded proof with its verifying key.
+///
+/// The buffers are counted arithmetically instead of encoded, since the witness buffer can be
+/// gigabytes: a `u64` length prefix for the buffer list and for each buffer, then its bytes.
+fn stdin_encoded_len(stdin: &SP1Stdin) -> Result<u64> {
+    let buffers: u64 = stdin.buffer.iter().map(|buffer| 8 + buffer.len() as u64).sum();
+    let proofs =
+        bincode1::serialized_size(&stdin.proofs).context("failed to measure embedded proofs")?;
+    Ok(8 + buffers + 8 + proofs)
+}
+
+/// Fails with [`StdinTooLarge`] when `stdin` encodes to more than `limit` bytes.
+fn ensure_stdin_fits(kind: &'static str, stdin: &SP1Stdin, limit: StdinByteLimit) -> Result<()> {
+    let bytes = stdin_encoded_len(stdin)?;
+    if bytes > limit.get() {
+        return Err(anyhow::Error::new(StdinTooLarge { kind, bytes, limit: limit.get() }));
+    }
+    Ok(())
+}
+
 async fn prove_range_request(
     provider: &ProofProvider,
     keys: &ProofKeys,
@@ -680,11 +713,15 @@ async fn prove_range_request(
     witness: DefaultWitnessData,
     expected: &SuperRangeOutputs,
     state: &Mutex<RequestState>,
+    stdin_limit: StdinByteLimit,
 ) -> Result<Arc<SP1ProofWithPublicValues>> {
     let stdin = build_super_range_stdin(inputs, witness)?;
     complete_request(
         state,
-        async move || provider.request_range_proof(keys, stdin).await,
+        async move || {
+            ensure_stdin_fits("range", &stdin, stdin_limit)?;
+            provider.request_range_proof(keys, stdin).await
+        },
         async |proof_id| provider.wait_for_proof(proof_id).await,
         |proof| {
             provider.verify_range_proof(keys, proof)?;
@@ -704,11 +741,15 @@ async fn prove_consolidation_request(
     witness: DefaultWitnessData,
     expected: &SuperConsolidationOutputs,
     state: &Mutex<RequestState>,
+    stdin_limit: StdinByteLimit,
 ) -> Result<Arc<SP1ProofWithPublicValues>> {
     let stdin = build_super_consolidation_stdin(inputs, witness)?;
     complete_request(
         state,
-        async move || provider.request_range_proof(keys, stdin).await,
+        async move || {
+            ensure_stdin_fits("consolidation", &stdin, stdin_limit)?;
+            provider.request_range_proof(keys, stdin).await
+        },
         async |proof_id| provider.wait_for_proof(proof_id).await,
         |proof| {
             provider.verify_range_proof(keys, proof)?;
@@ -746,6 +787,7 @@ struct ChunkContext<'a> {
     game: &'a GameProofInputs,
     responses: &'a [SuperRootAtTimestampResponse],
     witness_limit: WitnessByteLimit,
+    stdin_limit: StdinByteLimit,
 }
 
 impl SpanProver for ChunkContext<'_> {
@@ -774,7 +816,7 @@ async fn prove_span_pair(
     node: &ChunkProgress,
     chunk_span: ChunkSpan,
 ) -> Result<SpanResult> {
-    let ChunkContext { provider, keys, host_inputs, game, witness_limit, .. } = *ctx;
+    let ChunkContext { provider, keys, host_inputs, game, witness_limit, stdin_limit, .. } = *ctx;
     let span = synthesized.range_inputs.span;
     // A single timestamp cannot be split further, so it may use the whole archive.
     let collection_limit = if chunk_span.claimed - chunk_span.agreed > 1 {
@@ -827,6 +869,7 @@ async fn prove_span_pair(
                 range_witness,
                 &range_outputs,
                 &node.range_request,
+                stdin_limit,
             )
             .await?;
             let consolidation_proof = prove_consolidation_request(
@@ -836,6 +879,7 @@ async fn prove_span_pair(
                 consolidation_witness,
                 &consolidation_outputs,
                 &node.consolidation_request,
+                stdin_limit,
             )
             .await?;
             Some(ChildProofs { range: range_proof, consolidation: consolidation_proof })
@@ -862,13 +906,18 @@ fn synthesize_chunk(
         })
 }
 
+/// True when `err` shows the span's witness or stdin is too large for one child proof request.
+fn exceeds_size_limits(err: &anyhow::Error) -> bool {
+    is_witness_too_large(err) || err.chain().any(|cause| cause.is::<StdinTooLarge>())
+}
+
 /// True when `err` shows the span is too large for one child proof.
 ///
 /// Any `Unexecutable` counts, whatever SPN's execute-failure cause: SP1 execution is
 /// deterministic, so the same span cannot succeed on resubmission. A genuine guest failure is
 /// bisected down to a single timestamp, costing at most log2(chunk length) extra requests.
 fn span_exceeds_limits(err: &anyhow::Error) -> bool {
-    is_witness_too_large(err) ||
+    exceeds_size_limits(err) ||
         err.chain().any(|cause| {
             matches!(
                 cause.downcast_ref::<ProofWaitError>(),
@@ -903,10 +952,9 @@ fn prove_span<'s>(
                     return Err(err);
                 }
                 if span.claimed - span.agreed == 1 {
-                    if is_witness_too_large(&err) {
+                    if exceeds_size_limits(&err) {
                         return Err(anyhow::Error::new(GameUnprovable(format!(
-                            "timestamp {} needs a witness beyond the guest's \
-                             {MAX_ARCHIVED_WITNESS_BYTES}-byte rkyv archive limit: {err:#}",
+                            "timestamp {} does not fit one child proof request: {err:#}",
                             span.claimed
                         ))));
                     }
@@ -1059,6 +1107,8 @@ pub struct ProveGameRequest<'a> {
     pub split: RangeSplitCount,
     /// Witness bytes a multi-timestamp chunk may collect.
     pub witness_limit: WitnessByteLimit,
+    /// Encoded stdin bytes any one proof request may upload.
+    pub stdin_limit: StdinByteLimit,
     /// Maximum number of concurrently active chunk tasks.
     pub max_concurrent: NonZeroUsize,
     /// Process-local progress retained between scheduler attempts.
@@ -1079,7 +1129,8 @@ pub async fn prove_game_inner(
         ensure!(keys.is_some(), "network proving requires prestate proving keys");
     }
     let (plans, progress) = plan_game_attempt(provider, keys, &request)?;
-    let ProveGameRequest { game, responses, witness_limit, max_concurrent, .. } = request;
+    let ProveGameRequest { game, responses, witness_limit, stdin_limit, max_concurrent, .. } =
+        request;
     let chunk_count = plans.len();
     tracing::info!(
         starting_ts = game.starting_ts,
@@ -1098,7 +1149,8 @@ pub async fn prove_game_inner(
         return Ok(proof);
     }
 
-    let ctx = ChunkContext { provider, keys, host_inputs, game, responses, witness_limit };
+    let ctx =
+        ChunkContext { provider, keys, host_inputs, game, responses, witness_limit, stdin_limit };
     let attempts = plans
         .into_iter()
         .map(|plan| {
@@ -1177,9 +1229,23 @@ pub async fn prove_game_inner(
             stdin.write(&inputs);
 
             let expected = inputs.zk_dispute_game_public_values();
+            let child_proofs = stdin.proofs.len();
             let aggregation = complete_request(
                 &progress.aggregation_request,
-                async move || provider.request_aggregation_proof(keys, stdin).await,
+                async move || {
+                    let bytes = stdin_encoded_len(&stdin)?;
+                    if bytes > stdin_limit.get() {
+                        // Bisection only adds child proofs, so this needs an operator.
+                        ProposerGauge::AggregationStdinTooLarge.increment(1.0);
+                        let err =
+                            StdinTooLarge { kind: "aggregation", bytes, limit: stdin_limit.get() };
+                        return Err(anyhow::Error::new(GameUnprovable(format!(
+                            "aggregation over {child_proofs} child proofs does not fit one proof \
+                             request: {err}"
+                        ))));
+                    }
+                    provider.request_aggregation_proof(keys, stdin).await
+                },
                 async |proof_id| provider.wait_for_proof(proof_id).await,
                 |proof| {
                     provider.verify_aggregation_proof(keys, proof)?;
@@ -1591,6 +1657,37 @@ mod tests {
         assert!(node.split.lock().is_none());
     }
 
+    #[tokio::test]
+    async fn oversized_stdin_bisects_then_single_timestamp_is_unprovable() {
+        let prover = ScriptedSpanProver::new(|_, _| {
+            Err(anyhow::Error::new(StdinTooLarge { kind: "range", bytes: 2, limit: 1 }))
+        });
+        let node = ChunkProgress::default();
+
+        let err = prove_span(&prover, 0, ChunkSpan { agreed: 100, claimed: 102 }, None, &node)
+            .await
+            .err()
+            .unwrap();
+
+        assert!(is_unprovable(&err), "{err:#}");
+        assert_eq!(prover.calls(), vec![(100, 102), (100, 101)]);
+        assert!(node.split.lock().is_some());
+    }
+
+    #[test]
+    fn stdin_encoded_len_matches_full_encoding() {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&0x0102_0304_u64);
+        stdin.write_slice(&[7u8; 1000]);
+        stdin.write(&vec![1u32, 2, 3]);
+        stdin.write_slice(&[]);
+
+        let full = bincode1::serialize(&stdin).unwrap();
+
+        assert_eq!(stdin_encoded_len(&stdin).unwrap(), full.len() as u64);
+        assert_eq!(stdin_encoded_len(&SP1Stdin::new()).unwrap(), 24);
+    }
+
     fn fulfilled_proof() -> SP1ProofWithPublicValues {
         SP1ProofWithPublicValues {
             proof: SP1Proof::Core(Vec::new()),
@@ -1647,6 +1744,7 @@ mod tests {
             responses: &responses,
             split: RangeSplitCount::one(),
             witness_limit: WitnessByteLimit::default(),
+            stdin_limit: StdinByteLimit::default(),
             max_concurrent: NonZeroUsize::MIN,
             proof_progress: &cache,
         };
@@ -1687,6 +1785,7 @@ mod tests {
                 responses: &responses,
                 split: RangeSplitCount::new(2).unwrap(),
                 witness_limit: WitnessByteLimit::default(),
+                stdin_limit: StdinByteLimit::default(),
                 max_concurrent: NonZeroUsize::MIN,
                 proof_progress: &cache,
             };

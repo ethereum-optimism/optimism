@@ -321,10 +321,11 @@ re-detects unproven, signer-created games after restart.
 
 ### Terminal proof retry
 
-A multi-timestamp span whose witness exceeds `OP_ZK_PROPOSER_MAX_WITNESS_BYTES`, or whose
-request ends `Unexecutable`, is bisected by timestamp instead of retried; its superseded
-request no longer blocks the game. A single-timestamp span cannot be split: an oversized
-witness makes the game unprovable, and an `Unexecutable` request stays sticky.
+A multi-timestamp span whose witness exceeds `OP_ZK_PROPOSER_MAX_WITNESS_BYTES`, whose
+stdin exceeds `OP_ZK_PROPOSER_MAX_STDIN_BYTES`, or whose request ends `Unexecutable` is
+bisected by timestamp instead of retried; its superseded request no longer blocks the game.
+A single-timestamp span cannot be split: an oversized witness or stdin makes the game
+unprovable, and an `Unexecutable` request stays sticky.
 
 `Unexecutable` single-timestamp requests and local `ValidationFailed` requests are sticky.
 For unchanged attempt inputs, the proposer rejects the attempt before collecting witnesses
@@ -398,6 +399,9 @@ response. Use the error metrics below for diagnosis, not separate alerts.
 replacement proofs. `op_zk_proposer_proving_timeout_error` means polling
 timed out; the next attempt can reuse the request.
 `op_zk_proposer_game_unprovable` counts games the proposer cannot prove.
+Alert on `op_zk_proposer_aggregation_stdin_too_large`: it counts games whose
+aggregation stdin (child proofs plus inputs) exceeds `OP_ZK_PROPOSER_MAX_STDIN_BYTES`.
+Bisection only adds child proofs, so each such game needs operator intervention.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
@@ -455,6 +459,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
 | `OP_ZK_PROPOSER_MAX_WITNESS_BYTES` | witness bytes a multi-timestamp chunk may collect before it is bisected (default `1342177280`, 1.25 GiB; maximum `2147483647`, the guest's rkyv archive limit) |
+| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes one proof request may upload, including embedded child proofs (default `2684354560`, 2.5 GiB, about 1,054 spans of aggregation child proofs; maximum `17179869184`, the guest's input region, which bounds only the input buffers). An oversized range or consolidation stdin bisects its chunk; an oversized aggregation stdin makes the game unprovable |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |

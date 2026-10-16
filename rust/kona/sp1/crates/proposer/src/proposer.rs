@@ -964,6 +964,7 @@ impl Proposer {
             host_inputs,
             config.range_split_count,
             config.max_witness_bytes,
+            config.max_stdin_bytes,
             config.max_concurrent_range_proofs,
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
@@ -4807,7 +4808,7 @@ mod tests {
         adapters::ProductionL1View,
         config::{
             PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety,
-            ProposerConfig, RangeSplitCount, WitnessByteLimit,
+            ProposerConfig, RangeSplitCount, StdinByteLimit, WitnessByteLimit,
         },
         contract::{
             BondDistributionMode, DisputeGameFactory, GameStatus, ProposalStatus, ZKGameArgs,
@@ -5493,6 +5494,7 @@ mod tests {
             dependency_set_path: None,
             range_split_count: RangeSplitCount::one(),
             max_witness_bytes: WitnessByteLimit::default(),
+            max_stdin_bytes: StdinByteLimit::default(),
             max_concurrent_range_proofs: std::num::NonZeroUsize::MIN,
             max_concurrent_defense_tasks: std::num::NonZeroU64::new(8).unwrap(),
             fast_finality_mode: false,

@@ -168,6 +168,9 @@ pub struct ProposerConfig {
     /// Witness bytes a multi-timestamp proving span may collect before it is bisected.
     pub max_witness_bytes: WitnessByteLimit,
 
+    /// Encoded stdin bytes any one proof request may upload, including embedded child proofs.
+    pub max_stdin_bytes: StdinByteLimit,
+
     /// Maximum concurrent child (range/consolidation) proofs within one
     /// game's defense.
     pub max_concurrent_range_proofs: NonZeroUsize,
@@ -350,6 +353,7 @@ impl ProposerConfig {
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
             range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
             max_witness_bytes: parsed_env_or("MAX_WITNESS_BYTES", WitnessByteLimit::default())?,
+            max_stdin_bytes: parsed_env_or("MAX_STDIN_BYTES", StdinByteLimit::default())?,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -608,6 +612,49 @@ impl FromStr for WitnessByteLimit {
         let bytes = value
             .parse::<u64>()
             .map_err(|err| anyhow!("invalid max witness bytes {value}: {err}"))?;
+        Self::new(bytes)
+    }
+}
+
+/// Encoded stdin bytes one proof request may upload: input buffers plus embedded child proofs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StdinByteLimit(NonZeroU64);
+
+impl StdinByteLimit {
+    /// Default: 2.5 GiB.
+    pub const DEFAULT: u64 = 2_684_354_560;
+    /// The guest's 16 GiB input region (`sp1-zkvm`'s default `INPUT_REGION_SIZE`), which bounds
+    /// the input buffers. Embedded proofs are held in executor memory instead, so for aggregation
+    /// the practical bound is SPN's executor memory, well below this.
+    pub const MAX: u64 = 1 << 34;
+
+    /// Creates a limit, accepting 1 to [`Self::MAX`] bytes.
+    pub fn new(bytes: u64) -> Result<Self> {
+        match NonZeroU64::new(bytes) {
+            Some(bytes) if bytes.get() <= Self::MAX => Ok(Self(bytes)),
+            _ => bail!("max stdin bytes must be between 1 and {}, got {bytes}", Self::MAX),
+        }
+    }
+
+    /// Returns the limit in bytes.
+    pub const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+impl Default for StdinByteLimit {
+    fn default() -> Self {
+        Self::new(Self::DEFAULT).expect("default is a valid stdin byte limit")
+    }
+}
+
+impl FromStr for StdinByteLimit {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let bytes = value
+            .parse::<u64>()
+            .map_err(|err| anyhow!("invalid max stdin bytes {value}: {err}"))?;
         Self::new(bytes)
     }
 }
@@ -988,6 +1035,18 @@ mod tests {
                 );
             }
             unsafe { env::remove_var(env_var("MAX_WITNESS_BYTES")) };
+            assert_eq!(config.max_stdin_bytes.get(), 2_684_354_560);
+            set_proposer_env("MAX_STDIN_BYTES", "17179869184");
+            assert_eq!(ProposerConfig::from_env(None).unwrap().max_stdin_bytes.get(), 1 << 34);
+            for invalid in ["0", "17179869185"] {
+                set_proposer_env("MAX_STDIN_BYTES", invalid);
+                let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+                assert!(
+                    err.contains("max stdin bytes must be between 1 and 17179869184"),
+                    "unexpected: {err}"
+                );
+            }
+            unsafe { env::remove_var(env_var("MAX_STDIN_BYTES")) };
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
             assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);

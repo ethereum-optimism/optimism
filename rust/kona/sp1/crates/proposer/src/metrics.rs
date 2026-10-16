@@ -260,6 +260,14 @@ pub enum ProposerGauge {
         message = "Total number of permanently unprovable games"
     )]
     GameUnprovable,
+    /// Total number of games whose aggregation stdin (child proofs plus inputs) exceeded
+    /// `OP_ZK_PROPOSER_MAX_STDIN_BYTES`. Bisection only adds child proofs, so each event needs
+    /// operator intervention; the game is also counted in `game_unprovable`.
+    #[strum(
+        serialize = "op_zk_proposer_aggregation_stdin_too_large",
+        message = "Total number of games whose aggregation stdin exceeded the stdin limit"
+    )]
+    AggregationStdinTooLarge,
 }
 
 impl MetricsGauge for ProposerGauge {}

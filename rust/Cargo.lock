@@ -9975,6 +9975,7 @@ dependencies = [
  "alloy-transport-http",
  "anyhow",
  "async-trait",
+ "bincode 1.3.3",
  "bincode 2.0.1",
  "clap",
  "flate2",
