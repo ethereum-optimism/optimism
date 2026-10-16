@@ -37,6 +37,7 @@ type NodeP2P struct {
 	peerMonitor *monitor.PeerMonitor           // peer monitor to disconnect bad peers, may be nil even with p2p enabled
 	store       store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
 	appScorer   ApplicationScorer
+	metrics     metrics.Metricer
 	log         log.Logger
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
@@ -95,6 +96,7 @@ func (n *NodeP2P) init(
 	bwc := p2pmetrics.NewBandwidthCounter()
 
 	n.log = log
+	n.metrics = metrics
 
 	var err error
 	// nil if disabled.
@@ -216,6 +218,9 @@ func (n *NodeP2P) IsStatic(id peer.ID) bool {
 func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
 	if err := n.store.SetPeerBanExpiration(id, expiration); err != nil {
 		return fmt.Errorf("failed to set peer ban expiry: %w", err)
+	}
+	if !expiration.IsZero() && n.metrics != nil {
+		n.metrics.RecordPeerBan()
 	}
 	if err := n.host.Network().ClosePeer(id); err != nil {
 		return fmt.Errorf("failed to close peer connection: %w", err)

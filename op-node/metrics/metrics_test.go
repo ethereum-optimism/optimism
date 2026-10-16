@@ -85,3 +85,23 @@ func hardforkActivationMetricKey(metric *io_prometheus_client.Metric) string {
 	}
 	return labels["chain_id"] + "/" + labels["fork"] + "/" + labels["activation_basis"]
 }
+
+func TestRecordPeerBan(t *testing.T) {
+	t.Parallel()
+	m := NewMetrics("test", nil)
+	m.RecordPeerBan()
+	m.RecordPeerBan()
+	mfs, err := m.registry.Gather()
+	require.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() != "op_node_test_p2p_peer_bans" {
+			continue
+		}
+		require.Equal(t, io_prometheus_client.MetricType_COUNTER, mf.GetType())
+		require.Len(t, mf.GetMetric(), 1)
+		require.Empty(t, mf.GetMetric()[0].GetLabel())
+		require.Equal(t, float64(2), mf.GetMetric()[0].GetCounter().GetValue())
+		return
+	}
+	t.Fatal("peer ban metric not registered")
+}
