@@ -24,6 +24,13 @@ slow-timeout = { period = "1m", terminate-after = 10 }
 filter = "test(eest_fixtures)"
 slow-timeout = { period = "2m", terminate-after = 10 }
 
+# The kona-sp1 calibration tests execute full blocks in the SP1 executor; each runs alone to bound
+# the job's memory.
+[[profile.default.overrides]]
+filter = 'test(=log_estimate_bounds_measured_pgu) | test(=consolidation_tests::consolidation_estimate_bounds_measured_pgu) | test(=consolidation_tests::receipts_path_bound_bounds_measured_pgu)'
+slow-timeout = { period = "1m", terminate-after = 10 }
+threads-required = "num-test-threads"
+
 # E2E tests using the testsuite framework from crates/e2e-test-utils.
 [[profile.default.overrides]]
 filter = "binary(e2e_testsuite)"

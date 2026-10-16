@@ -10,7 +10,8 @@ use kona_sp1_client_utils::log_commitment::{
 };
 use kona_sp1_elfs::{ELF_DIR_ENV, load_elf_from};
 use kona_sp1_super_range_executor::{
-    build_log_commitment_stdin, build_log_commitment_stdin_from_receipts,
+    MAX_ENTRIES_PER_BATCH, build_log_commitment_stdin, build_log_commitment_stdin_from_receipts,
+    estimate_log_block_pgu, estimate_log_commitment_pgu,
 };
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues, SP1Stdin};
 
@@ -108,4 +109,57 @@ async fn measure_log_heavy_block() {
 #[ignore = "manual SP1 cost measurement"]
 async fn measure_single_log_block() {
     measure(1, 0).await;
+}
+
+/// `count` logs with distinct addresses, `topics` topics, and `data` data bytes each.
+fn shaped_logs(first_seed: u64, count: u64, topics: usize, data: usize) -> Vec<Log> {
+    (first_seed..first_seed + count)
+        .map(|seed| Log {
+            address: Address::left_padding_from(&seed.to_be_bytes()),
+            data: LogData::new_unchecked(
+                vec![B256::repeat_byte(0x11); topics],
+                Bytes::from(vec![seed as u8; data]),
+            ),
+        })
+        .collect()
+}
+
+/// A block with one receipt for each entry of `logs`.
+fn block(logs: Vec<Vec<Log>>) -> BlockReceipts {
+    let receipts: Vec<_> = logs.into_iter().map(eip1559).collect();
+    BlockReceipts { receipts_root: receipts_root(&receipts), receipts }
+}
+
+/// Pins a batch estimate at or above the measured PGU for each log shape.
+#[tokio::test(flavor = "multi_thread")]
+async fn log_estimate_bounds_measured_pgu() {
+    let Some(dir) = elf_dir() else { return };
+    let mixed: Vec<_> = (0..8u64)
+        .map(|i| block(vec![shaped_logs(i * 100, i * 10, (i % 5) as usize, (i * 64) as usize); 3]))
+        .collect();
+    let at_cap: Vec<_> =
+        (0..MAX_ENTRIES_PER_BATCH as u64).map(|i| block(vec![shaped_logs(i, 1, 1, 32)])).collect();
+    let shapes = [
+        ("one log", vec![block(vec![shaped_logs(0, 1, 0, 0)])]),
+        ("3,480 logs of 1 KB", vec![block(vec![shaped_logs(0, 3_480, 0, 1_024)])]),
+        ("75,000 empty logs", vec![block(vec![shaped_logs(0, 75_000, 0, 0)])]),
+        ("16,000 logs of 4 topics", vec![block(vec![shaped_logs(0, 16_000, 4, 0)])]),
+        ("1,428 receipts without logs", vec![block(vec![vec![]; 1_428])]),
+        ("one 100 KB log", vec![block(vec![shaped_logs(0, 1, 0, 100 * 1_024)])]),
+        ("8 mixed blocks", mixed),
+        ("entry cap", at_cap),
+    ];
+    for (shape, blocks) in shapes {
+        let estimate = estimate_log_commitment_pgu(
+            blocks.iter().map(|block| estimate_log_block_pgu(&block.receipts)),
+        );
+        let (native, _) = native_public_values(&blocks);
+        let stdin = build_log_commitment_stdin_from_receipts(&blocks).unwrap();
+        let (public_values, report) = execute(&dir, stdin).await.unwrap();
+        assert_eq!(report.exit_code, 0, "{shape}");
+        assert_eq!(public_values.as_slice(), native.as_slice(), "{shape}");
+        let measured = report.gas().expect("gas is calculated");
+        println!("RESULT shape={shape:?} measured={measured} estimate={estimate}");
+        assert!(measured <= estimate, "{shape}: measured {measured} PGU over estimate {estimate}");
+    }
 }
