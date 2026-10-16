@@ -8,7 +8,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Debug},
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -195,7 +195,6 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         config.end_timestamp,
-        None,
     )?;
     let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
@@ -267,7 +266,6 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             &synthesized.previous_super_root_proof_bytes,
             synthesized.current_super_root,
             config.end_timestamp,
-            None,
         )?;
         collect_consolidation_witness(
             host,
@@ -1031,15 +1029,13 @@ where
 ///
 /// Deployment-scoped endpoints come from `inputs`; the remaining arguments are the per-span
 /// facts: the trusted L1 head, the encoded agreed pre-state super-root proof, the claimed
-/// post-state super root, and the claimed (span-end) timestamp. With `data_dir`, the host keeps
-/// its preimages in a `RocksDB` store there instead of in memory.
+/// post-state super root, and the claimed (span-end) timestamp.
 pub fn build_interop_host(
     inputs: &HostInputs,
     l1_head: B256,
     agreed_pre_state: &[u8],
     claimed_post_state: B256,
     claimed_timestamp: u64,
-    data_dir: Option<&Path>,
 ) -> Result<InteropHost> {
     ensure!(!inputs.l2_node_addresses.is_empty(), "at least one L2 node address is required",);
     Ok(InteropHost {
@@ -1050,8 +1046,8 @@ pub fn build_interop_host(
         l2_node_addresses: Some(inputs.l2_node_addresses.clone()),
         l1_node_address: Some(inputs.l1_node_address.clone()),
         l1_beacon_address: Some(inputs.l1_beacon_address.clone()),
-        data_dir: data_dir.map(Path::to_path_buf),
-        data_format: DataFormat::Rocksdb,
+        data_dir: None,
+        data_format: DataFormat::Directory,
         native: false,
         server: true,
         rollup_config_paths: inputs.rollup_config_paths.clone(),
@@ -1549,7 +1545,6 @@ mod tests {
                 &[],
                 b256(0xbb),
                 101,
-                None,
             )
             .unwrap();
             let result = deployment_chain_configs(&host, &chain_ids);
@@ -1598,7 +1593,6 @@ mod tests {
             &[],
             b256(0xbb),
             101,
-            None,
         )
         .unwrap();
         let loaded = deployment_chain_configs(&host, &[U256::from(u64::MAX)]).unwrap();

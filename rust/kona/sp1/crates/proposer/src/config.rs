@@ -212,9 +212,6 @@ pub struct ProposerConfig {
 
     /// Consolidation path for blocks below a local-safe head.
     pub log_path: LogPath,
-
-    /// Directory for the temporary preimage stores of witness collections.
-    pub scratch_dir: PathBuf,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -392,7 +389,6 @@ impl ProposerConfig {
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
             log_path: parsed_env_or("LOG_PATH", LogPath::Auto)?,
-            scratch_dir: optional_env("SCRATCH_DIR").map_or_else(env::temp_dir, PathBuf::from),
         })
     }
 }
@@ -1127,21 +1123,18 @@ mod tests {
             assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Reserved);
         }
 
-        /// Pins the path and scratch-directory defaults, their overrides, and an unknown path.
+        /// Pins the path default, its override, and an unknown path.
         #[test]
         #[serial]
-        fn log_settings_path_and_scratch_dir() {
+        fn log_settings_path() {
             clear_proposer_env();
             set_required_mock_env();
             let config = ProposerConfig::from_env(None).unwrap();
             assert_eq!(config.log_path, LogPath::Auto);
-            assert_eq!(config.scratch_dir, env::temp_dir());
 
             set_proposer_env("LOG_PATH", "Table");
-            set_proposer_env("SCRATCH_DIR", "/var/scratch");
             let config = ProposerConfig::from_env(None).unwrap();
             assert_eq!(config.log_path, LogPath::Table);
-            assert_eq!(config.scratch_dir, PathBuf::from("/var/scratch"));
 
             set_proposer_env("LOG_PATH", "sometimes");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();

@@ -465,7 +465,6 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 | `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `auto`, `receipts`, or `table` (default `auto`); `receipts` turns the table path off |
-| `OP_ZK_PROPOSER_SCRATCH_DIR` | parent directory of the on-disk preimage stores of witness collections (default the system temporary directory); a killed process leaves its `op-zk-proposer-collection-*` directories there |
 
 SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
 `OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
