@@ -48,7 +48,8 @@ impl<C: EngineClient> Ord for QueuedTask<C> {
 ///
 /// Tasks within the queue are also considered fallible. If they fail with a temporary error,
 /// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`].
+/// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
+/// block, so it is popped before the error is returned.
 #[derive(Debug)]
 pub struct Engine<EngineClient_: EngineClient> {
     /// The state of the engine.
@@ -153,8 +154,8 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
-    /// an error along the way, it is not popped from the queue (in case it must be retried) and
-    /// the error is returned.
+    /// an error along the way, the error is returned and the task is not popped from the queue (in
+    /// case it must be retried), unless it is a flush error.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
@@ -162,10 +163,21 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
                 self.active = self.tasks.pop().map(|queued| queued.task);
             }
             let Some(task) = &self.active else { break };
-            task.execute(&mut self.state).await?;
+            let result = task.execute(&mut self.state).await;
+
+            // A flush reports that the task replaced its block with a deposits-only block, so the
+            // task is done; retrying it would replace that block again.
+            if let Err(err) = &result &&
+                err.severity() != EngineTaskErrorSeverity::Flush
+            {
+                return result;
+            }
+
             self.state_sender.send_replace(self.state);
             self.active = None;
             self.task_queue_length.send_replace(self.len());
+
+            result?;
         }
 
         Ok(())
@@ -197,11 +209,17 @@ impl EngineResetError {
 #[cfg(test)]
 mod recovery_tests {
     use super::*;
-    use crate::{InsertTask, NoopBlockSink, test_utils::MockEngineClient};
-    use alloy_rpc_types_engine::{
-        ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
+    use crate::{
+        ConsolidateInput, ConsolidateTask, InsertTask, NoopBlockSink,
+        test_utils::{
+            MockEngineClient, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
+        },
     };
-    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+    use alloy_rpc_types_engine::{
+        BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceUpdated, PayloadId,
+        PayloadStatus, PayloadStatusEnum,
+    };
+    use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3};
 
     #[tokio::test]
     async fn temporary_failure_returns_with_task_retained_for_recovery() {
@@ -262,5 +280,79 @@ mod recovery_tests {
         assert!(engine.is_empty());
         assert_eq!(*queue_rx.borrow(), 0);
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+    }
+
+    // A flush means the task already replaced its block with a deposits-only block. Keeping it
+    // would rebuild that replacement on every later drain.
+    #[tokio::test]
+    async fn flushed_task_is_dropped_not_retried() {
+        let parent = test_block_info(10);
+        let deposit = alloy_primitives::Bytes::from(vec![op_alloy_consensus::DEPOSIT_TX_TYPE_ID]);
+        let attributes = TestAttributesBuilder::new()
+            .with_parent(parent)
+            .with_transactions(vec![deposit, alloy_primitives::Bytes::from(vec![0x02])])
+            .build();
+
+        // The deposits-only block the engine builds. It is genesis, so its block info needs no
+        // L1-info deposit.
+        let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+        block.header.number = parent.block_info.number + 1;
+        let replacement = OpExecutionPayloadEnvelopeV3 {
+            execution_payload: ExecutionPayloadV3::from_block_slow(&block),
+            block_value: Default::default(),
+            blobs_bundle: BlobsBundleV1::default(),
+            should_override_builder: false,
+            parent_beacon_block_root: Default::default(),
+        };
+        let imported: op_alloy_consensus::OpBlock = OpExecutionPayloadEnvelope::V3 {
+            payload: replacement.execution_payload.clone(),
+            parent_beacon_block_root: replacement.parent_beacon_block_root,
+        }
+        .try_into_block()
+        .unwrap();
+        let mut config = RollupConfig::default();
+        config.hardforks.ecotone_time = Some(0);
+        config.hardforks.holocene_time = Some(0);
+        config.genesis.l2.number = imported.header.number;
+        config.genesis.l2.hash = imported.header.hash_slow();
+        let config = Arc::new(config);
+
+        let valid = PayloadStatus::from_status(PayloadStatusEnum::Valid);
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_fork_choice_updated_v3_rejecting_non_deposit_attributes()
+                .with_fork_choice_updated_v3_response(ForkchoiceUpdated {
+                    payload_status: valid.clone(),
+                    payload_id: Some(PayloadId::new([1; 8])),
+                })
+                .with_execution_payload_v3(replacement)
+                .with_new_payload_v3_response(valid)
+                .build(),
+        );
+        // The safe head is at the unsafe head, so the task builds the attributes instead of
+        // consolidating them against an unsafe block.
+        let state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
+        let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let (queue_tx, queue_rx) = tokio::sync::watch::channel(0);
+        let mut engine = Engine::new(state, state_tx, queue_tx);
+        engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            client.clone(),
+            config,
+            ConsolidateInput::Attributes(Box::new(attributes)),
+            Arc::new(NoopBlockSink),
+        ))));
+
+        let error = engine.drain().await.unwrap_err();
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Flush, "got {error:?}");
+        let builds = client.fork_choice_updated_v3_attributes().await.iter().flatten().count();
+        assert_eq!(builds, 2, "one build for the batch, one for its replacement");
+        assert!(engine.is_empty());
+        assert_eq!(*queue_rx.borrow(), 0);
+        // The task updates `engine.state()` itself; only drain publishes it.
+        assert_eq!(
+            state_rx.borrow().sync_state.safe_head().block_info.hash,
+            imported.header.hash_slow()
+        );
     }
 }

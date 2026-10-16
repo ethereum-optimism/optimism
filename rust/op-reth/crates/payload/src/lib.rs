@@ -14,6 +14,7 @@ extern crate alloc;
 pub mod builder;
 pub use builder::{
     CommittedTxGas, OpPayloadBuilder, PayloadTransactionsWithCommitHook, RethPayloadTransactions,
+    is_invalid_derived_payload_error,
 };
 pub mod error;
 pub mod payload;

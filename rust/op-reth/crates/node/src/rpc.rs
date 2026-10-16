@@ -91,15 +91,19 @@ pub use reth_optimism_rpc::{OpEngineApi, OpEthApi, OpEthApiBuilder};
 
 use crate::OP_NAME_CLIENT;
 use alloy_rpc_types_engine::ClientVersionV1;
+use reth_basic_payload_builder::{HeaderForPayload, PayloadBuilder};
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{
-    AddOnsContext, EngineApiValidator, EngineTypes, FullNodeComponents, NodeTypes,
+    AddOnsContext, EngineApiValidator, EngineTypes, FullNodeComponents, NodeTypes, PayloadTypes,
+    PayloadValidator,
 };
 use reth_node_builder::rpc::{EngineApiBuilder, PayloadValidatorBuilder};
 use reth_node_core::version::{CLIENT_CODE, version_metadata};
-use reth_optimism_payload_builder::OpExecData;
-use reth_optimism_rpc::engine::OP_ENGINE_CAPABILITIES;
+use reth_optimism_payload_builder::{OpExecData, OpPayloadAttrs};
+use reth_optimism_rpc::engine::{DerivedPayloads, OP_ENGINE_CAPABILITIES};
 use reth_payload_builder::PayloadStore;
+use reth_primitives_traits::Block;
+use reth_provider::HeaderProvider;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
 
 /// Builder for basic [`OpEngineApi`] implementation.
@@ -108,16 +112,33 @@ pub struct OpEngineApiBuilder<EV> {
     engine_validator_builder: EV,
 }
 
+/// The payload type of the node `N`.
+type PayloadOf<N> = <<N as reth_node_api::FullNodeTypes>::Types as NodeTypes>::Payload;
+
 impl<N, EV> EngineApiBuilder<N> for OpEngineApiBuilder<EV>
 where
     N: FullNodeComponents<
-        Types: NodeTypes<
-            ChainSpec: EthereumHardforks,
-            Payload: EngineTypes<ExecutionData = OpExecData>,
+            Types: NodeTypes<
+                ChainSpec: EthereumHardforks,
+                Payload: EngineTypes<
+                    ExecutionData = OpExecData,
+                    PayloadAttributes = OpPayloadAttrs,
+                >,
+            >,
+            Provider: HeaderProvider<
+                Header = HeaderForPayload<<PayloadOf<N> as PayloadTypes>::BuiltPayload>,
+            >,
         >,
-    >,
     EV: PayloadValidatorBuilder<N>,
-    EV::Validator: EngineApiValidator<<N::Types as NodeTypes>::Payload>,
+    EV::Validator: EngineApiValidator<PayloadOf<N>>
+        + PayloadValidator<
+            PayloadOf<N>,
+            Block: Block<Header = HeaderForPayload<<PayloadOf<N> as PayloadTypes>::BuiltPayload>>,
+        > + Clone,
+    reth_optimism_payload_builder::OpPayloadBuilder<N::Pool, N::Provider, N::Evm>: PayloadBuilder<
+            Attributes = OpPayloadAttrs,
+            BuiltPayload = <PayloadOf<N> as PayloadTypes>::BuiltPayload,
+        > + 'static,
 {
     type EngineApi = OpEngineApi<
         N::Provider,
@@ -131,6 +152,17 @@ where
         let Self { engine_validator_builder } = self;
 
         let engine_validator = engine_validator_builder.build(ctx).await?;
+        // The default builder config only shapes transaction-pool selection and SDM production,
+        // which derived payloads never use.
+        let derived_payloads = DerivedPayloads::new(
+            reth_optimism_payload_builder::OpPayloadBuilder::new(
+                ctx.node.pool().clone(),
+                ctx.node.provider().clone(),
+                ctx.node.evm_config().clone(),
+            ),
+            ctx.node.payload_builder_handle().clone(),
+            ctx.node.task_executor().clone(),
+        );
         let client = ClientVersionV1 {
             code: CLIENT_CODE,
             name: OP_NAME_CLIENT.to_string(),
@@ -146,11 +178,11 @@ where
             ctx.node.task_executor().clone(),
             client,
             EngineCapabilities::new(OP_ENGINE_CAPABILITIES.iter().copied()),
-            engine_validator,
+            engine_validator.clone(),
             ctx.config.engine.accept_execution_requests_hash,
             ctx.node.network().clone(),
         );
 
-        Ok(OpEngineApi::new(inner))
+        Ok(OpEngineApi::new(inner, ctx.node.provider().clone(), engine_validator, derived_payloads))
     }
 }

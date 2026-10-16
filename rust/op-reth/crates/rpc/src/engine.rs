@@ -1,25 +1,38 @@
 //! Implements the Optimism engine API RPC methods.
 
+mod derived;
+pub use derived::{
+    DerivedBuild, DerivedPayloadBuilder, DerivedPayloads, builds_at_forkchoice_updated,
+};
+
+use alloy_consensus::BlockHeader;
 use alloy_eips::eip7685::Requests;
 use alloy_primitives::{B256, BlockHash, U64};
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadInputV2, ExecutionPayloadV3,
-    ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
+    ForkchoiceState, ForkchoiceUpdated, INVALID_PAYLOAD_ATTRIBUTES_ERROR,
+    INVALID_PAYLOAD_ATTRIBUTES_ERROR_MSG, PayloadId, PayloadStatus,
 };
-use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
+use jsonrpsee_types::ErrorObject;
 use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
+use reth_basic_payload_builder::HeaderForPayload;
 use reth_chainspec::EthereumHardforks;
-use reth_node_api::{EngineApiValidator, EngineTypes};
-use reth_optimism_payload_builder::OpExecData;
+use reth_node_api::{
+    BuiltPayload, EngineApiMessageVersion, EngineApiValidator, EngineTypes, MessageValidationKind,
+    PayloadAttributes, PayloadValidator, validate_payload_timestamp,
+};
+use reth_optimism_payload_builder::{OpExecData, OpPayloadAttrs};
+use reth_primitives_traits::Block;
 use reth_rpc_api::IntoEngineApiRpcModule;
-use reth_rpc_engine_api::EngineApi;
+use reth_rpc_engine_api::{EngineApi, EngineApiError, EngineApiResult};
 use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
-use tracing::{debug, trace};
+use std::{fmt, sync::Arc};
+use tracing::{debug, trace, warn};
 
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_engine_api::capabilities::CAPABILITIES`
+/// UPSTREAM-MIRROR(set): reth@rev:0a81846 `reth_rpc_engine_api::capabilities::CAPABILITIES`
 ///
 /// Advertised capabilities must stay in step with the methods declared on [`OpEngineApi`].
 /// The list of all supported Engine capabilities available over the engine endpoint.
@@ -50,7 +63,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "engine"), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "engine", client_bounds(Engine::PayloadAttributes: jsonrpsee::core::Serialize + Clone), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned)))]
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_api::EngineApi`
+/// UPSTREAM-MIRROR(set): reth@rev:0a81846 `reth_rpc_api::EngineApi`
 ///
 /// Re-declares the engine RPC surface rather than extending upstream's trait. A method added
 /// upstream produces no diff here, so compare the method sets on each bump and update
@@ -253,9 +266,50 @@ pub trait OpEngineApi<Engine: EngineTypes> {
 
 /// The Engine API implementation that grants the Consensus layer access to data and
 /// functions in the Execution layer that are crucial for the consensus process.
-#[derive(Debug, Constructor)]
+///
+/// It builds the payload of derived attributes (see [`builds_at_forkchoice_updated`]) while
+/// answering `engine_forkchoiceUpdated`, so that it can reject transactions that make the payload
+/// invalid with `-38003` (invalid payload attributes), and serves that payload from
+/// `engine_getPayload`. Everything else goes to reth's [`EngineApi`].
+#[derive(Debug)]
 pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec> {
     inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,
+    derived: Arc<Derived<Provider, EngineT, Validator>>,
+}
+
+/// What [`OpEngineApi`] needs to build derived payloads.
+struct Derived<Provider, EngineT: EngineTypes, Validator> {
+    provider: Provider,
+    validator: Validator,
+    payloads: DerivedPayloads<EngineT>,
+    /// Held for the whole of an `engine_forkchoiceUpdated` call. A derived build and the
+    /// forkchoice update that may follow it then act as one step, as in reth's engine, so a
+    /// newer forkchoice update can never be overwritten by an older one.
+    forkchoice: tokio::sync::Mutex<()>,
+}
+
+impl<Provider, EngineT: EngineTypes, Validator> fmt::Debug
+    for Derived<Provider, EngineT, Validator>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Derived").field("payloads", &self.payloads).finish_non_exhaustive()
+    }
+}
+
+impl<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec>
+    OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
+{
+    /// Creates a new instance that delegates to `inner`, and builds derived payloads on top of
+    /// `provider`'s state after validating their attributes with `validator`.
+    pub fn new(
+        inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,
+        provider: Provider,
+        validator: Validator,
+        payloads: DerivedPayloads<EngineT>,
+    ) -> Self {
+        let forkchoice = Default::default();
+        Self { inner, derived: Arc::new(Derived { provider, validator, payloads, forkchoice }) }
+    }
 }
 
 impl<Provider, PayloadT, Pool, Validator, ChainSpec> Clone
@@ -264,7 +318,147 @@ where
     PayloadT: EngineTypes,
 {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self { inner: self.inner.clone(), derived: self.derived.clone() }
+    }
+}
+
+impl<Provider, EngineT, Pool, Validator, ChainSpec>
+    OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
+where
+    Provider: HeaderProvider<Header = HeaderForPayload<EngineT::BuiltPayload>>
+        + BlockReader
+        + StateProviderFactory
+        + BalProvider
+        + 'static,
+    EngineT: EngineTypes<ExecutionData = OpExecData, PayloadAttributes = OpPayloadAttrs>,
+    Pool: TransactionPool + 'static,
+    Validator: EngineApiValidator<EngineT>
+        + PayloadValidator<EngineT, Block: Block<Header = Provider::Header>>,
+    ChainSpec: EthereumHardforks + Send + Sync + 'static,
+{
+    async fn inner_fork_choice_updated(
+        &self,
+        version: EngineApiMessageVersion,
+        state: ForkchoiceState,
+        attrs: Option<OpPayloadAttrs>,
+    ) -> EngineApiResult<ForkchoiceUpdated> {
+        match version {
+            EngineApiMessageVersion::V1 => {
+                self.inner.fork_choice_updated_v1_metered(state, attrs).await
+            }
+            EngineApiMessageVersion::V2 => {
+                self.inner.fork_choice_updated_v2_metered(state, attrs).await
+            }
+            // The OP engine API ends at engine_forkchoiceUpdatedV3.
+            _ => self.inner.fork_choice_updated_v3_metered(state, attrs).await,
+        }
+    }
+
+    /// Updates the forkchoice. Builds the payload of derived attributes before answering, and
+    /// leaves any other attributes to the payload service.
+    async fn fork_choice_updated(
+        &self,
+        version: EngineApiMessageVersion,
+        state: ForkchoiceState,
+        attrs: Option<OpPayloadAttrs>,
+    ) -> EngineApiResult<ForkchoiceUpdated> {
+        let _forkchoice = self.derived.forkchoice.lock().await;
+        let attrs = match attrs {
+            Some(attrs) if builds_at_forkchoice_updated(&attrs) => attrs,
+            attrs => return self.inner_fork_choice_updated(version, state, attrs).await,
+        };
+        match self.build_derived(version, state, &attrs).await {
+            Some(updated) => updated,
+            None => self.inner_fork_choice_updated(version, state, Some(attrs)).await,
+        }
+    }
+
+    /// Updates the forkchoice to `state` and builds the payload of the derived `attrs` on top of
+    /// its head.
+    ///
+    /// Returns `None` if reth has to answer instead: when it rejects the attributes, so its exact
+    /// response is kept, and when the build fails for a node-local reason, so the payload service
+    /// builds them and the rollup node can retry.
+    ///
+    /// UPSTREAM-MIRROR(copy): reth@rev:0a81846
+    /// `reth_rpc_engine_api::EngineApi::validate_and_execute_forkchoice`
+    ///
+    /// Runs the attribute checks reth makes before it starts a payload job, in its order: the
+    /// well-formedness check here, then the engine tree's check against the head
+    /// (`process_payload_attributes`), and computes the payload id as the tree does. A check
+    /// added upstream must be added here too. The `-38003` for invalid transactions has reth's
+    /// code and message, with the build error as data.
+    async fn build_derived(
+        &self,
+        version: EngineApiMessageVersion,
+        state: ForkchoiceState,
+        attrs: &OpPayloadAttrs,
+    ) -> Option<EngineApiResult<ForkchoiceUpdated>> {
+        let derived = &self.derived;
+        // The checks reth runs on attributes before it starts a payload job.
+        derived.validator.ensure_well_formed_attributes(version, attrs).ok()?;
+        let updated = match self.inner_fork_choice_updated(version, state, None).await {
+            Ok(updated) if updated.is_valid() => updated,
+            result => return Some(result),
+        };
+        let parent_hash = state.head_block_hash;
+        let parent = match derived.provider.sealed_header_by_hash(parent_hash) {
+            Ok(Some(parent)) => parent,
+            result => {
+                warn!(target: "rpc::engine", %parent_hash, ?result, "Missing parent of derived payload, building it in the payload service");
+                return None;
+            }
+        };
+        derived
+            .validator
+            .validate_payload_attributes_against_header(attrs, parent.header())
+            .ok()?;
+
+        let id = attrs.payload_id(&parent_hash);
+        match derived.payloads.build(parent, attrs.clone(), id).await {
+            DerivedBuild::Built => Some(Ok(ForkchoiceUpdated { payload_id: Some(id), ..updated })),
+            DerivedBuild::Invalid(err) => {
+                warn!(target: "rpc::engine", %err, %parent_hash, %id, "Derived attributes make the payload invalid");
+                Some(Err(EngineApiError::other(ErrorObject::owned(
+                    INVALID_PAYLOAD_ATTRIBUTES_ERROR,
+                    INVALID_PAYLOAD_ATTRIBUTES_ERROR_MSG,
+                    Some(serde_json::json!({ "err": err })),
+                ))))
+            }
+            DerivedBuild::Failed(err) => {
+                warn!(target: "rpc::engine", %err, %parent_hash, %id, "Failed to build derived payload, building it in the payload service");
+                None
+            }
+        }
+    }
+
+    /// Returns the derived payload `id` as the envelope of `version`, if it was built at
+    /// `engine_forkchoiceUpdated`, and hands its executed block to the engine.
+    ///
+    /// UPSTREAM-MIRROR(copy): reth@rev:0a81846 `reth_rpc_engine_api::EngineApi::get_payload_inner`
+    ///
+    /// Checks the payload's fork against the method version and publishes the payload like a
+    /// resolved payload job before converting it.
+    fn derived_payload<R>(
+        &self,
+        id: PayloadId,
+        version: EngineApiMessageVersion,
+    ) -> EngineApiResult<Option<R>>
+    where
+        EngineT::BuiltPayload: TryInto<R>,
+    {
+        let Some(payload) = self.derived.payloads.get(id) else { return Ok(None) };
+        validate_payload_timestamp(
+            self.inner.chain_spec(),
+            version,
+            payload.block().timestamp(),
+            MessageValidationKind::GetPayload,
+        )?;
+        self.derived.payloads.publish(payload.clone());
+        payload.try_into().map(Some).map_err(|_| {
+            warn!(target: "rpc::engine", ?version, "could not transform built payload");
+            EngineApiError::UnknownPayload
+        })
     }
 }
 
@@ -272,10 +466,15 @@ where
 impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
     for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
 where
-    Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
-    EngineT: EngineTypes<ExecutionData = OpExecData>,
+    Provider: HeaderProvider<Header = HeaderForPayload<EngineT::BuiltPayload>>
+        + BlockReader
+        + StateProviderFactory
+        + BalProvider
+        + 'static,
+    EngineT: EngineTypes<ExecutionData = OpExecData, PayloadAttributes = OpPayloadAttrs>,
     Pool: TransactionPool + 'static,
-    Validator: EngineApiValidator<EngineT>,
+    Validator: EngineApiValidator<EngineT>
+        + PayloadValidator<EngineT, Block: Block<Header = Provider::Header>>,
     ChainSpec: EthereumHardforks + Send + Sync + 'static,
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
@@ -323,7 +522,10 @@ where
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<EngineT::PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
-        Ok(self.inner.fork_choice_updated_v1_metered(fork_choice_state, payload_attributes).await?)
+        trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV1");
+        Ok(self
+            .fork_choice_updated(EngineApiMessageVersion::V1, fork_choice_state, payload_attributes)
+            .await?)
     }
 
     async fn fork_choice_updated_v2(
@@ -332,7 +534,9 @@ where
         payload_attributes: Option<EngineT::PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV2");
-        Ok(self.inner.fork_choice_updated_v2_metered(fork_choice_state, payload_attributes).await?)
+        Ok(self
+            .fork_choice_updated(EngineApiMessageVersion::V2, fork_choice_state, payload_attributes)
+            .await?)
     }
 
     async fn fork_choice_updated_v3(
@@ -341,7 +545,9 @@ where
         payload_attributes: Option<EngineT::PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV3");
-        Ok(self.inner.fork_choice_updated_v3_metered(fork_choice_state, payload_attributes).await?)
+        Ok(self
+            .fork_choice_updated(EngineApiMessageVersion::V3, fork_choice_state, payload_attributes)
+            .await?)
     }
 
     async fn get_payload_v2(
@@ -349,6 +555,9 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV2> {
         debug!(target: "rpc::engine", id = %payload_id, "Serving engine_getPayloadV2");
+        if let Some(payload) = self.derived_payload(payload_id, EngineApiMessageVersion::V2)? {
+            return Ok(payload);
+        }
         Ok(self.inner.get_payload_v2_metered(payload_id).await?)
     }
 
@@ -357,6 +566,9 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV3> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV3");
+        if let Some(payload) = self.derived_payload(payload_id, EngineApiMessageVersion::V3)? {
+            return Ok(payload);
+        }
         Ok(self.inner.get_payload_v3_metered(payload_id).await?)
     }
 
@@ -365,6 +577,9 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV4> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV4");
+        if let Some(payload) = self.derived_payload(payload_id, EngineApiMessageVersion::V4)? {
+            return Ok(payload);
+        }
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
     }
 
@@ -373,6 +588,9 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV5> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV5");
+        if let Some(payload) = self.derived_payload(payload_id, EngineApiMessageVersion::V5)? {
+            return Ok(payload);
+        }
         Ok(self.inner.get_payload_v5_metered(payload_id).await?)
     }
 
