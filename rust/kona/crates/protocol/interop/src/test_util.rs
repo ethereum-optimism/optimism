@@ -3,7 +3,7 @@
 #![allow(missing_docs, unreachable_pub, unused)]
 
 use crate::{
-    BlocksWithReceipts, ExecutingMessage, MessageIdentifier, RawMessagePayload,
+    BlockWithReceipts, BlocksWithReceipts, ExecutingMessage, MessageIdentifier, RawMessagePayload,
     traits::{InitiatingLogs, InteropProvider, LogCommitment},
 };
 use alloy_consensus::{Header, Receipt, ReceiptWithBloom, Sealed};
@@ -92,7 +92,10 @@ impl SuperchainBuilder {
             chain_receipts.insert(sealed_header.number, chain.receipts.clone());
             receipts_map.insert(chain_id, chain_receipts);
 
-            sealed_headers.insert(chain_id, (sealed_header, chain.receipts));
+            sealed_headers.insert(
+                chain_id,
+                BlockWithReceipts { header: sealed_header, receipts: chain.receipts },
+            );
             rollup_cfgs.insert(chain_id, chain.rollup_config);
         }
 

@@ -8,7 +8,9 @@ use alloy_primitives::{Address, B256};
 use alloy_rlp::Decodable;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_interop::{BlocksWithReceipts, InitiatingLogs, InteropProvider, LogCommitment};
+use kona_interop::{
+    BlockWithReceipts, BlocksWithReceipts, InitiatingLogs, InteropProvider, LogCommitment,
+};
 use kona_mpt::{OrderedListWalker, TrieHinter, TrieNode, TrieProvider};
 use kona_preimage::{
     CommsClient, PreimageKey, PreimageKeyType, PreimageOracleClient, errors::PreimageOracleError,
@@ -194,7 +196,7 @@ where
         let mut blocks = HashMap::default();
         for (chain_id, head) in heads {
             let receipts = self.receipts_by_hash(*chain_id, head.hash()).await?;
-            blocks.insert(*chain_id, (head.clone(), receipts));
+            blocks.insert(*chain_id, BlockWithReceipts { header: head.clone(), receipts });
         }
         Ok(blocks)
     }
@@ -943,7 +945,7 @@ mod tests {
         let (headers, configs, mock) = superchain.build();
         let (mut client, fixture) = load_fixture();
         let mut safe_heads = HashMap::default();
-        for (chain_id, (header, receipts)) in headers {
+        for (chain_id, BlockWithReceipts { header, receipts }) in headers {
             let receipts_root = insert_test_receipts(&mut client, &receipts);
             let header =
                 insert_test_header(&mut client, Header { receipts_root, ..header.into_inner() });

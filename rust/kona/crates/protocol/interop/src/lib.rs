@@ -9,7 +9,7 @@
 extern crate alloc;
 
 mod graph;
-pub use graph::{BlocksWithReceipts, MessageGraph};
+pub use graph::{BlockWithReceipts, BlocksWithReceipts, MessageGraph};
 
 mod rules;
 pub use rules::MessageRules;

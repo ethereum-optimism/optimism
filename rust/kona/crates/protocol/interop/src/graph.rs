@@ -43,9 +43,17 @@ pub struct MessageGraph<'a, P> {
     dependency_set: &'a DependencySet,
 }
 
-/// Each chain's block and the block's receipts, verified against its receipts root, keyed by
-/// chain ID.
-pub type BlocksWithReceipts = HashMap<u64, (Sealed<Header>, Vec<OpReceiptEnvelope>)>;
+/// A block and its receipts, verified against its receipts root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockWithReceipts {
+    /// The block's header.
+    pub header: Sealed<Header>,
+    /// The block's receipts.
+    pub receipts: Vec<OpReceiptEnvelope>,
+}
+
+/// Each chain's [`BlockWithReceipts`], keyed by chain ID.
+pub type BlocksWithReceipts = HashMap<u64, BlockWithReceipts>;
 
 /// A canonical initiating block, with its logs loaded on the first message that passes the
 /// header checks.
@@ -80,7 +88,7 @@ where
         );
 
         let mut messages = Vec::with_capacity(blocks.len());
-        for (chain_id, (header, receipts)) in blocks {
+        for (chain_id, BlockWithReceipts { header, receipts }) in blocks {
             // Track the global log index across all receipts in the block so we can
             // record each executing message's position, needed for cycle detection.
             let mut global_log_index: u32 = 0;
@@ -333,7 +341,7 @@ where
 #[cfg(test)]
 #[allow(clippy::zero_sized_map_values)]
 mod test {
-    use super::{BlocksWithReceipts, InitiatingLogs, MessageGraph};
+    use super::{BlockWithReceipts, BlocksWithReceipts, InitiatingLogs, MessageGraph};
     use crate::{
         ExecutingMessage, InteropProvider, MESSAGE_EXPIRY_WINDOW, MessageGraphError,
         MessageGraphResult,
@@ -2251,7 +2259,7 @@ mod test {
             }
         }
         let (mut headers, cfgs, mut inner) = superchain.build();
-        let (source, receipts) = headers.remove(&CHAIN_A_ID).unwrap();
+        let BlockWithReceipts { header: source, receipts } = headers.remove(&CHAIN_A_ID).unwrap();
         for number in 2..=8 {
             inner.headers.get_mut(&CHAIN_A_ID).unwrap().insert(
                 number,
