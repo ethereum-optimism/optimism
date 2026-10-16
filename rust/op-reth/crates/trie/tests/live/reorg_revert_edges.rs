@@ -15,34 +15,24 @@ use super::{
         RethPersistence, SimulatedReth, UNRELATED_PARENT, fixed_signer, index_executed_block,
         reorg_block, reorg_block_without_data,
     },
-    store_view::{BlockView, ProofTarget, assert_same_view},
+    store_hooks::{HeldWrite, StoreWithHooks},
+    store_view::{BlockView, ProofTarget, assert_same_view, proof_window},
 };
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use alloy_primitives::{Address, B256, U256};
-use parking_lot::Mutex;
 use reth_chain_state::ExecutedBlock;
 use reth_chainspec::ChainSpec;
 use reth_ethereum_primitives::Block;
 use reth_optimism_trie::{
-    InMemoryProofsStorage, OpProofsProviderRO, OpProofsStorageError, OpProofsStorageResult,
-    OpProofsStore, ProofWindowRange,
+    InMemoryProofsStorage, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
+    ProofWindowRange,
     engine::{EngineError, EngineHandle, ReorgBlock},
 };
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use rstest::rstest;
 use secp256k1::Keypair;
 use serial_test::serial;
-use std::{
-    collections::BTreeMap,
-    fmt,
-    ops::RangeInclusive,
-    sync::{
-        Arc,
-        mpsc::{Receiver, SyncSender, sync_channel},
-    },
-    thread,
-    time::Duration,
-};
+use std::{collections::BTreeMap, ops::RangeInclusive, sync::Arc, thread};
 
 /// Blocks every case commits and settles before it acts.
 const CHAIN_LENGTH: u64 = 7;
@@ -58,9 +48,6 @@ const RETH_PERSISTENCE_THRESHOLD: u64 = 2 * MAX_BLOCKS_PER_CASE;
 /// Blocks the pruned window keeps, so that pruning moves the earliest block above the anchor
 /// under either cadence.
 const PRUNED_WINDOW: u64 = 3;
-
-/// How long a case waits for the engine's persistence thread to reach a held write.
-const HELD_WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
 const fn recipient(number: u64) -> Address {
     Address::repeat_byte(0x40 + number as u8)
@@ -167,95 +154,6 @@ impl UnwindTarget {
     }
 }
 
-/// The store's side of a held write: signals the write and waits to be let through.
-struct WriteBarrier {
-    entered: SyncSender<()>,
-    release: Receiver<()>,
-}
-
-/// The case's side of a held write.
-struct HeldWrite {
-    entered: Receiver<()>,
-    release: SyncSender<()>,
-}
-
-impl HeldWrite {
-    /// Blocks until the engine's persistence thread is inside the held write.
-    fn wait_until_entered(&self) {
-        self.entered
-            .recv_timeout(HELD_WRITE_TIMEOUT)
-            .expect("the engine's persistence thread reaches the held write");
-    }
-
-    /// Lets the held write go on, or the next write through if none is held yet.
-    fn release(self) {
-        let _ = self.release.send(());
-    }
-}
-
-/// A proofs store whose next write transaction, once a hold is armed, blocks until the hold is
-/// released, which keeps a save of the engine in flight for as long as a case needs.
-#[derive(Clone)]
-struct StoreWithWriteGate<S> {
-    inner: S,
-    next_write: Arc<Mutex<Option<WriteBarrier>>>,
-}
-
-impl<S> StoreWithWriteGate<S> {
-    fn new(inner: S) -> Self {
-        Self { inner, next_write: Arc::default() }
-    }
-
-    fn hold_next_write(&self) -> HeldWrite {
-        let (entered_tx, entered_rx) = sync_channel(1);
-        let (release_tx, release_rx) = sync_channel(1);
-        *self.next_write.lock() = Some(WriteBarrier { entered: entered_tx, release: release_rx });
-        HeldWrite { entered: entered_rx, release: release_tx }
-    }
-}
-
-impl<S: fmt::Debug> fmt::Debug for StoreWithWriteGate<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StoreWithWriteGate").field("inner", &self.inner).finish_non_exhaustive()
-    }
-}
-
-impl<S: OpProofsStore> OpProofsStore for StoreWithWriteGate<S> {
-    type ProviderRO<'a>
-        = S::ProviderRO<'a>
-    where
-        Self: 'a;
-
-    type ProviderRw<'a>
-        = S::ProviderRw<'a>
-    where
-        Self: 'a;
-
-    type Initializer<'a>
-        = S::Initializer<'a>
-    where
-        Self: 'a;
-
-    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
-        self.inner.provider_ro()
-    }
-
-    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
-        // The lock must be released before blocking, or a case arming the next hold meanwhile
-        // deadlocks against this thread.
-        let barrier = self.next_write.lock().take();
-        if let Some(barrier) = barrier {
-            let _ = barrier.entered.send(());
-            let _ = barrier.release.recv();
-        }
-        self.inner.provider_rw()
-    }
-
-    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
-        self.inner.initialization_provider()
-    }
-}
-
 /// What the store serves at one moment: its window and every persisted view in it.
 struct DiskSnapshot {
     views: BTreeMap<u64, BlockView>,
@@ -267,7 +165,7 @@ struct Scenario<S> {
     cadence: FlushCadence,
     chain_spec: Arc<ChainSpec>,
     engine: EngineHandle<Block>,
-    gated_store: StoreWithWriteGate<S>,
+    gated_store: StoreWithHooks<S>,
     key_pair: Keypair,
     reth: SimulatedReth,
     store: S,
@@ -289,7 +187,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         let reth = SimulatedReth::new(chain_spec.clone(), key_pair, persistence)?;
         let store = make_store();
         initialize_storage(store.clone(), &reth.factory, reth.genesis())?;
-        let gated_store = StoreWithWriteGate::new(store.clone());
+        let gated_store = StoreWithHooks::new(store.clone());
         let engine = Self::spawn_engine(&reth, &gated_store, cadence, window);
         let mut scenario = Self {
             cadence,
@@ -311,7 +209,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
 
     fn spawn_engine(
         reth: &SimulatedReth,
-        gated_store: &StoreWithWriteGate<S>,
+        gated_store: &StoreWithHooks<S>,
         cadence: FlushCadence,
         window: u64,
     ) -> EngineHandle<Block> {
@@ -381,7 +279,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
     }
 
     fn proof_window(&self) -> eyre::Result<ProofWindowRange> {
-        Ok(self.store.provider_ro()?.get_proof_window()?)
+        proof_window(&self.store)
     }
 
     /// Arms a hold on the engine's next write, the save the following commits start.

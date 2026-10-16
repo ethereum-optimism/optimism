@@ -25,22 +25,49 @@ mod runner;
 mod service_guard;
 mod state;
 
+use std::time::Duration;
+
 /// Default number of blocks to keep in memory before persisting.
 const DEFAULT_PERSISTENCE_THRESHOLD: u64 = 5;
 
 /// Default number of blocks where we block execution to allow persistence to catch up.
 const DEFAULT_BACKPRESSURE_THRESHOLD: u64 = 10;
 
-/// Default timeout for waiting on a persistence save/unwind operation (in seconds).
-const DEFAULT_PERSISTENCE_TIMEOUT_SECS: u64 = 60;
+/// Default timeout for waiting on a persistence save/unwind operation.
+const DEFAULT_PERSISTENCE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// How long the engine waits with a non-empty memory buffer before flushing it even if the
-/// persistence threshold has not been reached.
+/// How long the engine waits by default with a non-empty memory buffer before flushing it even
+/// if the persistence threshold has not been reached.
 ///
 /// Without this, a paused chain (e.g. fault-proof tests that freeze the sequencer) would leave
 /// buffered blocks unpersisted indefinitely, breaking the proofs RPC's strict "is this block
 /// persisted?" check.
-const IDLE_FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+const DEFAULT_IDLE_FLUSH_INTERVAL: Duration = Duration::from_secs(10);
+
+/// How the engine paces its saves and how long it waits on its persistence service.
+#[derive(Clone, Copy, Debug)]
+pub struct EngineConfig {
+    /// Buffered blocks at which the engine stops taking actions until the save in flight
+    /// completes.
+    pub backpressure_threshold: u64,
+    /// How long buffered blocks below the persistence threshold wait before a save starts anyway.
+    pub idle_flush_interval: Duration,
+    /// Buffered blocks that start a save.
+    pub persistence_threshold: u64,
+    /// How long the engine waits for a save or an unwind before giving up on it.
+    pub persistence_timeout: Duration,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self {
+            backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
+            idle_flush_interval: DEFAULT_IDLE_FLUSH_INTERVAL,
+            persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
+            persistence_timeout: DEFAULT_PERSISTENCE_TIMEOUT,
+        }
+    }
+}
 
 /// Messages sent from [`EngineHandle`] to the engine thread.
 enum EngineAction<Block: reth_primitives_traits::Block> {

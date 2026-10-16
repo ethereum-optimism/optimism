@@ -1,7 +1,7 @@
 //! [`EngineHandle`] — the public, cloneable, Send + Sync interface.
 
 use super::{
-    DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
+    EngineAction, EngineConfig,
     error::EngineError,
     runner::Engine,
     service_guard::ServiceGuard,
@@ -11,7 +11,7 @@ use crate::{OpProofStoragePruner, OpProofsStore};
 #[cfg(any(test, feature = "test-utils"))]
 use alloy_eips::NumHash;
 use alloy_eips::eip1898::BlockWithParent;
-use crossbeam_channel::{Sender, bounded};
+use crossbeam_channel::{Receiver, Sender, bounded, select_biased};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
 use reth_provider::{
@@ -24,9 +24,13 @@ use tracing::error;
 /// A thin, cloneable handle used to communicate with the collector engine.
 ///
 /// Every public method (except [`Self::sync_to`]) sends an engine action to the
-/// engine thread and blocks on a one-shot reply channel.
+/// engine thread and blocks on a one-shot reply channel, or until the engine exits.
 #[derive(Debug, Clone)]
 pub struct EngineHandle<Block: reth_primitives_traits::Block> {
+    /// Disconnects when the engine thread exits by any path, so that no call waits on a reply
+    /// the engine will never send: an action queued when the engine exits stays in the channel,
+    /// with its reply sender, for as long as a handle lives.
+    engine_exited: Receiver<()>,
     sender: Sender<EngineAction<Block>>,
     _service_guard: Arc<ServiceGuard>,
 }
@@ -50,14 +54,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             + 'static,
         Store: OpProofsStore + Clone + 'static,
     {
-        Self::spawn_with_thresholds(
-            evm_config,
-            provider,
-            storage,
-            pruner,
-            DEFAULT_PERSISTENCE_THRESHOLD,
-            DEFAULT_BACKPRESSURE_THRESHOLD,
-        )
+        Self::spawn_with_config(evm_config, provider, storage, pruner, EngineConfig::default())
     }
 
     /// Spawn the collector engine with custom persistence and backpressure thresholds.
@@ -80,10 +77,33 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             + 'static,
         Store: OpProofsStore + Clone + 'static,
     {
+        let config =
+            EngineConfig { backpressure_threshold, persistence_threshold, ..Default::default() };
+        Self::spawn_with_config(evm_config, provider, storage, pruner, config)
+    }
+
+    /// Spawn the collector engine with `config`.
+    pub fn spawn_with_config<Evm, Provider, Store>(
+        evm_config: Evm,
+        provider: Provider,
+        storage: Store,
+        pruner: OpProofStoragePruner<Store, Provider>,
+        config: EngineConfig,
+    ) -> Self
+    where
+        Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>> + 'static,
+        Provider: BlockHashReader
+            + StateReader
+            + DatabaseProviderFactory
+            + StateProviderFactory
+            + BlockReader<Block = Block>
+            + Clone
+            + 'static,
+        Store: OpProofsStore + Clone + 'static,
+    {
         let (tx, rx) = bounded(10);
-        let engine = Engine::new(evm_config, provider, storage, pruner, rx)
-            .with_persistence_threshold(persistence_threshold)
-            .with_backpressure_threshold(backpressure_threshold);
+        let (exited, engine_exited) = bounded(0);
+        let engine = Engine::new(evm_config, provider, storage, pruner, rx, exited, config);
 
         let join_handle = thread::Builder::new()
             .name("live-trie-collector".into())
@@ -99,7 +119,15 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             })
             .expect("failed to spawn live-trie-collector thread");
 
-        Self { sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
+        Self { engine_exited, sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
+    }
+
+    /// Waits for the reply to an action, or for the engine to exit; a reply already there wins.
+    fn recv_reply<Reply>(&self, reply: &Receiver<Reply>) -> Result<Reply, EngineError> {
+        select_biased! {
+            recv(reply) -> reply => reply.map_err(|_| EngineError::EngineDied),
+            recv(self.engine_exited) -> _ => Err(EngineError::EngineDied),
+        }
     }
 
     fn send_and_recv(
@@ -108,7 +136,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     ) -> Result<(), EngineError> {
         let (reply_tx, reply_rx) = bounded(1);
         self.sender.send(make_action(reply_tx)).map_err(|_| EngineError::EngineDied)?;
-        reply_rx.recv().map_err(|_| EngineError::EngineDied)?
+        self.recv_reply(&reply_rx)?
     }
 
     /// Execute a block through the EVM and buffer the resulting trie updates.
@@ -170,7 +198,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
         use super::tasks::FlushTask;
         let (reply_tx, reply_rx) = bounded(1);
         if self.sender.send(EngineAction::Flush(FlushTask { reply: reply_tx })).is_ok() {
-            let _ = reply_rx.recv();
+            let _ = self.recv_reply(&reply_rx);
         }
     }
 
@@ -183,6 +211,6 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
         self.sender
             .send(EngineAction::Tip(TipTask { reply: reply_tx }))
             .map_err(|_| EngineError::EngineDied)?;
-        reply_rx.recv().map_err(|_| EngineError::EngineDied)?
+        self.recv_reply(&reply_rx)?
     }
 }

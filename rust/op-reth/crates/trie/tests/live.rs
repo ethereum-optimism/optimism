@@ -40,6 +40,7 @@ macro_rules! over_backend {
 #[path = "live/catch_up_under_pruning.rs"]
 mod catch_up_under_pruning;
 #[path = "live/chain.rs"]
+#[allow(dead_code, reason = "each test target uses part of this module")]
 mod chain;
 #[path = "live/contracts.rs"]
 mod contracts;
@@ -52,6 +53,9 @@ mod reorg_revert_edges;
 #[path = "live/simulated_reth.rs"]
 #[allow(dead_code, reason = "each test target uses part of this module")]
 mod simulated_reth;
+#[path = "live/store_hooks.rs"]
+#[allow(dead_code, reason = "each test target uses part of this module")]
+mod store_hooks;
 #[path = "live/store_view.rs"]
 mod store_view;
 

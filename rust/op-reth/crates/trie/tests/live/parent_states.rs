@@ -15,6 +15,7 @@ use super::{
     },
     create_mdbx_proofs_storage, initialize_storage, public_key_to_address,
     simulated_reth::{Location, RethPersistence, SimulatedReth, fixed_signer},
+    store_hooks::StoreWithHooks,
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
@@ -22,15 +23,15 @@ use alloy_primitives::{Address, Bytes, U256};
 use parking_lot::Mutex;
 use reth_ethereum_primitives::Block;
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofsProviderRO, OpProofsStorageResult, OpProofsStore,
-    engine::EngineError, provider::OpProofsStateProviderRef,
+    MdbxProofsStorage, OpProofsProviderRO, OpProofsStore, engine::EngineError,
+    provider::OpProofsStateProviderRef,
 };
 use reth_primitives_traits::RecoveredBlock;
 use reth_provider::{StateProvider, StateRootProvider, noop::NoopProvider};
 use reth_trie_common::HashedPostState;
 use rstest::rstest;
 use serial_test::serial;
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 /// Covers the contract's deployment and either of its calls.
 const CONTRACT_GAS_LIMIT: u64 = 100_000;
@@ -110,73 +111,6 @@ enum Outcome {
     Stored,
     /// The engine fails the state-root check and stores nothing.
     StateRootMismatch,
-}
-
-type ReadHook = Box<dyn FnOnce() + Send>;
-
-/// A proofs store that runs an action on reth right before the engine opens its next read view.
-///
-/// The engine's execute task snapshots reth's parent state and then opens the proofs read view it
-/// executes against, so an action armed here lands between the two. The engine also opens a read
-/// view to find its tip whenever its block buffer is empty; the cases keep the preceding blocks
-/// buffered so that read never happens while an action is armed.
-#[derive(Clone)]
-struct StoreWithReadHook<S> {
-    inner: S,
-    on_next_read: Arc<Mutex<Option<ReadHook>>>,
-}
-
-impl<S> StoreWithReadHook<S> {
-    fn new(inner: S) -> Self {
-        Self { inner, on_next_read: Arc::default() }
-    }
-
-    fn on_next_read(&self, action: impl FnOnce() + Send + 'static) {
-        *self.on_next_read.lock() = Some(Box::new(action));
-    }
-
-    fn is_armed(&self) -> bool {
-        self.on_next_read.lock().is_some()
-    }
-}
-
-impl<S: fmt::Debug> fmt::Debug for StoreWithReadHook<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StoreWithReadHook").field("inner", &self.inner).finish_non_exhaustive()
-    }
-}
-
-impl<S: OpProofsStore> OpProofsStore for StoreWithReadHook<S> {
-    type ProviderRO<'a>
-        = S::ProviderRO<'a>
-    where
-        Self: 'a;
-
-    type ProviderRw<'a>
-        = S::ProviderRw<'a>
-    where
-        Self: 'a;
-
-    type Initializer<'a>
-        = S::Initializer<'a>
-    where
-        Self: 'a;
-
-    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
-        let action = self.on_next_read.lock().take();
-        if let Some(action) = action {
-            action();
-        }
-        self.inner.provider_ro()
-    }
-
-    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
-        self.inner.provider_rw()
-    }
-
-    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
-        self.inner.initialization_provider()
-    }
 }
 
 /// The chain reth holds before the engine runs: `leading` empty blocks, the deployment, the call
@@ -280,9 +214,11 @@ fn arrange_parent_state(
     Ok(())
 }
 
-/// Arms the reth transitions that happen while the engine executes the block.
+/// Arms the reth transitions that happen while the engine executes the block: the engine's
+/// execute task snapshots reth's parent state and then opens the proofs read view it executes
+/// against, so a hook on the next read lands between the two.
 fn arm_in_flight_transition(
-    store: &StoreWithReadHook<Arc<MdbxProofsStorage>>,
+    store: &StoreWithHooks<Arc<MdbxProofsStorage>>,
     reth: &Arc<Mutex<SimulatedReth>>,
     parent_state: ParentState,
     chain: &ProofChain,
@@ -291,13 +227,15 @@ fn arm_in_flight_transition(
     let deploy_number = chain.deploy().number();
     let reth = Arc::clone(reth);
     match parent_state {
-        ParentState::EvictedWhileExecuting => store.on_next_read(move || {
+        ParentState::EvictedWhileExecuting => store.before_next_read(move || {
             reth.lock()
                 .commit_fillers_until(|reth| reth.locate(parent) == Location::PERSISTED_AND_EVICTED)
                 .expect("reth persists and evicts the parent");
+            Ok(())
         }),
-        ParentState::ReorgedWhileExecuting => store.on_next_read(move || {
+        ParentState::ReorgedWhileExecuting => store.before_next_read(move || {
             reth.lock().reorg_from(deploy_number).expect("reth reorgs below the block");
+            Ok(())
         }),
         _ => {}
     }
@@ -372,7 +310,7 @@ fn run_parent_state_case(
     )?;
     arrange_parent_state(&mut reth, parent_state, &chain)?;
 
-    let store_with_hook = StoreWithReadHook::new(store.clone());
+    let hooked_store = StoreWithHooks::new(store.clone());
     // The engine writes its buffer to the store once it holds this many blocks, and `flush` only
     // waits for that write, so the threshold is the number of blocks the case stores. It also
     // keeps the preceding blocks buffered while the block under test executes, which the read
@@ -381,16 +319,16 @@ fn run_parent_state_case(
         Outcome::Stored => chain.preceding().len() + 1,
         Outcome::StateRootMismatch => chain.preceding().len(),
     } as u64;
-    let engine = reth.spawn_engine(store_with_hook.clone(), stored_blocks, stored_blocks + 1);
+    let engine = reth.spawn_engine(hooked_store.clone(), stored_blocks, stored_blocks + 1);
     let reth = Arc::new(Mutex::new(reth));
     for block in chain.preceding() {
         engine.execute_block(block)?;
     }
 
-    arm_in_flight_transition(&store_with_hook, &reth, parent_state, &chain);
+    arm_in_flight_transition(&hooked_store, &reth, parent_state, &chain);
     let result = engine.execute_block(chain.under_test());
     assert!(
-        !store_with_hook.is_armed(),
+        !hooked_store.is_next_read_armed(),
         "the engine never opened a proofs read view, so the in-flight transition never ran"
     );
     engine.flush();
