@@ -372,8 +372,9 @@ where
         let tx = OpTx(tx.into());
 
         // Post-exec transactions never execute: the block executor short-circuits them, and revm
-        // would reject their tx env outright. Replay paths (e.g. RPC tracing) transact each
-        // transaction directly, so synthesize the consensus-defined result here.
+        // would reject their tx env outright. Callers that transact a block's transactions
+        // directly on the EVM rather than through the executor still reach this, so synthesize the
+        // consensus-defined result here.
         if tx.tx_type() == POST_EXEC_TX_TYPE_ID {
             return Ok(post_exec::noop_post_exec_result());
         }
