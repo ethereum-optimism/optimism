@@ -246,6 +246,17 @@ The following providers offer production-grade RPC access to OP Stack networks. 
 
 **Supported Mainnets**: OP Mainnet, Base, Ink, Unichain, World, Lisk, Zora
 
+### Taifoon
+
+**Description**: [Taifoon](https://www.taifoon.io) serves JSON-RPC reads through one gateway per chain, routed across measured upstream endpoints. Point any JSON-RPC client at `https://coord.taifoon.dev/gw/rpc/<chainId>`; it answers without a key within a per-visitor rate, a free key (`POST https://coord.taifoon.dev/v1/register`) raises the limit, and paid usage is listed on the [pricing page](https://www.taifoon.io/pricing). Reads only: transaction sends are refused.
+
+```bash
+curl -s https://coord.taifoon.dev/gw/rpc/10 -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+```
+
+**Supported Mainnets**: OP Mainnet, Base
+
 ### Tenderly
 
 **Description**: [Tenderly](https://tenderly.co/) offers [free and paid plans](https://tenderly.co/pricing) for the following [networks](https://docs.tenderly.co/node/rpc-reference):
