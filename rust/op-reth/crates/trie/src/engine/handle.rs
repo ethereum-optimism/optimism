@@ -8,6 +8,8 @@ use super::{
     tasks::{ExecuteBlockTask, IndexBlockTask, ReorgBlock, ReorgTask, SyncToTask, UnwindTask},
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
+#[cfg(any(test, feature = "test-utils"))]
+use alloy_eips::NumHash;
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::{Sender, bounded};
 use reth_evm::ConfigureEvm;
@@ -170,5 +172,17 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
         if self.sender.send(EngineAction::Flush(FlushTask { reply: reply_tx })).is_ok() {
             let _ = reply_rx.recv();
         }
+    }
+
+    /// The engine's tip: the newest buffered block, or the store's latest block when nothing is
+    /// buffered (test/utility only).
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn tip(&self) -> Result<NumHash, EngineError> {
+        use super::tasks::TipTask;
+        let (reply_tx, reply_rx) = bounded(1);
+        self.sender
+            .send(EngineAction::Tip(TipTask { reply: reply_tx }))
+            .map_err(|_| EngineError::EngineDied)?;
+        reply_rx.recv().map_err(|_| EngineError::EngineDied)?
     }
 }
