@@ -40,6 +40,16 @@ const (
 	rethHistoryServed = "served"
 )
 
+// isRethHistoryPrunedError reports whether err is reth refusing a state read below its history
+// prune checkpoint: ProviderError::StateAtBlockPruned ("state at block #N is pruned") or, from
+// reth 2.6, ProviderError::InsufficientChangesets ("insufficient changesets to revert to block
+// #N. ..."). The block the message names is not checked against the read: reth 2.5 names the
+// block above the read, reth 2.6 the read's own.
+func isRethHistoryPrunedError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "is pruned") || strings.Contains(msg, "insufficient changesets")
+}
+
 // rethHistoryPruneConfig writes the config file that makes the follower's reth prune its account
 // and storage history before historyPruneBefore. The prune modes go through the file rather than
 // --prune.* flags, since flags replace the file's prune section and with it the lowered minimum.
@@ -142,7 +152,7 @@ func rethHistoryStatus(ctx context.Context, node *dsl.L2ELNode, account common.A
 		switch {
 		case err == nil:
 			status[block] = rethHistoryServed
-		case strings.Contains(err.Error(), rethHistoryPruned):
+		case isRethHistoryPrunedError(err):
 			status[block] = rethHistoryPruned
 		default:
 			status[block] = err.Error()
@@ -152,9 +162,10 @@ func rethHistoryStatus(ctx context.Context, node *dsl.L2ELNode, account common.A
 }
 
 // waitForRethHistoryPrunedAt waits until reth's own historical state at block is gone on node,
-// which eth_getStorageAt reports as pruned. The pruner runs after reth persists, so the wait only
-// covers the run that may still be in flight once the chain stopped. Blocks further below are
-// probed too, so a failure shows where reth's history actually ends.
+// which eth_getStorageAt refuses as below reth's history prune checkpoint (see
+// isRethHistoryPrunedError). The pruner runs after reth persists, so the wait only covers the run
+// that may still be in flight once the chain stopped. Blocks further below are probed too, so a
+// failure shows where reth's history actually ends.
 func waitForRethHistoryPrunedAt(t devtest.T, node *dsl.L2ELNode, account common.Address, logs rethPrunerLogs, block uint64) {
 	ctx, cancel := context.WithTimeout(t.Ctx(), historyPruneTimeout)
 	defer cancel()
