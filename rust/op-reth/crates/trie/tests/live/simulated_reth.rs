@@ -165,6 +165,11 @@ impl SimulatedReth {
         self.num_hash(0)
     }
 
+    /// Newest block in the database.
+    pub(super) const fn persisted(&self) -> BlockNumHash {
+        self.last_persisted
+    }
+
     pub(super) fn state_root(&self, number: u64) -> B256 {
         match number {
             0 => self.chain_spec.genesis_header().state_root,
@@ -301,9 +306,15 @@ impl SimulatedReth {
     /// Writes every canonical block to the database without evicting any from memory, the state
     /// a `proofs init` run finds on a node that has caught up.
     pub(super) fn persist_all(&mut self) -> eyre::Result<()> {
-        let head = self.head().number;
-        if head > self.last_persisted.number {
-            self.persist(head)?;
+        self.persist_through(self.head().number)
+    }
+
+    /// Writes the canonical blocks through `number` to the database without evicting any from
+    /// memory.
+    pub(super) fn persist_through(&mut self, number: u64) -> eyre::Result<()> {
+        assert!(number <= self.head().number, "only canonical blocks can be persisted");
+        if number > self.last_persisted.number {
+            self.persist(number)?;
         }
         Ok(())
     }
