@@ -8,9 +8,11 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    fs,
     future::Future,
     num::NonZeroUsize,
     ops::AsyncFnOnce,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -45,6 +47,7 @@ use kona_sp1_super_range_executor::{
 use parking_lot::Mutex;
 use serde::Serialize;
 use sp1_sdk::{HashableKey, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
+use tempfile::TempDir;
 use tracing::Instrument;
 
 pub use crate::ports::GameProofInputs;
@@ -861,16 +864,19 @@ async fn prove_chunk_inner(
     let chunk_progress = &progress.chunks[index];
     let synthesized = &plan.synthesized;
     let span = synthesized.range_inputs.span;
-    let host = || {
+    let host = |dir: Option<&TempDir>| {
+        let preimages = dir.map(|dir| dir.path().join(PREIMAGE_STORE_DIR));
         build_interop_host(
             host_inputs,
             game.l1_head,
             &synthesized.previous_super_root_proof_bytes,
             synthesized.current_super_root,
             span.end,
+            preimages.as_deref(),
         )
     };
-    let range_host = host()?;
+    let range_dir = collection_dir(settings.data_dir.as_deref())?;
+    let range_host = host(range_dir.as_ref())?;
     let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
@@ -880,6 +886,7 @@ async fn prove_chunk_inner(
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
+    drop(range_dir);
 
     let range_proof = match (provider, keys) {
         (ProofProvider::Mock(_), _) => None,
@@ -900,15 +907,19 @@ async fn prove_chunk_inner(
     let batch_proofs = logs.proofs.clone().await.map_err(|err| anyhow!("{err:#}"))?;
     let batch_public_values: Vec<Vec<u8>> =
         batch_proofs.iter().map(|proof| proof.public_values.to_vec()).collect();
+    let consolidation_dir = collection_dir(settings.data_dir.as_deref())?;
+    let log_trees = consolidation_dir.as_ref().map(|dir| dir.path().join(LOG_TREE_DIR));
     let collected = collect_consolidation_witness(
-        host()?,
+        host(consolidation_dir.as_ref())?,
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
         &batch_public_values,
+        log_trees.as_deref(),
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
+    drop(consolidation_dir);
 
     let stage = &logs.stage;
     let batches: Vec<&LogBatch> = stage.batches.iter().map(|progress| &progress.batch).collect();
@@ -971,6 +982,53 @@ async fn prove_chunk_inner(
     };
 
     Ok(ChunkResult { index, range_outputs, consolidation_outputs: collected.outputs, proofs })
+}
+
+/// Entry prefix of a witness collection's directory in the data directory.
+const COLLECTION_DIR_PREFIX: &str = "collection-";
+/// The kona-host preimage store in a collection directory.
+const PREIMAGE_STORE_DIR: &str = "preimages";
+/// The native run's log trees in a collection directory.
+const LOG_TREE_DIR: &str = "log-trees";
+
+/// A fresh directory for one witness collection, removed when dropped. `None` without a data
+/// directory: the collection keeps its preimages and log trees in memory.
+fn collection_dir(data_dir: Option<&Path>) -> Result<Option<TempDir>> {
+    data_dir
+        .map(|data_dir| {
+            tempfile::Builder::new()
+                .prefix(COLLECTION_DIR_PREFIX)
+                .tempdir_in(data_dir)
+                .with_context(|| {
+                    format!("failed to create a collection directory under {}", data_dir.display())
+                })
+        })
+        .transpose()
+}
+
+/// Creates `data_dir` and removes the entries that an earlier process left in it. A killed
+/// collection leaves its directory behind, and the directory survives a container restart.
+pub(crate) fn prepare_data_dir(data_dir: &Path) -> Result<()> {
+    fs::create_dir_all(data_dir)
+        .with_context(|| format!("failed to create data directory {}", data_dir.display()))?;
+    let entries = fs::read_dir(data_dir)
+        .with_context(|| format!("failed to read data directory {}", data_dir.display()))?;
+    for entry in entries {
+        let path = entry
+            .with_context(|| format!("failed to read data directory {}", data_dir.display()))?
+            .path();
+        let owned = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(COLLECTION_DIR_PREFIX));
+        if owned {
+            fs::remove_dir_all(&path)
+                .with_context(|| format!("failed to remove {}", path.display()))?;
+        }
+    }
+    // A collection that cannot create its directory fails, so check the permission up front.
+    drop(collection_dir(Some(data_dir))?);
+    Ok(())
 }
 
 /// The batch proofs of a game, in batch order.
@@ -1074,6 +1132,7 @@ async fn scan_log_stage(
         &first.synthesized.previous_super_root_proof_bytes,
         first.synthesized.current_super_root,
         first.claimed_timestamp,
+        None,
     )?;
     let configs = deployment_chain_configs(&host, &first.synthesized.range_inputs.chain_ids)?;
     let scan = scan_span(request.l2, request.responses, &configs)
@@ -1224,6 +1283,9 @@ pub(crate) struct LogProofSettings {
     /// The range and consolidation request gas limit.
     pub(crate) range_gas_limit: u64,
     pub(crate) log_gas_limit: u64,
+    /// Where witness collections keep their preimage stores and log trees; `None` keeps them in
+    /// memory.
+    pub(crate) data_dir: Option<PathBuf>,
 }
 
 /// Inputs for one in-process game-proving attempt.
@@ -1520,7 +1582,37 @@ mod tests {
     }
 
     fn log_settings() -> LogProofSettings {
-        LogProofSettings { path: LogPath::Auto, range_gas_limit: 1, log_gas_limit: 1 }
+        LogProofSettings {
+            path: LogPath::Auto,
+            range_gas_limit: 1,
+            log_gas_limit: 1,
+            data_dir: None,
+        }
+    }
+
+    /// Pins startup cleanup: leftover collection directories go, other entries stay, and a
+    /// missing data directory is created.
+    #[test]
+    fn prepare_data_dir_removes_only_collection_leftovers() {
+        let root = tempfile::tempdir().unwrap();
+        let data_dir = root.path().join("data");
+        let leftover = data_dir.join(format!("{COLLECTION_DIR_PREFIX}abc"));
+        std::fs::create_dir_all(leftover.join(PREIMAGE_STORE_DIR)).unwrap();
+        std::fs::write(leftover.join(PREIMAGE_STORE_DIR).join("CURRENT"), b"x").unwrap();
+        std::fs::write(data_dir.join("notes.txt"), b"keep").unwrap();
+        std::fs::create_dir(data_dir.join("other")).unwrap();
+
+        prepare_data_dir(&data_dir).unwrap();
+        let mut entries: Vec<_> = std::fs::read_dir(&data_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        entries.sort();
+        assert_eq!(entries, ["notes.txt", "other"]);
+
+        let fresh = root.path().join("fresh/data");
+        prepare_data_dir(&fresh).unwrap();
+        assert!(fresh.is_dir());
     }
 
     /// Builds a self-consistent supernode response trusted by default.

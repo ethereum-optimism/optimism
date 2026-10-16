@@ -73,6 +73,7 @@ async fn main() -> Result<()> {
         fast_finality_mode = config.fast_finality_mode,
         fast_finality_proving_limit = %config.fast_finality_proving_limit,
         log_path = ?config.log_path,
+        data_dir = ?config.data_dir,
         log_gas_limit = config.proof_provider_config.log_gas_limit,
         "Resolved proposer configuration"
     );
