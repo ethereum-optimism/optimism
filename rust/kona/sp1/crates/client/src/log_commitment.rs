@@ -110,7 +110,8 @@ fn log_leaves(receipts: &[OpReceiptEnvelope]) -> Vec<B256> {
 
 /// Runs the `log-commitment` program: the encoded entry of each receipts root, in input order.
 ///
-/// Panics if the witness does not decode or holds a preimage that does not match its key.
+/// Panics if the witness does not decode, holds a preimage that does not match its key, or lacks a
+/// receipts trie node (see [`commit_receipts_root`]).
 pub fn log_commitment_public_values(receipts_roots: &[B256], witness_rkyv: &[u8]) -> Vec<u8> {
     let witness = rkyv::from_bytes::<DefaultWitnessData, rkyv::rancor::Error>(witness_rkyv)
         .expect("log-commitment witness decodes");

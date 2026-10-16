@@ -267,6 +267,9 @@ where
 ///
 /// The SP1 log-commitment program must see exactly the receipts that [`InteropProvider`] lookups
 /// return, so both decode through this function.
+///
+/// An error does not tell a missing trie node from one that does not decode. A caller that maps an
+/// error to a verdict needs an oracle that panics on a missing key, like SP1's `WitnessOracle`.
 pub fn receipts_from_trie<O: PreimageOracleClient>(
     oracle: &O,
     receipts_root: B256,
