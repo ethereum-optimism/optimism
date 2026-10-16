@@ -8,7 +8,7 @@ use super::{
     error::EngineError,
     persistence::{PersistenceHandle, error::PersistenceError},
 };
-use crate::{OpProofStoragePruner, OpProofsProviderRO, OpProofsStore};
+use crate::{OpProofStoragePruner, OpProofsProviderRO, OpProofsStorageError, OpProofsStore};
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, bounded};
 use reth_evm::ConfigureEvm;
@@ -19,7 +19,7 @@ use reth_provider::{
 use std::time::Duration;
 #[cfg(feature = "metrics")]
 use std::time::Instant;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Tracks all in-flight state for background persistence.
 pub(crate) struct PersistenceState {
@@ -124,18 +124,9 @@ impl PersistenceState {
         Ok(())
     }
 
-    /// Wait for any in-flight save, then send an unwind to the persistence service and
-    /// block until it completes.
-    pub(crate) fn unwind(
-        &mut self,
-        to: BlockWithParent,
-        memory: &TrieBufferState,
-    ) -> Result<(), EngineError> {
-        if self.in_flight.is_some() {
-            info!(target: "trie::engine::state", "Unwind waiting for in-flight persistence...");
-            self.wait(memory);
-        }
-
+    /// Send an unwind to the persistence service and block until it completes. The caller
+    /// drains any in-flight save first.
+    pub(crate) fn unwind(&self, to: BlockWithParent) -> Result<(), EngineError> {
         let (tx, rx) = bounded(1);
         self.handle.unwind(to, tx)?;
 
@@ -212,12 +203,15 @@ where
         self.persistence.wait(&self.memory);
     }
 
-    /// Drain any in-flight save, unwind the persistence service to `to`, then
-    /// unwind the in-memory buffer to match.
+    /// Drain any in-flight save, check `to` against the proof window and the stored block below
+    /// it, unwind the persistence service to `to`, then unwind the in-memory buffer to match.
     pub(crate) fn unwind(&mut self, to: BlockWithParent) -> Result<(), EngineError> {
         #[cfg(feature = "metrics")]
         let start = Instant::now();
-        self.persistence.unwind(to, &self.memory)?;
+        // A save in flight can prune the window, so the checks run once it is done.
+        self.drain_persistence();
+        self.check_unwind_target(to)?;
+        self.persistence.unwind(to)?;
         self.memory.unwind(to.block.number);
         // Clamp `sync_target` to the post-unwind tip. Without this, a stale target left over
         // from before a deep FCU rewind keeps `needs_sync()` perpetually true and spins the
@@ -226,6 +220,53 @@ where
         #[cfg(feature = "metrics")]
         self.metrics.unwind_duration_seconds.record(start.elapsed());
         Ok(())
+    }
+
+    /// Fails an unwind that would remove the window's earliest block, or whose target does not
+    /// build on the stored block below it, before anything is unwound.
+    ///
+    /// Only the blocks this engine has buffered and the window's ends have a known hash: a block
+    /// persisted before a restart has none, so an unwind onto it goes unverified.
+    fn check_unwind_target(&self, to: BlockWithParent) -> Result<(), EngineError> {
+        let window = self.storage.provider_ro()?.get_proof_window()?;
+        if to.block.number <= window.earliest.number {
+            warn!(
+                target: "trie::engine::state",
+                to_block = to.block.number,
+                earliest = window.earliest.number,
+                latest = window.latest.number,
+                "Refusing to unwind at or below the earliest block"
+            );
+            return Err(OpProofsStorageError::UnwindBeyondEarliest {
+                unwind_block_number: to.block.number,
+                earliest_block_number: window.earliest.number,
+            }
+            .into());
+        }
+        let fork_number = to.block.number - 1;
+        let stored_fork_hash = self.memory.hash_at(fork_number).or_else(|| {
+            [window.latest, window.earliest]
+                .into_iter()
+                .find(|block| block.number == fork_number)
+                .map(|block| block.hash)
+        });
+        match stored_fork_hash {
+            Some(stored) if stored != to.parent => {
+                warn!(
+                    target: "trie::engine::state",
+                    to_block = to.block.number,
+                    stored_parent = ?stored,
+                    target_parent = ?to.parent,
+                    "Refusing to unwind onto a block the target does not build on"
+                );
+                Err(EngineError::ParentHashMismatch {
+                    block_number: to.block.number,
+                    expected_parent_hash: stored,
+                    actual_parent_hash: to.parent,
+                })
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Advances `sync_target` to `block_number` if it is higher than the current target.
@@ -286,11 +327,18 @@ mod tests {
         EngineState::new(evm_config, blockchain_db, storage, pruner)
     }
 
+    /// An unwind target whose parent is unknown to the engine: the store holds only the anchor,
+    /// so nothing checks the parent of a block far above it.
     fn unwind_target(block_number: u64) -> BlockWithParent {
         BlockWithParent::new(
             B256::repeat_byte(0xAA),
             NumHash::new(block_number, B256::repeat_byte(0x50)),
         )
+    }
+
+    /// An unwind target right above the anchor, whose parent the anchor's hash verifies.
+    fn unwind_target_above_anchor(parent: B256) -> BlockWithParent {
+        BlockWithParent::new(parent, NumHash::new(1, B256::repeat_byte(0x50)))
     }
 
     #[test]
@@ -325,7 +373,42 @@ mod tests {
         // `saturating_sub(1)` must not underflow when unwinding to block 1.
         let mut state = make_engine_state();
         state.sync_target = 1_000_000;
-        state.unwind(unwind_target(1)).expect("unwind");
+        state.unwind(unwind_target_above_anchor(B256::ZERO)).expect("unwind");
         assert_eq!(state.sync_target, 0);
+    }
+
+    #[test]
+    fn unwind_at_the_anchor_fails_before_touching_anything() {
+        let mut state = make_engine_state();
+        state.sync_target = 100;
+        let anchor = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::ZERO));
+        let err = state.unwind(anchor).expect_err("the anchor is the window's earliest block");
+        assert!(
+            matches!(
+                err,
+                EngineError::Storage(OpProofsStorageError::UnwindBeyondEarliest {
+                    unwind_block_number: 0,
+                    earliest_block_number: 0,
+                })
+            ),
+            "got {err:?}"
+        );
+        assert_eq!(state.sync_target, 100);
+    }
+
+    #[test]
+    fn unwind_onto_a_parent_the_window_end_contradicts_fails() {
+        let mut state = make_engine_state();
+        let err = state
+            .unwind(unwind_target_above_anchor(B256::repeat_byte(0xAA)))
+            .expect_err("the anchor is the stored block below the target");
+        assert!(
+            matches!(
+                err,
+                EngineError::ParentHashMismatch { block_number: 1, expected_parent_hash, .. }
+                    if expected_parent_hash == B256::ZERO
+            ),
+            "got {err:?}"
+        );
     }
 }

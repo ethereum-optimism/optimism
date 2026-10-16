@@ -9,6 +9,10 @@ use alloy_primitives::{B256, map::HashMap};
 use parking_lot::RwLock;
 use std::{collections::BTreeMap, sync::Arc};
 
+/// Persisted block hashes the buffer keeps; an unwind onto an older block has only the window's
+/// ends to check against.
+const RETAINED_PERSISTED_HASHES: usize = 1024;
+
 /// Buffer for holding blocks waiting to be persisted.
 ///
 /// This acts as the in-memory "tip" of the chain for the trie calculator.
@@ -18,6 +22,9 @@ struct TrieBuffer {
     blocks: RwLock<HashMap<B256, Arc<(BlockWithParent, BlockStateDiff)>>>,
     /// Mapping of block numbers to block hashes.
     numbers: RwLock<BTreeMap<u64, B256>>,
+    /// Hashes of the newest blocks that left the buffer through a save, so an unwind can check
+    /// its target against a block that is no longer buffered.
+    persisted_hashes: RwLock<BTreeMap<u64, B256>>,
     #[cfg(feature = "metrics")]
     metrics: BufferMetrics,
 }
@@ -28,6 +35,7 @@ impl TrieBuffer {
         Self {
             blocks: RwLock::new(HashMap::default()),
             numbers: RwLock::new(BTreeMap::new()),
+            persisted_hashes: RwLock::new(BTreeMap::new()),
             #[cfg(feature = "metrics")]
             metrics: BufferMetrics::new_with_labels(&[] as &[(&str, &str)]),
         }
@@ -55,18 +63,24 @@ impl TrieBuffer {
         self.blocks.read().len()
     }
 
-    /// Prunes blocks from the buffer that are strictly before the given block number.
+    /// Prunes blocks from the buffer that are strictly before the given block number, keeping
+    /// their hashes.
     fn prune(&self, number: u64) {
         let mut blocks = self.blocks.write();
         let mut numbers = self.numbers.write();
+        let mut persisted_hashes = self.persisted_hashes.write();
 
         // Split off the entries we want to keep (number >= threshold).
         // The original map now contains only entries to prune (num < number).
         let to_keep = numbers.split_off(&number);
-        for hash in numbers.values() {
+        for (&pruned_number, hash) in numbers.iter() {
             blocks.remove(hash);
+            persisted_hashes.insert(pruned_number, *hash);
         }
         *numbers = to_keep;
+        while persisted_hashes.len() > RETAINED_PERSISTED_HASHES {
+            persisted_hashes.pop_first();
+        }
 
         #[cfg(feature = "metrics")]
         self.metrics.buffer_size.set(blocks.len() as f64);
@@ -85,9 +99,17 @@ impl TrieBuffer {
         for hash in to_remove.values() {
             blocks.remove(hash);
         }
+        self.persisted_hashes.write().split_off(&from);
 
         #[cfg(feature = "metrics")]
         self.metrics.buffer_size.set(blocks.len() as f64);
+    }
+
+    /// Hash of the block at `number` if it is buffered or left the buffer through a save.
+    fn hash_at(&self, number: u64) -> Option<B256> {
+        let numbers = self.numbers.read();
+        let persisted_hashes = self.persisted_hashes.read();
+        numbers.get(&number).or_else(|| persisted_hashes.get(&number)).copied()
     }
 }
 
@@ -129,9 +151,15 @@ impl TrieBufferState {
         self.inner.prune(number);
     }
 
-    /// Removes blocks starting from `from` (inclusive) through the tip.
+    /// Removes blocks starting from `from` (inclusive) through the tip, and forgets the hashes of
+    /// persisted blocks from `from` up.
     pub(in crate::engine) fn unwind(&self, from: u64) {
         self.inner.unwind(from);
+    }
+
+    /// Hash of the block at `number` if it is buffered or was pruned from the buffer by a save.
+    pub(in crate::engine) fn hash_at(&self, number: u64) -> Option<B256> {
+        self.inner.hash_at(number)
     }
 
     /// Returns the highest buffered block as a [`NumHash`], or `None` if the buffer is empty.
@@ -189,7 +217,7 @@ mod tests {
     use super::*;
     use crate::BlockStateDiff;
     use alloy_eips::NumHash;
-    use alloy_primitives::B256;
+    use alloy_primitives::{B256, U256};
 
     /// Build a `(BlockWithParent, BlockStateDiff)` pair with predictable hashes.
     ///
@@ -316,6 +344,44 @@ mod tests {
 
         state.unwind(10); // nothing to remove
         assert_eq!(state.len(), 3);
+    }
+
+    #[test]
+    fn hash_at_follows_blocks_through_prune_and_unwind() {
+        let state = TrieBufferState::new();
+        for i in 1..=5u64 {
+            insert(&state, i, i as u8, (i - 1) as u8);
+        }
+        assert_eq!(state.hash_at(3), Some(B256::repeat_byte(0x03)));
+        assert_eq!(state.hash_at(6), None);
+
+        state.prune(4); // 1, 2, 3 persisted; 4, 5 buffered
+        assert_eq!(state.hash_at(2), Some(B256::repeat_byte(0x02)));
+        assert_eq!(state.hash_at(5), Some(B256::repeat_byte(0x05)));
+
+        state.unwind(3); // removes 3, 4, 5 whether persisted or buffered
+        assert_eq!(state.hash_at(2), Some(B256::repeat_byte(0x02)));
+        assert_eq!(state.hash_at(3), None);
+        assert_eq!(state.hash_at(5), None);
+    }
+
+    #[test]
+    fn retained_persisted_hashes_drop_the_oldest_beyond_the_bound() {
+        let state = TrieBufferState::new();
+        let extra = 5u64;
+        let highest = RETAINED_PERSISTED_HASHES as u64 + extra;
+        for i in 1..=highest {
+            state.insert(
+                BlockWithParent::new(B256::ZERO, NumHash::new(i, B256::from(U256::from(i)))),
+                BlockStateDiff::default(),
+            );
+        }
+
+        state.prune(highest + 1);
+
+        assert_eq!(state.hash_at(extra), None);
+        assert_eq!(state.hash_at(extra + 1), Some(B256::from(U256::from(extra + 1))));
+        assert_eq!(state.hash_at(highest), Some(B256::from(U256::from(highest))));
     }
 
     #[test]

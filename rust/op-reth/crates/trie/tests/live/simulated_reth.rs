@@ -1,7 +1,7 @@
 //! reth's database and canonical in-memory state, driven the way reth's engine tree and
 //! persistence task drive them.
 
-use super::{BlockSpec, PRUNE_INTERVAL_BLOCKS, create_block_from_spec};
+use super::{BlockSpec, WHOLE_WINDOW, create_block_from_spec};
 use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
@@ -11,7 +11,10 @@ use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::Block;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
-use reth_optimism_trie::{OpProofStoragePruner, OpProofsStore, engine::EngineHandle};
+use reth_optimism_trie::{
+    OpProofStoragePruner, OpProofsStore,
+    engine::{EngineError, EngineHandle},
+};
 use reth_primitives_traits::RecoveredBlock;
 use reth_provider::{
     HashedPostStateProvider, ProviderFactory, SaveBlocksInput, StateProviderFactory,
@@ -26,6 +29,18 @@ use std::sync::Arc;
 
 /// reth's default `--engine.memory-block-buffer-target`.
 const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
+
+/// Hands `block` to `engine` the way the ExEx indexes a block reth validated.
+pub(super) fn index_executed_block(
+    engine: &EngineHandle<Block>,
+    block: &ExecutedBlock,
+) -> Result<(), EngineError> {
+    engine.index_block(
+        block.recovered_block().block_with_parent(),
+        (*block.trie_updates()).clone(),
+        (*block.hashed_state()).clone(),
+    )
+}
 
 /// A fixed signer, so a failing case reproduces with the same addresses and trie shape.
 pub(super) fn fixed_signer() -> Keypair {
@@ -139,11 +154,20 @@ impl SimulatedReth {
         })
     }
 
-    fn num_hash(&self, number: u64) -> BlockNumHash {
+    pub(super) fn num_hash(&self, number: u64) -> BlockNumHash {
         match number {
             0 => BlockNumHash::new(0, self.chain_spec.genesis_hash()),
             _ => self.block(number).num_hash(),
         }
+    }
+
+    pub(super) fn genesis(&self) -> BlockNumHash {
+        self.num_hash(0)
+    }
+
+    /// Newest block in the database.
+    pub(super) const fn persisted(&self) -> BlockNumHash {
+        self.last_persisted
     }
 
     pub(super) fn state_root(&self, number: u64) -> B256 {
@@ -158,10 +182,16 @@ impl SimulatedReth {
     }
 
     pub(super) fn block(&self, number: u64) -> &RecoveredBlock<Block> {
-        self.canonical[number as usize - 1].recovered_block()
+        self.executed_block(number).recovered_block()
     }
 
-    /// Spawns a proofs engine over `store` that reads reth's state through this chain's provider.
+    /// The canonical block at `number` with the trie data reth computed for it.
+    pub(super) fn executed_block(&self, number: u64) -> &ExecutedBlock {
+        &self.canonical[number as usize - 1]
+    }
+
+    /// Spawns a proofs engine over `store` that reads reth's state through this chain's provider
+    /// and never prunes.
     pub(super) fn spawn_engine<S>(
         &self,
         store: S,
@@ -171,8 +201,26 @@ impl SimulatedReth {
     where
         S: OpProofsStore + Clone + 'static,
     {
-        let pruner =
-            OpProofStoragePruner::new(store.clone(), self.provider.clone(), PRUNE_INTERVAL_BLOCKS);
+        self.spawn_engine_with_window(
+            store,
+            persistence_threshold,
+            backpressure_threshold,
+            WHOLE_WINDOW,
+        )
+    }
+
+    /// Spawns a proofs engine over `store` whose saves prune the store down to `window` blocks.
+    pub(super) fn spawn_engine_with_window<S>(
+        &self,
+        store: S,
+        persistence_threshold: u64,
+        backpressure_threshold: u64,
+        window: u64,
+    ) -> EngineHandle<Block>
+    where
+        S: OpProofsStore + Clone + 'static,
+    {
+        let pruner = OpProofStoragePruner::new(store.clone(), self.provider.clone(), window);
         EngineHandle::spawn_with_thresholds(
             self.evm_config.clone(),
             self.provider.clone(),
@@ -220,28 +268,53 @@ impl SimulatedReth {
     /// Replaces the canonical blocks from `number` up with empty blocks on the same ancestor, the
     /// way a reorg to a sibling fork does.
     pub(super) fn reorg_from(&mut self, number: u64) -> eyre::Result<()> {
+        let depth = self.head().number + 1 - number;
+        self.reorg_with(number, &vec![BlockSpec::empty(); depth as usize])?;
+        Ok(())
+    }
+
+    /// Replaces the canonical blocks from `number` up with `specs` built on the same ancestor,
+    /// the way a reorg to a sibling fork does, and returns the new blocks.
+    pub(super) fn reorg_with(
+        &mut self,
+        number: u64,
+        specs: &[BlockSpec],
+    ) -> eyre::Result<Vec<ExecutedBlock>> {
         assert!(number > self.last_persisted.number, "only in-memory blocks can be reorged");
+        let (first_spec, rest) = specs.split_first().expect("a reorg switches to a new block");
         let old = self.canonical.split_off(number as usize - 1);
-        let fork = self.build_block(&BlockSpec::empty())?;
+        // The signer's nonce is the number of transactions the remaining chain holds.
+        self.nonce = self
+            .canonical
+            .iter()
+            .map(|block| block.recovered_block().body().transactions.len() as u64)
+            .sum();
+        let fork = self.build_block(first_spec)?;
         assert_ne!(
             fork.recovered_block().hash(),
             old[0].recovered_block().hash(),
             "the fork must differ from the chain it replaces"
         );
-        let depth = old.len();
+        let mut new = vec![fork.clone()];
         self.make_canonical(NewCanonicalChain::Reorg { new: vec![fork], old });
-        for _ in 1..depth {
-            self.commit(&BlockSpec::empty())?;
+        for spec in rest {
+            new.push(self.commit(spec)?);
         }
-        Ok(())
+        Ok(new)
     }
 
     /// Writes every canonical block to the database without evicting any from memory, the state
     /// a `proofs init` run finds on a node that has caught up.
     pub(super) fn persist_all(&mut self) -> eyre::Result<()> {
-        let head = self.head().number;
-        if head > self.last_persisted.number {
-            self.persist(head)?;
+        self.persist_through(self.head().number)
+    }
+
+    /// Writes the canonical blocks through `number` to the database without evicting any from
+    /// memory.
+    pub(super) fn persist_through(&mut self, number: u64) -> eyre::Result<()> {
+        assert!(number <= self.head().number, "only canonical blocks can be persisted");
+        if number > self.last_persisted.number {
+            self.persist(number)?;
         }
         Ok(())
     }
