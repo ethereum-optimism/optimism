@@ -5,11 +5,11 @@ use crate::{
     errors::{MessageGraphError, MessageGraphResult},
     message::{EnrichedExecutingMessage, parse_log_to_executing_message},
     rules::MessageRules,
-    traits::{InitiatingLogs, InteropProvider},
+    traits::{InitiatingLogs, InteropProvider, LogCommitment},
 };
-use alloc::{string::ToString, vec::Vec};
+use alloc::{boxed::Box, string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_primitives::{B256, U256, keccak256};
+use alloy_primitives::{B256, Log, U256, keccak256};
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_registry::HashMap;
 use op_alloy_consensus::OpReceiptEnvelope;
@@ -61,9 +61,27 @@ pub type BlocksWithReceipts = HashMap<u64, BlockWithReceipts>;
 struct InitiatingBlock {
     chain_id: u64,
     header: Header,
-    logs: Option<InitiatingLogs>,
-    /// The payload hashes of the receipt logs checked so far, keyed by log index.
-    payload_hashes: HashMap<usize, B256>,
+    logs: Option<BlockLogs>,
+}
+
+/// The loaded logs of an [`InitiatingBlock`].
+#[derive(Debug)]
+enum BlockLogs {
+    /// Every receipt log, with its payload hash once a message reaches the hash check.
+    Receipts(Vec<(Log, Option<B256>)>),
+    /// A commitment to the block's logs.
+    Committed(Box<dyn LogCommitment>),
+}
+
+impl From<InitiatingLogs> for BlockLogs {
+    fn from(logs: InitiatingLogs) -> Self {
+        match logs {
+            InitiatingLogs::Receipts(logs) => {
+                Self::Receipts(logs.into_iter().map(|log| (log, None)).collect())
+            }
+            InitiatingLogs::Committed(commitment) => Self::Committed(commitment),
+        }
+    }
 }
 
 impl<'a, P> MessageGraph<'a, P>
@@ -260,12 +278,8 @@ where
                 .provider
                 .header_by_number(initiating_chain_id, initiating_block_number)
                 .await?;
-            *initiating_block = Some(InitiatingBlock {
-                chain_id: initiating_chain_id,
-                header,
-                logs: None,
-                payload_hashes: HashMap::default(),
-            });
+            *initiating_block =
+                Some(InitiatingBlock { chain_id: initiating_chain_id, header, logs: None });
         }
         let initiating_block = initiating_block.as_mut().expect("initiating block loaded");
 
@@ -283,7 +297,8 @@ where
             logs @ None => logs.insert(
                 self.provider
                     .initiating_logs(initiating_chain_id, &initiating_block.header)
-                    .await?,
+                    .await?
+                    .into(),
             ),
         };
         let log_index = message.inner.identifier.logIndex;
@@ -293,9 +308,9 @@ where
         };
 
         match logs {
-            InitiatingLogs::Receipts(logs) => {
-                let index = log_index.saturating_to::<usize>();
-                let remote_log = logs.get(index).ok_or_else(not_found)?;
+            BlockLogs::Receipts(logs) => {
+                let (remote_log, remote_message_hash) =
+                    logs.get_mut(log_index.saturating_to::<usize>()).ok_or_else(not_found)?;
 
                 // Validate the message's origin is correct.
                 if remote_log.address != message.inner.identifier.origin {
@@ -306,18 +321,17 @@ where
                 }
 
                 // Validate that the message hash is correct.
-                let remote_message_hash = *initiating_block
-                    .payload_hashes
-                    .entry(index)
-                    .or_insert_with(|| keccak256(RawMessagePayload::from(remote_log).as_ref()));
-                if remote_message_hash != message.inner.payloadHash {
+                let remote_message_hash = remote_message_hash.get_or_insert_with(|| {
+                    keccak256(RawMessagePayload::from(&*remote_log).as_ref())
+                });
+                if *remote_message_hash != message.inner.payloadHash {
                     return Err(MessageGraphError::InvalidMessageHash {
                         expected: message.inner.payloadHash,
-                        actual: remote_message_hash,
+                        actual: *remote_message_hash,
                     });
                 }
             }
-            InitiatingLogs::Committed(commitment) => {
+            BlockLogs::Committed(commitment) => {
                 if log_index >= U256::from(commitment.log_count()) {
                     return Err(not_found());
                 }
@@ -342,7 +356,7 @@ where
 #[cfg(test)]
 #[allow(clippy::zero_sized_map_values)]
 mod test {
-    use super::{BlockWithReceipts, BlocksWithReceipts, InitiatingLogs, MessageGraph};
+    use super::{BlockLogs, BlockWithReceipts, BlocksWithReceipts, InitiatingLogs, MessageGraph};
     use crate::{
         ExecutingMessage, InteropProvider, MESSAGE_EXPIRY_WINDOW, MessageGraphError,
         MessageGraphResult,
@@ -2335,15 +2349,16 @@ mod test {
         let mut initiating_block = None;
         graph.check_single_dependency(&graph.messages[0], &mut initiating_block).await.unwrap();
         let initiating_block = initiating_block.unwrap();
-        let Some(InitiatingLogs::Receipts(logs)) = &initiating_block.logs else {
+        let Some(BlockLogs::Receipts(logs)) = &initiating_block.logs else {
             panic!("expected receipt logs");
         };
         assert_eq!(logs.len(), 64);
         assert_eq!(
-            initiating_block.payload_hashes.into_iter().collect::<Vec<_>>(),
-            vec![(63, keccak256(MOCK_MESSAGE))],
+            logs.iter().filter(|(_, hash)| hash.is_some()).count(),
+            1,
             "unreferenced logs must not be hashed"
         );
+        assert_eq!(logs[63].1, Some(keccak256(MOCK_MESSAGE)));
     }
 
     /// Resolves chain B's message into chain A's one-log block `1`, after `edit`.
