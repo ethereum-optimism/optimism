@@ -2049,6 +2049,9 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - run:
+          name: Test acceptance test timing helpers
+          command: python3 ops/scripts/test-acceptance-timings.py
       - apt-install:
           extra_flags: "--no-install-recommends"
           packages: "eatmydata"
