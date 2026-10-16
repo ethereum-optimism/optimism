@@ -41,6 +41,7 @@ alloy-contract.workspace = true
 # general
 anyhow.workspace = true
 bincode.workspace = true
+bincode1.workspace = true
 parking_lot.workspace = true
 sha2.workspace = true
 metrics.workspace = true

@@ -21,7 +21,7 @@ use crate::{
     ZK_GAME_TYPE,
     config::{
         PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety, ProposerConfig,
-        RangeSplitCount,
+        RangeSplitCount, StdinByteLimit, WitnessByteLimit,
     },
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
@@ -383,6 +383,8 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         l1_config_path: None,
         dependency_set_path: None,
         range_split_count: RangeSplitCount::one(),
+        max_witness_bytes: WitnessByteLimit::default(),
+        max_stdin_bytes: StdinByteLimit::default(),
         max_concurrent_range_proofs: NonZeroUsize::MIN,
         max_concurrent_defense_tasks: NonZeroU64::new(8).unwrap(),
         fast_finality_mode: false,

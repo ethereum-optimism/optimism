@@ -27,7 +27,7 @@ use crate::{
     TX_REVERTED_PREFIX, ZK_GAME_TYPE,
     config::{
         AGGREGATION_ARTIFACT_SUFFIX, ProofProviderConfig, ProofProviderKind, ProposalSafety,
-        ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
+        ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount, StdinByteLimit, WitnessByteLimit,
     },
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
@@ -2457,6 +2457,8 @@ pub(super) fn scenario_config() -> ProposerConfig {
         l1_config_path: None,
         dependency_set_path: None,
         range_split_count: RangeSplitCount::one(),
+        max_witness_bytes: WitnessByteLimit::default(),
+        max_stdin_bytes: StdinByteLimit::default(),
         max_concurrent_range_proofs: NonZeroUsize::MIN,
         max_concurrent_defense_tasks: NonZeroU64::new(2).unwrap(),
         fast_finality_mode: false,

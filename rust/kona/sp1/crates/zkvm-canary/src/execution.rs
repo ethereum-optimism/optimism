@@ -307,6 +307,7 @@ pub(crate) async fn execute_snapshot(
             &synthesized.range_inputs,
             &synthesized.preloaded_preimages,
             Some(&configs),
+            None,
         ),
     )
     .await;
@@ -402,6 +403,7 @@ pub(crate) async fn execute_snapshot(
             &synthesized.consolidation_inputs,
             &synthesized.preloaded_preimages,
             Some(&configs),
+            None,
         ),
     )
     .await;

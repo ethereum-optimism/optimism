@@ -43,9 +43,10 @@ kzg-rs.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-process.workspace = true
+parking_lot.workspace = true
 serde.workspace = true
 strum.workspace = true
-tokio = { workspace = true, features = ["net", "rt", "time"] }
+tokio = { workspace = true, features = ["net", "rt", "sync", "time"] }
 tracing.workspace = true
 
 # logging and telemetry
