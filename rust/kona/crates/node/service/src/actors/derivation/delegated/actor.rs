@@ -6,9 +6,13 @@ use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use kona_derive::ChainProvider;
 use kona_engine::FinalizeBlockId;
-use kona_protocol::{L2BlockInfo, SyncStatus};
+use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use thiserror::Error;
-use tokio::{select, sync::mpsc, time};
+use tokio::{
+    select,
+    sync::{mpsc, watch},
+    time,
+};
 
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
@@ -35,6 +39,8 @@ where
     derivation_delegate_provider: DelegateProvider,
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
+    /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
+    origin_tx: watch::Sender<Option<BlockInfo>>,
 
     /// The engine's L2 safe head, according to updates from the Engine.
     engine_l2_safe_head: L2BlockInfo,
@@ -57,6 +63,7 @@ where
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
+        origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
         let mut delegated_derivation_ticker =
             time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
@@ -66,6 +73,7 @@ where
             engine_client,
             derivation_delegate_provider,
             l1_provider,
+            origin_tx,
             engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
@@ -183,6 +191,7 @@ where
             // fatal.
             return Ok(());
         }
+        self.origin_tx.send_replace(Some(sync_status.current_l1));
 
         self.engine_client
             .send_safe_l2_signal(sync_status.safe_l2.into())
