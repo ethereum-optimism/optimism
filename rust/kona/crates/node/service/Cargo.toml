@@ -16,17 +16,16 @@ workspace = true
 kona-gossip.workspace = true
 kona-disc.workspace = true
 kona-engine.workspace = true
-kona-providers-local.workspace = true
+kona-providers-local = { workspace = true, features = ["metrics"] }
 op-alloy-consensus.workspace = true
 kona-sources.workspace = true
 kona-genesis.workspace = true
-kona-derive.workspace = true
+kona-derive = { workspace = true, features = ["metrics"] }
 kona-interop.workspace = true
 kona-protocol.workspace = true
-kona-providers-alloy.workspace = true
+kona-providers-alloy = { workspace = true, features = ["metrics"] }
 kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
-kona-macros.workspace = true
 
 # alloy
 alloy-chains.workspace = true
@@ -48,7 +47,7 @@ op-alloy-provider.workspace = true
 
 # general
 url.workspace = true
-libp2p.workspace = true
+libp2p = { workspace = true, features = ["metrics"] }
 libp2p-stream.workspace = true
 discv5.workspace = true
 futures.workspace = true
@@ -66,10 +65,10 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
 http-body-util.workspace = true
 
-# metrics
-metrics = { workspace = true, optional = true }
+metrics.workspace = true
 
 [dev-dependencies]
+metrics-exporter-prometheus.workspace = true
 alloy-json-rpc.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
@@ -89,14 +88,3 @@ kona-derive = {workspace = true, features = ["test-utils"]}
 
 [features]
 default = []
-metrics = [
-	"dep:metrics",
-	"kona-derive/metrics",
-	"kona-disc/metrics",
-	"kona-engine/metrics",
-	"kona-providers-local/metrics",
-	"kona-gossip/metrics",
-	"kona-providers-alloy/metrics",
-	"kona-rpc/metrics",
-	"libp2p/metrics",
-]

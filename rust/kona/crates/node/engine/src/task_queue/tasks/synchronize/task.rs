@@ -7,8 +7,8 @@ use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum}
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
+use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
-use tokio::time::Instant;
 
 /// Internal task for execution layer forkchoice synchronization.
 ///
@@ -35,16 +35,16 @@ use tokio::time::Instant;
 /// [`FinalizeTask`]: crate::FinalizeTask
 /// [`BuildTask`]: crate::BuildTask
 #[derive(Debug, Clone, Constructor)]
-pub struct SynchronizeTask<EngineClient_: EngineClient> {
+pub struct SynchronizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The rollup config.
     pub rollup: Arc<RollupConfig>,
     /// The sync state update to apply to the engine state.
     pub state_update: EngineSyncStateUpdate,
 }
 
-impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
+impl SynchronizeTask {
     /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
     /// necessary.
     fn check_forkchoice_updated_status(
@@ -78,7 +78,7 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient_> {
+impl EngineTaskExt for SynchronizeTask {
     type Output = ();
     type Error = SynchronizeTaskError;
 
@@ -111,8 +111,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
             ));
         }
 
-        let fcu_time_start = Instant::now();
-
         // Send the forkchoice update through the input.
         let forkchoice = new_sync_state.create_forkchoice_state();
 
@@ -142,10 +140,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         // Apply the new sync state to the engine state.
         state.sync_state = new_sync_state;
 
-        let fcu_duration = fcu_time_start.elapsed();
         debug!(
             target: "engine",
-            fcu_duration = ?fcu_duration,
             forkchoice = ?forkchoice,
             response = ?valid_response,
             "Forkchoice updated"
