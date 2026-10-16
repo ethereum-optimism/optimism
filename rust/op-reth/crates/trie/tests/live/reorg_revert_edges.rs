@@ -47,8 +47,9 @@ const CHAIN_LENGTH: u64 = 7;
 /// Blocks a case may hold at most, which bounds the flushes a settle needs and the recipients.
 const MAX_BLOCKS_PER_CASE: u64 = 2 * CHAIN_LENGTH;
 
-/// reth's persistence threshold, above any chain here so that reth keeps every block in memory,
-/// where `reorg_with` can fork it anywhere and the reference store still finds genesis state.
+/// reth's persistence threshold, above any chain here so that reth persists nothing on its own:
+/// a case persists reth through the block its window starts at, which keeps `reorg_with` free
+/// to fork the chain anywhere above.
 const RETH_PERSISTENCE_THRESHOLD: u64 = 2 * MAX_BLOCKS_PER_CASE;
 
 /// Blocks the pruned window keeps, so that pruning moves the earliest block above the anchor
@@ -309,7 +310,7 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         let persistence = RethPersistence::threshold(RETH_PERSISTENCE_THRESHOLD);
         let reth = SimulatedReth::new(chain_spec.clone(), key_pair, persistence)?;
         let store = make_store();
-        initialize_storage(store.clone(), &reth.factory, reth.head())?;
+        initialize_storage(store.clone(), &reth.factory, reth.genesis())?;
         let gated_store = StoreWithWriteGate::new(store.clone());
         let engine = Self::spawn_engine(&reth, &gated_store, cadence, window);
         let mut scenario = Self {
@@ -323,11 +324,10 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
             targets: proof_targets(sender),
             window,
         };
-        for number in 1..=CHAIN_LENGTH {
-            scenario.commit(&chain_block(number))?;
-        }
+        let settled_tip = settled_disk_tip(cadence, 0, CHAIN_LENGTH);
+        scenario.commit_blocks_toward_a_save_at(CHAIN_LENGTH, settled_tip)?;
         let disk_tip = scenario.settle()?;
-        assert_eq!(disk_tip.number, settled_disk_tip(cadence, 0, CHAIN_LENGTH), "settled disk tip");
+        assert_eq!(disk_tip.number, settled_tip, "settled disk tip");
         Ok(scenario)
     }
 
@@ -363,19 +363,31 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         Self { cadence, chain_spec, engine, gated_store, key_pair, reth, store, targets, window }
     }
 
-    /// Commits `spec` to reth and indexes it.
-    fn commit(&mut self, spec: &BlockSpec) -> eyre::Result<()> {
-        let block = self.reth.commit(spec)?;
-        index_executed_block(&self.engine, &block)?;
+    /// Commits `count` chain blocks to reth, persists reth through the block the save landing at
+    /// `save_tip` prunes the window to, and indexes the blocks. reth must be persisted exactly
+    /// through that block: any lower and a pruner holding the window back at reth's persisted
+    /// head prunes less than one that does not; any higher and the reference store, which starts
+    /// at reth's database tip, cannot serve the earliest block.
+    fn commit_blocks_toward_a_save_at(&mut self, count: u64, save_tip: u64) -> eyre::Result<()> {
+        let blocks =
+            (0..count).map(|_| self.commit_chain_block()).collect::<eyre::Result<Vec<_>>>()?;
+        self.reth.persist_through(save_tip.saturating_sub(self.window))?;
+        for block in &blocks {
+            index_executed_block(&self.engine, block)?;
+        }
         Ok(())
+    }
+
+    /// Commits the next block of the chain to reth.
+    fn commit_chain_block(&mut self) -> eyre::Result<ExecutedBlock> {
+        let number = self.reth.head().number + 1;
+        self.reth.commit(&chain_block(number))
     }
 
     /// Commits enough blocks for a save to carry everything buffered to disk, and settles.
     fn commit_through_a_save(&mut self) -> eyre::Result<()> {
-        for _ in 0..self.cadence.persistence {
-            let number = self.reth.head().number + 1;
-            self.commit(&chain_block(number))?;
-        }
+        let save_tip = self.settle()?.number + self.cadence.persistence;
+        self.commit_blocks_toward_a_save_at(self.cadence.persistence, save_tip)?;
         self.settle()?;
         Ok(())
     }
@@ -402,11 +414,9 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
     /// Commits blocks until the buffer reaches the persistence threshold and the save it starts
     /// is inside `hold`.
     fn commit_until_a_save_is_in_flight(&mut self, hold: &HeldWrite) -> eyre::Result<()> {
-        let buffered = self.reth.head().number - self.proof_window()?.latest.number;
-        for _ in buffered..self.cadence.persistence {
-            let number = self.reth.head().number + 1;
-            self.commit(&chain_block(number))?;
-        }
+        let save_tip = self.proof_window()?.latest.number + self.cadence.persistence;
+        let count = save_tip - self.reth.head().number;
+        self.commit_blocks_toward_a_save_at(count, save_tip)?;
         hold.wait_until_entered();
         Ok(())
     }
@@ -490,6 +500,13 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
             "the disk tip {:?} is not canonical in reth",
             window.latest
         );
+        let database_tip = self.reth.persisted().number;
+        eyre::ensure!(
+            window.earliest.number >= database_tip,
+            "the earliest block {} is below reth's database tip {database_tip}, where the \
+             reference store starts",
+            window.earliest.number
+        );
         let reference = self.reference_store()?;
         for number in window.earliest.number..=window.latest.number {
             let expected = BlockView::read(&reference, number, &self.targets)?;
@@ -500,17 +517,15 @@ impl<S: OpProofsStore + Clone + 'static> Scenario<S> {
         Ok(())
     }
 
-    /// A fresh store indexed over reth's canonical chain from genesis.
+    /// A fresh store initialized at reth's database tip, the only block whose trie reth's
+    /// database holds, and indexed over reth's canonical chain above it.
     fn reference_store(&self) -> eyre::Result<InMemoryProofsStorage> {
-        eyre::ensure!(
-            !self.reth.locate(self.reth.num_hash(1)).persisted,
-            "reth's database must still hold genesis state"
-        );
+        let anchor = self.reth.persisted();
         let store = InMemoryProofsStorage::new();
-        initialize_storage(store.clone(), &self.reth.factory, self.reth.genesis())?;
+        initialize_storage(store.clone(), &self.reth.factory, anchor)?;
         let engine = self.reth.spawn_engine(store.clone(), 1, 2);
         let head = self.reth.head().number;
-        for number in 1..=head {
+        for number in anchor.number + 1..=head {
             index_executed_block(&engine, self.reth.executed_block(number))?;
         }
         for _ in 0..=head {
