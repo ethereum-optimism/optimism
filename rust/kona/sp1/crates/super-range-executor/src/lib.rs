@@ -6,7 +6,7 @@
 //! `super-range` SP1 ELF.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fmt::{self, Debug},
     path::PathBuf,
     str::FromStr,
@@ -27,7 +27,7 @@ use kona_preimage::{
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
     log_commitment::{
-        BlockReceipts, LogCommitmentInputs, LogCommitmentTable, LogOpening, VerifiedLogCommitments,
+        BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
         log_commitment_witness,
     },
     super_root::{
@@ -545,17 +545,7 @@ pub fn build_super_consolidation_stdin(
     log_commitments: &LogCommitmentInputs,
     proofs: Option<&LogCommitmentProofs>,
 ) -> Result<SP1Stdin> {
-    LogCommitmentTable::from_batches(&log_commitments.batches)?;
-    let mut opened = BTreeSet::new();
-    for opening in &log_commitments.openings {
-        ensure!(
-            opened.insert((opening.receipts_root, opening.index)),
-            "second opening of log {} under receipts root {}",
-            opening.index,
-            opening.receipts_root,
-        );
-        ensure!(opening.siblings.len() <= usize::from(u8::MAX), "opening has too many siblings");
-    }
+    log_commitments.validate()?;
     let mut stdin =
         build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)?;
     stdin.write_vec(log_commitments.encode());

@@ -10,7 +10,10 @@
 //! entry of the block's receipts root and an opening of the message's log, through
 //! [`VerifiedLogCommitments`].
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use alloy_consensus::{EMPTY_ROOT_HASH, Header};
 use alloy_eips::eip2718::Encodable2718;
@@ -328,6 +331,27 @@ pub struct LogCommitmentInputs {
 }
 
 impl LogCommitmentInputs {
+    /// Checks the input rules that the stdin builder and the guest share. Fails where
+    /// [`LogCommitmentTable::from_batches`] fails, on a second opening for one receipts root and
+    /// index, or on an opening with more than 255 siblings.
+    pub fn validate(&self) -> Result<()> {
+        LogCommitmentTable::from_batches(&self.batches)?;
+        let mut opened = BTreeSet::new();
+        for opening in &self.openings {
+            ensure!(
+                opened.insert((opening.receipts_root, opening.index)),
+                "second opening of log {} under receipts root {}",
+                opening.index,
+                opening.receipts_root,
+            );
+            ensure!(
+                opening.siblings.len() <= usize::from(u8::MAX),
+                "opening has too many siblings"
+            );
+        }
+        Ok(())
+    }
+
     /// Encodes the inputs. Panics if a batch is not whole entries or an opening has more than 255
     /// siblings.
     pub fn encode(&self) -> Vec<u8> {
@@ -455,21 +479,19 @@ pub struct VerifiedLogCommitments {
 
 impl VerifiedLogCommitments {
     /// Verifies the batches of `inputs` (see [`LogCommitmentTable::verify_batches`]) and indexes
-    /// its openings. Panics on a second opening for one receipts root and index.
+    /// its openings. Panics where [`LogCommitmentInputs::validate`] fails.
     pub fn new(
         inputs: LogCommitmentInputs,
         vkey: &[u32; 8],
         verify: impl FnMut(&[u32; 8], &[u8; 32]),
     ) -> Self {
+        inputs.validate().unwrap_or_else(|err| panic!("{err}"));
         let table = LogCommitmentTable::verify_batches(&inputs.batches, vkey, verify);
-        let mut openings = Openings::new();
-        for opening in inputs.openings {
-            let (receipts_root, index) = (opening.receipts_root, opening.index);
-            assert!(
-                openings.insert((receipts_root, index), opening).is_none(),
-                "second opening of log {index} under receipts root {receipts_root}"
-            );
-        }
+        let openings = inputs
+            .openings
+            .into_iter()
+            .map(|opening| ((opening.receipts_root, opening.index), opening))
+            .collect();
         Self { table, openings: Arc::new(openings) }
     }
 }
