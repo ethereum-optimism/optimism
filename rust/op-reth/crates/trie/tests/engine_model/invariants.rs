@@ -40,12 +40,17 @@ impl Harness {
             window.latest.number,
             self.model.persisted_at_least()
         );
+        let earliest_bounds = self.model.earliest_bounds(window.latest.number);
         eyre::ensure!(
-            window.latest.number - window.earliest.number <= self.model.window(),
-            "the store holds blocks {}..={}, more than its window of {}",
+            earliest_bounds.contains(&window.earliest.number),
+            "the store holds blocks {}..={}, whose earliest block lies outside {:?}, what its \
+             window of {} allows with reth persisted through {} before block {} was committed",
             window.earliest.number,
             window.latest.number,
-            self.model.window()
+            earliest_bounds,
+            self.model.window(),
+            self.model.block(window.latest.number).persisted_before_commit,
+            window.latest.number
         );
         self.model.note_persisted(window.latest.number);
         for (number, view) in views {
