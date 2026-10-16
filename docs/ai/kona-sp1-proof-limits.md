@@ -122,7 +122,10 @@ range gas limit and under `MAX_WITNESS_BYTES`. Otherwise it proves each referenc
 batches, packed by `estimate_log_block_pgu`. Before each consolidation request, it computes
 `estimate_consolidation_pgu` from the collection. It refuses a request whose estimate is not under
 the budget, whose witness or stdin is over its cap, or, on the table path, whose run read a block
-below a head without an entry. `OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
+below a head without an entry. On the table path, it first applies these checks to the terms that
+the scan and the batches set (`check_table_path_fits`), so it requests no batch for a game that these
+terms alone put over a limit. The scan does not detect cycles, so it also counts the references of a
+head that a same-timestamp cycle replaces, which the run does not serve. `OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
 
 Each estimate must be at or above the measured PGU, and each bound at or above the estimate.
 ELF-gated tests in `kona-sp1-super-range-executor` pin this:
