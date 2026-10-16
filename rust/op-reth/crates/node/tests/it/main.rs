@@ -12,6 +12,10 @@ mod rpc;
 
 mod custom_genesis;
 
+mod derived_attributes;
+
+mod derived_attributes_cost;
+
 mod debug_trace_post_exec;
 
 mod invalid_post_exec;

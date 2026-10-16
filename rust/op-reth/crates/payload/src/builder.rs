@@ -6,12 +6,13 @@ use crate::{
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_evm::Evm as AlloyEvm;
+use alloy_op_evm::block::OpBlockExecutionError;
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_consensus::{
-    ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
-    parse_post_exec_payload_from_transactions, total_gas_refund,
+    ParsedPostExecPayload, PostExecPayloadValidationError, SDMGasEntry, TxPostExec,
+    build_post_exec_tx, parse_post_exec_payload_from_transactions, total_gas_refund,
 };
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
@@ -484,9 +485,10 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
 
         // 1. apply pre-execution changes
-        builder.apply_pre_execution_changes().map_err(|err| {
+        // Kept as an execution error, not `Internal`, so `is_invalid_derived_payload_error` sees an
+        // invalid `0x7D`, which is rejected here.
+        builder.apply_pre_execution_changes().inspect_err(|err| {
             warn!(target: "payload_builder", %err, "failed to apply pre-execution changes");
-            PayloadBuilderError::Internal(err.into())
         })?;
 
         // 2. execute sequencer transactions
@@ -610,6 +612,64 @@ impl<Txs> OpBuilder<'_, Txs> {
             ctx.parent().number() + 1,
             Default::default(),
         )?)
+    }
+}
+
+/// Returns whether building a derived (`noTxPool`) payload failed because of its transactions.
+///
+/// Only these failures may be reported as invalid payload attributes, which makes the rollup node
+/// replace the block with a deposits-only one. A node-local failure reported that way would derive
+/// a wrong block, so every other error must stay retryable.
+pub fn is_invalid_derived_payload_error(err: &PayloadBuilderError) -> bool {
+    match err {
+        PayloadBuilderError::EvmExecutionError(e) => {
+            e.downcast_ref::<BlockExecutionError>().is_some_and(is_invalid_payload_error)
+        }
+        // An undecodable, blob or unrecoverable transaction, or a malformed `0x7D`.
+        PayloadBuilderError::Other(e) => {
+            e.is::<alloy_rlp::Error>() ||
+                e.is::<PostExecPayloadValidationError>() ||
+                e.downcast_ref::<OpPayloadBuilderError>()
+                    .is_some_and(is_invalid_op_payload_error)
+        }
+        _ => false,
+    }
+}
+
+fn is_invalid_payload_error(err: &BlockExecutionError) -> bool {
+    match err {
+        BlockExecutionError::Validation(
+            BlockValidationError::InvalidTx { .. } |
+            BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
+            BlockValidationError::BlockGasExceeded,
+        ) => true,
+        BlockExecutionError::Validation(BlockValidationError::Other(e)) => {
+            e.downcast_ref::<OpBlockExecutionError>().is_some_and(is_invalid_op_execution_error)
+        }
+        _ => false,
+    }
+}
+
+// Exhaustive, like `is_invalid_op_execution_error`, so a new variant must be classified: one that
+// defaults to node-local would stall derivation on every node.
+const fn is_invalid_op_payload_error(err: &OpPayloadBuilderError) -> bool {
+    match err {
+        OpPayloadBuilderError::TransactionEcRecoverFailed |
+        OpPayloadBuilderError::BlobTransactionRejected => true,
+        OpPayloadBuilderError::L1BlockInfoParseFailed |
+        OpPayloadBuilderError::AccountLoadFailed(_) |
+        OpPayloadBuilderError::ForceCreate2DeployerFail => false,
+    }
+}
+
+const fn is_invalid_op_execution_error(err: &OpBlockExecutionError) -> bool {
+    match err {
+        OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
+        OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
+        OpBlockExecutionError::InvalidPostExecPayload(_) |
+        OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
+        OpBlockExecutionError::LoadCacheAccount |
+        OpBlockExecutionError::GetJovianDaFootprintScalar(_) => false,
     }
 }
 
