@@ -585,7 +585,7 @@ async fn consolidation_proof_binds_batch_proof() {
     assert_eq!(decode_super_consolidation_public_values(&mut proof.public_values).unwrap(), native);
 
     let mut batch = proofs.batches().remove(0);
-    // An extra entry the consolidation never reads: the guest runs to completion.
+    // An extra entry the consolidation never reads.
     batch.extend(
         LogCommitmentEntry {
             receipts_root: B256::repeat_byte(0xee),
@@ -600,6 +600,8 @@ async fn consolidation_proof_binds_batch_proof() {
         unreachable!()
     };
     stdin.write_proof((**batch_proof).clone(), proofs.vk.vk.clone());
+    // The guest accepts the forged entries, so only the binding to the batch proof can reject them.
+    assert_eq!(execute_consolidation(&dir, stdin.clone(), true).await.0, native);
     let err =
         client.prove(&pk, stdin).compressed().await.expect_err(
             "the consolidation proved with entries that its batch proof did not commit",
