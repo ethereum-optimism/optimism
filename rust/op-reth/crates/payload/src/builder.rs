@@ -381,8 +381,8 @@ where
 /// Converts `BuildArguments` from [`OpPayloadAttrs`](crate::payload::OpPayloadAttrs) to
 /// [`OpPayloadBuilderAttributes`], decoding the RPC transaction bytes into typed transactions.
 ///
-/// Runs once per build attempt, so a post-exec transaction the conversion rejects is logged and
-/// counted per attempt rather than once per attributes set.
+/// Counts a rejected post-exec transaction once per call, so a job that converts the same
+/// attributes more than once counts each conversion.
 fn convert_build_args<N: OpPayloadPrimitives>(
     args: BuildArguments<crate::payload::OpPayloadAttrs, OpBuiltPayload<N>>,
 ) -> Result<

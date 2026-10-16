@@ -6,8 +6,7 @@
 //!
 //! Recorded from the execution-context builders, the Engine API payload preflight, and the
 //! payload-builder attributes preflight. Attributes count once per conversion into builder
-//! attributes: a builder that re-converts on every build attempt counts attempts, so a
-//! persistent rejection keeps the series moving for as long as the attempts continue, and a
+//! attributes, so a rejection repeats only when a builder reconverts the same attributes, and a
 //! replay of attributes through the debug RPC namespace counts like an engine delivery. Beyond
 //! live import, several paths re-execute stored canonical blocks that already passed this check:
 //! RPC replays, the proofs ExEx's periodic re-execution, and pipeline or backfill sync.
