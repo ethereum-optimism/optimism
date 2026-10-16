@@ -68,3 +68,31 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
 
     Ok(())
 }
+
+/// Replaces a derived block the engine rejected with the deposits-only block of the same
+/// `attributes`, as Holocene requires.
+///
+/// Returns the error that ends the task: [`SealTaskError::HoloceneInvalidFlush`] once the
+/// replacement is sealed, which flushes the rest of the channel, or
+/// [`SealTaskError::DepositOnlyPayloadReattemptFailed`] if the replacement fails.
+pub(in crate::task_queue) async fn replace_with_deposits_only<EngineClient_: EngineClient>(
+    state: &mut EngineState,
+    engine: Arc<EngineClient_>,
+    cfg: Arc<RollupConfig>,
+    attributes: &OpAttributesWithParent,
+    is_attributes_derived: bool,
+    block_sink: Arc<dyn ImportedBlockSink>,
+) -> SealTaskError {
+    let deposits_only = attributes.as_deposits_only();
+    match build_and_seal(state, engine, cfg, deposits_only, is_attributes_derived, block_sink).await
+    {
+        Ok(()) => {
+            info!(target: "engine", "Successfully imported deposits-only payload");
+            SealTaskError::HoloceneInvalidFlush
+        }
+        Err(err) => {
+            error!(target: "engine", %err, "Critical: deposits-only replacement failed");
+            SealTaskError::DepositOnlyPayloadReattemptFailed
+        }
+    }
+}

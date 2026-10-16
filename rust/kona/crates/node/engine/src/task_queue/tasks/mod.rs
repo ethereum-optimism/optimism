@@ -24,4 +24,4 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
-pub(super) use util::{BuildAndSealError, build_and_seal};
+pub(super) use util::{BuildAndSealError, build_and_seal, replace_with_deposits_only};
