@@ -6,6 +6,7 @@ use alloy_primitives::{Address, B256, Bytes, Log, LogData, keccak256};
 use kona_preimage::PreimageKey;
 use op_alloy_consensus::{OpDepositReceipt, OpDepositReceiptWithBloom, OpReceiptEnvelope};
 
+use super::BlockReceipts;
 use crate::witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore};
 
 /// `count` logs with distinct addresses, 0 to 4 topics, and 0 to 63 data bytes.
@@ -53,7 +54,7 @@ pub fn receipts_root(receipts: &[OpReceiptEnvelope]) -> B256 {
 
 /// Every receipt type, zero-log receipts at each position, a block without logs, the empty
 /// receipts root, a single log, and more than `0x80` receipts (item 0 moves in the trie).
-pub fn mixed_blocks() -> Vec<(B256, Vec<OpReceiptEnvelope>)> {
+pub fn mixed_blocks() -> Vec<BlockReceipts> {
     let blocks = vec![
         vec![
             deposit(vec![], Some((1, 1))),
@@ -70,7 +71,10 @@ pub fn mixed_blocks() -> Vec<(B256, Vec<OpReceiptEnvelope>)> {
         vec![eip1559(logs(10, 1))],
         (0..130).map(|i| eip1559(logs(1_000 + 3 * i, i % 3))).collect(),
     ];
-    blocks.into_iter().map(|receipts| (receipts_root(&receipts), receipts)).collect()
+    blocks
+        .into_iter()
+        .map(|receipts| BlockReceipts { receipts_root: receipts_root(&receipts), receipts })
+        .collect()
 }
 
 /// The receipts root of a 20-receipt block, and a witness of its trie without one non-root node.

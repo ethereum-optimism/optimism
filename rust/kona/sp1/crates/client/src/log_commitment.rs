@@ -123,14 +123,21 @@ pub fn log_commitment_public_values(receipts_roots: &[B256], witness_rkyv: &[u8]
     receipts_roots.iter().flat_map(|root| commit_receipts_root(&oracle, *root).encode()).collect()
 }
 
-/// Builds the `log-commitment` witness for blocks given as `(receipts root, receipts)`.
+/// The receipts of one block, with the receipts root from its header.
+#[derive(Debug, Clone)]
+pub struct BlockReceipts {
+    /// The receipts root.
+    pub receipts_root: B256,
+    /// The receipts, in transaction order.
+    pub receipts: Vec<OpReceiptEnvelope>,
+}
+
+/// Builds the `log-commitment` witness for `blocks`.
 ///
 /// Fails if the receipts of a block do not hash to its receipts root.
-pub fn log_commitment_witness(
-    blocks: &[(B256, Vec<OpReceiptEnvelope>)],
-) -> Result<DefaultWitnessData> {
+pub fn log_commitment_witness(blocks: &[BlockReceipts]) -> Result<DefaultWitnessData> {
     let mut store = PreimageStore::default();
-    for (index, (receipts_root, receipts)) in blocks.iter().enumerate() {
+    for (index, BlockReceipts { receipts_root, receipts }) in blocks.iter().enumerate() {
         let mut trie = kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| {
             receipt.encode_2718(out);
         });
@@ -264,17 +271,17 @@ mod tests {
         let block_hashes: Vec<B256> = blocks
             .iter()
             .zip(0..)
-            .map(|((receipts_root, _), number)| save_header(&mut store, number, *receipts_root))
+            .map(|(block, number)| save_header(&mut store, number, block.receipts_root))
             .collect();
         let oracle = oracle(DefaultWitnessData::from_parts(store, blobs));
 
-        for ((receipts_root, input_receipts), block_hash) in blocks.iter().zip(block_hashes) {
+        for (block, block_hash) in blocks.iter().zip(block_hashes) {
             let leaves = interop_provider_leaves(oracle.clone(), block_hash);
-            assert_eq!(log_leaves(input_receipts), leaves);
+            assert_eq!(log_leaves(&block.receipts), leaves);
             assert_eq!(
-                commit_receipts_root(&oracle, *receipts_root),
+                commit_receipts_root(&oracle, block.receipts_root),
                 LogCommitmentEntry {
-                    receipts_root: *receipts_root,
+                    receipts_root: block.receipts_root,
                     log_count: leaves.len() as u64,
                     log_root: padded_root(&leaves),
                 },
@@ -339,11 +346,12 @@ mod tests {
     fn forged_trie_node_panics() {
         let receipts = vec![eip1559(logs(0, 3))];
         let root = receipts_root(&receipts);
-        let witness = log_commitment_witness(&[(root, receipts.clone())]).unwrap();
-        let mut bytes = witness_bytes(&witness);
-        // The single trie node is a leaf holding the encoded receipt; change one of its bytes.
         let mut receipt = Vec::new();
         receipts[0].encode_2718(&mut receipt);
+        let witness =
+            log_commitment_witness(&[BlockReceipts { receipts_root: root, receipts }]).unwrap();
+        let mut bytes = witness_bytes(&witness);
+        // The single trie node is a leaf holding the encoded receipt; change one of its bytes.
         let at = bytes.windows(receipt.len()).position(|window| window == receipt).unwrap();
         bytes[at + receipt.len() - 1] ^= 1;
 
@@ -354,9 +362,10 @@ mod tests {
     #[test]
     fn public_values_golden_bytes() {
         let receipts = vec![deposit(vec![], Some((1, 1))), eip1559(logs(1, 2))];
-        let root = receipts_root(&receipts);
-        let blocks = vec![(root, receipts.clone()), (EMPTY_ROOT_HASH, vec![]), (root, receipts)];
-        let roots: Vec<B256> = blocks.iter().map(|(root, _)| *root).collect();
+        let block = BlockReceipts { receipts_root: receipts_root(&receipts), receipts };
+        let empty_block = BlockReceipts { receipts_root: EMPTY_ROOT_HASH, receipts: vec![] };
+        let blocks = vec![block.clone(), empty_block, block];
+        let roots: Vec<B256> = blocks.iter().map(|block| block.receipts_root).collect();
         let witness = log_commitment_witness(&blocks).unwrap();
 
         let public_values = log_commitment_public_values(&roots, &witness_bytes(&witness));
@@ -377,7 +386,10 @@ mod tests {
     /// Pins the witness builder's receipts-root check.
     #[test]
     fn witness_rejects_wrong_receipts_root() {
-        let blocks = vec![(B256::repeat_byte(1), vec![eip1559(logs(0, 1))])];
+        let blocks = vec![BlockReceipts {
+            receipts_root: B256::repeat_byte(1),
+            receipts: vec![eip1559(logs(0, 1))],
+        }];
         let err = log_commitment_witness(&blocks).unwrap_err();
         assert!(err.to_string().starts_with("block 0: receipts hash to"), "{err}");
     }

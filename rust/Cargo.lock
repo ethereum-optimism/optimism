@@ -8148,7 +8148,6 @@ dependencies = [
  "kona-sp1-elfs",
  "kona-sp1-ethereum-client-utils",
  "kona-sp1-host-utils",
- "op-alloy-consensus",
  "rkyv",
  "serde",
  "serde_json",

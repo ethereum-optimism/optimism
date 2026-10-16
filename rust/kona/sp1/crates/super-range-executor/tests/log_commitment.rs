@@ -5,12 +5,11 @@ use std::{path::PathBuf, sync::Arc};
 
 use alloy_primitives::{Address, B256, Bytes, Log, LogData};
 use kona_sp1_client_utils::log_commitment::{
-    log_commitment_public_values, log_commitment_witness,
+    BlockReceipts, log_commitment_public_values, log_commitment_witness,
     test_utils::{eip1559, missing_trie_node_witness, mixed_blocks, receipts_root},
 };
 use kona_sp1_elfs::{ELF_DIR_ENV, load_elf_from};
 use kona_sp1_super_range_executor::{build_log_commitment_stdin, log_commitment_stdin};
-use op_alloy_consensus::OpReceiptEnvelope;
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues, SP1Stdin};
 
 const ELF_NAME: &str = "log-commitment-elf";
@@ -29,9 +28,8 @@ async fn execute(
 }
 
 /// The native program output for `blocks`, and the size of its witness.
-fn native_public_values(blocks: &[(B256, Vec<OpReceiptEnvelope>)]) -> (Vec<u8>, usize) {
-    let receipts_roots: Vec<B256> =
-        blocks.iter().map(|(receipts_root, _)| *receipts_root).collect();
+fn native_public_values(blocks: &[BlockReceipts]) -> (Vec<u8>, usize) {
+    let receipts_roots: Vec<B256> = blocks.iter().map(|block| block.receipts_root).collect();
     let witness = log_commitment_witness(blocks).unwrap();
     let witness = rkyv::to_bytes::<rkyv::rancor::Error>(&witness).unwrap();
     (log_commitment_public_values(&receipts_roots, &witness), witness.len())
@@ -74,7 +72,7 @@ async fn measure(log_count: u64, data: usize) {
         })
         .collect();
     let receipts = vec![eip1559(logs)];
-    let blocks = vec![(receipts_root(&receipts), receipts)];
+    let blocks = vec![BlockReceipts { receipts_root: receipts_root(&receipts), receipts }];
     let (native, witness_bytes) = native_public_values(&blocks);
 
     let stdin = build_log_commitment_stdin(&blocks).unwrap();

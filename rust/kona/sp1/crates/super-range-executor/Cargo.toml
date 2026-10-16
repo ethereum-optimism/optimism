@@ -28,7 +28,6 @@ kona-registry.workspace = true
 
 # alloy
 alloy-primitives.workspace = true
-op-alloy-consensus.workspace = true
 
 # rpc / serialization
 jsonrpsee-http-client.workspace = true
