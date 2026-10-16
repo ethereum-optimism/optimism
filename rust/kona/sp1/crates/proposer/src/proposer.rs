@@ -971,7 +971,6 @@ impl Proposer {
                 path: config.log_path,
                 range_gas_limit: config.proof_provider_config.range_gas_limit,
                 log_gas_limit: config.proof_provider_config.log_gas_limit,
-                scratch_dir: config.scratch_dir.clone(),
             },
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
@@ -5569,7 +5568,6 @@ mod tests {
                 min_auction_period: 1,
             },
             log_path: crate::config::LogPath::Auto,
-            scratch_dir: std::env::temp_dir(),
         }
     }
 

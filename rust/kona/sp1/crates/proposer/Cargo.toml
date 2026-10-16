@@ -58,7 +58,6 @@ tracing.workspace = true
 thiserror.workspace = true
 flate2.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"] }
-tempfile.workspace = true
 
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
@@ -69,6 +68,7 @@ alloy-transport.workspace = true
 httpmock.workspace = true
 metrics-exporter-prometheus.workspace = true
 serde_json = { workspace = true, features = ["std"] }
+tempfile.workspace = true
 serial_test.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tower.workspace = true
