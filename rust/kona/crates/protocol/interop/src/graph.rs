@@ -543,16 +543,31 @@ mod test {
             edit(&mut self.committed.messages);
         }
 
-        /// Asserts equal verdicts and resolutions; returns the receipts graph's resolution.
+        /// Asserts matching errors and equal resolutions; returns the receipts graph's resolution.
         async fn resolve(self) -> MessageGraphResult<(), MockInteropProvider> {
             for message in &self.receipts.messages {
                 let receipts = self.receipts.check_single_dependency(message, &mut None).await;
                 let committed = self.committed.check_single_dependency(message, &mut None).await;
-                assert_eq!(
-                    receipts.is_ok(),
-                    committed.is_ok(),
-                    "verdicts differ for {message:?}: receipts {receipts:?}, committed {committed:?}"
-                );
+                let identifier = &message.inner.identifier;
+                match (&receipts, &committed) {
+                    // A commitment reports an origin or a payload mismatch as one error.
+                    (
+                        Err(
+                            MessageGraphError::InvalidMessageOrigin { .. } |
+                            MessageGraphError::InvalidMessageHash { .. },
+                        ),
+                        Err(MessageGraphError::InvalidMessageLog { chain_id, log_index }),
+                    ) => assert_eq!(
+                        (U256::from(*chain_id), U256::from(*log_index)),
+                        (identifier.chainId, identifier.logIndex),
+                    ),
+                    // A failing block commits to no logs; see `TestProvider::initiating_logs`.
+                    (
+                        Err(MessageGraphError::InteropProviderError(_)),
+                        Err(MessageGraphError::RemoteMessageNotFound { .. }),
+                    ) => {}
+                    _ => assert_eq!(receipts, committed, "errors differ for {message:?}"),
+                }
             }
             let (receipts_provider, committed_provider) =
                 (self.receipts.provider, self.committed.provider);
