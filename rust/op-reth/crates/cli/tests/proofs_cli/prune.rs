@@ -58,21 +58,49 @@ fn prune_of_an_empty_storage_does_nothing() {
     assert_eq!(seeded.proof_window(), None);
 }
 
-#[test]
-fn prune_fails_when_the_new_earliest_block_is_not_in_reth() {
+/// A storage two blocks ahead of reth, the way an unclean shutdown leaves it: reth holds
+/// `[0, CHAIN_BLOCKS]`, the storage `[EARLIEST, CHAIN_BLOCKS + 2]`.
+fn seeded_storage_ahead_of_reth() -> SeededDatadir {
     let seeded = seeded_storage();
     seeded.append_store_only_block();
-    let store_tip = seeded.append_store_only_block();
+    seeded.append_store_only_block();
+    seeded
+}
+
+/// A window of one block puts the new earliest block at `CHAIN_BLOCKS + 1`, which has no hash in
+/// reth, so the prune fails and leaves the storage as it was.
+#[test]
+fn prune_fails_when_the_new_earliest_block_is_not_in_reth() {
+    let seeded = seeded_storage_ahead_of_reth();
+    let window_before = seeded.proof_window();
 
     let err = seeded
         .run(&["prune", "--proofs-history.window=1"])
         .expect_err("pruning up to a block reth does not hold must fail");
 
     assert!(
-        matches!(err.downcast_ref::<PrunerError>(), Some(PrunerError::BlockNotFound(9))),
+        matches!(
+            err.downcast_ref::<PrunerError>(),
+            Some(PrunerError::BlockNotFound(number)) if *number == CHAIN_BLOCKS + 1
+        ),
         "{err}"
     );
+    assert_eq!(seeded.proof_window(), window_before);
+}
+
+/// A window of one block puts the new earliest block at `CHAIN_BLOCKS + 1`, past reth's last
+/// block; a pruner that never moves the earliest block past that one prunes up to it and
+/// succeeds, with the storage's state there still matching reth's header.
+#[test]
+#[ignore = "holds once the pruner caps the new earliest block at reth's last block (#23358 on the reth 2.6 pin); until then the prune fails, see prune_fails_when_the_new_earliest_block_is_not_in_reth"]
+fn prune_stops_at_reths_last_block_when_the_storage_is_ahead_of_reth() {
+    let seeded = seeded_storage_ahead_of_reth();
+    let store_tip = seeded.proof_window().expect("the storage holds blocks").latest;
+
+    seeded.run(&["prune", "--proofs-history.window=1"]).expect("prune must succeed");
+
     let window = seeded.proof_window().expect("the storage keeps its window");
-    assert_eq!(window.earliest, seeded.block_num_hash(EARLIEST));
+    assert_eq!(window.earliest, seeded.block_num_hash(CHAIN_BLOCKS));
     assert_eq!(window.latest, store_tip);
+    seeded.verify_state_root_at(CHAIN_BLOCKS);
 }
