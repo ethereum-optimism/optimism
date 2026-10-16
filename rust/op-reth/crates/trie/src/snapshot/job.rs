@@ -92,8 +92,8 @@ where
     ///
     /// `target_block` must fall inside the proofs window's `[earliest, latest]`.
     /// Auto-resumes a partial `Building` snapshot if the existing anchor
-    /// matches; refuses to run if a `Ready` snapshot exists at a different
-    /// anchor (the caller must drop it first).
+    /// matches; refuses to run while a `Ready` snapshot exists, at any anchor
+    /// (the caller must drop it first).
     pub fn run(&self, target_block: BlockNumber) -> Result<SnapshotInitOutcome, SnapshotError> {
         let start = Instant::now();
 

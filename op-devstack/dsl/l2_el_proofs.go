@@ -144,7 +144,7 @@ func (el *L2ELNode) WaitForProofsStorePrunedPast(block uint64, timeout time.Dura
 // `op-reth proofs init`, the way an operator does for a node that synced without proofs history,
 // and makes the node run with proofs history from its next Start. It fails the test if the node
 // is running or the init fails; InitProofsHistoryRaw does neither.
-func (el *L2ELNode) InitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) stack.ProofsHistoryInitReport {
+func (el *L2ELNode) InitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) stack.ProofsHistorySubcommandReport {
 	if control, ok := el.inner.(stack.ControlledLifecycle); ok {
 		el.require.Falsef(control.Running(), "stop %s before seeding its proofs-history store", el.inner.Name())
 	}
@@ -157,7 +157,7 @@ func (el *L2ELNode) InitProofsHistory(opts ...func(*stack.ProofsHistoryInit)) st
 // node is running and returns the outcome, failure included, for the test to assert on. The
 // options start from op-reth's defaults: a backfill through a trie-state snapshot and the node's
 // configured window.
-func (el *L2ELNode) InitProofsHistoryRaw(opts ...func(*stack.ProofsHistoryInit)) (stack.ProofsHistoryInitReport, error) {
+func (el *L2ELNode) InitProofsHistoryRaw(opts ...func(*stack.ProofsHistoryInit)) (stack.ProofsHistorySubcommandReport, error) {
 	initializer, ok := el.inner.(stack.ProofsHistoryInitializer)
 	el.require.Truef(ok, "L2EL node %s cannot seed a proofs-history store", el.inner.Name())
 	var init stack.ProofsHistoryInit
@@ -173,6 +173,24 @@ func (el *L2ELNode) InitProofsHistoryRaw(opts ...func(*stack.ProofsHistoryInit))
 	}
 	logger.Info("Proofs init seeded the store", "duration", report.Duration)
 	return report, nil
+}
+
+// UnwindProofsHistory removes every block above target from this node's proofs-history store with
+// `op-reth proofs unwind`, the way an operator recovers a store that got ahead of reth's datadir,
+// so the store resumes from target on the node's next Start. It fails the test if the node is
+// running or the unwind fails.
+func (el *L2ELNode) UnwindProofsHistory(target uint64) stack.ProofsHistorySubcommandReport {
+	unwinder, ok := el.inner.(stack.ProofsHistoryUnwinder)
+	el.require.Truef(ok, "L2EL node %s cannot unwind a proofs-history store", el.inner.Name())
+	if control, ok := el.inner.(stack.ControlledLifecycle); ok {
+		el.require.Falsef(control.Running(), "stop %s before unwinding its proofs-history store", el.inner.Name())
+	}
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "target", target)
+	logger.Info("Unwinding the proofs-history store")
+	report, err := unwinder.UnwindProofsHistory(stack.ProofsHistoryUnwind{Target: target})
+	el.require.NoErrorf(err, "proofs unwind on %s must remove the blocks above %d", el.inner.Name(), target)
+	logger.Info("Proofs unwind removed the blocks above the target", "duration", report.Duration)
+	return report
 }
 
 // VerifyHistoricalProofsMatch sweeps the blocks this node's proofs-history store serves and, at

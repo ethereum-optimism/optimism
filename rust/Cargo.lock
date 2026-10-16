@@ -13731,6 +13731,7 @@ name = "reth-optimism-cli"
 version = "1.11.3"
 dependencies = [
  "alloy-consensus 2.4.2",
+ "alloy-eips 2.5.0",
  "alloy-genesis",
  "alloy-primitives",
  "clap",
@@ -13759,13 +13760,16 @@ dependencies = [
  "reth-optimism-trie",
  "reth-primitives-traits",
  "reth-provider",
+ "reth-revm",
  "reth-rpc-server-types",
  "reth-stages",
  "reth-tasks",
  "reth-tracing",
+ "rstest",
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.18",
  "tracing",
 ]
 

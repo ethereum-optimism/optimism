@@ -45,9 +45,10 @@ impl<S, H> OpProofStoragePruner<S, H> {
     }
 
     /// Set the batch size for pruning operations. The pruner will prune
-    /// at most this many blocks in one database transaction.
+    /// at most this many blocks in one database transaction. A batch size of
+    /// zero is raised to one, since every batch has to make progress.
     pub const fn with_batch_size(mut self, prune_batch_size: u64) -> Self {
-        self.prune_batch_size = prune_batch_size;
+        self.prune_batch_size = if prune_batch_size == 0 { 1 } else { prune_batch_size };
         self
     }
 }
@@ -57,7 +58,9 @@ where
     S: OpProofsStore,
     H: BlockHashReader,
 {
-    fn run_inner(&self) -> OpProofStoragePrunerResult {
+    /// Run the pruner, returning what it pruned or the error that stopped it. Every batch
+    /// commits on its own, so an error leaves the batches before it pruned.
+    pub fn try_run(&self) -> OpProofStoragePrunerResult {
         let provider_ro = self.store.provider_ro()?;
         let Some((earliest_block, target_earliest_block, mut prune_output)) =
             self.resolve_prune_range(&provider_ro)?
@@ -220,14 +223,14 @@ where
         Ok(batch_output)
     }
 
-    /// Run the pruner
+    /// Run the pruner, logging the outcome.
     pub fn run(&self) {
-        let res = self.run_inner();
-        if let Err(e) = res {
-            error!(target: "trie::prune::pruner", err=%e, "Pruner failed");
-            return;
+        match self.try_run() {
+            Ok(output) => {
+                info!(target: "trie::prune::pruner", result = %output, "Finished pruning proof storage")
+            }
+            Err(err) => error!(target: "trie::prune::pruner", %err, "Pruner failed"),
         }
-        info!(target: "trie::prune::pruner", result = %res.unwrap(), "Finished pruning proof storage");
     }
 }
 
@@ -280,7 +283,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_inner_and_and_verify_updated_state() {
+    async fn try_run_and_verify_updated_state() {
         // --- env/store ---
         let dir = TempDir::new().unwrap();
         let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
@@ -499,7 +502,7 @@ mod tests {
             .returning(move |_| Ok(Some(b256(3))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 1);
-        let out = pruner.run_inner().expect("pruner ok");
+        let out = pruner.try_run().expect("pruner ok");
         assert_eq!(out.start_block, 0);
         assert_eq!(out.end_block, 4, "pruned up to 4 (inclusive); new earliest is 4");
 
@@ -583,9 +586,55 @@ mod tests {
         }
     }
 
+    // The new earliest block is resolved through reth; a block reth does not hold stops the
+    // pruner with an error that names it, and the window stays as it was.
+    #[tokio::test]
+    async fn try_run_reports_a_block_reth_does_not_hold() {
+        use crate::{BlockStateDiff, OpProofsProviderRw};
+
+        let dir = TempDir::new().unwrap();
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        {
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: 0, hash: B256::ZERO })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
+        }
+        {
+            let provider_rw = store.provider_rw().expect("rw");
+            let mut parent = B256::ZERO;
+            for number in 1..=5 {
+                let block_ref = block(number, parent);
+                provider_rw
+                    .store_trie_updates(block_ref, BlockStateDiff::default())
+                    .expect("store");
+                parent = block_ref.block.hash;
+            }
+            OpProofsProviderRw::commit(provider_rw).expect("commit");
+        }
+
+        let mut block_hash_reader = MockBlockHashReader::new();
+        block_hash_reader.expect_block_hash().returning(|_| Ok(None));
+        let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 2);
+
+        let err = pruner.try_run().expect_err("a block reth does not hold must stop the pruner");
+
+        assert!(matches!(err, PrunerError::BlockNotFound(3)), "{err:?}");
+        assert_eq!(err.to_string(), "block 3 not found in the reth database");
+        let window = store.provider_ro().unwrap().get_proof_window().unwrap();
+        assert_eq!((window.earliest.number, window.latest.number), (0, 5));
+    }
+
+    #[test]
+    fn with_batch_size_raises_zero_to_one() {
+        let pruner = OpProofStoragePruner::new((), (), 1).with_batch_size(0);
+        assert_eq!(pruner.prune_batch_size, 1);
+    }
+
     // Both latest and earliest blocks are None -> early return default; DB untouched.
     #[tokio::test]
-    async fn run_inner_where_latest_block_is_none() {
+    async fn try_run_where_latest_block_is_none() {
         let dir = TempDir::new().unwrap();
         let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
             OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
@@ -601,14 +650,14 @@ mod tests {
 
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 10);
-        let out = pruner.run_inner().expect("ok");
+        let out = pruner.try_run().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
     }
 
     // When only earliest is set (and latest is absent), latest falls back to earliest.
     // This yields interval=0, so pruning should no-op.
     #[tokio::test]
-    async fn run_inner_earliest_none_real_db() {
+    async fn try_run_earliest_none_real_db() {
         let dir = TempDir::new().unwrap();
         let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
             OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
@@ -633,13 +682,13 @@ mod tests {
 
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 1);
-        let out = pruner.run_inner().expect("ok");
+        let out = pruner.try_run().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
     }
 
     // interval < min_block_interval -> "Nothing to prune" path; default output.
     #[tokio::test]
-    async fn run_inner_interval_too_small_real_db() {
+    async fn try_run_interval_too_small_real_db() {
         use crate::BlockStateDiff;
 
         let dir = TempDir::new().unwrap();
@@ -677,7 +726,7 @@ mod tests {
         // Require min_block_interval=2 (or greater) so interval < min
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 2);
-        let out = pruner.run_inner().expect("ok");
+        let out = pruner.try_run().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "no pruning should occur");
     }
 }

@@ -7,10 +7,11 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsHistoryWindowArg};
 use reth_optimism_trie::{
-    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
+    OpProofStoragePruner, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
+    db::MdbxProofsStorage,
 };
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Prunes the proofs storage by removing old proof history and state updates.
 #[derive(Debug, Parser)]
@@ -26,11 +27,12 @@ pub struct PruneCommand<C: ChainSpecParser> {
     #[command(flatten)]
     pub proofs_history_window: ProofsHistoryWindowArg,
 
-    /// The batch size for pruning operations.
+    /// The batch size for pruning operations (>= 1).
     #[arg(
         long = "proofs-history.prune-batch-size",
         default_value_t = 1000,
-        value_name = "PROOFS_HISTORY_PRUNE_BATCH_SIZE"
+        value_name = "PROOFS_HISTORY_PRUNE_BATCH_SIZE",
+        value_parser = clap::value_parser!(u64).range(1..)
     )]
     pub proofs_history_prune_batch_size: u64,
 }
@@ -71,7 +73,14 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
         proofs_history_window: u64,
         prune_batch_size: u64,
     ) -> eyre::Result<()> {
-        let window = storage.provider_ro()?.get_proof_window()?;
+        let window = match storage.provider_ro()?.get_proof_window() {
+            Ok(window) => window,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to prune.");
+                return Ok(());
+            }
+            Err(err) => return Err(err.into()),
+        };
         info!(
             target: "reth::cli",
             earliest_block = ?window.earliest,
@@ -81,7 +90,8 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
 
         let pruner = OpProofStoragePruner::new(storage, block_hash_reader, proofs_history_window)
             .with_batch_size(prune_batch_size);
-        pruner.run();
+        let output = pruner.try_run()?;
+        info!(target: "reth::cli", %output, "Pruning complete");
         Ok(())
     }
 }

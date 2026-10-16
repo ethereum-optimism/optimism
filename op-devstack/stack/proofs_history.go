@@ -15,9 +15,18 @@ type ProofsHistoryInit struct {
 	Window uint64
 }
 
-// ProofsHistoryInitReport is what a proofs-history init run produced.
-type ProofsHistoryInitReport struct {
-	// Duration is how long the subcommand ran, backfill included.
+// ProofsHistoryUnwind is one run of `op-reth proofs unwind` against a node's datadir: it removes
+// every block above Target from the node's proofs-history store, so Target becomes the store's
+// latest block. A Target at or above the store's latest block leaves the store unchanged, and one
+// below its earliest block fails.
+type ProofsHistoryUnwind struct {
+	// Target is the block the store keeps as its latest block.
+	Target uint64
+}
+
+// ProofsHistorySubcommandReport is what a run of an `op-reth proofs` subcommand produced.
+type ProofsHistorySubcommandReport struct {
+	// Duration is how long the subcommand ran.
 	Duration time.Duration
 	// Output is the subcommand's combined stdout and stderr.
 	Output string
@@ -30,5 +39,14 @@ type ProofsHistoryInitializer interface {
 	// InitProofsHistory runs the init against the node's datadir, whether or not the node is
 	// running, and enables proofs history on the node's next Start when it succeeds. The error of
 	// a failed run carries the subcommand's output.
-	InitProofsHistory(init ProofsHistoryInit) (ProofsHistoryInitReport, error)
+	InitProofsHistory(init ProofsHistoryInit) (ProofsHistorySubcommandReport, error)
+}
+
+// ProofsHistoryUnwinder is implemented by execution-layer nodes whose proofs-history store can be
+// unwound to a block of their datadir, the way an operator recovers a store that got ahead of
+// reth's datadir.
+type ProofsHistoryUnwinder interface {
+	// UnwindProofsHistory runs the unwind against the node's datadir, whether or not the node is
+	// running. The error of a failed run carries the subcommand's output.
+	UnwindProofsHistory(unwind ProofsHistoryUnwind) (ProofsHistorySubcommandReport, error)
 }

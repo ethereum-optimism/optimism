@@ -5,10 +5,9 @@ use std::{
     fmt::{Display, Formatter},
     time::Duration,
 };
-use strum::Display;
 use thiserror::Error;
 
-/// Result of [`OpProofStoragePruner::run`](crate::OpProofStoragePruner::run) execution.
+/// Result of [`OpProofStoragePruner::try_run`](crate::OpProofStoragePruner::try_run) execution.
 pub type OpProofStoragePrunerResult = Result<PrunerOutput, PrunerError>;
 
 /// Successful prune summary.
@@ -60,18 +59,22 @@ impl PrunerOutput {
 }
 
 /// Error returned by the pruner.
-#[derive(Debug, Error, Display)]
+#[derive(Debug, Error)]
 pub enum PrunerError {
     /// Wrapped error from the underlying `OpProofStorage` layer.
+    #[error(transparent)]
     Storage(#[from] OpProofsStorageError),
 
     /// Wrapped error from the reth db provider.
+    #[error(transparent)]
     Provider(#[from] ProviderError),
 
     /// Block not found in the underlying reth storage provider.
+    #[error("block {0} not found in the reth database")]
     BlockNotFound(u64),
 
     /// The pruner timed out before finishing the prune
+    #[error("pruner timed out after {0:?}")]
     TimedOut(Duration),
 }
 

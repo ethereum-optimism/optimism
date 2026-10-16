@@ -159,12 +159,14 @@ type l2ELFrontend struct {
 	ungraceful     stack.UngracefulLifecycle
 	logRecorder    stack.LogRecorder
 	proofsInit     stack.ProofsHistoryInitializer
+	proofsUnwind   stack.ProofsHistoryUnwinder
 }
 
 var (
 	_ stack.L2ELNode                 = (*l2ELFrontend)(nil)
 	_ stack.LogRecorder              = (*l2ELFrontend)(nil)
 	_ stack.ProofsHistoryInitializer = (*l2ELFrontend)(nil)
+	_ stack.ProofsHistoryUnwinder    = (*l2ELFrontend)(nil)
 	_ stack.UngracefulLifecycle      = (*l2ELFrontend)(nil)
 )
 
@@ -212,9 +214,14 @@ func (r *l2ELFrontend) RecordLogLines(substring string) *logpipe.LogRecord {
 	return r.logRecorder.RecordLogLines(substring)
 }
 
-func (r *l2ELFrontend) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHistoryInitReport, error) {
+func (r *l2ELFrontend) InitProofsHistory(init stack.ProofsHistoryInit) (stack.ProofsHistorySubcommandReport, error) {
 	r.require().NotNil(r.proofsInit, "L2EL node %s cannot seed a proofs-history store", r.Name())
 	return r.proofsInit.InitProofsHistory(init)
+}
+
+func (r *l2ELFrontend) UnwindProofsHistory(unwind stack.ProofsHistoryUnwind) (stack.ProofsHistorySubcommandReport, error) {
+	r.require().NotNil(r.proofsUnwind, "L2EL node %s cannot unwind a proofs-history store", r.Name())
+	return r.proofsUnwind.UnwindProofsHistory(unwind)
 }
 
 func (r *l2ELFrontend) StartControlled(ctx context.Context) error {
