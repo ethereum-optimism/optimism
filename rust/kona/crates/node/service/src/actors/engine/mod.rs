@@ -13,7 +13,7 @@ mod error;
 pub use error::EngineError;
 
 pub use kona_engine::{
-    BuildRequest, EngineActorRequest, EngineRequestError as EngineClientError,
+    BuildRequest, CanonicalizeRequest, EngineActorRequest, EngineRequestError as EngineClientError,
     EngineRequestResult as EngineClientResult, ResetRequest, SealRequest,
 };
 
