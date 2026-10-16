@@ -82,13 +82,13 @@ func TestDepositGasParity(gt *testing.T) {
 			env.Alice.ActCheckDepositStatus(true, testCfg.Custom == ordinaryDepositSuccess)(t)
 		}
 
-		// Inspect the exact op-geth block that contains the deposit under test.
+		// Inspect the exact L2 block that contains the deposit under test.
 		testedBlockRef := env.Sequencer.L2Unsafe()
-		testedBlock := env.Engine.L2Chain().GetBlockByHash(testedBlockRef.Hash)
-		require.NotNil(t, testedBlock)
-		txs := testedBlock.Transactions()
-		receipts := env.Engine.L2Chain().GetReceiptsByHash(testedBlockRef.Hash)
-		require.Len(t, receipts, len(txs), "every transaction must have a receipt")
+		_, txs, err := env.Engine.SourceClient().InfoAndDepositsByHash(t.Ctx(), testedBlockRef.Hash)
+		require.NoError(t, err)
+		testedBlock, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), testedBlockRef.Hash)
+		require.NoError(t, err)
+		require.Len(t, receipts, len(txs), "every transaction must be a deposit with a receipt")
 
 		if testCfg.Custom == l1InfoDeposit {
 			require.Len(t, txs, 1, "empty block must contain only its L1-info deposit")
@@ -98,31 +98,29 @@ func TestDepositGasParity(gt *testing.T) {
 
 		l1InfoTx := txs[0]
 		l1InfoReceipt := receipts[0]
-		require.True(t, l1InfoTx.IsDepositTx(), "L1-info transaction must be a deposit")
-		require.Equal(t, preRegolith, l1InfoTx.IsSystemTx(), "L1-info system flag must transition at Regolith")
+		require.Equal(t, preRegolith, l1InfoTx.IsSystemTransaction, "L1-info system flag must transition at Regolith")
 		require.Equal(t, types.ReceiptStatusSuccessful, l1InfoReceipt.Status)
 		if preRegolith {
 			require.Zero(t, l1InfoReceipt.GasUsed, "Bedrock system deposit must report zero gas")
 		} else {
 			require.NotZero(t, l1InfoReceipt.GasUsed, "post-Regolith L1-info deposit must report actual gas")
-			require.Less(t, l1InfoReceipt.GasUsed, l1InfoTx.Gas(), "L1-info gas limit must exceed actual gas")
+			require.Less(t, l1InfoReceipt.GasUsed, l1InfoTx.Gas, "L1-info gas limit must exceed actual gas")
 		}
 
 		if testCfg.Custom != l1InfoDeposit {
 			depositTx := txs[1]
 			depositReceipt := receipts[1]
-			require.True(t, depositTx.IsDepositTx(), "portal transaction must derive to a deposit")
-			require.False(t, depositTx.IsSystemTx(), "ordinary portal deposit must not be a system transaction")
-			require.Equal(t, userDepositGasLimit, depositTx.Gas())
+			require.False(t, depositTx.IsSystemTransaction, "ordinary portal deposit must not be a system transaction")
+			require.Equal(t, userDepositGasLimit, depositTx.Gas)
 
 			expectedStatus := uint64(types.ReceiptStatusSuccessful)
 			expectedActualGas := uint64(params.TxGas)
 			if testCfg.Custom == ordinaryDepositRevert {
 				expectedStatus = types.ReceiptStatusFailed
 				expectedActualGas = revertDepositGas
-				require.Equal(t, revertDepositTarget, *depositTx.To())
+				require.Equal(t, revertDepositTarget, *depositTx.To)
 			} else {
-				require.Equal(t, env.Dp.Addresses.Bob, *depositTx.To())
+				require.Equal(t, env.Dp.Addresses.Bob, *depositTx.To)
 			}
 			require.Greater(t, userDepositGasLimit, expectedActualGas, "fixture must leave unused deposit gas")
 			require.Equal(t, expectedStatus, depositReceipt.Status)

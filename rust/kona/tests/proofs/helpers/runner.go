@@ -63,9 +63,8 @@ func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2
 
 		f.L2Sources = []*FaultProofProgramL2Source{
 			{
-				Node:        l2,
-				Engine:      l2Eng,
-				ChainConfig: l2Eng.L2Chain().Config(),
+				Node:   l2,
+				Engine: l2Eng,
 			},
 		}
 	}
@@ -132,21 +131,9 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 	rollupCfgs := make([]*rollup.Config, 0, len(fixtureInputs.L2Sources))
 	l1chainConfig := l1.L1Chain().Config()
 	l2Endpoints := make([]string, 0, len(fixtureInputs.L2Sources))
-	var closeProxies []func()
-	defer func() {
-		for _, closeFn := range closeProxies {
-			closeFn()
-		}
-	}()
 	for _, source := range fixtureInputs.L2Sources {
 		rollupCfgs = append(rollupCfgs, source.Node.RollupCfg)
-		endpoint := source.Engine.HTTPEndpoint()
-		if fixtureInputs.L2RPCTracker != nil {
-			proxyURL, closeFn := fixtureInputs.L2RPCTracker.StartProxy(endpoint)
-			closeProxies = append(closeProxies, closeFn)
-			endpoint = proxyURL
-		}
-		l2Endpoints = append(l2Endpoints, endpoint)
+		l2Endpoints = append(l2Endpoints, source.Engine.HTTPEndpoint())
 	}
 
 	err := run(t, workDir, rollupCfgs, l1chainConfig, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)

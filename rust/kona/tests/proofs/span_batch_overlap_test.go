@@ -3,6 +3,7 @@ package proofs
 import (
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -42,7 +43,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 	dropUserTxs := func(block *types.Block) *types.Block {
 		var deposits []*types.Transaction
 		for _, tx := range block.Transactions() {
-			if tx.Type() == types.DepositTxType {
+			if tx.Type() == optypes.DepositTxType {
 				deposits = append(deposits, tx)
 			}
 		}
@@ -54,7 +55,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
 		// Build L2 blocks 1-3, each with one transaction from Alice.
-		for bigs.Uint64Strict(env.Engine.L2Chain().CurrentBlock().Number) < 3 {
+		for bigs.Uint64Strict(env.Engine.LatestHeader(t).Number) < 3 {
 			env.Sequencer.ActL2StartBlock(t)
 			env.Alice.L2.ActResetTxOpts(t)
 			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
@@ -64,7 +65,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		}
 		// The canonical block 3, captured before derivation can reorg the engine: the safe head
 		// must end up here, not on the equivocating lineage's 3*.
-		canonicalHash3 := env.Engine.L2Chain().GetHeaderByNumber(3).Hash()
+		canonicalHash3 := env.Engine.HeaderByNumber(t, 3).Hash()
 
 		craftSpanChannel := func(blocks []int64, modifier actionsHelpers.BlockModifier) []byte {
 			env.Batcher.ActCreateChannel(t, true)
