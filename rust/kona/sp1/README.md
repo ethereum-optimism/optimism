@@ -524,7 +524,10 @@ witness bound is under the witness cap. Otherwise the whole game takes the table
 path. The proposer proves each referenced block once in `log-commitment` batch
 requests, under `LOG_GAS_LIMIT`, before any consolidation collection. Each
 consolidation request then carries the batch proofs of the blocks that it reads,
-and its stdin must stay under 4 GiB. A failed batch proof fails the game attempt.
+and its stdin must stay under 4 GiB. Before the first batch request, the proposer
+applies these checks to what the scan and the batches already fix, and it requests
+no batch for a game that these terms alone put over a limit. A failed batch proof
+fails the game attempt.
 
 Transaction signing requires exactly one of these configurations:
 
