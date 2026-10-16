@@ -506,16 +506,22 @@ pub fn build_super_consolidation_stdin(
     build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)
 }
 
-/// Encodes log-commitment SP1 stdin for blocks given as `(receipts root, receipts)`: the receipts
-/// roots, then the rkyv witness of their receipts tries. Fails if receipts do not hash to their
-/// root.
+/// Encodes log-commitment SP1 stdin for blocks given as `(receipts root, receipts)`. Fails if
+/// receipts do not hash to their root.
 pub fn build_log_commitment_stdin(blocks: &[(B256, Vec<OpReceiptEnvelope>)]) -> Result<SP1Stdin> {
-    let witness = log_commitment_witness(blocks)?;
     let receipts_roots: Vec<B256> =
         blocks.iter().map(|(receipts_root, _)| *receipts_root).collect();
+    log_commitment_stdin(&receipts_roots, &log_commitment_witness(blocks)?)
+}
+
+/// Encodes log-commitment SP1 stdin as the receipts roots followed by rkyv witness bytes.
+pub fn log_commitment_stdin(
+    receipts_roots: &[B256],
+    witness: &DefaultWitnessData,
+) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
     stdin.write(&receipts_roots);
-    stdin.write_slice(&rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?);
+    stdin.write_slice(&rkyv::to_bytes::<rkyv::rancor::Error>(witness)?);
     Ok(stdin)
 }
 

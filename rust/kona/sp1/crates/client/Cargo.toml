@@ -56,6 +56,8 @@ serde_json.workspace = true
 # Exposes the canonical super-aggregation fixture to downstream guest tests. Kept narrowly named
 # to avoid Zepter propagating unrelated dependency test features.
 aggregation-test-utils = []
+# Exposes the log-commitment receipt fixtures to the SP1 executor tests.
+log-commitment-test-utils = []
 
 [lints]
 workspace = true

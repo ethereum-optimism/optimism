@@ -8131,7 +8131,6 @@ name = "kona-sp1-super-range-executor"
 version = "0.0.1"
 dependencies = [
  "alloy-consensus 2.4.2",
- "alloy-eips 2.5.0",
  "alloy-primitives",
  "alloy-rlp",
  "anyhow",
@@ -8141,7 +8140,6 @@ dependencies = [
  "jsonrpsee-http-client",
  "kona-host",
  "kona-interop",
- "kona-mpt",
  "kona-preimage",
  "kona-proof",
  "kona-protocol",

@@ -46,10 +46,9 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
+kona-sp1-client-utils = { workspace = true, features = ["log-commitment-test-utils"] }
 alloy-consensus.workspace = true
-alloy-eips.workspace = true
 alloy-rlp.workspace = true
-kona-mpt.workspace = true
 tempfile.workspace = true
 
 [lints]

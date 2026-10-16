@@ -20,6 +20,9 @@ use crate::witness::{
     preimage_store::{PreimageStore, WitnessOracle},
 };
 
+#[cfg(any(test, feature = "log-commitment-test-utils"))]
+pub mod test_utils;
+
 /// Length of an encoded [`LogCommitmentEntry`].
 pub const LOG_COMMITMENT_ENTRY_LEN: usize = 72;
 
@@ -154,84 +157,21 @@ pub fn log_commitment_witness(
 mod tests {
     use std::sync::Arc;
 
-    use alloy_consensus::{
-        Header, Receipt, ReceiptWithBloom, proofs::ordered_trie_root_with_encoder,
-    };
-    use alloy_primitives::{Bytes, LogData, hex};
+    use alloy_consensus::Header;
+    use alloy_primitives::hex;
     use alloy_rlp::Encodable;
     use kona_interop::{DependencySet, InteropProvider, RawMessagePayload, SuperRoot};
     use kona_proof_interop::{BootInfo, OracleInteropProvider, PreState};
-    use op_alloy_consensus::{OpDepositReceipt, OpDepositReceiptWithBloom};
     use rand::Rng;
 
-    use super::*;
+    use super::{
+        test_utils::{
+            deposit, eip1559, logs, missing_trie_node_witness, mixed_blocks, receipts_root,
+        },
+        *,
+    };
 
     const CHAIN_ID: u64 = 10;
-
-    /// `count` logs with distinct addresses, 0 to 4 topics, and 0 to 69 data bytes.
-    fn logs(first_seed: u64, count: u64) -> Vec<Log> {
-        (first_seed..first_seed + count)
-            .map(|seed| Log {
-                address: Address::left_padding_from(&seed.to_be_bytes()),
-                data: LogData::new_unchecked(
-                    (0..seed % 5).map(|topic| B256::repeat_byte(topic as u8 + 1)).collect(),
-                    Bytes::from(vec![seed as u8; (seed * 7 % 70) as usize]),
-                ),
-            })
-            .collect()
-    }
-
-    fn with_bloom(logs: Vec<Log>) -> ReceiptWithBloom<Receipt> {
-        ReceiptWithBloom {
-            receipt: Receipt { status: true.into(), cumulative_gas_used: 21_000, logs },
-            logs_bloom: Default::default(),
-        }
-    }
-
-    fn deposit(logs: Vec<Log>, nonce_and_version: Option<(u64, u64)>) -> OpReceiptEnvelope {
-        let receipt = with_bloom(logs);
-        OpReceiptEnvelope::Deposit(OpDepositReceiptWithBloom {
-            receipt: OpDepositReceipt {
-                inner: receipt.receipt,
-                deposit_nonce: nonce_and_version.map(|(nonce, _)| nonce),
-                deposit_receipt_version: nonce_and_version.map(|(_, version)| version),
-            },
-            logs_bloom: receipt.logs_bloom,
-        })
-    }
-
-    fn eip1559(logs: Vec<Log>) -> OpReceiptEnvelope {
-        OpReceiptEnvelope::Eip1559(with_bloom(logs))
-    }
-
-    fn receipts_root(receipts: &[OpReceiptEnvelope]) -> B256 {
-        ordered_trie_root_with_encoder(receipts, |receipt, out| receipt.encode_2718(out))
-    }
-
-    fn with_roots(blocks: Vec<Vec<OpReceiptEnvelope>>) -> Vec<(B256, Vec<OpReceiptEnvelope>)> {
-        blocks.into_iter().map(|receipts| (receipts_root(&receipts), receipts)).collect()
-    }
-
-    /// Every receipt type, zero-log receipts at each position, a block without logs, the empty
-    /// receipts root, a single log, and more than `0x80` receipts (item 0 moves in the trie).
-    fn mixed_blocks() -> Vec<(B256, Vec<OpReceiptEnvelope>)> {
-        with_roots(vec![
-            vec![
-                deposit(vec![], Some((1, 1))),
-                OpReceiptEnvelope::Legacy(with_bloom(logs(1, 2))),
-                OpReceiptEnvelope::Eip2930(with_bloom(vec![])),
-                eip1559(logs(3, 3)),
-                OpReceiptEnvelope::Eip7702(with_bloom(logs(6, 1))),
-                OpReceiptEnvelope::PostExec(with_bloom(logs(7, 1))),
-                deposit(logs(8, 2), None),
-                eip1559(vec![]),
-            ],
-            vec![deposit(vec![], Some((2, 1))), OpReceiptEnvelope::Legacy(with_bloom(vec![]))],
-            vec![],
-            vec![eip1559(logs(10, 1))],
-            (0..130).map(|i| eip1559(logs(1_000 + 3 * i, i % 3))).collect(),
-        ])
-    }
 
     fn witness_bytes(witness: &DefaultWitnessData) -> Vec<u8> {
         rkyv::to_bytes::<rkyv::rancor::Error>(witness).unwrap().to_vec()
@@ -373,23 +313,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "requested preimage key not present in witness")]
     fn missing_trie_node_panics() {
-        let receipts: Vec<_> = (0..20).map(|i| eip1559(logs(i, 1))).collect();
-        let root = receipts_root(&receipts);
-        let mut trie = kona_mpt::ordered_trie_with_encoder(&receipts, |receipt, out| {
-            receipt.encode_2718(out);
-        });
-        let mut store = PreimageStore::default();
-        let mut omitted = false;
-        for (path, node) in trie.take_proof_nodes().into_inner() {
-            if !omitted && !path.is_empty() {
-                omitted = true;
-                continue;
-            }
-            save(&mut store, node.to_vec());
-        }
-        assert!(omitted);
-
-        let witness = DefaultWitnessData::from_parts(store, BlobData::default());
+        let (root, witness) = missing_trie_node_witness();
         log_commitment_public_values(&[root], &witness_bytes(&witness));
     }
 
