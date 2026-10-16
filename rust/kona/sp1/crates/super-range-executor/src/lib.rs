@@ -58,6 +58,9 @@ pub struct RunConfig {
     /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
     /// the honest one, so the guest rejects the claim.
     pub corrupt_claimed_root: bool,
+    /// Print the PGU, instruction count, stdin size, and cycle-tracker totals of each SP1 guest
+    /// execution.
+    pub report: bool,
     /// Supernode JSON-RPC endpoint.
     pub supernode_address: String,
     /// L1 execution JSON-RPC endpoint.
@@ -199,6 +202,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     let replayed_range_outputs = match replay_range(
         config.native_core,
+        config.report,
         &replay_range_inputs,
         range_witness,
         super_range_elf.clone(),
@@ -249,6 +253,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     let replayed_consolidation_outputs = match replay_consolidation(
         config.native_core,
+        config.report,
         &synthesized.consolidation_inputs,
         consolidation_witness,
         super_range_elf,
@@ -536,15 +541,41 @@ pub fn decode_super_consolidation_public_values(
     }
 }
 
+async fn execute_sp1(
+    mode: &str,
+    stdin: SP1Stdin,
+    super_range_elf: Arc<[u8]>,
+    report: bool,
+) -> Result<SP1PublicValues> {
+    let stdin_bytes: usize = stdin.buffer.iter().map(Vec::len).sum();
+    let client = ProverClient::builder().cpu().build().await;
+    let (public_values, execution_report) =
+        client.execute(Elf::Dynamic(super_range_elf), stdin).calculate_gas(true).await?;
+    if report {
+        let pgu = execution_report.gas().expect("calculate_gas(true) reports PGU");
+        println!(
+            "{mode}: pgu={pgu} instructions={} stdin_bytes={stdin_bytes}",
+            execution_report.total_instruction_count(),
+        );
+        // SP1 fills the cycle trackers only when built with `sp1-sdk/profiling`.
+        let trackers: BTreeMap<_, _> = execution_report.cycle_tracker.iter().collect();
+        for (label, cycles) in trackers {
+            let invocations =
+                execution_report.invocation_tracker.get(label).copied().unwrap_or_default();
+            println!("{mode} {label}: cycles={cycles} invocations={invocations}");
+        }
+    }
+    Ok(public_values)
+}
+
 async fn execute_sp1_range(
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Arc<[u8]>,
+    report: bool,
 ) -> Result<SuperRangeOutputs> {
     let stdin = build_super_range_stdin(inputs, witness)?;
-    let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Dynamic(super_range_elf);
-    let (mut public_values, _report) = client.execute(elf, stdin).await?;
+    let mut public_values = execute_sp1("range", stdin, super_range_elf, report).await?;
     decode_super_range_public_values(&mut public_values)
 }
 
@@ -552,16 +583,16 @@ async fn execute_sp1_consolidation(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
     super_range_elf: Arc<[u8]>,
+    report: bool,
 ) -> Result<SuperConsolidationOutputs> {
     let stdin = build_super_consolidation_stdin(inputs, witness)?;
-    let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Dynamic(super_range_elf);
-    let (mut public_values, _report) = client.execute(elf, stdin).await?;
+    let mut public_values = execute_sp1("consolidation", stdin, super_range_elf, report).await?;
     decode_super_consolidation_public_values(&mut public_values)
 }
 
 async fn replay_range(
     native_core: bool,
+    report: bool,
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Option<Arc<[u8]>>,
@@ -572,6 +603,7 @@ async fn replay_range(
             inputs,
             witness,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
+            report,
         )
         .await;
     }
@@ -581,6 +613,7 @@ async fn replay_range(
 
 async fn replay_consolidation(
     native_core: bool,
+    report: bool,
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
     super_range_elf: Option<Arc<[u8]>>,
@@ -591,6 +624,7 @@ async fn replay_consolidation(
             inputs,
             witness,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
+            report,
         )
         .await;
     }
@@ -1356,15 +1390,22 @@ mod tests {
             .save_preimage(PreimageKey::new_keccak256(*block_hash), alloy_rlp::encode(&header))
             .unwrap();
         let witness = DefaultWitnessData::from_parts(preimages, BlobData::default());
-        let outputs =
-            replay_range(true, &synthesized.range_inputs, witness.clone(), None, Some(&loaded))
-                .await
-                .unwrap();
+        let outputs = replay_range(
+            true,
+            false,
+            &synthesized.range_inputs,
+            witness.clone(),
+            None,
+            Some(&loaded),
+        )
+        .await
+        .unwrap();
         assert_eq!(outputs.transitions, synthesized.range_inputs.claimed_transitions);
         assert_eq!(outputs.span, synthesized.range_inputs.span);
         assert_eq!(outputs.l1_head, synthesized.range_inputs.l1_head);
-        let err =
-            replay_range(true, &synthesized.range_inputs, witness, None, None).await.unwrap_err();
+        let err = replay_range(true, false, &synthesized.range_inputs, witness, None, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 

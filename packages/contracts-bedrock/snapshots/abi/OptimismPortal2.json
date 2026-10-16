@@ -3,7 +3,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_proofMaturityDelaySeconds",
+        "name": "_minProofMaturityDelaySeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxProofMaturityDelaySeconds",
         "type": "uint256"
       }
     ],
@@ -508,6 +513,11 @@
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_proofMaturityDelaySeconds",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -523,6 +533,19 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxProofMaturityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -551,6 +574,19 @@
     "name": "migrateToSharedDisputeGame",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minProofMaturityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -841,6 +877,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_proofMaturityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "name": "setProofMaturityDelaySeconds",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "superchainConfig",
     "outputs": [
@@ -940,6 +989,19 @@
       }
     ],
     "name": "PortalMigrated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "proofMaturityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProofMaturityDelaySecondsSet",
     "type": "event"
   },
   {
@@ -1138,6 +1200,16 @@
   {
     "inputs": [],
     "name": "OptimismPortal_InvalidOutputRootProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_InvalidProofMaturityDelay",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_InvalidProofMaturityDelayBounds",
     "type": "error"
   },
   {

@@ -77,6 +77,9 @@ interface IOPContractsManagerMigrator {
 
     error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
 
+    error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+    error OPContractsManagerMigrator_WithdrawalDelayMismatch();
+
     error SemverComp_InvalidSemverParts();
 
     /// @notice Returns the container of blueprint and implementation contract addresses.

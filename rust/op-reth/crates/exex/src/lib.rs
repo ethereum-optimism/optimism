@@ -101,21 +101,20 @@ where
 ///
 /// The following example shows how to install the ExEx with either in-memory or persistent storage.
 /// This can be used when launching an OP-Reth node via a binary.
-/// We are currently using it in optimism/bin/src/main.rs.
 ///
 /// ```
 /// use futures_util::FutureExt;
 /// use reth_db::test_utils::create_test_rw_db;
 /// use reth_node_api::NodeTypesWithDBAdapter;
 /// use reth_node_builder::{NodeBuilder, NodeConfig};
-/// use reth_optimism_chainspec::OP_MAINNET;
+/// use reth_optimism_chainspec::OP_DEV;
 /// use reth_optimism_exex::OpProofsExEx;
 /// use reth_optimism_node::{OpNode, args::RollupArgs};
 /// use reth_optimism_trie::{InMemoryProofsStorage, OpProofsStorage, db::MdbxProofsStorage};
 /// use reth_provider::providers::BlockchainProvider;
 /// use std::{sync::Arc, time::Duration};
 ///
-/// let config = NodeConfig::new(OP_MAINNET.clone());
+/// let config = NodeConfig::new(OP_DEV.clone());
 /// let db = create_test_rw_db();
 /// let args = RollupArgs::default();
 /// let op_node = OpNode::new(args);
