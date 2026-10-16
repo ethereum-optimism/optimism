@@ -1,8 +1,9 @@
 //! End-to-end test of the live trie collector.
 
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
+use alloy_eips::BlockNumHash;
 use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, B256, TxKind, U256, keccak256};
+use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
 use derive_more::Constructor;
 use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
 use reth_db::Database;
@@ -30,6 +31,9 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use test_case::test_case;
 
+#[path = "live/parent_states.rs"]
+mod parent_states;
+
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap().keep();
     Arc::new(MdbxProofsStorage::new(&path).unwrap())
@@ -53,8 +57,12 @@ fn sign_tx_with_key_pair(key_pair: Keypair, tx: Transaction) -> TransactionSigne
 /// Specification for a transaction within a block
 #[derive(Debug, Clone)]
 struct TxSpec {
-    /// Recipient address for the transaction
-    to: Address,
+    /// Call recipient or contract creation.
+    to: TxKind,
+    /// Transaction input, including initcode for deployments.
+    data: Bytes,
+    /// Maximum execution gas.
+    gas_limit: u64,
     /// Value to transfer (in wei)
     value: U256,
     /// Nonce for the transaction (will be automatically assigned if None)
@@ -64,7 +72,23 @@ struct TxSpec {
 impl TxSpec {
     /// Create a simple transfer transaction
     const fn transfer(to: Address, value: U256) -> Self {
-        Self { to, value, nonce: None }
+        Self {
+            to: TxKind::Call(to),
+            data: Bytes::new(),
+            gas_limit: MIN_TRANSACTION_GAS,
+            value,
+            nonce: None,
+        }
+    }
+
+    /// Create a contract deployment running `initcode`.
+    const fn create(initcode: Bytes, gas_limit: u64) -> Self {
+        Self { to: TxKind::Create, data: initcode, gas_limit, value: U256::ZERO, nonce: None }
+    }
+
+    /// Create a call to `contract` with `data` as input.
+    const fn call(contract: Address, data: Bytes, gas_limit: u64) -> Self {
+        Self { to: TxKind::Call(contract), data, gas_limit, value: U256::ZERO, nonce: None }
     }
 }
 
@@ -126,9 +150,10 @@ fn create_block_from_spec(
                 TxEip2930 {
                     chain_id: chain_spec.chain.id(),
                     nonce,
-                    gas_limit: MIN_TRANSACTION_GAS,
+                    gas_limit: tx_spec.gas_limit,
+                    input: tx_spec.data.clone(),
                     gas_price: 1_500_000_000,
-                    to: TxKind::Call(tx_spec.to),
+                    to: tx_spec.to,
                     value: tx_spec.value,
                     ..Default::default()
                 }
@@ -137,7 +162,7 @@ fn create_block_from_spec(
         })
         .collect();
 
-    let gas_total = transactions.len() as u64 * MIN_TRANSACTION_GAS;
+    let gas_total = spec.txs.iter().map(|tx| tx.gas_limit).sum::<u64>();
 
     Block {
         header: Header {
@@ -221,6 +246,26 @@ where
     Ok(())
 }
 
+/// Seeds `storage` with reth's state and trie at `block`, the proofs store's starting point.
+fn initialize_storage<N, S>(
+    storage: S,
+    provider_factory: &ProviderFactory<N>,
+    block: BlockNumHash,
+) -> eyre::Result<()>
+where
+    N: NodeTypesWithDB,
+    S: OpProofsStore + Send + Sync + Clone + std::fmt::Debug + 'static,
+{
+    let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+        RethTrieStorageLayout::Packed
+    } else {
+        RethTrieStorageLayout::Legacy
+    };
+    let tx = provider_factory.db_ref().tx()?;
+    InitializationJob::new(storage, tx, trie_layout).run(block.number, block.hash)?;
+    Ok(())
+}
+
 /// Runs a test scenario with the given configuration
 fn run_test_scenario<N, S>(
     scenario: TestScenario,
@@ -260,17 +305,11 @@ where
         last_block_number = block_number;
     }
 
-    {
-        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
-            RethTrieStorageLayout::Packed
-        } else {
-            RethTrieStorageLayout::Legacy
-        };
-        let provider = provider_factory.db_ref();
-        let tx = provider.tx()?;
-        let initialization_job = InitializationJob::new(storage.clone(), tx, trie_layout);
-        initialization_job.run(last_block_number, last_block_hash)?;
-    }
+    initialize_storage(
+        storage.clone(),
+        &provider_factory,
+        BlockNumHash::new(last_block_number, last_block_hash),
+    )?;
 
     // Execute blocks after initialization using live collector.
     // A single collector is shared across all blocks so the in-memory buffer accumulates
