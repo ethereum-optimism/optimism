@@ -80,6 +80,10 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
             bound(_gasLimit, portal.minimumGasLimit(uint64(_data.length)), maxResourceLimit - cachedPrevBoughtGas)
         );
 
+        // Deposit from an allowlisted depositor.
+        address depositor = 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65;
+        vm.deal(depositor, value);
+        vm.prank(depositor, depositor);
         try portal.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
             // Do nothing; Call succeeded
         } catch {

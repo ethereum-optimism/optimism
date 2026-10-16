@@ -61,7 +61,7 @@ contract CrossDomainOwnable_PortalIntegration_Test is CommonTest, CrossDomainOwn
     function setUp() public override(CommonTest, CrossDomainOwnable_TestInit) {
         CommonTest.setUp();
 
-        vm.prank(alice);
+        vm.prank(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
         setter = new XDomainSetter();
     }
 
@@ -70,7 +70,7 @@ contract CrossDomainOwnable_PortalIntegration_Test is CommonTest, CrossDomainOwn
     function test_depositTransaction_crossDomainOwner_succeeds() external {
         vm.recordLogs();
 
-        vm.prank(alice);
+        vm.prank(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
         optimismPortal2.depositTransaction({
             _to: address(setter),
             _value: 0,
@@ -93,7 +93,7 @@ contract CrossDomainOwnable_PortalIntegration_Test is CommonTest, CrossDomainOwn
         // from is indexed and the first argument to the event.
         bytes32 _from = log.topics[1];
         address from = Bytes32AddressLib.fromLast20Bytes(_from);
-        assertEq(AddressAliasHelper.undoL1ToL2Alias(from), alice);
+        assertEq(AddressAliasHelper.undoL1ToL2Alias(from), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
 
         // Make a call from the "from" value received from the log. In theory the opaque data could
         // be parsed from the log and passed to a low level call to "to", but calling set directly

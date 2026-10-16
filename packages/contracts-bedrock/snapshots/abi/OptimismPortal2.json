@@ -856,6 +856,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_DepositorNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_GasEstimation",
     "type": "error"
   },

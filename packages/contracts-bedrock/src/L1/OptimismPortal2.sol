@@ -240,10 +240,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the new lockbox has not authorized this portal.
     error OptimismPortal_LockboxNotAuthorizedForPortal();
 
+    /// @notice Thrown when a deposit is made by an address not in the depositor allowlist.
+    error OptimismPortal_DepositorNotAllowed();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.8.0
+    /// @custom:semver 5.8.0-portal-filter
     function version() public pure virtual returns (string memory) {
-        return "5.8.0";
+        return "5.8.0-portal-filter";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -692,6 +695,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         payable
         metered(_gasLimit)
     {
+        if (!_isAllowedDepositor(msg.sender)) revert OptimismPortal_DepositorNotAllowed();
+
         if (_isUsingCustomGasToken()) {
             if (msg.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
@@ -742,6 +747,30 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    /// @notice Returns the addresses allowed to make deposits.
+    /// @return depositors_ The allowed depositors.
+    function _allowedDepositors() internal pure returns (address[5] memory depositors_) {
+        // TODO: replace placeholder anvil test accounts with the real depositors.
+        depositors_ = [
+            0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
+            0x70997970C51812dc3A010C7d01b50e0d17dc79C8,
+            0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC,
+            0x90F79bf6EB2c4f870365E785982E1f101E93b906,
+            0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+        ];
+    }
+
+    /// @notice Checks if an address is allowed to make deposits.
+    /// @param _depositor The address to check.
+    /// @return bool True if the address is an allowed depositor.
+    function _isAllowedDepositor(address _depositor) internal pure returns (bool) {
+        address[5] memory depositors = _allowedDepositors();
+        for (uint256 i = 0; i < depositors.length; i++) {
+            if (depositors[i] == _depositor) return true;
+        }
+        return false;
     }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
