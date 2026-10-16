@@ -102,10 +102,3 @@ async fn measure_data_heavy_block() {
 async fn measure_log_heavy_block() {
     measure(75_000, 0).await;
 }
-
-/// A block with one log.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "manual SP1 cost measurement"]
-async fn measure_single_log_block() {
-    measure(1, 0).await;
-}

@@ -49,6 +49,7 @@ cfg-if.workspace = true
 sp1_bls12_381.workspace = true
 
 [dev-dependencies]
+kona-interop = { workspace = true, features = ["test-utils"] }
 rand = { workspace = true, features = ["thread_rng"] }
 serde_json.workspace = true
 

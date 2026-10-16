@@ -7,7 +7,10 @@ use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{Address, B256};
 use alloy_rlp::Decodable;
 use async_trait::async_trait;
-use kona_interop::InteropProvider;
+use core::fmt::Debug;
+use kona_interop::{
+    BlockWithReceipts, BlocksWithReceipts, InitiatingLogs, InteropProvider, LogCommitment,
+};
 use kona_mpt::{OrderedListWalker, TrieHinter, TrieNode, TrieProvider};
 use kona_preimage::{
     CommsClient, PreimageKey, PreimageKeyType, PreimageOracleClient, errors::PreimageOracleError,
@@ -16,6 +19,13 @@ use kona_proof::{eip_2935_history_lookup, errors::OracleProviderError};
 use kona_registry::HashMap;
 use op_alloy_consensus::OpReceiptEnvelope;
 use spin::Mutex;
+
+/// Commitments to the logs of canonical blocks, which an [`OracleInteropProvider`] serves for
+/// blocks below the local safe heads.
+pub trait LogCommitmentSource: Debug + Send + Sync {
+    /// The commitment to the logs of block `header` on `chain_id`, or `None` to read its receipts.
+    fn log_commitment(&self, chain_id: u64, header: &Header) -> Option<Box<dyn LogCommitment>>;
+}
 
 /// A [`CommsClient`] backed [`InteropProvider`] implementation.
 #[derive(Debug)]
@@ -30,6 +40,8 @@ pub struct OracleInteropProvider<C> {
     headers_by_number: Mutex<BTreeMap<(u64, u64), (B256, Header)>>,
     /// Verified local safe-head receipts, keyed by chain ID and block hash.
     receipts_by_hash: Mutex<BTreeMap<(u64, B256), Vec<OpReceiptEnvelope>>>,
+    /// Log commitments for blocks below the local safe heads; `None` reads every block's receipts.
+    log_commitments: Option<Arc<dyn LogCommitmentSource>>,
 }
 
 impl<C> Clone for OracleInteropProvider<C> {
@@ -40,6 +52,7 @@ impl<C> Clone for OracleInteropProvider<C> {
             local_safe_heads: self.local_safe_heads.clone(),
             headers_by_number: Mutex::new(self.headers_by_number.lock().clone()),
             receipts_by_hash: Mutex::new(self.receipts_by_hash.lock().clone()),
+            log_commitments: self.log_commitments.clone(),
         }
     }
 }
@@ -72,7 +85,14 @@ where
             local_safe_heads: local_safe_headers,
             headers_by_number: Mutex::new(BTreeMap::new()),
             receipts_by_hash: Mutex::new(BTreeMap::new()),
+            log_commitments: None,
         }
+    }
+
+    /// Serves log commitments from `source` for blocks below the local safe heads.
+    pub fn with_log_commitments(mut self, source: Arc<dyn LogCommitmentSource>) -> Self {
+        self.log_commitments = Some(source);
+        self
     }
 
     /// Sends an [`HintType::L2Transactions`] hint for the given block, instructing the host to
@@ -152,6 +172,34 @@ where
         }
         Ok(receipts)
     }
+
+    /// Fetch all receipts for a given block by hash.
+    pub async fn receipts_by_hash(
+        &self,
+        chain_id: u64,
+        block_hash: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>, <Self as InteropProvider>::Error> {
+        if let Some(receipts) = self.receipts_by_hash.lock().get(&(chain_id, block_hash)) {
+            return Ok(receipts.clone());
+        }
+        let header = self.header_by_hash(chain_id, block_hash).await?;
+        self.derive_receipts(chain_id, block_hash, &header).await
+    }
+
+    /// The blocks in `heads` with their receipts, as [`MessageGraph::derive`] takes them.
+    ///
+    /// [`MessageGraph::derive`]: kona_interop::MessageGraph::derive
+    pub async fn blocks_with_receipts(
+        &self,
+        heads: &HashMap<u64, Sealed<Header>>,
+    ) -> Result<BlocksWithReceipts, <Self as InteropProvider>::Error> {
+        let mut blocks = HashMap::default();
+        for (chain_id, head) in heads {
+            let receipts = self.receipts_by_hash(*chain_id, head.hash()).await?;
+            blocks.insert(*chain_id, BlockWithReceipts { header: head.clone(), receipts });
+        }
+        Ok(blocks)
+    }
 }
 
 #[async_trait]
@@ -228,27 +276,26 @@ where
         Ok(header)
     }
 
-    /// Fetch all receipts for a given block by number.
-    async fn receipts_by_number(
+    /// A local safe head can be replaced, so only a block below it is served a commitment.
+    async fn initiating_logs(
         &self,
         chain_id: u64,
-        number: u64,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        let header = self.header_by_number(chain_id, number).await?;
-        self.derive_receipts(chain_id, header.hash_slow(), &header).await
-    }
-
-    /// Fetch all receipts for a given block by hash.
-    async fn receipts_by_hash(
-        &self,
-        chain_id: u64,
-        block_hash: B256,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        if let Some(receipts) = self.receipts_by_hash.lock().get(&(chain_id, block_hash)) {
-            return Ok(receipts.clone());
+        header: &Header,
+    ) -> Result<InitiatingLogs, Self::Error> {
+        let below_head =
+            self.local_safe_heads.get(&chain_id).is_some_and(|head| header.number < head.number);
+        if below_head &&
+            let Some(commitment) = self
+                .log_commitments
+                .as_ref()
+                .and_then(|source| source.log_commitment(chain_id, header))
+        {
+            return Ok(InitiatingLogs::Committed(commitment));
         }
-        let header = self.header_by_hash(chain_id, block_hash).await?;
-        self.derive_receipts(chain_id, block_hash, &header).await
+        let receipts = self.derive_receipts(chain_id, header.hash_slow(), header).await?;
+        Ok(InitiatingLogs::Receipts(
+            receipts.into_iter().flat_map(OpReceiptEnvelope::into_logs).collect(),
+        ))
     }
 }
 
@@ -383,8 +430,8 @@ mod tests {
     use async_trait::async_trait;
     use kona_genesis::{ChainDependency, RollupConfig};
     use kona_interop::{
-        ChainBuilder, DependencySet, ExecutingMessageBuilder, MESSAGE_EXPIRY_WINDOW, MessageGraph,
-        MessageGraphError, SuperRoot, SuperchainBuilder,
+        ChainBuilder, DependencySet, ExecutingMessageBuilder, LeafList, MESSAGE_EXPIRY_WINDOW,
+        MessageGraph, MessageGraphError, SuperRoot, SuperchainBuilder,
     };
     use kona_preimage::{
         HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
@@ -626,10 +673,9 @@ mod tests {
             boot_info(cfgs.clone()),
             heads.clone(),
         );
+        let blocks = provider.blocks_with_receipts(&heads).await.unwrap();
         let result =
-            MessageGraph::derive(&heads, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
-                .await
-                .unwrap()
+            MessageGraph::derive(&blocks, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
                 .resolve()
                 .await;
 
@@ -899,9 +945,8 @@ mod tests {
         let (headers, configs, mock) = superchain.build();
         let (mut client, fixture) = load_fixture();
         let mut safe_heads = HashMap::default();
-        for (chain_id, header) in headers {
-            let receipts_root =
-                insert_test_receipts(&mut client, &mock.receipts[&chain_id][&header.number]);
+        for (chain_id, BlockWithReceipts { header, receipts }) in headers {
+            let receipts_root = insert_test_receipts(&mut client, &receipts);
             let header =
                 insert_test_header(&mut client, Header { receipts_root, ..header.into_inner() });
             safe_heads.insert(chain_id, header);
@@ -925,15 +970,14 @@ mod tests {
         };
         provider.local_safe_heads = safe_heads;
         for _ in 0..2 {
+            let blocks = provider.blocks_with_receipts(provider.local_safe_heads()).await.unwrap();
             let graph = MessageGraph::derive(
-                provider.local_safe_heads(),
+                &blocks,
                 &provider,
                 &configs,
                 &dependency_set,
                 MESSAGE_EXPIRY_WINDOW,
-            )
-            .await
-            .unwrap();
+            );
             graph.resolve().await.unwrap();
         }
         let source_key = PreimageKey::new(*source.receipts_root, PreimageKeyType::Keccak256);
@@ -945,15 +989,14 @@ mod tests {
         provider.replace_local_safe_head(1, replacement);
         let mut heads_to_check = provider.local_safe_heads().clone();
         heads_to_check.remove(&1);
+        let blocks = provider.blocks_with_receipts(&heads_to_check).await.unwrap();
         let graph = MessageGraph::derive(
-            &heads_to_check,
+            &blocks,
             &provider,
             &configs,
             &dependency_set,
             MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
+        );
         let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("cached source validity must not survive replacement");
         };
@@ -1012,11 +1055,217 @@ mod tests {
             "historical sources must not accumulate decoded receipts"
         );
         provider.replace_local_safe_head(fixture.chain_id, headers[0].clone());
-        provider.receipts_by_number(fixture.chain_id, headers[0].number).await.unwrap();
+        provider.initiating_logs(fixture.chain_id, &headers[0]).await.unwrap();
         assert_eq!(provider.receipts_by_hash.lock().len(), 1);
         provider.replace_local_safe_head(fixture.chain_id, headers[1].clone());
         assert_eq!(provider.receipts_by_hash.lock().len(), 0, "replaced heads must be evicted");
-        provider.receipts_by_number(fixture.chain_id, headers[1].number).await.unwrap();
+        provider.initiating_logs(fixture.chain_id, &headers[1]).await.unwrap();
         assert_eq!(provider.receipts_by_hash.lock().len(), 1);
+    }
+
+    /// Serves a [`LeafList`] for each receipts root it holds and records the requested blocks.
+    #[derive(Debug, Default)]
+    struct TestLogCommitments {
+        receipts: BTreeMap<B256, Vec<OpReceiptEnvelope>>,
+        requests: spin::Mutex<Vec<(u64, u64)>>,
+    }
+
+    impl LogCommitmentSource for TestLogCommitments {
+        fn log_commitment(&self, chain_id: u64, header: &Header) -> Option<Box<dyn LogCommitment>> {
+            self.requests.lock().push((chain_id, header.number));
+            let receipts = self.receipts.get(&header.receipts_root)?;
+            Some(Box::new(LeafList::new(receipts)))
+        }
+    }
+
+    /// Chains A and B with block `1` below head `2`: A's head executes a wrong message into B's
+    /// block `1`, and B's head executes messages into A's blocks `1` and `2`.
+    struct RoundsFixture {
+        client: MockCommsClient,
+        heads: HashMap<u64, Sealed<Header>>,
+        replacements: HashMap<u64, Sealed<Header>>,
+        below_head: Vec<(B256, Vec<OpReceiptEnvelope>)>,
+        configs: HashMap<u64, RollupConfig>,
+        dependency_set: DependencySet,
+    }
+
+    fn rounds_fixture() -> RoundsFixture {
+        use alloy_consensus::{Receipt, ReceiptWithBloom};
+
+        const A: u64 = 1;
+        const B: u64 = 2;
+        let mut client = MockCommsClient { preimages: BTreeMap::new(), reads: Default::default() };
+        let message = |chain, number, payload: &[u8]| {
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(payload))
+                .with_origin_chain_id(chain)
+                .with_origin_block_number(number)
+                .with_origin_timestamp(2 * number)
+        };
+        let mut a1 = ChainBuilder::default();
+        a1.add_initiating_message(b"a1".to_vec().into());
+        let mut b1 = ChainBuilder::default();
+        b1.add_initiating_message(b"b1".to_vec().into());
+        let mut a2 = ChainBuilder::default();
+        a2.add_initiating_message(b"a2".to_vec().into())
+            .add_executing_message(message(B, 1, b"wrong"));
+        let mut b2 = ChainBuilder::default();
+        b2.add_executing_message(message(A, 1, b"a1")).add_executing_message(message(A, 2, b"a2"));
+
+        let mut heads = HashMap::default();
+        let mut replacements = HashMap::default();
+        let mut below_head = Vec::new();
+        for (chain_id, block_1, block_2) in
+            [(A, a1.receipts, a2.receipts), (B, b1.receipts, b2.receipts)]
+        {
+            let receipts_root = insert_test_receipts(&mut client, &block_1);
+            let block_1_header = insert_test_header(
+                &mut client,
+                Header { number: 1, timestamp: 2, receipts_root, ..Default::default() },
+            );
+            below_head.push((receipts_root, block_1));
+            let head = |receipts_root| Header {
+                number: 2,
+                timestamp: 4,
+                parent_hash: block_1_header.hash(),
+                receipts_root,
+                ..Default::default()
+            };
+            let receipts_root = insert_test_receipts(&mut client, &block_2);
+            heads.insert(chain_id, insert_test_header(&mut client, head(receipts_root)));
+            let no_logs = vec![OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
+                receipt: Receipt::default(),
+                ..Default::default()
+            })];
+            let receipts_root = insert_test_receipts(&mut client, &no_logs);
+            replacements.insert(chain_id, insert_test_header(&mut client, head(receipts_root)));
+        }
+        let mut config = RollupConfig { block_time: 2, ..Default::default() };
+        config.hardforks.lagoon_time = Some(0);
+        RoundsFixture {
+            client,
+            heads,
+            replacements,
+            below_head,
+            configs: [(A, config.clone()), (B, config)].into_iter().collect(),
+            dependency_set: DependencySet {
+                dependencies: [(A, ChainDependency {}), (B, ChainDependency {})].into(),
+                override_message_expiry_window: None,
+            },
+        }
+    }
+
+    /// The invalid chains of each `consolidate_once` round, with stand-in replacement heads.
+    async fn run_rounds(
+        mut provider: OracleInteropProvider<MockCommsClient>,
+        fixture: &RoundsFixture,
+    ) -> Vec<BTreeSet<u64>> {
+        let mut replaced = BTreeSet::new();
+        let mut rounds = Vec::new();
+        loop {
+            let heads: HashMap<_, _> = provider
+                .local_safe_heads()
+                .iter()
+                .filter(|(chain_id, _)| !replaced.contains(*chain_id))
+                .map(|(chain_id, head)| (*chain_id, head.clone()))
+                .collect();
+            let blocks = provider.blocks_with_receipts(&heads).await.unwrap();
+            let result = MessageGraph::derive(
+                &blocks,
+                &provider,
+                &fixture.configs,
+                &fixture.dependency_set,
+                MESSAGE_EXPIRY_WINDOW,
+            )
+            .resolve()
+            .await;
+            let invalid: BTreeSet<u64> = match result {
+                Ok(()) => return rounds,
+                Err(MessageGraphError::InvalidMessages(invalid)) => invalid.into_keys().collect(),
+                Err(err) => panic!("unexpected resolution {err:?}"),
+            };
+            for chain_id in &invalid {
+                provider.replace_local_safe_head(*chain_id, fixture.replacements[chain_id].clone());
+            }
+            replaced.extend(invalid.iter().copied());
+            rounds.push(invalid);
+        }
+    }
+
+    fn rounds_boot_info(fixture: &RoundsFixture) -> BootInfo {
+        BootInfo {
+            dependency_set: fixture.dependency_set.clone(),
+            ..boot_info(fixture.configs.clone())
+        }
+    }
+
+    /// Pins equal rounds with and without commitments, and no read of a served receipts trie.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_rounds_with_log_commitments_match_receipts() {
+        let fixture = rounds_fixture();
+        let provider = OracleInteropProvider::new(
+            Arc::new(fixture.client.clone()),
+            rounds_boot_info(&fixture),
+            fixture.heads.clone(),
+        );
+        let expected = run_rounds(provider, &fixture).await;
+        assert_eq!(expected, vec![BTreeSet::from([1]), BTreeSet::from([2])]);
+
+        let mut client = MockCommsClient { reads: Default::default(), ..fixture.client.clone() };
+        let mut source = TestLogCommitments::default();
+        for (receipts_root, receipts) in &fixture.below_head {
+            source.receipts.insert(*receipts_root, receipts.clone());
+            client.preimages.remove(&<[u8; 32]>::from(PreimageKey::new_keccak256(**receipts_root)));
+        }
+        let reads = client.reads.clone();
+        let source = Arc::new(source);
+        let provider = OracleInteropProvider::new(
+            Arc::new(client),
+            rounds_boot_info(&fixture),
+            fixture.heads.clone(),
+        )
+        .with_log_commitments(source.clone());
+
+        assert_eq!(run_rounds(provider, &fixture).await, expected);
+        assert!(!source.requests.lock().is_empty());
+        assert!(
+            source.requests.lock().iter().all(|(_, number)| *number == 1),
+            "only blocks below the heads are requested"
+        );
+        let below_head_roots: BTreeSet<_> =
+            fixture.below_head.iter().map(|(root, _)| PreimageKey::new_keccak256(**root)).collect();
+        assert!(reads.lock().iter().all(|key| !below_head_roots.contains(key)));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_log_commitment_served_only_below_head() {
+        let fixture = rounds_fixture();
+        let mut source = TestLogCommitments::default();
+        for (receipts_root, receipts) in &fixture.below_head {
+            source.receipts.insert(*receipts_root, receipts.clone());
+        }
+        let block_1 = |provider: &OracleInteropProvider<_>| {
+            kona_proof::block_on(provider.header_by_number(1, 1)).unwrap()
+        };
+        let committed = |provider: &OracleInteropProvider<_>, chain_id, header: &Header| {
+            let logs = kona_proof::block_on(provider.initiating_logs(chain_id, header)).unwrap();
+            matches!(logs, InitiatingLogs::Committed(_))
+        };
+        let mut provider = OracleInteropProvider::new(
+            Arc::new(fixture.client.clone()),
+            rounds_boot_info(&fixture),
+            fixture.heads.clone(),
+        );
+        assert!(!committed(&provider, 1, &block_1(&provider)), "no source");
+
+        provider = provider.with_log_commitments(Arc::new(source));
+        assert!(committed(&provider, 1, &block_1(&provider)));
+        assert!(!committed(&provider, 1, fixture.heads[&1].inner()));
+        assert!(!committed(&provider, 3, &block_1(&provider)), "unknown chain");
+
+        provider.replace_local_safe_head(1, fixture.replacements[&1].clone());
+        assert!(!committed(&provider, 1, fixture.replacements[&1].inner()));
+        assert!(committed(&provider, 1, &block_1(&provider)));
+        assert!(committed(&provider.clone(), 1, &block_1(&provider)), "clone");
     }
 }
