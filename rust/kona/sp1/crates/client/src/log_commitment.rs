@@ -161,6 +161,7 @@ mod tests {
     use alloy_primitives::hex;
     use alloy_rlp::Encodable;
     use kona_interop::{DependencySet, InteropProvider, RawMessagePayload, SuperRoot};
+    use kona_proof::errors::OracleProviderError;
     use kona_proof_interop::{BootInfo, OracleInteropProvider, PreState};
     use rand::Rng;
 
@@ -187,6 +188,14 @@ mod tests {
         hash
     }
 
+    /// Saves a header with `receipts_root` and returns its block hash.
+    fn save_header(store: &mut PreimageStore, number: u64, receipts_root: B256) -> B256 {
+        let header = Header { number, receipts_root, ..Default::default() };
+        let mut rlp = Vec::new();
+        header.encode(&mut rlp);
+        save(store, rlp)
+    }
+
     /// A fully padded tree, without the zero-subtree shortcut.
     fn padded_root(leaves: &[B256]) -> B256 {
         if leaves.is_empty() {
@@ -200,8 +209,11 @@ mod tests {
         level[0]
     }
 
-    /// The leaves of the log list that `MessageGraph` indexes for the block with `block_hash`.
-    fn interop_provider_leaves(oracle: Arc<WitnessOracle>, block_hash: B256) -> Vec<B256> {
+    /// The receipts that `OracleInteropProvider::receipts_by_hash` returns for `block_hash`.
+    fn interop_provider_receipts(
+        oracle: Arc<WitnessOracle>,
+        block_hash: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>, OracleProviderError> {
         let boot = BootInfo {
             l1_head: B256::ZERO,
             agreed_pre_state_commitment: B256::ZERO,
@@ -217,6 +229,11 @@ mod tests {
         };
         let provider = OracleInteropProvider::new(oracle, boot, Default::default());
         kona_proof::block_on(provider.receipts_by_hash(CHAIN_ID, block_hash))
+    }
+
+    /// The leaves of the log list that `MessageGraph` indexes for the block with `block_hash`.
+    fn interop_provider_leaves(oracle: Arc<WitnessOracle>, block_hash: B256) -> Vec<B256> {
+        interop_provider_receipts(oracle, block_hash)
             .unwrap()
             .into_iter()
             .flat_map(|receipt| receipt.into_logs())
@@ -247,12 +264,7 @@ mod tests {
         let block_hashes: Vec<B256> = blocks
             .iter()
             .zip(0..)
-            .map(|((receipts_root, _), number)| {
-                let header = Header { number, receipts_root: *receipts_root, ..Default::default() };
-                let mut rlp = Vec::new();
-                header.encode(&mut rlp);
-                save(&mut store, rlp)
-            })
+            .map(|((receipts_root, _), number)| save_header(&mut store, number, *receipts_root))
             .collect();
         let oracle = oracle(DefaultWitnessData::from_parts(store, blobs));
 
@@ -282,31 +294,35 @@ mod tests {
         (root, store)
     }
 
-    fn empty_entry(receipts_root: B256) -> LogCommitmentEntry {
-        LogCommitmentEntry { receipts_root, log_count: 0, log_root: B256::ZERO }
+    /// Asserts `(r, 0, 0)` and an `OracleInteropProvider` error for a header with `r`.
+    fn assert_commits_empty(receipts_root: B256, mut store: PreimageStore) {
+        let block_hash = save_header(&mut store, 0, receipts_root);
+        let oracle = oracle(DefaultWitnessData::from_parts(store, BlobData::default()));
+        assert_eq!(
+            commit_receipts_root(&oracle, receipts_root),
+            LogCommitmentEntry { receipts_root, log_count: 0, log_root: B256::ZERO },
+        );
+        let receipts = interop_provider_receipts(oracle, block_hash);
+        assert!(receipts.is_err(), "the interop provider accepts the trie: {receipts:?}");
     }
 
-    /// Pins `(r, 0, 0)` for a receipts trie leaf that is not a receipt.
+    /// Pins `(r, 0, 0)` and a provider error for a receipts trie leaf that is not a receipt.
     #[test]
     fn invalid_receipt_leaf_commits_empty() {
         let mut valid = Vec::new();
         eip1559(logs(0, 2)).encode_2718(&mut valid);
         // A blob receipt: valid on L1, not an OP receipt type.
         let (root, store) = raw_trie(&[valid, vec![0x03, 0xc0]]);
-
-        let oracle = oracle(DefaultWitnessData::from_parts(store, BlobData::default()));
-        assert_eq!(commit_receipts_root(&oracle, root), empty_entry(root));
+        assert_commits_empty(root, store);
     }
 
-    /// Pins `(r, 0, 0)` for a trie node that does not decode; its key is its own hash.
+    /// Pins `(r, 0, 0)` and a provider error for a trie node that does not decode.
     #[test]
     fn undecodable_trie_node_commits_empty() {
         let mut store = PreimageStore::default();
         // A three-item list is neither a branch nor a leaf or extension node.
         let root = save(&mut store, vec![0xc3, 0x80, 0x80, 0x80]);
-
-        let oracle = oracle(DefaultWitnessData::from_parts(store, BlobData::default()));
-        assert_eq!(commit_receipts_root(&oracle, root), empty_entry(root));
+        assert_commits_empty(root, store);
     }
 
     /// Pins a halt, not `L = 0`, when the witness omits a trie node.
