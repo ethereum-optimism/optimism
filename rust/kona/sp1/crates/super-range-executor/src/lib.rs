@@ -1102,8 +1102,8 @@ where
 /// Deployment-scoped endpoints come from `inputs`; the remaining arguments are the per-span
 /// facts: the trusted L1 head, the encoded agreed pre-state super-root proof, the claimed
 /// post-state super root, and the claimed (span-end) timestamp. With `data_dir`, the host keeps
-/// its preimages in a `RocksDB` store there instead of in memory, and destroys the store when it
-/// stops.
+/// its preimages in a `RocksDB` store there instead of in memory; the caller removes the
+/// directory after the collection.
 pub fn build_interop_host(
     inputs: &HostInputs,
     l1_head: B256,
