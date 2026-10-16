@@ -50,7 +50,8 @@ use crate::{
     },
     prover::{ProofKeys, ProofProvider, setup_proof_keys},
     proving::{
-        GameProofInputs, LogProofSettings, fetch_span_responses, is_unprovable, response_trusted,
+        GameProofInputs, LogProofSettings, fetch_span_responses, is_unprovable, prepare_data_dir,
+        response_trusted,
     },
     signer::SignerLock,
     superroot::{SuperrootClient, zk_extra_data},
@@ -961,6 +962,9 @@ impl Proposer {
         let proposer_address = signer.address();
         let superroot_source =
             Arc::new(ProductionSuperRootSource::new(SuperrootClient::new(&config.superroot_rpcs)?));
+        if let Some(data_dir) = &config.data_dir {
+            prepare_data_dir(data_dir)?;
+        }
         let proof_engine = Arc::new(ProductionProofEngine::new(
             proof_provider,
             host_inputs,
@@ -971,6 +975,7 @@ impl Proposer {
                 path: config.log_path,
                 range_gas_limit: config.proof_provider_config.range_gas_limit,
                 log_gas_limit: config.proof_provider_config.log_gas_limit,
+                data_dir: config.data_dir.clone(),
             },
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
@@ -5568,6 +5573,7 @@ mod tests {
                 min_auction_period: 1,
             },
             log_path: crate::config::LogPath::Auto,
+            data_dir: None,
         }
     }
 

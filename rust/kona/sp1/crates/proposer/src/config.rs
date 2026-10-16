@@ -212,6 +212,11 @@ pub struct ProposerConfig {
 
     /// Consolidation path for blocks below a local-safe head.
     pub log_path: LogPath,
+
+    /// Optional directory for the on-disk preimage stores and log trees of witness collections.
+    /// Absent = they stay in memory. At startup the proposer creates it and removes the
+    /// `collection-*` entries that a previous process left there.
+    pub data_dir: Option<PathBuf>,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -389,6 +394,7 @@ impl ProposerConfig {
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
             log_path: parsed_env_or("LOG_PATH", LogPath::Auto)?,
+            data_dir: optional_env("DATA_DIR").map(PathBuf::from),
         })
     }
 }

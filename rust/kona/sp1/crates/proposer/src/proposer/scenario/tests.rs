@@ -404,6 +404,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
             min_auction_period: 1,
         },
         log_path: crate::config::LogPath::Auto,
+        data_dir: None,
     }
 }
 
