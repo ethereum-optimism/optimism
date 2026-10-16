@@ -2267,6 +2267,22 @@ mod test {
             );
             inner.receipts.get_mut(&CHAIN_A_ID).unwrap().insert(number, receipts.clone());
         }
+
+        // Blocks 1 to 7 are below chain A's head, block 8.
+        let graph = Differential::derive_with(
+            &headers,
+            &inner,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+            Commitments::BelowHead,
+            &BTreeSet::new(),
+        );
+        let committed = graph.committed.provider;
+        graph.resolve().await.unwrap();
+        assert_eq!(committed.commitment_loads.load(Ordering::Relaxed), 7);
+        assert_eq!(committed.receipt_loads.load(Ordering::Relaxed), 1);
+
         let provider = CountingProvider {
             inner,
             header_reads: AtomicUsize::new(0),
