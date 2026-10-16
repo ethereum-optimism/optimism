@@ -17,7 +17,7 @@ use alloy_rpc_client::{BatchRequest, Waiter};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_sol_types::SolEvent;
 use alloy_transport_http::reqwest::Url;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use kona_sources::redacted_url;
 use kona_sp1_super_range_executor::{HostInputs, L2BlockClient, SuperRootAtTimestampResponse};
@@ -515,7 +515,12 @@ impl ProductionL2BlockSource {
                     let chain_id = client.chain_id().await.with_context(|| {
                         format!("failed to read the chain ID of {}", redacted_url(url))
                     })?;
-                    clients.insert(chain_id, client);
+                    ensure!(
+                        clients.insert(chain_id, client).is_none(),
+                        "two {} entries serve chain {chain_id}; the second is {}",
+                        env_var("L2_RPCS"),
+                        redacted_url(url),
+                    );
                 }
                 anyhow::Ok(clients)
             })
@@ -1128,5 +1133,27 @@ mod tests {
         assert!(view.game_validity(Address::ZERO, BlockId::latest()).await.is_err());
         // As above: every read was issued in the batch before the invalid status was converted.
         assert!(asserter.read_q().is_empty());
+    }
+
+    /// Pins an error, not a replaced entry, for two L2 nodes of one chain.
+    #[tokio::test]
+    async fn l2_source_rejects_two_nodes_of_one_chain() {
+        use httpmock::{MockServer, prelude::POST};
+        let mut servers = Vec::new();
+        for _ in 0..2 {
+            let server = MockServer::start_async().await;
+            server
+                .mock_async(|when, then| {
+                    when.method(POST);
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(r#"{"jsonrpc":"2.0","id":0,"result":"0x7"}"#);
+                })
+                .await;
+            servers.push(server);
+        }
+        let urls = servers.iter().map(|server| server.url("/").parse().unwrap()).collect();
+        let err = ProductionL2BlockSource::new(urls).client(7).await.unwrap_err();
+        assert!(err.to_string().contains("serve chain 7"), "{err}");
     }
 }
