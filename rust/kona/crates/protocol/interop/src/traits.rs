@@ -39,8 +39,8 @@ pub trait LogCommitment: Debug + Send + Sync {
     /// The number of logs in the block.
     fn log_count(&self) -> u64;
 
-    /// Whether log `index` has `origin` and `payload_hash`, for `index` below
-    /// [`Self::log_count`]. `false` must not stand for a log that cannot be checked: a proof
-    /// program panics instead.
+    /// Whether log `index` (below [`Self::log_count`]) has `origin` and `payload_hash`. An
+    /// implementation that cannot check the log must not let its answer stand: a proof program
+    /// panics, and a host run fails.
     fn log_matches(&self, index: u64, origin: &Address, payload_hash: &B256) -> bool;
 }

@@ -269,7 +269,8 @@ where
         }
         let initiating_block = initiating_block.as_mut().expect("initiating block loaded");
 
-        // Backstop for `check_initiating_block_number`: the block-time grid alone never accepts.
+        // Backstop for `check_initiating_block_number`: compare against the real header so the
+        // block-time grid alone never accepts a message.
         if initiating_block.header.timestamp != initiating_timestamp {
             return Err(MessageGraphError::InvalidMessageTimestamp {
                 expected: initiating_timestamp,

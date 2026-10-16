@@ -63,7 +63,7 @@ where
     let source =
         NativeLogCommitments::new(batches, collector.preimage_oracle.clone(), record.clone())?;
     let outputs = build_consolidation_outputs(inputs, collector, configs, Arc::new(source)).await;
-    // A host failure that a log check turned into a verdict comes first.
+    // Check the record before `outputs`: on a host failure, `log_matches` returns a bogus `false`.
     let (openings, missing) =
         record.lock().map_err(|_| anyhow!("record lock poisoned"))?.finish()?;
     Ok(NativeConsolidation { outputs: outputs?, openings, missing })
