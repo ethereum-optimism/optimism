@@ -9,7 +9,9 @@ use kona_sp1_client_utils::log_commitment::{
     test_utils::{eip1559, missing_trie_node_witness, mixed_blocks, receipts_root},
 };
 use kona_sp1_elfs::{ELF_DIR_ENV, load_elf_from};
-use kona_sp1_super_range_executor::{build_log_commitment_stdin, log_commitment_stdin};
+use kona_sp1_super_range_executor::{
+    build_log_commitment_stdin, build_log_commitment_stdin_from_receipts,
+};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues, SP1Stdin};
 
 const ELF_NAME: &str = "log-commitment-elf";
@@ -43,7 +45,7 @@ async fn sp1_public_values_match_native() {
     blocks.push(blocks[0].clone());
     let (native, _) = native_public_values(&blocks);
 
-    let stdin = build_log_commitment_stdin(&blocks).unwrap();
+    let stdin = build_log_commitment_stdin_from_receipts(&blocks).unwrap();
     let (public_values, report) = execute(&dir, stdin).await.unwrap();
     assert_eq!(report.exit_code, 0);
     assert_eq!(public_values.as_slice(), native.as_slice());
@@ -54,7 +56,7 @@ async fn sp1_public_values_match_native() {
 async fn sp1_missing_trie_node_halts() {
     let Some(dir) = elf_dir() else { return };
     let (receipts_root, witness) = missing_trie_node_witness();
-    let stdin = log_commitment_stdin(&[receipts_root], &witness).unwrap();
+    let stdin = build_log_commitment_stdin(&[receipts_root], witness).unwrap();
 
     let (public_values, report) = execute(&dir, stdin).await.unwrap();
     // SP1 reports a guest panic as a non-zero exit code, not as an execution error.
@@ -75,7 +77,7 @@ async fn measure(log_count: u64, data: usize) {
     let blocks = vec![BlockReceipts { receipts_root: receipts_root(&receipts), receipts }];
     let (native, witness_bytes) = native_public_values(&blocks);
 
-    let stdin = build_log_commitment_stdin(&blocks).unwrap();
+    let stdin = build_log_commitment_stdin_from_receipts(&blocks).unwrap();
     let (public_values, report) = execute(&dir, stdin).await.unwrap();
     assert_eq!(report.exit_code, 0);
     assert_eq!(public_values.as_slice(), native.as_slice());
