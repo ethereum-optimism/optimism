@@ -116,3 +116,24 @@ func (c *Client) SetForceEmpty(ctx context.Context, forced bool) error {
 	var ok bool
 	return c.rpc.CallContext(ctx, &ok, "optest_setForceEmpty", forced)
 }
+
+// IncludeNextTxResult is the result of including the next parked transaction from an account in
+// the block being built: exactly one of TxHash, Skipped and NoTx is set.
+type IncludeNextTxResult struct {
+	TxHash  *common.Hash `json:"txHash"`
+	GasUsed uint64       `json:"gasUsed"`
+	// Skipped reports that the block is force-empty, which drops the transaction.
+	Skipped bool `json:"skipped"`
+	// NoTx reports that no parked transaction from the account has the next nonce.
+	NoTx bool `json:"noTx"`
+}
+
+// IncludeNextTx executes the parked transaction from `from` with the account's next nonce into the
+// block being built (optest_includeNextTx). eth_sendRawTransaction parks transactions.
+func (c *Client) IncludeNextTx(ctx context.Context, from common.Address) (*IncludeNextTxResult, error) {
+	var res IncludeNextTxResult
+	if err := c.rpc.CallContext(ctx, &res, "optest_includeNextTx", from); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}

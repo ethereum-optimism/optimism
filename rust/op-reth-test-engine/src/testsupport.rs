@@ -246,3 +246,48 @@ impl TestEngine {
 pub(crate) fn fcu(head: B256) -> ForkchoiceState {
     ForkchoiceState { head_block_hash: head, safe_block_hash: head, finalized_block_hash: head }
 }
+
+/// A forkchoice state moving only the head; safe and finalized stay unset.
+pub(crate) fn head_only(head: B256) -> ForkchoiceState {
+    ForkchoiceState {
+        head_block_hash: head,
+        safe_block_hash: B256::ZERO,
+        finalized_block_hash: B256::ZERO,
+    }
+}
+
+/// Sequence a block on `parent` at `timestamp` holding `user_txs` — open, include, seal, import,
+/// and make it the head of `engine` — and return the sealed payload for other engines to import.
+pub(crate) fn sequence(
+    engine: &mut TestEngine,
+    parent: B256,
+    timestamp: u64,
+    user_txs: &[OpTransactionSigned],
+) -> OpExecutionData {
+    sequence_forced(engine, parent, timestamp, vec![], user_txs)
+}
+
+/// [`sequence`] with `forced_txs` in the payload attributes, ahead of `user_txs`.
+pub(crate) fn sequence_forced(
+    engine: &mut TestEngine,
+    parent: B256,
+    timestamp: u64,
+    forced_txs: Vec<Bytes>,
+    user_txs: &[OpTransactionSigned],
+) -> OpExecutionData {
+    let updated = engine
+        .forkchoice_updated_auto(
+            head_only(parent),
+            Some(payload_attrs(timestamp, forced_txs, false)),
+        )
+        .expect("fcu with attrs");
+    let id = updated.payload_id.expect("payload id");
+    for tx in user_txs {
+        engine.include_tx(None, &encode(tx)).expect("include tx");
+    }
+    let data = engine.get_payload(id).expect("get payload");
+    assert!(engine.new_payload(data.clone()).expect("new payload").is_valid());
+    let head = head_only(data.payload.block_hash());
+    assert!(engine.forkchoice_updated_auto(head, None).expect("fcu to sealed block").is_valid());
+    data
+}
