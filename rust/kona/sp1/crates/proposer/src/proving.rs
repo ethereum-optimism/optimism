@@ -8,9 +8,11 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    fs,
     future::Future,
     num::NonZeroUsize,
     ops::AsyncFnOnce,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -44,6 +46,7 @@ use kona_sp1_super_range_executor::{
 use parking_lot::Mutex;
 use serde::Serialize;
 use sp1_sdk::{HashableKey, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
+use tempfile::TempDir;
 use tracing::Instrument;
 
 pub use crate::ports::GameProofInputs;
@@ -1155,12 +1158,14 @@ async fn check_span(
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     check_log_batches(&logs.proofs)?;
     let timestamps = synthesized.range_inputs.span;
+    let range_dir = collection_dir(settings.data_dir.as_deref())?;
     let range_host = build_interop_host(
         host_inputs,
         game.l1_head,
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         timestamps.end,
+        preimage_store(range_dir.as_ref()).as_deref(),
     )?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
@@ -1172,6 +1177,7 @@ async fn check_span(
     )
     .await
     .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
+    drop(range_dir);
     let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
     let range_stdin_bytes = ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
     tracing::info!(range_stdin_bytes, "Checked the range request");
@@ -1194,13 +1200,16 @@ async fn check_consolidation(
 ) -> Result<CheckedConsolidation> {
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     let timestamps = synthesized.range_inputs.span;
+    let dir = collection_dir(settings.data_dir.as_deref())?;
     let host = build_interop_host(
         host_inputs,
         game.l1_head,
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         timestamps.end,
+        preimage_store(dir.as_ref()).as_deref(),
     )?;
+    let log_trees = dir.as_ref().map(|dir| dir.path().join(LOG_TREE_DIR));
     let entries: Vec<Vec<u8>> = batches.iter().map(|batch| batch.expected.clone()).collect();
     let collected = collect_consolidation_witness(
         host,
@@ -1208,9 +1217,11 @@ async fn check_consolidation(
         &synthesized.preloaded_preimages,
         Some(configs),
         &entries,
+        log_trees.as_deref(),
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {timestamps:?}"))?;
+    drop(dir);
 
     let stage = &logs.stage;
     let batch_refs: Vec<&LogBatch> = batches.iter().map(|batch| &**batch).collect();
@@ -1513,6 +1524,56 @@ struct ProvenBatch {
 /// The live batches of a game with their proofs, in batch order.
 type ProvenBatches = Arc<[ProvenBatch]>;
 
+/// Entry prefix of a witness collection's directory in the data directory.
+const COLLECTION_DIR_PREFIX: &str = "collection-";
+/// The kona-host preimage store in a collection directory.
+const PREIMAGE_STORE_DIR: &str = "preimages";
+/// The native run's log trees in a collection directory.
+const LOG_TREE_DIR: &str = "log-trees";
+
+/// A fresh directory for one witness collection, removed when dropped. `None` without a data
+/// directory: the collection keeps its preimages and log trees in memory.
+fn collection_dir(data_dir: Option<&Path>) -> Result<Option<TempDir>> {
+    data_dir
+        .map(|data_dir| {
+            tempfile::Builder::new()
+                .prefix(COLLECTION_DIR_PREFIX)
+                .tempdir_in(data_dir)
+                .with_context(|| {
+                    format!("failed to create a collection directory under {}", data_dir.display())
+                })
+        })
+        .transpose()
+}
+
+/// The kona-host preimage store path in `dir`; `None` keeps the preimages in memory.
+fn preimage_store(dir: Option<&TempDir>) -> Option<PathBuf> {
+    dir.map(|dir| dir.path().join(PREIMAGE_STORE_DIR))
+}
+
+/// Creates `data_dir` and removes the entries that an earlier process left in it. A killed
+/// collection leaves its directory behind, and the directory survives a container restart.
+pub(crate) fn prepare_data_dir(data_dir: &Path) -> Result<()> {
+    fs::create_dir_all(data_dir)
+        .with_context(|| format!("failed to create data directory {}", data_dir.display()))?;
+    let entries = fs::read_dir(data_dir)
+        .with_context(|| format!("failed to read data directory {}", data_dir.display()))?;
+    for entry in entries {
+        let path = entry?.path();
+        let owned = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(COLLECTION_DIR_PREFIX));
+        if owned {
+            fs::remove_dir_all(&path)
+                .with_context(|| format!("failed to remove {}", path.display()))?;
+        }
+    }
+    // A collection that cannot create its directory fails, so check the permission up front.
+    drop(collection_dir(Some(data_dir))?);
+    Ok(())
+}
+
 /// The proven batches of a game, shared by its chunk tasks.
 type LogBatchProofs<'a> = Shared<BoxFuture<'a, Result<ProvenBatches, Arc<anyhow::Error>>>>;
 
@@ -1635,6 +1696,7 @@ async fn scan_log_stage(
         &first.synthesized.previous_super_root_proof_bytes,
         first.synthesized.current_super_root,
         first.claimed_timestamp,
+        None,
     )?;
     let configs =
         deployment_chain_configs(&host, &first.synthesized.range_inputs.super_root_chain_ids())?;
@@ -1791,6 +1853,9 @@ pub(crate) struct LogProofSettings {
     pub(crate) log_gas_limit: u64,
     /// The encoded stdin limit of each range, consolidation, and log-commitment request.
     pub(crate) max_stdin_bytes: StdinByteLimit,
+    /// Where witness collections keep their preimage stores and log trees; `None` keeps them in
+    /// memory.
+    pub(crate) data_dir: Option<PathBuf>,
 }
 
 /// Inputs for one in-process game-proving attempt.
@@ -2084,6 +2149,7 @@ mod tests {
             range_gas_limit: 1,
             log_gas_limit: 1,
             max_stdin_bytes: StdinByteLimit::default(),
+            data_dir: None,
         }
     }
 
@@ -2137,6 +2203,31 @@ mod tests {
                 limit,
             })
         );
+    }
+
+    /// Pins startup cleanup: leftover collection directories go, other entries stay, and a
+    /// missing data directory is created.
+    #[test]
+    fn prepare_data_dir_removes_only_collection_leftovers() {
+        let root = tempfile::tempdir().unwrap();
+        let data_dir = root.path().join("data");
+        let leftover = data_dir.join(format!("{COLLECTION_DIR_PREFIX}abc"));
+        std::fs::create_dir_all(leftover.join(PREIMAGE_STORE_DIR)).unwrap();
+        std::fs::write(leftover.join(PREIMAGE_STORE_DIR).join("CURRENT"), b"x").unwrap();
+        std::fs::write(data_dir.join("notes.txt"), b"keep").unwrap();
+        std::fs::create_dir(data_dir.join("other")).unwrap();
+
+        prepare_data_dir(&data_dir).unwrap();
+        let mut entries: Vec<_> = std::fs::read_dir(&data_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        entries.sort();
+        assert_eq!(entries, ["notes.txt", "other"]);
+
+        let fresh = root.path().join("fresh/data");
+        prepare_data_dir(&fresh).unwrap();
+        assert!(fresh.is_dir());
     }
 
     /// Builds a self-consistent supernode response trusted by default.

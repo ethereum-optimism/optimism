@@ -8,7 +8,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{self, Debug},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -274,6 +274,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         config.end_timestamp,
+        None,
     )?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
@@ -343,6 +344,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             &synthesized.previous_super_root_proof_bytes,
             synthesized.current_super_root,
             config.end_timestamp,
+            None,
         )?;
         collect_consolidation_witness(
             host,
@@ -350,6 +352,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             &preloaded_preimages,
             Some(&configs),
             batches,
+            None,
         )
         .await
     };
@@ -998,15 +1001,17 @@ pub struct CollectedConsolidation {
 ///
 /// `batches` are the public values of the log-commitment batch proofs that the consolidation
 /// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
+/// With `log_tree_dir`, the run keeps the log trees it builds there, and builds each tree once.
 pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     configs: Option<&ChainConfigs>,
     batches: &[Vec<u8>],
+    log_tree_dir: Option<&Path>,
 ) -> Result<CollectedConsolidation> {
     let (witness, native) = collect_witness(preloaded_preimages, host, |oracle, _beacon| {
-        run_native_consolidation(oracle, inputs.clone(), configs, batches)
+        run_native_consolidation(oracle, inputs.clone(), configs, batches, log_tree_dir)
     })
     .await?;
     let NativeConsolidation { outputs, openings, missing, served, read_bytes, log_check_siblings } =
@@ -1096,13 +1101,16 @@ where
 ///
 /// Deployment-scoped endpoints come from `inputs`; the remaining arguments are the per-span
 /// facts: the trusted L1 head, the encoded agreed pre-state super-root proof, the claimed
-/// post-state super root, and the claimed (span-end) timestamp.
+/// post-state super root, and the claimed (span-end) timestamp. With `data_dir`, the host keeps
+/// its preimages in a `RocksDB` store there instead of in memory, and destroys the store when it
+/// stops.
 pub fn build_interop_host(
     inputs: &HostInputs,
     l1_head: B256,
     agreed_pre_state: &[u8],
     claimed_post_state: B256,
     claimed_timestamp: u64,
+    data_dir: Option<&Path>,
 ) -> Result<InteropHost> {
     ensure!(!inputs.l2_node_addresses.is_empty(), "at least one L2 node address is required",);
     Ok(InteropHost {
@@ -1113,8 +1121,8 @@ pub fn build_interop_host(
         l2_node_addresses: Some(inputs.l2_node_addresses.clone()),
         l1_node_address: Some(inputs.l1_node_address.clone()),
         l1_beacon_address: Some(inputs.l1_beacon_address.clone()),
-        data_dir: None,
-        data_format: DataFormat::Directory,
+        data_dir: data_dir.map(Path::to_path_buf),
+        data_format: DataFormat::Rocksdb,
         native: false,
         server: true,
         rollup_config_paths: inputs.rollup_config_paths.clone(),
@@ -1623,6 +1631,7 @@ mod tests {
                 &[],
                 b256(0xbb),
                 101,
+                None,
             )
             .unwrap();
             let result = deployment_chain_configs(&host, &chain_ids);
@@ -1671,6 +1680,7 @@ mod tests {
             &[],
             b256(0xbb),
             101,
+            None,
         )
         .unwrap();
         let loaded = deployment_chain_configs(&host, &[U256::from(u64::MAX)]).unwrap();

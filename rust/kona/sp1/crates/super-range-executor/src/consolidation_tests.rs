@@ -424,6 +424,7 @@ where
         fixture.inputs.clone(),
         Some(&fixture.configs),
         batches,
+        None,
     )
     .await;
     let witness = witness.lock().unwrap().clone();

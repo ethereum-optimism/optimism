@@ -480,6 +480,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 | `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
+| `OP_ZK_PROPOSER_DATA_DIR` | directory for the kona-host preimage store and log trees of each witness collection, one `collection-*` subdirectory each, removed when the collection ends; absent = in memory. Startup removes the `collection-*` entries a previous process left. It need not persist: a node-disk `emptyDir` fits, a `medium: Memory` one saves no memory |
 
 SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
 `OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
