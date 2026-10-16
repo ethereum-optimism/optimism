@@ -12,8 +12,10 @@ TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 #   cannon                          dedicated cannon job (slow MIPS emulation tests)
 #   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
 #   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
+#   op-e2e/actions                  dedicated go-actions-tests job (its own resource class
+#                                   and timeout; running them here too would run them twice)
 # See the list-test-packages recipe, which expands `go list ./...` minus these.
-EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge"
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge op-e2e/actions"
 
 # Fault-proof packages run in the default go-tests job and again in a dedicated
 # job with Cannon enabled, so they keep a separate list.
@@ -407,12 +409,11 @@ go-tests-ci:
 # RUST_BINARY_PATH_OP_RETH_TEST_ENGINE; REQUIRE_RUST_ENGINE=1 makes an unset
 # path a hard error, so the job never builds the engine or uses a local build.
 [script('bash')]
-go-actions-tests-reth-ci: build-superchain-go
+go-actions-tests-ci: build-superchain-go
   set -euo pipefail
   echo "Setting up test directories..."
   mkdir -p ./tmp/test-results ./tmp/testlogs
   echo "Running op-e2e action tests on op-reth-test-engine with gotestsum..."
-  export OP_E2E_ACTIONS_EL=reth-test-engine
   export REQUIRE_RUST_ENGINE=1
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)

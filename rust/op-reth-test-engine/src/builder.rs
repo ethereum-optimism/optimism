@@ -10,9 +10,9 @@
 //! lifetime, so it cannot be parked across RPC round-trips. Instead the in-flight payload keeps the
 //! ordered transaction list and re-runs [`EphemeralChain::assemble_block`] on demand; block
 //! assembly is deterministic, so re-execution yields the same block the eventual `get_payload`
-//! seals. The semantics mirror `op-e2e/actions/helpers/engineapi`'s `L2EngineAPI`/`BlockProcessor`
-//! (forced transactions applied at block start, `no_tx_pool` → force-empty, the gas-limit checks in
-//! `CheckTxWithinGasLimit`).
+//! seals. The semantics mirror the `L2EngineAPI`/`BlockProcessor` of
+//! `op-e2e/e2eutils/gethengine/engineapi` (forced transactions applied at block start,
+//! `no_tx_pool` → force-empty, the gas-limit checks in `CheckTxWithinGasLimit`).
 
 use alloy_consensus::{Transaction as _, transaction::SignerRecoverable};
 use alloy_eips::eip2718::Decodable2718;
