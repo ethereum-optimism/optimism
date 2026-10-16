@@ -69,6 +69,9 @@ type FindHeadsResult struct {
 	Unsafe    eth.L2BlockRef
 	Safe      eth.L2BlockRef
 	Finalized eth.L2BlockRef
+	// FinalizedFromEngine is true when Finalized is the engine's own finalized label
+	// (genesis if unset), and false when it was synthesized by EL-sync recovery.
+	FinalizedFromEngine bool
 }
 
 // currentHeads returns the current finalized, safe and unsafe heads of the execution engine.
@@ -96,9 +99,10 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 		return nil, fmt.Errorf("failed to find the L2 head block: %w", err)
 	}
 	return &FindHeadsResult{
-		Unsafe:    unsafe,
-		Safe:      safe,
-		Finalized: finalized,
+		Unsafe:              unsafe,
+		Safe:                safe,
+		Finalized:           finalized,
+		FinalizedFromEngine: true,
 	}, nil
 }
 
