@@ -54,8 +54,9 @@ use crate::{
     config::{LogPath, RangeSplitCount},
     log_proofs::{
         CollectedRequest, LogBatch, LogBatchProver, MockLogProver, NetworkLogProver, RequestBound,
-        check_collected, choose_log_path, consolidation_cost, cover, log_batch_poll_interval,
-        make_log_batches, receipts_path_costs, request_budget, scan::scan_span,
+        check_collected, check_table_path_fits, choose_log_path, consolidation_cost, cover,
+        log_batch_poll_interval, make_log_batches, receipts_path_costs, referenced_roots,
+        request_budget, scan::scan_span,
     },
     metrics::ProposerGauge,
     ports::{L2BlockSource, SuperRootSource},
@@ -1112,6 +1113,16 @@ async fn scan_log_stage(
         // TODO(proofs-team#31): reuse the batches of earlier games from a persistent cache keyed
         // by receipts root and log vkey.
         let batches = make_log_batches(request.l2, &scan, settings.log_gas_limit).await?;
+        for (plan, chunk_costs) in plans.iter().zip(&costs) {
+            check_table_path_fits(
+                plan.synthesized.range_inputs.span,
+                chunk_costs,
+                &referenced_roots(&scan, plan.first, plan.last),
+                &batches,
+                settings.range_gas_limit,
+            )
+            .context("the game does not fit on the table path, so it requests no batch")?;
+        }
         batch_progress(batches, previous)
     } else {
         Vec::new()
