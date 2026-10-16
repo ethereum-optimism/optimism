@@ -397,7 +397,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::private::alloy_primitives::B256;
+    use alloy_consensus::{Header, private::alloy_primitives::B256};
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
     use reth_chain_state::{ExecutedBlock, NewCanonicalChain};
     use reth_chainspec::{ChainSpec, ChainSpecBuilder, MAINNET};
@@ -734,13 +734,26 @@ mod tests {
         store.provider_ro().expect("provider ro").get_latest_block().expect("latest block")
     }
 
-    /// Anchors `store` at the test context's genesis and spawns an engine flushing every block,
+    /// The engine's persistence and backpressure thresholds.
+    #[derive(Clone, Copy, Debug)]
+    struct FlushCadence {
+        backpressure: u64,
+        persistence: u64,
+    }
+
+    impl FlushCadence {
+        const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
+        const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
+    }
+
+    /// Anchors `store` at the test context's genesis and spawns an engine flushing at `cadence`,
     /// executing with a real EVM over `chain_spec` since the context's EVM refuses every call.
     fn engine_over<S: OpProofsStore + Clone + 'static>(
         ctx: &ExExContext<Adapter>,
         handle: &TestExExHandle,
         chain_spec: Arc<ChainSpec>,
         store: S,
+        cadence: FlushCadence,
     ) -> EngineHandle<Block> {
         init_storage_at(store.clone(), handle.genesis.num_hash());
         let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
@@ -749,8 +762,8 @@ mod tests {
             ctx.components.provider.clone(),
             store,
             pruner,
-            1,
-            2,
+            cadence.persistence,
+            cadence.backpressure,
         )
     }
 
@@ -776,7 +789,8 @@ mod tests {
         let chain_spec = merged_chain_spec();
         let (ctx, mut handle) =
             test_exex_context_with_chain_spec(chain_spec.clone()).await.expect("exex test context");
-        let engine = engine_over(&ctx, &handle, chain_spec, store.clone());
+        let engine =
+            engine_over(&ctx, &handle, chain_spec, store.clone(), FlushCadence::EVERY_BLOCK);
         let exex = build_test_exex(ctx, store.clone());
         let old = commit_three_blocks(&exex, &mut handle, &engine);
         // reth switches from blocks 2 and 3 to blocks 2' through 4' on block 1.
@@ -832,7 +846,8 @@ mod tests {
         let chain_spec = merged_chain_spec();
         let (ctx, mut handle) =
             test_exex_context_with_chain_spec(chain_spec.clone()).await.expect("exex test context");
-        let engine = engine_over(&ctx, &handle, chain_spec, store.clone());
+        let engine =
+            engine_over(&ctx, &handle, chain_spec, store.clone(), FlushCadence::EVERY_BLOCK);
         let exex = build_test_exex(ctx, store.clone());
         let old = commit_three_blocks(&exex, &mut handle, &engine);
         let stored_tip = old[2].num_hash();
@@ -851,6 +866,138 @@ mod tests {
         engine.flush();
         assert_eq!(latest_block(&store), stored_tip);
         handle.assert_events_empty();
+    }
+
+    /// How the ExEx hands a block near the tip to the engine, chosen through the verification
+    /// interval the way `--proofs-history.verification-interval` chooses it.
+    #[derive(Clone, Copy, Debug)]
+    enum ProofsPath {
+        /// Every block's verification is due, so the engine executes it.
+        Execute,
+        /// Every block carries reth's trie data and no block's verification is due.
+        Index,
+    }
+
+    impl ProofsPath {
+        const fn verification_interval(self) -> u64 {
+            match self {
+                Self::Execute => 1,
+                Self::Index => 0,
+            }
+        }
+    }
+
+    /// Blocks in a chain the engine saves under either cadence: the slower cadence's persistence
+    /// threshold, which the faster one's divides, so that no block waits for an idle flush.
+    const SAVED_CHAIN_LENGTH: u64 = FlushCadence::EVERY_FIFTH_BLOCK.persistence;
+
+    /// Blocks in a chain below the slower cadence's persistence threshold.
+    const SHORT_CHAIN_LENGTH: u64 = 3;
+
+    const _: () = assert!(SHORT_CHAIN_LENGTH < FlushCadence::EVERY_FIFTH_BLOCK.persistence);
+
+    /// What the engine has done with a committed chain by the time the ExEx acknowledges it.
+    #[derive(Clone, Copy, Debug)]
+    enum CommittedChain {
+        /// Near reth's head but shorter than the engine's persistence threshold.
+        Buffered,
+        /// The real-time threshold behind reth's head, so the ExEx only sets the engine's sync
+        /// target, which reth cannot serve since it holds none of the blocks.
+        CatchUp,
+        /// Near reth's head and long enough for the engine to save it.
+        Saved,
+    }
+
+    impl CommittedChain {
+        const fn length(self) -> u64 {
+            match self {
+                Self::Buffered | Self::CatchUp => SHORT_CHAIN_LENGTH,
+                Self::Saved => SAVED_CHAIN_LENGTH,
+            }
+        }
+
+        /// The store's persisted tip once the engine has flushed what its cadence lets it flush.
+        const fn persisted_tip(self, genesis: NumHash, tip: NumHash) -> NumHash {
+            match self {
+                Self::Buffered | Self::CatchUp => genesis,
+                Self::Saved => tip,
+            }
+        }
+    }
+
+    /// Moves reth's head to the real-time threshold past `tip` without giving reth any block.
+    fn set_head_far_ahead(ctx: &ExExContext<Adapter>, tip: u64) {
+        let head = Header { number: tip + REAL_TIME_BLOCKS_THRESHOLD, ..Default::default() };
+        ctx.components
+            .provider
+            .canonical_in_memory_state()
+            .set_canonical_head(SealedHeader::seal_slow(head));
+    }
+
+    /// Flushes until nothing the engine could still save is unsaved, and returns the persisted
+    /// tip. A flush waits for the save in flight and the engine starts the next save only after
+    /// replying, so one flush per block the engine could have buffered drains them all.
+    fn settle<S: OpProofsStore>(engine: &EngineHandle<Block>, store: &S) -> NumHash {
+        for _ in 0..=SAVED_CHAIN_LENGTH {
+            engine.flush();
+        }
+        latest_block(store)
+    }
+
+    async fn run_finished_height_case(
+        chain: CommittedChain,
+        cadence: FlushCadence,
+        path: ProofsPath,
+    ) {
+        let store = InMemoryProofsStorage::new();
+        let chain_spec = merged_chain_spec();
+        let (ctx, mut handle) =
+            test_exex_context_with_chain_spec(chain_spec.clone()).await.expect("exex test context");
+        let engine = engine_over(&ctx, &handle, chain_spec, store.clone(), cadence);
+        let exex = OpProofsExEx::builder(ctx, store.clone())
+            .with_verification_interval(path.verification_interval())
+            .build();
+        let genesis = handle.genesis.num_hash();
+        let blocks = empty_chain(genesis, 1..=chain.length(), 0x10);
+        let tip = blocks.last().expect("a chain has a tip").num_hash();
+        match chain {
+            CommittedChain::Buffered | CommittedChain::Saved => make_canonical(
+                &exex.ctx,
+                NewCanonicalChain::Commit { new: blocks.iter().map(executed).collect() },
+            ),
+            CommittedChain::CatchUp => set_head_far_ahead(&exex.ctx, tip.number),
+        }
+        let notification =
+            ExExNotification::ChainCommitted { new: Arc::new(chain_of(blocks, true)) };
+
+        exex.handle_notification(notification, &engine).expect("handle chain commit");
+
+        // The contract today (ethereum-optimism/protocol-team#478): the ExEx acknowledges the
+        // notification's tip once the engine has accepted the chain, before the engine has
+        // persisted any of it, and even when it has only scheduled it for catch-up. A fix changes
+        // the acknowledged height, so it must change this assertion deliberately.
+        handle.assert_event_finished_height(tip).expect("one FinishedHeight event");
+        handle.assert_events_empty();
+        assert_eq!(settle(&engine, &store), chain.persisted_tip(genesis, tip), "persisted tip");
+    }
+
+    /// What `FinishedHeight` acknowledges for a committed chain the engine holds buffered and
+    /// unflushed, has only scheduled for catch-up, or has saved. A chain shorter than the
+    /// persistence threshold stays buffered only under the slower cadence, so that row has no
+    /// every-block cell.
+    #[rstest]
+    #[case::buffered_every_fifth_block(CommittedChain::Buffered, FlushCadence::EVERY_FIFTH_BLOCK)]
+    #[case::catch_up_every_block(CommittedChain::CatchUp, FlushCadence::EVERY_BLOCK)]
+    #[case::catch_up_every_fifth_block(CommittedChain::CatchUp, FlushCadence::EVERY_FIFTH_BLOCK)]
+    #[case::saved_every_block(CommittedChain::Saved, FlushCadence::EVERY_BLOCK)]
+    #[case::saved_every_fifth_block(CommittedChain::Saved, FlushCadence::EVERY_FIFTH_BLOCK)]
+    #[tokio::test]
+    async fn finished_height_is_the_notification_tip(
+        #[case] chain: CommittedChain,
+        #[case] cadence: FlushCadence,
+        #[values(ProofsPath::Execute, ProofsPath::Index)] path: ProofsPath,
+    ) {
+        run_finished_height_case(chain, cadence, path).await
     }
 
     /// The trie data of a block is used unless the chain lacks it or the block's verification is
