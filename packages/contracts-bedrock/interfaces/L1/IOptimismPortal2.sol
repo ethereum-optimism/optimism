@@ -127,7 +127,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function bridgeHook() external view returns (IBridgeHook);
     function setBridgeHook(IBridgeHook _hook) external;
     function heldDeposits(bytes32 _id) external view returns (bool);
-    function heldWithdrawals(bytes32 _withdrawalHash) external view returns (bool);
+    function heldWithdrawals(bytes32 _id) external view returns (bool);
     function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable;
     function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable;
 

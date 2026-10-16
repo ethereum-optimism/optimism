@@ -841,9 +841,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function heldDeposits(bytes32 _id) external view returns (bool) { }
 
     /// @notice Returns whether a withdrawal is held.
-    /// @param _withdrawalHash Withdrawal transaction hash.
+    /// @param _id Withdrawal item hash.
     /// @return True if held.
-    function heldWithdrawals(bytes32 _withdrawalHash) external view returns (bool) { }
+    function heldWithdrawals(bytes32 _id) external view returns (bool) { }
 
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.

@@ -469,7 +469,7 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "_withdrawalHash",
+        "name": "_id",
         "type": "bytes32"
       }
     ],
