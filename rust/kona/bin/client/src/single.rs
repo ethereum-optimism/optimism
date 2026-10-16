@@ -8,6 +8,8 @@ use core::fmt::Debug;
 use kona_derive::{EthereumDataSource, PipelineErrorKind};
 use kona_driver::{Driver, DriverError};
 use kona_executor::ExecutorError;
+use kona_genesis::RollupConfig;
+use kona_interop::DependencySet;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use kona_proof::{
     BootInfo, CachingOracle,
@@ -16,6 +18,7 @@ use kona_proof::{
     l1::{OracleBlobProvider, OraclePipeline},
     sync::{DerivationInputs, SyncStartError, prepare_derivation},
 };
+use kona_registry::DEPENDENCY_SETS;
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -34,7 +37,15 @@ pub enum FaultProofProgramError {
     /// An error occurred in the driver.
     #[error(transparent)]
     Driver(#[from] DriverError<ExecutorError>),
+    /// The chain has no interop dependency set.
+    #[error(transparent)]
+    MissingDependencySet(#[from] MissingDependencySet),
 }
+
+/// The chain schedules Lagoon, but the registry has no interop dependency set for it.
+#[derive(Error, Debug, PartialEq, Eq)]
+#[error("chain {0} schedules Lagoon but has no embedded interop dependency set")]
+pub struct MissingDependencySet(pub u64);
 
 /// Executes the fault proof program with the given [PreimageOracleClient] and [HintWriterClient].
 #[inline]
@@ -97,6 +108,7 @@ where
     };
 
     let l1_config = boot.l1_config;
+    let dependency_set = dependency_set(boot.chain_id, &rollup_config)?;
 
     let evm_factory =
         PostExecEvmFactoryAdapter::new(FpvmOpEvmFactory::new(hint_client, oracle_client));
@@ -110,10 +122,7 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
-        // Single-chain fault proof: no interop dependency set. If this chain
-        // ever schedules interop, the StatefulAttributesBuilder constructor
-        // will panic.
-        None,
+        dependency_set,
     )
     .await?;
 
@@ -156,4 +165,58 @@ where
     );
 
     Ok(())
+}
+
+/// Returns the interop dependency set that derivation needs for the chain.
+///
+/// Derivation needs a dependency set once the chain schedules Lagoon, even for the blocks before
+/// it activates. A registry chain uses the set embedded from the registry, as op-node does. A chain
+/// outside the registry has no embedded set, and the single-chain host does not serve one, so it
+/// cannot be proven once it schedules Lagoon.
+fn dependency_set(
+    chain_id: u64,
+    rollup_config: &RollupConfig,
+) -> Result<Option<Arc<DependencySet>>, MissingDependencySet> {
+    if rollup_config.hardforks.lagoon_time.is_none() {
+        return Ok(None);
+    }
+    DEPENDENCY_SETS
+        .get(&chain_id)
+        .map(|dependency_set| Some(Arc::new(dependency_set.clone())))
+        .ok_or(MissingDependencySet(chain_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_registry::ROLLUP_CONFIGS;
+
+    const OP_MAINNET: u64 = 10;
+
+    #[test]
+    fn no_dependency_set_without_lagoon() {
+        let mut config = ROLLUP_CONFIGS[&OP_MAINNET].clone();
+        config.hardforks.lagoon_time = None;
+        assert!(dependency_set(OP_MAINNET, &config).unwrap().is_none());
+    }
+
+    #[test]
+    fn registry_dependency_set_with_lagoon() {
+        let mut config = ROLLUP_CONFIGS[&OP_MAINNET].clone();
+        config.hardforks.lagoon_time = Some(u64::MAX);
+        let dependency_set = dependency_set(OP_MAINNET, &config).unwrap().unwrap();
+        assert_eq!(*dependency_set, DEPENDENCY_SETS[&OP_MAINNET]);
+    }
+
+    #[test]
+    fn missing_dependency_set_with_lagoon() {
+        const UNKNOWN_CHAIN: u64 = u64::MAX;
+        assert!(!DEPENDENCY_SETS.contains_key(&UNKNOWN_CHAIN));
+        let mut config = ROLLUP_CONFIGS[&OP_MAINNET].clone();
+        config.hardforks.lagoon_time = Some(u64::MAX);
+        assert_eq!(
+            dependency_set(UNKNOWN_CHAIN, &config),
+            Err(MissingDependencySet(UNKNOWN_CHAIN))
+        );
+    }
 }
