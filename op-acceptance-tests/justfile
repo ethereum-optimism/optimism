@@ -163,9 +163,6 @@ acceptance-test:
     set -e
 
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
-    # The splitter lists top-level tests, whose Go elapsed time can exclude
-    # parallel subtests. Include their cost in the history uploaded to CircleCI.
-    python3 "{{REPO_ROOT}}/ops/scripts/junit-shard-timings.py" "$JUNIT_FILE"
     exit "$TEST_STATUS"
 
 clean:

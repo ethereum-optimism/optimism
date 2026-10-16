@@ -63,20 +63,6 @@ branch that only added a new `op-core/types` package. The diff touched nothing i
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
 
-## Acceptance package timeouts with imbalanced shards
-
-A late-starting acceptance test can fail during setup because earlier tests exhausted
-its Go package's shared timeout. Compare raw Go `start`/`cont` events with the
-package deadline: `devtest.SerialT` cancels its context three seconds before that
-deadline. The assertion that happens to see cancellation need not be the slow test.
-
-Check the shard logs for `No timing found` warnings and the `Downloading previous
-test results` step for the source job. A canceled source run can supply partial
-history: in [#23471](https://github.com/ethereum-optimism/optimism/pull/23471), all 64
-unknown tests landed on one node and exhausted the ZK package timeout. Keep a
-meaningful missing-timing estimate in `ops/scripts/shard-tests.sh`, and include
-parallel subtest costs in the top-level timings uploaded for the next split.
-
 ## Missing `op-core/superchain` bundle (`superchain-configs.zip`)
 
 A CI-only compile error like:
