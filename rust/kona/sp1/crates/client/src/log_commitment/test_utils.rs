@@ -52,6 +52,24 @@ pub fn receipts_root(receipts: &[OpReceiptEnvelope]) -> B256 {
     ordered_trie_root_with_encoder(receipts, |receipt, out| receipt.encode_2718(out))
 }
 
+/// Saves `preimage` under its keccak256 key, and returns the hash.
+pub fn save(store: &mut PreimageStore, preimage: Vec<u8>) -> B256 {
+    let hash = keccak256(&preimage);
+    store.save_preimage(PreimageKey::new_keccak256(*hash), preimage).unwrap();
+    hash
+}
+
+/// Saves the receipts trie of `receipts`, and returns its root.
+pub fn save_receipts(store: &mut PreimageStore, receipts: &[OpReceiptEnvelope]) -> B256 {
+    let mut trie =
+        kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
+    let root = trie.root();
+    for node in trie.take_proof_nodes().into_inner().into_values() {
+        save(store, node.to_vec());
+    }
+    root
+}
+
 /// Every receipt type, zero-log receipts at each position, a block without logs, the empty
 /// receipts root, a single log, and more than `0x80` receipts (item 0 moves in the trie).
 pub fn mixed_blocks() -> Vec<BlockReceipts> {
@@ -91,7 +109,7 @@ pub fn missing_trie_node_witness() -> (B256, DefaultWitnessData) {
             omitted = true;
             continue;
         }
-        store.save_preimage(PreimageKey::new_keccak256(*keccak256(&node)), node.to_vec()).unwrap();
+        save(&mut store, node.to_vec());
     }
     assert!(omitted);
     (root, DefaultWitnessData::from_parts(store, BlobData::default()))

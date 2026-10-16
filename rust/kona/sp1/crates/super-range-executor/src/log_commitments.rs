@@ -214,7 +214,6 @@ where
 #[cfg(test)]
 mod tests {
     use alloy_consensus::{EMPTY_ROOT_HASH, Receipt, ReceiptWithBloom, Sealed};
-    use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Bytes, LogData, keccak256, map::HashMap};
     use alloy_rlp::{EMPTY_STRING_CODE, Encodable};
     use kona_genesis::RollupConfig;
@@ -222,10 +221,12 @@ mod tests {
         ChainBuilder, ChainDependency, DependencySet, ExecutingMessageBuilder,
         MESSAGE_EXPIRY_WINDOW, MessageGraph, RawMessagePayload, SuperRoot,
     };
-    use kona_preimage::PreimageKey;
     use kona_proof_interop::{BootInfo, OracleInteropProvider, PreState};
     use kona_sp1_client_utils::{
-        log_commitment::{LogCommitmentInputs, VerifiedLogCommitments},
+        log_commitment::{
+            LogCommitmentInputs, VerifiedLogCommitments,
+            test_utils::{receipts_root, save, save_receipts},
+        },
         witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
     };
     use op_alloy_consensus::OpReceiptEnvelope;
@@ -234,22 +235,6 @@ mod tests {
 
     const A: u64 = 1;
     const B: u64 = 2;
-
-    fn save(store: &mut PreimageStore, preimage: Vec<u8>) -> B256 {
-        let hash = keccak256(&preimage);
-        store.save_preimage(PreimageKey::new_keccak256(*hash), preimage).unwrap();
-        hash
-    }
-
-    fn save_receipts(store: &mut PreimageStore, receipts: &[OpReceiptEnvelope]) -> B256 {
-        let mut trie =
-            kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
-        let root = trie.root();
-        for node in trie.take_proof_nodes().into_inner().into_values() {
-            save(store, node.to_vec());
-        }
-        root
-    }
 
     /// Chain A's blocks 1 and 2 sit below its head, block 3; chain B's head executes two
     /// messages into one log of block 1 and one into block 2.
@@ -301,14 +286,7 @@ mod tests {
             header.encode(&mut rlp);
             Sealed::new_unchecked(header, save(store, rlp))
         };
-        let below_head = blocks.map(|receipts| {
-            (
-                alloy_consensus::proofs::ordered_trie_root_with_encoder(&receipts, |r, out| {
-                    r.encode_2718(out)
-                }),
-                receipts,
-            )
-        });
+        let below_head = blocks.map(|receipts| (receipts_root(&receipts), receipts));
         let a1 = seal(&mut withheld, 1, B256::ZERO, below_head[0].0);
         let a2 = seal(&mut withheld, 2, a1.hash(), below_head[1].0);
         let a3 = seal(&mut withheld, 3, a2.hash(), EMPTY_ROOT_HASH);

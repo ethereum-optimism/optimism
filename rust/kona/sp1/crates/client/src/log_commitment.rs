@@ -539,7 +539,7 @@ mod tests {
 
     use super::{
         test_utils::{
-            deposit, eip1559, logs, missing_trie_node_witness, mixed_blocks, receipts_root,
+            deposit, eip1559, logs, missing_trie_node_witness, mixed_blocks, receipts_root, save,
         },
         *,
     };
@@ -552,12 +552,6 @@ mod tests {
 
     fn oracle(witness: DefaultWitnessData) -> Arc<WitnessOracle> {
         kona_proof::block_on(witness.get_oracle_and_blob_provider()).unwrap().0
-    }
-
-    fn save(store: &mut PreimageStore, preimage: Vec<u8>) -> B256 {
-        let hash = keccak256(&preimage);
-        store.save_preimage(PreimageKey::new_keccak256(*hash), preimage).unwrap();
-        hash
     }
 
     /// Saves a header with `receipts_root` and returns its block hash.

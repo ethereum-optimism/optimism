@@ -9,7 +9,7 @@ use std::{
 };
 
 use alloy_chains::Chain;
-use alloy_consensus::{EMPTY_ROOT_HASH, Header, Receipt, ReceiptWithBloom};
+use alloy_consensus::{EMPTY_ROOT_HASH, Header};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, Log, LogData, U256, keccak256};
 use alloy_rlp::{EMPTY_STRING_CODE, Encodable};
@@ -22,6 +22,7 @@ use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LOG_COMMITMENT_ENTRY_LEN, LogCommitmentEntry, LogCommitmentInputs,
         LogOpening, LogTree, VerifiedLogCommitments, log_leaves,
+        test_utils::{eip1559, receipts_root, save, save_receipts},
     },
     super_root::{
         SuperConsolidationInputs, SuperConsolidationOutputs, SuperConsolidationTransitionInput,
@@ -257,28 +258,6 @@ fn configs() -> ChainConfigs {
     }
 }
 
-fn save(witness: &mut PreimageStore, preimage: Vec<u8>) -> B256 {
-    let hash = keccak256(&preimage);
-    witness.save_preimage(PreimageKey::new_keccak256(*hash), preimage).unwrap();
-    hash
-}
-
-fn receipts_root(receipts: &[OpReceiptEnvelope]) -> B256 {
-    alloy_consensus::proofs::ordered_trie_root_with_encoder(receipts, |receipt, out| {
-        receipt.encode_2718(out)
-    })
-}
-
-fn save_receipts(witness: &mut PreimageStore, receipts: &[OpReceiptEnvelope]) -> B256 {
-    let mut trie =
-        kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
-    let root = trie.root();
-    for node in trie.take_proof_nodes().into_inner().into_values() {
-        save(witness, node.to_vec());
-    }
-    root
-}
-
 fn save_header(witness: &mut PreimageStore, number: u64, parent: B256, receipts: B256) -> B256 {
     let header = Header {
         number,
@@ -313,20 +292,13 @@ fn logs(first_seed: u64, count: u64, topics: usize, data: usize) -> Vec<Log> {
         .collect()
 }
 
-fn receipt(logs: Vec<Log>) -> OpReceiptEnvelope {
-    OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
-        receipt: Receipt { status: true.into(), cumulative_gas_used: 21_000, logs },
-        logs_bloom: Default::default(),
-    })
-}
-
 /// Three blocks below the head with messages into each, two of them into one log.
 fn small_fixture() -> Fixture {
     Fixture::new(
         vec![
-            vec![receipt(logs(0, 2, 1, 8)), receipt(vec![]), receipt(logs(2, 3, 2, 40))],
-            vec![receipt(logs(10, 1, 0, 0))],
-            (0..20).map(|i| receipt(logs(100 + i, 1, 4, 16))).collect(),
+            vec![eip1559(logs(0, 2, 1, 8)), eip1559(vec![]), eip1559(logs(2, 3, 2, 40))],
+            vec![eip1559(logs(10, 1, 0, 0))],
+            (0..20).map(|i| eip1559(logs(100 + i, 1, 4, 16))).collect(),
         ],
         &[(1, 0), (1, 4), (2, 0), (3, 19), (3, 7), (1, 4)],
     )
@@ -631,7 +603,7 @@ async fn measure_consolidation_cost() {
     let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
     let n: u64 = std::env::var("N").map_or(4, |n| n.parse().unwrap());
     let blocks: Vec<_> =
-        (0..n).map(|block| vec![receipt(logs(block * 10_000, 3_480, 0, 1_024))]).collect();
+        (0..n).map(|block| vec![eip1559(logs(block * 10_000, 3_480, 0, 1_024))]).collect();
     let messages: Vec<_> = (1..=n).map(|number| (number, number * 997 % 3_480)).collect();
     for (label, fixture) in [
         ("baseline", Fixture::new(blocks.clone(), &[])),
