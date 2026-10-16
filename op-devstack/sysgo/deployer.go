@@ -488,6 +488,22 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	}
 }
 
+// WithWithdrawalDelaySeconds sets the per-chain DelayedWETH withdrawal delay. The delay is bounded by
+// the DelayedWETH implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
+func WithWithdrawalDelaySeconds(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if seconds < standard.MinWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("minWithdrawalDelaySeconds", seconds)
+		}
+		if seconds > standard.MaxWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("maxWithdrawalDelaySeconds", seconds)
+		}
+		builder.WithGlobalOverride("faultGameWithdrawalDelay", seconds)
+	}
+}
+
 // WithFaultGameMaxClockDuration overrides the fault dispute game's maximum chess-clock
 // duration, i.e. how long an unchallenged game takes to become resolvable
 // (dsl.StandardBridge.GameResolutionDelay). Shrinking it lets a test wait a game out in
