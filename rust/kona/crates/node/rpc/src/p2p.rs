@@ -314,4 +314,35 @@ mod tests {
         );
         assert_eq!(components[1], libp2p::multiaddr::Protocol::Udt);
     }
+
+    /// The methods that op-service's `P2PClient` (`op-service/sources/p2p_client.go`) calls must be
+    /// registered under op-node's names.
+    #[test]
+    fn test_op_service_p2p_client_methods_are_registered() {
+        use crate::{OpP2PApiServer, net::P2pRpc};
+        let (sender, _rx) = tokio::sync::mpsc::channel(1);
+        let module = P2pRpc::new(sender).into_rpc();
+        for method in [
+            "self",
+            "peers",
+            "peerStats",
+            "discoveryTable",
+            "blockPeer",
+            "unblockPeer",
+            "listBlockedPeers",
+            "blockAddr",
+            "unblockAddr",
+            "listBlockedAddrs",
+            "blockSubnet",
+            "unblockSubnet",
+            "listBlockedSubnets",
+            "protectPeer",
+            "unprotectPeer",
+            "connectPeer",
+            "disconnectPeer",
+        ] {
+            let method = format!("opp2p_{method}");
+            assert!(module.method(&method).is_some(), "{method} is not registered");
+        }
+    }
 }
