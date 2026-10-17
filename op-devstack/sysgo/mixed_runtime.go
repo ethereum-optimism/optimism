@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -369,6 +370,24 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
+// defaultMixedProofsHistoryWindow is the proofs-history window an op-reth node gets unless
+// OpRethWithProofsHistoryWindow overrides it.
+const defaultMixedProofsHistoryWindow uint64 = 10_000
+
+// proofsHistoryNodeArgs returns the node flags that enable proofs history on the store at
+// storagePath.
+func proofsHistoryNodeArgs(cfg *OpRethConfig, storagePath string) []string {
+	window := cfg.ProofsHistoryWindow
+	if window == 0 {
+		window = defaultMixedProofsHistoryWindow
+	}
+	return []string{
+		"--proofs-history",
+		"--proofs-history.storage-path=" + storagePath,
+		"--proofs-history.window=" + strconv.FormatUint(window, 10),
+	}
+}
+
 // buildMixedOpRethNode constructs an OpReth node without starting it.
 func buildMixedOpRethNode(
 	t devtest.T,
@@ -467,12 +486,7 @@ func buildMixedOpRethNode(
 		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
 		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
 
-		args = append(
-			args,
-			"--proofs-history",
-			"--proofs-history.window=10000",
-			"--proofs-history.storage-path="+proofHistoryDir,
-		)
+		args = append(args, proofsHistoryNodeArgs(opRethCfg, proofHistoryDir)...)
 	}
 
 	args = append(args, opRethCfg.ExtraArgs...)
