@@ -8,6 +8,7 @@ package certman
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -19,16 +20,35 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// ErrAlreadyWatching is returned by Watch when a watcher is already running.
+// Stop the current watcher before starting a new one.
+var ErrAlreadyWatching = errors.New("certman: already watching")
+
 // A CertMan represents a certificate manager able to watch certificate
 // and key pairs for changes.
+//
+// A CertMan runs at most one watcher goroutine at a time. Watch and Stop are
+// the transitions into and out of that state: Watch starts the goroutine, and
+// Stop signals it to return and waits for it to release the underlying
+// fsnotify watcher. Stop is idempotent, and is a no-op when no watcher is
+// running, so it is safe to call before the first Watch, after a failed
+// Watch, after a previous Stop, and more than once.
 type CertMan struct {
 	mu       sync.RWMutex
 	certFile string
 	keyFile  string
 	keyPair  *tls.Certificate
-	watcher  *fsnotify.Watcher
-	watching chan bool
 	log      log.Logger
+
+	// watching is closed to signal the watcher goroutine to return. It is nil
+	// when no watcher is running, which is what makes Stop idempotent: closing
+	// it more than once would panic, and sending on it more than once would
+	// block forever once the goroutine is gone.
+	// stopped is closed by the watcher goroutine after it has released its
+	// resources, so Stop can wait for the shutdown to complete.
+	// Both are guarded by mu.
+	watching chan struct{}
+	stopped  chan struct{}
 }
 
 // New creates a new certMan. The certFile and the keyFile
@@ -58,29 +78,44 @@ func New(logger log.Logger, certFile, keyFile string) (*CertMan, error) {
 // are reloaded. If there is an issue the load will fail
 // and the old (if any) certificates and keys will continue
 // to be used.
+//
+// Watch returns ErrAlreadyWatching if a watcher is already running; call Stop
+// first. If setup fails part-way through, the fsnotify watcher created here is
+// closed before the error is returned, so a failed Watch leaves no watcher or
+// goroutine behind and a later Watch can still succeed.
 func (cm *CertMan) Watch() error {
-	var err error
-	if cm.watcher, err = fsnotify.NewWatcher(); err != nil {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
 		return fmt.Errorf("certman: can't create watcher: %w", err)
 	}
 
 	certPath := path.Dir(cm.certFile)
 	keyPath := path.Dir(cm.keyFile)
 
-	if err = cm.watcher.Add(certPath); err != nil {
+	if err = watcher.Add(certPath); err != nil {
+		watcher.Close()
 		return fmt.Errorf("certman: can't watch %s: %w", certPath, err)
 	}
 	if keyPath != certPath {
-		if err = cm.watcher.Add(keyPath); err != nil {
-			return fmt.Errorf("certman: can't watch %s: %w", certPath, err)
+		if err = watcher.Add(keyPath); err != nil {
+			watcher.Close()
+			return fmt.Errorf("certman: can't watch %s: %w", keyPath, err)
 		}
 	}
 	if err := cm.load(); err != nil {
 		cm.log.Error("certman: can't load cert or key file", "err", err)
 	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	if cm.watching != nil {
+		watcher.Close()
+		return ErrAlreadyWatching
+	}
+	cm.watching = make(chan struct{})
+	cm.stopped = make(chan struct{})
 	cm.log.Info("certman: watching for cert and key change")
-	cm.watching = make(chan bool)
-	go cm.run()
+	go cm.run(watcher, cm.watching, cm.stopped)
 	return nil
 }
 
@@ -95,17 +130,24 @@ func (cm *CertMan) load() error {
 	return err
 }
 
-func (cm *CertMan) run() {
+// run watches until watching is closed, then releases the watcher and the
+// ticker and closes stopped to report that it is done. It owns watcher for its
+// lifetime, so Watch must not touch it after starting this goroutine — that is
+// what keeps a second Watch from racing with the first one's shutdown.
+func (cm *CertMan) run(watcher *fsnotify.Watcher, watching <-chan struct{}, stopped chan<- struct{}) {
+	defer close(stopped)
+	defer watcher.Close()
 	cm.log.Info("certman: running")
 
 	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 	files := []string{cm.certFile, cm.keyFile}
 	reload := time.Time{}
 
 loop:
 	for {
 		select {
-		case <-cm.watching:
+		case <-watching:
 			cm.log.Info("watching triggered; break loop")
 			break loop
 		case <-ticker.C:
@@ -116,7 +158,7 @@ loop:
 					cm.log.Error("certman: can't load cert or key file", "err", err)
 				}
 			}
-		case event := <-cm.watcher.Events:
+		case event := <-watcher.Events:
 			for _, f := range files {
 				if event.Name == f ||
 					strings.HasSuffix(event.Name, "/..data") { // kubernetes secrets mount
@@ -125,13 +167,11 @@ loop:
 					reload = time.Now().Add(2 * time.Second)
 				}
 			}
-		case err := <-cm.watcher.Errors:
+		case err := <-watcher.Errors:
 			cm.log.Error("certman: error watching files", "err", err)
 		}
 	}
 	cm.log.Info("certman: stopped watching")
-	cm.watcher.Close()
-	ticker.Stop()
 }
 
 // GetCertificate returns the loaded certificate for use by
@@ -151,7 +191,20 @@ func (cm *CertMan) GetClientCertificate(hello *tls.CertificateRequestInfo) (*tls
 }
 
 // Stop tells certMan to stop watching for changes to the
-// certificate and key files.
+// certificate and key files, and returns once the watcher
+// goroutine has exited and released the fsnotify watcher.
+//
+// Stop is a no-op when no watcher is running, and only the first call has an
+// effect, so it is safe to call before Watch, after a failed Watch, after a
+// previous Stop, and more than once.
 func (cm *CertMan) Stop() {
-	cm.watching <- false
+	cm.mu.Lock()
+	watching, stopped := cm.watching, cm.stopped
+	cm.watching, cm.stopped = nil, nil
+	cm.mu.Unlock()
+	if watching == nil {
+		return
+	}
+	close(watching)
+	<-stopped
 }
