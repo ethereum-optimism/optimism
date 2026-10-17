@@ -687,7 +687,7 @@ struct HookObservingPolicy {
 }
 
 impl PostExecRefundInspector for HookObservingPolicy {
-    type Snapshot = u64;
+    type Checkpoint = u64;
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {
         self.observed_hooks = 0;
@@ -746,12 +746,12 @@ impl PostExecRefundInspector for HookObservingPolicy {
         self.observed_hooks |= 8;
     }
 
-    fn snapshot(&self) -> Self::Snapshot {
+    fn checkpoint(&self) -> Self::Checkpoint {
         self.observed_hooks
     }
 
-    fn restore(&mut self, snapshot: Self::Snapshot) {
-        self.observed_hooks = snapshot;
+    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+        self.observed_hooks = checkpoint;
     }
 }
 
@@ -778,7 +778,7 @@ struct ScriptedRefundPolicy {
 }
 
 impl PostExecRefundInspector for ScriptedRefundPolicy {
-    type Snapshot = u64;
+    type Checkpoint = u64;
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
@@ -829,17 +829,17 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {
+    fn checkpoint(&self) -> Self::Checkpoint {
         self.executed_candidates
     }
 
-    fn restore(&mut self, snapshot: Self::Snapshot) {
-        self.executed_candidates = snapshot;
+    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+        self.executed_candidates = checkpoint;
     }
 }
 
 #[test]
-fn declined_candidate_restores_refund_policy_snapshot() {
+fn declined_candidate_reverts_refund_policy_checkpoint() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
     let hardforks = OpChainHardforks::op_mainnet();

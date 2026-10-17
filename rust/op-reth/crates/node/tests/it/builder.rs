@@ -131,7 +131,7 @@ fn test_setup_custom_precompiles() {
     }
 
     impl PostExecEvmFactoryHooks for UniEvmFactory {
-        type Snapshot = ();
+        type Checkpoint = ();
 
         fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
         where
@@ -149,20 +149,20 @@ fn test_setup_custom_precompiles() {
             evm.take_last_post_exec_tx_result()
         }
 
-        fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+        fn refund_checkpoint<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Checkpoint
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,
         {
-            evm.refund_snapshot()
+            evm.refund_checkpoint()
         }
 
-        fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+        fn revert_refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>, checkpoint: Self::Checkpoint)
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,
         {
-            evm.seed_refund_snapshot(state);
+            evm.revert_refund_checkpoint(checkpoint);
         }
     }
 
