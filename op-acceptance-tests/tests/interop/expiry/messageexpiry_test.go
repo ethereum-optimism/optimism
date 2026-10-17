@@ -1,7 +1,9 @@
-// Package expiry covers interop message expiry: a message that its destination never relays is
+// Package expiry covers what keeps ETH sent between interop chains safe when a message is not
+// relayed or the chain is paused. Message expiry: a message that its destination never relays is
 // exported as undelivered by the destination's UndeliveredMessageExporter, through the
 // withdrawal path, to the source chain's L1CrossDomainMessenger, which passes it on to the source
-// chain as a deposit.
+// chain as a deposit, and the sender can then claim a refund. The L1 pause: anyone can sync it
+// onto the chain's ETHLiquidity, which then stops the SuperchainETHBridge.
 package expiry
 
 import (

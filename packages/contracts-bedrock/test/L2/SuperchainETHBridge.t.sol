@@ -13,6 +13,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -63,6 +64,9 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
 
     address internal constant ZERO_ADDRESS = address(0);
 
+    /// @notice Nonce of the next pause sync relayed from the L1CrossDomainMessenger.
+    uint240 internal pauseSyncNonce;
+
     /// @notice Test setup.
     function setUp() public virtual override {
         super.enableInterop();
@@ -73,6 +77,25 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
             vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
             vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
         }
+    }
+
+    /// @notice Pauses or unpauses ETHLiquidity: relays `setPaused` from this chain's
+    ///         L1CrossDomainMessenger in a message newer than any before, as the deposit
+    ///         `L1CrossDomainMessenger.syncETHLiquidityPause` makes does.
+    /// @param _paused Whether to pause ETHLiquidity.
+    function _setPaused(bool _paused) internal {
+        address l1Messenger = address(l1CrossDomainMessenger);
+        uint256 nonce = Encoding.encodeVersionedNonce({ _nonce: pauseSyncNonce++, _version: 1 });
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(l1Messenger));
+        l2CrossDomainMessenger.relayMessage(
+            nonce,
+            l1Messenger,
+            Predeploys.ETH_LIQUIDITY,
+            0,
+            100_000,
+            abi.encodeCall(IETHLiquidity.setPaused, (_paused, nonce))
+        );
+        assertEq(ethLiquidity.paused(), _paused);
     }
 }
 
@@ -203,6 +226,30 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
 
         assertEq(address(l2CrossDomainMessenger).balance, 0);
     }
+
+    /// @notice Tests that `sendETH` reverts as a whole while ETHLiquidity is paused: the sender
+    ///         keeps the ETH and no message is sent. Once unpaused, the same send goes through.
+    function test_sendETH_whilePaused_reverts() external {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        uint256 destination = 902;
+        vm.deal(alice, 1 ether);
+        uint256 liquidityBefore = address(ethLiquidity).balance;
+        uint256 nonceBefore = messenger.messageNonce();
+        _setPaused(true);
+
+        vm.prank(alice);
+        vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
+        superchainETHBridge.sendETH{ value: 1 ether }(bob, destination);
+
+        _setPaused(false);
+        vm.prank(alice);
+        bytes32 messageHash = superchainETHBridge.sendETH{ value: 1 ether }(bob, destination);
+
+        assertEq(alice.balance, 0);
+        assertEq(address(ethLiquidity).balance, liquidityBefore + 1 ether);
+        assertEq(messenger.messageNonce(), nonceBefore + 1);
+        assertGt(messenger.sentMessageTimestamps(messageHash), 0);
+    }
 }
 
 /// @title SuperchainETHBridge_RelayETH_Test
@@ -281,6 +328,54 @@ contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
 
         assertEq(_to.balance, _toBalanceBefore + _amount);
     }
+
+    /// @notice Tests that relaying a send while ETHLiquidity is paused reverts the whole
+    ///         `relayMessage`, so the message is not marked relayed and can be relayed once
+    ///         ETHLiquidity is unpaused.
+    function test_relayETH_whilePaused_reverts() external {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        uint256 source = 901;
+        uint256 nonce = 7;
+        bytes memory message = abi.encodeCall(ISuperchainETHBridge.relayETH, (alice, bob, 1 ether));
+        bytes memory sentMessage = abi.encodePacked(
+            abi.encode(
+                keccak256("SentMessage(uint256,address,uint256,address,bytes)"),
+                block.chainid,
+                address(superchainETHBridge),
+                nonce
+            ),
+            abi.encode(address(superchainETHBridge), message)
+        );
+        Identifier memory id =
+            Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, uint64(block.timestamp), source);
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
+            _destination: block.chainid,
+            _source: source,
+            _nonce: nonce,
+            _sender: address(superchainETHBridge),
+            _target: address(superchainETHBridge),
+            _message: message
+        });
+        vm.mockCall(
+            Predeploys.CROSS_L2_INBOX, abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))), ""
+        );
+        vm.deal(address(ethLiquidity), 1 ether);
+        uint256 bobBalanceBefore = bob.balance;
+        _setPaused(true);
+
+        vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
+        messenger.relayMessage(id, sentMessage);
+
+        // Once unpaused, anyone can relay the same message.
+        _setPaused(false);
+        vm.expectEmit(address(superchainETHBridge));
+        emit RelayETH(alice, bob, 1 ether, source);
+        messenger.relayMessage(id, sentMessage);
+
+        assertTrue(messenger.successfulMessages(messageHash));
+        assertEq(bob.balance, bobBalanceBefore + 1 ether);
+        assertEq(address(ethLiquidity).balance, 0);
+    }
 }
 
 /// @title SuperchainETHBridge_RefundETH_Test
@@ -336,6 +431,29 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
         vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_AlreadyRefunded.selector);
         vm.prank(_from);
         superchainETHBridge.refundETH(DESTINATION, nonce, _to, _amount);
+    }
+
+    /// @notice Tests that a refund reverts while ETHLiquidity is paused, without marking the send
+    ///         refunded, and goes through once it is unpaused. The message can still expire while
+    ///         the pause lasts, since expiry does not touch ETHLiquidity.
+    function test_refundETH_whilePaused_reverts() external {
+        (uint256 nonce, bytes32 messageHash) = _send(alice, bob, 1 ether);
+        _setPaused(true);
+        _expire(messageHash);
+        assertTrue(messenger.expiredMessages(messageHash));
+
+        vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
+
+        _setPaused(false);
+        vm.expectEmit(address(superchainETHBridge));
+        emit RefundETH(alice, 1 ether, messageHash);
+        vm.prank(alice);
+        superchainETHBridge.refundETH(DESTINATION, nonce, bob, 1 ether);
+
+        assertTrue(superchainETHBridge.refunded(messageHash));
+        assertEq(alice.balance, 1 ether);
     }
 
     /// @notice Tests that an expired send of no ETH is still marked refunded, once, and reported.

@@ -26,6 +26,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 
 /// @title L1CrossDomainMessenger_Encoding_Harness
 /// @notice A harness contract for testing internal functions of the Encoding library.
@@ -1597,5 +1598,104 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
             abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(portal_)))),
             abi.encode(true)
         );
+    }
+}
+
+/// @title L1CrossDomainMessenger_SyncETHLiquidityPause_Test
+/// @notice Tests the `syncETHLiquidityPause` function of the `L1CrossDomainMessenger` contract.
+contract L1CrossDomainMessenger_SyncETHLiquidityPause_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Test setup.
+    function setUp() public override {
+        super.setUp();
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(true)
+        );
+    }
+
+    /// @notice Tests that anyone can send the unpaused state of an unpaused chain.
+    /// @param _caller Address of the caller.
+    function testFuzz_syncETHLiquidityPause_unpaused_succeeds(address _caller) external {
+        assertFalse(l1CrossDomainMessenger.paused());
+        _expectSync(false);
+
+        vm.prank(_caller);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync works while the chain is globally paused, and sends the paused
+    ///         state, then the unpaused state once the chain is unpaused.
+    function test_syncETHLiquidityPause_globalPause_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        assertTrue(l1CrossDomainMessenger.paused());
+
+        _expectSync(true);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.unpause(address(0));
+
+        _expectSync(false);
+        vm.prank(bob);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync sends the paused state while only this chain is paused.
+    function test_syncETHLiquidityPause_localPause_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(ethLockbox));
+        assertTrue(l1CrossDomainMessenger.paused());
+
+        _expectSync(true);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync sends the unpaused state once the pause has expired.
+    function test_syncETHLiquidityPause_pauseExpired_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        vm.warp(superchainConfig.expiration(address(0)) + 1);
+        assertFalse(l1CrossDomainMessenger.paused());
+
+        _expectSync(false);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Tests that the sync is off on a chain that does not run interop.
+    function test_syncETHLiquidityPause_interopNotEnabled_reverts() external {
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_InteropNotEnabled.selector);
+        vm.prank(alice);
+        l1CrossDomainMessenger.syncETHLiquidityPause();
+    }
+
+    /// @notice Expects the deposit and event that send `setPaused(_paused, nonce)` to ETHLiquidity
+    ///         as this messenger, where `nonce` is the nonce of that very message.
+    function _expectSync(bool _paused) internal {
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
+        bytes memory setPaused = abi.encodeCall(IETHLiquidity.setPaused, (_paused, nonce));
+        vm.expectCall(
+            address(optimismPortal2),
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                    0,
+                    l1CrossDomainMessenger.baseGas(setPaused, 100_000),
+                    false,
+                    Encoding.encodeCrossDomainMessage(
+                        nonce, address(l1CrossDomainMessenger), Predeploys.ETH_LIQUIDITY, 0, 100_000, setPaused
+                    )
+                )
+            )
+        );
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(Predeploys.ETH_LIQUIDITY, address(l1CrossDomainMessenger), setPaused, nonce, 100_000);
     }
 }
