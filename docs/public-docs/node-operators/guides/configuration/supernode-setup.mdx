@@ -77,6 +77,7 @@ Each chain's virtual node authenticates to that chain's execution client over th
   <Step title="Generate the secret">
     ```bash
     openssl rand -hex 32 > jwt-secret.txt
+    chmod 600 jwt-secret.txt
     ```
   </Step>
 
