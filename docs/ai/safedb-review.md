@@ -109,6 +109,10 @@ reason.
 A new write path must name the L1 block holding all the batch data for the head it
 records. If it cannot, it must not write.
 
+Follow-source is the standing example. Heads adopted from the upstream are promoted with an
+empty L1 ref, so the driver's safe-head listener skips them, and op-node refuses
+`--safedb.path` together with `--l2.follow.source`, since such a node never derives from L1.
+
 ### I5. An entry is stable only after derivation passes its L1 block
 
 A record keyed by L1 block is replaced by the next record at the same key. While
