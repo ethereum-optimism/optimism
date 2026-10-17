@@ -14,7 +14,9 @@ pub use kv::{
 };
 
 mod backend;
-pub use backend::{HintHandler, OfflineHostBackend, OnlineHostBackend, OnlineHostBackendCfg};
+pub use backend::{
+    HintHandler, NonRetryableHintError, OfflineHostBackend, OnlineHostBackend, OnlineHostBackendCfg,
+};
 
 pub mod eth;
 
