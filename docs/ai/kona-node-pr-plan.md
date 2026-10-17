@@ -261,7 +261,7 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 
 **Problem and resulting behavior.** `admin_postUnsafePayload` currently returns success after queue admission even when the claimed block hash is malformed. Validate the envelope at the accepting RPC boundary, before any actor sees it. A valid payload submitted after rejection must still advance both clients.
 
-**Source and scope.** Retain the current narrow 23227 change (`862e9f08d8`), plus the one-file coverage from 22307. Touch `rpc/src/admin.rs`, `op-acceptance-tests/tests/base/conductor/unsafe_payload_test.go`, and `tests/sync/elsync/gap_elp2p/sync_test.go`. Keep the validation helper intact when PR 07 changes its transport.
+**Source and scope.** Retain the current narrow 23227 change (`862e9f08d8`), plus the one-file coverage from 22307. Touch `rpc/src/admin.rs`, `op-acceptance-tests/tests/base/conductor/unsafe_payload_test.go`, and `tests/sync/elsync/gap_elp2p/sync_test.go`. Keep the boundary validation intact when PR 07 changes its transport.
 
 **Steps.**
 
@@ -686,13 +686,13 @@ If any proposed split requires a new adapter, intermediate public enum, callback
 
 ## Progress checklist
 
-Planning is complete; implementation items remain unchecked. A check means the package has its actual implementation, review and required validation, with a commit/PR recorded here.
+Planning is complete. A check means the package has its actual implementation, review and required local validation, with its implementation commit recorded below. Later packages remain subject to the user review checkpoint.
 
 - [x] Pin baseline/source revisions and inspect existing PR comparisons through authenticated CLI.
 - [x] Investigate engine/reset, RPC/conductor, configuration/L1/network and deletion candidates.
 - [x] Reconcile the investigations into one stack and review intermediate-state hazards.
 - [ ] Reconcile existing standalone fixes with the refreshed baseline, without duplicating them.
-- [ ] PR 01: synchronous unsafe-payload validation and its acceptance tests.
+- [x] PR 01: synchronous unsafe-payload validation and its acceptance tests.
 - [ ] PR 02: shared resolved configuration and bounded clients.
 - [ ] PR 03: ordinary engine operations and necessary dead-code deletion.
 - [ ] PR 04: corrected reusable reset walk.
@@ -710,3 +710,49 @@ Planning is complete; implementation items remain unchecked. A check means the p
 ### Decisions to retain during execution
 
 The sole target is an independent kona-node binary that is simple, understandable, correct and robust. Keep its external Engine API and supported RPC/admin behavior. Prefer one source of config/client truth, one engine command owner, one sequencer publication state machine, and one applied pipeline context. Retain narrow permanent crate-boundary traits where they avoid cycles. Deletions caused by those decisions travel with them. Broad CLI, crate, metrics, discovery-dependency and proof-program redesigns remain separate decisions.
+
+
+## Execution record: PR 01
+
+Completed on 2026-10-17 in branch `codex/kona-refactor-01-unsafe-validation`, based directly on public `develop` at `9c14635375e22608458da1d3ec4830af491009dd`.
+
+- First commit: `d9666c8734`, the approved plan with no implementation changes.
+- Implementation: `ccbcc03c5a` (`kona-node: reject malformed admin unsafe payloads`), four source/test files, +116/-17, no dependency changes.
+- Source references: 23227 at `862e9f08d83e6ffe88b2405ee56be4df83300af7` and 22307 at `08b5891e02da14d171978b8e7892e6b22fd362bb`. Their branches and PRs are preserved. The new branch includes only the selected fix and coverage, with no old stack dependencies.
+- Contract: malformed hashes return JSON-RPC `InvalidParams` (-32602) before queue admission, with op-node's claimed/actual hash message. Valid submissions retain asynchronous admission semantics. The API documentation distinguishes admission from execution and states that submissions are not automatically gossiped.
+- Review: separate Rust and Go review agents found no actionable issues. One implementation owner and one validation runner performed the work; reviewers launched no duplicate builds.
+
+### Local validation
+
+| Check | Result |
+| --- | --- |
+| `cargo nextest run -p kona-rpc --all-features` from `rust/` | 3 passed, 0 skipped, including the registered RPC regression |
+| Remove only the new hash guard and rerun the regression, then restore it | Fails as expected because malformed input returns success; restored source passes |
+| `just lint` from `rust/` | Passed: formatting, workspace Clippy across features/targets, rustdoc and mirror checks |
+| `just lint-go` from the repository root | Passed, including module tidiness |
+| `gofmt` on changed Go files; `git diff --check` | Passed |
+| Current Kona/op-reth binary builds | Passed |
+| Pinned registry bundle, current contract/deploy artifacts, and Cannon prerequisites | Built successfully |
+
+The following acceptance tests each passed against **both** kona-node/op-reth and op-node/op-reth, for six passes and zero skips:
+
+- `TestPostedUnsafePayloadAdvancesVerifier`
+- `TestPostedUnsafePayloadRejectsBadBlockHash`
+- `TestInvalidPayloadThroughCLP2P`
+
+Run each client selection sequentially from the repository root using `DEVSTACK_L2CL_KIND=kona-node` or `op-node`, `DEVSTACK_L2EL_KIND=op-reth`, `RUST_JIT_BUILD=1` and `RUST_LOG=info`:
+
+```sh
+go test -count=1 -timeout 30m -p 1 -parallel 1 -v \
+  -run '^(TestPostedUnsafePayloadRejectsBadBlockHash|TestPostedUnsafePayloadAdvancesVerifier)$' \
+  ./op-acceptance-tests/tests/base/conductor
+go test -count=1 -timeout 30m -p 1 -parallel 1 -v \
+  -run '^TestInvalidPayloadThroughCLP2P$' \
+  ./op-acceptance-tests/tests/sync/elsync/gap_elp2p
+```
+
+The initial acceptance attempt inherited `RUST_LOG=warn`, which hid the info messages used by the harness to discover op-reth's ephemeral RPC ports. It was interrupted before payload assertions; the complete matrix above passed after explicitly enabling info logs. No product or harness code was changed for this environment correction.
+
+The gap test now actually submits the invalid-ancestor payload, then submits a valid payload and independently requires both CL and EL advancement. Together with the registered RPC regression, this covers issue 22250's synchronous rejection and continued valid-payload processing requirements.
+
+**Review checkpoint:** open PR 01 as a draft and stop implementation. Local checks are complete; GitHub CI status must be reported separately. Do not begin PR 02 or run background work on later packages until the user resumes.
