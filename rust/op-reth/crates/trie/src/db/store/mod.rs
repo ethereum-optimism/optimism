@@ -17,9 +17,12 @@ mod metrics;
 mod provider_ro;
 mod provider_rw;
 mod read;
+mod repair;
 mod snapshot_init;
 mod snapshot_read;
 mod write;
+
+pub use repair::ShardKeyRepairCounts;
 
 pub use cursor::{
     MdbxAccountCursor, MdbxAccountTrieCursor, MdbxAccountTrieSnapshotCursor,

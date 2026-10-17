@@ -13,4 +13,5 @@ pub use store::{
     MdbxAccountCursor, MdbxAccountTrieCursor, MdbxAccountTrieSnapshotCursor,
     MdbxHashedAccountSnapshotCursor, MdbxHashedStorageSnapshotCursor, MdbxProofsProvider,
     MdbxProofsStorage, MdbxStorageCursor, MdbxStorageTrieCursor, MdbxStorageTrieSnapshotCursor,
+    ShardKeyRepairCounts,
 };
