@@ -57,7 +57,7 @@ var (
 
 	ErrBlobFeeLimit    = errors.New("blob fee limit reached")
 	ErrClosed          = errors.New("transaction manager is closed")
-	ErrNoBlobTipOracle = errors.New("blob tip oracle is not configured, start with --" + BlobTipCapDynamicFlagName + " to use it")
+	ErrNoBlobTipOracle = errors.New("blob tip oracle is not configured (start with --" + BlobTipCapDynamicFlagName + " to use it)")
 )
 
 type SendResponse struct {
@@ -577,6 +577,7 @@ func (m *SimpleTxManager) GetBlobTipCapDynamic() bool {
 // Enabling it requires the tx manager to have been created with a blob tip oracle.
 func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) error {
 	if val && m.blobTipOracle == nil {
+		m.l.Warn("Rejected enabling dynamic blob tip cap: blob tip oracle is not configured")
 		return ErrNoBlobTipOracle
 	}
 	m.cfg.BlobTipCapDynamic.Store(val)
@@ -1107,6 +1108,9 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 
 	blobTip := new(big.Int).Set(tip)
 	if m.cfg.BlobTipCapDynamic.Load() {
+		if m.blobTipOracle == nil {
+			return nil, nil, nil, nil, ErrNoBlobTipOracle
+		}
 		// pass 0, 0 to use configured values
 		blobTip, err = m.blobTipOracle.SuggestBlobTipCap(ctx, 0, 0)
 		if err != nil {
