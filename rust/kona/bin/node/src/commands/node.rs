@@ -7,38 +7,24 @@ use crate::{
         SequencerArgs,
     },
 };
-use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;
-use alloy_transport_http::Http;
 use anyhow::{Result, bail};
-use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
-use kona_engine::{HyperAuthClient, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
-use op_alloy_network::Optimism;
-use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
     fs::File,
     io::{Read, Write},
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use strum::IntoEnumIterator;
-use tracing::{debug, error, info};
-
-/// A JWT token validation error.
-#[derive(Debug, thiserror::Error)]
-pub(super) enum JwtValidationError {
-    #[error("JWT signature is invalid")]
-    InvalidSignature,
-    #[error("Failed to exchange capabilities with engine: {0}")]
-    CapabilityExchange(String),
-}
+use tracing::{debug, info};
 
 /// Command-line interface for running a Kona rollup node.
 ///
@@ -209,87 +195,23 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Check if the error is related to JWT signature validation
-    fn is_jwt_signature_error(error: &dyn std::error::Error) -> bool {
-        let mut source = Some(error);
-        while let Some(err) = source {
-            let err_str = err.to_string().to_lowercase();
-            if err_str.contains("signature invalid") ||
-                (err_str.contains("jwt") && err_str.contains("invalid")) ||
-                err_str.contains("unauthorized") ||
-                err_str.contains("authentication failed")
-            {
-                return true;
-            }
-            source = err.source();
-        }
-        false
-    }
-
-    /// Helper to check JWT signature error from `anyhow::Error` (for retry condition)
-    fn is_jwt_signature_error_from_anyhow(error: &anyhow::Error) -> bool {
-        Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
-    }
-
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
-        let jwt_secret = self.l2_jwt_secret()?;
-
-        let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
-            self.l2_client_args.l2_engine_rpc.clone(),
-            jwt_secret,
-        );
-
-        let exchange = || async {
-            match <RootProvider<Optimism> as OpEngineApi<
-                Optimism,
-                Http<HyperAuthClient>,
-            >>::exchange_capabilities(&engine, vec![])
-            .await
-            {
-                Ok(_) => {
-                    debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
-                }
-                Err(e) => {
-                    if Self::is_jwt_signature_error(&e) {
-                        error!(
-                            "Engine API JWT secret differs from the one specified by --l2.jwt-secret/--l2.jwt-secret-encoded"
-                        );
-                        error!(
-                            "Ensure that the JWT secret file specified is correct (by default it is `jwt.hex` in the current directory)"
-                        );
-                        return Err(JwtValidationError::InvalidSignature.into());
-                    }
-                    Err(JwtValidationError::CapabilityExchange(e.to_string()).into())
-                }
-            }
-        };
-
-        exchange
-            .retry(ExponentialBuilder::default())
-            .when(|e| !Self::is_jwt_signature_error_from_anyhow(e))
-            .notify(|_, duration| {
-                debug!("Retrying engine capability handshake after {duration:?}");
-            })
-            .await
-    }
-
-    /// Run the Node subcommand.
+    /// Run the Node subcommand after resolving every local input.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
-        let cfg = self.get_l2_config(args)?;
-
-        info!(
-            target: "rollup_node",
-            chain_id = cfg.l2_chain_id.id(),
-            "Starting rollup node services"
-        );
-        for hf in cfg.hardforks.to_string().lines() {
+        let builder = self.into_builder(args)?;
+        info!(target: "rollup_node", chain_id = builder.config.l2_chain_id.id(), "Starting rollup node services");
+        for hf in builder.config.hardforks.to_string().lines() {
             info!(target: "rollup_node", "{hf}");
         }
+        if args.metrics.enabled {
+            init_rollup_config_metrics(&builder.config);
+        }
+        builder.build().start().await.map_err(|error| anyhow::anyhow!(error))
+    }
 
+    /// Resolves and validates local configuration before capability exchange or L1 requests.
+    fn into_builder(self, args: &GlobalArgs) -> Result<RollupNodeBuilder> {
+        let cfg = Arc::new(self.get_l2_config(args)?);
+        let dependency_set = self.load_dependency_set(&cfg)?;
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
             trust_rpc: self.l1_rpc_args.l1_trust_rpc,
@@ -297,50 +219,31 @@ impl NodeCommand {
             rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
         };
-
-        // If metrics are enabled, initialize the global cli metrics.
-        args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
-
-        let jwt_secret = self.validate_jwt().await?;
-
+        let jwt_secret = self.l2_jwt_secret()?;
         self.p2p_flags.check_ports()?;
-        let p2p_config = self
-            .p2p_flags
-            .clone()
-            .config(&cfg, args, Some(self.l1_rpc_args.l1_eth_rpc.clone()))
-            .await?;
-        let rpc_config = self.rpc_flags.clone().into();
-
+        let p2p_config = self.p2p_flags.config(&cfg)?;
+        if self.node_mode.is_sequencer() && p2p_config.gossip_signer.is_none() {
+            bail!(
+                "Sequencer mode requires a block signer: set --p2p.sequencer.key, --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
+            );
+        }
         let engine_config = EngineConfig {
-            config: Arc::new(cfg.clone()),
-            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
+            l2_url: self.l2_client_args.l2_engine_rpc,
             l2_jwt_secret: jwt_secret,
-            l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
+            timeout: Duration::from_millis(self.l2_client_args.l2_engine_timeout),
             mode: self.node_mode,
         };
-
-        let dependency_set = self.load_dependency_set(&cfg)?;
-
-        RollupNodeBuilder::new(
+        Ok(RollupNodeBuilder::new(
             cfg,
             l1_config,
             self.l2_client_args.l2_trust_rpc,
             engine_config,
             p2p_config,
-            rpc_config,
+            self.rpc_flags.into(),
         )
         .with_sequencer_config(self.sequencer_flags.config())
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
-        .with_dependency_set(dependency_set)
-        .build()
-        .start()
-        .await
-        .map_err(|e| {
-            error!(target: "rollup_node", "Failed to start rollup node service: {e}");
-            anyhow::anyhow!("{e}")
-        })?;
-
-        Ok(())
+        .with_dependency_set(dependency_set))
     }
 
     /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
@@ -401,40 +304,38 @@ impl NodeCommand {
         }
     }
 
-    /// Get the L2 rollup config, either from a file or the superchain registry.
+    /// Loads the rollup config and applies overrides before any component receives its rules.
     pub fn get_l2_config(&self, args: &GlobalArgs) -> Result<RollupConfig> {
-        match &self.l2_config_file {
+        let cfg = match &self.l2_config_file {
             Some(path) => {
                 debug!("Loading l2 config from file: {:?}", path);
                 let file = File::open(path)
                     .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))
+                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))?
             }
             None => {
                 debug!("Loading l2 config from superchain registry");
                 let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
                     bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
                 };
-                Ok(cfg.clone())
+                cfg.clone()
             }
-        }
+        };
+        Ok(args.apply_overrides(cfg))
     }
 
-    /// Returns the L2 JWT secret for the engine API
-    /// using the provided [`PathBuf`]. If the file is not found,
-    /// it will return the default JWT secret.
+    /// Returns the L2 JWT secret using the existing file, encoded-secret and default fallback
+    /// order.
     pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
         if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
             let Ok(secret) = std::fs::read_to_string(path)
         {
             return JwtSecret::from_hex(secret)
-                .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
+                .map_err(|error| anyhow::anyhow!("Failed to parse JWT secret: {error}"));
         }
-
         if let Some(secret) = &self.l2_client_args.l2_engine_jwt_encoded {
             return Ok(*secret);
         }
-
         Self::default_jwt_secret("l2_jwt.hex")
     }
 
@@ -465,20 +366,6 @@ impl NodeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::anyhow;
-
-    #[derive(Debug)]
-    struct MockError {
-        message: String,
-    }
-
-    impl std::fmt::Display for MockError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.message)
-        }
-    }
-
-    impl std::error::Error for MockError {}
 
     const fn default_flags() -> &'static [&'static str] {
         &[
@@ -543,20 +430,95 @@ mod tests {
     }
 
     #[test]
-    fn test_is_jwt_signature_error() {
-        let jwt_error = MockError { message: "signature invalid".to_string() };
-        assert!(NodeCommand::is_jwt_signature_error(&jwt_error));
+    fn registry_and_file_overrides_reach_the_resolved_builder() {
+        let args = GlobalArgs::try_parse_from(["test", "--karst-override", "123"]).unwrap();
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let config = RollupConfig { l1_chain_id: 1, ..Default::default() };
+        serde_json::to_writer(&mut file, &config).unwrap();
+        for path in [None, Some(file.path().to_path_buf())] {
+            let mut command = NodeCommand { l2_config_file: path, ..Default::default() };
+            command.p2p_flags.private_key = Some(alloy_primitives::B256::repeat_byte(1));
+            command.l2_client_args.l2_engine_jwt_encoded = Some(JwtSecret::random());
+            command.p2p_flags.listen_tcp_port = 0;
+            command.p2p_flags.listen_udp_port = 0;
+            let builder = command.into_builder(&args).unwrap();
+            assert_eq!(builder.config.hardforks.karst_time, Some(123));
+        }
+    }
 
-        let other_error = MockError { message: "network timeout".to_string() };
-        assert!(!NodeCommand::is_jwt_signature_error(&other_error));
+    #[tokio::test]
+    async fn local_configuration_errors_precede_startup_requests() {
+        use jsonrpsee::{RpcModule, server::Server};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let requests = Arc::new(AtomicUsize::new(0));
+        let mut module = RpcModule::new(requests.clone());
+        for method in ["engine_exchangeCapabilities", "eth_getBlockByNumber", "eth_getStorageAt"] {
+            module
+                .register_method(method, |_, count, _| {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    serde_json::Value::Null
+                })
+                .unwrap();
+        }
+        let server = Server::builder().build("127.0.0.1:0").await.unwrap();
+        let endpoint: url::Url =
+            format!("http://{}", server.local_addr().unwrap()).parse().unwrap();
+        let _server = server.start(module);
+        let args = GlobalArgs::try_parse_from(["test"]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let bad_dependency = dir.path().join("dependency.json");
+        std::fs::write(&bad_dependency, "not JSON").unwrap();
+        let bad_signer = dir.path().join("signer.key");
+        std::fs::write(&bad_signer, "not a key").unwrap();
+        for case in 0..4 {
+            let mut command = NodeCommand::default();
+            command.p2p_flags.private_key = Some(alloy_primitives::B256::repeat_byte(1));
+            command.l1_rpc_args.l1_eth_rpc = endpoint.clone();
+            command.l2_client_args.l2_engine_rpc = endpoint.clone();
+            command.l2_client_args.l2_engine_jwt_encoded = Some(JwtSecret::random());
+            command.p2p_flags.listen_tcp_port = 0;
+            command.p2p_flags.listen_udp_port = 0;
+            let expected = match case {
+                0 => {
+                    command.interop_dependency_set = Some(bad_dependency.clone());
+                    "Failed to parse interop dependency-set"
+                }
+                1 => {
+                    command.p2p_flags.signer.sequencer_key_path = Some(bad_signer.clone());
+                    "hex-encoded 32-byte key"
+                }
+                2 => {
+                    command.p2p_flags.signer.sequencer_key_path =
+                        Some(dir.path().join("missing.key"));
+                    "Failed to read sequencer key file"
+                }
+                _ => {
+                    command.node_mode = NodeMode::Sequencer;
+                    "Sequencer mode requires a block signer"
+                }
+            };
+            let error = command.run(&args).await.unwrap_err();
+            assert!(
+                error.to_string().to_lowercase().contains(&expected.to_lowercase()),
+                "case {case}: {error}"
+            );
+        }
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
+        assert!(!dir.path().join("missing.key").exists());
     }
 
     #[test]
-    fn test_is_jwt_signature_error_from_anyhow() {
-        let jwt_anyhow_error = anyhow!("signature invalid");
-        assert!(NodeCommand::is_jwt_signature_error_from_anyhow(&jwt_anyhow_error));
-
-        let other_anyhow_error = anyhow!("network timeout");
-        assert!(!NodeCommand::is_jwt_signature_error_from_anyhow(&other_anyhow_error));
+    fn jwt_file_and_encoded_fallback_order_is_preserved() {
+        let dir = tempfile::tempdir().unwrap();
+        let encoded = JwtSecret::random();
+        let mut command = NodeCommand::default();
+        command.l2_client_args.l2_engine_jwt_secret = Some(dir.path().join("missing.jwt"));
+        command.l2_client_args.l2_engine_jwt_encoded = Some(encoded);
+        assert_eq!(command.l2_jwt_secret().unwrap(), encoded);
+        let file = dir.path().join("jwt.hex");
+        let from_file = JwtSecret::random();
+        std::fs::write(&file, alloy_primitives::hex::encode(from_file.as_bytes())).unwrap();
+        command.l2_client_args.l2_engine_jwt_secret = Some(file);
+        assert_eq!(command.l2_jwt_secret().unwrap(), from_file);
     }
 }

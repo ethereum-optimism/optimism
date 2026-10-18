@@ -8,11 +8,13 @@ use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
+    unsafe_block_signer_at_l1_head,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio::sync::mpsc;
+use std::time::Duration;
+use tokio::sync::{mpsc, watch};
 use tracing::{error, info, warn};
 use url::Url;
 
@@ -69,7 +71,20 @@ impl NetCommand {
 
         // Start the Network Stack
         self.p2p.check_ports()?;
-        let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
+        let fallback_signer = self.p2p.unsafe_block_signer;
+        let p2p_config = self.p2p.config(rollup_config)?;
+        let signer = match self.l1_eth_rpc {
+            Some(url) => {
+                unsafe_block_signer_at_l1_head(
+                    &kona_engine::l1_provider(url, Duration::from_secs(10)),
+                    rollup_config.l1_system_config_address,
+                )
+                .await?
+            }
+            None => args.genesis_signer().or_else(|_| {
+                fallback_signer.ok_or_else(|| anyhow::anyhow!("Unsafe block signer not provided"))
+            })?,
+        };
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
         let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
@@ -79,7 +94,11 @@ impl NetCommand {
         // exist solely to satisfy NetworkActor::new and are held to keep the channels open.
         let _unused_senders = (admin_rpc_tx, gossip_payload_tx);
 
-        let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
+        let handler =
+            NetworkBuilder::from_config(p2p_config, rollup_config, watch::channel(signer).1)
+                .build()?
+                .start()
+                .await?;
 
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },

@@ -12,6 +12,7 @@ extern crate tracing;
 mod service;
 pub use service::{
     DerivationDelegateConfig, L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBuilder,
+    unsafe_block_signer_at_l1_head,
 };
 
 mod actors;

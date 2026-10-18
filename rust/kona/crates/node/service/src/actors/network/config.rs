@@ -1,8 +1,6 @@
 //! Configuration for the `Network`.
 
-use alloy_primitives::Address;
 use kona_disc::LocalNode;
-use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
@@ -25,8 +23,6 @@ pub struct NetworkConfig {
     pub enr_update: bool,
     /// The gossip address.
     pub gossip_address: libp2p::Multiaddr,
-    /// The unsafe block signer.
-    pub unsafe_block_signer: Address,
     /// The keypair.
     pub keypair: Keypair,
     /// The gossip config.
@@ -43,8 +39,6 @@ pub struct NetworkConfig {
     pub gater_config: GaterConfig,
     /// An optional list of bootnode ENRs to start the node with.
     pub bootnodes: BootNodes,
-    /// The [`RollupConfig`].
-    pub rollup_config: RollupConfig,
     /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It is used by the
     /// [`SignerActor`](crate::SignerActor), not by the network itself.
     pub gossip_signer: Option<BlockSigner>,
@@ -73,22 +67,14 @@ impl NetworkConfig {
         builder.build()
     }
 
-    /// Creates a new [`NetworkConfig`] with the given [`RollupConfig`] with the minimum required
-    /// fields. Generates a random keypair for the node.
-    pub fn new(
-        rollup_config: RollupConfig,
-        discovery_listen: LocalNode,
-        gossip_address: Multiaddr,
-        unsafe_block_signer: Address,
-    ) -> Self {
+    /// Creates network settings with the minimum required fields and a random P2P identity.
+    pub fn new(discovery_listen: LocalNode, gossip_address: Multiaddr) -> Self {
         Self {
-            rollup_config,
             discovery_config: Self::discv5_config((&discovery_listen).into(), false),
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
             gossip_address,
-            unsafe_block_signer,
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
             bootnodes: Default::default(),
@@ -128,12 +114,7 @@ mod tests {
             0,
             0,
         );
-        let config = NetworkConfig::new(
-            RollupConfig::default(),
-            local_node,
-            Multiaddr::empty(),
-            Address::ZERO,
-        );
+        let config = NetworkConfig::new(local_node, Multiaddr::empty());
         assert_eq!(config.discovery_config.auto_nat_listen_duration, None);
     }
 }
