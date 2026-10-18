@@ -47,7 +47,6 @@ derive_more = { workspace = true, default-features = false, features = [
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 ipnet = { workspace = true }
-backon = { workspace = true }
 
 # `serde`
 serde = { workspace = true, features = ["std"] }
@@ -64,6 +63,7 @@ alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 reqwest = { workspace = true, features = ["json"] }
 tower.workspace = true
 alloy-rpc-client.workspace = true
