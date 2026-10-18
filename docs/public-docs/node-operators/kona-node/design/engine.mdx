@@ -63,3 +63,8 @@ accepted mailbox entries and active attempts, including while an execution RPC i
 Existing engine operation metrics retain their wire names and labels. Block-label gauges
 reflect published accepted state, including partial changes made before a later error.
 Engine API versions follow the configured rollup hardfork schedule.
+
+Admin reset and validated unsafe submission go directly to the engine handle when the
+admin API is enabled, in both validator and sequencer modes. Unsafe submission acknowledges
+bounded admission. Reset acknowledges the completed forkchoice recovery after publishing
+its new epoch and accepted heads; it does not wait for derivation to consume that snapshot.

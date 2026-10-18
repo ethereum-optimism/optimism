@@ -1,7 +1,8 @@
 //! The [`SequencerActor`].
 
+use super::handle::{Message, SequencerHandle, SequencerState};
 use crate::{
-    BuildToken, EngineContext, NodeActor, Sealed, SequencerAdminQuery, UnsafePayloadGossipClient,
+    BuildToken, EngineContext, NodeActor, Sealed, UnsafePayloadGossipClient,
     actors::{
         engine::EngineClientError,
         sequencer::{
@@ -26,7 +27,11 @@ use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tokio::{select, sync::mpsc, time::Interval};
+use tokio::{
+    select,
+    sync::{mpsc, watch},
+    time::Interval,
+};
 
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
@@ -59,18 +64,17 @@ pub struct SequencerActor<
     OriginSelector_: OriginSelector,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
-    /// Receiver for admin API requests.
-    pub admin_api_rx: mpsc::Receiver<SequencerAdminQuery>,
+    /// Private state-changing commands from the sequencer handle.
+    pub(super) commands: mpsc::Receiver<Message>,
+    /// Authoritative administrative state; publish before acknowledging mutations.
+    pub(super) state: SequencerState,
+    state_tx: watch::Sender<SequencerState>,
     /// The attributes builder used for block building.
     pub attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
-    pub conductor: Option<Conductor_>,
+    pub(super) conductor: Option<Conductor_>,
     /// The struct used to interact with the engine.
     pub engine_client: crate::EngineHandle,
-    /// Whether the sequencer is active.
-    pub is_active: bool,
-    /// Whether the sequencer is in recovery mode.
-    pub in_recovery_mode: bool,
     /// The struct used to determine the next L1 origin.
     pub origin_selector: OriginSelector_,
     /// The rollup configuration.
@@ -80,7 +84,7 @@ pub struct SequencerActor<
     pub unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
 
     /// Ticker that paces block-building attempts.
-    build_ticker: Interval,
+    pub(super) build_ticker: Interval,
     /// The handle for the payload built on the previous tick that is waiting to be sealed.
     next_payload_to_seal: Option<UnsealedPayloadHandle>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
@@ -100,7 +104,6 @@ where
     /// Instantiate a new [`SequencerActor`].
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        admin_api_rx: mpsc::Receiver<SequencerAdminQuery>,
         attributes_builder: AttributesBuilder_,
         conductor: Option<Conductor_>,
         engine_client: crate::EngineHandle,
@@ -109,15 +112,19 @@ where
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
-    ) -> Self {
+    ) -> (Self, SequencerHandle) {
+        let (command_tx, commands) = mpsc::channel(32);
+        let state = SequencerState { active: is_active, recovery_mode: in_recovery_mode };
+        let (state_tx, state_rx) = watch::channel(state);
+        let handle = SequencerHandle::new(command_tx, state_rx, conductor.is_some());
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
-        Self {
-            admin_api_rx,
+        let actor = Self {
+            commands,
+            state,
+            state_tx,
             attributes_builder,
             conductor,
             engine_client,
-            is_active,
-            in_recovery_mode,
             origin_selector,
             rollup_config,
             unsafe_payload_gossip_client,
@@ -125,7 +132,13 @@ where
             next_payload_to_seal: None,
             last_seal_duration: Duration::from_secs(0),
             started: false,
-        }
+        };
+        (actor, handle)
+    }
+
+    pub(super) fn publish(&self) {
+        self.state_tx.send_replace(self.state);
+        self.update_metrics();
     }
 
     /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
@@ -223,7 +236,7 @@ where
     ) -> Result<Option<BlockInfo>, SequencerActorError> {
         let l1_origin = match self
             .origin_selector
-            .next_l1_origin(unsafe_head, self.in_recovery_mode)
+            .next_l1_origin(unsafe_head, self.state.recovery_mode)
             .await
         {
             Ok(l1_origin) => l1_origin,
@@ -306,7 +319,7 @@ where
     /// Determines, for the provided L1 origin block and payload attributes being constructed, if
     /// transaction pool transactions should be enabled.
     fn should_use_tx_pool(&self, l1_origin: BlockInfo, attributes: &OpPayloadAttributes) -> bool {
-        if self.in_recovery_mode {
+        if self.state.recovery_mode {
             warn!(target: "sequencer", "Sequencer is in recovery mode, producing empty block");
             return false;
         }
@@ -399,7 +412,7 @@ where
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         if !self.started {
-            self.update_metrics();
+            self.publish();
             // Reset the engine state prior to beginning block building.
             self.schedule_initial_reset().await?;
             self.started = true;
@@ -409,19 +422,12 @@ where
             // We are using a biased select here to ensure that the admin queries are given priority over the block building task.
             // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.
             biased;
-            Some(query) = self.admin_api_rx.recv() => {
-                let active_before = self.is_active;
-
-                self.handle_admin_query(query).await;
-
-                // immediately attempt to build a block if the sequencer was just started
-                if !active_before && self.is_active {
-                    self.build_ticker.reset_immediately();
-                }
+            Some(command) = self.commands.recv() => {
+                self.handle_command(command).await;
                 Ok(())
             }
             // The sequencer must be active to build new blocks.
-            _ = self.build_ticker.tick(), if self.is_active => {
+            _ = self.build_ticker.tick(), if self.state.active => {
                 if !self.unsafe_payload_gossip_client.has_capacity() {
                     warn!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
                     return Ok(());
@@ -468,6 +474,7 @@ where
                 }
                 Ok(())
             }
+            else => std::future::pending().await,
         }
     }
 }

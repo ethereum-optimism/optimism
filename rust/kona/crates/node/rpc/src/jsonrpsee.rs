@@ -161,7 +161,7 @@ pub trait DevEngineApi {
     async fn dev_task_queue_length(&self) -> RpcResult<usize>;
 }
 
-/// The admin namespace for the consensus node.
+/// Engine-owned admin operations available on validators and sequencers.
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "admin"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
 #[async_trait]
@@ -173,6 +173,16 @@ pub trait AdminApi {
     async fn admin_post_unsafe_payload(&self, payload: OpExecutionPayloadEnvelope)
     -> RpcResult<()>;
 
+    /// Resets the derivation pipeline after the engine's reset has completed.
+    #[method(name = "resetDerivationPipeline")]
+    async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()>;
+}
+
+/// Admin operations registered only when a sequencer is enabled.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "admin"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
+#[async_trait]
+pub trait SequencerAdminApi {
     /// Checks if the sequencer is active.
     #[method(name = "sequencerActive")]
     async fn admin_sequencer_active(&self) -> RpcResult<bool>;
@@ -200,10 +210,6 @@ pub trait AdminApi {
     /// Overrides the leader in the conductor.
     #[method(name = "overrideLeader")]
     async fn admin_override_leader(&self) -> RpcResult<()>;
-
-    /// Resets the derivation pipeline.
-    #[method(name = "resetDerivationPipeline")]
-    async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()>;
 }
 
 /// The admin namespace for the consensus node.

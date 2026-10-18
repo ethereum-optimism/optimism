@@ -216,3 +216,19 @@ pub(crate) struct TestEngine {
     pub resets: mpsc::Receiver<Reply<()>>,
     pub state: watch::Sender<EngineState>,
 }
+
+#[async_trait::async_trait]
+impl kona_rpc::EngineAdmin for EngineHandle {
+    type Error = EngineClientError;
+
+    async fn reset_derivation_pipeline(&self) -> EngineClientResult<()> {
+        self.reset().await
+    }
+
+    async fn post_unsafe_payload(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+    ) -> EngineClientResult<()> {
+        self.insert_unsafe(payload).await
+    }
+}

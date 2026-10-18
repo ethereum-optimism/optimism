@@ -17,7 +17,6 @@
 
 #![warn(unused_crate_dependencies)]
 
-use async_trait::async_trait;
 use clap::Parser;
 use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
@@ -41,7 +40,6 @@ struct ForwardingNetworkEngineClient {
     block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
-#[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
     fn try_send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         match self.block_tx.try_send(block) {
@@ -50,16 +48,6 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
                 Err(kona_node_service::EngineClientError::Closed)
             }
         }
-    }
-
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .block_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-
-        Ok(())
     }
 }
 
@@ -115,11 +103,10 @@ impl GossipCommand {
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         // This example only consumes inbound gossip blocks; the other channels exist solely to
         // satisfy NetworkActor::new and are held to keep them open.
-        let _unused_senders = (p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx);
+        let _unused_senders = (p2p_rpc_tx, gossip_payload_tx);
 
         let network_config = NetworkConfig {
             discovery_address: disc_addr,
@@ -153,7 +140,6 @@ impl GossipCommand {
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
             handler,
             p2p_rpc_rx,
-            admin_rpc_rx,
             gossip_payload_rx,
         );
 

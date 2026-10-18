@@ -13,8 +13,7 @@ pub use engine::{
 
 pub(crate) mod rpc;
 pub use rpc::{
-    JsonrpseeServerLauncher, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError,
-    RpcServerHandle, RpcServerLauncher,
+    JsonrpseeServerLauncher, RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher,
 };
 
 mod derivation;
@@ -45,7 +44,7 @@ mod sequencer;
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, SequencerActor,
-    SequencerActorError, SequencerAdminQuery, SequencerConfig,
+    SequencerActorError, SequencerConfig, SequencerHandle, SequencerState,
 };
 
 #[cfg(test)]

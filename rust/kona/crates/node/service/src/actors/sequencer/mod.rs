@@ -13,7 +13,9 @@ mod actor;
 pub use actor::SequencerActor;
 
 mod admin_api_impl;
-pub use admin_api_impl::SequencerAdminQuery;
+
+pub(crate) mod handle;
+pub use handle::{SequencerHandle, SequencerState};
 
 mod metrics;
 

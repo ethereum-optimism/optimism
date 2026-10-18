@@ -1,7 +1,24 @@
 use alloy_primitives::B256;
 use async_trait::async_trait;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::fmt::Debug;
 use thiserror::Error;
+
+/// Engine-owned admin operations, independent of the node's sequencing mode.
+#[async_trait]
+pub trait EngineAdmin: Send + Sync {
+    /// A failure from the engine owner.
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Waits for reliable payload admission, before execution. Submitted payloads are not gossiped.
+    async fn post_unsafe_payload(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+    ) -> Result<(), Self::Error>;
+
+    /// Waits until the engine has completed and published its reset.
+    async fn reset_derivation_pipeline(&self) -> Result<(), Self::Error>;
+}
 
 /// Client trait wrapping RPC implementation for the Sequencer admin endpoints.
 #[async_trait]
@@ -26,9 +43,6 @@ pub trait SequencerAdminAPIClient: Send + Sync + Debug {
 
     /// Override the leader.
     async fn override_leader(&self) -> Result<(), SequencerAdminAPIError>;
-
-    /// Reset the derivation pipeline.
-    async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError>;
 }
 
 /// Errors that can occur when using the sequencer admin API.
