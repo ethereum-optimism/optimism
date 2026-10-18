@@ -153,40 +153,51 @@ async fn recovery_mode_is_published_before_acknowledgement(
 }
 
 #[rstest]
-#[case::absent(false, false)]
-#[case::success(true, false)]
-#[case::dependency_error(true, true)]
+#[case::unmanaged(false)]
+#[case::managed(true)]
 #[tokio::test]
-async fn override_leader_preserves_dependency_results(
-    #[case] configured: bool,
-    #[case] fails: bool,
-) {
+async fn override_is_local_idempotent_and_preserves_start_validation(#[case] configured: bool) {
     let conductor = configured.then(|| {
         let mut conductor = MockConductor::new();
-        conductor.expect_override_leader().times(1).return_once(move || {
-            if fails {
-                Err(ConductorError::Rpc(RpcError::local_usage_str("override unavailable")))
-            } else {
-                Ok(())
-            }
-        });
+        conductor.expect_leader().times(0);
+        conductor.expect_commit_unsafe_payload().times(0);
         conductor
     });
-    let (mut actor, handle) = test_actor_with_handle(true, false, conductor);
-    let (result, ()) = tokio::join!(handle.override_leader(), async {
-        let command = actor.commands.recv().await.unwrap();
-        actor.handle_command(command).await.unwrap();
-    });
-    assert_eq!(result.is_ok(), configured && !fails);
-    if let Err(error) = result {
-        assert!(matches!(error, SequencerAdminAPIError::LeaderOverrideError(_)));
-        assert!(error.to_string().contains(if configured {
-            "override unavailable"
-        } else {
-            "No conductor configured"
-        }));
-    }
+    let (mut actor, handle) = test_actor_with_handle(false, false, conductor);
+    run_command(&mut actor, handle.override_leader()).await.unwrap();
+    run_command(&mut actor, handle.override_leader()).await.unwrap();
+    assert!(!handle.is_sequencer_active().await.unwrap(), "override does not activate sequencing");
     assert_eq!(handle.is_conductor_enabled().await.unwrap(), configured);
+    assert!(matches!(
+        run_command(&mut actor, handle.start_sequencer(B256::ZERO)).await,
+        Err(SequencerAdminAPIError::NoPrestate(_))
+    ));
+    let _engine = install_engine(&mut actor);
+    assert!(matches!(
+        run_command(&mut actor, handle.start_sequencer(B256::ZERO)).await,
+        Err(SequencerAdminAPIError::HeadMismatch { .. })
+    ));
+    run_command(&mut actor, handle.start_sequencer(known_head().hash())).await.unwrap();
+    assert!(handle.is_sequencer_active().await.unwrap());
+    assert_eq!(handle.is_conductor_enabled().await.unwrap(), configured);
+}
+
+#[tokio::test]
+async fn dropped_override_reply_preserves_local_permission_for_this_process_only() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(0);
+    conductor.expect_commit_unsafe_payload().times(0);
+    let (mut actor, handle) = test_actor_with_handle(false, false, Some(conductor));
+    let _engine = install_engine(&mut actor);
+    let (reply, result) = oneshot::channel();
+    drop(result);
+    actor.handle_command(Message::OverrideLeader(reply)).await.unwrap();
+    run_command(&mut actor, handle.start_sequencer(known_head().hash())).await.unwrap();
+    assert!(handle.is_sequencer_active().await.unwrap());
+    assert!(handle.is_conductor_enabled().await.unwrap());
+    let (fresh, handle) = test_actor_with_handle(true, false, Some(MockConductor::new()));
+    assert!(!fresh.conductor_overridden);
+    assert!(!handle.is_sequencer_active().await.unwrap());
 }
 
 #[tokio::test]
@@ -237,7 +248,6 @@ async fn closed_command_and_reply_channels_return_the_existing_errors() {
 #[tokio::test]
 async fn dropped_mutation_replies_do_not_cancel_accepted_commands() {
     let mut conductor = MockConductor::new();
-    conductor.expect_override_leader().times(1).return_once(|| Ok(()));
     conductor.expect_leader().times(1).return_once(|| Ok(true));
     let (mut actor, handle) = test_actor_with_handle(false, false, Some(conductor));
     let _engine = install_engine(&mut actor);

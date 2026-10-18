@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -18,7 +17,6 @@ import (
 // on a surviving node and force it to resume sequencing.
 func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node admin_startSequencer does not check conductor leadership, tracked by #23323")
 
 	sys := presets.NewMinimalWithConductors(t)
 
@@ -39,19 +37,19 @@ func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	err := survivor.Sequencer().StartSequencerAt(unsafe.Hash)
 	t.Require().ErrorContains(err, "sequencer is not the leader")
 
-	// The operator override forces the survivor into non-HA mode: its node
-	// stops consulting the conductor and its conductor reports leadership to
-	// downstream users (e.g. proxied batcher traffic).
+	// The node's process-local override resumes sequencing without consulting
+	// the conductor or mutating its separate leader-gated proxy policy.
 	survivor.Sequencer().OverrideLeader()
+	t.Require().False(survivor.LeaderOverridden())
+	survivor.Sequencer().StartSequencer()
+	survivor.Sequencer().AdvancedUnsafe(2, 30)
+	var refused json.RawMessage
+	err = survivor.CallProxy(&refused, "admin_sequencerActive")
+	t.Require().ErrorContains(err, "refusing to proxy request to non-leader sequencer")
+
+	// Proxy access requires the separate override on the conductor itself.
 	survivor.OverrideLeader(true)
 	t.Require().True(survivor.LeaderOverridden())
-	survivor.Sequencer().StartSequencer()
-
-	// The chain is live again under the surviving sequencer, and the
-	// overridden conductor serves admin, rollup, and execution traffic as if
-	// it were the leader.
-	survivor.Sequencer().AdvancedUnsafe(2, 30)
-
 	var active bool
 	t.Require().NoError(survivor.CallProxy(&active, "admin_sequencerActive"))
 	t.Require().True(active, "expected overridden sequencer to be active")

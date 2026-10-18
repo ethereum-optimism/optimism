@@ -14,7 +14,9 @@ where
 {
     /// Verify leadership before inspecting active state, and read the head after that await.
     async fn start(&mut self, expected: B256) -> Result<(), SequencerAdminAPIError> {
-        if let Some(conductor) = &self.conductor {
+        if !self.conductor_overridden &&
+            let Some(conductor) = &self.conductor
+        {
             let leader = conductor
                 .leader()
                 .await
@@ -75,17 +77,10 @@ where
                 let _ = reply.send(Ok(()));
             }
             Message::OverrideLeader(reply) => {
-                let result = match self.conductor.as_mut() {
-                    Some(conductor) => conductor.override_leader().await.map_err(|error| {
-                        error!(target: "sequencer::rpc", %error, "Failed to override leader");
-                        SequencerAdminAPIError::LeaderOverrideError(error.to_string())
-                    }),
-                    None => Err(SequencerAdminAPIError::LeaderOverrideError(
-                        "No conductor configured".into(),
-                    )),
-                };
+                self.conductor_overridden = true;
+                info!(target: "sequencer", "Overrode local conductor leadership and commit policy");
                 self.publish();
-                let _ = reply.send(result);
+                let _ = reply.send(Ok(()));
             }
         }
         Ok(())

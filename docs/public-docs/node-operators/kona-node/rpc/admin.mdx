@@ -133,7 +133,13 @@ Sets the recovery mode for the sequencer.
 
 ## `admin_overrideLeader`
 
-Overrides the leader in the conductor.
+Enables a process-local disaster recovery override. The node bypasses conductor leadership
+checks and payload commits for the rest of this process, allowing sequencing after quorum
+loss. Start still requires the current unsafe head hash. Restart the node to clear this override.
+
+This method does not change the conductor service. While it lacks Raft leadership, its proxy
+remains unavailable unless an operator separately calls `conductor_overrideLeader(true)`
+on the conductor.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |

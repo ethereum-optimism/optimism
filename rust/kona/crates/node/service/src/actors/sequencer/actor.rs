@@ -46,7 +46,7 @@ pub(super) struct UnsealedPayloadHandle {
 #[derive(Debug)]
 pub(super) enum PendingBuild {
     Building(BuildToken),
-    /// A positive conductor acknowledgement, or explicit unmanaged publication permission.
+    /// A positive conductor acknowledgement, or explicit local publication permission.
     Committed(Box<Sealed>),
 }
 
@@ -74,6 +74,8 @@ pub struct SequencerActor<
     pub attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
     pub(super) conductor: Option<Conductor_>,
+    /// Process-local disaster recovery permission; the configured conductor remains observable.
+    pub(super) conductor_overridden: bool,
     /// The struct used to interact with the engine.
     pub engine_client: crate::EngineHandle,
     /// The struct used to determine the next L1 origin.
@@ -128,6 +130,7 @@ where
             state_tx,
             attributes_builder,
             conductor,
+            conductor_overridden: false,
             engine_client,
             origin_selector,
             rollup_config,
@@ -175,8 +178,10 @@ where
             if !self.context_is_current(sealed.context()) {
                 return Err(EngineClientError::Stale.into());
             }
-            // Without a conductor, the local sequencer explicitly owns publication permission.
-            if let Some(conductor) = &self.conductor {
+            // Unmanaged or locally overridden sequencing owns publication permission.
+            if !self.conductor_overridden &&
+                let Some(conductor) = &self.conductor
+            {
                 let started = Instant::now();
                 let result = conductor.commit_unsafe_payload(sealed.payload()).await;
                 update_conductor_commitment_duration_metrics(started.elapsed());
@@ -197,7 +202,7 @@ where
         pending: &UnsealedPayloadHandle,
     ) -> Result<(), SequencerActorError> {
         let PendingBuild::Committed(sealed) = &pending.job else {
-            unreachable!("only acknowledged or unmanaged payloads may be imported")
+            unreachable!("only acknowledged or locally authorized payloads may be imported")
         };
         let started = Instant::now();
         let payload = self.engine_client.canonicalize(sealed.as_ref().clone()).await?;
@@ -215,7 +220,9 @@ where
             if !self.context_is_current(sealed.context()) {
                 return Ok(());
             }
-            if let Some(conductor) = &self.conductor {
+            if !self.conductor_overridden &&
+                let Some(conductor) = &self.conductor
+            {
                 match conductor.leader().await {
                     Ok(true) => {}
                     Ok(false) | Err(_) => return Ok(()),
