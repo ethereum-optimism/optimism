@@ -915,7 +915,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Asserts that a bridge hook is only set while the BRIDGE_HOOK feature is enabled.
     function _assertValidBridgeHookState() internal view {
-        if (address(bridgeHook) != address(0) && !systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
+        if (address(bridgeHook) != address(0) && !_isUsingBridgeHook()) {
             revert OptimismPortal_InvalidBridgeHookState();
         }
     }
