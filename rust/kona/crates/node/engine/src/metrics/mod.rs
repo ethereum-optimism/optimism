@@ -51,8 +51,6 @@ impl Metrics {
     pub const INSERT_TASK_LABEL: &str = "insert";
     /// Consolidate task label.
     pub const CONSOLIDATE_TASK_LABEL: &str = "consolidate";
-    /// Forkchoice task label.
-    pub const FORKCHOICE_TASK_LABEL: &str = "forkchoice-update";
     /// Build task label.
     pub const BUILD_TASK_LABEL: &str = "build";
     /// Seal task label.

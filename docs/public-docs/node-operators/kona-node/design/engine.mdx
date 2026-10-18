@@ -184,10 +184,6 @@ pub struct EngineState {
     pub sync_state: EngineSyncState,
     /// Whether or not the EL has finished syncing.
     pub el_sync_finished: bool,
-    /// Tracks when the rollup node changes the forkchoice to restore a
-    /// previously known unsafe chain (e.g. an unsafe reorg caused by an
-    /// invalid span batch).
-    pub need_fcu_call_backup_unsafe_reorg: bool,
 }
 ```
 

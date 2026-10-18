@@ -132,26 +132,6 @@ pub struct EngineState {
 
     /// Whether or not the EL has finished syncing.
     pub el_sync_finished: bool,
-
-    /// Track when the rollup node changes the forkchoice to restore previous
-    /// known unsafe chain. e.g. Unsafe Reorg caused by Invalid span batch.
-    /// This update does not retry except engine returns non-input error
-    /// because engine may forgot backupUnsafeHead or backupUnsafeHead is not part
-    /// of the chain.
-    pub need_fcu_call_backup_unsafe_reorg: bool,
-}
-
-impl EngineState {
-    /// Returns if consolidation is needed.
-    ///
-    /// [Consolidation] is only performed by a rollup node when the unsafe head
-    /// is ahead of the safe head. When the two are equal, consolidation isn't
-    /// required and the [`crate::BuildTask`] can be used to build the block.
-    ///
-    /// [Consolidation]: https://specs.optimism.io/protocol/derivation.html#l1-consolidation-payload-attributes-matching
-    pub fn needs_consolidation(&self) -> bool {
-        self.sync_state.safe_head() != self.sync_state.unsafe_head()
-    }
 }
 
 #[cfg(test)]
