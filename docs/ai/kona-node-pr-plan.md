@@ -296,7 +296,7 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 
 ### PR 03: Flatten engine operations and delete obsolete internal surface
 
-**Title:** `kona-engine: share engine operations instead of running tasks from tasks`.
+**Title:** `kona-engine!: flatten engine operations and remove dead code`.
 
 **Problem and resulting behavior.** Build, seal, insertion, synchronization and consolidation construct other task objects to reuse steps. Holocene fallback recurses between task paths. Each existing task should become a flat sequence of ordinary helper calls while the current queue policy remains intact.
 
@@ -348,6 +348,15 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 6. Adapt engine-operation callers directly to the final handle, removing only their obsolete queued wrappers. PR 07 owns the RPC-to-sequencer wrapper removal. Establish the complete result/context derivation handoff here: `Consolidated` is the sole completion/flush response, and the atomic engine snapshot is the reset/sync source. Remove all pushed safe-head, Flush, reset and sync callbacks, their queue, and `EngineDerivationClient` together; no result-to-old-queue adapter or temporary versioned callback mechanism.
 7. Introduce `applied_pipeline_context` in that handoff. Observing a newer Resetting epoch invalidates/cancels old work immediately, but derivation waits for completed usable heads before signalling its pipeline reset. Only a successful reset signal installs the new epoch. Initializing/Syncing snapshots are not readiness. Adapt the existing state-machine transitions directly or reduce them to the final result-driven loop here once; PR 10 does not replace that protocol. Retain current bootstrap initiators and sync policy until PR 10 takes ownership of their causes.
 8. Correct existing finality bookkeeping at the handoff: record only the actual Applied/Replaced block hash and its real L1 source after acknowledgement; record nothing for Dropped/stale/failed work. Clear/rewind on reset epoch, and validate safe/canonical hash before finalization. Do not keep baseline pre-application/by-number recording after introducing those outcomes. PR 11 will move the already-correct map, not implement this fix a second time.
+
+**Existing rejection policy to correct here.** PR 03 deliberately preserves these policies so its operation extraction remains reviewable. PR 05 owns their correction together with command outcomes and derived context:
+
+- Select Holocene activation using the actual L1 inclusion-source timestamp carried by `attributes.derived_from`, rather than the L2 payload-attributes timestamp. Test both directions of the activation boundary when those timestamps differ.
+- Apply deposits-only replacement to derived `INVALID` payloads. The existing fallback trigger groups `INVALID` and `ACCEPTED` and also runs for sequenced inputs; give each outcome its context-specific handling. This describes which status triggers fallback, not whether a replacement succeeds.
+- Route invalid build-start FCU results through derived rejection recovery. The existing temporary `EngineBuildError::InvalidPayload`, wrapped by `BuildTaskError::EngineBuildError`, bypasses replacement and can retain the batch indefinitely.
+- Drop and continue after invalid derived batches before Holocene, rather than retaining the existing temporary error indefinitely.
+
+These corrections belong to this PR only; later reset, sequencing and finality packages consume the resulting outcomes without implementing a second recovery policy.
 
 **Files.** `service/src/actors/engine/{actor,request,client,tests}.rs`, a new private `handle.rs`, `engine/src/{task_queue,state}`, sequencer `engine_client.rs`/callsites, derivation engine client/callsites and service composition. Shared snapshot/outcome types belong in `kona-engine` only when RPC also needs them. Remove engine-command forwarding wrappers whose callers migrate here. The read-only RPC wrapper stays unchanged until PR 06 and the sequencer-admin wrapper until PR 07; do not add a new temporary API to either. Retain narrow permanent capabilities where they express a real crate boundary.
 
@@ -694,7 +703,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [ ] Reconcile existing standalone fixes with the refreshed baseline, without duplicating them.
 - [x] PR 01: synchronous unsafe-payload validation and its acceptance tests.
 - [x] PR 02: shared resolved configuration and bounded clients.
-- [ ] PR 03: ordinary engine operations and necessary dead-code deletion.
+- [x] PR 03: ordinary engine operations and necessary dead-code deletion.
 - [ ] PR 04: corrected reusable reset walk.
 - [ ] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
 - [ ] PR 06: direct read dependencies, version and retained API coverage.
@@ -807,3 +816,49 @@ just test-e2e-sysgo-run node node/common simple-kona-sequencer \
 ```
 
 This completes the timeout portion of issue 23034; its discovery/peer requirements remain open. **Review checkpoint:** publish PR 02 as a draft and stop. Report GitHub CI separately; do not begin PR 03 until the user resumes.
+
+## Execution record: PR 03
+
+Implemented on 2026-10-17 in `codex/kona-refactor-03-engine-operations`, stacked directly on [PR 02](https://github.com/ethereum-optimism/optimism/pull/23486) at `1e1516becc9ba0f2e26df76e0f31b43f125fb8a1`. Public `develop` remains `9c14635375e22608458da1d3ec4830af491009dd`. Selected operation changes from [23258](https://github.com/ethereum-optimism/optimism/pull/23258), head `138de49da2dea5630bf7ae7fc8d0d7160eb35260`, were adapted to the current generic provider seam; its old parent stack was not merged.
+
+The implementation has two review units:
+
+- `0da66dba19`: shared engine operations, flat derived build/import and one deposits-only replacement attempt. Existing tasks retain reply handling; the queue retains scheduling and recovery ownership. Reset calls the shared forkchoice operation.
+- `bbf81d50c1`: mechanical removal of `need_fcu_call_backup_unsafe_reorg`, `needs_consolidation`, `EngineKind`, `EngineNewPayloadVersion` and `FORKCHOICE_TASK_LABEL`, after whole-tree reference and state-write checks. Live version selection, payload dispatch, canonicality checks, metrics and useful `Display` implementations remain.
+
+**Rust API migration.** `SynchronizeTask` and `BuildSealCoupling` are removed. Use `Engine::reset` for reset synchronization and existing queued operations for ordinary head updates. `SealTask` is sequencer-only; drop its `is_attributes_derived` and `coupling` constructor arguments. Derived attributes go through `ConsolidateTask`. Remove unused kind/backup-state plumbing; `newPayload` dispatch follows the payload envelope. RPC methods, CLI flags and node operating policy are unchanged.
+
+### Local validation
+
+| Check | Result |
+| --- | --- |
+| Extraction before mechanical cleanup | 336 affected-package tests passed; full workspace lint passed |
+| Final affected-package nextest, all features | 335 passed, 0 skipped; see diagnostic below. The deleted selector's own test accounts for the count difference |
+| Full workspace `just lint` from `rust/` | Passed: formatting, Clippy across features/targets, rustdoc and mirror checks |
+| Fresh default-feature `kona-node` build | Passed |
+| Common and restart wrappers, both configurations | All 8 selected live cases passed, without retries or skips |
+| Independent Rust/protocol and deletion reviews | No unresolved findings |
+
+Nextest marked the unchanged synchronous `attributes::tests::test_attributes_match` test as LEAK in the full run, after its assertions passed. One isolated diagnostic run passed without that flag. The original full-run diagnostic is retained in this record.
+
+Tests exercise actual mismatching `ConsolidateTask::execute` fallback to build/import with a parent different from the current unsafe head; successful safe and unsafe deposits-only replacement commits heads and sink before Flush; rejected replacement publishes neither. The synchronization matrix preserves status/error classification, state publication and first/no-op FCU behavior. Existing build-version, sequenced stale-parent/reply and hash-pinned finalization coverage remains. These assertions preserve existing rejection policy; the protocol corrections listed under PR 05 still belong there.
+
+Run package checks from `rust/` in the pinned tool environment:
+
+```sh
+cargo nextest run -p kona-engine -p kona-node-service -p kona-rpc -p kona-node \
+  -p kona-sources --all-features --test-threads 6 -E '!test(test_online)'
+just lint
+cargo build -p kona-node --bin kona-node
+```
+
+Run each live command from `rust/kona/tests` with `RUST_LOG=info` and explicit `RUST_BINARY_PATH_KONA_NODE`/`RUST_BINARY_PATH_OP_RETH` paths. Repeat for `simple-kona-sequencer`:
+
+```sh
+just test-e2e-sysgo-run node node/common simple-kona \
+  '^(TestEngine|TestL2SafeSync|TestL2TransactionInclusion)$ -parallel=1'
+just test-e2e-sysgo-run node node/restart simple-kona \
+  '^TestRestartSync$ -parallel=1'
+```
+
+**Review checkpoint:** publish PR 03 as a draft and stop all implementation for review. Report GitHub CI separately; do not begin PR 04 or later packages until the user resumes.
