@@ -14,9 +14,9 @@ pub struct AltDAConfig {
     /// `AltDA` challenge address
     #[cfg_attr(feature = "serde", serde(alias = "da_challenge_contract_address"))]
     pub da_challenge_address: Option<Address>,
-    /// `AltDA` challenge window time (in seconds)
+    /// `AltDA` challenge window in L1 blocks.
     pub da_challenge_window: Option<u64>,
-    /// `AltDA` resolution window time (in seconds)
+    /// `AltDA` resolution window in L1 blocks.
     pub da_resolve_window: Option<u64>,
     /// `AltDA` commitment type
     pub da_commitment_type: Option<String>,
