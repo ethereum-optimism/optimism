@@ -40,6 +40,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_Unproven();
     error OptimismPortal_InvalidInteropState();
     error OptimismPortal_InvalidLockboxState();
+    error OptimismPortal_InvalidBridgeHookState();
     error OptimismPortal_ZeroAddress();
     error OptimismPortal_LockboxNotAuthorizedForPortal();
     error OptimismPortal_DisputeGameNotInvalidated();
@@ -52,6 +53,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event Initialized(uint8 version);
     event ETHMigrated(address indexed lockbox, uint256 balance);
     event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
+    event BridgeHookSet(IBridgeHook indexed bridgeHook);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,
