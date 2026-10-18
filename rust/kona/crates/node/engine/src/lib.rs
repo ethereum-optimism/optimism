@@ -8,41 +8,27 @@
 
 //! ## Architecture
 //!
-//! The engine operates as a task-driven system where operations are queued and executed atomically:
+//! This crate provides ordinary Engine API operations, their applied state, and the canonical
+//! reset walk. The node service owns operation serialization, reset epochs, retries and replies.
+//! Operations report their actual failure stage and retain partial accepted state for publication.
 //!
-//! ```text
-//! ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-//! │   Engine    │◄───┤  Task Queue  │◄───┤  Engine     │
-//! │   Client    │    │   (Priority) │    │  Tasks      │
-//! └─────────────┘    └──────────────┘    └─────────────┘
-//!        │                   │                   │
-//!        ▼                   ▼                   ▼
-//! ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-//! │ Engine API  │    │ Engine State │    │ Rollup      │
-//! │ (HTTP/JWT)  │    │   Updates    │    │ Config      │
-//! └─────────────┘    └──────────────┘    └─────────────┘
-//! ```
-//!
-//! ## Module Organization
-//!
-//! - **Task Queue** - Core engine task queue and execution logic via [`Engine`]
-//! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
-//! - **State** - Engine state management and synchronization via [`EngineState`]
-//! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
-//!   [`EngineGetPayloadVersion`]
-//! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
-//! - **Query** - Engine query interface via [`EngineQueries`]
-//! - **Metrics** - Optional Prometheus metrics collection via [`Metrics`]
+//! - **Operations** — [`start_build`], [`get_payload`], [`insert_payload`], [`consolidate`],
+//!   [`follow_safe`], [`finalize`] and [`synchronize`].
+//! - **Client** — injected L1/L2 providers through [`EngineClient`].
+//! - **State** — one snapshot of heads, readiness and reset epoch in [`EngineState`].
+//! - **Validation** — payload matching through [`AttributesMatch`] and Engine API version
+//!   selection.
+//! - **Queries** — read-only engine queries through [`EngineQueries`].
+//! - **Recovery** — the canonical [`find_starting_forkchoice`] walk, called by the reset owner.
 
 #[macro_use]
 extern crate tracing;
 
-mod task_queue;
-pub use task_queue::{
-    BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask, ConsolidateTaskError, Engine,
-    EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
-    EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
-    InsertTaskError, SealTask, SealTaskError, SynchronizeTaskError,
+mod operations;
+pub use operations::{
+    BuildError, ConsolidateError, Consolidation, FinalizationSource, FinalizeError,
+    ForkchoiceError, ImportMode, InsertError, ResetError, consolidate, finalize, follow_safe,
+    get_payload, insert_payload, start_build, synchronize,
 };
 
 mod attributes;
@@ -61,7 +47,7 @@ mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
+pub use state::{EnginePhase, EngineState, EngineSyncState, EngineSyncStateUpdate};
 
 mod query;
 pub use query::{EngineQueries, EngineQueriesError, EngineQuerySender};

@@ -1,69 +1,78 @@
-//! The [`L2Finalizer`] for the derivation actor.
+//! Finality records are installed only after the engine accepts the actual safe block.
 
-use kona_protocol::{BlockInfo, OpAttributesWithParent};
+use kona_protocol::{BlockInfo, L2BlockInfo};
 use std::collections::BTreeMap;
 
-/// An internal type alias for L1 block numbers.
-type L1BlockNumber = u64;
+/// The accepted block and the L1 block containing its derivation inputs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FinalizationRecord {
+    pub(crate) block: L2BlockInfo,
+    pub(crate) source: BlockInfo,
+}
 
-/// An internal type alias for L2 block numbers.
-type L2BlockNumber = u64;
-
-/// The [`L2Finalizer`] is responsible for tracking L2 blocks derived from L1 blocks and
-/// determining which L2 blocks can be finalized when L1 blocks are finalized.
-///
-/// It maintains a queue of derived L2 blocks that are awaiting finalization, and returns
-/// the L2 block numbers that can be finalized as new finalized L1 blocks are received.
+/// Retains candidates until acknowledged, including across transient engine failures.
 #[derive(Debug, Default)]
 pub(crate) struct L2Finalizer {
-    /// A map of `L1 block number -> highest derived L2 block number` within the L1 epoch, used to
-    /// track derived [`OpAttributesWithParent`] awaiting finalization. When a new finalized L1
-    /// block is received, the highest L2 block whose inputs are contained within the finalized
-    /// L1 chain is finalized.
-    awaiting_finalization: BTreeMap<L1BlockNumber, L2BlockNumber>,
+    awaiting_finalization: BTreeMap<u64, FinalizationRecord>,
 }
 
 impl L2Finalizer {
-    /// Enqueues a derived [`OpAttributesWithParent`] for finalization. When a new finalized L1
-    /// block is observed that is `>=` the height of [`OpAttributesWithParent::derived_from`], the
-    /// L2 block associated with the payload attributes will be finalized.
-    pub(crate) fn enqueue_for_finalization(&mut self, attributes: &OpAttributesWithParent) {
+    pub(crate) fn record(&mut self, block: L2BlockInfo, source: BlockInfo) {
+        let record = FinalizationRecord { block, source };
         self.awaiting_finalization
-            .entry(
-                attributes.derived_from.map(|b| b.number).expect(
-                    "Fatal: Cannot enqueue attributes for finalization that weren't derived",
-                ),
-            )
-            .and_modify(|n| *n = (*n).max(attributes.block_number()))
-            .or_insert_with(|| attributes.block_number());
+            .entry(source.number)
+            .and_modify(|current| {
+                if block.block_info.number >= current.block.block_info.number {
+                    *current = record;
+                }
+            })
+            .or_insert(record);
     }
 
-    /// Clears the finalization queue.
     pub(crate) fn clear(&mut self) {
         self.awaiting_finalization.clear();
     }
 
-    /// Attempts to find L2 blocks that can be finalized based on the new finalized L1 block.
-    ///
-    /// Returns `Some(l2_block_number)` if there is an L2 block that can be finalized,
-    /// or `None` if no blocks are ready for finalization.
-    pub(crate) fn try_finalize_next(
-        &mut self,
-        new_finalized_l1_block: BlockInfo,
-    ) -> Option<L2BlockNumber> {
-        // Find the highest safe L2 block that is contained within the finalized chain,
-        // that the finalizer is aware of.
-        let highest_safe =
-            self.awaiting_finalization.range(..=new_finalized_l1_block.number).next_back();
+    pub(crate) fn candidate(&self, finalized_l1: u64) -> Option<FinalizationRecord> {
+        self.awaiting_finalization
+            .range(..=finalized_l1)
+            .map(|(_, record)| *record)
+            .max_by_key(|record| record.block.block_info.number)
+    }
 
-        // If the highest safe block is found, return it and drain the
-        // queue of all L1 blocks not contained in the finalized L1 chain.
-        if let Some((_, highest_safe_number)) = highest_safe {
-            let result = *highest_safe_number;
-            self.awaiting_finalization.retain(|&number, _| number > new_finalized_l1_block.number);
-            Some(result)
-        } else {
-            None
-        }
+    pub(crate) fn acknowledge(&mut self, record: FinalizationRecord) {
+        self.awaiting_finalization
+            .retain(|_, current| current.block.block_info.number > record.block.block_info.number);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::B256;
+
+    #[test]
+    fn actual_hash_and_source_survive_retries_until_acknowledged() {
+        let mut finalizer = L2Finalizer::default();
+        let block = L2BlockInfo {
+            block_info: BlockInfo { number: 9, hash: B256::repeat_byte(9), ..Default::default() },
+            ..Default::default()
+        };
+        let source = BlockInfo { number: 4, hash: B256::repeat_byte(4), ..Default::default() };
+        finalizer.record(block, source);
+        assert_eq!(finalizer.candidate(3), None);
+        let record = finalizer.candidate(4).unwrap();
+        assert_eq!(record, FinalizationRecord { block, source });
+        assert_eq!(finalizer.candidate(5), Some(record));
+        finalizer.acknowledge(record);
+        assert_eq!(finalizer.candidate(5), None);
+    }
+
+    #[test]
+    fn reset_discards_records_even_when_the_safe_head_is_unchanged() {
+        let mut finalizer = L2Finalizer::default();
+        finalizer.record(L2BlockInfo::default(), BlockInfo::default());
+        finalizer.clear();
+        assert_eq!(finalizer.candidate(u64::MAX), None);
     }
 }

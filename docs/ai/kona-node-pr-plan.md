@@ -152,14 +152,16 @@ start_build(context, attrs)     sequencer-only build, yielding an opaque BuildTo
 seal(token)                     getPayload without import, yielding a sealed envelope
 canonicalize(sealed)            import that exact envelope and move unsafe head
 consolidate(context, attrs)     apply derived attrs, yielding Applied/Replaced/Dropped
+follow_safe(context, block)     apply an explicitly trusted delegated safe head
+finalize(epoch, block, source)  validate recorded hash/provenance before finalizing
 reset()                         acknowledge a completed and published engine reset
 insert_unsafe(payload)          reliable bounded admission, not execution acknowledgement
 try_insert_unsafe(payload)      nonblocking best-effort gossip admission
 ```
 
-`BuildToken` carries payload ID, parent and reset context privately. `Sealed` preserves the exact envelope and its context. The sequencer captures its engine context before asynchronous L1/origin/attributes preparation and supplies it to `start_build`; a token created only after preparation cannot detect an earlier same-head reset. `DerivationContext` includes safe head and reset epoch and comes from the pipeline's last successful reset or accepted consolidation. Do not force changes to shared proof/protocol attribute types merely to make these node-local distinctions.
+`BuildToken` carries payload ID, parent and reset context privately. `Sealed` preserves the exact envelope and its context. The sequencer captures its engine context before asynchronous L1/origin/attributes preparation and supplies it to `start_build`; a token created only after preparation cannot detect an earlier same-head reset. `EngineContext` includes the captured parent and reset epoch. Sequencing uses the unsafe parent; derivation uses pending-safe from its last successful pipeline reset or accepted consolidation. Do not force changes to shared proof/protocol attribute types merely to make these node-local distinctions.
 
-The snapshot contains applied heads, reset epoch and explicit initialization/sync/reset phase. Fetch actual EL heads before publishing them as usable; zero/default heads are not evidence of readiness. An epoch and heads must be observed consistently. A reset increments the epoch even when it selects identical heads.
+The snapshot contains applied heads, a distinct pending-safe parent, reset epoch and explicit initialization/sync/reset phase. Pre-Holocene span prefixes advance only pending-safe until the span concludes; completed safe/local-safe and finality do not advance for that prefix. Fetch actual EL heads before publishing them as usable; zero/default heads are not evidence of readiness. An epoch and heads must be observed consistently. A reset increments the epoch even when it selects identical heads.
 
 Commands requiring execution acknowledgement use `oneshot<Result<...>>`. Unsafe ingestion instead returns a bounded-admission result; it does not await execution. Only the owner sends execution replies; low-level operation helpers do not own reply channels. Publish every successful or partially applied mutation before replying, including state changes preceding a later error. A dropped reply receiver is normal abandonment, not a fatal engine error.
 
@@ -224,7 +226,7 @@ Do not add the experiment's arbitrary 60-second dependency outage -> engine rese
 1. At the safe admission boundary, publish a new reset epoch and stop applying old-context work. Data messages left in the bounded queue receive a stale/aborted outcome when examined; they do not resume after reset.
 2. Reuse the corrected walk function to choose heads. A retained L1 block retrievable by hash is not necessarily canonical. Validate origins against canonical blocks by number.
 3. Apply FCU, publish applied heads/epoch/phase, then acknowledge reset. Acknowledgement means engine reset completed; it does not mean the pipeline finished its own reset I/O.
-4. Derivation observes the epoch, discards buffered/in-flight old attributes, resets its pipeline onto the published safe context, and only then steps again. Keep `applied_pipeline_context`; update it only after the reset signal succeeds or an accepted consolidation advances its safe head within the same epoch. Never label old pipeline work with a freshly read engine epoch. Check context at application, not only at enqueue.
+4. Derivation observes the epoch, discards buffered/in-flight old attributes, resets its pipeline onto the published safe context, and only then steps again. Keep `applied_pipeline_context`; update it only after the reset signal succeeds or an accepted consolidation returns a pending-safe parent within the same epoch, including a rewind after a dropped legacy span. Never label old pipeline work with a freshly read engine epoch. Check context at application, not only at enqueue.
 5. A temporary pipeline-reset failure retries the reset before any pipeline step. A newer engine reset supersedes the old target. Cancelling a pipeline step is permitted only when followed by a full pipeline reset.
 6. Pipeline-local restart and forkchoice reselection are different operations. Holocene activation gets its activation signal; missing data does not automatically trigger a full EL/L1 walk. Canonicality loss and invalid prestate require engine reconciliation.
 7. Engine reset never waits on derivation while derivation waits for the engine's reply. Until callbacks disappear, preserve `develop`'s waiter-release-before-callback behavior. The final path uses published context and replies without that cycle.
@@ -335,7 +337,7 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 
 ### PR 05: Give engine commands one owner and honest outcomes
 
-**Title:** `kona-node,kona-engine: execute engine commands through one owner`.
+**Title:** `kona-node,kona-engine!: execute engine commands through one owner`.
 
 **Problem and resulting behavior.** Raw request messages are translated into a second task queue, reply channels hide failures, publication happens after replies, and reset can be trapped behind retained data work. Replace these together with the intended engine contract and scheduler. This is the largest core review unit because splitting it would create a known-bad temporary scheduler or a second command API.
 
@@ -505,7 +507,7 @@ Owns issue 22681's engine failure mechanism. Its closure requires the actual for
 
 **Changes.** Network owns private mutation messages, concrete handle and published gossip state. Read-only P2P methods use snapshots; mutation replies follow publication. Separate discovery ownership only enough to prevent its I/O from blocking swarm polling. Honor existing `--p2p.no-discovery` and discovery-on default: no UDP bind, ENR/discovery startup, bootstore I/O or discovery-only DNS when disabled. Keep the existing endpoint set.
 
-Remove the network self-channel and use nonblocking engine admission for best-effort gossip: Full drops that candidate with a metric; Closed identifies stopped engine. Reliable admin ingress and committed sequencer output retain separate bounded, non-dropping policies. Do not await discovery bans/dials from inside the swarm loop.
+PR 05 already establishes nonblocking engine admission for best-effort gossip and a bounded pending reliable admin payload while other network events continue. Preserve that final ingress API and its Full/Closed policy; do not implement it again here. Remove the remaining network self-channel, add admission-drop observability if still warranted, and preserve reliable admin ingress and committed sequencer output as bounded, non-dropping policies. Do not await discovery bans/dials from inside the swarm loop.
 
 Fix connect/disconnect waiting: the current `backon` path treats `Ok(false)` as success rather than retrying, so asynchronous effects are checked too early. Prefer watch-change plus deadline, with publisher closure handling. Distinguish mutation admitted/processed from actual connection established; success for connect/disconnect requires the promised observed effect. Register `opp2p_blockAddr` correctly and explicitly decide a legacy typo alias rather than accidentally changing the method set.
 
@@ -911,3 +913,30 @@ The reorg presets include reference op-node components; the Kona-sequencer prese
 Following user review, reduce `sync/tests.rs` from 966 to 585 formatted lines. Remove the overlapping 16-row Rust transplant of the Go table, its Case/Expected types, the second fixture layer, duplicate decoded label/genesis/boundary cases and trivial classifier-only assertions. Keep focused regressions for each distinct invariant, including orphan ancestry beneath a plausible ahead suffix, view-change retry, bounded startup, sequence/parent checks, genesis/finality, and AltDA/depth boundaries. The real RPC test covers actual request methods/parameters and nonzero L1/L2 genesis with the caller's config; existing Alloy mocks cover label compatibility concisely.
 
 The original local results above record the initial implementation. The test-only revision reruns formatting, the focused sync/reset selection (37 passed) and all five affected node packages (361 passed, zero skipped), plus full workspace Rust lint (passed). Results are recorded in `work/pr04-trim-validation-results.json` in the task workspace. Production code, Go fixtures and previous live/default-build/no-std validation are unchanged. The user explicitly authorized continuing to PR 05 after this update.
+
+### PR 05 implementation and validation
+
+Branch `codex/kona-refactor-05-engine-owner` starts from updated PR 04 head `6b4323811f0789cd8df80afd405c957a46c91cf5`. The engine task heap and wrappers, operation forwarding clients, callback queue and derivation state machine are replaced together. The engine actor owns bounded scheduling, epochs, reset retries and publication; derivation consumes acknowledged outcomes and records actual completed-safe hashes with inclusion sources. The existing reset walk and bootstrap compatibility remain unchanged.
+
+Sequencer retries retain the original retrieved payload and use paced ticks. Gossip admission is nonblocking; reliable admin ingress retains at most one pending payload without blocking other network events. PR 12 inherits these ingress rules and does not implement them again. Read-only RPC forwarding and the RPC-to-sequencer admin wrapper remain for PRs 06 and 07; conductor acceptance/publication policy remains PR 08.
+
+**Protocol correction.** The review found that the baseline collapsed pending and completed span safety. PR 05 adds a distinct pending-safe head: pre-Holocene prefixes cannot advance completed safe/local-safe or finality. An invalid later element rewinds only pending-safe; the existing batch queue drops its cached span on the changed parent. Holocene uses inclusion-source time and concludes every valid singular element. This correction belongs with the honest `Dropped` outcome and is implemented once here. A rejected deposits-only block is fatal; temporary statuses never trigger a replacement.
+
+**Local validation.**
+
+| Check | Result |
+|---|---|
+| Engine operations, scheduler, derivation and sequencer regressions | 115 passed |
+| Five affected node packages, all features, offline tests | 321 passed, zero skipped |
+| Workspace Rust formatting, Clippy, docs and repository lint | Passed |
+| Repository custom Go lint and module tidiness | Passed, zero issues and empty tidy diff |
+| Fresh default `kona-node` binary build | Passed |
+| `TestSequencerRecoversAfterForcedInclusion` | Passed with a Kona sequencer, isolated Kona verifier and external op-reth |
+| Existing L1/L2 reorg regression in both presets | Four actual subcases passed |
+| `TestRestartSync` and `TestSequencerRestart` | Both passed with the candidate binary |
+
+The force-inclusion test is in the existing `node/reorgs` CI package. It checks an orphaned ordinary unsafe marker, a real L1 deposit becoming canonical on both nodes, resumed batching/sequencing, and safe/finalized agreement on a recovered transaction. The verifier receives one real startup block, then has no L2 peers or further unsafe injection. Idle-start bootstrap remains PR 10. Existing reorg fixtures contain reference op-node components; the separate force-inclusion and restart cases exercise the Kona sequencer directly. Online unit tests are excluded. Shared proof/protocol/alloy runtime code is unchanged, so no new proof-equivalence claim is made.
+
+**Review.** Independent Rust/protocol, Go, scheduler and deletion/API reviews completed. All actionable findings were corrected, including span safety, metric-write preservation, paced exact-job retries and responsive reliable admin ingress. Public documentation and examples use the surviving APIs. Public Rust API changes are marked breaking and have a migration note in the PR.
+
+**Review checkpoint.** Publish PR 05 as a draft on PR 04 and stop implementation for user review. Do not begin PR 06, merge, or wait for hosted CI after handoff. Hosted CI status is separate from the completed local checks above.

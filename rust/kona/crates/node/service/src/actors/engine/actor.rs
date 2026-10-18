@@ -1,12 +1,13 @@
-use crate::{
-    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetRequest, SealRequest,
+use super::{
+    BuildToken, Consolidated, EngineClientError, EngineClientResult, EngineContext, EngineError,
+    EngineHandle, Sealed,
+    handle::{Message, Reply},
 };
+use crate::NodeActor;
 use async_trait::async_trait;
-use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, ImportedBlockSink,
-    InsertTask, SealTask,
+    self as engine, BuildError, ConsolidateError, EngineClient, EnginePhase, EngineState,
+    EngineSyncStateUpdate, FinalizeError, ForkchoiceError, ImportedBlockSink, InsertError,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -17,95 +18,94 @@ use tokio::{
     time::{self, Duration, Instant},
 };
 
-/// A request handled by the [`EngineActor`].
+/// Serializes execution mutations, publishes accepted state, and owns every engine reset.
 #[derive(Debug)]
-pub enum EngineActorRequest {
-    /// Request to start building a block.
-    Build(Box<BuildRequest>),
-    /// Request to process a Safe signal, which can be derived attributes or delegated block info.
-    ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
-    ProcessFinalizedL2Block(Box<FinalizeBlockId>),
-    /// Request to process a received unsafe L2 block.
-    ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
-    /// Request to reset the forkchoice.
-    Reset(Box<ResetRequest>),
-    /// Request to seal a block.
-    Seal(Box<SealRequest>),
-}
-
-/// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
-/// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
-/// the [`Ord`] implementation of [`EngineTask`].
-#[derive(Debug)]
-pub struct EngineActor<EngineClient_, DerivationClient>
-where
-    EngineClient_: EngineClient,
-    DerivationClient: EngineDerivationClient,
-{
-    /// The client used to send messages to the [`crate::DerivationActor`].
-    derivation_client: DerivationClient,
-    /// Whether the EL sync is complete. This should only ever go from false to true.
-    el_sync_complete: bool,
-    /// The last safe head update sent.
-    last_safe_head_sent: L2BlockInfo,
-    /// A channel to use to relay the current unsafe head.
-    /// ## Note
-    /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
-    /// mode.
-    unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
-
-    /// The [`RollupConfig`] used to build tasks.
-    rollup: Arc<RollupConfig>,
-    /// An [`EngineClient`] used for creating engine tasks.
-    client: Arc<EngineClient_>,
-    /// The [`Engine`] task queue.
-    engine: Engine<EngineClient_>,
-    /// The inbound request channel.
-    inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
-    /// Where to hand every imported block, so the derivation providers can read it locally
-    /// instead of fetching it back from the execution layer.
-    block_sink: Arc<dyn ImportedBlockSink>,
-    /// A reset is retained until successful; RPC failure must not lose the request.
-    reset_pending: bool,
-    /// Callers waiting for the retained reset to finish.
-    reset_waiters: Vec<mpsc::Sender<crate::EngineClientResult<()>>>,
-    /// Earliest next attempt after a dependency failure.
+pub struct EngineActor<C: EngineClient> {
+    client: Arc<C>,
+    config: Arc<RollupConfig>,
+    sink: Arc<dyn ImportedBlockSink>,
+    state: EngineState,
+    state_tx: watch::Sender<EngineState>,
+    pending: watch::Sender<usize>,
+    commands: mpsc::Receiver<Message>,
+    unsafe_payloads: mpsc::Receiver<(u64, OpExecutionPayloadEnvelope)>,
+    resets: mpsc::Receiver<Reply<()>>,
+    reset_waiters: Vec<Reply<()>>,
+    active_unsafe: Option<(u64, OpExecutionPayloadEnvelope)>,
     retry_at: Instant,
-    /// Exponentially increasing retry delay, capped to keep recovery responsive.
     retry_delay: Duration,
+    prefer_command: bool,
 }
 
-impl<EngineClient_, DerivationClient> EngineActor<EngineClient_, DerivationClient>
-where
-    EngineClient_: EngineClient + 'static,
-    DerivationClient: EngineDerivationClient + 'static,
-{
-    /// Constructs a new [`EngineActor`] from the params.
+impl<C: EngineClient + 'static> EngineActor<C> {
+    /// Constructs the sole engine owner and its bounded public handle.
     pub fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<C>,
         config: Arc<RollupConfig>,
-        derivation_client: DerivationClient,
-        engine: Engine<EngineClient_>,
-        unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
-        inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
-        block_sink: Arc<dyn ImportedBlockSink>,
-    ) -> Self {
-        Self {
-            client,
-            derivation_client,
-            el_sync_complete: false,
-            engine,
-            last_safe_head_sent: L2BlockInfo::default(),
-            rollup: config,
-            unsafe_head_tx,
-            inbound_request_rx,
-            block_sink,
-            reset_pending: false,
-            reset_waiters: Vec::new(),
-            retry_at: Instant::now(),
-            retry_delay: Duration::from_millis(100),
+        sink: Arc<dyn ImportedBlockSink>,
+    ) -> (Self, EngineHandle) {
+        Self::with_capacities(client, config, sink, 32, 1024)
+    }
+
+    fn with_capacities(
+        client: Arc<C>,
+        config: Arc<RollupConfig>,
+        sink: Arc<dyn ImportedBlockSink>,
+        command_capacity: usize,
+        unsafe_capacity: usize,
+    ) -> (Self, EngineHandle) {
+        let (commands, command_rx) = mpsc::channel(command_capacity);
+        let (unsafe_payloads, unsafe_rx) = mpsc::channel(unsafe_capacity);
+        let (resets, reset_rx) = mpsc::channel(1);
+        let (state_tx, state) = watch::channel(EngineState::default());
+        let (pending, _) = watch::channel(0);
+        let handle =
+            EngineHandle { commands, unsafe_payloads, resets, state, pending: pending.clone() };
+        (
+            Self {
+                client,
+                config,
+                sink,
+                state: EngineState::default(),
+                state_tx,
+                pending,
+                commands: command_rx,
+                unsafe_payloads: unsafe_rx,
+                resets: reset_rx,
+                reset_waiters: Vec::new(),
+                active_unsafe: None,
+                retry_at: Instant::now(),
+                retry_delay: Duration::from_millis(100),
+                prefer_command: true,
+            },
+            handle,
+        )
+    }
+
+    fn complete(&self) {
+        self.pending.send_modify(|n| *n -= 1);
+    }
+
+    fn publish(&self) {
+        self.state.record_metrics();
+        self.state_tx.send_replace(self.state);
+    }
+
+    fn begin_reset(&mut self) {
+        if self.state.phase == EnginePhase::Resetting {
+            return;
         }
+        self.state.epoch = self.state.epoch.checked_add(1).expect("engine epoch exhausted");
+        self.state.phase = EnginePhase::Resetting;
+        if self.active_unsafe.take().is_some() {
+            self.complete();
+        }
+        while self.unsafe_payloads.try_recv().is_ok() {
+            self.complete();
+        }
+        self.retry_at = Instant::now();
+        self.retry_delay = Duration::from_millis(100);
+        self.publish();
     }
 
     fn defer_retry(&mut self) {
@@ -113,248 +113,430 @@ where
         self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
     }
 
-    fn begin_reset(&mut self) {
-        if !self.reset_pending {
-            self.engine.clear();
-            self.reset_pending = true;
-            self.retry_at = Instant::now();
-        }
-    }
-
-    async fn attempt_reset(&mut self) -> Result<(), EngineError> {
-        match self.reset().await {
-            Ok(()) => {
-                self.reset_pending = false;
-                self.retry_delay = Duration::from_millis(100);
-                if !self.el_sync_complete && self.engine.state().el_sync_finished {
-                    self.mark_el_sync_complete_and_notify_derivation_actor().await?;
-                }
-            }
-            Err(EngineError::EngineReset(err)) if err.is_temporary() => {
-                warn!(target: "engine", ?err, "Reset dependency unavailable; retaining reset");
-                self.defer_retry();
-            }
-            Err(err) => return Err(err),
+    fn guard(&self, context: EngineContext, safe: bool) -> Result<(), Failure> {
+        let parent =
+            if safe { self.state.pending_safe_head } else { self.state.sync_state.unsafe_head() };
+        if context.epoch != self.state.epoch ||
+            context.parent != parent ||
+            self.state.phase == EnginePhase::Resetting
+        {
+            return Err(Failure::Stale);
         }
         Ok(())
     }
 
-    /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
-    async fn reset(&mut self) -> Result<(), EngineError> {
-        // Reset the engine.
-        let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
-
-        // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
-        // Release those callers before awaiting delivery to that same queue. They transition
-        // to AwaitingSignal before consuming the queued reset signal below.
-        for waiter in self.reset_waiters.drain(..) {
-            let _ = waiter.try_send(Ok(()));
-        }
-
-        // Signal the derivation actor to reset.
-        let signal = Signal::Reset(ResetSignal { l2_safe_head });
-        match self.derivation_client.send_signal(signal).await {
-            Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
-            Err(err) => {
-                error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
-                return Err(EngineError::ChannelClosed);
-            }
-        }
-
-        self.send_derivation_actor_safe_head_if_updated().await?;
-
-        Ok(())
-    }
-
-    /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
-    async fn drain(&mut self) -> Result<(), EngineError> {
-        match self.engine.drain().await {
+    // Complete an attempt even if its caller disappeared. Partial accepted mutations must be
+    // visible before either the acknowledgement or reset invalidation can reach another producer.
+    fn finish<T>(
+        &mut self,
+        label: &'static str,
+        result: Result<T, Failure>,
+    ) -> (EngineClientResult<T>, Result<(), EngineError>) {
+        match &result {
             Ok(_) => {
-                trace!(target: "engine", "[ENGINE] tasks drained");
-                self.retry_delay = Duration::from_millis(100);
+                kona_macros::inc!(counter, engine::Metrics::ENGINE_TASK_SUCCESS, label);
             }
-            Err(err) => {
-                match err.severity() {
-                    EngineTaskErrorSeverity::Critical => {
-                        error!(target: "engine", ?err, "Critical error draining engine tasks");
-                        return Err(err.into());
-                    }
-                    EngineTaskErrorSeverity::Reset => {
-                        warn!(target: "engine", ?err, "Received reset request");
-                        self.begin_reset();
-                        return Ok(());
-                    }
-                    EngineTaskErrorSeverity::Flush => {
-                        // This error is encountered when the payload is marked INVALID
-                        // by the engine api. Post-holocene, the payload is replaced by
-                        // a "deposits-only" block and re-executed. At the same time,
-                        // the channel and any remaining buffered batches are flushed.
-                        warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
-                        match self.derivation_client.send_signal(Signal::FlushChannel).await {
-                            Ok(_) => {
-                                debug!(target: "engine", "Sent flush signal to derivation actor")
-                            }
-                            Err(err) => {
-                                error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
-                                return Err(EngineError::ChannelClosed);
-                            }
-                        }
-                    }
-                    EngineTaskErrorSeverity::Temporary => {
-                        trace!(target: "engine", ?err, "Temporary error draining engine tasks");
-                        self.defer_retry();
-                        return Ok(());
-                    }
-                }
+            Err(error) => {
+                let severity = match error {
+                    Failure::Reset(_) => "Reset",
+                    Failure::Fatal(_) => "Critical",
+                    _ => "Temporary",
+                };
+                kona_macros::inc!(counter,engine::Metrics::ENGINE_TASK_FAILURE,label => severity);
             }
         }
-
-        self.send_derivation_actor_safe_head_if_updated().await?;
-
-        if !self.el_sync_complete && self.engine.state().el_sync_finished {
-            if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
+        let result = match result {
+            Ok(value) => Ok(value),
+            Err(Failure::Reset(error)) => {
+                self.begin_reset();
+                Err(EngineClientError::Temporary(error))
+            }
+            Err(Failure::Retry(error)) => Err(EngineClientError::Temporary(error)),
+            Err(Failure::Rejected(error)) => Err(EngineClientError::Rejected(error)),
+            Err(Failure::Expired) => Err(EngineClientError::Expired),
+            Err(Failure::Stale) => Err(EngineClientError::Stale),
+            Err(Failure::Fatal(error)) => {
+                self.publish();
+                return (
+                    Err(EngineClientError::Fatal(error.clone())),
+                    Err(EngineError::Invariant(error)),
+                );
+            }
+        };
+        if self.state.phase != EnginePhase::Resetting && self.state.el_sync_finished {
+            if self.state.sync_state.finalized_head() == L2BlockInfo::default() {
                 self.begin_reset();
             } else {
-                self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+                self.state.phase = EnginePhase::Ready;
             }
         }
+        self.publish();
+        (result, Ok(()))
+    }
 
+    async fn command(&mut self, message: Message) -> Result<(), EngineError> {
+        let label = match &message {
+            Message::Start(..) => engine::Metrics::BUILD_TASK_LABEL,
+            Message::Seal(..) => engine::Metrics::SEAL_TASK_LABEL,
+            Message::Canonicalize(..) => engine::Metrics::INSERT_TASK_LABEL,
+            Message::Consolidate(..) | Message::FollowSafe(..) => {
+                engine::Metrics::CONSOLIDATE_TASK_LABEL
+            }
+            Message::Finalize(..) => engine::Metrics::FINALIZE_TASK_LABEL,
+        };
+        macro_rules! reply {
+            ($tx:expr, $result:expr) => {{
+                let (result, fatal) = self.finish(label, $result);
+                self.complete();
+                let _ = $tx.send(result);
+                fatal
+            }};
+        }
+        match message {
+            Message::Start(context, attrs, tx) => {
+                let result = async {
+                    self.guard(context, false)?;
+                    if attrs.parent != context.parent {
+                        return Err(Failure::Stale);
+                    }
+                    let id = engine::start_build(
+                        self.client.as_ref(),
+                        &self.config,
+                        &mut self.state,
+                        &attrs,
+                    )
+                    .await
+                    .map_err(build_failure)?;
+                    Ok(BuildToken {
+                        context,
+                        id,
+                        timestamp: attrs.attributes.payload_attributes.timestamp,
+                    })
+                }
+                .await;
+                reply!(tx, result)
+            }
+            Message::Seal(token, tx) => {
+                let result = async {
+                    self.guard(token.context, false)?;
+                    let payload = engine::get_payload(
+                        self.client.as_ref(),
+                        &self.config,
+                        token.id,
+                        token.timestamp,
+                    )
+                    .await
+                    .map_err(|error| {
+                        if error.as_error_resp().is_some_and(|e| e.code == -38001) {
+                            Failure::Expired
+                        } else {
+                            Failure::Retry(error.to_string())
+                        }
+                    })?;
+                    if payload.parent_hash() != token.context.parent.hash() ||
+                        payload.timestamp() != token.timestamp
+                    {
+                        return Err(Failure::Fatal("getPayload returned a different build".into()));
+                    }
+                    Ok(Sealed { context: token.context, payload })
+                }
+                .await;
+                reply!(tx, result)
+            }
+            Message::Canonicalize(sealed, tx) => {
+                let result = async {
+                    self.guard(sealed.context, false)?;
+                    engine::insert_payload(
+                        self.client.as_ref(),
+                        &self.config,
+                        &mut self.state,
+                        &sealed.payload,
+                        engine::ImportMode::Unsafe,
+                        self.sink.as_ref(),
+                    )
+                    .await
+                    .map_err(insert_failure)?;
+                    Ok(sealed.payload)
+                }
+                .await;
+                reply!(tx, result)
+            }
+            Message::Consolidate(context, attrs, tx) => {
+                let result = async {
+                    self.guard(context, true)?;
+                    if attrs.parent != context.parent {
+                        return Err(Failure::Stale);
+                    }
+                    let source = attrs.derived_from.ok_or_else(|| {
+                        Failure::Fatal("local derivation has no inclusion source".into())
+                    })?;
+                    engine::consolidate(
+                        self.client.as_ref(),
+                        &self.config,
+                        &mut self.state,
+                        &attrs,
+                        source.timestamp,
+                        self.sink.as_ref(),
+                    )
+                    .await
+                    .map_err(consolidate_failure)
+                }
+                .await;
+                let (result, fatal) = self.finish(label, result);
+                let result = result.map(|outcome| Consolidated { state: self.state, outcome });
+                self.complete();
+                let _ = tx.send(result);
+                fatal
+            }
+            Message::FollowSafe(context, block, tx) => {
+                let result = async {
+                    self.guard(context, true)?;
+                    engine::follow_safe(
+                        self.client.as_ref(),
+                        &self.config,
+                        &mut self.state,
+                        block,
+                        self.sink.as_ref(),
+                    )
+                    .await
+                    .map_err(consolidate_failure)
+                }
+                .await;
+                let (result, fatal) = self.finish(label, result);
+                let result = result.map(|outcome| Consolidated { state: self.state, outcome });
+                self.complete();
+                let _ = tx.send(result);
+                fatal
+            }
+            Message::Finalize(epoch, block, source, tx) => {
+                let result = async {
+                    if epoch != self.state.epoch || self.state.phase == EnginePhase::Resetting {
+                        return Err(Failure::Stale);
+                    }
+                    engine::finalize(
+                        self.client.as_ref(),
+                        &self.config,
+                        &mut self.state,
+                        block,
+                        source,
+                    )
+                    .await
+                    .map_err(|error| match error {
+                        FinalizeError::Forkchoice(e) => forkchoice_failure(e),
+                        FinalizeError::L2Mismatch(_) | FinalizeError::L1Mismatch(_) => {
+                            Failure::Reset(error.to_string())
+                        }
+                        FinalizeError::Rpc(_) | FinalizeError::BlockNotFound(_) => {
+                            Failure::Retry(error.to_string())
+                        }
+                        FinalizeError::NotSafe => Failure::Stale,
+                        FinalizeError::BlockInfo(_) => Failure::Fatal(error.to_string()),
+                    })
+                }
+                .await;
+                reply!(tx, result)
+            }
+        }
+    }
+
+    async fn reset(&mut self) -> Result<(), EngineError> {
+        let result = async {
+            let start =
+                engine::find_starting_forkchoice(&self.config, self.client.as_ref()).await?;
+            engine::synchronize(
+                self.client.as_ref(),
+                &mut self.state,
+                EngineSyncStateUpdate {
+                    unsafe_head: Some(start.un_safe),
+                    local_safe_head: Some(start.safe),
+                    safe_head: Some(start.safe),
+                    finalized_head: Some(start.finalized),
+                },
+            )
+            .await?;
+            self.state.pending_safe_head = start.safe;
+            Ok::<(), engine::ResetError>(())
+        }
+        .await;
+        match result {
+            Ok(()) => {
+                self.state.phase = if self.state.el_sync_finished {
+                    EnginePhase::Ready
+                } else {
+                    EnginePhase::Syncing
+                };
+                self.retry_delay = Duration::from_millis(100);
+                kona_macros::inc!(counter, engine::Metrics::ENGINE_RESET_COUNT);
+                self.publish();
+                for waiter in self.reset_waiters.drain(..) {
+                    self.pending.send_modify(|n| *n -= 1);
+                    let _ = waiter.send(Ok(()));
+                }
+            }
+            Err(error) if error.is_temporary() => {
+                self.publish();
+                self.defer_retry();
+                warn!(target:"engine",?error,"Reset dependency unavailable; retaining reset");
+            }
+            Err(error) => {
+                self.publish();
+                return Err(EngineError::Invariant(error.to_string()));
+            }
+        }
         Ok(())
     }
 
-    async fn mark_el_sync_complete_and_notify_derivation_actor(
-        &mut self,
-    ) -> Result<(), EngineError> {
-        self.el_sync_complete = true;
-
-        self.derivation_client
-            .notify_sync_completed(self.engine.state().sync_state.safe_head())
-            .await
-            .map(|_| Ok(()))
-            .map_err(|e| {
-                error!(target: "engine", ?e, "Failed to notify sync completed");
-                EngineError::ChannelClosed
-            })?
-    }
-
-    /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
-    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
-        let engine_safe_head = self.engine.state().sync_state.safe_head();
-        if engine_safe_head == self.last_safe_head_sent {
-            info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
-            // This was already sent, so do not send it.
+    async fn unsafe_payload(&mut self) -> Result<(), EngineError> {
+        let Some((epoch, payload)) = self.active_unsafe.take() else { return Ok(()) };
+        if epoch != self.state.epoch ||
+            payload.block_number() <= self.state.sync_state.safe_head().block_info.number
+        {
+            self.complete();
             return Ok(());
         }
-
-        self.derivation_client.send_new_engine_safe_head(engine_safe_head).await.map_err(|e| {
-            error!(target: "engine", ?e, "Failed to send new engine safe head");
-            EngineError::ChannelClosed
-        })?;
-
-        info!(target: "engine", safe_head = ?engine_safe_head, "Attempted L2 Safe Head Update");
-        self.last_safe_head_sent = engine_safe_head;
-
-        Ok(())
+        let result = engine::insert_payload(
+            self.client.as_ref(),
+            &self.config,
+            &mut self.state,
+            &payload,
+            engine::ImportMode::Unsafe,
+            self.sink.as_ref(),
+        )
+        .await
+        .map_err(insert_failure);
+        let retry = matches!(result, Err(Failure::Retry(_)));
+        let (result, fatal) = self.finish(engine::Metrics::INSERT_TASK_LABEL, result);
+        if retry && self.state.phase != EnginePhase::Resetting {
+            self.active_unsafe = Some((epoch, payload));
+            self.defer_retry();
+        } else {
+            self.complete();
+            self.retry_delay = Duration::from_millis(100);
+            self.retry_at = Instant::now();
+        }
+        if let Err(error) = result {
+            debug!(target:"engine",?error,"Unsafe payload attempt did not apply");
+        }
+        fatal
     }
 }
 
 #[async_trait]
-impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
-where
-    EngineClient_: EngineClient + 'static,
-    DerivationClient: EngineDerivationClient + 'static,
-{
+impl<C: EngineClient + 'static> NodeActor for EngineActor<C> {
     type Error = EngineError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        if Instant::now() >= self.retry_at {
-            if self.reset_pending {
-                self.attempt_reset().await?;
-            } else {
-                self.drain().await?;
+        // The reset control lane never sits behind unsafe admission or acknowledged commands.
+        if self.reset_waiters.len() < 32 &&
+            let Ok(waiter) = self.resets.try_recv()
+        {
+            self.begin_reset();
+            self.reset_waiters.push(waiter);
+            return Ok(());
+        }
+        let resetting = self.state.phase == EnginePhase::Resetting;
+        if resetting && Instant::now() >= self.retry_at {
+            return self.reset().await;
+        }
+        if !resetting {
+            if self.prefer_command &&
+                let Ok(message) = self.commands.try_recv()
+            {
+                self.prefer_command = false;
+                return self.command(message).await;
+            }
+            if self.active_unsafe.is_none() {
+                self.active_unsafe = self.unsafe_payloads.try_recv().ok();
+            }
+            if self.active_unsafe.is_some() && Instant::now() >= self.retry_at {
+                self.prefer_command = true;
+                return self.unsafe_payload().await;
+            }
+            if let Ok(message) = self.commands.try_recv() {
+                self.prefer_command = false;
+                return self.command(message).await;
             }
         }
-
-        // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
-        }
-
-        // Wait for the next processing request.
-        // Retry without needing a new inbound message, while still accepting requests during
-        // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
-        let request = tokio::select! {
-            request = self.inbound_request_rx.recv(),
-                if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
-                request.ok_or(EngineError::ChannelClosed)?
-            }
-            _ = time::sleep_until(self.retry_at),
-                if self.reset_pending || !self.engine.is_empty() => return Ok(()),
-        };
-
-        match request {
-            EngineActorRequest::Build(build_request) => {
-                let BuildRequest { attributes, result_tx } = *build_request;
-                let task = EngineTask::Build(Box::new(BuildTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    attributes,
-                    Some(result_tx),
-                )));
-                self.engine.enqueue(task);
-            }
-            EngineActorRequest::ProcessSafeL2Signal(safe_signal) => {
-                let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    safe_signal,
-                    Arc::clone(&self.block_sink),
-                )));
-                self.engine.enqueue(task);
-            }
-            EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
-                // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
-                let task = EngineTask::Finalize(Box::new(FinalizeTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    *finalized_l2_block_id,
-                )));
-                self.engine.enqueue(task);
-            }
-            EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
-                let task = EngineTask::Insert(Box::new(InsertTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    *envelope,
-                    false, /* The payload is not derived in this case. This is an unsafe
-                            * block. */
-                    Arc::clone(&self.block_sink),
-                )));
-                self.engine.enqueue(task);
-            }
-            EngineActorRequest::Reset(reset_request) => {
-                warn!(target: "engine", "Received reset request");
-
+        tokio::select! {
+            biased;
+            waiter = self.resets.recv(), if self.reset_waiters.len() < 32 => {
+                let waiter = waiter.ok_or(EngineError::ChannelClosed)?;
                 self.begin_reset();
-                self.reset_waiters.push(reset_request.result_tx);
+                self.reset_waiters.push(waiter);
             }
-            EngineActorRequest::Seal(seal_request) => {
-                let SealRequest { payload_id, attributes, result_tx } = *seal_request;
-                let task = EngineTask::Seal(Box::new(SealTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    payload_id,
-                    attributes,
-                    Some(result_tx),
-                    Arc::clone(&self.block_sink),
-                )));
-                self.engine.enqueue(task);
+            message = self.commands.recv() => {
+                self.prefer_command = false;
+                return self.command(message.ok_or(EngineError::ChannelClosed)?).await;
             }
+            payload = self.unsafe_payloads.recv(), if !resetting && self.active_unsafe.is_none() => {
+                self.active_unsafe = Some(payload.ok_or(EngineError::ChannelClosed)?);
+            }
+            _ = time::sleep_until(self.retry_at), if resetting || self.active_unsafe.is_some() => {}
         }
-
         Ok(())
     }
 }
+
+#[derive(Debug)]
+enum Failure {
+    Retry(String),
+    Reset(String),
+    Rejected(String),
+    Expired,
+    Stale,
+    Fatal(String),
+}
+
+fn forkchoice_failure(error: ForkchoiceError) -> Failure {
+    match error {
+        ForkchoiceError::Rpc(_) |
+        ForkchoiceError::InvalidState |
+        ForkchoiceError::UnexpectedStatus(_) => Failure::Reset(error.to_string()),
+        ForkchoiceError::FinalizedAheadOfUnsafe(_, _) => Failure::Fatal(error.to_string()),
+    }
+}
+
+fn build_failure(error: BuildError) -> Failure {
+    match error {
+        BuildError::Forkchoice(e) => forkchoice_failure(e),
+        BuildError::Rejected(_) | BuildError::InvalidAttributes(_) => {
+            Failure::Reset(error.to_string())
+        }
+        BuildError::Syncing | BuildError::MissingPayloadId => Failure::Retry(error.to_string()),
+        BuildError::UnexpectedStatus(_) => Failure::Reset(error.to_string()),
+    }
+}
+
+fn insert_failure(error: InsertError) -> Failure {
+    match error {
+        InsertError::Forkchoice(e) => forkchoice_failure(e),
+        InsertError::Rpc(_) => Failure::Retry(error.to_string()),
+        InsertError::Rejected(ref status)
+            if matches!(
+                status,
+                alloy_rpc_types_engine::PayloadStatusEnum::Syncing |
+                    alloy_rpc_types_engine::PayloadStatusEnum::Accepted
+            ) =>
+        {
+            Failure::Retry(error.to_string())
+        }
+        InsertError::Rejected(_) => Failure::Rejected(error.to_string()),
+        InsertError::Payload(_) | InsertError::BlockInfo(_) => Failure::Fatal(error.to_string()),
+    }
+}
+
+fn consolidate_failure(error: ConsolidateError) -> Failure {
+    match error {
+        ConsolidateError::Build(e) => build_failure(e),
+        ConsolidateError::Insert(e) => insert_failure(e),
+        ConsolidateError::Forkchoice(e) => forkchoice_failure(e),
+        ConsolidateError::Read(_) | ConsolidateError::GetPayload(_) => {
+            Failure::Retry(error.to_string())
+        }
+        ConsolidateError::DepositsOnlyRejected(_) => Failure::Fatal(error.to_string()),
+    }
+}
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;

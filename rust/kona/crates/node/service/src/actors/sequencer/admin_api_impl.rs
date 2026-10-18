@@ -1,5 +1,5 @@
 use super::SequencerActor;
-use crate::{Conductor, OriginSelector, SequencerEngineClient, UnsafePayloadGossipClient};
+use crate::{Conductor, OriginSelector, UnsafePayloadGossipClient};
 use alloy_primitives::B256;
 use kona_derive::AttributesBuilder;
 use kona_rpc::SequencerAdminAPIError;
@@ -27,25 +27,12 @@ pub enum SequencerAdminQuery {
 }
 
 /// Handler for the Sequencer Admin API.
-impl<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
->
-    SequencerActor<
-        AttributesBuilder_,
-        Conductor_,
-        OriginSelector_,
-        SequencerEngineClient_,
-        UnsafePayloadGossipClient_,
-    >
+impl<AttributesBuilder_, Conductor_, OriginSelector_, UnsafePayloadGossipClient_>
+    SequencerActor<AttributesBuilder_, Conductor_, OriginSelector_, UnsafePayloadGossipClient_>
 where
     AttributesBuilder_: AttributesBuilder,
     Conductor_: Conductor,
     OriginSelector_: OriginSelector,
-    SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Handles the provided [`SequencerAdminQuery`], sending the response via the provided sender.
@@ -132,12 +119,7 @@ where
 
         self.update_metrics();
 
-        self.engine_client.get_unsafe_head().await
-            .map(|h| h.hash())
-            .map_err(|e| {
-                error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer, which should never happen.");
-                SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
-            })
+        Ok(self.engine_client.state().sync_state.unsafe_head().hash())
     }
 
     /// Sets the recovery mode of the sequencer in an idempotent fashion.
@@ -175,7 +157,7 @@ where
 
     pub(super) async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
         info!(target: "sequencer", "Resetting derivation pipeline");
-        self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+        self.engine_client.reset().await.map_err(|e| {
             error!(target: "sequencer", err=?e, "Failed to reset engine forkchoice");
             SequencerAdminAPIError::RequestError(format!("Failed to reset engine: {e}"))
         })

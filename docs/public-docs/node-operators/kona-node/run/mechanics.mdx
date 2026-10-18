@@ -52,9 +52,9 @@ Additionally, an RPC server exposes essential methods, including the
 The `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
-   When starting, the node initially has an empty engine task queue.
-   Once an unsafe block is received from P2P gossip, an `InsertTask`
-   is executed. That task inserts the payload and sends a forkchoice
+   When starting, the engine owner initially has empty bounded mailboxes.
+   Once an unsafe block is received from P2P gossip, the owner
+   inserts the payload and sends a forkchoice
    update through the engine api. Since the engine state is lazily
    initialized (the safe and finalized heads are zero), the forkchoice
    update kicks off EL sync on the execution layer (EL) client (such
@@ -69,8 +69,8 @@ The `kona-node` syncs the L2 chain in two main phases:
    to consensus layer (CL) sync. In this phase, `kona-node` begins
    deriving new L2 payload attributes from the L1 chain, following
    the rollup derivation process. `OpAttributesWithParent` values
-   derived this way are executed as an engine task which submits
-   the payloads to the execution engine for validation and execution.
+   derived this way are submitted with their captured epoch and safe parent.
+   The engine owner acknowledges the actual accepted result before derivation continues.
 
 <Note>
 - `kona-node` does **not** support historical CL sync or backfilling
@@ -149,8 +149,9 @@ the `kona-node-service` crate.
 
 Running a custom actor therefore means composing the node yourself.
 The built-in actors are public API of the `kona-node-service` crate.
-The request and payload types they exchange over channels are public
-too, spread across `kona-node-service`, sibling kona crates such as
+The engine is constructed together with its concrete `EngineHandle`;
+its operation messages stay private. Other request and payload types
+are public, spread across `kona-node-service`, sibling kona crates such as
 `kona-rpc` and `kona-gossip`, and the shared alloy engine types. A
 custom binary can therefore construct the actors it needs, wire them
 together over channels, add its own `NodeActor` implementations, and

@@ -1,8 +1,6 @@
 use crate::{
     SequencerActor,
-    actors::{
-        MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-    },
+    actors::{MockConductor, MockOriginSelector, MockUnsafePayloadGossipClient},
 };
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
@@ -14,7 +12,6 @@ pub(crate) fn test_actor() -> SequencerActor<
     TestAttributesBuilder,
     MockConductor,
     MockOriginSelector,
-    MockSequencerEngineClient,
     MockUnsafePayloadGossipClient,
 > {
     // The sender is intentionally dropped, so the channel starts closed.
@@ -24,7 +21,7 @@ pub(crate) fn test_actor() -> SequencerActor<
         admin_api_rx,
         TestAttributesBuilder { attributes: vec![] },
         None,
-        MockSequencerEngineClient::new(),
+        crate::EngineHandle::test_channel(kona_engine::EngineState::default()).0,
         true,
         false,
         MockOriginSelector::new(),

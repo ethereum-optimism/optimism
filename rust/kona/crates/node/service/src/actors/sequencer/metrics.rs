@@ -1,30 +1,15 @@
 use std::time::Duration;
 
-use crate::{
-    Conductor, OriginSelector, SequencerActor, SequencerEngineClient, UnsafePayloadGossipClient,
-};
+use crate::{Conductor, OriginSelector, SequencerActor, UnsafePayloadGossipClient};
 use kona_derive::AttributesBuilder;
 
 /// `SequencerActor` metrics-related method implementations.
-impl<
-    AttributesBuilder_,
-    Conductor_,
-    OriginSelector_,
-    SequencerEngineClient_,
-    UnsafePayloadGossipClient_,
->
-    SequencerActor<
-        AttributesBuilder_,
-        Conductor_,
-        OriginSelector_,
-        SequencerEngineClient_,
-        UnsafePayloadGossipClient_,
-    >
+impl<AttributesBuilder_, Conductor_, OriginSelector_, UnsafePayloadGossipClient_>
+    SequencerActor<AttributesBuilder_, Conductor_, OriginSelector_, UnsafePayloadGossipClient_>
 where
     AttributesBuilder_: AttributesBuilder,
     Conductor_: Conductor,
     OriginSelector_: OriginSelector,
-    SequencerEngineClient_: SequencerEngineClient,
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Updates the metrics for the sequencer actor.

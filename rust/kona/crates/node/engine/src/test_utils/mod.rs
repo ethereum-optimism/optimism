@@ -14,3 +14,6 @@ pub use misc::test_block_info;
 
 mod provider;
 pub use provider::{MockL1Provider, MockL2Provider};
+
+mod rpc;
+pub use rpc::{ExpectedCall, ObservedCall, Script};

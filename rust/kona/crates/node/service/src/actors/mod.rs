@@ -5,11 +5,11 @@
 mod traits;
 pub use traits::NodeActor;
 
-mod engine;
+pub(crate) mod engine;
 pub use engine::{
-    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    BuildToken, Consolidated, EngineActor, EngineClientError, EngineClientResult, EngineConfig,
+    EngineContext, EngineError, EngineHandle, EngineRpcActor, EngineRpcRequest, Sealed,
+    UnsafeAdmissionError,
 };
 
 pub(crate) mod rpc;
@@ -22,9 +22,7 @@ mod derivation;
 pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
     DerivationClientResult, DerivationDelegateClient, DerivationDelegateClientError,
-    DerivationDelegateProvider, DerivationEngineClient, DerivationError, DerivationState,
-    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
-    QueuedDerivationEngineClient,
+    DerivationDelegateProvider, DerivationError,
 };
 
 mod l1_watcher;
@@ -40,20 +38,18 @@ mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
     NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod sequencer;
 
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
-    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
-    SequencerEngineClient,
+    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, SequencerActor,
+    SequencerActorError, SequencerAdminQuery, SequencerConfig,
 };
 
 #[cfg(test)]
 pub use network::MockUnsafePayloadGossipClient;
 #[cfg(test)]
-pub use sequencer::{MockConductor, MockOriginSelector, MockSequencerEngineClient};
+pub use sequencer::{MockConductor, MockOriginSelector};

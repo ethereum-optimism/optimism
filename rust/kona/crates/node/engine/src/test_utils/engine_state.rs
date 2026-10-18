@@ -1,4 +1,4 @@
-use crate::{EngineState, EngineSyncStateUpdate};
+use crate::{EnginePhase, EngineState, EngineSyncStateUpdate};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, b256};
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -74,7 +74,10 @@ impl TestEngineStateBuilder {
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });
 
+        state.pending_safe_head = state.sync_state.safe_head();
         state.el_sync_finished = self.el_sync_finished;
+        // These fixtures represent a running engine unless explicitly configured as syncing.
+        state.phase = if self.el_sync_finished { EnginePhase::Ready } else { EnginePhase::Syncing };
         state
     }
 }

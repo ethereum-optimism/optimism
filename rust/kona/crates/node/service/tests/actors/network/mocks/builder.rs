@@ -154,6 +154,15 @@ struct ForwardingNetworkEngineClient {
 
 #[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
+    fn try_send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
+        match self.blocks_tx.try_send(block) {
+            Ok(()) | Err(mpsc::error::TrySendError::Full(_)) => Ok(()),
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                Err(kona_node_service::EngineClientError::Closed)
+            }
+        }
+    }
+
     async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         let _ = self
             .blocks_tx
