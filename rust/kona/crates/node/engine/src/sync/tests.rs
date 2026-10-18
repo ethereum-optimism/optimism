@@ -57,6 +57,14 @@ impl SyncSource for Chain {
     }
 }
 
+async fn find_heads(
+    cfg: &RollupConfig,
+    chain: &Chain,
+) -> Result<L2ForkchoiceState, SyncStartError> {
+    let finalized = chain.labels[&BlockNumberOrTag::Finalized];
+    super::find_heads(cfg, chain, SyncStartPolicy::TrustedResume { finalized }).await
+}
+
 fn hash(label: u8, number: u64) -> B256 {
     let mut bytes = [0; 32];
     bytes[0] = label;
@@ -131,7 +139,7 @@ impl Chain {
 }
 
 #[tokio::test]
-async fn genesis_safety_labels_keep_the_recent_window_walk_bounded_after_el_sync() {
+async fn trusted_bootstrap_keeps_the_epoch_parent_walk_bounded_after_el_sync() {
     const OFFSET: u64 = 10_000_000;
     let mut chain = Chain::new("abcdefgh", "abcdefgh");
     let mut canonical: Vec<_> = chain.l1.values().copied().collect();
@@ -163,14 +171,26 @@ async fn genesis_safety_labels_keep_the_recent_window_walk_bounded_after_el_sync
     }
     let result = find_heads(&chain.cfg, &chain).await.unwrap();
     assert_eq!(result.un_safe, chain.blocks[7]);
-    assert_eq!(result.safe, chain.blocks[4]);
-    assert_eq!(result.safe.seq_num, 1);
+    assert_eq!(result.safe, chain.blocks[2]);
+    assert_eq!(result.safe.seq_num, 0);
     assert_eq!(result.finalized, chain.blocks[0]);
     assert!(result.safe.block_info.number > OFFSET);
-    // Three initial labels and three recent parents; no walk through millions of old blocks.
-    let reads = chain.l2_reads.lock().unwrap();
-    assert_eq!(reads.len(), 6);
-    assert!(!reads.contains(&chain.cfg.genesis.l2.hash.into()));
+    // Three initial labels and five recent parents; no walk through millions of old blocks.
+    {
+        let reads = chain.l2_reads.lock().unwrap();
+        assert_eq!(reads.len(), 8);
+        assert!(!reads.contains(&chain.cfg.genesis.l2.hash.into()));
+    }
+    // An ordinary later reset cannot reuse the initial trust exception, even when that means
+    // requesting older history instead of claiming a newer safe checkpoint.
+    let error = super::find_heads(
+        &chain.cfg,
+        &chain,
+        SyncStartPolicy::Checkpoint { safe: chain.blocks[0], finalized: chain.blocks[0] },
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(error, SyncStartError::BlockNotFound(_)));
 }
 
 #[tokio::test]
@@ -504,7 +524,24 @@ async fn rpc_boundary_uses_numeric_canonical_anchor_and_the_callers_genesis() {
         l2.provider::<Optimism>(),
         Arc::new(RollupConfig::default()),
     );
-    let result = find_starting_forkchoice(&cfg, &client).await.unwrap();
+    let result = find_starting_forkchoice(
+        &cfg,
+        &client,
+        SyncStartPolicy::TrustedResume {
+            finalized: L2BlockInfo {
+                block_info: BlockInfo {
+                    number: cfg.genesis.l2.number,
+                    hash: cfg.genesis.l2.hash,
+                    timestamp: cfg.genesis.l2_time,
+                    ..Default::default()
+                },
+                l1_origin: cfg.genesis.l1,
+                seq_num: 0,
+            },
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(result.un_safe.block_info.id(), cfg.genesis.l2);
     assert_eq!(result.safe, result.un_safe);
     assert_eq!(result.finalized, result.un_safe);
@@ -571,15 +608,73 @@ async fn alt_da_window_also_moves_safe_back_by_l1_blocks() {
     let mut chain = Chain::new("abcdefgh", "abcdefgh");
     chain.cfg.seq_window_size = 1;
     let result = find_heads(&chain.cfg, &chain).await.unwrap();
-    assert_eq!(result.safe, chain.blocks[5]);
+    assert_eq!(result.safe, chain.blocks[4]);
     chain.cfg.alt_da_config = Some(AltDAConfig {
         da_challenge_window: Some(1),
         da_resolve_window: Some(2),
         ..Default::default()
     });
     let result = find_heads(&chain.cfg, &chain).await.unwrap();
-    assert_eq!(result.safe, chain.blocks[3]);
+    assert_eq!(result.safe, chain.blocks[2]);
     chain.cfg.alt_da_config.as_mut().unwrap().da_resolve_window = Some(u64::MAX);
+    let result = find_heads(&chain.cfg, &chain).await.unwrap();
+    assert_eq!(result.safe, chain.blocks[0]);
+}
+
+#[tokio::test]
+async fn ordinary_reset_uses_completed_safe_ceiling_and_an_epoch_parent() {
+    let mut chain = Chain::new("abcdefghij", "abcdefghij");
+    // The EL's newer label is not permission to exceed the captured owner checkpoint.
+    chain.labels.insert(BlockNumberOrTag::Safe, chain.blocks[8]);
+    let policy = SyncStartPolicy::Checkpoint { safe: chain.blocks[4], finalized: chain.blocks[0] };
+    let result = super::find_heads(&chain.cfg, &chain, policy).await.unwrap();
+    assert_eq!(result.safe, chain.blocks[3]);
+    let bootstrap = find_heads(&chain.cfg, &chain).await.unwrap();
+    assert_eq!(bootstrap.safe, chain.blocks[5]);
+    assert_eq!(result.finalized, chain.blocks[0]);
+}
+
+#[tokio::test]
+async fn a_retained_safe_ceiling_can_exceed_the_restarted_els_current_head() {
+    let mut chain = Chain::new("abcdefghij", "abcdefghij");
+    chain.labels.insert(BlockNumberOrTag::Latest, chain.blocks[3]);
+    let policy = SyncStartPolicy::Checkpoint { safe: chain.blocks[6], finalized: chain.blocks[0] };
+    let result = super::find_heads(&chain.cfg, &chain, policy).await.unwrap();
+    assert_eq!(result.un_safe, chain.blocks[3]);
+    assert_eq!(result.safe, chain.blocks[0]);
+    assert_eq!(result.finalized, chain.blocks[0]);
+}
+
+#[tokio::test]
+async fn an_epoch_parent_at_finalized_is_checked_before_returning() {
+    let mut chain = Chain::new("abcdef", "abcdef");
+    chain.labels.insert(BlockNumberOrTag::Finalized, chain.blocks[1]);
+    chain.labels.insert(BlockNumberOrTag::Safe, chain.blocks[2]);
+    let policy = SyncStartPolicy::Checkpoint { safe: chain.blocks[2], finalized: chain.blocks[1] };
+    let result = super::find_heads(&chain.cfg, &chain, policy).await.unwrap();
+    assert_eq!(result.safe, chain.blocks[1]);
+    let mut wrong = chain.blocks[1];
+    wrong.block_info.hash = hash(b'!', 1);
+    let policy = SyncStartPolicy::Checkpoint { safe: chain.blocks[2], finalized: wrong };
+    assert!(matches!(
+        super::find_heads(&chain.cfg, &chain, policy).await,
+        Err(SyncStartError::MismatchedFinalizedBlock(..))
+    ));
+}
+
+#[tokio::test]
+async fn safe_selection_skips_a_mid_epoch_window_boundary() {
+    let mut chain = Chain::new("abcde", "abcde");
+    chain.cfg.seq_window_size = 1;
+    let mut prefix = chain.blocks[2];
+    prefix.l1_origin = chain.blocks[1].l1_origin;
+    prefix.seq_num = 1;
+    chain.replace_l2(prefix);
+    for index in 3..chain.blocks.len() {
+        let mut block = chain.blocks[index];
+        block.l1_origin = chain.l1[&(index as u64 - 1)].id();
+        chain.replace_l2(block);
+    }
     let result = find_heads(&chain.cfg, &chain).await.unwrap();
     assert_eq!(result.safe, chain.blocks[0]);
 }

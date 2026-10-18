@@ -13,7 +13,7 @@ use crate::{
                 update_conductor_commitment_duration_metrics, update_seal_duration_metrics,
                 update_total_transactions_sequenced,
             },
-            origin_selector::{L1OriginSelectorError, OriginSelector},
+            origin_selector::OriginSelector,
         },
     },
 };
@@ -80,6 +80,8 @@ pub struct SequencerActor<
     pub engine_client: crate::EngineHandle,
     /// The struct used to determine the next L1 origin.
     pub origin_selector: OriginSelector_,
+    /// Engine epoch for which the selector's cached origins remain usable.
+    origin_epoch: u64,
     /// The rollup configuration.
     pub rollup_config: Arc<RollupConfig>,
     /// A client that hands built payloads to the signer actor, which signs them for the network
@@ -92,8 +94,6 @@ pub struct SequencerActor<
     next_payload_to_seal: Option<UnsealedPayloadHandle>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
     pub(super) last_seal_duration: Duration,
-    /// Whether the one-shot startup work (metrics + initial engine reset) has run.
-    started: bool,
 }
 
 impl<AttributesBuilder_, Conductor_, OriginSelector_, UnsafePayloadGossipClient_>
@@ -124,6 +124,7 @@ where
         let (state_tx, state_rx) = watch::channel(state);
         let handle = SequencerHandle::new(command_tx, state_rx, conductor.is_some());
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
+        let origin_epoch = engine_client.state().epoch;
         let actor = Self {
             commands,
             state,
@@ -133,13 +134,14 @@ where
             conductor_overridden: false,
             engine_client,
             origin_selector,
+            origin_epoch,
             rollup_config,
             unsafe_payload_gossip_client,
             build_ticker,
             next_payload_to_seal: None,
             last_seal_duration: Duration::from_secs(0),
-            started: false,
         };
+        actor.update_metrics();
         (actor, handle)
     }
 
@@ -151,7 +153,6 @@ where
     #[cfg(test)]
     pub(super) fn test_pending(&mut self, pending: UnsealedPayloadHandle) {
         self.next_payload_to_seal = Some(pending);
-        self.started = true;
     }
 
     #[cfg(test)]
@@ -164,7 +165,7 @@ where
         let state = self.engine_client.state();
         state.epoch == context.epoch &&
             state.sync_state.unsafe_head() == context.parent &&
-            state.phase != EnginePhase::Resetting
+            state.phase == EnginePhase::Ready
     }
 
     /// Retrieve until positively acknowledged, then import only that exact envelope.
@@ -263,8 +264,12 @@ where
         &mut self,
     ) -> Result<Option<UnsealedPayloadHandle>, SequencerActorError> {
         let state = self.engine_client.state();
-        if matches!(state.phase, EnginePhase::Initializing | EnginePhase::Resetting) {
+        if state.phase != EnginePhase::Ready {
             return Ok(None);
+        }
+        if self.origin_epoch != state.epoch {
+            self.origin_selector.reset();
+            self.origin_epoch = state.epoch;
         }
         let unsafe_head = state.sync_state.unsafe_head();
         let context = EngineContext { epoch: state.epoch, parent: unsafe_head };
@@ -322,15 +327,6 @@ where
             .await
         {
             Ok(l1_origin) => l1_origin,
-            Err(L1OriginSelectorError::OriginNotFound(hash)) => {
-                warn!(
-                    target: "sequencer",
-                    %hash,
-                    "L1 origin block not found, resetting engine"
-                );
-                self.engine_client.reset().await?;
-                return Ok(None);
-            }
             Err(err) => {
                 warn!(
                     target: "sequencer",
@@ -349,9 +345,8 @@ where
                 l1_origin = ?l1_origin,
                 unsafe_head_hash = %unsafe_head.l1_origin.hash,
                 unsafe_head_l1_origin = ?unsafe_head.l1_origin,
-                "Cannot build new L2 block on inconsistent L1 origin, resetting engine"
+                "Cannot build on inconsistent L1 origin; waiting for engine recovery"
             );
-            self.engine_client.reset().await?;
             return Ok(None);
         }
         Ok(Some(l1_origin))
@@ -374,16 +369,8 @@ where
                 // Temporary error - retry on next tick.
                 return Ok(None);
             }
-            Err(PipelineErrorKind::Reset(_)) => {
-                if let Err(err) = self.engine_client.reset().await {
-                    error!(target: "sequencer", ?err, "Failed to reset engine");
-                    return Err(SequencerActorError::ChannelClosed);
-                }
-
-                warn!(
-                    target: "sequencer",
-                    "Resetting engine due to pipeline error while preparing payload attributes"
-                );
+            Err(PipelineErrorKind::Reset(error)) => {
+                warn!(target: "sequencer", ?error, "Attributes unavailable; waiting for a consistent engine context");
                 return Ok(None);
             }
             Err(err @ PipelineErrorKind::Critical(_)) => {
@@ -468,17 +455,6 @@ where
         // above.
         true
     }
-
-    /// Schedules the initial engine reset request and waits for the unsafe head to be updated.
-    async fn schedule_initial_reset(&self) -> Result<(), SequencerActorError> {
-        // Reset the engine, in order to initialize the engine state.
-        // NB: this call waits for confirmation that the reset succeeded and we can proceed with
-        // post-reset logic.
-        self.engine_client.reset().await.map_err(|err| {
-            error!(target: "sequencer", ?err, "Failed to send reset request to engine");
-            err.into()
-        })
-    }
 }
 
 #[async_trait]
@@ -493,13 +469,6 @@ where
     type Error = SequencerActorError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        if !self.started {
-            self.publish();
-            // Reset the engine state prior to beginning block building.
-            self.schedule_initial_reset().await?;
-            self.started = true;
-        }
-
         select! {
             // We are using a biased select here to ensure that the admin queries are given priority over the block building task.
             // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.

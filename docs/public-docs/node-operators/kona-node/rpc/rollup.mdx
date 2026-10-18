@@ -131,7 +131,7 @@ Returns the current synchronization status of the rollup node, including informa
 ### Returns
 
 `SyncStatus` - An object containing detailed sync information:
-- `current_l1` (`BlockInfo`): The current L1 block that derivation is idled at
+- `current_l1` (`BlockInfo`): The actual L1 block reached by derivation; it can lag `head_l1` or change while L2 safe stays fixed. Unknown progress is returned as the zero block
 - `current_l1_finalized` (`BlockInfo`): The current L1 finalized block (legacy/deprecated)
 - `head_l1` (`BlockInfo`): The L1 head block reference
 - `safe_l1` (`BlockInfo`): The L1 safe head block reference

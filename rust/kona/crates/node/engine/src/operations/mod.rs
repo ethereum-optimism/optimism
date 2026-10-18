@@ -10,7 +10,7 @@ pub use build::{get_payload, start_build};
 mod insert;
 pub use insert::{ImportMode, insert_payload};
 mod forkchoice;
-pub use forkchoice::synchronize;
+pub use forkchoice::{ForkchoiceStatus, synchronize};
 mod consolidate;
 pub use consolidate::{Consolidation, consolidate, follow_safe};
 mod finalize;

@@ -29,12 +29,6 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
         phase: kona_engine::EnginePhase::Ready,
         ..Default::default()
     });
-    let reset = matches!(forced_error, PipelineErrorKind::Reset(_));
-    let responder = tokio::spawn(async move {
-        if reset {
-            let _ = engine.resets.recv().await.unwrap().send(Ok(()));
-        }
-    });
 
     let l1_origin = BlockInfo::default();
     let mut origin_selector = MockOriginSelector::new();
@@ -48,7 +42,7 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
     actor.attributes_builder = attributes_builder;
 
     let result = actor.build_unsealed_payload().await;
-    responder.await.unwrap();
+    assert!(engine.resets.try_recv().is_err(), "sequencer must not reset the engine");
     if expect_err {
         assert!(result.is_err());
         assert!(matches!(
@@ -71,9 +65,6 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
         ..Default::default()
     });
     actor.engine_client = handle;
-    let responder = tokio::spawn(async move {
-        let _ = engine.resets.recv().await.unwrap().send(Ok(()));
-    });
 
     let mut gossip = MockUnsafePayloadGossipClient::new();
     gossip.expect_has_capacity().return_const(false);
@@ -82,7 +73,7 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
 
     // The build tick finds the queue full and returns instead of waiting for space.
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
-    responder.await.unwrap();
+    assert!(engine.resets.try_recv().is_err(), "sequencer must not reset the engine");
 
     let (result, step) = tokio::join!(
         sequencer.stop_sequencer(),
@@ -103,9 +94,6 @@ async fn building_resumes_once_the_gossip_queue_drains() {
         ..Default::default()
     });
     actor.engine_client = handle;
-    let responder = tokio::spawn(async move {
-        let _ = engine.resets.recv().await.unwrap().send(Ok(()));
-    });
 
     // Building starts again on the second tick: the origin selector is consulted once.
     let mut origin_selector = MockOriginSelector::new();
@@ -124,7 +112,7 @@ async fn building_resumes_once_the_gossip_queue_drains() {
     actor.unsafe_payload_gossip_client = gossip;
 
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
-    responder.await.unwrap();
+    assert!(engine.resets.try_recv().is_err(), "sequencer must not reset the engine");
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 }
 
@@ -138,6 +126,7 @@ async fn build_captures_context_before_preparing_attributes() {
     let state_tx = engine.state.clone();
     let mut actor = test_actor();
     actor.engine_client = handle;
+    actor.origin_selector.expect_reset().times(1).return_const(());
     actor.origin_selector.expect_next_l1_origin().return_once(move |_, _| {
         state_tx.send_modify(|state| state.epoch += 1);
         Ok(BlockInfo::default())
@@ -173,7 +162,6 @@ async fn temporary_build_failure_waits_for_a_paced_tick() {
     actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     let responder = tokio::spawn(async move {
-        engine.resets.recv().await.unwrap().send(Ok(())).unwrap();
         let Message::Start(_, _, reply) = engine.commands.recv().await.unwrap() else {
             panic!("expected start")
         };

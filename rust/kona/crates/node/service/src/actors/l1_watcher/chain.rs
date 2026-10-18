@@ -4,10 +4,9 @@ use super::{L1WatcherActorError, L1WatcherDerivationClient};
 use alloy_primitives::Address;
 use alloy_provider::Provider;
 use kona_genesis::RollupConfig;
-use kona_protocol::BlockInfo;
-use kona_rpc::L1WatcherQueries;
-use std::{future::IntoFuture, sync::Arc};
-use tokio::sync::{mpsc, watch};
+use kona_rpc::L1State;
+use std::sync::Arc;
+use tokio::sync::watch;
 
 /// A single L2 chain served by the [`L1WatcherActor`](super::L1WatcherActor).
 ///
@@ -22,8 +21,6 @@ pub struct L1WatcherChain<L1WatcherDerivationClient_> {
     /// The source of truth for this chain's unsafe block signer, read from `SystemConfig`. Gossip
     /// validation and block signing subscribe to it.
     pub(super) block_signer_sender: watch::Sender<Address>,
-    /// The inbound queries for this chain.
-    pub(super) inbound_queries: mpsc::Receiver<L1WatcherQueries>,
 }
 
 impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
@@ -32,9 +29,8 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
         rollup_config: Arc<RollupConfig>,
         derivation_client: L1WatcherDerivationClient_,
         block_signer_sender: watch::Sender<Address>,
-        inbound_queries: mpsc::Receiver<L1WatcherQueries>,
     ) -> Self {
-        Self { rollup_config, derivation_client, block_signer_sender, inbound_queries }
+        Self { rollup_config, derivation_client, block_signer_sender }
     }
 
     /// The id of the L2 chain this instance serves.
@@ -47,45 +43,42 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_>
 where
     L1WatcherDerivationClient_: L1WatcherDerivationClient,
 {
-    /// Runs independent forwarding, configuration, and query loops for this chain. A closed
-    /// channel tears down only this worker; slow RPCs cannot hold up shared L1 observation.
+    /// Runs independent forwarding and signer loops. Slow consumers cannot stall L1 observation.
     pub(super) async fn run(
         self,
         provider: impl Provider,
-        head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
-        finalized: tokio::sync::watch::Receiver<Option<BlockInfo>>,
-    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+        state: watch::Receiver<L1State>,
+    ) -> Result<(), L1WatcherActorError> {
         let chain_id = self.chain_id();
-        let Self { rollup_config, derivation_client, block_signer_sender, mut inbound_queries } =
-            self;
-        let mut heads = head.clone();
-        let mut finalized = finalized;
+        let Self { rollup_config, derivation_client, block_signer_sender } = self;
+        let mut observed = state.clone();
         let forward = async {
+            let mut delivered = L1State::default();
             loop {
-                tokio::select! {
-                    result = heads.changed() => {
-                        result.map_err(|_| L1WatcherActorError::StreamEnded)?;
-                        let block = *heads.borrow_and_update();
-                        if let Some(block) = block {
-                            derivation_client.send_new_l1_head(block).await.map_err(|source| L1WatcherActorError::DerivationClientError {chain_id, source})?;
-                        }
-                    }
-                    result = finalized.changed() => {
-                        result.map_err(|_| L1WatcherActorError::StreamEnded)?;
-                        let block = *finalized.borrow_and_update();
-                        if let Some(block) = block {
-                            derivation_client.send_finalized_l1_block(block).await.map_err(|source| L1WatcherActorError::DerivationClientError {chain_id, source})?;
-                        }
-                    }
+                let latest = *observed.borrow_and_update();
+                if let Some(block) = latest.head &&
+                    latest.head != delivered.head
+                {
+                    derivation_client.send_new_l1_head(block).await.map_err(|source| {
+                        L1WatcherActorError::DerivationClientError { chain_id, source }
+                    })?;
+                    delivered.head = Some(block);
                 }
+                if let Some(block) = latest.finalized &&
+                    latest.finalized != delivered.finalized
+                {
+                    derivation_client.send_finalized_l1_block(block).await.map_err(|source| {
+                        L1WatcherActorError::DerivationClientError { chain_id, source }
+                    })?;
+                    delivered.finalized = Some(block);
+                }
+                observed.changed().await.map_err(|_| L1WatcherActorError::StreamEnded)?;
             }
             #[allow(unreachable_code)]
-            Ok::<(), L1WatcherActorError<BlockInfo>>(())
+            Ok::<(), L1WatcherActorError>(())
         };
-        let signer =
-            Self::refresh_signer(&provider, &rollup_config, &block_signer_sender, head.clone());
-        let queries = Self::serve_queries(&provider, &rollup_config, head, &mut inbound_queries);
-        tokio::try_join!(forward, signer, queries)?;
+        let signer = Self::refresh_signer(&provider, &rollup_config, &block_signer_sender, state);
+        tokio::try_join!(forward, signer)?;
         Ok(())
     }
 
@@ -93,18 +86,26 @@ where
         provider: &impl Provider,
         config: &RollupConfig,
         signer_tx: &watch::Sender<Address>,
-        mut head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
-    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+        mut state: watch::Receiver<L1State>,
+    ) -> Result<(), L1WatcherActorError> {
         use tokio::time::{self, Duration};
         let mut retry = time::interval(Duration::from_secs(10));
         retry.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+        let mut last_attempted = None;
         loop {
-            tokio::select! {
-                result = head.changed() => result.map_err(|_| L1WatcherActorError::StreamEnded)?,
-                _ = retry.tick() => {},
+            let retrying = tokio::select! {
+                result = state.changed() => {
+                    result.map_err(|_| L1WatcherActorError::StreamEnded)?;
+                    false
+                }
+                _ = retry.tick() => true,
                 _ = signer_tx.closed() => return Err(L1WatcherActorError::StreamEnded),
+            };
+            let Some(target) = state.borrow_and_update().head else { continue };
+            if !retrying && last_attempted == Some(target) {
+                continue;
             }
-            let Some(target) = *head.borrow_and_update() else { continue };
+            last_attempted = Some(target);
             let read = kona_providers_alloy::unsafe_block_signer(
                 provider,
                 config.l1_system_config_address,
@@ -113,7 +114,7 @@ where
             match time::timeout(Duration::from_secs(10), read).await {
                 // Head changes while a read is outstanding supersede that read, including
                 // same-height reorgs. Never install a snapshot for an obsolete branch.
-                Ok(Ok(signer)) if *head.borrow() == Some(target) => {
+                Ok(Ok(signer)) if state.borrow().head == Some(target) => {
                     // Subscribers are only notified when the signer actually changes.
                     signer_tx
                         .send_if_modified(|current| std::mem::replace(current, signer) != signer);
@@ -123,55 +124,6 @@ where
                     warn!(target: "l1_watcher", chain_id = config.l2_chain_id.id(), ?result, "Failed to refresh unsafe block signer; retaining previous value")
                 }
             }
-        }
-    }
-
-    async fn serve_queries(
-        provider: &impl Provider,
-        config: &RollupConfig,
-        head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
-        queries: &mut mpsc::Receiver<L1WatcherQueries>,
-    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
-        while let Some(query) = queries.recv().await {
-            match query {
-                L1WatcherQueries::Config(sender) => {
-                    let _ = sender.send(config.clone());
-                }
-                L1WatcherQueries::L1State(sender) => {
-                    let current = *head.borrow();
-                    let _ = sender.send(Self::l1_state(provider, current).await);
-                }
-            }
-        }
-        Err(L1WatcherActorError::StreamEnded)
-    }
-
-    async fn l1_state(
-        provider: &impl Provider,
-        current_l1: Option<BlockInfo>,
-    ) -> kona_rpc::L1State {
-        use alloy_eips::BlockId;
-        use tokio::time::{Duration, timeout};
-        let read = |id| async move {
-            match timeout(Duration::from_secs(10), provider.get_block(id).into_future()).await {
-                Ok(Ok(block)) => block.map(|block| block.into_consensus().into()),
-                result => {
-                    warn!(target: "l1_watcher", ?result, "L1 state query failed");
-                    None
-                }
-            }
-        };
-        let (head_l1, finalized_l1, safe_l1) = tokio::join!(
-            read(BlockId::latest()),
-            read(BlockId::finalized()),
-            read(BlockId::safe())
-        );
-        kona_rpc::L1State {
-            current_l1,
-            current_l1_finalized: finalized_l1,
-            head_l1,
-            finalized_l1,
-            safe_l1,
         }
     }
 }

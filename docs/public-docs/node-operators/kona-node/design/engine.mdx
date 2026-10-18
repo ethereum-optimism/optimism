@@ -11,7 +11,8 @@ execution client such as op-reth through the Engine API.
 ## Execution ownership
 
 Producers use a concrete `EngineHandle`. Its messages and reply channels stay private to
-the service. Sequencing starts a build, retrieves its payload, then canonicalizes it.
+the service. Sequencing starts a build, retrieves its payload, obtains conductor acceptance when configured unless local recovery override is enabled,
+then canonicalizes that exact payload.
 Derivation submits attributes and waits for the actual accepted result. Gossip uses
 bounded best-effort admission; reliable payload admission waits for capacity.
 
@@ -36,6 +37,24 @@ The actor completes an in-flight Engine API call before processing reset control
 reconciles uncertain forkchoice responses through reset before the next mutation. A
 failed idempotent `newPayload` call can instead retry the same payload. Temporary reset
 dependencies retain the reset and its bounded waiters; an invariant failure stops the node.
+
+The engine initializes itself from actual execution heads, even on an idle validator. It
+probes EL sync through the shared bounded client and publishes ready only after a fresh
+`VALID` forkchoice response. A fresh EL waiting for its first forkchoice can confirm the
+configured genesis when it advertises no later sync target. While EL sync is active, it preserves the accepted unsafe
+sync target. Missing dependencies retry without requiring a new L1 event or admin request.
+
+Initialization preserves Kona's bounded trusted-resume assumption when the EL has no
+reusable safe checkpoint beyond genesis: a canonical recent-history epoch boundary supplies
+a trusted resume checkpoint. Canonical origins and elapsed sequencing windows do not prove
+local derivation. This exception does not advance finalized or create local finality records,
+never overrides a known reusable checkpoint, and is consumed only after successful initialization.
+Later resets use the prior completed-safe head as a ceiling and select an eligible epoch's
+parent without crossing finalized. Pending span progress is never that ceiling.
+
+The owner observes L1 head changes and checks applied heads' origins by canonical L1 number.
+A missing historical read retries; a conflicting canonical hash initiates recovery. Sequencing
+waits for a consistent context instead of independently requesting startup or origin resets.
 
 ## Derivation outcomes
 

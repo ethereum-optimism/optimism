@@ -10,9 +10,10 @@ to choose the parent for its next pipeline step.
 ## Pipeline context
 
 Derivation starts after the engine reaches its ready phase. Before stepping, it resets the
-pipeline to the accepted safe head. Only a successful reset installs that epoch and safe
-parent as the pipeline context. Temporary reset failures retry; critical failures stop the
-node. Prepared attributes left in the pipeline's output queue are discarded after reset.
+pipeline to the accepted pending-safe parent, which equals completed safe after an engine
+reset. Only a successful reset installs that epoch and parent as the pipeline context. Temporary reset failures retry before further stepping;
+critical failures stop the node. Repeated local resets without accepted L2 progress back off
+from one second to twelve seconds. A newer engine epoch supersedes that wait. Prepared attributes left in the pipeline's output queue are discarded after reset.
 
 Every newer reset epoch invalidates pending attributes, pipeline context and finality
 records, even if the safe head has not changed. An interrupted pipeline step is followed
@@ -49,3 +50,8 @@ and passes explicit safe and finalized hashes to the engine under the captured e
 
 See the [derivation specification](https://specs.optimism.io/protocol/derivation.html) for
 protocol rules and the [engine design](./engine) for execution ownership and recovery.
+
+The actor publishes `current_l1` from the pipeline's actual origin, independently of observed
+L1 heads and completed L2 safe progress. Invalidated context reports unknown progress until a
+successful reset. Delegation publishes each validated upstream progress observation even when
+its safe head is unchanged or local application must retry.

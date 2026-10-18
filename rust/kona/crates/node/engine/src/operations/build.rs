@@ -1,8 +1,8 @@
 //! Starting and retrieving execution payloads.
 
 use crate::{
-    BuildError, EngineClient, EngineForkchoiceVersion, EngineGetPayloadVersion, EngineState,
-    EngineSyncStateUpdate, ForkchoiceError,
+    BuildError, EngineClient, EngineForkchoiceVersion, EngineGetPayloadVersion, EnginePhase,
+    EngineState, EngineSyncStateUpdate, ForkchoiceError,
 };
 use alloy_rpc_types_engine::{
     ExecutionPayload, INVALID_PAYLOAD_ATTRIBUTES_ERROR, PayloadId, PayloadStatusEnum,
@@ -89,6 +89,7 @@ pub async fn start_build(
             return Err(BuildError::Rejected(validation_error));
         }
         PayloadStatusEnum::Syncing => {
+            state.phase = EnginePhase::Syncing;
             warn!(target: "engine_builder", "Forkchoice update failed temporarily: EL is syncing");
             return Err(BuildError::Syncing);
         }

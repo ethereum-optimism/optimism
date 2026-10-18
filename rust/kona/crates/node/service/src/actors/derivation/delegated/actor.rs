@@ -6,7 +6,8 @@ use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use kona_derive::ChainProvider;
 use kona_engine::{EnginePhase, EngineState, FinalizationSource};
-use kona_protocol::SyncStatus;
+use kona_protocol::{BlockInfo, SyncStatus};
+use kona_rpc::DerivationStatus;
 use thiserror::Error;
 use tokio::{
     select,
@@ -34,6 +35,8 @@ where
     /// The Engine client used to interact with the engine.
     engine_client: EngineHandle,
     engine_state: watch::Receiver<EngineState>,
+    status: watch::Sender<DerivationStatus>,
+    observed_epoch: u64,
 
     /// Derivation delegate provider.
     derivation_delegate_provider: DelegateProvider,
@@ -55,6 +58,7 @@ where
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_delegate_provider: DelegateProvider,
         l1_provider: L1Provider,
+        status: watch::Sender<DerivationStatus>,
     ) -> Self {
         let mut delegated_derivation_ticker =
             time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
@@ -62,6 +66,8 @@ where
         Self {
             inbound_request_rx,
             engine_state: engine_client.subscribe(),
+            observed_epoch: engine_client.state().epoch,
+            status,
             engine_client,
             derivation_delegate_provider,
             l1_provider,
@@ -80,6 +86,7 @@ where
     type Error = DerivationError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
+        self.observe_engine();
         select! {
             biased;
 
@@ -101,6 +108,7 @@ where
             }
             result = self.engine_state.changed() => {
                 result.map_err(|_| EngineClientError::Closed)?;
+                self.observe_engine();
                 Ok(())
             }
             _ = self.delegated_derivation_ticker.tick(),
@@ -110,7 +118,11 @@ where
                 let mut engine_state = self.engine_state.clone();
                 select! {
                     biased;
-                    result = super::super::actor::context_changed(&mut engine_state, epoch) => result,
+                    result = super::super::actor::context_changed(&mut engine_state, epoch) => {
+                        result?;
+                        self.observe_engine();
+                        Ok(())
+                    },
                     result = self.fetch_and_apply_delegate_safe_head(state) => result,
                 }
             }
@@ -123,6 +135,14 @@ where
     DelegateProvider: DerivationDelegateProvider + 'static,
     L1Provider: ChainProvider + 'static,
 {
+    fn observe_engine(&mut self) {
+        let state = *self.engine_state.borrow_and_update();
+        if state.epoch != self.observed_epoch || state.phase != EnginePhase::Ready {
+            self.status.send_if_modified(|status| status.current_l1.take().is_some());
+            self.observed_epoch = state.epoch;
+        }
+    }
+
     /// Hardcoded poll interval for Derivation Delegation
     const DERIVATION_DELEGATE_POLL_INTERVAL: std::time::Duration =
         std::time::Duration::from_secs(4);
@@ -155,16 +175,16 @@ where
     /// Verifies that the L1 info reported by the derivation delegate
     /// are consistent with canonical L1 chain.
     async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
+        let current = (v.current_l1 != BlockInfo::default()).then_some(v.current_l1.id());
         let checks = [
-            ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
-            (
-                "L1 Origin of Finalized L2",
-                v.finalized_l2.l1_origin.number,
-                v.finalized_l2.l1_origin.hash,
-            ),
-            ("Current L1", v.current_l1.number, v.current_l1.hash),
+            ("L1 Origin of Safe L2", Some(v.safe_l2.l1_origin)),
+            ("L1 Origin of Finalized L2", Some(v.finalized_l2.l1_origin)),
+            ("Current L1", current),
         ];
-        for (context, number, hash) in checks {
+        for (context, block) in checks {
+            let Some(block) = block else { continue };
+            let number = block.number;
+            let hash = block.hash;
             if let Err(err) = self.validate_l1_block(context, number, hash).await {
                 warn!(
                     target: "derivation",
@@ -197,6 +217,18 @@ where
             // fatal.
             return Ok(());
         }
+
+        let latest = self.engine_client.state();
+        if latest.epoch != state.epoch || latest.phase != EnginePhase::Ready {
+            self.observe_engine();
+            return Ok(());
+        }
+        // Validated source progress can advance while local safe is unchanged or import retries.
+        let current_l1 =
+            (sync_status.current_l1 != BlockInfo::default()).then_some(sync_status.current_l1);
+        self.status.send_if_modified(|status| {
+            std::mem::replace(&mut status.current_l1, current_l1) != current_l1
+        });
 
         let context = EngineContext { epoch: state.epoch, parent: state.sync_state.safe_head() };
         let result = self.engine_client.follow_safe(context, sync_status.safe_l2).await;
@@ -248,4 +280,141 @@ enum DerivationDelegationError {
     /// The hash provided by the derivation delegation does not match the canonical chain.
     #[error("L1 inconsistency in {context} at block {number}: expected {expected}, got {actual}")]
     L1ValidationFailed { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::{derivation::DerivationDelegateClientError, engine::handle::Message};
+    use alloy_primitives::B256;
+    use kona_derive::test_utils::TestChainProvider;
+    use kona_protocol::L2BlockInfo;
+    use std::{
+        collections::VecDeque,
+        sync::{Arc, Mutex},
+    };
+    use tokio::sync::Notify;
+
+    #[derive(Debug)]
+    struct Statuses {
+        values: Mutex<VecDeque<SyncStatus>>,
+        blocked: Option<Arc<Notify>>,
+    }
+    #[async_trait]
+    impl DerivationDelegateProvider for Statuses {
+        async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
+            if let Some(started) = &self.blocked {
+                started.notify_one();
+                std::future::pending::<()>().await;
+            }
+            Ok(self.values.lock().unwrap().pop_front().expect("unexpected delegate poll"))
+        }
+    }
+
+    fn block(number: u64) -> BlockInfo {
+        BlockInfo { number, hash: B256::repeat_byte(number as u8 + 1), ..Default::default() }
+    }
+    fn status(current_l1: BlockInfo) -> SyncStatus {
+        let safe_l2 = L2BlockInfo { l1_origin: block(1).id(), ..Default::default() };
+        SyncStatus {
+            current_l1,
+            current_l1_finalized: block(1),
+            head_l1: block(3),
+            safe_l1: block(1),
+            finalized_l1: block(1),
+            unsafe_l2: safe_l2,
+            safe_l2,
+            finalized_l2: safe_l2,
+            local_safe_l2: safe_l2,
+        }
+    }
+    fn chain() -> TestChainProvider {
+        let mut chain = TestChainProvider::default();
+        for number in 0..=3 {
+            chain.insert_block(number, block(number));
+        }
+        chain
+    }
+
+    #[tokio::test]
+    async fn every_validated_poll_publishes_progress_before_an_unchanged_safe_import_retries() {
+        let state = EngineState { phase: EnginePhase::Ready, ..Default::default() };
+        let (engine, mut owner) = EngineHandle::test_channel(state);
+        let (_l1, requests) = mpsc::channel(1);
+        let (published, progress) = watch::channel(DerivationStatus::default());
+        let provider = Statuses {
+            values: Mutex::new(VecDeque::from([
+                status(block(2)),
+                status(block(0)),
+                status(block(3)),
+            ])),
+            blocked: None,
+        };
+        let mut actor =
+            DelegateDerivationActor::new(engine, requests, provider, chain(), published);
+        for number in [2, 0, 3] {
+            let (result, ()) =
+                tokio::join!(actor.fetch_and_apply_delegate_safe_head(state), async {
+                    let Message::FollowSafe(_, safe, reply) = owner.commands.recv().await.unwrap()
+                    else {
+                        panic!("expected follow safe")
+                    };
+                    assert_eq!(safe, status(block(number)).safe_l2);
+                    assert_eq!(progress.borrow().current_l1, Some(block(number)));
+                    reply.send(Err(EngineClientError::Temporary("EL unavailable".into()))).unwrap();
+                });
+            result.unwrap();
+        }
+        assert_eq!(owner.state.borrow().sync_state.safe_head(), L2BlockInfo::default());
+    }
+
+    #[tokio::test]
+    async fn unknown_progress_stays_unknown_and_invalid_progress_never_publishes() {
+        let state = EngineState { phase: EnginePhase::Ready, ..Default::default() };
+        let (engine, mut owner) = EngineHandle::test_channel(state);
+        let (_l1, requests) = mpsc::channel(1);
+        let (published, progress) = watch::channel(DerivationStatus { current_l1: Some(block(2)) });
+        let invalid = BlockInfo { hash: B256::repeat_byte(9), ..block(3) };
+        let provider = Statuses {
+            values: Mutex::new(VecDeque::from([status(BlockInfo::default()), status(invalid)])),
+            blocked: None,
+        };
+        let mut actor =
+            DelegateDerivationActor::new(engine, requests, provider, chain(), published);
+        let (result, ()) = tokio::join!(actor.fetch_and_apply_delegate_safe_head(state), async {
+            let Message::FollowSafe(_, _, reply) = owner.commands.recv().await.unwrap() else {
+                panic!("expected follow safe")
+            };
+            reply.send(Err(EngineClientError::Temporary("retry".into()))).unwrap();
+        });
+        result.unwrap();
+        assert_eq!(progress.borrow().current_l1, None); // No fake default genesis lookup.
+        actor.status.send_replace(DerivationStatus { current_l1: Some(block(2)) });
+        actor.fetch_and_apply_delegate_safe_head(state).await.unwrap();
+        assert_eq!(progress.borrow().current_l1, Some(block(2)));
+        assert!(owner.commands.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn a_reset_cancels_an_old_delegate_poll_and_clears_its_progress() {
+        let state = EngineState { phase: EnginePhase::Ready, ..Default::default() };
+        let (engine, owner) = EngineHandle::test_channel(state);
+        let (_l1, requests) = mpsc::channel(1);
+        let (published, progress) = watch::channel(DerivationStatus { current_l1: Some(block(2)) });
+        let started = Arc::new(Notify::new());
+        let provider =
+            Statuses { values: Mutex::new(VecDeque::new()), blocked: Some(started.clone()) };
+        let mut actor =
+            DelegateDerivationActor::new(engine, requests, provider, chain(), published);
+        let (result, ()) = tokio::join!(actor.step(), async {
+            started.notified().await;
+            owner.state.send_replace(EngineState {
+                epoch: 1,
+                phase: EnginePhase::Resetting,
+                ..state
+            });
+        });
+        result.unwrap();
+        assert_eq!(progress.borrow().current_l1, None);
+    }
 }

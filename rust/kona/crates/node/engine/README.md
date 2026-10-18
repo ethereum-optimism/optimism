@@ -7,7 +7,12 @@ retrieve, insert, consolidate, finalize and synchronize execution payloads, upda
 `EngineState` only for accepted changes. Consolidation reports whether derived attributes
 applied, required a deposits-only replacement, or were dropped.
 
-`find_starting_forkchoice` finds a canonical reset point. Scheduling, bounded admission,
+`find_starting_forkchoice` takes an explicit `SyncStartPolicy`: ordinary resets retain the
+owner's completed-safe/finalized checkpoint, while initialization alone may use its documented
+once-only trusted resume policy. Safe selection returns a validated epoch parent. The
+`synchronize` result distinguishes current `VALID` acceptance from a `SYNCING` response
+whose target the owner must retain and retry;
+historical sync completion does not establish current readiness. Scheduling, bounded admission,
 retries, reset epochs and producer acknowledgements belong to the engine actor in
 `kona-node-service`.
 

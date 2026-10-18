@@ -53,10 +53,8 @@ func TestSequencerRecoversAfterForcedInclusion(gt *testing.T) {
 	initialReceipt, err := initial.Included.Eval(ctx)
 	require.NoError(err)
 	initialNumber := bigs.Uint64Strict(initialReceipt.BlockNumber)
-	// The current validator bootstrap waits for its first valid unsafe payload.
-	// Prime it with block 1, whose parent is genesis, before the batching outage.
-	// No unsafe payloads or L2 peers feed the verifier during forced inclusion.
-	verifier.CL.PostUnsafePayload(sequencer.EL.PayloadByNumber(1))
+	// The isolated verifier must bootstrap and derive from L1 without any
+	// unsafe payload injection or L2 peers, including before the batching outage.
 	dsl.CheckAll(t,
 		sequencer.EL.ReachedFn(eth.Safe, initialNumber, 60),
 		verifier.EL.ReachedFn(eth.Safe, initialNumber, 60),

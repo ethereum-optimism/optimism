@@ -6,12 +6,13 @@ use alloy_provider::Provider;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use kona_protocol::BlockInfo;
+use kona_rpc::L1State;
 use tokio::{sync::watch, task::JoinSet};
 
 #[derive(Debug)]
 struct ChainExit {
     chain_id: u64,
-    result: Result<(), L1WatcherActorError<BlockInfo>>,
+    result: Result<(), L1WatcherActorError>,
 }
 
 /// Observes L1 once and distributes the latest head and finality to independent chain workers.
@@ -27,9 +28,9 @@ where
     Client: L1WatcherDerivationClient,
 {
     l1_provider: L1Provider,
-    latest_head: watch::Sender<Option<BlockInfo>>,
-    latest_finalized: watch::Sender<Option<BlockInfo>>,
+    state: watch::Sender<L1State>,
     head_stream: BlockStream,
+    safe_stream: BlockStream,
     finalized_stream: BlockStream,
     /// Moved into workers on the first step, so construction does not require a runtime.
     chains: Vec<L1WatcherChain<Client>>,
@@ -48,18 +49,18 @@ where
     /// Panics when there are no chains to serve.
     pub fn new(
         l1_provider: L1Provider,
-        latest_head: watch::Sender<Option<BlockInfo>>,
+        state: watch::Sender<L1State>,
         head_stream: BlockStream,
+        safe_stream: BlockStream,
         finalized_stream: BlockStream,
         chains: Vec<L1WatcherChain<Client>>,
     ) -> Self {
         assert!(!chains.is_empty(), "the L1 watcher must serve at least one chain");
-        let (latest_finalized, _) = watch::channel(None);
         Self {
             l1_provider,
-            latest_head,
-            latest_finalized,
+            state,
             head_stream,
+            safe_stream,
             finalized_stream,
             chains,
             workers: JoinSet::new(),
@@ -74,16 +75,15 @@ where
     L1Provider: Provider + Clone + 'static,
     Client: L1WatcherDerivationClient + 'static,
 {
-    type Error = L1WatcherActorError<BlockInfo>;
+    type Error = L1WatcherActorError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         for chain in self.chains.drain(..) {
             let provider = self.l1_provider.clone();
-            let head = self.latest_head.subscribe();
-            let finalized = self.latest_finalized.subscribe();
+            let state = self.state.subscribe();
             self.workers.spawn(async move {
                 let chain_id = chain.chain_id();
-                ChainExit { chain_id, result: chain.run(provider, head, finalized).await }
+                ChainExit { chain_id, result: chain.run(provider, state).await }
             });
         }
         if self.workers.is_empty() {
@@ -91,10 +91,16 @@ where
         }
         tokio::select! {
             head = self.head_stream.next() => {
-                self.latest_head.send_replace(Some(head.ok_or(L1WatcherActorError::StreamEnded)?));
+                let head = head.ok_or(L1WatcherActorError::StreamEnded)?;
+                self.state.send_if_modified(|state| state.head.replace(head) != Some(head));
+            }
+            safe = self.safe_stream.next() => {
+                let safe = safe.ok_or(L1WatcherActorError::StreamEnded)?;
+                self.state.send_if_modified(|state| state.safe.replace(safe) != Some(safe));
             }
             finalized = self.finalized_stream.next() => {
-                self.latest_finalized.send_replace(Some(finalized.ok_or(L1WatcherActorError::StreamEnded)?));
+                let finalized = finalized.ok_or(L1WatcherActorError::StreamEnded)?;
+                self.state.send_if_modified(|state| state.finalized.replace(finalized) != Some(finalized));
             }
             Some(exit) = self.workers.join_next() => {
                 match exit {

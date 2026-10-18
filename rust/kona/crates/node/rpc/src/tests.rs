@@ -1,6 +1,6 @@
 use super::{
-    DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzResponse, HealthzRpc, L1State,
-    L1WatcherQueries, OutputResponse, RollupNodeApiServer, RollupRpc, WsRPC, WsServer,
+    DerivationStatus, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzResponse,
+    HealthzRpc, L1State, OutputResponse, RollupNodeApiServer, RollupRpc, WsRPC, WsServer,
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
@@ -22,7 +22,7 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types::Transaction;
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
-use tokio::sync::{Notify, Semaphore, mpsc, watch};
+use tokio::sync::{Notify, Semaphore, watch};
 
 fn block_and_config(isthmus: bool) -> (Block<Transaction>, Arc<RollupConfig>) {
     let mut block = Block::<Transaction>::default();
@@ -38,25 +38,24 @@ fn block_and_config(isthmus: bool) -> (Block<Transaction>, Arc<RollupConfig>) {
     (block, Arc::new(config))
 }
 
+struct Publications {
+    engine: watch::Sender<EngineState>,
+    l1: watch::Sender<L1State>,
+    derivation: watch::Sender<DerivationStatus>,
+}
+
 fn rollup(
     provider: RootProvider<Optimism>,
     config: Arc<RollupConfig>,
     version: &'static str,
-) -> (RpcModule<RollupRpc<RootProvider<Optimism>>>, watch::Sender<EngineState>) {
-    let (state, receiver) = watch::channel(EngineState::default());
-    let (l1_tx, mut l1_rx) = mpsc::channel(4);
-    tokio::spawn(async move {
-        while let Some(L1WatcherQueries::L1State(reply)) = l1_rx.recv().await {
-            let _ = reply.send(L1State {
-                current_l1: None,
-                current_l1_finalized: None,
-                head_l1: None,
-                safe_l1: None,
-                finalized_l1: None,
-            });
-        }
-    });
-    (RollupRpc::new(provider, config, receiver, version, l1_tx).into_rpc(), state)
+) -> (RpcModule<RollupRpc<RootProvider<Optimism>>>, Publications) {
+    let (engine, receiver) = watch::channel(EngineState::default());
+    let (l1, l1_rx) = watch::channel(L1State::default());
+    let (derivation, derivation_rx) = watch::channel(DerivationStatus::default());
+    (
+        RollupRpc::new(provider, config, receiver, version, l1_rx, derivation_rx).into_rpc(),
+        Publications { engine, l1, derivation },
+    )
 }
 
 #[tokio::test]
@@ -186,7 +185,7 @@ async fn stalled_proof_does_not_block_other_reads() {
         block_info: kona_protocol::BlockInfo { number: 7, ..Default::default() },
         ..Default::default()
     };
-    state.send_modify(|state| {
+    state.engine.send_modify(|state| {
         state.sync_state = state
             .sync_state
             .apply_update(EngineSyncStateUpdate { unsafe_head: Some(head), ..Default::default() })
@@ -255,7 +254,7 @@ async fn closed_engine_publication_does_not_serve_stale_status() {
     let (_, config) = block_and_config(false);
     let (rpc, state) =
         rollup(RootProvider::new(RpcClient::mocked(Asserter::new())), config, "1.2.3");
-    drop(state);
+    drop(state.engine);
     assert!(rpc.call::<_, SyncStatus>("optimism_syncStatus", rpc_params![]).await.is_err());
     assert!(
         rpc.call::<_, OutputResponse>(
@@ -355,4 +354,65 @@ async fn idle_disconnect_releases_subscription_receivers() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn sync_status_uses_independent_observations_and_actual_derivation_progress() {
+    use kona_protocol::BlockInfo;
+    let (_, config) = block_and_config(false);
+    let (rpc, publications) =
+        rollup(RootProvider::new(RpcClient::mocked(Asserter::new())), config, "1.2.3");
+    let unknown = rpc.call::<_, SyncStatus>("optimism_syncStatus", rpc_params![]).await.unwrap();
+    assert_eq!(unknown.current_l1, BlockInfo::default());
+    assert_eq!(unknown.head_l1, BlockInfo::default());
+    let block =
+        |number| BlockInfo { number, hash: B256::repeat_byte(number as u8), ..Default::default() };
+    publications.l1.send_replace(L1State {
+        head: Some(block(20)),
+        safe: Some(block(18)),
+        finalized: Some(block(15)),
+    });
+    let safe = L2BlockInfo { block_info: block(7), ..Default::default() };
+    publications.engine.send_modify(|state| {
+        state.sync_state = state
+            .sync_state
+            .apply_update(EngineSyncStateUpdate { safe_head: Some(safe), ..Default::default() })
+    });
+    for number in [3, 4] {
+        publications.derivation.send_replace(DerivationStatus { current_l1: Some(block(number)) });
+        let status = rpc.call::<_, SyncStatus>("optimism_syncStatus", rpc_params![]).await.unwrap();
+        assert_eq!(status.current_l1, block(number));
+        assert_eq!(status.head_l1, block(20));
+        assert_eq!(status.safe_l1, block(18));
+        assert_eq!(status.finalized_l1, block(15));
+        assert_eq!(status.current_l1_finalized, status.finalized_l1);
+        assert_eq!(status.safe_l2, safe);
+    }
+    publications.derivation.send_replace(DerivationStatus::default());
+    let status = rpc.call::<_, SyncStatus>("optimism_syncStatus", rpc_params![]).await.unwrap();
+    assert_eq!(status.current_l1, BlockInfo::default());
+    assert_eq!(status.head_l1, block(20));
+}
+
+#[tokio::test]
+async fn closed_status_owner_does_not_serve_its_last_unread_publication() {
+    for close_l1 in [true, false] {
+        let (_, config) = block_and_config(false);
+        let (rpc, publications) =
+            rollup(RootProvider::new(RpcClient::mocked(Asserter::new())), config, "1.2.3");
+        if close_l1 {
+            publications
+                .l1
+                .send_replace(L1State { head: Some(Default::default()), ..Default::default() });
+            drop(publications.l1);
+        } else {
+            publications
+                .derivation
+                .send_replace(DerivationStatus { current_l1: Some(Default::default()) });
+            drop(publications.derivation);
+        }
+        let error =
+            rpc.call::<_, SyncStatus>("optimism_syncStatus", rpc_params![]).await.unwrap_err();
+        assert!(matches!(error, MethodsError::JsonRpc(error) if error.code() == -32603));
+    }
 }
