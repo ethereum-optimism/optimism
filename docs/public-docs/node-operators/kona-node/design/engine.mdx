@@ -66,28 +66,16 @@ The engine uses a priority-based task queue (a binary heap ordered by the `Engin
 4. **Consolidate** - Advances safe chain via derivation
 5. **Finalize** - Finalizes L2 blocks
 
-Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
+Forkchoice updates are not a standalone queue entry: tasks and reset call the shared `synchronize` helper whenever forkchoice needs to move. Only the queue executes tasks; tasks reuse ordinary operations rather than constructing and executing other tasks.
 
 ### Task Types
 
-#### SynchronizeTask
+#### Shared forkchoice synchronization
 
-Updates the execution layer's forkchoice state. It is invoked by the other tasks rather than queued directly:
-
-```rust
-pub struct SynchronizeTask<EngineClient_: EngineClient> {
-    /// The engine client.
-    pub client: Arc<EngineClient_>,
-    /// The rollup config.
-    pub rollup: Arc<RollupConfig>,
-    /// The sync state update to apply to the engine state.
-    pub state_update: EngineSyncStateUpdate,
-}
-```
-
-Handles:
-- Forkchoice synchronization via `engine_forkchoiceUpdated`
-- EL sync status management
+The internal `synchronize` helper sends `engine_forkchoiceUpdated` without payload attributes.
+Insertion, consolidation, finalization and reset share it. It updates the engine's heads only after
+an accepted response, and marks EL sync complete only for `VALID`. Builds send their own forkchoice
+update with payload attributes through the shared `start_build` helper.
 
 #### BuildTask
 
@@ -111,7 +99,7 @@ Handles payload building initiation with `engine_forkchoiceUpdated`.
 
 #### SealTask
 
-Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
+Seals a sequenced block started by a `BuildTask`, rejecting a build whose parent is no longer the unsafe head. It retrieves the payload with the shared, version-selecting `get_payload` helper, then imports and canonicalizes it:
 
 ```rust
 pub struct SealTask<EngineClient_: EngineClient> {
@@ -123,8 +111,6 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub payload_id: PayloadId,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
     /// An optional sender for the built OpExecutionPayloadEnvelope or the
     /// SealTaskError that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
@@ -163,7 +149,15 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
 }
 ```
 
-If consolidation fails, the task reverts to payload attribute processing via the `BuildTask`.
+If attributes do not match the unsafe chain, consolidation calls the shared build, payload-retrieval
+and insertion operations directly. This derived build/import sequence permits a parent other than
+the unsafe head, since replacing the unsafe chain is its purpose. Derived work never constructs a
+`SealTask` or needs a coupling flag.
+
+The existing Holocene rejection policy remains unchanged: a successful deposits-only replacement
+updates state and the imported-block sink, then returns a flush error. The replacement gets no further
+fallback. This extraction does not change activation-time selection, retry classification, or which
+payload sources use that policy.
 
 #### FinalizeTask
 

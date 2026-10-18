@@ -7311,6 +7311,7 @@ dependencies = [
  "alloy-consensus 2.4.2",
  "alloy-eips 2.5.0",
  "alloy-hardforks",
+ "alloy-json-rpc 2.5.0",
  "alloy-network 2.4.2",
  "alloy-primitives",
  "alloy-provider",
