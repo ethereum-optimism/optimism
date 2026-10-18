@@ -710,7 +710,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] Pin baseline/source revisions and inspect existing PR comparisons through authenticated CLI.
 - [x] Investigate engine/reset, RPC/conductor, configuration/L1/network and deletion candidates.
 - [x] Reconcile the investigations into one stack and review intermediate-state hazards.
-- [ ] Reconcile existing standalone fixes with the refreshed baseline, without duplicating them.
+- [x] Reconcile existing standalone fixes with the refreshed baseline, with one fix home and explicit partial/deferred scope.
 - [x] PR 01: synchronous unsafe-payload validation and its acceptance tests.
 - [x] PR 02: shared resolved configuration and bounded clients.
 - [x] PR 03: ordinary engine operations and necessary dead-code deletion.
@@ -726,7 +726,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] Validate and publish the selected narrow PR 12.
 - [x] Defer unmeasured PR 13 origin/receipt prefetch; select only the independent confirmation-policy correction.
 - [x] Validate and publish the narrow confirmation-policy leaf.
-- [ ] Final selected-tip validation, issue closure audit and removal of obsolete PR dependencies.
+- [x] Final selected-tip validation, issue-closing reference audit and verification that curated bases have no obsolete experiment dependencies.
 
 ### Decisions to retain during execution
 
@@ -1035,10 +1035,41 @@ The RPC-only retry dependency is deleted. Tokio's paused-time support is enabled
 
 ### PR 13 selected confirmation-policy leaf: implementation and validation
 
-Branch `codex/kona-refactor-13-confirmation-policy` starts from PR 12 implementation `9ecf8f497d252ba0c7fe771044234d4665ee7228` ([draft 23496](https://github.com/ethereum-optimism/optimism/pull/23496)). Positive L1 confirmation depth now withholds new numbered-origin reads while the observed head is unknown. Eligibility uses checked subtraction, so extreme heights/depths cannot overflow into false permission. Explicit zero-depth/genesis behavior and direct current-origin by-hash reads remain unchanged. There is no public Rust API change.
+[Draft PR 23497](https://github.com/ethereum-optimism/optimism/pull/23497), implementation commit `ca1bed0096586e1f281c89b3d6d40f3598a36a4c`, branch `codex/kona-refactor-13-confirmation-policy`, starts from PR 12 implementation `9ecf8f497d252ba0c7fe771044234d4665ee7228` ([draft 23496](https://github.com/ethereum-optimism/optimism/pull/23496)). Positive L1 confirmation depth now withholds new numbered-origin reads while the observed head is unknown. Eligibility uses checked subtraction, so extreme heights/depths cannot overflow into false permission. Explicit zero-depth/genesis behavior and direct current-origin by-hash reads remain unchanged. There is no public Rust API change.
 
 Ten real `RootProvider`/mock-transport boundary cases verify eligibility and actual RPC counts for unknown/genesis heads, zero depth/genesis, exact/too-recent/ahead heights and integer extremes. A watch-transition regression proves current-origin hash reads remain available and a withheld numeric read resumes only after enough confirmations, consuming no RPC response early. Operator documentation states the initial-head requirement.
 
 **Local validation.** All 390 offline tests in the five affected packages passed with all features and zero skips. Full workspace Rust lint and a fresh default binary build passed. The complete shared conductor package passed all thirteen cases with zero skips on the selected Kona/op-reth tip (288.219 seconds), preserving publication, handoff/failover, reset/startup and recovery behavior. Commands/results are in `work/pr13-validation-results.json` in the task workspace.
 
 **Review and scope.** Independent Rust review has no unresolved findings. This fixes the confirmation-policy bypass identified during the optional-tail audit. No prefetcher, shared cache or preparation actor is introduced, and no performance gain is claimed. The separate performance proposal remains deferred behind measurements of actual header/receipt preparation; issue 23281 stays open. The selected stack's final validation and issue/dependency disposition follow below.
+
+
+### Selected-tip validation and final issue/dependency audit
+
+The selected source is complete through the narrow confirmation-policy leaf. The final candidate passed all 390 affected-package offline tests with all features and zero skips, full workspace Rust lint and a fresh default binary build. The complete shared conductor package passed **all thirteen cases, zero skips**, on the selected Kona/op-reth tip (288.219 seconds): startup, membership, proxy gating, payload rejection/admission, exact-head stop/restart, rejected-commit publication, handoff, failover, convergence and local disaster recovery. The complete selected suite runs without Kona skips and preserves the shared assertions.
+
+The unchanged shared Go/op-node route already passed the same thirteen cases at PR 09 (298.283 seconds); it was not rerun for subsequent Rust-only behavior. PR 10 separately passed the isolated no-gossip/no-primer forced recovery, four reorg subcases, two binary restarts and reset in both roles. PR 11 passed actual forced safe/finalized agreement with engine-owned records plus reset in both roles. PR 12 passed the actual peer/connectivity smoke checks. Go lint/module tidiness last ran at PR 10 with zero issues and an empty tidy diff; no Go source changed afterward. No hosted-CI result is inferred from these local checks, and nothing is merged.
+
+The authenticated GitHub audit verifies all thirteen curated PRs are open drafts with consecutive declared bases and matching local/remote branch heads. Public `develop` remains `9c14635375e22608458da1d3ec4830af491009dd`. No curated PR depends on an obsolete standalone experiment branch. Each bug has one implementation home; later packages consume those interfaces and preserve their regressions.
+
+**Issue ownership.** PR 01 owns 22250, PR 05 owns 22681, PR 06 owns protocol-team/418, PR 07 owns protocol-team/419, PR 08 owns 23264 and 23323, and PR 09 owns 23266. The engine-recovery/finality follow-ups preserve those behaviors. The selected runtime gate for 21903 is complete; umbrella tracking and its original merged-harness history remain explicit. Issue 21906 remains open for its additional archived-tracker/administrative requirements. The original source PRs (23357, 23227, 22307, 23268, 23258, 23229 and 23223) remain untouched for the user's review; their selected intent is superseded by the curated packages, and rejected/deferred changes are not silently inherited.
+
+**Deferred scope.** Issues 23034 (discovery disablement/peer settings), 22667 and 22266 (remaining max-safe-lag policy), and 23281 (measured origin/attributes preparation) remain open. The small P2P effect/alias and confirmation-policy corrections do not claim to close them. No broad network/discovery ownership rewrite, discovery-off implementation, general framework or unmeasured preparation actor was selected. All embedding work is ignored.
+
+**Review order.** The table records each implementation commit. PR 13 also contains a final plan-only completion commit; it changes no validated source or runtime behavior.
+
+| Package | Draft PR | Branch | Implementation |
+| --- | --- | --- | --- |
+| 01 | [23484](https://github.com/ethereum-optimism/optimism/pull/23484) | `codex/kona-refactor-01-unsafe-validation` | [30fcd89998](https://github.com/ethereum-optimism/optimism/commit/30fcd89998c72fc6ca3a828bbf88f38fab774872) |
+| 02 | [23486](https://github.com/ethereum-optimism/optimism/pull/23486) | `codex/kona-refactor-02-resolved-config` | [1e1516becc](https://github.com/ethereum-optimism/optimism/commit/1e1516becc9ba0f2e26df76e0f31b43f125fb8a1) |
+| 03 | [23487](https://github.com/ethereum-optimism/optimism/pull/23487) | `codex/kona-refactor-03-engine-operations` | [8d8edf7364](https://github.com/ethereum-optimism/optimism/commit/8d8edf7364885fcdf75a8d8ec9501b98793d4e5f) |
+| 04 | [23488](https://github.com/ethereum-optimism/optimism/pull/23488) | `codex/kona-refactor-04-canonical-reset` | [6b4323811f](https://github.com/ethereum-optimism/optimism/commit/6b4323811f0789cd8df80afd405c957a46c91cf5) |
+| 05 | [23489](https://github.com/ethereum-optimism/optimism/pull/23489) | `codex/kona-refactor-05-engine-owner` | [db30a19fd6](https://github.com/ethereum-optimism/optimism/commit/db30a19fd66e1a6bb831e6d6284886b1bfa8eb48) |
+| 06 | [23490](https://github.com/ethereum-optimism/optimism/pull/23490) | `codex/kona-refactor-06-rpc-reads` | [3c4d75b44e](https://github.com/ethereum-optimism/optimism/commit/3c4d75b44eea7974125067b4235fd589ddda2e5f) |
+| 07 | [23491](https://github.com/ethereum-optimism/optimism/pull/23491) | `codex/kona-refactor-07-admin-routing` | [62c2d95cf7](https://github.com/ethereum-optimism/optimism/commit/62c2d95cf7c615aed6005c859025b6c1c8a1f273) |
+| 08 | [23492](https://github.com/ethereum-optimism/optimism/pull/23492) | `codex/kona-refactor-08-conductor-publication` | [b84e6c9bad](https://github.com/ethereum-optimism/optimism/commit/b84e6c9badba6c47587238218f41f5a91311f720) |
+| 09 | [23493](https://github.com/ethereum-optimism/optimism/pull/23493) | `codex/kona-refactor-09-local-override` | [3924e3fa7c](https://github.com/ethereum-optimism/optimism/commit/3924e3fa7c44fe5c1e8975bf8805c9ecd273491c) |
+| 10 | [23494](https://github.com/ethereum-optimism/optimism/pull/23494) | `codex/kona-refactor-10-engine-bootstrap` | [283c1d710d](https://github.com/ethereum-optimism/optimism/commit/283c1d710d96d0b56a7dd440cfd4f5495b652ffc) |
+| 11 | [23495](https://github.com/ethereum-optimism/optimism/pull/23495) | `codex/kona-refactor-11-engine-finality` | [d720ed2eec](https://github.com/ethereum-optimism/optimism/commit/d720ed2eecd095d269e3697bae6cfed853eba8f3) |
+| 12 | [23496](https://github.com/ethereum-optimism/optimism/pull/23496) | `codex/kona-refactor-12-p2p-effects` | [9ecf8f497d](https://github.com/ethereum-optimism/optimism/commit/9ecf8f497d252ba0c7fe771044234d4665ee7228) |
+| 13 | [23497](https://github.com/ethereum-optimism/optimism/pull/23497) | `codex/kona-refactor-13-confirmation-policy` | [ca1bed0096](https://github.com/ethereum-optimism/optimism/commit/ca1bed0096586e1f281c89b3d6d40f3598a36a4c) |
