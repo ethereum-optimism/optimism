@@ -712,7 +712,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 01: synchronous unsafe-payload validation and its acceptance tests.
 - [x] PR 02: shared resolved configuration and bounded clients.
 - [x] PR 03: ordinary engine operations and necessary dead-code deletion.
-- [ ] PR 04: corrected reusable reset walk.
+- [x] PR 04: canonical reset ancestry and coherent reads; strict safe selection stays with PR 10 bootstrap.
 - [ ] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
 - [ ] PR 06: direct read dependencies, version and retained API coverage.
 - [ ] PR 07: direct admin routing and concrete sequencer dependencies.
@@ -870,3 +870,37 @@ just test-e2e-sysgo-run node node/restart simple-kona \
 ```
 
 **Review checkpoint:** publish PR 03 as a draft and stop all implementation for review. Report GitHub CI separately; do not begin PR 04 or later packages until the user resumes.
+
+## PR 04 execution record
+
+**Implementation:** `a9659f14c3db1cc41590fad7b4c2ae021494ffe8` on `codex/kona-refactor-04-canonical-reset`, based on PR 03's `8d8edf7364885fcdf75a8d8ec9501b98793d4e5f`. Public `develop` remains `9c14635375e22608458da1d3ec4830af491009dd`. Parent PR 03 has no review feedback, 79 successful checks and one skipped Mintlify deployment at the final pre-publication check.
+
+**Result.** A retained old-fork L1 block served by hash no longer validates an unsafe origin. The walk anchors canonical ancestry by number, caches a descending parent cursor and rechecks its numeric anchor before returning. Origins beyond captured L1 visibility remain plausible. Traversed ancestry, sequence, configured genesis, finality and actual unsafe-rewind distance are checked. Missing reads and a changed L1 view retry through the existing reset owner; deterministic invalid structure remains fatal. There is no internal retry loop or new actor. Public function/client signatures are unchanged; exhaustive downstream matches must handle the added `SyncStartError` variants, disclosed by the breaking-change title and commit body.
+
+**Safe-selection cut.** The user approved retaining the existing current-block/recent-window resume policy while correcting its canonicality basis. Safe can still exceed its prior label and need not be an epoch boundary. Applying the stricter selector before establishing an initialization checkpoint would make a synced/imported EL with genesis safety labels walk back to genesis. PR 10 owns that checkpoint contract and the normal-reset prior-safe/epoch-parent selector together; PR 05 consumes this walk unchanged. The stricter proposal is not included in this implementation.
+
+**Regression coverage.** Sixteen op-node input vectors cover applicable canonicality/ancestry/error behavior with explicit Kona compatibility safe outputs. Additional cases cover retained orphan hashes, plausible ahead origins, historical holes, moving/missing anchors, malformed responses/parents, sequence transitions, genesis/finality, unsafe-rewind limits, AltDA windows and read caching. A real RPC adapter test verifies canonical numeric reads, full L2 blocks, caller-supplied genesis config and label-error compatibility. Six negative label cases preserve errors outside Safe/Finalized. A sparse chain near L2 height 10 million with genesis safe/finalized labels resumes after exactly three parent reads plus three label reads; older history is inaccessible, so a hidden genesis walk fails the test.
+
+**Live fixture correction.** Fixed depth alone did not establish the intended L2 safety relationship. The shallow fixture now waits for nonzero EL safe, drains batching while L1 runs, then produces its unsafe suffix. It asserts that all earlier inclusion history and L1 safety anchors survive, safe origins precede divergence and unsafe origins are replaced. The deeper fixture replaces L2 safe history while preserving L1 safe/finalized anchors. Existing L2 safe/unsafe canonicality, origin and resumed-progress assertions remain intact. No shared FakePoS redesign or assertion relaxation is included.
+
+**Validation.** Root ran all checks serially using pinned tools through the trusted original checkout's `mise exec`, then executed in the isolated worktree. Rust/Go concurrency was bounded to six. Commands, per-step overrides, exit codes and logs are recorded in `work/pr04-validation-results.json` in the task workspace; its runner scripts capture the shared environment.
+
+| Check | Result |
+|---|---|
+| Go `TestFindSyncStart` reference table | 16 cases passed |
+| Rust `just fmt-fix` and Go fixture formatting | Passed |
+| Five node packages, all features, sync/reset selection | 43 passed |
+| `kona-engine`, `kona-node-service`, `kona-rpc`, `kona-node`, `kona-sources`, all features, offline selection | 367 passed, zero skipped |
+| Full Rust workspace `just lint` | Passed, including Clippy, rustdoc and format checks |
+| Root `just lint-go` | Passed, zero issues; module tidy diff empty |
+| Rust `just check-no-std` | All 19 package builds passed for `riscv32imac-unknown-none-elf` |
+| Fresh default `cargo build -p kona-node --bin kona-node` | Passed |
+| `TestL2ReorgAfterL1Reorg`, `simple-kona` | Shallow and deep subcases passed |
+| `TestL2ReorgAfterL1Reorg`, `simple-kona-sequencer` | Shallow and deep subcases passed |
+| `TestRestartSync` and `TestSequencerRestart` | Both passed with the actual Kona sequencer/validator pair |
+
+The reorg presets include reference op-node components; the Kona-sequencer preset adds the op-node sequencer required by the test-sequencer harness. They are mixed-client integration tests. Online unit tests are excluded. The unconditionally skipped `TestL2Reorg` was not selected or counted. The genesis crate changes are two documentation corrections from seconds to L1 blocks; protocol runtime code is unchanged.
+
+**Review.** Independent Rust/protocol, client/actor/API/deletion and Go fixture/flake reviews have no remaining findings within the revised scope. The startup regression was addressed by the approved scope cut and bounded-startup regression; invalid live fixture assumptions were corrected and both topologies rerun successfully. No finding was dismissed as a flaky pass.
+
+**Review checkpoint:** publish PR 04 as a draft on PR 03 and stop all implementation for user review. Hosted CI is separate from the completed local validation; do not claim it is green before its results exist. Do not begin PR 05 or later packages until the user resumes.
