@@ -38,9 +38,9 @@ The [`RollupNode`][node] builds and starts the following actors.
   layer client (or "execution engine"). The engine actor
   serializes execution commands and publishes accepted state.
   RPC handlers read that state and the L2 provider directly. The [engine][engine] docs expand on this.
-- **L1 Watcher Actor**: Watches the L1 chain for new
-  head and finalized blocks and relays them to the
-  derivation actor. It also keeps the unsafe block
+- **L1 Watcher Actor**: Publishes independently observed
+  head, safe and finalized blocks for engine and RPC readers,
+  and sends head wakeups to derivation. It also keeps the unsafe block
   signer current from the `SystemConfig` contract, for
   gossip validation and the signer actor.
 - **Network Actor**: Manages the P2P Network for the rollup

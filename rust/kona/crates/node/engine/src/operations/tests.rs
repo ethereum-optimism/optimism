@@ -494,6 +494,16 @@ async fn finalization_checks_canonical_hash_and_local_source_before_fcu() {
         Err(FinalizeError::L1Mismatch(_))
     ));
     assert_eq!(state, before);
+    client.storage().write().await.fork_choice_updated_v3_response =
+        Some(ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Syncing)));
+    assert!(matches!(
+        finalize(&client, &cfg, &mut state, cfg.genesis.l2, FinalizationSource::Local(source))
+            .await,
+        Err(FinalizeError::Syncing)
+    ));
+    assert_eq!(state, before, "SYNCING does not publish proposed finalized or readiness");
+    client.storage().write().await.fork_choice_updated_v3_response =
+        Some(ForkchoiceUpdated::new(valid()));
     finalize(&client, &cfg, &mut state, cfg.genesis.l2, FinalizationSource::Local(source))
         .await
         .unwrap();

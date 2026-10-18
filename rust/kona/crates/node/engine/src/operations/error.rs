@@ -102,6 +102,9 @@ pub enum ConsolidateError {
 /// Finalizing a hash-pinned block failed.
 #[derive(Debug, thiserror::Error)]
 pub enum FinalizeError {
+    /// The EL did not validate the finalization forkchoice.
+    #[error("Finalization forkchoice is still syncing")]
+    Syncing,
     /// Finalization cannot advance past the applied safe head.
     #[error("Block is not safe")]
     NotSafe,

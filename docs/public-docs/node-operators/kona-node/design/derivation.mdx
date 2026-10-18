@@ -15,15 +15,17 @@ reset. Only a successful reset installs that epoch and parent as the pipeline co
 critical failures stop the node. Repeated local resets without accepted L2 progress back off
 from one second to twelve seconds. A newer engine epoch supersedes that wait. Prepared attributes left in the pipeline's output queue are discarded after reset.
 
-Every newer reset epoch invalidates pending attributes, pipeline context and finality
-records, even if the safe head has not changed. An interrupted pipeline step is followed
+Every newer engine reset epoch invalidates pending attributes, pipeline context and the
+engine owner's finality records, even if the safe head has not changed. A pipeline-only
+reset preserves accepted finality records in the engine. An interrupted pipeline step is followed
 by a complete successful reset before the pipeline is used again.
 
 ## Applying attributes
 
 The actor sends attributes with the context under which they were produced and waits for
 an engine acknowledgement. A temporary failure retains those exact attributes and context.
-An obsolete acknowledgement cannot install a parent, flush a channel or record finality.
+An obsolete acknowledgement cannot install a parent or flush a channel. The engine records
+accepted completed-safe work before replying, even if derivation abandons that reply.
 
 An `Applied` result advances the context to the actual accepted pending-safe parent.
 Before Holocene a span prefix remains pending until its concluding element succeeds. `Replaced`
@@ -33,20 +35,28 @@ or requesting a flush. A rewound parent makes the batch queue discard the invali
 
 ## Finality
 
-After an accepted current-epoch result, the actor records the actual L2 block hash and the
-L1 block containing its derivation inputs. L1 finality notifications select eligible
-records, which remain pending until the engine acknowledges finalization. Temporary
-failure retries without requiring another L1 event. The engine revalidates canonical
-hashes before sending finalized forkchoice.
+The engine owner records the actual completed-safe L2 block hash and its L1 inclusion
+source when consolidation applies or replaces a block. Pending span prefixes, dropped
+batches and bootstrap trust create no record. New records and the shared finalized-L1
+observation both trigger finalization, including while derivation is idle.
+
+The owner validates the observed finalized L1 signal, inclusion source and canonical L2
+hash before sending finalized forkchoice. Temporary read failures retain records and retry
+independently after 100 milliseconds. Ambiguous forkchoice failures or `SYNCING` require
+engine recovery; only `VALID` publishes the proposed finalized head.
 
 ## Inputs and delegation
 
-The L1 watcher still sends head and finalized-block notifications to derivation. Engine
+The L1 watcher sends head wakeups to derivation and publishes independently observed L1
+head, safe and finalized blocks for engine and RPC readers. Engine
 readiness, reset and safe-state changes arrive through the shared snapshot; there is no
 engine-to-derivation callback queue.
 
 Delegated derivation polls an upstream node, checks its L1 references against canonical L1,
-and passes explicit safe and finalized hashes to the engine under the captured epoch.
+and passes its actual safe and trusted finalized blocks together through `follow_safe`
+under the captured epoch. The reply acknowledges safe acceptance; finalized completion
+is observed through the engine snapshot. A trusted claim retained during EL sync is
+applied only after the engine becomes ready, without inventing local inclusion records.
 
 See the [derivation specification](https://specs.optimism.io/protocol/derivation.html) for
 protocol rules and the [engine design](./engine) for execution ownership and recovery.

@@ -53,24 +53,16 @@ where
         let Self { rollup_config, derivation_client, block_signer_sender } = self;
         let mut observed = state.clone();
         let forward = async {
-            let mut delivered = L1State::default();
+            let mut delivered = None;
             loop {
                 let latest = *observed.borrow_and_update();
                 if let Some(block) = latest.head &&
-                    latest.head != delivered.head
+                    latest.head != delivered
                 {
                     derivation_client.send_new_l1_head(block).await.map_err(|source| {
                         L1WatcherActorError::DerivationClientError { chain_id, source }
                     })?;
-                    delivered.head = Some(block);
-                }
-                if let Some(block) = latest.finalized &&
-                    latest.finalized != delivered.finalized
-                {
-                    derivation_client.send_finalized_l1_block(block).await.map_err(|source| {
-                        L1WatcherActorError::DerivationClientError { chain_id, source }
-                    })?;
-                    delivered.finalized = Some(block);
+                    delivered = Some(block);
                 }
                 observed.changed().await.map_err(|_| L1WatcherActorError::StreamEnded)?;
             }

@@ -42,7 +42,7 @@ fn ready<C: EngineClient + 'static>(
         .build();
     actor.state.phase = EnginePhase::Ready;
     actor.lifecycle = Lifecycle::Ready;
-    actor.checked_origins = actor.origins();
+    actor.origin_check_inputs = actor.origins();
     actor.publish();
     (actor, handle, l1)
 }
@@ -148,7 +148,8 @@ async fn registered_reset_recovers_and_publishes_before_acknowledgement(
     // Keep a real pipeline actor unpolled with a full L1 notification queue: RPC completion
     // depends on engine application and publication, never on derivation draining callbacks.
     let (l1, requests) = mpsc::channel(1);
-    l1.try_send(crate::DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default())).unwrap();
+    l1.try_send(crate::DerivationActorRequest::ProcessL1HeadUpdateRequest(BlockInfo::default()))
+        .unwrap();
     let _derivation = crate::DerivationActor::new(
         handle.clone(),
         requests,
@@ -292,7 +293,7 @@ async fn accepted_safe_head_supersedes_a_retained_unsafe_retry() {
     handle.try_insert_unsafe(first).unwrap();
     actor.step().await.unwrap();
     let (tx, reply) = oneshot::channel();
-    enqueue(&handle, Message::FollowSafe(EngineContext { epoch: 0, parent }, safe, tx));
+    enqueue(&handle, Message::FollowSafe(EngineContext { epoch: 0, parent }, safe, parent, tx));
     actor.step().await.unwrap();
     reply.await.unwrap().unwrap();
     time::advance(Duration::from_millis(100)).await;
@@ -459,6 +460,12 @@ async fn idle_initialization_requires_fresh_valid_and_consumes_bootstrap_only_on
     assert_eq!(handle.state().epoch, epoch);
     reply.await.unwrap().unwrap();
     assert_eq!(actor.lifecycle, Lifecycle::Ready);
+    assert_eq!(
+        actor.finalizer.candidate(u64::MAX),
+        None,
+        "bootstrap trust creates no local provenance"
+    );
+    assert_eq!(actor.delegated_finalized, None);
 
     let second = request_reset(&handle);
     actor.step().await.unwrap();
@@ -562,6 +569,508 @@ fn block_with_origin(parent: L2BlockInfo, origin: BlockNumHash) -> TestBlock {
     TestBlock { block, reference, payload }
 }
 
+#[rstest::rstest]
+#[case::applied(false, false, true)]
+#[case::replacement(true, true, true)]
+#[case::dropped(true, false, true)]
+#[case::span_prefix(false, false, false)]
+#[tokio::test]
+async fn only_actual_completed_safe_acceptance_records_finality_even_without_a_reply(
+    #[case] rejected: bool,
+    #[case] holocene: bool,
+    #[case] concluding: bool,
+) {
+    let fixture = ResetFixture::new();
+    let mut config = (*fixture.config).clone();
+    // Replacement rules use the L1 inclusion time, while this payload is still pre-Cancun.
+    config.hardforks.holocene_time = holocene.then_some(10);
+    let config = Arc::new(config);
+    let TestBlock { reference: accepted, payload, .. } =
+        block_with_origin(fixture.genesis, config.genesis.l1);
+    let OpExecutionPayloadEnvelope::V1(payload) = payload else { unreachable!() };
+    let mut calls = Vec::new();
+    if rejected {
+        calls.push(ExpectedCall::success(
+            "engine_forkchoiceUpdatedV2",
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                validation_error: "bad batch".into(),
+            })),
+        ));
+    }
+    if !rejected || holocene {
+        calls.extend([
+            ExpectedCall::success("engine_forkchoiceUpdatedV2", build_reply()),
+            ExpectedCall::success(
+                "engine_getPayloadV2",
+                serde_json::json!({"executionPayload": payload, "blockValue": "0x0"}),
+            ),
+            ExpectedCall::success("engine_newPayloadV1", valid()),
+            ExpectedCall::success("engine_forkchoiceUpdatedV3", fcu()),
+        ]);
+    }
+    let script = Script::new(calls);
+    let (mut actor, handle, _l1) =
+        ready(Arc::new(script.client(config.clone())), config, fixture.genesis);
+    let source =
+        BlockInfo { number: 9, hash: B256::repeat_byte(9), timestamp: 100, ..Default::default() };
+    let mut attrs = TestAttributesBuilder::new()
+        .with_parent(fixture.genesis)
+        .with_timestamp(accepted.block_info.timestamp)
+        .with_transactions(vec![alloy_primitives::Bytes::from_static(&[2])])
+        .build();
+    attrs.derived_from = Some(source);
+    attrs.is_last_in_span = concluding;
+    let (tx, reply) = oneshot::channel();
+    drop(reply);
+    enqueue(
+        &handle,
+        Message::Consolidate(EngineContext { epoch: 0, parent: fixture.genesis }, attrs, tx),
+    );
+    actor.step().await.unwrap();
+    let completes = holocene || (!rejected && concluding);
+    if completes {
+        let record = actor.finalizer.candidate(source.number).unwrap();
+        assert_eq!(
+            record.block, accepted,
+            "record the accepted replacement hash, never the rejected input"
+        );
+        assert_eq!(record.source, source);
+        assert_eq!(handle.state().sync_state.safe_head(), accepted);
+    } else {
+        assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+        assert_eq!(handle.state().sync_state.safe_head(), fixture.genesis);
+    }
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+    script.assert_finished();
+}
+
+#[tokio::test]
+async fn idle_finality_and_new_records_progress_under_the_same_l1_finalized_signal() {
+    let fixture = ResetFixture::new();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    let second = block_with_origin(first.reference, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    fixture.client.set_l2_block(second.reference.block_info.number.into(), second.block).await;
+    let (mut actor, handle, l1) =
+        ready(fixture.client.clone(), fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.publish();
+    let source = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    actor.finalizer.record(first.reference, source);
+    assert!(!actor.has_finality_candidate());
+    l1.send_modify(|state| state.finalized = Some(source));
+    actor.step().await.unwrap(); // Observe the finalized signal and validate applied origins.
+    actor.step().await.unwrap(); // No derivation command or unsafe payload is needed.
+    assert_eq!(handle.state().sync_state.finalized_head(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        unsafe_head: Some(second.reference),
+        safe_head: Some(second.reference),
+        local_safe_head: Some(second.reference),
+        ..Default::default()
+    });
+    actor.state.pending_safe_head = second.reference;
+    actor.finalizer.record(second.reference, source);
+    actor.publish();
+    actor.step().await.unwrap(); // The unchanged finalized signal also covers the new record.
+    assert_eq!(handle.state().sync_state.finalized_head(), second.reference);
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+}
+
+#[rstest::rstest]
+#[case::l2_provider(false)]
+#[case::l1_provider(true)]
+#[tokio::test(start_paused = true)]
+async fn finality_retry_is_independent_and_selects_new_highest_work_after_backoff(
+    #[case] l1_failure: bool,
+) {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    let second = block_with_origin(first.reference, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    fixture.client.set_l2_block(second.reference.block_info.number.into(), second.block).await;
+    let (mut actor, handle, l1) =
+        ready(fixture.client.clone(), fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.publish();
+    let source = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    actor.finalizer.record(first.reference, source);
+    l1.send_modify(|state| state.finalized = Some(source));
+    actor.step().await.unwrap();
+    {
+        let mut data = storage.write().await;
+        if l1_failure {
+            data.l1_read_error = Some("L1 unavailable".into());
+        } else {
+            data.l2_read_error = Some("L2 unavailable".into());
+        }
+    }
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().sync_state.finalized_head(), fixture.genesis);
+    assert_eq!(handle.state().phase, EnginePhase::Ready);
+    assert_eq!(handle.state().epoch, 0);
+    assert!(actor.finalizer.candidate(source.number).is_some());
+    assert!(time::timeout(Duration::from_millis(50), actor.step()).await.is_err());
+    let (tx, reply) = oneshot::channel();
+    storage.write().await.fork_choice_updated_v2_response = Some(build_reply());
+    enqueue(
+        &handle,
+        Message::Start(
+            EngineContext { epoch: 0, parent: first.reference },
+            TestAttributesBuilder::new().with_parent(first.reference).build(),
+            tx,
+        ),
+    );
+    actor.step().await.unwrap();
+    reply.await.unwrap().unwrap(); // A real command progresses during finality's timer.
+    {
+        let mut data = storage.write().await;
+        data.l1_read_error = None;
+        data.l2_read_error = None;
+        data.fork_choice_updated_v3_response = Some(fcu());
+        data.new_payload_v1_response = Some(valid());
+    }
+    handle.try_insert_unsafe(second.payload).unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().sync_state.unsafe_head(), second.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        safe_head: Some(second.reference),
+        local_safe_head: Some(second.reference),
+        ..Default::default()
+    });
+    actor.state.pending_safe_head = second.reference;
+    actor.finalizer.record(second.reference, source);
+    time::advance(Duration::from_millis(50)).await;
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().sync_state.finalized_head(), second.reference);
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn slow_canonicality_and_finality_retries_yield_to_commands_and_unsafe_work() {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    let second = block_with_origin(first.reference, fixture.config.genesis.l1);
+    let (mut actor, handle, l1) = ready(fixture.client, fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.publish();
+    let source = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    actor.finalizer.record(first.reference, source);
+    l1.send_modify(|state| state.finalized = Some(source));
+    {
+        let mut data = storage.write().await;
+        data.l1_read_error = Some("L1 request timed out".into());
+        data.fork_choice_updated_v2_response = Some(build_reply());
+        data.new_payload_v1_response = Some(valid());
+    }
+    let (tx, mut reply) = oneshot::channel();
+    enqueue(
+        &handle,
+        Message::Start(
+            EngineContext { epoch: 0, parent: first.reference },
+            TestAttributesBuilder::new().with_parent(first.reference).build(),
+            tx,
+        ),
+    );
+    handle.try_insert_unsafe(second.payload).unwrap();
+    for attempt in 0..2 {
+        // Hold the existing mock storage lock for a full transport deadline. The two
+        // independent maintenance retries become due while the other call is running.
+        {
+            let locked = storage.write().await;
+            let pending = actor.step();
+            tokio::pin!(pending);
+            assert!(futures::poll!(pending.as_mut()).is_pending());
+            time::advance(Duration::from_secs(10)).await;
+            drop(locked);
+            pending.await.unwrap();
+        }
+        assert_eq!(*handle.queue_length_subscribe().borrow(), 2 - attempt);
+        assert_eq!(handle.state().phase, EnginePhase::Ready);
+        assert!(actor.finalizer.candidate(source.number).is_some());
+        if attempt == 1 {
+            assert!(actor.finality_retry_at.is_some());
+            assert!(actor.check_at < Instant::now());
+        }
+        actor.step().await.unwrap();
+        if attempt == 0 {
+            assert_eq!(reply.try_recv().unwrap().unwrap().id, PayloadId::new([1; 8]));
+        } else {
+            assert_eq!(handle.state().sync_state.unsafe_head(), second.reference);
+        }
+    }
+    assert_eq!(storage.read().await.l1_reads.len(), 2);
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_slow_command_cannot_let_canonicality_retries_starve_ready_finality() {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    let (mut actor, handle, l1) = ready(fixture.client, fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.publish();
+    let source = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    actor.finalizer.record(first.reference, source);
+    l1.send_modify(|state| state.finalized = Some(source));
+    {
+        let mut data = storage.write().await;
+        assert!(data.l1_blocks_by_id.remove("number:latest").is_some());
+        data.fork_choice_updated_v2_response = Some(build_reply());
+    }
+    let (tx, reply) = oneshot::channel();
+    enqueue(
+        &handle,
+        Message::Start(
+            EngineContext { epoch: 0, parent: first.reference },
+            TestAttributesBuilder::new().with_parent(first.reference).build(),
+            tx,
+        ),
+    );
+    actor.step().await.unwrap(); // Canonicality's latest read fails, but numbered data is usable.
+    assert!(actor.origins_dirty);
+    {
+        let locked = storage.write().await;
+        let pending = actor.step();
+        tokio::pin!(pending);
+        assert!(futures::poll!(pending.as_mut()).is_pending());
+        time::advance(Duration::from_secs(2)).await;
+        drop(locked);
+        pending.await.unwrap();
+    }
+    reply.await.unwrap().unwrap();
+    assert!(actor.check_at < Instant::now());
+    actor.step().await.unwrap(); // Both are due: finality gets its turn despite the missing latest.
+    assert_eq!(handle.state().sync_state.finalized_head(), first.reference);
+    assert!(actor.origins_dirty);
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(
+        storage.read().await.l1_reads.iter().filter(|id| **id == BlockId::latest()).count(),
+        1
+    );
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+}
+
+#[rstest::rstest]
+#[case::canonical(false)]
+#[case::mismatch(true)]
+#[tokio::test]
+async fn new_origins_are_checked_before_finality_or_another_producer(#[case] mismatch: bool) {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    let next_l1 = alloy_rpc_types_eth::Block::new(
+        alloy_rpc_types_eth::Header::new(alloy_consensus::Header {
+            number: 1,
+            parent_hash: fixture.config.genesis.l1.hash,
+            timestamp: 12,
+            ..Default::default()
+        }),
+        alloy_rpc_types_eth::BlockTransactions::Hashes(vec![]),
+    );
+    let origin = BlockNumHash { number: 1, hash: next_l1.header.hash };
+    fixture.client.set_l1_block(origin.number.into(), next_l1).await;
+    let pending = block_with_origin(
+        first.reference,
+        BlockNumHash { hash: if mismatch { B256::repeat_byte(9) } else { origin.hash }, ..origin },
+    )
+    .reference;
+    let (mut actor, handle, l1) = ready(fixture.client, fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        unsafe_head: Some(pending),
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.state.pending_safe_head = pending;
+    actor.publish();
+    let source = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    actor.finalizer.record(first.reference, source);
+    l1.send_replace(L1State {
+        head: Some(BlockInfo::new(origin.hash, origin.number, source.hash, 12)),
+        finalized: Some(source),
+        ..Default::default()
+    });
+    actor.prefer_finality = true;
+    actor.yield_to_work = true;
+    let (tx, _reply) = oneshot::channel();
+    enqueue(
+        &handle,
+        Message::Start(
+            EngineContext { epoch: 0, parent: pending },
+            TestAttributesBuilder::new().with_parent(pending).build(),
+            tx,
+        ),
+    );
+    actor.step().await.unwrap();
+    assert!(storage.read().await.forkchoice_calls.is_empty());
+    assert_eq!(actor.commands.len(), 1);
+    assert_eq!(handle.state().sync_state.finalized_head(), fixture.genesis);
+    if mismatch {
+        assert_eq!(handle.state().phase, EnginePhase::Resetting);
+        assert_eq!(handle.state().epoch, 1);
+        assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+        return;
+    }
+    actor.step().await.unwrap(); // A producer changing origins again cannot starve due finality.
+    assert_eq!(handle.state().sync_state.finalized_head(), first.reference);
+    assert_eq!(actor.commands.len(), 1);
+    assert_eq!(storage.read().await.forkchoice_calls.len(), 1);
+}
+
+#[rstest::rstest]
+#[case::finalized_signal(0)]
+#[case::inclusion_source(1)]
+#[case::canonical_l2(2)]
+#[case::above_safe(3)]
+#[tokio::test]
+async fn invalid_retained_local_finality_resets_without_sending_a_finalized_fcu(
+    #[case] invalid: u8,
+) {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    let (mut actor, handle, l1) = ready(fixture.client, fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    let canonical = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    let mut signal = canonical;
+    let mut source = canonical;
+    let mut block = first.reference;
+    match invalid {
+        0 => signal.hash = B256::repeat_byte(9),
+        1 => source.hash = B256::repeat_byte(9),
+        2 => block.block_info.hash = B256::repeat_byte(9),
+        3 => block.block_info.number += 1,
+        _ => unreachable!(),
+    }
+    actor.finalizer.record(block, source);
+    l1.send_modify(|state| state.finalized = Some(signal));
+    actor.step().await.unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().phase, EnginePhase::Resetting);
+    assert_eq!(handle.state().epoch, 1);
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert!(storage.read().await.forkchoice_calls.is_empty());
+}
+
+#[tokio::test]
+async fn syncing_finality_never_publishes_the_proposal_and_invalidates_its_epoch() {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    let (mut actor, handle, l1) = ready(fixture.client, fixture.config.clone(), first.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.publish();
+    let source = BlockInfo { hash: fixture.config.genesis.l1.hash, ..Default::default() };
+    actor.finalizer.record(first.reference, source);
+    l1.send_modify(|state| state.finalized = Some(source));
+    storage.write().await.fork_choice_updated_v3_response =
+        Some(ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Syncing)));
+    actor.finalize().await.unwrap();
+    assert_eq!(handle.state().sync_state.finalized_head(), fixture.genesis);
+    assert_eq!(handle.state().phase, EnginePhase::Resetting);
+    assert_eq!(handle.state().epoch, 1);
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(actor.finality_retry_at, None);
+    assert_eq!(
+        storage.read().await.forkchoice_calls[0].finalized_block_hash,
+        first.reference.hash()
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn same_safe_delegate_claims_finalize_independently_and_reset_rejects_stale_claims() {
+    let fixture = ResetFixture::new();
+    let storage = fixture.client.storage();
+    let first = block_with_origin(fixture.genesis, fixture.config.genesis.l1);
+    let second = block_with_origin(first.reference, fixture.config.genesis.l1);
+    fixture.client.set_l2_block(first.reference.block_info.number.into(), first.block).await;
+    fixture.client.set_l2_block(second.reference.block_info.number.into(), second.block).await;
+    let (mut actor, handle, _l1) = ready(fixture.client, fixture.config, second.reference);
+    actor.state.sync_state = actor.state.sync_state.apply_update(EngineSyncStateUpdate {
+        finalized_head: Some(fixture.genesis),
+        ..Default::default()
+    });
+    actor.publish();
+    let context = EngineContext { epoch: 0, parent: second.reference };
+    for finalized in [first.reference, second.reference] {
+        let (tx, reply) = oneshot::channel();
+        drop(reply); // Safe/finality acceptance survives a canceled delegate caller.
+        enqueue(&handle, Message::FollowSafe(context, second.reference, finalized, tx));
+        actor.step().await.unwrap();
+        assert_eq!(actor.delegated_finalized, Some(finalized));
+        assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+        if finalized == first.reference {
+            storage.write().await.l2_read_error =
+                Some("finality body temporarily unavailable".into());
+            actor.step().await.unwrap();
+            assert_eq!(actor.delegated_finalized, Some(finalized));
+            assert_eq!(handle.state().sync_state.finalized_head(), fixture.genesis);
+            storage.write().await.l2_read_error = None;
+            time::advance(Duration::from_millis(100)).await;
+        }
+        actor.step().await.unwrap();
+        assert_eq!(handle.state().sync_state.finalized_head(), finalized);
+    }
+    assert!(storage.read().await.l1_reads.is_empty());
+    let (tx, reply) = oneshot::channel();
+    let above_safe = L2BlockInfo {
+        block_info: BlockInfo { number: 3, ..second.reference.block_info },
+        ..second.reference
+    };
+    enqueue(&handle, Message::FollowSafe(context, second.reference, above_safe, tx));
+    actor.step().await.unwrap();
+    assert!(matches!(reply.await.unwrap(), Err(EngineClientError::Rejected(_))));
+    assert_eq!(actor.delegated_finalized, None);
+    actor.finalizer.record(second.reference, BlockInfo::default());
+    actor.delegated_finalized = Some(second.reference);
+    actor.finality_retry_at = Some(Instant::now() + Duration::from_secs(30));
+    actor.begin_reset();
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(actor.delegated_finalized, None);
+    assert_eq!(actor.finality_retry_at, None);
+    let (tx, reply) = oneshot::channel();
+    enqueue(&handle, Message::FollowSafe(context, second.reference, second.reference, tx));
+    let stale = actor.commands.try_recv().unwrap();
+    actor.command(stale).await.unwrap();
+    assert!(matches!(reply.await.unwrap(), Err(EngineClientError::Stale)));
+    assert_eq!(actor.delegated_finalized, None);
+    let (tx, reply) = oneshot::channel();
+    let mut attrs = TestAttributesBuilder::new().with_parent(second.reference).build();
+    attrs.derived_from = Some(BlockInfo::default());
+    enqueue(&handle, Message::Consolidate(context, attrs, tx));
+    let stale = actor.commands.try_recv().unwrap();
+    actor.command(stale).await.unwrap();
+    assert!(matches!(reply.await.unwrap(), Err(EngineClientError::Stale)));
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+}
+
 #[tokio::test(start_paused = true)]
 async fn initial_sync_keeps_the_accepted_unsafe_target_instead_of_stale_latest() {
     let fixture = ResetFixture::new();
@@ -629,12 +1138,20 @@ async fn trusted_follow_sync_retains_its_target_without_reopening_bootstrap() {
     let (tx, reply) = oneshot::channel();
     enqueue(
         &handle,
-        Message::FollowSafe(EngineContext { epoch: 0, parent: fixture.genesis }, target, tx),
+        Message::FollowSafe(
+            EngineContext { epoch: 0, parent: fixture.genesis },
+            target,
+            target,
+            tx,
+        ),
     );
     actor.step().await.unwrap();
     reply.await.unwrap().unwrap();
     assert_eq!(handle.state().phase, EnginePhase::Syncing);
     assert!(matches!(actor.lifecycle, Lifecycle::Following { .. }));
+    assert_eq!(actor.delegated_finalized, Some(target));
+    assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+    assert_eq!(handle.state().sync_state.finalized_head(), fixture.genesis);
     let requested = actor.sync_target.expect("following retains the exact requested tuple");
     actor.step().await.unwrap();
     assert_ne!(handle.state().phase, EnginePhase::Ready);
@@ -650,6 +1167,16 @@ async fn trusted_follow_sync_retains_its_target_without_reopening_bootstrap() {
     actor.step().await.unwrap();
     assert_eq!(handle.state().phase, EnginePhase::Ready);
     assert_eq!(handle.state().sync_state.safe_head(), target);
+    assert_eq!(actor.delegated_finalized, Some(target));
+    let l1_reads = storage.read().await.l1_reads.len();
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().sync_state.finalized_head(), target);
+    assert_eq!(actor.delegated_finalized, None);
+    assert_eq!(
+        storage.read().await.l1_reads.len(),
+        l1_reads,
+        "delegated trust invents no local inclusion read"
+    );
     assert!(
         storage
             .read()
@@ -661,7 +1188,7 @@ async fn trusted_follow_sync_retains_its_target_without_reopening_bootstrap() {
     actor.begin_reset();
     assert_eq!(
         actor.lifecycle,
-        Lifecycle::Reset(SyncStartPolicy::Checkpoint { safe: target, finalized: fixture.genesis })
+        Lifecycle::Reset(SyncStartPolicy::Checkpoint { safe: target, finalized: target })
     );
 }
 

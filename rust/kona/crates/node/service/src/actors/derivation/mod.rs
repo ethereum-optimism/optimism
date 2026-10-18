@@ -7,8 +7,5 @@ pub use delegated::{
     DerivationDelegateProvider,
 };
 
-mod finalizer;
-pub(crate) use finalizer::L2Finalizer;
-
 mod request;
 pub use request::{DerivationActorRequest, DerivationClientError, DerivationClientResult};

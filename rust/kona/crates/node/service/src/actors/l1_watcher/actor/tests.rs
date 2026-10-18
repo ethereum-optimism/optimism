@@ -159,16 +159,12 @@ impl Harness {
 
     async fn send_head_and_receive(&mut self, block: BlockInfo, chain: usize) {
         self.heads.send(block).await.unwrap();
-        match time::timeout(Duration::from_secs(1), self.chains[chain].derivation.recv())
-            .await
-            .unwrap()
-            .unwrap()
-        {
-            DerivationActorRequest::ProcessL1HeadUpdateRequest(received) => {
-                assert_eq!(*received, block)
-            }
-            other => panic!("unexpected request {other:?}"),
-        }
+        let DerivationActorRequest::ProcessL1HeadUpdateRequest(received) =
+            time::timeout(Duration::from_secs(1), self.chains[chain].derivation.recv())
+                .await
+                .unwrap()
+                .unwrap();
+        assert_eq!(received, block);
     }
 }
 
@@ -181,15 +177,20 @@ async fn slow_chain_does_not_block_subsequent_heads_finality_or_observations() {
         assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(number as u8 + 1));
     }
     h.finalized.send(head(4)).await.unwrap();
-    assert!(
-        matches!(h.chains[1].derivation.recv().await.unwrap(), DerivationActorRequest::ProcessFinalizedL1Block(block) if *block == head(4))
-    );
+    time::timeout(
+        Duration::from_secs(1),
+        h.state.wait_for(|state| state.finalized == Some(head(4))),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(h.chains[1].derivation.try_recv().is_err());
     assert_eq!(h.state.borrow().head, Some(head(5)));
     assert_eq!(h.state.borrow().finalized, Some(head(4)));
     // When it resumes, the slow chain eventually receives the latest observation.
     time::timeout(Duration::from_secs(1), async {
         loop {
-            if matches!(h.chains[0].derivation.recv().await.unwrap(), DerivationActorRequest::ProcessL1HeadUpdateRequest(block) if *block == head(5)) { break; }
+            if matches!(h.chains[0].derivation.recv().await.unwrap(), DerivationActorRequest::ProcessL1HeadUpdateRequest(block) if block == head(5)) { break; }
         }
     }).await.unwrap();
 }
@@ -242,9 +243,7 @@ async fn safe_and_finalized_observations_update_without_a_new_head() {
     .unwrap()
     .unwrap();
     assert_eq!(h.state.borrow().head, Some(head(7)));
-    // A safe-only publication does not fabricate another new-head notification.
-    assert!(matches!(h.chains[0].derivation.recv().await.unwrap(),
-        DerivationActorRequest::ProcessFinalizedL1Block(block) if *block == head(4)));
+    // Safety observations have no derivation notification; the engine consumes this watch.
     assert!(h.chains[0].derivation.try_recv().is_err());
 }
 
