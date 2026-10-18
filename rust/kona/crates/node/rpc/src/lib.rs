@@ -13,7 +13,7 @@ mod admin;
 pub use admin::{AdminRpc, NetworkAdminQuery};
 
 mod client;
-pub use client::{EngineRpcClient, SequencerAdminAPIClient, SequencerAdminAPIError};
+pub use client::{SequencerAdminAPIClient, SequencerAdminAPIError};
 
 mod config;
 pub use config::RpcBuilder;
@@ -52,3 +52,6 @@ pub use ws::WsRPC;
 
 mod health;
 pub use health::{HealthzResponse, HealthzRpc};
+
+#[cfg(test)]
+mod tests;

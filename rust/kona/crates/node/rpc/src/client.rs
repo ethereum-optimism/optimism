@@ -1,38 +1,7 @@
-use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use kona_engine::EngineState;
-use kona_genesis::RollupConfig;
-use kona_protocol::{L2BlockInfo, OutputRoot};
 use std::fmt::Debug;
 use thiserror::Error;
-use tokio::sync::watch;
-
-/// Client trait wrapping RPC implementation for the `EngineActor`.
-#[async_trait]
-pub trait EngineRpcClient: Debug + Send + Sync + Clone {
-    /// Request the current [`RollupConfig`].
-    async fn get_config(&self) -> RpcResult<RollupConfig>;
-    /// Request the current [`EngineState`] snapshot.
-    async fn get_state(&self) -> RpcResult<EngineState>;
-    /// Request the L2 output root for a specific [`BlockNumberOrTag`].
-    ///
-    /// Returns a tuple of [`L2BlockInfo`], [`OutputRoot`], and [`EngineState`] at the requested
-    /// block.
-    async fn output_at_block(
-        &self,
-        block: BlockNumberOrTag,
-    ) -> RpcResult<(L2BlockInfo, OutputRoot, EngineState)>;
-    /// Development API: Get the current number of pending tasks in the queue.
-    async fn dev_get_task_queue_length(&self) -> RpcResult<usize>;
-    /// Development API: Subscribes to engine queue length updates managed by the returned
-    /// [`watch::Receiver`].
-    async fn dev_subscribe_to_engine_queue_length(&self) -> RpcResult<watch::Receiver<usize>>;
-    /// Development API: Subscribes to engine state updates managed by the returned
-    /// [`watch::Receiver`].
-    async fn dev_subscribe_to_engine_state(&self) -> RpcResult<watch::Receiver<EngineState>>;
-}
 
 /// Client trait wrapping RPC implementation for the Sequencer admin endpoints.
 #[async_trait]

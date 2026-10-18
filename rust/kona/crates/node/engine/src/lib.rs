@@ -18,7 +18,6 @@
 //! - **State** — one snapshot of heads, readiness and reset epoch in [`EngineState`].
 //! - **Validation** — payload matching through [`AttributesMatch`] and Engine API version
 //!   selection.
-//! - **Queries** — read-only engine queries through [`EngineQueries`].
 //! - **Recovery** — the canonical [`find_starting_forkchoice`] walk, called by the reset owner.
 
 #[macro_use]
@@ -38,7 +37,7 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{EngineClient, EngineClientError, EngineRpcClient, OpEngineClient};
+pub use client::{EngineClient, OpEngineClient};
 
 mod providers;
 pub use providers::{HyperAuthClient, l1_provider, l2_provider};
@@ -48,9 +47,6 @@ pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};
 
 mod state;
 pub use state::{EnginePhase, EngineState, EngineSyncState, EngineSyncStateUpdate};
-
-mod query;
-pub use query::{EngineQueries, EngineQueriesError, EngineQuerySender};
 
 mod metrics;
 pub use metrics::Metrics;
