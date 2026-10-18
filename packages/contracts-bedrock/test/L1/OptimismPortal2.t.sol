@@ -36,6 +36,8 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
@@ -3141,5 +3143,201 @@ contract OptimismPortal2_Params_Test is CommonTest {
         bytes32 slot21After = vm.load(address(optimismPortal2), bytes32(uint256(21)));
         bytes32 slot21Expected = NextImpl(address(optimismPortal2)).slot21Init();
         assertEq(slot21Expected, slot21After);
+    }
+}
+
+/// @title OptimismPortal2_BridgeHook_Test
+/// @notice Test contract for OptimismPortal2 bridge hook configuration, the BRIDGE_HOOK feature
+///         and the guards they share with the withdrawal path.
+contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
+    event BridgeHookSet(address indexed bridgeHook);
+
+    address internal hook = makeAddr("bridgeHook");
+
+    /// @notice Enables BRIDGE_HOOK, which a nonzero hook requires.
+    function _enableFeature() internal {
+        if (!systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
+            vm.prank(proxyAdminOwner);
+            systemConfig.setFeature(Features.BRIDGE_HOOK, true);
+        }
+    }
+
+    /// @notice Disables BRIDGE_HOOK.
+    function _disableFeature() internal {
+        if (systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
+            vm.prank(proxyAdminOwner);
+            systemConfig.setFeature(Features.BRIDGE_HOOK, false);
+        }
+    }
+
+    /// @notice Sets the hook, enabling the feature first.
+    function _setHook(address _hook) internal {
+        _enableFeature();
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setBridgeHook(IBridgeHook(_hook));
+    }
+
+    /// @notice Tests that no hook is configured by default.
+    function test_bridgeHook_unsetByDefault_succeeds() external view {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+    }
+
+    /// @notice Tests that the ProxyAdmin owner can set the hook.
+    function test_setBridgeHook_succeeds() external {
+        _enableFeature();
+
+        vm.expectEmit(address(optimismPortal2));
+        emit BridgeHookSet(hook);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setBridgeHook(IBridgeHook(hook));
+
+        assertEq(address(optimismPortal2.bridgeHook()), hook);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can set the hook.
+    /// @param _caller The address attempting the call.
+    function testFuzz_setBridgeHook_notProxyAdminOwner_reverts(address _caller) external {
+        vm.assume(_caller != proxyAdminOwner && _caller != address(proxyAdmin));
+        _enableFeature();
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        optimismPortal2.setBridgeHook(IBridgeHook(hook));
+    }
+
+    /// @notice Tests that a hook cannot be set while the feature is disabled.
+    function test_setBridgeHook_featureDisabled_reverts() external {
+        _disableFeature();
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setBridgeHook(IBridgeHook(hook));
+    }
+
+    /// @notice Tests that the hook can be unset.
+    function test_setBridgeHook_unset_succeeds() external {
+        _setHook(hook);
+
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setBridgeHook(IBridgeHook(address(0)));
+
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+    }
+
+    /// @notice Tests that the feature cannot be disabled while a hook is configured.
+    function test_setFeature_disableWithHookSet_reverts() external {
+        _setHook(hook);
+
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(proxyAdminOwner);
+        systemConfig.setFeature(Features.BRIDGE_HOOK, false);
+    }
+
+    /// @notice Tests that the feature can be disabled once no hook is configured.
+    function test_setFeature_disableWithoutHook_succeeds() external {
+        _enableFeature();
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        vm.prank(proxyAdminOwner);
+        systemConfig.setFeature(Features.BRIDGE_HOOK, false);
+
+        assertFalse(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK));
+    }
+
+    /// @notice Tests that the hook and its held items survive a reinitialization.
+    function test_initialize_preservesHookState_succeeds() external {
+        _setHook(hook);
+
+        // Write a held item directly.
+        bytes32 id = keccak256("item");
+        StorageSlot memory heldSlot = ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits");
+        vm.store(address(optimismPortal2), keccak256(abi.encode(id, heldSlot.slot)), bytes32(uint256(1)));
+        assertTrue(optimismPortal2.heldDeposits(id));
+
+        // Allow initialize to run again.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(initSlot.slot), bytes32(0));
+
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, ethLockbox, portalProofMaturityDelay);
+
+        assertEq(address(optimismPortal2.bridgeHook()), hook);
+        assertTrue(optimismPortal2.heldDeposits(id));
+    }
+
+    /// @notice Tests that initialize rejects a hook left set while the feature is off.
+    function test_initialize_invalidBridgeHookState_reverts() external {
+        _setHook(hook);
+        vm.mockCall(
+            address(systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.BRIDGE_HOOK)),
+            abi.encode(false)
+        );
+
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(initSlot.slot), bytes32(0));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, ethLockbox, portalProofMaturityDelay);
+    }
+
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
+    function test_proveWithdrawalTransaction_standardBridgeTarget_reverts() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        _defaultTx.target = address(l1StandardBridge);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that a configured hook is an unsafe withdrawal target.
+    function test_proveWithdrawalTransaction_bridgeHookTarget_reverts() external {
+        _setHook(hook);
+
+        _defaultTx.target = hook;
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that the same targets are refused at finalization.
+    function test_finalizeWithdrawalTransaction_badTargets_reverts() external {
+        _setHook(hook);
+
+        _defaultTx.target = address(l1StandardBridge);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        _defaultTx.target = hook;
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
+    /// @notice Tests that address(0) is not an unsafe target while no hook is set.
+    function test_proveWithdrawalTransaction_zeroTargetWithNoHook_succeeds() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        _defaultTx.target = address(0);
+        // Any revert here would be about the proof, not the target, so assert the target check
+        // specifically does not fire.
+        try optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        }) { }
+        catch (bytes memory err) {
+            assertTrue(bytes4(err) != IOptimismPortal.OptimismPortal_BadTarget.selector);
+        }
     }
 }
