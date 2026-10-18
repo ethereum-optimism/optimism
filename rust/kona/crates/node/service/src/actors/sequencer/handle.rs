@@ -18,7 +18,7 @@ pub(super) type Reply<T> = oneshot::Sender<Result<T, SequencerAdminAPIError>>;
 
 #[derive(Debug)]
 pub(crate) enum Message {
-    Start(Reply<()>),
+    Start(B256, Reply<()>),
     Stop(Reply<B256>),
     SetRecoveryMode(bool, Reply<()>),
     OverrideLeader(Reply<()>),
@@ -88,8 +88,8 @@ impl SequencerAdminAPIClient for SequencerHandle {
         Ok(self.snapshot()?.recovery_mode)
     }
 
-    async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError> {
-        self.command(Message::Start).await
+    async fn start_sequencer(&self, expected: B256) -> Result<(), SequencerAdminAPIError> {
+        self.command(|reply| Message::Start(expected, reply)).await
     }
 
     async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {

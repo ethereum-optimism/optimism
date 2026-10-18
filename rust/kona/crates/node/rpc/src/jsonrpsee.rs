@@ -187,9 +187,9 @@ pub trait SequencerAdminApi {
     #[method(name = "sequencerActive")]
     async fn admin_sequencer_active(&self) -> RpcResult<bool>;
 
-    /// Starts the sequencer.
+    /// Starts the sequencer only at the supplied current unsafe hash.
     #[method(name = "startSequencer")]
-    async fn admin_start_sequencer(&self) -> RpcResult<()>;
+    async fn admin_start_sequencer(&self, expected: B256) -> RpcResult<()>;
 
     /// Stops the sequencer.
     #[method(name = "stopSequencer")]

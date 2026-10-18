@@ -52,22 +52,30 @@ Returns whether the sequencer is currently active.
 
 ## `admin_startSequencer`
 
-Starts the sequencer.
+Starts the sequencer at the supplied expected unsafe head. Conductor-managed nodes start
+inactive and require a successful leader check before activation. An already active sequencer,
+an unknown head, a mismatched hash, or a failed leader check returns an error.
 
-| Client | Method invocation                                   |
-| ------ | --------------------------------------------------- |
-| RPC    | `{"method": "admin_startSequencer"}`                |
+The conductor must acknowledge each payload before the node imports or gossips it. A failed
+commit leaves the sequencer active and retries the same build job without publishing a block.
+
+### Parameters
+
+- `expectedHead` (`Hash`): Required current unsafe head hash, normally returned by `admin_stopSequencer`.
 
 ### Example
 
 ```js
-// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":["0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234"]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
 ## `admin_stopSequencer`
 
-Stops the sequencer and returns the hash of the last processed block.
+Stops the sequencer and returns its settled unsafe head hash. A payload already acknowledged
+by the conductor is settled before success while leadership and its engine context remain
+valid. The response follows engine publication and gossip admission; abandoning the RPC
+request does not cancel settlement. Calling Stop on an inactive sequencer returns an error.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |

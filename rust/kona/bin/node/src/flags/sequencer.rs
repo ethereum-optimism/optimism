@@ -47,7 +47,7 @@ pub struct SequencerArgs {
     #[arg(long = "conductor.rpc", env = "KONA_NODE_CONDUCTOR_RPC")]
     pub conductor_rpc: Option<Url>,
 
-    /// Conductor service rpc timeout.
+    /// Conductor service RPC timeout in seconds.
     #[arg(
         long = "conductor.rpc.timeout",
         default_value = "1",
@@ -72,7 +72,28 @@ impl SequencerArgs {
             sequencer_stopped: self.stopped,
             sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
+            conductor_rpc_timeout: self.conductor_rpc_timeout,
             l1_conf_delay: self.l1_confs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conductor_timeout_reaches_sequencer_config_in_seconds() {
+        assert_eq!(SequencerArgs::default().config().conductor_rpc_timeout, Duration::from_secs(1));
+        let args = SequencerArgs::parse_from([
+            "kona-node",
+            "--conductor.rpc",
+            "http://127.0.0.1:8547",
+            "--conductor.rpc.timeout",
+            "7",
+        ]);
+        let config = args.config();
+        assert_eq!(config.conductor_rpc_url, args.conductor_rpc);
+        assert_eq!(config.conductor_rpc_timeout, Duration::from_secs(7));
     }
 }

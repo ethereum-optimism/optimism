@@ -335,8 +335,12 @@ impl RollupNode {
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
 
-        let conductor =
-            self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http);
+        let conductor = self.sequencer_config.conductor_rpc_url.clone().map(|url| {
+            ConductorClient::new(kona_engine::rpc_client(
+                url,
+                self.sequencer_config.conductor_rpc_timeout,
+            ))
+        });
 
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
@@ -657,7 +661,9 @@ mod tests {
         let mut waiting = Vec::new();
         for _ in 0..32 {
             let handle = sequencer.clone();
-            waiting.push(tokio::spawn(async move { handle.start_sequencer().await }));
+            waiting.push(tokio::spawn(async move {
+                handle.start_sequencer(alloy_primitives::B256::ZERO).await
+            }));
         }
         tokio::time::timeout(Duration::from_secs(2), async {
             while sequencer_peer.commands.capacity() != 0 {
