@@ -88,8 +88,8 @@ pub trait OpP2PApi {
     #[method(name = "listBlockedPeers")]
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given address
-    #[method(name = "blocAddr")]
+    /// Blocks the given address. The legacy `opp2p_blocAddr` spelling remains an alias.
+    #[method(name = "blockAddr", aliases = ["opp2p_blocAddr"])]
     async fn opp2p_block_addr(&self, ip: IpAddr) -> RpcResult<()>;
 
     /// Unblocks the given address

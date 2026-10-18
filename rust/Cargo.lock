@@ -7923,7 +7923,6 @@ dependencies = [
  "alloy-rpc-types-eth 2.4.2",
  "alloy-transport",
  "async-trait",
- "backon",
  "derive_more 2.1.1",
  "getrandom 0.3.4",
  "ipnet",

@@ -6,7 +6,6 @@
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/7a6788836984996747193b91901a824c39032bd8/op-node/p2p/rpc_api.go#L45
 
 use async_trait::async_trait;
-use backon::{ExponentialBuilder, Retryable};
 use ipnet::IpNet;
 use jsonrpsee::{
     core::RpcResult,
@@ -16,6 +15,57 @@ use kona_gossip::{P2pRpcRequest, PeerCount, PeerDump, PeerInfo, PeerStats};
 use std::{net::IpAddr, str::FromStr, time::Duration};
 
 use crate::{OpP2PApiServer, net::P2pRpc};
+
+impl P2pRpc {
+    /// Admission is not confirmation: observe the requested effect within one total deadline.
+    async fn change_peer_connection(
+        &self,
+        request: P2pRpcRequest,
+        peer_id: libp2p::PeerId,
+        connected: bool,
+    ) -> RpcResult<()> {
+        let peer_id = peer_id.to_string();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            self.sender.send(request).await.map_err(|_| {
+                if connected {
+                    ErrorObject::borrowed(
+                        ErrorCode::InternalError.code(),
+                        "Failed to send connect peer request",
+                        None,
+                    )
+                } else {
+                    ErrorObject::from(ErrorCode::InternalError)
+                }
+            })?;
+            loop {
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                self.sender
+                    .send(P2pRpcRequest::Peers { out: tx, connected: true })
+                    .await
+                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+                let peers = rx.await.map_err(|_| {
+                    ErrorObject::borrowed(
+                        ErrorCode::InternalError.code(),
+                        "Failed to get peers",
+                        None,
+                    )
+                })?;
+                if peers.peers.contains_key(&peer_id) == connected {
+                    return Ok(());
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .map_err(|_| {
+            ErrorObject::borrowed(
+                ErrorCode::InvalidParams.code(),
+                if connected { "Peer not connected" } else { "Peers are still connected" },
+                None,
+            )
+        })?
+    }
+}
 
 #[async_trait]
 impl OpP2PApiServer for P2pRpc {
@@ -213,43 +263,7 @@ impl OpP2PApiServer for P2pRpc {
                 )
             })?;
 
-        self.sender.send(P2pRpcRequest::ConnectPeer { address: ma }).await.map_err(|_| {
-            ErrorObject::borrowed(
-                ErrorCode::InternalError.code(),
-                "Failed to send connect peer request",
-                None,
-            )
-        })?;
-
-        // We need to wait until both peers are connected to each other to return from this method.
-        // We try with an exponential backoff and return an error if we fail to connect to the peer.
-        let is_connected = async || {
-            let (tx, rx) = tokio::sync::oneshot::channel();
-
-            self.sender
-                .send(P2pRpcRequest::Peers { out: tx, connected: true })
-                .await
-                .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-            let peers = rx.await.map_err(|_| {
-                ErrorObject::borrowed(ErrorCode::InternalError.code(), "Failed to get peers", None)
-            })?;
-
-            Ok::<bool, ErrorObject<'_>>(peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peer not connected",
-                None,
-            ));
-        }
-
-        Ok(())
+        self.change_peer_connection(P2pRpcRequest::ConnectPeer { address: ma }, peer_id, true).await
     }
 
     async fn opp2p_disconnect_peer(&self, peer_id: String) -> RpcResult<()> {
@@ -262,46 +276,286 @@ impl OpP2PApiServer for P2pRpc {
             }
         };
 
-        self.sender
-            .send(P2pRpcRequest::DisconnectPeer { peer_id })
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-        // We need to wait until both peers are fully disconnected to each other to return from this
-        // method. We try with an exponential backoff and return an error if we fail to
-        // disconnect from the peer.
-        let is_not_connected = async || {
-            let (tx, rx) = tokio::sync::oneshot::channel();
-
-            self.sender
-                .send(P2pRpcRequest::Peers { out: tx, connected: true })
-                .await
-                .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-            let peers = rx.await.map_err(|_| {
-                ErrorObject::borrowed(ErrorCode::InternalError.code(), "Failed to get peers", None)
-            })?;
-
-            Ok::<bool, ErrorObject<'_>>(!peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_not_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peers are still connected",
-                None,
-            ));
-        }
-
-        Ok(())
+        self.change_peer_connection(P2pRpcRequest::DisconnectPeer { peer_id }, peer_id, false).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use jsonrpsee::{core::server::MethodsError, rpc_params};
+    use kona_gossip::{ConnectionGate, ConnectionGater};
+    use libp2p::PeerId;
+    use tokio::{
+        sync::mpsc,
+        time::{self, Instant},
+    };
+
+    fn peers(peer: PeerId, connected: bool) -> PeerDump {
+        let mut peers = PeerDump::default();
+        if connected {
+            peers.peers.insert(
+                peer.to_string(),
+                PeerInfo { peer_id: peer.to_string(), ..Default::default() },
+            );
+        }
+        peers
+    }
+
+    fn assert_mutation(request: P2pRpcRequest, peer: PeerId, connecting: bool) {
+        match request {
+            P2pRpcRequest::ConnectPeer { address } if connecting => {
+                assert_eq!(address.to_string(), format!("/ip4/127.0.0.1/tcp/9000/p2p/{peer}"));
+            }
+            P2pRpcRequest::DisconnectPeer { peer_id } if !connecting => assert_eq!(peer_id, peer),
+            other => panic!("unexpected mutation {other:?}"),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_changes_wait_for_observed_effect_and_pace_unsatisfied_reads() {
+        for connecting in [true, false] {
+            let peer = PeerId::random();
+            let (sender, mut receiver) = mpsc::channel(1);
+            let rpc = P2pRpc::new(sender).into_rpc();
+            let method = if connecting { "opp2p_connectPeer" } else { "opp2p_disconnectPeer" };
+            let param = if connecting {
+                format!("/ip4/127.0.0.1/tcp/9000/p2p/{peer}")
+            } else {
+                peer.to_string()
+            };
+            let backend = async {
+                assert_mutation(receiver.recv().await.unwrap(), peer, connecting);
+                let P2pRpcRequest::Peers { out, connected } = receiver.recv().await.unwrap() else {
+                    panic!("expected peer observation")
+                };
+                assert!(connected);
+                out.send(peers(peer, !connecting)).unwrap();
+                let first = Instant::now();
+                assert!(time::timeout(Duration::from_millis(99), receiver.recv()).await.is_err());
+                let P2pRpcRequest::Peers { out, connected } = receiver.recv().await.unwrap() else {
+                    panic!("expected retried observation")
+                };
+                assert!(connected);
+                assert_eq!(first.elapsed(), Duration::from_millis(100));
+                out.send(peers(peer, connecting)).unwrap();
+            };
+            let (result, ()) = tokio::join!(rpc.call::<_, ()>(method, rpc_params![param]), backend);
+            result.unwrap();
+            assert!(receiver.try_recv().is_err());
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn permanently_unsatisfied_peer_state_retries_until_the_total_deadline() {
+        for connecting in [true, false] {
+            let peer = PeerId::random();
+            let (sender, mut receiver) = mpsc::channel(1);
+            let rpc = P2pRpc::new(sender).into_rpc();
+            let method = if connecting { "opp2p_connectPeer" } else { "opp2p_disconnectPeer" };
+            let param = if connecting {
+                format!("/ip4/127.0.0.1/tcp/9000/p2p/{peer}")
+            } else {
+                peer.to_string()
+            };
+            let mut observations = 0;
+            let began = Instant::now();
+            let error = {
+                let backend = async {
+                    assert_mutation(receiver.recv().await.unwrap(), peer, connecting);
+                    loop {
+                        let P2pRpcRequest::Peers { out, connected } =
+                            receiver.recv().await.unwrap()
+                        else {
+                            panic!("expected peer observation")
+                        };
+                        assert!(connected);
+                        observations += 1;
+                        let _ = out.send(peers(peer, !connecting));
+                    }
+                };
+                tokio::pin!(backend);
+                tokio::select! {
+                    result = rpc.call::<_, ()>(method, rpc_params![param]) => result.unwrap_err(),
+                    _ = &mut backend => panic!("backend unexpectedly ended"),
+                }
+            };
+            assert_eq!(began.elapsed(), Duration::from_secs(10));
+            assert!(observations > 1 && observations <= 100);
+            assert!(matches!(error, MethodsError::JsonRpc(error) if error.code() == -32602 &&
+                error.message() == if connecting { "Peer not connected" } else { "Peers are still connected" }));
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn one_deadline_includes_mutation_admission_observation_admission_and_reply() {
+        for connecting in [true, false] {
+            for phase in 0..3 {
+                let peer = PeerId::random();
+                let (sender, mut receiver) = mpsc::channel(1);
+                // Phase 0 blocks mutation admission. Phase 1 leaves the admitted mutation
+                // filling the queue, so the first observation cannot be admitted.
+                if phase != 1 {
+                    let (reply, _) = tokio::sync::oneshot::channel();
+                    sender.try_send(P2pRpcRequest::PeerCount(reply)).unwrap();
+                }
+                let rpc = P2pRpc::new(sender).into_rpc();
+                let method = if connecting { "opp2p_connectPeer" } else { "opp2p_disconnectPeer" };
+                let param = if connecting {
+                    format!("/ip4/127.0.0.1/tcp/9000/p2p/{peer}")
+                } else {
+                    peer.to_string()
+                };
+                let began = Instant::now();
+                let error = {
+                    let backend = async {
+                        if phase != 2 {
+                            std::future::pending::<()>().await;
+                        }
+                        // Spend part of the SAME deadline waiting for mutation admission,
+                        // then hold its observation reply. A per-phase timeout would take 16s.
+                        time::sleep(Duration::from_secs(6)).await;
+                        assert!(matches!(
+                            receiver.recv().await.unwrap(),
+                            P2pRpcRequest::PeerCount(_)
+                        ));
+                        assert_mutation(receiver.recv().await.unwrap(), peer, connecting);
+                        let P2pRpcRequest::Peers { out, .. } = receiver.recv().await.unwrap()
+                        else {
+                            panic!("expected held peer reply")
+                        };
+                        let _held = out;
+                        std::future::pending::<()>().await;
+                    };
+                    tokio::pin!(backend);
+                    tokio::select! {
+                        result = rpc.call::<_, ()>(method, rpc_params![param]) => result.unwrap_err(),
+                        _ = &mut backend => panic!("backend unexpectedly ended"),
+                    }
+                };
+                assert_eq!(began.elapsed(), Duration::from_secs(10));
+                assert!(matches!(error, MethodsError::JsonRpc(error) if error.code() == -32602));
+                if phase == 0 {
+                    assert!(matches!(receiver.try_recv().unwrap(), P2pRpcRequest::PeerCount(_)));
+                    assert!(receiver.try_recv().is_err(), "timed-out mutation was never admitted");
+                } else if phase == 1 {
+                    assert_mutation(receiver.try_recv().unwrap(), peer, connecting);
+                    assert!(
+                        receiver.try_recv().is_err(),
+                        "timed-out observation was never admitted"
+                    );
+                }
+            }
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn closed_admission_or_reply_fails_without_retrying() {
+        for connecting in [true, false] {
+            for phase in 0..3 {
+                let peer = PeerId::random();
+                let (sender, mut receiver) = mpsc::channel(1);
+                let rpc = P2pRpc::new(sender).into_rpc();
+                let method = if connecting { "opp2p_connectPeer" } else { "opp2p_disconnectPeer" };
+                let param = if connecting {
+                    format!("/ip4/127.0.0.1/tcp/9000/p2p/{peer}")
+                } else {
+                    peer.to_string()
+                };
+                if phase == 0 {
+                    receiver.close();
+                }
+                let began = Instant::now();
+                let error = {
+                    let backend = async {
+                        if phase == 0 {
+                            std::future::pending::<()>().await;
+                        }
+                        assert_mutation(receiver.recv().await.unwrap(), peer, connecting);
+                        if phase == 1 {
+                            receiver.close();
+                        } else {
+                            let P2pRpcRequest::Peers { out, .. } = receiver.recv().await.unwrap()
+                            else {
+                                panic!("expected peer reply")
+                            };
+                            drop(out);
+                        }
+                        std::future::pending::<()>().await;
+                    };
+                    tokio::pin!(backend);
+                    tokio::select! {
+                        result = rpc.call::<_, ()>(method, rpc_params![param]) => result.unwrap_err(),
+                        _ = &mut backend => panic!("backend unexpectedly ended"),
+                    }
+                };
+                assert_eq!(began.elapsed(), Duration::ZERO);
+                assert!(matches!(error, MethodsError::JsonRpc(error) if error.code() == -32603));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_connection_params_never_reach_admission() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let rpc = P2pRpc::new(sender).into_rpc();
+        for method in ["opp2p_connectPeer", "opp2p_disconnectPeer"] {
+            let error = rpc.call::<_, ()>(method, rpc_params!["invalid-peer"]).await.unwrap_err();
+            assert!(matches!(error, MethodsError::JsonRpc(error) if error.code() == -32602));
+        }
+        let error = rpc
+            .call::<_, ()>("opp2p_connectPeer", rpc_params!["/ip4/127.0.0.1/tcp/9000"])
+            .await
+            .unwrap_err();
+        assert!(matches!(error, MethodsError::JsonRpc(error) if error.code() == -32602));
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn canonical_and_legacy_block_addr_names_validate_and_mutate_the_same_gate() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let rpc = P2pRpc::new(sender).into_rpc();
+        let address: IpAddr = "127.0.0.42".parse().unwrap();
+        let backend = async {
+            let mut gate = ConnectionGater::default();
+            while let Some(request) = receiver.recv().await {
+                match request {
+                    P2pRpcRequest::BlockAddr { address } => gate.block_addr(address),
+                    P2pRpcRequest::UnblockAddr { address } => gate.unblock_addr(address),
+                    P2pRpcRequest::ListBlockedAddrs(reply) => {
+                        reply.send(gate.list_blocked_addrs()).unwrap();
+                    }
+                    other => panic!("unexpected request {other:?}"),
+                }
+            }
+        };
+        let client = async move {
+            for method in ["opp2p_blockAddr", "opp2p_blocAddr"] {
+                for params in [rpc_params![], rpc_params!["not-an-ip"]] {
+                    let error = rpc.call::<_, ()>(method, params).await.unwrap_err();
+                    assert!(
+                        matches!(error, MethodsError::JsonRpc(error) if error.code() == -32602)
+                    );
+                }
+                rpc.call::<_, ()>(method, rpc_params![address]).await.unwrap();
+                assert_eq!(
+                    rpc.call::<_, Vec<IpAddr>>("opp2p_listBlockedAddrs", rpc_params![])
+                        .await
+                        .unwrap(),
+                    vec![address]
+                );
+                rpc.call::<_, ()>("opp2p_unblockAddr", rpc_params![address]).await.unwrap();
+                assert!(
+                    rpc.call::<_, Vec<IpAddr>>("opp2p_listBlockedAddrs", rpc_params![])
+                        .await
+                        .unwrap()
+                        .is_empty()
+                );
+            }
+        };
+        tokio::join!(client, backend);
+    }
+
     #[test]
     fn test_parse_multiaddr_string() {
         use std::str::FromStr;

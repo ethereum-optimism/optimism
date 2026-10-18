@@ -145,7 +145,8 @@ Returns a list of all blocked peer IDs.
 
 ### `opp2p_blockAddr`
 
-Blocks connections from a specific IP address.
+Blocks connections from a specific IP address. The legacy `opp2p_blocAddr` spelling
+remains an alias for this method.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |
@@ -295,7 +296,9 @@ Removes protection from a peer, allowing it to be disconnected by automatic prun
 
 ### `opp2p_connectPeer`
 
-Attempts to establish a connection to a specific peer using a multiaddress.
+Establishes a connection to a specific peer using a multiaddress. Success means the peer
+has appeared in the connected peer list. One ten-second deadline covers request admission
+and observation; an unresponsive owner or a connection that never appears returns an error.
 
 | Client | Method invocation                                      |
 | ------ | ------------------------------------------------------ |
@@ -314,7 +317,9 @@ Attempts to establish a connection to a specific peer using a multiaddress.
 
 ### `opp2p_disconnectPeer`
 
-Disconnects from a specific peer by peer ID.
+Disconnects from a specific peer by peer ID. Success means the peer is absent from the
+connected peer list. One ten-second deadline covers request admission and observation;
+channel closure returns an error promptly.
 
 | Client | Method invocation                                       |
 | ------ | ------------------------------------------------------- |

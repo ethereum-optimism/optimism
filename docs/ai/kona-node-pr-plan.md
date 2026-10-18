@@ -723,7 +723,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 10: autonomous bootstrap/reorg resets and actual L1 progress publication.
 - [x] PR 11: engine-owned accepted-safe finality, independent retries and canonical signal checks.
 - [x] Select only the optional PR 12 connect/disconnect deadline and endpoint-alias leaf; defer the broader network/discovery redesign.
-- [ ] Validate and publish the selected narrow PR 12.
+- [x] Validate and publish the selected narrow PR 12.
 - [x] Defer unmeasured PR 13 origin/receipt prefetch; select only the independent confirmation-policy correction.
 - [ ] Validate and publish the narrow confirmation-policy leaf.
 - [ ] Final selected-tip validation, issue closure audit and removal of obsolete PR dependencies.
@@ -1009,7 +1009,7 @@ The existing forced-inclusion regression now has no startup unsafe-payload prime
 
 ### PR 11 implementation and validation
 
-Branch `codex/kona-refactor-11-engine-finality` starts from PR 10 implementation `283c1d710d96d0b56a7dd440cfd4f5495b652ffc` ([draft 23494](https://github.com/ethereum-optimism/optimism/pull/23494)). The existing source-keyed finality map moves unchanged into the engine. Actual completed-safe Applied/Replaced results install the accepted hash and inclusion source before reply, including an abandoned caller; pending prefixes, dropped/stale/failed work and bootstrap trust create no record. Engine epoch invalidation clears records, delegated claims and retries; pipeline-only reset preserves them naturally.
+[Draft PR 23495](https://github.com/ethereum-optimism/optimism/pull/23495), implementation commit `d720ed2eecd095d269e3697bae6cfed853eba8f3`, branch `codex/kona-refactor-11-engine-finality`, starts from PR 10 implementation `283c1d710d96d0b56a7dd440cfd4f5495b652ffc` ([draft 23494](https://github.com/ethereum-optimism/optimism/pull/23494)). The existing source-keyed finality map moves unchanged into the engine. Actual completed-safe Applied/Replaced results install the accepted hash and inclusion source before reply, including an abandoned caller; pending prefixes, dropped/stale/failed work and bootstrap trust create no record. Engine epoch invalidation clears records, delegated claims and retries; pipeline-only reset preserves them naturally.
 
 New records and independent finalized-L1 observations both drive finality, including while derivation is idle or a finalized observation remains unchanged. The owner validates the signal itself, inclusion source and canonical L2 hash before FCU. Temporary read failures retain records and retry after 100 milliseconds without new traffic. An uncertain or `SYNCING` forkchoice requires ordinary recovery; proposed finalized state is committed only after `VALID`.
 
@@ -1020,3 +1020,14 @@ Due canonicality/finality work rotates, with an admitted command/unsafe opportun
 **Local validation.** All 373 offline tests across the five affected packages passed with all features and zero skips. After a readability-only Clippy correction, all 44 engine-owner/map regressions passed again. Full workspace Rust lint and a fresh default binary build passed. The isolated sequencer/verifier forced-inclusion test passed through canonical deposit recovery and recovered safe/finalized agreement (258.91 seconds). Registered admin reset passed for sequencer (24.29 seconds) and validator (35.97 seconds).
 
 **Review and scope.** Independent Rust/protocol, deletion/API and follow-up scheduler/unboxing reviews have no unresolved findings. Tests preserve actual replacement hash/span safety, canceled reply ownership, idle/new-record finality, timer retries, canonical signal/source/L2 rejection, epoch clearing, delegated claim lifetime and queue accounting. Paused slow-dependency/slow-command/new-origin regressions pin the maintenance priorities. Public Rust API migrations and operator docs are updated. The parent reorg/restart gates remain recorded at PR 10; the final selected tip receives the full shared Kona conductor preservation run. No Go or shared proof/protocol/alloy runtime source changed. Continue directly to the narrow RPC leaf without waiting for hosted CI or user approval.
+
+
+### PR 12 selected RPC leaf: implementation and validation
+
+Branch `codex/kona-refactor-12-p2p-effects` starts from PR 11 implementation `d720ed2eecd095d269e3697bae6cfed853eba8f3` ([draft 23495](https://github.com/ethereum-optimism/optimism/pull/23495)). Connect/disconnect now send their mutation once and wait for the promised observed connection effect. A single ten-second deadline encloses mutation admission, peer-query admission/reply and paced false-predicate retries; channel closure is terminal. The canonical `opp2p_blockAddr` endpoint is registered alongside the existing `opp2p_blocAddr` alias. Both mutate the same connection gater.
+
+The RPC-only retry dependency is deleted. Tokio's paused-time support is enabled only for tests; no package version or runtime dependency is added. Registered regressions cover delayed effects, false-until-deadline, each stalled admission/reply phase, combined admission/reply time under one budget, closure, input rejection and actual shared-gater alias behavior.
+
+**Local validation.** All 379 offline tests in the five affected packages passed with all features and zero skips. Full workspace Rust lint and a fresh default binary build passed. The live `TestP2PPeers` and `TestNetworkConnectivity` checks passed with the candidate Kona binary and external op-reth (17.17 and 15.18 seconds). Commands/results are in `work/pr12-validation-results.json` in the task workspace.
+
+**Review and scope.** Two independent Rust/deletion/API reviews have no unresolved findings. Operator documentation describes the observed effect, total deadline and retained alias. No new network actor/handle/snapshot framework, discovery policy or engine-ingress path is introduced. Discovery disablement, peer-manager settings and swarm/discovery responsiveness remain separate; issue 23034 stays open. Continue directly to the confirmation-policy leaf without waiting for CI or user approval.
