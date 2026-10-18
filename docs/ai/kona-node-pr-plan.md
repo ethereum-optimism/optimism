@@ -725,7 +725,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] Select only the optional PR 12 connect/disconnect deadline and endpoint-alias leaf; defer the broader network/discovery redesign.
 - [x] Validate and publish the selected narrow PR 12.
 - [x] Defer unmeasured PR 13 origin/receipt prefetch; select only the independent confirmation-policy correction.
-- [ ] Validate and publish the narrow confirmation-policy leaf.
+- [x] Validate and publish the narrow confirmation-policy leaf.
 - [ ] Final selected-tip validation, issue closure audit and removal of obsolete PR dependencies.
 
 ### Decisions to retain during execution
@@ -1024,10 +1024,21 @@ Due canonicality/finality work rotates, with an admitted command/unsafe opportun
 
 ### PR 12 selected RPC leaf: implementation and validation
 
-Branch `codex/kona-refactor-12-p2p-effects` starts from PR 11 implementation `d720ed2eecd095d269e3697bae6cfed853eba8f3` ([draft 23495](https://github.com/ethereum-optimism/optimism/pull/23495)). Connect/disconnect now send their mutation once and wait for the promised observed connection effect. A single ten-second deadline encloses mutation admission, peer-query admission/reply and paced false-predicate retries; channel closure is terminal. The canonical `opp2p_blockAddr` endpoint is registered alongside the existing `opp2p_blocAddr` alias. Both mutate the same connection gater.
+[Draft PR 23496](https://github.com/ethereum-optimism/optimism/pull/23496), implementation commit `9ecf8f497d252ba0c7fe771044234d4665ee7228`, branch `codex/kona-refactor-12-p2p-effects`, starts from PR 11 implementation `d720ed2eecd095d269e3697bae6cfed853eba8f3` ([draft 23495](https://github.com/ethereum-optimism/optimism/pull/23495)). Connect/disconnect now send their mutation once and wait for the promised observed connection effect. A single ten-second deadline encloses mutation admission, peer-query admission/reply and paced false-predicate retries; channel closure is terminal. The canonical `opp2p_blockAddr` endpoint is registered alongside the existing `opp2p_blocAddr` alias. Both mutate the same connection gater.
 
 The RPC-only retry dependency is deleted. Tokio's paused-time support is enabled only for tests; no package version or runtime dependency is added. Registered regressions cover delayed effects, false-until-deadline, each stalled admission/reply phase, combined admission/reply time under one budget, closure, input rejection and actual shared-gater alias behavior.
 
 **Local validation.** All 379 offline tests in the five affected packages passed with all features and zero skips. Full workspace Rust lint and a fresh default binary build passed. The live `TestP2PPeers` and `TestNetworkConnectivity` checks passed with the candidate Kona binary and external op-reth (17.17 and 15.18 seconds). Commands/results are in `work/pr12-validation-results.json` in the task workspace.
 
 **Review and scope.** Two independent Rust/deletion/API reviews have no unresolved findings. Operator documentation describes the observed effect, total deadline and retained alias. No new network actor/handle/snapshot framework, discovery policy or engine-ingress path is introduced. Discovery disablement, peer-manager settings and swarm/discovery responsiveness remain separate; issue 23034 stays open. Continue directly to the confirmation-policy leaf without waiting for CI or user approval.
+
+
+### PR 13 selected confirmation-policy leaf: implementation and validation
+
+Branch `codex/kona-refactor-13-confirmation-policy` starts from PR 12 implementation `9ecf8f497d252ba0c7fe771044234d4665ee7228` ([draft 23496](https://github.com/ethereum-optimism/optimism/pull/23496)). Positive L1 confirmation depth now withholds new numbered-origin reads while the observed head is unknown. Eligibility uses checked subtraction, so extreme heights/depths cannot overflow into false permission. Explicit zero-depth/genesis behavior and direct current-origin by-hash reads remain unchanged. There is no public Rust API change.
+
+Ten real `RootProvider`/mock-transport boundary cases verify eligibility and actual RPC counts for unknown/genesis heads, zero depth/genesis, exact/too-recent/ahead heights and integer extremes. A watch-transition regression proves current-origin hash reads remain available and a withheld numeric read resumes only after enough confirmations, consuming no RPC response early. Operator documentation states the initial-head requirement.
+
+**Local validation.** All 390 offline tests in the five affected packages passed with all features and zero skips. Full workspace Rust lint and a fresh default binary build passed. The complete shared conductor package passed all thirteen cases with zero skips on the selected Kona/op-reth tip (288.219 seconds), preserving publication, handoff/failover, reset/startup and recovery behavior. Commands/results are in `work/pr13-validation-results.json` in the task workspace.
+
+**Review and scope.** Independent Rust review has no unresolved findings. This fixes the confirmation-policy bypass identified during the optional-tail audit. No prefetcher, shared cache or preparation actor is introduced, and no performance gain is claimed. The separate performance proposal remains deferred behind measurements of actual header/receipt preparation; issue 23281 stays open. The selected stack's final validation and issue/dependency disposition follow below.
