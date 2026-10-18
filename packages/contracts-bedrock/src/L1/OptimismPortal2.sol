@@ -141,6 +141,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:network-specific
     uint256 public proofMaturityDelaySeconds;
 
+    /// @notice Hook that screens deposits and withdrawal finalizations. While this is the zero
+    ///         address the Portal behaves as on a default OP Stack chain.
+    /// @custom:network-specific
+    IBridgeHook public bridgeHook;
+
+    /// @notice Deposits the hook is holding, keyed by item ID.
+    mapping(bytes32 => bool) public heldDeposits;
+
+    /// @notice Withdrawals the hook is holding, keyed by withdrawal hash.
+    mapping(bytes32 => bool) public heldWithdrawals;
+
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
     /// @param newLockbox The shared lockbox
@@ -155,6 +166,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Migrates the total ETH balance to the ETHLockbox.
     event ETHMigrated(address indexed lockbox, uint256 balance);
+
+    /// @notice Emitted when the bridge hook is set.
+    /// @param bridgeHook The new bridge hook, or the zero address if it was unset.
+    event BridgeHookSet(IBridgeHook indexed bridgeHook);
 
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
@@ -253,6 +268,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
+    /// @notice Thrown when the bridge hook is set/unset incorrectly depending on the feature flag.
+    error OptimismPortal_InvalidBridgeHookState();
+
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
@@ -272,9 +290,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.1.0
+    /// @custom:semver 6.2.0
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "6.2.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -315,6 +333,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _assertValidInteropState();
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
+        // Assert that the bridge hook state is valid.
+        _assertValidBridgeHookState();
 
         // Set the proof maturity delay and check it against the configured bounds.
         _setProofMaturityDelaySeconds(_proofMaturityDelaySeconds);
@@ -826,24 +846,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Returns the hook that screens deposits and withdrawal finalizations.
-    /// @return Bridge hook, or the zero address if unset.
-    function bridgeHook() external view returns (IBridgeHook) { }
-
     /// @notice Sets the bridge hook. Only callable by the ProxyAdmin owner.
     ///         A nonzero hook requires the BRIDGE_HOOK feature.
+    /// @dev    Unsetting the hook stops screening for new items but strands every item it is
+    ///         already holding, since completion is only callable by the hook.
     /// @param _hook Bridge hook, or the zero address to unset it.
-    function setBridgeHook(IBridgeHook _hook) external { }
-
-    /// @notice Returns whether a deposit is held.
-    /// @param _id Deposit item hash.
-    /// @return True if held.
-    function heldDeposits(bytes32 _id) external view returns (bool) { }
-
-    /// @notice Returns whether a withdrawal is held.
-    /// @param _id Withdrawal item hash.
-    /// @return True if held.
-    function heldWithdrawals(bytes32 _id) external view returns (bool) { }
+    function setBridgeHook(IBridgeHook _hook) external {
+        _assertOnlyProxyAdminOwner();
+        bridgeHook = _hook;
+        _assertValidBridgeHookState();
+        emit BridgeHookSet(_hook);
+    }
 
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
@@ -854,6 +867,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held withdrawal.
     function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
+
+    /// @notice Checks if the bridge hook is in use.
+    /// @dev    Gates screening and completion. Disabling the feature therefore strands held
+    ///         items until it is enabled again, which SystemConfig refuses while a hook is set.
+    /// @return bool True if a hook is set and the BRIDGE_HOOK feature is enabled.
+    function _isUsingBridgeHook() internal view returns (bool) {
+        return address(bridgeHook) != address(0) && systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK);
+    }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
     /// @return bool True if the ETHLockbox feature is enabled.
@@ -886,6 +907,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _assertValidInteropState() internal view {
         if (systemConfig.isFeatureEnabled(Features.INTEROP) && !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
             revert OptimismPortal_InvalidInteropState();
+        }
+    }
+
+    /// @notice Asserts that a bridge hook is only set while the BRIDGE_HOOK feature is enabled.
+    function _assertValidBridgeHookState() internal view {
+        if (address(bridgeHook) != address(0) && !systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
+            revert OptimismPortal_InvalidBridgeHookState();
         }
     }
 
