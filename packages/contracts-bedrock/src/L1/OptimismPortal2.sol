@@ -649,12 +649,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
-        // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
-        // than the default value when a withdrawal transaction is being finalized. This check is
-        // a defacto reentrancy guard.
-        if (l2Sender != Constants.DEFAULT_L2_SENDER) {
-            revert OptimismPortal_NoReentrancy();
-        }
+        // Make sure that no other withdrawal is currently being finalized.
+        _assertNoReentrancy();
 
         // Make sure that the target address is safe.
         if (_isUnsafeTarget(_tx.target)) {
@@ -896,6 +892,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
     }
 
+    /// @notice Asserts that no withdrawal is currently being finalized.
+    function _assertNoReentrancy() internal view {
+        if (l2Sender != Constants.DEFAULT_L2_SENDER) {
+            revert OptimismPortal_NoReentrancy();
+        }
+    }
+
     /// @notice Asserts that the contract is not paused.
     function _assertNotPaused() internal view {
         if (paused()) {
@@ -938,9 +941,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Checks if a target address is unsafe.
+    /// @dev The L1StandardBridge is unsafe whether or not the chain sets a hook since its holdERC20
+    ///      and restoreERC20 entry points authorize on the Portal being the caller.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
-        return _target == address(this) || _target == address(ethLockbox);
+        if (_target == address(this) || _target == address(ethLockbox)) return true;
+        if (_target == systemConfig.l1StandardBridge()) return true;
+        return address(bridgeHook) != address(0) && _target == address(bridgeHook);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.
