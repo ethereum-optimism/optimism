@@ -311,7 +311,7 @@ where
                     let _ = tx.send(Some(Ok(payload)));
                 } else {
                     let wrapped = self.wrapped.clone();
-                    self.runtime.spawn_task(async move {
+                    self.forward(async move {
                         let _ = tx.send(wrapped.best_payload(id).await);
                     });
                 }
@@ -321,7 +321,7 @@ where
                     let _ = tx.send(Some(Ok(payload.block().header().timestamp())));
                 } else {
                     let wrapped = self.wrapped.clone();
-                    self.runtime.spawn_task(async move {
+                    self.forward(async move {
                         let _ = tx.send(wrapped.payload_timestamp(id).await);
                     });
                 }
@@ -352,6 +352,15 @@ where
         async move { answer.await.unwrap_or_else(|closed| Err(closed.into())) }
     }
 
+    /// Polls `forward` once, which sends its command to the wrapped service, and finishes it on a
+    /// task. Commands thus reach the wrapped service in the order this service receives them.
+    fn forward(&self, forward: impl Future<Output = ()> + Send + 'static) {
+        let mut forward = Box::pin(forward);
+        if (&mut forward).now_or_never().is_none() {
+            self.runtime.spawn_task(forward);
+        }
+    }
+
     /// Resolves `id` in the wrapped service. Dropping the request cancels the resolution there,
     /// too.
     fn resolve_in_wrapped_service(
@@ -361,7 +370,7 @@ where
         mut tx: oneshot::Sender<Option<PayloadFuture<T::BuiltPayload>>>,
     ) {
         let wrapped = self.wrapped.clone();
-        self.runtime.spawn_task(async move {
+        self.forward(async move {
             let resolved = wrapped.resolve_kind(id, kind);
             let resolved = tokio::select! {
                 resolved = resolved => resolved,
@@ -598,6 +607,8 @@ mod tests {
         release: std::sync::mpsc::Sender<()>,
         /// Builds the wrapped service started.
         wrapped: Arc<Mutex<Vec<PayloadId>>>,
+        /// Commands the wrapped service received, except subscriptions, in order.
+        wrapped_commands: Arc<Mutex<Vec<&'static str>>>,
         /// Leases the wrapped service holds for its builds.
         wrapped_leases: Arc<Mutex<Vec<PayloadBuilderLease>>>,
         wrapped_events: broadcast::Sender<Events<OpEngineTypes>>,
@@ -609,12 +620,25 @@ mod tests {
         let (to_wrapped, mut commands) = mpsc::unbounded_channel();
         let wrapped = Arc::new(Mutex::new(Vec::new()));
         let wrapped_leases = Arc::new(Mutex::new(Vec::new()));
+        let wrapped_commands = Arc::new(Mutex::new(Vec::new()));
         let (wrapped_events, _) = broadcast::channel(16);
-        let (jobs, leases, subscriptions) =
-            (wrapped.clone(), wrapped_leases.clone(), wrapped_events.clone());
+        let (jobs, leases, subscriptions, log) = (
+            wrapped.clone(),
+            wrapped_leases.clone(),
+            wrapped_events.clone(),
+            wrapped_commands.clone(),
+        );
         tokio::spawn(async move {
             while let Some(command) = commands.recv().await {
                 let known = |id| jobs.lock().unwrap().contains(&id);
+                let name = match &command {
+                    PayloadServiceCommand::BuildNewPayload(..) => Some("BuildNewPayload"),
+                    PayloadServiceCommand::BestPayload(..) => Some("BestPayload"),
+                    PayloadServiceCommand::PayloadTimestamp(..) => Some("PayloadTimestamp"),
+                    PayloadServiceCommand::Resolve(..) => Some("Resolve"),
+                    PayloadServiceCommand::Subscribe(_) => None,
+                };
+                log.lock().unwrap().extend(name);
                 match command {
                     PayloadServiceCommand::BuildNewPayload(input, _, tx)
                         if input.parent_hash == UNKNOWN_PARENT =>
@@ -672,7 +696,15 @@ mod tests {
         )
         .await
         .unwrap();
-        Fixture { service, builds, release, wrapped, wrapped_leases, wrapped_events }
+        Fixture {
+            service,
+            builds,
+            release,
+            wrapped,
+            wrapped_commands,
+            wrapped_leases,
+            wrapped_events,
+        }
     }
 
     fn request(
@@ -694,6 +726,27 @@ mod tests {
         })
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn forwarded_commands_keep_their_order() {
+        let f = fixture(false, built).await;
+        let unknown = PayloadId::new([7; 8]);
+        let mut timestamp = std::pin::pin!(f.service.payload_timestamp(unknown));
+        assert!(futures::poll!(&mut timestamp).is_pending());
+        let mut best = std::pin::pin!(f.service.best_payload(unknown));
+        assert!(futures::poll!(&mut best).is_pending());
+        let resolved = f.service.resolve_kind(unknown, PayloadKind::Earliest);
+        let sequenced = OpPayloadAttrs(OpPayloadAttributes { no_tx_pool: None, ..derived(1).0 });
+        request(&f.service, sequenced).await.unwrap().unwrap();
+
+        assert!(timestamp.await.is_none());
+        assert!(best.await.is_none());
+        assert!(resolved.await.is_none());
+        assert_eq!(
+            *f.wrapped_commands.lock().unwrap(),
+            ["PayloadTimestamp", "BestPayload", "Resolve", "BuildNewPayload"]
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
