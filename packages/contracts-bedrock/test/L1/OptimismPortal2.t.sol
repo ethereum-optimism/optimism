@@ -23,6 +23,8 @@ import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
+import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
@@ -37,6 +39,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
@@ -3141,5 +3144,63 @@ contract OptimismPortal2_Params_Test is CommonTest {
         bytes32 slot21After = vm.load(address(optimismPortal2), bytes32(uint256(21)));
         bytes32 slot21Expected = NextImpl(address(optimismPortal2)).slot21Init();
         assertEq(slot21Expected, slot21After);
+    }
+}
+
+/// @title OptimismPortal2_CompleteDepositTransaction_Test
+/// @notice Tests completing deposits held by the bridge hook.
+contract OptimismPortal2_CompleteDepositTransaction_Test is CommonTest {
+    /// @notice Gas limit of each deposit. Two fit under the default 20m cap, three do not.
+    uint64 internal constant GAS_LIMIT = 8_000_000;
+
+    address internal hook = makeAddr("hook");
+
+    /// @notice Nonce the Portal assigns to the next screened deposit.
+    uint256 internal nextNonce;
+
+    function setUp() public override {
+        super.setUp();
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setBridgeHook(IBridgeHook(hook));
+    }
+
+    /// @notice Sends a deposit from alice and returns the item the Portal builds for it.
+    function _deposit() internal returns (BridgeHookTypes.Item memory item_) {
+        item_.direction = BridgeHookTypes.Direction.Deposit;
+        item_.asset = BridgeHookTypes.Asset.ETH;
+        item_.from = alice;
+        item_.to = bob;
+        item_.gasLimit = GAS_LIMIT;
+        item_.nonce = nextNonce++;
+
+        vm.prank(alice, alice);
+        optimismPortal2.depositTransaction(bob, 0, GAS_LIMIT, false, hex"");
+    }
+
+    /// @notice The resource metering RFC example. With a 20m cap, deposits A and B of 8m are held
+    ///         in two blocks, and in a third block deposit C of 8m proceeds and A completes. B would
+    ///         take the gas published in that block to 24m, so its completion reverts and B stays
+    ///         held. It completes in the next block.
+    function test_completeDepositTransaction_overCap_reverts() external {
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(false));
+        BridgeHookTypes.Item memory a = _deposit();
+        vm.roll(block.number + 1);
+        BridgeHookTypes.Item memory b = _deposit();
+
+        vm.roll(block.number + 1);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        _deposit();
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(a);
+
+        vm.expectRevert(IOptimismPortal.OutOfGas.selector);
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(b);
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(b)));
+
+        vm.roll(block.number + 1);
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(b);
+        assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(b)));
     }
 }

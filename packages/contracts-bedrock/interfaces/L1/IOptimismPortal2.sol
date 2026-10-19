@@ -45,6 +45,10 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_DisputeGameNotInvalidated();
     error OptimismPortal_InvalidProofMaturityDelayBounds();
     error OptimismPortal_InvalidProofMaturityDelay();
+    error OptimismPortal_NotBridgeHook();
+    error OptimismPortal_BridgeHookItemsOutstanding();
+    error OptimismPortal_NotHeld();
+    error OptimismPortal_ValueMismatch();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();
@@ -63,6 +67,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event WithdrawalProofDeleted(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+    event DepositHeld(bytes32 indexed id);
 
     receive() external payable;
 

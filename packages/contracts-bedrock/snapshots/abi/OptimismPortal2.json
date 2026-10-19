@@ -933,6 +933,19 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DepositHeld",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "lockbox",
         "type": "address"
@@ -1149,6 +1162,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_BridgeHookItemsOutstanding",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_CallPaused",
     "type": "error"
   },
@@ -1239,7 +1257,32 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NoReentrancy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NotAllowedOnCGTMode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotHeld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotHeld",
     "type": "error"
   },
   {
@@ -1260,6 +1303,16 @@
   {
     "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ValueMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ValueMismatch",
     "type": "error"
   },
   {

@@ -293,9 +293,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_ValueMismatch();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.1.0
+    /// @custom:semver 6.2.0
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "6.2.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -833,6 +833,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             }
         }
 
+        // Count the deposit against the gas completed in this block. This also runs after the
+        // hook is removed in a block that already had a completion.
+        if (_isUsingBridgeHook() || completedBlockNum == block.number) _countCompleted(_gasLimit);
+
         // If using ETHLockbox, lock the ETH in the ETHLockbox.
         if (_isUsingLockbox()) {
             if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();
@@ -868,6 +872,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _assertOnlyProxyAdminOwner();
         if (_bridgeHookState.outstandingItems != 0) revert OptimismPortal_BridgeHookItemsOutstanding();
 
+        if (!_isUsingBridgeHook() && address(_hook) != address(0)) _startCompletedCount();
         _bridgeHookState.hook = _hook;
     }
 
@@ -888,6 +893,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _item Held deposit.
     function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable {
         BridgeHookPortal.completeDeposit(_bridgeHookState, _item);
+
+        // Paid for at submission. Counted against this block, since this is where it reaches L2.
+        _countCompleted(uint64(_item.gasLimit));
 
         if (_isUsingLockbox()) {
             if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();

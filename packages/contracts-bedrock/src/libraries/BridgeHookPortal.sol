@@ -44,7 +44,7 @@ library BridgeHookPortal {
 
     /// @notice Asks the hook about a deposit. On a hold, commits to its terms and hands its value
     ///         to the hook.
-    /// @param self        The Portal's bridge hook state.
+    /// @param _self       The Portal's bridge hook state.
     /// @param _from       Sender of the deposit, aliased if it is a contract.
     /// @param _to         Target address on L2.
     /// @param _value      ETH value to send to the recipient.
@@ -53,7 +53,7 @@ library BridgeHookPortal {
     /// @param _data       Data to trigger the recipient with.
     /// @return pass_ True if the deposit proceeds.
     function screenDeposit(
-        State storage self,
+        State storage _self,
         address _from,
         address _to,
         uint256 _value,
@@ -64,47 +64,48 @@ library BridgeHookPortal {
         internal
         returns (bool pass_)
     {
-        if (self.inHook) revert OptimismPortal_NoReentrancy();
+        if (_self.inHook) revert OptimismPortal_NoReentrancy();
 
-        BridgeHookTypes.Item memory item;
-        item.direction = BridgeHookTypes.Direction.Deposit;
-        item.asset = BridgeHookTypes.Asset.ETH;
-        item.from = _from;
-        item.aliased = _from != msg.sender;
-        item.to = _to;
-        item.ethAmount = msg.value;
-        item.l2Value = _value;
-        item.gasLimit = _gasLimit;
-        item.isCreation = _isCreation;
-        item.data = _data;
-        item.nonce = self.depositNonce++;
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: _from,
+            aliased: _from != msg.sender,
+            to: _to,
+            ethAmount: msg.value,
+            l2Value: _value,
+            gasLimit: _gasLimit,
+            isCreation: _isCreation,
+            data: _data,
+            nonce: _self.depositNonce++
+        });
 
-        self.inHook = true;
-        pass_ = self.hook.screenDeposit(item);
+        _self.inHook = true;
+        pass_ = _self.hook.screenDeposit(item);
         if (!pass_) {
             bytes32 id = BridgeHookHashing.hashItem(item);
-            self.heldDeposits[id] = true;
-            self.outstandingItems++;
+            _self.heldDeposits[id] = true;
+            _self.outstandingItems++;
             emit DepositHeld(id);
 
-            self.hook.holdDeposit{ value: msg.value }(item);
+            _self.hook.holdDeposit{ value: msg.value }(item);
         }
-        self.inHook = false;
+        _self.inHook = false;
     }
 
     /// @notice Checks a held deposit against its commitment and deletes the commitment. Only the
     ///         hook can complete. The Portal then emits the deposit.
-    /// @param self  The Portal's bridge hook state.
+    /// @param _self The Portal's bridge hook state.
     /// @param _item The held deposit.
-    function completeDeposit(State storage self, BridgeHookTypes.Item memory _item) internal {
-        if (msg.sender != address(self.hook)) revert OptimismPortal_NotBridgeHook();
-        if (self.inHook) revert OptimismPortal_NoReentrancy();
+    function completeDeposit(State storage _self, BridgeHookTypes.Item memory _item) internal {
+        if (msg.sender != address(_self.hook)) revert OptimismPortal_NotBridgeHook();
+        if (_self.inHook) revert OptimismPortal_NoReentrancy();
 
         bytes32 id = BridgeHookHashing.hashItem(_item);
-        if (!self.heldDeposits[id]) revert OptimismPortal_NotHeld();
+        if (!_self.heldDeposits[id]) revert OptimismPortal_NotHeld();
         if (msg.value != _item.ethAmount) revert OptimismPortal_ValueMismatch();
 
-        delete self.heldDeposits[id];
-        self.outstandingItems--;
+        delete _self.heldDeposits[id];
+        _self.outstandingItems--;
     }
 }
