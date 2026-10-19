@@ -96,7 +96,7 @@ func checkAction(c *cli.Context) error {
 	defer client.Close()
 	l1 := l1Caller{client}
 
-	before, err := beforeBlock(c, l1)
+	before, receipt, err := beforeBlock(c, l1)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,11 @@ func checkAction(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to read the delays at block %d: %w", after, err)
 		}
-		failures += compare(logger, pre, post)
+		upgrades, err := upgradedProxies(c.Context, client, receipt, pre, before, after)
+		if err != nil {
+			return err
+		}
+		failures += compare(logger, pre, post, upgrades)
 	}
 	if failures > 0 {
 		return fmt.Errorf("%d check(s) failed between L1 blocks %d and %d", failures, before, after)
@@ -133,37 +137,78 @@ func checkAction(c *cli.Context) error {
 }
 
 // beforeBlock returns the block before the upgrade, from --before-block or the block of --upgrade-tx.
-func beforeBlock(c *cli.Context, l1 l1Caller) (uint64, error) {
+// The receipt is nil when --before-block is used.
+func beforeBlock(c *cli.Context, l1 l1Caller) (uint64, *types.Receipt, error) {
 	hasTx, hasBlock := c.IsSet(UpgradeTx.Name), c.IsSet(BeforeBlock.Name)
 	if hasTx == hasBlock {
-		return 0, errors.New("set exactly one of --upgrade-tx and --before-block")
+		return 0, nil, errors.New("set exactly one of --upgrade-tx and --before-block")
 	}
 	if hasBlock {
-		return c.Uint64(BeforeBlock.Name), nil
+		return c.Uint64(BeforeBlock.Name), nil, nil
 	}
 	receipt, err := l1.TransactionReceipt(c.Context, common.HexToHash(c.String(UpgradeTx.Name)))
 	if err != nil {
-		return 0, fmt.Errorf("failed to get the upgrade transaction receipt: %w", err)
+		return 0, nil, fmt.Errorf("failed to get the upgrade transaction receipt: %w", err)
 	}
 	if receipt.Status != types.ReceiptStatusSuccessful {
-		return 0, fmt.Errorf("upgrade transaction %s failed", receipt.TxHash)
+		return 0, nil, fmt.Errorf("upgrade transaction %s failed", receipt.TxHash)
 	}
-	return bigs.Uint64Strict(receipt.BlockNumber) - 1, nil
+	return bigs.Uint64Strict(receipt.BlockNumber) - 1, receipt, nil
+}
+
+// logRangeSize keeps eth_getLogs requests within the block range limits of common RPC providers.
+const logRangeSize = 10_000
+
+// upgradedProxies counts the Upgraded events emitted by the chain's proxies, as they were before the
+// upgrade, in the upgrade transaction or, without one, in the blocks after the before block.
+func upgradedProxies(ctx context.Context, client *ethclient.Client, receipt *types.Receipt, pre reviewperiod.ChainDelays, before, after uint64) (map[string]int, error) {
+	proxies := pre.Proxies()
+	counts := make(map[string]int)
+	count := func(logs []*types.Log) {
+		for _, l := range logs {
+			if name, ok := proxies[l.Address]; ok && len(l.Topics) > 0 && l.Topics[0] == reviewperiod.UpgradedTopic {
+				counts[name]++
+			}
+		}
+	}
+	if receipt != nil {
+		count(receipt.Logs)
+		return counts, nil
+	}
+	addrs := make([]common.Address, 0, len(proxies))
+	for addr := range proxies {
+		addrs = append(addrs, addr)
+	}
+	for from := before + 1; from <= after; from += logRangeSize {
+		to := min(from+logRangeSize-1, after)
+		logs, err := client.FilterLogs(ctx, ethereum.FilterQuery{
+			FromBlock: new(big.Int).SetUint64(from),
+			ToBlock:   new(big.Int).SetUint64(to),
+			Addresses: addrs,
+			Topics:    [][]common.Hash{{reviewperiod.UpgradedTopic}},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Upgraded logs for blocks %d-%d: %w", from, to, err)
+		}
+		ptrs := make([]*types.Log, len(logs))
+		for i := range logs {
+			ptrs[i] = &logs[i]
+		}
+		count(ptrs)
+	}
+	return counts, nil
 }
 
 // compare logs the result for one chain and returns the number of failed checks.
-func compare(logger log.Logger, pre, post reviewperiod.ChainDelays) int {
+func compare(logger log.Logger, pre, post reviewperiod.ChainDelays, upgrades map[string]int) int {
 	l := logger.New("chainID", post.L2ChainID, "systemConfig", post.SystemConfig)
 	failures := 0
 
-	switch {
-	case !post.OPCMTracked:
-		l.Warn("SystemConfig does not track the last used OPCM, so the upgrade cannot be confirmed")
-	case pre.OPCMTracked && pre.LastUsedOPCM == post.LastUsedOPCM && pre.LastUsedOPCMVersion == post.LastUsedOPCMVersion:
+	if len(upgrades) == 0 {
 		failures++
-		l.Error("No OPCM upgrade between the two blocks", "lastUsedOPCM", post.LastUsedOPCM, "version", post.LastUsedOPCMVersion)
-	default:
-		l.Info("Upgraded", "fromVersion", pre.LastUsedOPCMVersion, "toVersion", post.LastUsedOPCMVersion, "opcm", post.LastUsedOPCM)
+		l.Error("No proxy of the chain was upgraded between the two blocks")
+	} else {
+		l.Info("Upgraded", "proxies", upgrades, "fromOPCMVersion", pre.LastUsedOPCMVersion, "toOPCMVersion", post.LastUsedOPCMVersion)
 	}
 
 	for _, d := range []struct {

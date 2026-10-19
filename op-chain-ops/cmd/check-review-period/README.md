@@ -31,9 +31,9 @@ go run ./op-chain-ops/cmd/check-review-period check \
 ```
 
 For each chain, `check` reads the delays at the block before the upgrade and at the latest block, logs each delay, and
-exits non-zero if any delay changed. It also compares the SystemConfig's `lastUsedOPCM()` and `lastUsedOPCMVersion()`
-at both blocks and fails if no OPCM upgrade happened in between. A changed contract address is logged as a warning but
-does not fail the check.
+exits non-zero if any delay changed. It also fails if none of the chain's proxies (`SystemConfig`, `OptimismPortal2`,
+`AnchorStateRegistry`, `DelayedWETH`) emitted `Upgraded(address)` in the upgrade transaction or, with `--before-block`,
+after that block. A changed contract address is logged as a warning but does not fail the check.
 
 The L1 RPC must serve state at the block before the upgrade, so older upgrades need an archive node.
 

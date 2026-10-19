@@ -12,10 +12,15 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
+
+// UpgradedTopic is the topic of the proxy's Upgraded(address) event, emitted every time an
+// OPCM upgrade or migration sets a proxy implementation.
+var UpgradedTopic = crypto.Keccak256Hash([]byte("Upgraded(address)"))
 
 var (
 	optimismPortalFn      = w3.MustNewFunc("optimismPortal()", "address")
@@ -25,7 +30,6 @@ var (
 	disputeGameFinalityFn = w3.MustNewFunc("disputeGameFinalityDelaySeconds()", "uint256")
 	withdrawalDelayFn     = w3.MustNewFunc("delay()", "uint256")
 	l2ChainIDFn           = w3.MustNewFunc("l2ChainId()", "uint256")
-	lastUsedOPCMFn        = w3.MustNewFunc("lastUsedOPCM()", "address")
 	lastUsedOPCMVersionFn = w3.MustNewFunc("lastUsedOPCMVersion()", "string")
 )
 
@@ -44,10 +48,18 @@ type ChainDelays struct {
 	ProofMaturityDelaySeconds       uint64
 	DisputeGameFinalityDelaySeconds uint64
 	WithdrawalDelaySeconds          uint64
-	// OPCMTracked is false when the SystemConfig predates lastUsedOPCM(), so the two fields below are unset.
-	OPCMTracked         bool
-	LastUsedOPCM        common.Address
+	// LastUsedOPCMVersion labels the output only. It is empty on SystemConfigs that predate #18547.
 	LastUsedOPCMVersion string
+}
+
+// Proxies returns the chain's review period proxies, keyed by address, with their contract names.
+func (d ChainDelays) Proxies() map[common.Address]string {
+	return map[common.Address]string{
+		d.SystemConfig:        "SystemConfig",
+		d.OptimismPortal:      "OptimismPortal",
+		d.AnchorStateRegistry: "AnchorStateRegistry",
+		d.DelayedWETH:         "DelayedWETH",
+	}
 }
 
 // ReadChainDelays resolves the chain's contracts from its SystemConfig and reads the three delays at block.
@@ -57,13 +69,8 @@ func ReadChainDelays(ctx context.Context, l1 Caller, systemConfig common.Address
 	if out.L2ChainID, err = callUint64(ctx, l1, systemConfig, l2ChainIDFn, block); err != nil {
 		return out, fmt.Errorf("SystemConfig %s: l2ChainId(): %w", systemConfig, err)
 	}
-	// lastUsedOPCM() only exists on SystemConfigs from #18547 onwards, so a failed read means it is not tracked.
-	if err := call(ctx, l1, systemConfig, lastUsedOPCMFn, block, &out.LastUsedOPCM); err == nil {
-		if err := call(ctx, l1, systemConfig, lastUsedOPCMVersionFn, block, &out.LastUsedOPCMVersion); err != nil {
-			return out, fmt.Errorf("SystemConfig %s: lastUsedOPCMVersion(): %w", systemConfig, err)
-		}
-		out.OPCMTracked = true
-	}
+	// Best effort: older SystemConfigs revert here, and the version is only a label.
+	_ = call(ctx, l1, systemConfig, lastUsedOPCMVersionFn, block, &out.LastUsedOPCMVersion)
 	if out.OptimismPortal, err = callAddress(ctx, l1, systemConfig, optimismPortalFn, block); err != nil {
 		return out, fmt.Errorf("SystemConfig %s: optimismPortal(): %w", systemConfig, err)
 	}
