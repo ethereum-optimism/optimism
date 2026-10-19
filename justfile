@@ -433,25 +433,29 @@ build-rust-release:
 PROOF_EXEX_GO_FLAGS := env("PROOF_EXEX_GO_FLAGS", "-parallel 2 -timeout 60m")
 
 # The proofs-history ExEx coverage, run locally and not wired into CI: the Rust suites of the
-# trie, ExEx, RPC and CLI crates, the acceptance packages, and the proofs e2e suite. The
-# acceptance step builds contracts, prestates and the release Rust binaries first; the e2e
-# suite reuses that op-reth. Pick the L2 CL with DEVSTACK_L2CL_KIND (op-node or kona-node).
-# Every step runs even when an earlier one fails; the recipe fails at the end and names the failed
+# trie, ExEx, RPC and CLI crates, the acceptance packages, and the proofs e2e suite. The recipe
+# builds the contracts and the release Rust binaries first and skips the kona prestates, which
+# these tests never use. Pick the L2 CL with DEVSTACK_L2CL_KIND (op-node or kona-node). Every
+# test step runs even when an earlier one fails; the recipe fails at the end and names the failed
 # steps. Expect about an hour after a warm build.
 
 # Run the proofs-history ExEx test coverage (Rust suites, acceptance packages, proofs e2e suite).
 [script('bash')]
 test-proof-exex:
-  set -uo pipefail
+  set -euo pipefail
+  echo "Building the contracts and the release Rust binaries"
+  (cd packages/contracts-bedrock && just install && just build-no-tests)
+  just build-rust-release
+  set +e
   failed=""
   echo "Rust: proofs-history ExEx crates"
   (cd rust && cargo nextest run --no-fail-fast -p reth-optimism-trie -p reth-optimism-exex -p reth-optimism-rpc -p reth-optimism-cli --all-features) || failed="$failed rust"
   echo "Acceptance: proofs-history packages ({{PROOF_EXEX_GO_FLAGS}})"
-  (cd op-acceptance-tests && just test {{PROOF_EXEX_GO_FLAGS}} \
+  go test -count=1 {{PROOF_EXEX_GO_FLAGS}} \
     ./op-acceptance-tests/tests/proofs_history_match/ \
     ./op-acceptance-tests/tests/proofs_history_restart/ \
     ./op-acceptance-tests/tests/proofs_history_reorg/ \
-    ./op-acceptance-tests/tests/proofs_history_init/) || failed="$failed acceptance"
+    ./op-acceptance-tests/tests/proofs_history_init/ || failed="$failed acceptance"
   echo "Proofs e2e suite (rust/op-reth/tests/proofs/core)"
   (cd rust/op-reth/tests && just test-e2e-sysgo) || failed="$failed e2e"
   if [ -n "$failed" ]; then
