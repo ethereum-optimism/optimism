@@ -428,6 +428,31 @@ update-op-geth:
 build-rust-release:
   cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth
 
+# Go test flags for the proofs-history ExEx acceptance packages; each cell runs a devnet, so keep
+# the parallelism at what the machine can host (about three cores per devnet).
+PROOF_EXEX_GO_FLAGS := env("PROOF_EXEX_GO_FLAGS", "-parallel 2 -timeout 60m")
+
+# The proofs-history ExEx coverage, run locally and not wired into CI: the Rust suites of the
+# trie, ExEx, RPC and CLI crates, the acceptance packages, and the proofs e2e suite. The
+# acceptance step builds contracts, prestates and the release Rust binaries first; the e2e
+# suite reuses that op-reth. Pick the L2 CL with DEVSTACK_L2CL_KIND (op-node or kona-node).
+# Expect about an hour after a warm build.
+
+# Run the proofs-history ExEx test coverage (Rust suites, acceptance packages, proofs e2e suite).
+[script('bash')]
+test-proof-exex:
+  set -euo pipefail
+  echo "Rust: proofs-history ExEx crates"
+  (cd rust && cargo nextest run -p reth-optimism-trie -p reth-optimism-exex -p reth-optimism-rpc -p reth-optimism-cli --all-features)
+  echo "Acceptance: proofs-history packages ({{PROOF_EXEX_GO_FLAGS}})"
+  (cd op-acceptance-tests && just test {{PROOF_EXEX_GO_FLAGS}} \
+    ./op-acceptance-tests/tests/proofs_history_match/ \
+    ./op-acceptance-tests/tests/proofs_history_restart/ \
+    ./op-acceptance-tests/tests/proofs_history_reorg/ \
+    ./op-acceptance-tests/tests/proofs_history_init/)
+  echo "Proofs e2e suite (rust/op-reth/tests/proofs/core)"
+  (cd rust/op-reth/tests && just test-e2e-sysgo)
+
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
