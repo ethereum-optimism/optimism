@@ -731,27 +731,34 @@ fn submit_log_batch_tree<'s>(
     node: &'s LogBatchProgress,
 ) -> BoxFuture<'s, Result<()>> {
     async move {
-        let halves = match node.split.get() {
-            Some(halves) => halves,
-            None => {
-                let batch = &node.batch;
-                match ensure_submitted(&node.request, async || {
-                    submit_log_batch(prover, batch).await
-                })
+        if let Some(halves) = node.split.get() {
+            submit_log_batch_halves(prover, &halves).await
+        } else {
+            let batch = &node.batch;
+            match ensure_submitted(&node.request, async || submit_log_batch(prover, batch).await)
                 .await
-                {
-                    Ok(_) => return Ok(()),
-                    Err(err) if is_too_large(&err) => node.split_after(err)?,
-                    Err(err) => return Err(err.context(format!("failed to submit {batch}"))),
+            {
+                Ok(_) => Ok(()),
+                Err(err) if is_too_large(&err) => {
+                    let halves = node.split_after(err)?;
+                    submit_log_batch_halves(prover, &halves).await
                 }
+                Err(err) => Err(err.context(format!("failed to submit {batch}"))),
             }
-        };
-        for half in halves.iter() {
-            submit_log_batch_tree(prover, half).await?;
         }
-        Ok(())
     }
     .boxed()
+}
+
+/// Submits the live batch requests under both `halves`, in batch order.
+async fn submit_log_batch_halves(
+    prover: &dyn LogBatchProver,
+    halves: &[LogBatchProgress; 2],
+) -> Result<()> {
+    for half in halves {
+        submit_log_batch_tree(prover, half).await?;
+    }
+    Ok(())
 }
 
 /// Waits for every live batch proof, in batch order. A batch that fails ends the wait.
@@ -774,35 +781,44 @@ fn wait_for_log_batch_tree<'s>(
     node: &'s LogBatchProgress,
 ) -> BoxFuture<'s, Result<Vec<ProvenBatch>>> {
     async move {
-        let halves = match node.split.get() {
-            Some(halves) => halves,
-            None => {
-                let batch = &node.batch;
-                let proof = complete_request(
-                    &node.request,
-                    async || submit_log_batch(prover, batch).await,
-                    async |proof_id| prover.poll(batch, proof_id).await,
-                    |proof| prover.verify(batch, proof),
-                )
-                .await;
-                match proof {
-                    Ok(proof) => return Ok(vec![ProvenBatch { batch: Arc::clone(batch), proof }]),
-                    Err(err) => node
+        if let Some(halves) = node.split.get() {
+            wait_for_log_batch_halves(prover, &halves).await
+        } else {
+            let batch = &node.batch;
+            let proof = complete_request(
+                &node.request,
+                async || submit_log_batch(prover, batch).await,
+                async |proof_id| prover.poll(batch, proof_id).await,
+                |proof| prover.verify(batch, proof),
+            )
+            .await;
+            match proof {
+                Ok(proof) => Ok(vec![ProvenBatch { batch: Arc::clone(batch), proof }]),
+                Err(err) => {
+                    let halves = node
                         .split_after(err)
                         .inspect_err(|_| ProposerGauge::LogBatchError.increment(1.0))
-                        .with_context(|| format!("{batch} failed"))?,
+                        .with_context(|| format!("{batch} failed"))?;
+                    wait_for_log_batch_halves(prover, &halves).await
                 }
             }
-        };
-        let [first, second] = &*halves;
-        let (first, second) = futures::future::try_join(
-            wait_for_log_batch_tree(prover, first),
-            wait_for_log_batch_tree(prover, second),
-        )
-        .await?;
-        Ok(first.into_iter().chain(second).collect())
+        }
     }
     .boxed()
+}
+
+/// Waits for the proofs of the live batches under both `halves`, in batch order.
+async fn wait_for_log_batch_halves(
+    prover: &dyn LogBatchProver,
+    halves: &[LogBatchProgress; 2],
+) -> Result<Vec<ProvenBatch>> {
+    let [first, second] = halves;
+    let (first, second) = futures::future::try_join(
+        wait_for_log_batch_tree(prover, first),
+        wait_for_log_batch_tree(prover, second),
+    )
+    .await?;
+    Ok(first.into_iter().chain(second).collect())
 }
 
 /// Terminal requests are rejected by the preflight in `plan_game_attempt`.
@@ -1389,47 +1405,53 @@ fn prove_span<'s, P: SpanProver>(
     node: &'s ChunkProgress,
 ) -> BoxFuture<'s, Result<ChunkResult>> {
     async move {
-        let halves = match node.split.get() {
-            Some(halves) => halves,
-            None => {
-                let leaf = async {
-                    let checked = prover.check_leaf(span, synthesized).await?;
-                    prover.prove_leaf(checked, node).await
-                };
-                let err = match leaf.await {
-                    Ok(result) => return Ok(ChunkResult { index, spans: vec![result] }),
-                    Err(err) => err,
-                };
-                match limit_outcome(&err, exceeds_limits(&err), span.is_splittable()) {
-                    LimitOutcome::Fail => return Err(err),
+        if let Some(halves) = node.split.get() {
+            prove_span_halves(prover, index, span, &halves).await
+        } else {
+            let leaf = async {
+                let checked = prover.check_leaf(span, synthesized).await?;
+                prover.prove_leaf(checked, node).await
+            };
+            match leaf.await {
+                Ok(result) => Ok(ChunkResult { index, spans: vec![result] }),
+                Err(err) => match limit_outcome(&err, exceeds_limits(&err), span.is_splittable()) {
+                    LimitOutcome::Fail => Err(err),
                     LimitOutcome::TooLarge => {
-                        return Err(too_large_to_prove(
-                            format_args!("timestamp {}", span.claimed),
-                            &err,
-                        ));
+                        Err(too_large_to_prove(format_args!("timestamp {}", span.claimed), &err))
                     }
-                    LimitOutcome::Split => {}
-                }
-                tracing::warn!(
-                    chunk_index = index,
-                    agreed_timestamp = span.agreed,
-                    claimed_timestamp = span.claimed,
-                    split_timestamp = span.halves()[0].claimed,
-                    error = %format!("{err:#}"),
-                    "Span exceeds proving limits; bisecting"
-                );
-                node.split.record(Default::default)
+                    LimitOutcome::Split => {
+                        tracing::warn!(
+                            chunk_index = index,
+                            agreed_timestamp = span.agreed,
+                            claimed_timestamp = span.claimed,
+                            split_timestamp = span.halves()[0].claimed,
+                            error = %format!("{err:#}"),
+                            "Span exceeds proving limits; bisecting"
+                        );
+                        let halves = node.split.record(Default::default);
+                        prove_span_halves(prover, index, span, &halves).await
+                    }
+                },
             }
-        };
-        let mut spans = Vec::new();
-        for (half, span) in halves.iter().zip(span.halves()) {
-            let result =
-                run_chunk_with_progress(half, prove_span(prover, index, span, None, half)).await?;
-            spans.extend(result.spans.iter().cloned());
         }
-        Ok(ChunkResult { index, spans })
     }
     .boxed()
+}
+
+/// Proves the two `halves` of `span` in timestamp order, each caching its own result.
+async fn prove_span_halves<P: SpanProver>(
+    prover: &P,
+    index: usize,
+    span: ChunkSpan,
+    halves: &[ChunkProgress; 2],
+) -> Result<ChunkResult> {
+    let mut spans = Vec::new();
+    for (half, span) in halves.iter().zip(span.halves()) {
+        let result =
+            run_chunk_with_progress(half, prove_span(prover, index, span, None, half)).await?;
+        spans.extend(result.spans.iter().cloned());
+    }
+    Ok(ChunkResult { index, spans })
 }
 
 /// Proves one top-level chunk, bisecting it as needed, and returns its spans for game-level
@@ -1741,8 +1763,8 @@ async fn run_with_log_batches<T>(
     };
     match (result, batch_error) {
         (Err(err), _) if is_unprovable(&err) => Err(err),
-        (result, None) => result,
         (_, Some(err)) => Err(batch_failure(&err)),
+        (result, None) => result,
     }
 }
 
