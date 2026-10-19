@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 var (
@@ -97,5 +99,5 @@ func callUint64(ctx context.Context, l1 Caller, to common.Address, fn *w3.Func, 
 	if !v.IsUint64() {
 		return 0, fmt.Errorf("value %s does not fit in uint64", v)
 	}
-	return v.Uint64(), nil
+	return bigs.Uint64Strict(v), nil
 }
