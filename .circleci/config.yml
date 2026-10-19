@@ -220,6 +220,9 @@ jobs:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
       - run:
+          name: Select isolated source-change benchmark jobs
+          command: python3 ops/ci/migration/select-source-benchmark.py
+      - run:
           name: Test continuation parameter compatibility
           command: .circleci/scripts/test-continuation-params.sh
       # Calls the CircleCI continuation API with the merged config + JSON params.
