@@ -2,8 +2,10 @@ package review_period
 
 import (
 	"testing"
-	"time"
 
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -27,20 +29,23 @@ func TestOPCMUpgradePreservesReviewPeriodDelays(gt *testing.T) {
 		presets.WithWithdrawalDelaySeconds(withdrawalDelaySeconds),
 		presets.WithGameTypeAdded(gameTypes.PermissionedGameType),
 	)
-	bridge := sys.StandardBridge()
-	factory := sys.DisputeGameFactory()
 
 	// The upgrade sets SuperPermissioned as the respected game type.
-	bridge.VerifyRespectedGameType(gameTypes.SuperPermissionedGameType)
+	sys.StandardBridge().VerifyRespectedGameType(gameTypes.SuperPermissionedGameType)
 
-	t.Require().Equal(proofMaturityDelaySeconds*time.Second, bridge.WithdrawalDelay(),
+	// Read the delays the same way check-review-period does on staging.
+	systemConfig := sys.L2Chain.Escape().Deployment().SystemConfigProxyAddr()
+	delays, err := reviewperiod.ReadChainDelays(t.Ctx(), sys.L1EL.EthClient(), systemConfig, rpc.LatestBlockNumber)
+	t.Require().NoError(err, "failed to read the review period delays")
+	t.Require().Equal(uint64(proofMaturityDelaySeconds), delays.ProofMaturityDelaySeconds,
 		"proof maturity delay changed across the OPCM upgrade")
-	t.Require().Equal(disputeGameFinalityDelaySeconds*time.Second, bridge.DisputeGameFinalityDelay(),
+	t.Require().Equal(uint64(disputeGameFinalityDelaySeconds), delays.DisputeGameFinalityDelaySeconds,
 		"dispute game finality delay changed across the OPCM upgrade")
-
-	// Game implementations reach DelayedWETH through the factory's game args.
-	args, err := gameargs.Parse(factory.GameArgs(gameTypes.PermissionedGameType))
-	t.Require().NoError(err, "failed to parse the permissioned game args")
-	t.Require().Equal(uint64(withdrawalDelaySeconds), factory.DelayedWETH(args.Weth).Delay().Uint64(),
+	t.Require().Equal(uint64(withdrawalDelaySeconds), delays.WithdrawalDelaySeconds,
 		"DelayedWETH withdrawal delay changed across the OPCM upgrade")
+
+	// The DelayedWETH read through the SystemConfig must be the one the games use.
+	args, err := gameargs.Parse(sys.DisputeGameFactory().GameArgs(gameTypes.PermissionedGameType))
+	t.Require().NoError(err, "failed to parse the permissioned game args")
+	t.Require().Equal(args.Weth, delays.DelayedWETH, "SystemConfig points to a different DelayedWETH than the games")
 }
