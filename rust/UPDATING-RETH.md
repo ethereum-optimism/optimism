@@ -3,7 +3,7 @@
 The Rust workspace pins ~70 `reth-*` crates to a single git ref, from upstream
 `paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml) — `tag = "vX.Y.Z"` when tracking a
 release (the normal case; self-documenting), or `rev = "<sha>"` when pinning a
-non-release commit. This guide describes how to bump that pin safely and keep
+non-release or fork commit. This guide describes how to bump that pin safely and keep
 the shared `revm`/`alloy` versions in sync with it.
 
 ## When to update
@@ -64,29 +64,11 @@ main's CI actually validated.
    grep -nE '<OLD_TAG>|<OLD_REV>|github.com/<OLD_OWNER>/reth' Cargo.toml  # no matches
    ```
 
-   If patches must survive, replay and publish them in the reth fork checkout
-   before changing the monorepo pin:
-
-   ```bash
-   git switch -c <fork-branch> <new-upstream-rev>
-   git cherry-pick <retained-sha>...  # oldest first
-   git push <fork-remote> HEAD:<fork-branch>
-   git rev-parse HEAD                 # use this as the monorepo rev pin
-   ```
-
-   Pin that commit with `rev = "<sha>"`. Verify every reth workspace dependency
-   uses the same repository and ref; the mirror checker rejects split pins.
-
-   Use `ethereum-optimism/reth`'s `optimism` branch for maintenance backports.
-   Rebuild it from the selected upstream release, replay the required runtime
-   patches, then replay the fork's CircleCI/Actions support as one final commit.
-   Keep those CI changes squashed so subsequent rebuilds need only one CI
-   cherry-pick. Preserve the original branch tip locally and use an explicit
-   force-with-lease when publishing a rebuilt branch.
-   Update the maintenance-push compact-codec comparison base in the fork's
-   `.github/workflows/compact.yml` to the selected release too; comparing against
-   `main` can test unsupported future formats. Check the fork's own lockfile
-   advisories separately: downstream lockfile fixes do not repair the fork's CI.
+   If patches must survive, build a new `op-*` branch in the
+   `ethereum-optimism/reth` fork as described in
+   [The reth fork](#the-reth-fork) and pin its tip with `rev = "<sha>"`. Verify
+   every reth workspace dependency uses the same repository and ref; the mirror
+   checker rejects split pins.
 
    Merging a fix into upstream `main` does not establish that a patch release
    contains it. Check the selected tag's ancestry or patch equivalence before
@@ -243,6 +225,77 @@ main's CI actually validated.
    intentionally documents a finalized release, not `develop`. Do not regenerate
    it from an unreleased dependency bump; update it through the release generator
    after the next finalized tag.
+
+10. Open the companion `ethereum-optimism/optimism-premium` PR. Premium pins the
+    monorepo by commit and builds against the same reth, `revm`, and `alloy`
+    versions, so every reth update needs a matching premium bump: move its
+    reth deps to the new reth pin, sync its `revm`/`alloy` versions to ours,
+    and pin the monorepo to the update PR's head commit. Keep it in draft while
+    it points at that unmerged commit.
+
+## The reth fork
+
+The pin points at `ethereum-optimism/reth` whenever OP needs patches the
+upstream base lacks. The fork carries one branch per upstream base:
+
+- `op-v<version>` for an upstream release tag `v<version>`, e.g. `op-v2.6.0`;
+- `op-<reth-short-sha>` for an untagged upstream commit.
+
+Push to the fork over SSH, or with a token that has the `workflow` scope.
+Upstream tags and new branches usually add or change workflow files, and
+GitHub refuses such pushes from an OAuth token without that scope.
+
+The fork mirrors upstream's release tags. Push any it lacks before starting a
+branch from one:
+
+```bash
+git fetch <upstream-remote> --tags
+git push git@github.com:ethereum-optimism/reth.git refs/tags/v<version>
+```
+
+**Start** a branch from the upstream base. Cherry-pick the fork's CI commit
+first so every push runs the fork's CI, then the patches retained by the step 2
+audit and any upstream fixes picked in the forward sweep
+(`docs/ai/reth-update-review.md`), oldest first. The first push may already
+carry all of them:
+
+```bash
+git switch -c op-v<version> v<version>
+git cherry-pick <ci-commit> <retained-sha>...
+git push git@github.com:ethereum-optimism/reth.git op-v<version>
+```
+
+`<ci-commit>` is the previous branch's CI commit squashed with every later CI
+fix on that branch, so the chain of CI commits does not grow. It may need
+adapting to the new base; its comments name what to re-check. Check the fork's
+lockfile advisories separately: downstream lockfile fixes do not repair the
+fork's CI.
+
+**Work** on the branch through pull requests into it afterwards. The `op-*`
+ruleset forbids force-pushes and deletion and requires a reviewed PR with
+passing fork CI.
+
+**Maintain** the branch until the next update: later backports to the same base
+are PRs into it, and each fork commit the monorepo pins gets its own tag after
+that monorepo PR merges. Keep old branches as a historical record.
+
+## After the monorepo PR merges
+
+1. If the pin is a fork commit, tag it `<branch>-<merge-sha>`, where
+   `<merge-sha>` is `git rev-parse --short=12` of the update PR's merge commit on
+   `develop`. Annotate the tag with the reth commit, the monorepo merge commit,
+   and the PR:
+
+   ```bash
+   git tag -a op-v<version>-<merge-sha> <reth-sha> -m "..."
+   git push git@github.com:ethereum-optimism/reth.git op-v<version>-<merge-sha>
+   ```
+
+   The tag records which fork commit `develop` built against. Tags are
+   immutable.
+
+2. Repin the premium PR's monorepo dependency to the merge commit on `develop`
+   and mark it ready for review.
 
 ## Expect upstream churn beyond your target change
 
