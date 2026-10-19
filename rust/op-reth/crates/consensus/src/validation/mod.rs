@@ -14,11 +14,12 @@ use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Bloom, Bytes};
 use alloy_trie::EMPTY_ROOT_HASH;
 use reth_consensus::ConsensusError;
+use reth_ethereum_consensus::compare_receipts_root_and_logs_bloom;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
 use reth_primitives_traits::{BlockBody, GotExpected, receipt::gas_spent_by_transactions};
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
 /// `reth_consensus_common::validation::validate_body_against_header`
 ///
 /// Copies the generic body/header checks and replaces withdrawals-root handling after Isthmus.
@@ -85,7 +86,7 @@ where
     Ok(())
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
 /// `reth_ethereum_consensus::validation::validate_block_post_execution`
 ///
 /// Copies upstream post-execution validation with OP receipt roots and Jovian DA accounting.
@@ -163,9 +164,9 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
     Ok(())
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_ethereum_consensus::validation::verify_receipts`
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_ethereum_consensus::validation::verify_receipts`
 ///
-/// Copies the private upstream helper and substitutes OP receipt-root calculation.
+/// Copies the upstream helper, substituting OP receipt-root calculation.
 /// Verify the calculated receipts root against the expected receipts root.
 fn verify_receipts_optimism<R: DepositReceipt>(
     expected_receipts_root: B256,
@@ -188,33 +189,6 @@ fn verify_receipts_optimism<R: DepositReceipt>(
         expected_receipts_root,
         expected_logs_bloom,
     )?;
-
-    Ok(())
-}
-
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
-/// `reth_ethereum_consensus::validation::compare_receipts_root_and_logs_bloom`
-///
-/// Kept identical to the private upstream comparison helper.
-/// Compare the calculated receipts root with the expected receipts root, also compare
-/// the calculated logs bloom with the expected logs bloom.
-fn compare_receipts_root_and_logs_bloom(
-    calculated_receipts_root: B256,
-    calculated_logs_bloom: Bloom,
-    expected_receipts_root: B256,
-    expected_logs_bloom: Bloom,
-) -> Result<(), ConsensusError> {
-    if calculated_receipts_root != expected_receipts_root {
-        return Err(ConsensusError::BodyReceiptRootDiff(
-            GotExpected { got: calculated_receipts_root, expected: expected_receipts_root }.into(),
-        ));
-    }
-
-    if calculated_logs_bloom != expected_logs_bloom {
-        return Err(ConsensusError::BodyBloomLogDiff(
-            GotExpected { got: calculated_logs_bloom, expected: expected_logs_bloom }.into(),
-        ));
-    }
 
     Ok(())
 }

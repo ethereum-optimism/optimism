@@ -9,10 +9,10 @@ _SPEC_E=importlib.util.spec_from_file_location('report_evidence',Path(__file__).
 E=importlib.util.module_from_spec(_SPEC_E);_SPEC_E.loader.exec_module(E)
 import re
 
-JOBS = ('wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop')
+JOBS = ('wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'deny', 'registry', 'interop')
 STAGES = {'wasm-unknown': ('wasm-target', 'wasm-list', 'wasm'),
           'wasm-wasi': ('wasm-target', 'wasm-list', 'wasm'),
-          'zepter': ('zepter',), 'typos': ('typos',),
+          'deny': ('deny',), 'zepter': ('zepter',), 'typos': ('typos',),
           'registry': ('registry-clean', 'registry', 'registry-diff'),
           'interop': ('superchain-go', 'interop')}
 EMPTY_LOGS = {'workspace.log', 'typos.log', 'registry-diff.log',

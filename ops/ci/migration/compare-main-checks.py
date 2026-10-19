@@ -101,6 +101,13 @@ def report(directory, job, sha, provider, empty):
                   if re.search(rb'^// Code generated .*DO NOT EDIT\.', (root / name).read_bytes(), re.M)}
         if not before or before != selected['generated_before'] or json.loads((directory / 'generated.json').read_text()) != before:
             raise ValueError('Original generated mocks changed or selection is incomplete')
+    elif job == 'opgeth-ratchet':
+        expected['superchain'] = ['just', 'build-superchain-go']
+        superchain(directory, selected['superchain'], settings, provider)
+        names = {n for n in settings['input_sha256'] if n == 'justfile' or n.startswith('ops/scripts/opgeth-ratchet/')}
+        root = source_files(directory, settings, names)
+        if not names or selected['inputs'] != {n: MAIN.STAGES.digest(root/n) for n in names}:
+            raise ValueError('Incomplete original op-geth ratchet inputs')
     elif job == 'check-nut-locks':
         expected['fetch-develop'] = ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop']
         if not selected['locks'] or not re.fullmatch('[0-9a-f]{40}', selected['develop_sha']): raise ValueError('Missing original NUT locks or protected ancestry')

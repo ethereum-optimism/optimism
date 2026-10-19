@@ -2,10 +2,10 @@ package sysgo
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -15,7 +15,7 @@ type L2Network struct {
 	name       string
 	chainID    eth.ChainID
 	l1ChainID  eth.ChainID
-	genesis    *core.Genesis
+	genesis    *opgenesis.Genesis
 	rollupCfg  *rollup.Config
 	deployment *L2Deployment
 	opcmImpl   common.Address
@@ -36,7 +36,7 @@ func (c *L2Network) L1ChainID() eth.ChainID {
 }
 
 func (c *L2Network) ChainConfig() *params.ChainConfig {
-	return c.genesis.Config
+	return c.genesis.Config.GethChainConfig()
 }
 
 func (c *L2Network) RollupConfig() *rollup.Config {

@@ -8,8 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/core"
-
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
@@ -20,7 +19,7 @@ import (
 type L2Config struct {
 	Kind    services.ELKind
 	Name    string
-	Genesis *core.Genesis
+	Genesis *opgenesis.Genesis
 	// GenesisJSONPath is an op-reth-only alternative to Genesis.
 	// For op-reth, set exactly one of these fields.
 	GenesisJSONPath string
@@ -51,7 +50,7 @@ func InitL2(ctx context.Context, cfg L2Config) (services.EthInstance, error) {
 		if cfg.SequencerHTTP != "" {
 			gethOptions = append(gethOptions, geth.WithSequencerHTTP(cfg.SequencerHTTP))
 		}
-		inst, err := geth.InitL2(cfg.Name, cfg.Genesis, cfg.JWTPath, gethOptions...)
+		inst, err := geth.InitL2(cfg.Name, cfg.Genesis.GethGenesis(), cfg.JWTPath, gethOptions...)
 		if err != nil {
 			return nil, err
 		}

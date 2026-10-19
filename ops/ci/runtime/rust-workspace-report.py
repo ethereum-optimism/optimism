@@ -27,13 +27,15 @@ def command(*args):
 def inputs(job=None):
     paths = ['mise.toml', 'rust/Cargo.lock', 'rust/justfile',
              'rust/.config/nextest.toml', 'rust/.cargo/config.toml', 'ops/ci/runtime/ci-report.py']
-    if job in ('wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'):
+    if job in ('wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'deny', 'registry', 'interop'):
         # Bind every workspace manifest as well as the shared commands. Source
         # identity is the Git SHA; these hashes make settings drift explicit.
         paths += ['rust/Cargo.toml', 'ops/ci/runtime/rust-workspace.sh', 'ops/ci/runtime/rust-workspace-report.py']
         paths += sorted(command('git', 'ls-files', 'rust/**/Cargo.toml').splitlines())
     if job == 'zepter':
         paths += ['rust/.config/zepter.yaml']
+    if job == 'deny':
+        paths += ['rust/deny.toml']
     if job == 'typos':
         paths += sorted(command('git', 'ls-files', '*typos*').splitlines())
     if job == 'registry':
@@ -73,7 +75,7 @@ def begin(directory, job):
         'rustflags': os.environ.get('RUSTFLAGS', ''), 'rustdocflags': os.environ.get('RUSTDOCFLAGS', ''),
         'started_at': time.time(), 'cpus': os.cpu_count(),
         'superchain_revision': command('git', 'rev-parse', 'HEAD:superchain-registry')})
-    tools = {'zepter': ('zepter', '--version'), 'typos': ('typos', '--version'),
+    tools = {'deny': ('cargo', 'deny', '--version'), 'zepter': ('zepter', '--version'), 'typos': ('typos', '--version'),
              'wasm-unknown': ('cargo', 'hack', '--version'),
              'wasm-wasi': ('cargo', 'hack', '--version'), 'interop': ('go', 'version')}
     if job in tools:
@@ -456,7 +458,7 @@ def finish(directory, status, merged=False):
         except (ValueError, OSError) as error:
             errors.append(str(error))
     cases = [job]
-    extra_jobs = (*WASM, 'zepter', 'typos', 'registry', 'interop')
+    extra_jobs = (*WASM, 'zepter', 'typos', 'deny', 'registry', 'interop')
     if job in extra_jobs:
         try:
             if job in WASM:
@@ -477,7 +479,7 @@ def finish(directory, status, merged=False):
         'build': ['build'], 'features': ['features-list', 'features', 'feature-tests-list', 'feature-tests'],
         'feature-plan': ['features-list', 'feature-tests-list'], 'no-std': ['no-std'], 'udeps': ['udeps'],
         'wasm-unknown': ['wasm-target', 'wasm-list', 'wasm'], 'wasm-wasi': ['wasm-target', 'wasm-list', 'wasm'],
-        'zepter': ['zepter'], 'typos': ['typos'],
+        'zepter': ['zepter'], 'typos': ['typos'], 'deny': ['deny'],
         'registry': ['registry-clean', 'registry', 'registry-diff'],
         'interop': ['superchain-go', 'interop']}
     if status == 0:

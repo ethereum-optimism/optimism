@@ -23,7 +23,7 @@ GUEST = 'kona/sp1/programs/Cargo.toml'
 RANGE = 'kona/sp1/crates/range-vkeys/Cargo.toml'
 TEST_CONFIG_MARKER = b'KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}'
 REPORTS = ROOT / '.ci/sp1-guest'
-TOOL_INPUTS = ('mise.toml', 'rust/Cargo.toml', 'rust/Cargo.lock',
+TOOL_INPUTS = ('mise.toml', 'rust/Cargo.toml', 'rust/Cargo.lock', 'rust/justfile',
     'rust/kona/sp1/programs/Cargo.toml', 'rust/kona/sp1/programs/Cargo.lock',
     'rust/kona/sp1/justfile', 'rust/rust-toolchain.toml', 'rust/.cargo/config.toml',
     'ops/ci/runtime/sp1-guest-toolchain.sh', 'ops/ci/runtime/sp1-guest.py', 'ops/ci/runtime/sp1-guest-native-build.py',
@@ -59,6 +59,39 @@ def programs(source=None):
             or any(not re.fullmatch('[a-z0-9]+(?:-[a-z0-9]+)*', n) for n in names)):
         raise ValueError('Empty, duplicate or invalid original SP1 ELF selection')
     return names
+
+
+def vkey_crates(source=None):
+    source = (RUST / 'justfile').read_text() if source is None else source
+    recipe = re.search(r'^check-vkey-crates:\n(.*?)(?=^\S|\Z)', source, re.M | re.S)
+    loop = re.search(r'^  for crate in ([a-z0-9 -]+); do$', recipe[1], re.M) if recipe else None
+    names = shlex.split(loop[1]) if loop else []
+    if (not names or len(names) != len(set(names)) or 'range-vkeys' not in names
+            or any(not re.fullmatch('[a-z0-9]+(?:-[a-z0-9]+)*', n) for n in names)):
+        raise ValueError('Missing or invalid complete authoritative vkey crate selection')
+    return names
+
+
+def vkey_views(path, emit=True, names=None):
+    # Each standalone crate has its own dependency graph. Keep those originals;
+    # derive only a member inventory and concatenated listings for libtest.
+    members, packages, logs = [], [], []
+    for name in (vkey_crates() if names is None else names):
+        meta = read(path / ('vkeys-' + name + '-workspace.json'))
+        selected = workspace(meta)
+        members += [p['id'] for p in selected.values()]
+        packages += list(selected.values())
+        logs.append((path / ('vkeys-' + name + '-list.log')).read_text())
+    if len(members) != len(set(members)):
+        raise ValueError('Duplicate standalone vkey members')
+    meta = {'workspace_members': members, 'packages': packages}
+    listing = '\n'.join(logs)
+    if emit:
+        S.write(path / 'vkeys-workspace.json', meta)
+        (path / 'vkeys-list.log').write_text(listing)
+    elif read(path / 'vkeys-workspace.json') != meta or (path / 'vkeys-list.log').read_text() != listing:
+        raise ValueError('Derived vkey views differ from complete original discovery')
+    return meta
 
 
 def tools():
@@ -403,10 +436,13 @@ def checks(provider, artifact, features=""):
         stage(path,'guest',['just','test-sp1-guest'])
         coverage(path,'guest',read(path/'guest-workspace.json'),settings)
         stage(path,'lint',['just','lint-sp1-guest'])
-        stage(path,'range-workspace',['cargo','metadata','--manifest-path',RANGE,'--locked','--format-version','1'],json_output=True)
-        stage(path,'range-list',['cargo','test','--manifest-path',RANGE,'--locked','--','--list'])
-        stage(path,'range',['just','check-range-vkeys'])
-        coverage(path,'range',read(path/'range-workspace.json'),settings)
+        for name in vkey_crates():
+            manifest = 'kona/sp1/crates/' + name + '/Cargo.toml'
+            stage(path,'vkeys-'+name+'-workspace',['cargo','metadata','--manifest-path',manifest,'--locked','--format-version','1'],json_output=True)
+            stage(path,'vkeys-'+name+'-list',['cargo','test','--manifest-path',manifest,'--locked','--','--list'])
+        meta = vkey_views(path)
+        stage(path,'vkeys',['just','check-vkey-crates'])
+        coverage(path,'vkeys',meta,settings)
         after=inputs();S.write(path/'inputs-after.json',after)
         if after!=settings['input_sha256']:raise ValueError('Fresh SP1 checks changed tracked sources or lockfiles')
         if elf_record(settings,SP1/'elf')!=read(artifact/'elfs.json'):raise ValueError('Runtime checks changed verified SP1 ELFs or keys')
@@ -415,7 +451,7 @@ def checks(provider, artifact, features=""):
         status=getattr(error,'status',status or 1)
         errors.append(str(error));print(str(error),file=sys.stderr)
     finally:
-        for phase in ('guest','range'):
+        for phase in ('guest','vkeys'):
             if all((path/n).is_file() for n in ('settings.json',phase+'.log',phase+'-list.log',phase+'-workspace.json')) and not (path/(phase+'-coverage.json')).exists():
                 try:coverage(path,phase,read(path/(phase+'-workspace.json')),read(path/'settings.json'))
                 except Exception as error:errors.append(str(error))

@@ -21,12 +21,13 @@ MOCKS = {'check-generated-mocks-op-node': 'op-node', 'check-generated-mocks-op-s
 COMMANDS = {
     'todo-issues-check': ['./ops/scripts/todo-checker.sh', '--verbose', '--strict'],
     'op-deployer-forge-version': ['just', 'check-forge-version'],
+    'opgeth-ratchet': ['just', 'opgeth-ratchet'],
     'check-op-geth-version': ['just', 'check-op-geth-version'],
     'check-nut-locks': ['go', 'run', './ops/scripts/check-nut-locks'],
     **{job: ['bash', '-eo', 'pipefail', '-c', 'just generate-mocks-' + component + ' && git diff --exit-code']
        for job, component in MOCKS.items()},
 }
-GO_JOBS = {'check-op-geth-version', 'check-nut-locks', *MOCKS}
+GO_JOBS = {'opgeth-ratchet', 'check-op-geth-version', 'check-nut-locks', *MOCKS}
 GO_FIELDS = ('GoFiles', 'CgoFiles', 'TestGoFiles', 'XTestGoFiles')
 BUNDLE = 'op-core/superchain/superchain-configs.zip'
 BUNDLE_INPUTS = ('mise.toml', 'justfile', 'op-core/superchain/sync-superchain.sh', BUNDLE + '.sha256')
@@ -182,7 +183,6 @@ def discovery(directory, job):
         selected = nut_selection(ROOT, command('git', 'rev-parse', 'origin/develop'))
         retain_sources(directory, ['op-core/nuts/fork_lock.toml', *selected['bundles'], *selected['states']])
         return selected
-    component = MOCKS[job]
     configure_superchain()
     prepared = os.environ.get('SUPERCHAIN_PREPARED')
     if prepared:
@@ -203,6 +203,11 @@ def discovery(directory, job):
     bundle = superchain(); dependencies = directory / 'dependencies'; dependencies.mkdir()
     shutil.copyfile(ROOT / BUNDLE, dependencies / 'superchain-configs.zip')
     shutil.copyfile(ROOT / (BUNDLE + '.sha256'), dependencies / 'superchain-configs.zip.sha256')
+    if job == 'opgeth-ratchet':
+        names = command('git', 'ls-files', 'ops/scripts/opgeth-ratchet', 'justfile').splitlines()
+        retain_sources(directory, names)
+        return {'superchain': bundle, 'inputs': {name: STAGES.digest(ROOT/name) for name in names}}
+    component = MOCKS[job]
     stage(directory, 'packages', ['go', 'list', '-tags=generate', '-json', './...'], ROOT / component, True)
     selected = packages((directory / 'packages.json').read_text(), component)
     retain_sources(directory, command('git', 'ls-files', component + '/**/*.go', component + '/*.go').splitlines())

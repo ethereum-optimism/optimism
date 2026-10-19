@@ -85,27 +85,35 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::N
     _tx: PhantomData<Tx>,
 }
 
+/// UPSTREAM-MIRROR(copy): revm-context@43.0.2 `revm_context::Evm::with_inspector`
+///
+/// Rebuilds `evm` with its inspector replaced by `f(inspector)`. Upstream `with_inspector` takes
+/// the new inspector by value, so it cannot derive it from the old one.
+///
+/// revm's [`Evm`](revm::context::Evm) has feature-gated fields, so it must not be constructed or
+/// destructured exhaustively here: Cargo feature unification can enable those fields without this
+/// crate knowing. Construct through the upstream constructor instead, carrying over the frame
+/// stack; every field not named below is reset to its default. In revm 43 the only such field is
+/// `async_stack` (under `revm/asyncdb`), a lazily allocated fiber stack, so resetting it only drops
+/// a cached allocation. On a revm bump, compare `Evm`'s fields against the ones carried over here.
+fn map_inspector<CTX, INSP, OINSP, I, P, F: Default>(
+    evm: revm::context::Evm<CTX, INSP, I, P, F>,
+    f: impl FnOnce(INSP) -> OINSP,
+) -> revm::context::Evm<CTX, OINSP, I, P, F> {
+    let revm::context::Evm { ctx, inspector, instruction, precompiles, frame_stack, .. } = evm;
+    let mut evm =
+        revm::context::Evm::new_with_inspector(ctx, f(inspector), instruction, precompiles);
+    evm.frame_stack = frame_stack;
+    evm
+}
+
 impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
     /// Consumes self and return the inner EVM instance.
     pub fn into_inner(
         self,
     ) -> op_revm::OpEvm<OpEvmContext<DB>, I, EthInstructions<EthInterpreter, OpEvmContext<DB>>, P>
     {
-        let op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector,
-            instruction,
-            precompiles,
-            frame_stack,
-        }) = self.inner;
-
-        op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector: inspector.into_inner(),
-            instruction,
-            precompiles,
-            frame_stack,
-        })
+        op_revm::OpEvm(map_inspector(self.inner.0, |inspector| inspector.into_inner()))
     }
 
     /// Provides a reference to the EVM context.
@@ -134,25 +142,18 @@ impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
         inspect: bool,
         refund_policy: R,
     ) -> Self {
-        let op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector,
-            instruction,
-            precompiles,
-            frame_stack,
-        }) = evm;
+        Self::from_inner(
+            op_revm::OpEvm(map_inspector(evm.0, |inspector| {
+                post_exec::PostExecCompositeInspector::new_with_post_exec(inspector, refund_policy)
+            })),
+            inspect,
+        )
+    }
 
+    /// Wraps an inner EVM whose inspector already carries the post-exec refund policy.
+    fn from_inner(inner: OpEvmInner<DB, I, P, R>, inspect: bool) -> Self {
         Self {
-            inner: op_revm::OpEvm(revm::context::Evm {
-                ctx,
-                inspector: post_exec::PostExecCompositeInspector::new_with_post_exec(
-                    inspector,
-                    refund_policy,
-                ),
-                instruction,
-                precompiles,
-                frame_stack,
-            }),
+            inner,
             inspect,
             post_exec_tracking_active: false,
             last_tx_post_exec_result: Default::default(),
@@ -193,12 +194,17 @@ impl<DB: Database, I, Tx, R> OpEvm<DB, I, PrecompilesMap, Tx, R> {
             .with_db(db)
             .with_block(input.block_env)
             .with_cfg(input.cfg_env)
-            .build_op_with_inspector(inspector)
+            // Wrap the inspector before building, rather than via `new_with_refund_policy`, so the
+            // EVM's frame stack is only allocated once.
+            .build_op_with_inspector(post_exec::PostExecCompositeInspector::new_with_post_exec(
+                inspector,
+                refund_policy,
+            ))
             .with_precompiles(PrecompilesMap::from_static(
                 OpPrecompiles::new_with_spec(spec_id).precompiles(),
             ));
 
-        Self::new_with_refund_policy(inner, inspect, refund_policy)
+        Self::from_inner(inner, inspect)
     }
 }
 
@@ -329,7 +335,7 @@ impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
     }
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::EthEvm`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::EthEvm`
 ///
 /// Mirrors upstream's `Evm` impl for `EthEvm`, adding the OP transaction wrapper, the post-exec
 /// transaction short-circuit and the post-exec refund tracking. A method added to the `Evm`

@@ -41,9 +41,11 @@ def stages(directory, settings, phase):
         expected.update({
             'guest-list': (['cargo', 'test', '--manifest-path', G.GUEST, '--workspace', '--locked', '--all-features', '--', '--list'], rust),
             'guest': (['just', 'test-sp1-guest'], rust), 'lint': (['just', 'lint-sp1-guest'], rust),
-            'range-workspace': (['cargo', 'metadata', '--manifest-path', G.RANGE, '--locked', '--format-version', '1'], rust),
-            'range-list': (['cargo', 'test', '--manifest-path', G.RANGE, '--locked', '--', '--list'], rust),
-            'range': (['just', 'check-range-vkeys'], rust)})
+            'vkeys': (['just', 'check-vkey-crates'], rust)})
+        for name in G.vkey_crates((directory/'toolchain/source/rust/justfile').read_text()):
+            manifest = 'kona/sp1/crates/'+name+'/Cargo.toml'
+            expected['vkeys-'+name+'-workspace'] = (['cargo', 'metadata', '--manifest-path', manifest, '--locked', '--format-version', '1'], rust)
+            expected['vkeys-'+name+'-list'] = (['cargo', 'test', '--manifest-path', manifest, '--locked', '--', '--list'], rust)
     actual = {p.name.removesuffix('.stage.json') for p in directory.glob('*.stage.json')}
     cache = CACHE if settings['provider'] == 'rwx' and phase != 'toolchain' else set()
     if actual != expected.keys() | cache: raise ValueError('Missing, extra or retried original SP1 invocation')
@@ -119,7 +121,12 @@ def report(directory, provider, sha):
             if re.findall('0x[0-9a-fA-F]{64}', (path/('vkey-'+name+'.log')).read_text()) != [elfs[name]['vkey']]:
                 raise ValueError('Original CPU verification key differs from the guest ELF')
     cases, metadata = {}, {}
-    for phase in ('guest', 'range'):
+    names = G.vkey_crates((directory/'toolchain/source/rust/justfile').read_text())
+    G.vkey_views(directory, emit=False, names=names)
+    for name in names:
+        meta = G.read(directory/('vkeys-'+name+'-workspace.json'))
+        metadata['vkeys-'+name] = normalized(meta, settings, meta)
+    for phase in ('guest', 'vkeys'):
         meta = G.read(directory/(phase+'-workspace.json'))
         coverage = G.coverage(directory, phase, meta, settings, emit=False)
         if (coverage != G.read(directory/(phase+'-coverage.json'))
@@ -129,7 +136,7 @@ def report(directory, provider, sha):
         tree = ET.parse(directory/(phase+'.junit.xml'))
         if len(list(tree.iter('testcase'))) != len(coverage['cases']): raise ValueError('Incomplete original SP1 JUnit')
         cases[phase] = coverage
-        metadata[phase] = normalized(meta, settings, meta)
+        metadata[phase] = normalized(meta, settings, meta if phase == 'guest' else None)
     build_meta = G.read(producer/'guest-workspace.json')
     if normalized(build_meta, ps, build_meta) != metadata['guest']: raise ValueError('SP1 build/check dependency graphs differ')
     return {'recovered_empty_originals':empty, 'settings': settings, 'elfs': elfs, 'cases': cases, 'metadata': metadata,

@@ -356,7 +356,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_incremental_trial_is_limited_to_feature_checks_and_tests(self):
         repo = Path(__file__).resolve().parents[3]
         config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(repo / '.rwx/rust.yml')], text=True))
-        selected = {'tests-build', 'tests-unit', 'tests-compiler', 'tests'} | {f'features-{i}' for i in range(10)}
+        selected = {'tests-build', 'tests-unit', 'tests-compiler', 'tests'} | {f'features-{i}' for i in range(10)} | {f'features-build-{i}' for i in range(10)}
         actual = {t['key'] for t in config['tasks'] if 'CI_RUST_INCREMENTAL' in t.get('env', {})}
         self.assertEqual(actual, selected)
         tasks = {t['key']: t for t in config['tasks']}
@@ -385,7 +385,7 @@ class ConfigurationTests(unittest.TestCase):
         tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
         selected = {'tests-unit', 'tests-compiler', 'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
         selected.update({'wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'})
-        selected.update((f'features-{i}' for i in range(10)))
+        selected.update((f'features-build-{i}' for i in range(10)))
         actual = {t['key']: t for t in tasks if t['key'] in selected}
         self.assertEqual(set(actual), selected)
         for name, task in actual.items():
@@ -393,11 +393,41 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertNotEqual(task.get('cache'), False, 'cache:false disables tool caches')
                 self.assertTrue(task.get('tool-cache'))
                 for nonce in ('RWX_RUN_ID', 'RWX_TASK_ATTEMPT_NUMBER'):
-                    self.assertEqual(task['env'][nonce]['cache-key'], 'included')
+                    if name.startswith('features-build-'):
+                        self.assertNotIn(nonce, task['env'])
+                    else:
+                        self.assertEqual(task['env'][nonce]['cache-key'], 'included')
                 output = task['outputs']['filesystem']['filter']['workspace']
                 self.assertIn('rust/target', output)
                 self.assertNotIn('.ci/rust-workspace', output)
         self.assertIn('head-source', actual['tests-unit']['use'])
+
+    @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
+    def test_features_reuse_compilers_but_keep_current_pr_gate_verdicts(self):
+        repo = Path(__file__).resolve().parents[3]
+        config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(repo / '.rwx/rust.yml')], text=True))
+        tasks = {t['key']: t for t in config['tasks']}
+        policy = json.loads((repo/'ops/ci/runtime/pr-gates.json').read_text())
+        gate = next(d for d in policy['gates']['required-rust-ci']['dependencies'] if d['name'] == 'rust-cargo-hack')
+        self.assertEqual(gate['tasks'], [f'features-{i}' for i in range(10)])
+        for i in range(10):
+            producer, verdict = tasks[f'features-build-{i}'], tasks[f'features-{i}']
+            self.assertEqual(verdict['use'], ['head-source', producer['key']])
+            self.assertEqual(producer['use'], 'head-source')
+            self.assertEqual(producer['run'], verdict['run'])
+            self.assertEqual(producer['runner'], verdict['runner'])
+            self.assertNotEqual(producer.get('cache'), False)
+            self.assertIn('rust/target', producer['outputs']['filesystem']['filter']['workspace'])
+            self.assertFalse(verdict['cache'])
+            self.assertNotIn('tool-cache', verdict)
+            self.assertFalse(verdict['outputs']['filesystem'])
+            self.assertIn(producer['key'], config['on']['cache-rebuild']['target'])
+            self.assertNotIn(verdict['key'], config['on']['cache-rebuild']['target'])
+            for name in ('CI_RUST_INCREMENTAL', 'CI_RUST_PARTITION_INDEX', 'CI_RUST_PARTITION_TOTAL', 'CI_COMMIT_SHA'):
+                self.assertEqual(producer['env'][name], verdict['env'][name])
+            for nonce in ('RWX_RUN_ID', 'RWX_TASK_ATTEMPT_NUMBER'):
+                self.assertNotIn(nonce, producer['env'])
+                self.assertEqual(verdict['env'][nonce]['cache-key'], 'included')
 
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_split_workers_and_gate_bindings_preserve_the_full_workload(self):
@@ -709,6 +739,29 @@ pub fn compile_only() {}
                 settings = json.loads((root / f'.ci/rust-workspace/features-{index}/settings.json').read_text())
                 self.assertIsNone(settings['incremental'])
                 self.assertEqual(set(settings['profile_incremental'].values()), {'true'})
+            feature_env = {'CI_RUST_PARTITION_INDEX': '0', 'CI_RUST_PARTITION_TOTAL': '1'}
+            producer = run('features', feature_env)
+            self.assertEqual(producer.returncode, 0, producer.stdout + producer.stderr)
+            consumer = run('features', feature_env | {'RWX_RUN_ID': 'b'*32})
+            self.assertEqual(consumer.returncode, 0, consumer.stdout + consumer.stderr)
+            feature_report = root/'.ci/rust-workspace/features-0'
+            self.assertEqual(json.loads((feature_report/'settings.json').read_text())['rwx_run_id'], 'b'*32)
+            for phase in ('features', 'feature-tests'):
+                log = (feature_report/(phase+'.log')).read_text()
+                self.assertNotRegex(log, r'(?m)^\s*(?:Checking|Compiling) ')
+            source.write_text(source.read_text()+'\nthis is an intentional syntax error\n')
+            subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '-am', 'feature source error', '-q'], cwd=root, check=True, capture_output=True)
+            env['CI_COMMIT_SHA'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+            failure = run('features', feature_env | {'RWX_RUN_ID': 'c'*32})
+            self.assertNotEqual(failure.returncode, 0)
+            self.assertEqual(json.loads((feature_report/'final.json').read_text())['exit_code'], failure.returncode)
+            self.assertIn('error', (feature_report/'features.log').read_text())
+            # Restore valid source and commit its new identity before Circle replay.
+            source.write_text(source.read_text().replace('\nthis is an intentional syntax error\n', ''))
+            subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '-am', 'restore feature source', '-q'], cwd=root, check=True, capture_output=True)
+            env['CI_COMMIT_SHA'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
             # Circle's reusable template defaults to a single unpartitioned node.
             single = run('features', {'CI_RUST_PARTITION_INDEX': '0', 'CI_RUST_PARTITION_TOTAL': '1'})
             self.assertEqual(single.returncode, 0, single.stdout + single.stderr)

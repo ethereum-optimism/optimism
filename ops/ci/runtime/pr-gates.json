@@ -20,6 +20,13 @@
           ]
         },
         {
+          "name": "rust-deny",
+          "group": "rust-workspace",
+          "tasks": [
+            "deny"
+          ]
+        },
+        {
           "name": "rust-typos",
           "group": "rust-workspace",
           "tasks": [
@@ -303,6 +310,13 @@
           "group": "main-checks",
           "tasks": [
             "check-op-geth-version"
+          ]
+        },
+        {
+          "name": "opgeth-ratchet",
+          "group": "main-checks",
+          "tasks": [
+            "opgeth-ratchet"
           ]
         },
         {

@@ -36,6 +36,19 @@ seven L2 fork cases and 407 runtime relay requests on each provider, 21 exact
 Contracts prerequisites, and all 1,120 private selector rows plus API readbacks.
 Earlier failures remain retained and receive no additional coverage credit.
 
+## October 19 develop refresh
+
+Current implementation includes `rust-deny` in the Rust gate and
+`opgeth-ratchet` in Main, for 88 PR occurrences (Main 33, Contracts 23, Rust 23,
+Rust E2E 9). This updates selection; the 86-occurrence original-report snapshot
+above remains historical. Validate the refreshed source on both providers before
+assigning the two additions current parity credit.
+
+Feature compilation uses source-bound `features-build-0` through
+`features-build-9` producers. All ten `features-N` consumers still execute fresh
+original Cargo Hack phases and own the gate verdicts; producers add no workload
+occurrences. Count their preparation and transfer in performance comparisons.
+
 ## Current Rust execution split
 
 `rust-tests` is implemented by fresh `tests-unit` and `tests-compiler` workers and

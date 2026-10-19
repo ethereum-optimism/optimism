@@ -47,6 +47,8 @@ class OriginalMainTests(unittest.TestCase):
                 commands['go-env'] = ['go','env','-json','GOOS','GOARCH','CGO_ENABLED','GOFLAGS','GOTOOLCHAIN']
                 settings['go_environment'] = {'GOOS':'linux','GOARCH':'amd64','CGO_ENABLED':'1','GOFLAGS':'','GOTOOLCHAIN':'auto'}
                 original('go-env', commands['go-env'], settings['go_environment'])
+            if job == 'opgeth-ratchet':
+                source = {'justfile': 'opgeth-ratchet:\n  go run ./ops/scripts/opgeth-ratchet\n', 'ops/scripts/opgeth-ratchet/allowlist.txt': 'fixture\n'}
             if job in COMPARE.MAIN.MOCKS:
                 component = COMPARE.MAIN.MOCKS[job]
                 source = {component + '/input.go':'package input\n//go:generate mockery --name Input\n',
@@ -59,24 +61,6 @@ class OriginalMainTests(unittest.TestCase):
                 original('packages', commands['packages'], '\n'.join(json.dumps(r) for r in rows))
                 original('generators', commands['generators'])
                 (directory / 'generators.log').write_text('input.go\nmockery --name Input\ninput_test.go\necho test-input\n')
-                dependencies = directory / 'dependencies'; dependencies.mkdir()
-                bundle = dependencies / 'superchain-configs.zip'; bundle.write_bytes(b'original pinned bundle')
-                digest = COMPARE.MAIN.STAGES.digest(bundle); pin = dependencies / 'superchain-configs.zip.sha256'
-                pin.write_text(digest + '  superchain-configs.zip\n')
-                settings['input_sha256'].update({name:'d'*64 for name in COMPARE.MAIN.BUNDLE_INPUTS})
-                settings['input_sha256'][COMPARE.MAIN.BUNDLE + '.sha256'] = COMPARE.MAIN.STAGES.digest(pin)
-                settings['input_sha256']['superchain-registry'] = {'gitlink':'e'*40}
-                binding = {'source_sha':SHA,'registry_revision':'e'*40,'sha256':digest,'expected_sha256':digest,
-                           'input_sha256':{name:settings['input_sha256'][name] for name in COMPARE.MAIN.BUNDLE_INPUTS},
-                           'tools':settings['tools']}
-                commands['superchain'] = ['just','build-superchain-go']; original('superchain',commands['superchain'])
-                if provider == 'rwx':
-                    prep = directory / 'producer'; prep.mkdir()
-                    self.write(prep / 'bundle.json', binding); self.write(prep / 'coverage.json', {'tests':0,'verified_bundle':True})
-                    self.write(prep / 'superchain.stage.json',json.loads((directory / 'superchain.stage.json').read_text()))
-                    (prep / 'superchain.log').write_text('verified bundle')
-                    self.write(prep / 'manifest.json', {'exit_code':0,'report_errors':[],
-                        'original_sha256':{p.name:COMPARE.MAIN.STAGES.digest(p) for p in prep.iterdir()}})
             elif job == 'l2-chains-sync-check':
                 source = {'.circleci/continue/main.yml':'original yaml\n','.circleci/l2-rpcs.json':'{"op-mainnet":{}}\n'}
                 config = {'workflows':{'scheduled-daily-tests':{'jobs':[{'contracts-bedrock-tests-l2-fork':{'matrix':{'parameters':{'fork_op_chain':['op-mainnet']}}}}]}}}
@@ -98,11 +82,32 @@ class OriginalMainTests(unittest.TestCase):
                           'op-core/nuts/bundles/fork_nut_bundle.json':'{}\n','op-core/nuts/state/fork_state.json':'{}\n'}
                 commands['fetch-develop'] = ['git','fetch','--no-tags','origin','+refs/heads/develop:refs/remotes/origin/develop']
                 original('fetch-develop',commands['fetch-develop'])
-            else:
+            elif job != 'opgeth-ratchet':
                 selection = {'files':['complete.txt'],'todos':[],'near_misses':[],'check_closed':False}
                 commands.update(COMPARE.MAIN.TODO_DISCOVERY)
                 for name, argv in COMPARE.MAIN.TODO_DISCOVERY.items(): original(name,argv)
                 (directory / 'files.log').write_text('complete.txt\n')
+            if job in COMPARE.MAIN.MOCKS or job == 'opgeth-ratchet':
+                dependencies = directory / 'dependencies'; dependencies.mkdir()
+                bundle = dependencies / 'superchain-configs.zip'; bundle.write_bytes(b'original pinned bundle')
+                digest = COMPARE.MAIN.STAGES.digest(bundle); pin = dependencies / 'superchain-configs.zip.sha256'
+                pin.write_text(digest + '  superchain-configs.zip\n')
+                settings['input_sha256'].update({name:'d'*64 for name in COMPARE.MAIN.BUNDLE_INPUTS})
+                if job == 'opgeth-ratchet':
+                    settings['input_sha256']['justfile'] = __import__('hashlib').sha256(source['justfile'].encode()).hexdigest()
+                settings['input_sha256'][COMPARE.MAIN.BUNDLE + '.sha256'] = COMPARE.MAIN.STAGES.digest(pin)
+                settings['input_sha256']['superchain-registry'] = {'gitlink':'e'*40}
+                binding = {'source_sha':SHA,'registry_revision':'e'*40,'sha256':digest,'expected_sha256':digest,
+                           'input_sha256':{name:settings['input_sha256'][name] for name in COMPARE.MAIN.BUNDLE_INPUTS},
+                           'tools':settings['tools']}
+                commands['superchain'] = ['just','build-superchain-go']; original('superchain',commands['superchain'])
+                if provider == 'rwx':
+                    prep = directory / 'producer'; prep.mkdir()
+                    self.write(prep / 'bundle.json', binding); self.write(prep / 'coverage.json', {'tests':0,'verified_bundle':True})
+                    self.write(prep / 'superchain.stage.json',json.loads((directory / 'superchain.stage.json').read_text()))
+                    (prep / 'superchain.log').write_text('verified bundle')
+                    self.write(prep / 'manifest.json', {'exit_code':0,'report_errors':[],
+                        'original_sha256':{p.name:COMPARE.MAIN.STAGES.digest(p) for p in prep.iterdir()}})
             for name, text in source.items():
                 p = directory / 'source' / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(text)
                 settings['input_sha256'][name] = COMPARE.MAIN.STAGES.digest(p)
@@ -111,6 +116,8 @@ class OriginalMainTests(unittest.TestCase):
                 before = {component + '/mocks/input.go':settings['input_sha256'][component + '/mocks/input.go']}
                 selection = {'component':component,'packages':selected,'generated_before':before,'superchain':binding}
                 self.write(directory / 'generated.json', before)
+            elif job == 'opgeth-ratchet':
+                selection = {'superchain': binding, 'inputs': {n: settings['input_sha256'][n] for n in source}}
             elif job == 'check-nut-locks': selection = COMPARE.MAIN.nut_selection(directory / 'source','c' * 40)
             original('check',commands['check'])
             self.write(directory / 'settings.json',settings); self.write(directory / 'selection.json',selection)
@@ -122,7 +129,7 @@ class OriginalMainTests(unittest.TestCase):
 
     def compare(self): return COMPARE.compare(self.directories,self.job,SHA)
 
-    def test_all_seven_original_main_job_reports_match(self):
+    def test_all_original_main_job_reports_match(self):
         for job in COMPARE.MAIN.COMMANDS:
             with self.subTest(job=job):
                 self.root = Path(self.tmp.name) / job; self.root.mkdir(); self.fixture(job)

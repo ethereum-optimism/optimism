@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-trie"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,12 +13,14 @@ workspace = true
 
 [dependencies]
 # reth
+reth-chain-state.workspace = true
 reth-db = { workspace = true, features = ["mdbx"] }
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
 reth-primitives-traits.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
+reth-stages-types.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 reth-trie-common = { workspace = true, features = ["serde"] }
 reth-trie-db.workspace = true
@@ -83,6 +85,7 @@ serial_test.workspace = true
 
 [features]
 test-utils = [
+	"reth-chain-state/test-utils",
 	"reth-codecs/test-utils",
 	"reth-db/test-utils",
 	"reth-ethereum-primitives?/test-utils",
@@ -93,7 +96,8 @@ test-utils = [
 	"reth-tasks/test-utils",
 	"reth-trie/test-utils",
 	"reth-trie-common/test-utils",
-	"reth-trie-db/test-utils"
+	"reth-trie-db/test-utils",
+	"reth-stages-types/test-utils"
 ]
 serde-bincode-compat = [
 	"reth-trie-common/serde-bincode-compat",

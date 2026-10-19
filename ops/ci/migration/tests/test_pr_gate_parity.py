@@ -118,7 +118,7 @@ class GateParityTests(unittest.TestCase):
         self.assertEqual(result['dependencies'], self.names)
         self.assertEqual(result['tests'], 0)
         # The original 30 native workloads plus both split Rust verdict workers.
-        self.assertEqual(result['native']['workload_tasks'], 32)
+        self.assertEqual(result['native']['workload_tasks'], 33)
         self.assertEqual(result['circle']['retry_history'], None)
         self.assertTrue(result['original_sha256']['circle'])
 

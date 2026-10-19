@@ -5,7 +5,7 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass a Rust workspace job}"
-case "$job" in tests|tests-build|tests-unit|tests-compiler|tests-merge|doctest|docs|clippy|build|features|feature-plan|no-std|udeps|wasm-unknown|wasm-wasi|zepter|typos|registry|interop) ;;
+case "$job" in tests|tests-build|tests-unit|tests-compiler|tests-merge|doctest|docs|clippy|build|features|feature-plan|no-std|udeps|wasm-unknown|wasm-wasi|zepter|typos|deny|registry|interop) ;;
   *) echo "Unknown Rust workspace job: $job" >&2; exit 1;;
 esac
 index="${CI_RUST_PARTITION_INDEX:-${CIRCLE_NODE_INDEX:-0}}"
@@ -194,6 +194,7 @@ case "$job" in
     ;;
   zepter) stage zepter zepter run check ;;
   typos) stage typos typos ;;
+  deny) stage deny just deny ;;
   registry)
     python3 "$HELPERS/rust-workspace-report.py" registry-snapshot "$report" before
     # A restored target may already have KONA_SYNC_SUPERCHAIN=true. Cleaning

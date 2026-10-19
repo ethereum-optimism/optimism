@@ -45,6 +45,7 @@ import (
 	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -379,7 +380,7 @@ type System struct {
 
 	RollupConfig *rollup.Config
 	L1GenesisCfg *core.Genesis
-	L2GenesisCfg *core.Genesis
+	L2GenesisCfg *opgenesis.Genesis
 
 	// Connections to running nodes
 	EthInstances      map[string]services.EthInstance
@@ -488,12 +489,12 @@ func (sys *System) L1Genesis() *core.Genesis {
 	return sys.L1GenesisCfg
 }
 
-func (sys *System) L2Genesis() *core.Genesis {
+func (sys *System) L2Genesis() *opgenesis.Genesis {
 	return sys.L2GenesisCfg
 }
 
-func (sys *System) L2Geneses() []*core.Genesis {
-	return []*core.Genesis{sys.L2GenesisCfg}
+func (sys *System) L2Geneses() []*opgenesis.Genesis {
+	return []*opgenesis.Genesis{sys.L2GenesisCfg}
 }
 
 func (sys *System) AllocType() config.AllocType {

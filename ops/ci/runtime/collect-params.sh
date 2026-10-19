@@ -52,8 +52,8 @@ case "${MODE}" in
       fi
       CHANGED=$(cat "${CHANGED_FILES_FILE}")
     else
-      CHANGED=$(git diff --name-only "origin/${CI_BASE_REVISION:-develop}...HEAD" 2>/dev/null \
-        || git diff --name-only HEAD~1 HEAD || true)
+      CHANGED=$(git diff --name-only --no-renames "origin/${CI_BASE_REVISION:-develop}...HEAD" 2>/dev/null \
+        || git diff --name-only --no-renames HEAD~1 HEAD || true)
     fi
     echo "=== Changed files ==="
     echo "${CHANGED:-<none>}"

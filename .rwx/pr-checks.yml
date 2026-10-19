@@ -388,6 +388,35 @@ tasks:
         - key: reports
           path: .ci/main-checks/op-deployer-forge-version
 
+  - key: opgeth-ratchet
+    use: [code, main-tools, go-modules, main-superchain]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/main-checks/opgeth-ratchet"
+      python3 ops/ci/runtime/main-checks.py opgeth-ratchet
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 2
+      memory: 4gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/main-checks/opgeth-ratchet/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/opgeth-ratchet
+
   - key: check-op-geth-version
     use: [code, main-tools, go-modules]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
@@ -521,7 +550,7 @@ tasks:
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt
     use: [code, tools]
-    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) }}
+    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (opgeth-ratchet.succeeded || opgeth-ratchet.failed || opgeth-ratchet.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-checks
     env:
@@ -541,6 +570,9 @@ tasks:
       TASK_CHECK_NUT_LOCKS_SUCCEEDED: ${{ tasks.check-nut-locks.succeeded }}
       TASK_CHECK_NUT_LOCKS_FAILED: ${{ tasks.check-nut-locks.failed }}
       TASK_CHECK_NUT_LOCKS_SKIPPED: ${{ tasks.check-nut-locks.skipped }}
+      TASK_OPGETH_RATCHET_SUCCEEDED: ${{ tasks.opgeth-ratchet.succeeded }}
+      TASK_OPGETH_RATCHET_FAILED: ${{ tasks.opgeth-ratchet.failed }}
+      TASK_OPGETH_RATCHET_SKIPPED: ${{ tasks.opgeth-ratchet.skipped }}
       TASK_CHECK_OP_GETH_VERSION_SUCCEEDED: ${{ tasks.check-op-geth-version.succeeded }}
       TASK_CHECK_OP_GETH_VERSION_FAILED: ${{ tasks.check-op-geth-version.failed }}
       TASK_CHECK_OP_GETH_VERSION_SKIPPED: ${{ tasks.check-op-geth-version.skipped }}

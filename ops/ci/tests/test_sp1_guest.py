@@ -47,6 +47,29 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(G.programs(source), ['super-range', 'super-aggregation', 'future-program'])
         with self.assertRaisesRegex(ValueError, 'recipe'): G.programs('other-recipe:\n')
 
+    def test_vkey_recipe_retains_all_standalone_crates(self):
+        source = 'check-vkey-crates:\n  for crate in range-vkeys log-commitment-vkey future-vkey; do\n    cargo test\n  done\nnext-recipe:\n'
+        self.assertEqual(G.vkey_crates(source), ['range-vkeys', 'log-commitment-vkey', 'future-vkey'])
+        for names in ('range-vkeys range-vkeys', 'log-commitment-vkey', ''):
+            with self.assertRaises(ValueError):
+                G.vkey_crates('check-vkey-crates:\n  for crate in '+names+'; do\n')
+
+    def test_vkey_union_requires_each_original_graph_and_listing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)
+            names = ['range-vkeys', 'log-commitment-vkey']
+            for name in names:
+                package = {'id': name, 'name': name, 'manifest_path': '/fixture/'+name+'/Cargo.toml', 'targets': []}
+                G.S.write(path/('vkeys-'+name+'-workspace.json'), {'workspace_members': [name], 'packages': [package]})
+                (path/('vkeys-'+name+'-list.log')).write_text(name+' case: test\n')
+            self.assertEqual(G.vkey_views(path, names=names)['workspace_members'], names)
+            G.vkey_views(path, emit=False, names=names)
+            (path/'vkeys-list.log').write_text('range-vkeys case: test\n')
+            with self.assertRaisesRegex(ValueError, 'complete original discovery'):
+                G.vkey_views(path, emit=False, names=names)
+            (path/'vkeys-log-commitment-vkey-workspace.json').unlink()
+            with self.assertRaises(FileNotFoundError): G.vkey_views(path, names=names)
+
     def test_runtime_does_not_recover_manifested_empty_logs(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)
@@ -154,6 +177,29 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         text = (self.reports / 'guest-list.log').read_text()
         with self.assertRaises(ValueError):
             G.libtest(text.replace('same_name: test', '', 1), self.metadata, True, **{'root': str(self.root), 'cargo_home': self.settings['cargo_home']})
+
+    def test_standalone_vkey_crates_keep_both_actual_case_sets(self):
+        names = ['range-vkeys', 'log-commitment-vkey']
+        for name in names:
+            path = self.root/name
+            (path/'src').mkdir(parents=True)
+            (path/'Cargo.toml').write_text('[workspace]\n[package]\nname="'+name+'"\nversion="0.1.0"\nedition="2021"\n')
+            (path/'src/lib.rs').write_text('#[test] fn original_case() {}\n')
+            manifest = str(path/'Cargo.toml')
+            self.command('vkeys-'+name+'-workspace', ['cargo', 'metadata', '--manifest-path', manifest, '--format-version', '1'], json_output=True)
+            self.command('vkeys-'+name+'-list', ['cargo', 'test', '--manifest-path', manifest, '--locked', '--', '--list'])
+        metadata = G.vkey_views(self.reports, names=names)
+        argv = ['bash', '-e', '-c', '\n'.join('cargo test --manifest-path '+str(self.root/name/'Cargo.toml')+' --locked' for name in names)]
+        self.command('vkeys', argv)
+        coverage = G.coverage(self.reports, 'vkeys', metadata, self.settings)
+        self.assertEqual(coverage['packages'], sorted(names))
+        self.assertEqual(coverage['outcomes'], {'pass': 2})
+        log = self.reports/'vkeys.log'
+        # Keep genuine output for only one crate; the other must not silently disappear.
+        self.command('one-crate-only', ['cargo', 'test', '--manifest-path', str(self.root/names[0]/'Cargo.toml'), '--locked'])
+        log.write_bytes((self.reports/'one-crate-only.log').read_bytes())
+        with self.assertRaisesRegex(ValueError, 'Missing or extra'):
+            G.coverage(self.reports, 'vkeys', metadata, self.settings)
 
     def test_actual_failure_remains_failing_and_every_original_case_is_retained(self):
         (self.root / 'one/src/lib.rs').write_text('#[test] fn fails_for_real() {assert_eq!(2+2,5);}\n')

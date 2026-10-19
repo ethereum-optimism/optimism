@@ -101,6 +101,7 @@ tasks:
       - mise.toml
       - rust/Cargo.toml
       - rust/Cargo.lock
+      - rust/justfile
       - rust/kona/sp1/programs/Cargo.toml
       - rust/kona/sp1/programs/Cargo.lock
       - rust/kona/sp1/justfile

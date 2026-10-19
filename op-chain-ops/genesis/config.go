@@ -490,6 +490,13 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 	}
 }
 
+// IsForkActive reports whether fork is active at timestamp on a chain whose L2 genesis is at
+// genesisTime.
+func (d *UpgradeScheduleDeployConfig) IsForkActive(fork rollup.ForkName, genesisTime, timestamp uint64) bool {
+	activation := offsetToUpgradeTime((*hexutil.Uint64)(d.ForkTimeOffset(fork)), genesisTime)
+	return activation != nil && timestamp >= *activation
+}
+
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
 	switch fork {
 	case forks.Regolith:

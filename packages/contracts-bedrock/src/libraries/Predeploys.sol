@@ -444,7 +444,7 @@ library Predeploys {
         records_[16] = PredeployRecord({
             proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             variants: _variants(
-                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 2_359_000
+                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 2_378_000
             ),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
@@ -454,7 +454,7 @@ library Predeploys {
         });
         records_[17] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
-            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 757_000),
+            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 1_175_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,

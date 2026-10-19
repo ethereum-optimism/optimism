@@ -117,9 +117,15 @@ jobs:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      # No cache save: downloads no crates (index/advisory DB only).
-      # rust-deny only runs on develop (see workflow filter); on failure, ping
-      # @protocol-oncall in Slack since it gates post-merge, not the PR.
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
+      - store_test_results:
+          path: .ci/rust-workspace
+          when: always
+      # No cache save: downloads no crates (index only).
+      # Ping @protocol-oncall if it fails on develop.
       - notify-failures-on-develop:
           mentions: "@protocol-oncall"
 
@@ -1001,7 +1007,7 @@ workflows:
       - rust-ci-deny:
           name: rust-deny
           directory: rust
-          command: "just deny"
+          command: "bash ../ops/ci/runtime/rust-workspace.sh deny"
           # Not the shared *rust-ci-context anchor: this job and the two cargo-test jobs
           # below additionally need the `slack` context (SLACK_ACCESS_TOKEN) — rust-deny to
           # ping @protocol-oncall on a develop failure (below), the test jobs for the
@@ -1011,11 +1017,9 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
-          # cargo-deny (advisory/license/ban audit) only gates develop, not
-          # PRs/branches. It is intentionally not part of required-rust-ci.
-          filters:
-            branches:
-              only: develop
+          # cargo-deny audits licenses, bans, and sources only (advisories are tracked
+          # via image scanning), so it can only fail on a repo change and gates PRs
+          # through required-rust-ci.
 
       - rust-ci-typos:
           name: rust-typos
@@ -1139,6 +1143,7 @@ workflows:
           requires:
             - rust-fmt: terminal
             - rust-clippy: terminal
+            - rust-deny: terminal
             - rust-typos: terminal
             - rust-zepter: terminal
             - rust-tests: terminal

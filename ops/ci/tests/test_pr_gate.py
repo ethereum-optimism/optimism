@@ -63,8 +63,8 @@ class GateTests(unittest.TestCase):
     def test_native_policy_covers_every_feature_partition_without_circle(self):
         self.assertFalse((self.root/'.circleci').exists())
         self.assertFalse((self.root/'ops/ci/migration').exists())
-        self.assertEqual(len(self.selection['requires']),21)
-        self.assertEqual(len(G.group_tasks(self.manifest,'rust-workspace')),28)
+        self.assertEqual(len(self.selection['requires']),22)
+        self.assertEqual(len(G.group_tasks(self.manifest,'rust-workspace')),29)
         native=self.root/'.rwx/rust.yml';source=native.read_text()
         native.write_text(source.replace('features-9.succeeded || features-9.failed || features-9.skipped','features-8.succeeded || features-8.failed || features-8.skipped'))
         with self.assertRaisesRegex(ValueError,'every terminal'):G.configuration('required-rust-ci')
@@ -235,7 +235,7 @@ class GateTests(unittest.TestCase):
     def test_main_gate_covers_every_original_dependency_and_complete_fixed_shards(self):
         env=self.reports(gate='ci-gate');result,output,record=self.run_aggregate(env,gate='ci-gate')
         _,selections=G.configuration();selection=selections['ci-gate']
-        self.assertEqual(result,0);self.assertEqual(len(selection['requires']),19)
+        self.assertEqual(result,0);self.assertEqual(len(selection['requires']),20)
         self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
         self.assertEqual(len(G.group_tasks(self.manifest,'main-go')),12)
         self.assertEqual(len(G.group_tasks(self.manifest,'main-acceptance')),16)

@@ -8,6 +8,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -77,8 +78,8 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.2
-    string public constant version = "2.8.2";
+    /// @custom:semver 2.9.0
+    string public constant version = "2.9.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -251,6 +252,16 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     function l2TokenBridge() external view returns (address) {
         return address(otherBridge);
     }
+
+    /// @notice Moves escrowed tokens to the Portal's bridge hook. Only callable by the Portal.
+    /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
+    /// @param _message Encoded finalizeBridgeERC20 call.
+    function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
+
+    /// @notice Pulls tokens from the Portal's bridge hook back into escrow. Only callable by the Portal.
+    /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
+    /// @param _message Encoded finalizeBridgeERC20 call.
+    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
 
     /// @notice Internal function for initiating an ETH deposit.
     /// @param _from        Address of the sender on L1.

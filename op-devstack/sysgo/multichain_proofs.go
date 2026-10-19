@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -17,6 +16,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
@@ -356,7 +356,7 @@ func startInteropChallenger(
 
 	l2ELRPCs := make([]string, len(l2ELs))
 	rollupCfgs := make([]*rollup.Config, len(l2Nets))
-	l2Geneses := make([]*core.Genesis, len(l2Nets))
+	l2Geneses := make([]*opgenesis.Genesis, len(l2Nets))
 	l2ChainIDs := make([]eth.ChainID, len(l2Nets))
 	for i := range l2Nets {
 		l2ELRPCs[i] = l2ELs[i].UserRPC()

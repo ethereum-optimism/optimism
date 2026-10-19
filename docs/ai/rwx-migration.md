@@ -25,6 +25,24 @@ Circle's exact required contexts. CI source changes select contracts and Rust
 validation too. See [CI review](ci-config-review.md) for the merged continuation
 config and gate review procedure.
 
+## Reusing feature compilation on PRs
+
+Each `features-build-N` task runs the original two Cargo Hack phases with the
+source SHA, pinned tools, flags, incremental mode and one of ten partitions bound
+to its inputs. Its compiler filesystem can be reused without granting PRs writes
+to the protected tool-cache vault. `features-N` then inherits the current source
+and that compiler state, reruns both original phases with `cache: false`, and
+publishes only its fresh report. The Rust gate still depends on all ten fresh
+consumers. Both stages use 4 CPUs and 8 GB; preparation and filesystem transfer
+must be included in benchmark wall time and cost. A cold producer is additional
+work, so warm results must be reported separately from warm-up.
+
+Develop refresh on October 19, 2026 adds required `rust-deny` and
+`opgeth-ratchet` checks, bringing the current inventory to 88 PR occurrences.
+The historical 86-occurrence parity snapshot remains dated evidence. SP1 now
+also includes the log-commitment ELF and standalone vkey crate discovered from
+its original recipes. Current-source validation must include those additions.
+
 ## Helper ownership and removable boundaries
 
 | Directory | Owner and lifetime |

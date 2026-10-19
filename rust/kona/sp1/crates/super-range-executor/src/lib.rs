@@ -26,6 +26,10 @@ use kona_preimage::{
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
+    log_commitment::{
+        BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
+        log_commitment_witness,
+    },
     super_root::{
         SuperConsolidationInputs, SuperConsolidationOutputs, SuperConsolidationTransitionInput,
         SuperInteropInputs, SuperInteropOutputs, SuperOptimisticBlock, SuperOutputRoot,
@@ -40,7 +44,17 @@ use kona_sp1_ethereum_client_utils::{
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
 use serde::Deserialize;
-use sp1_sdk::{Elf, Prover, ProverClient, SP1PublicValues, SP1Stdin};
+use sp1_sdk::{
+    Elf, Prover, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin,
+    SP1VerifyingKey,
+};
+
+mod log_commitments;
+pub use log_commitments::MissingLogCommitment;
+use log_commitments::{NativeConsolidation, run_native_consolidation};
+
+#[cfg(test)]
+mod consolidation_tests;
 
 /// Exit code signalling a valid super-range claim.
 pub const EXIT_VALID: u8 = 0;
@@ -58,6 +72,9 @@ pub struct RunConfig {
     /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
     /// the honest one, so the guest rejects the claim.
     pub corrupt_claimed_root: bool,
+    /// Print the PGU, instruction count, stdin size, and cycle-tracker totals of each SP1 guest
+    /// execution.
+    pub report: bool,
     /// Supernode JSON-RPC endpoint.
     pub supernode_address: String,
     /// L1 execution JSON-RPC endpoint.
@@ -199,6 +216,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     let replayed_range_outputs = match replay_range(
         config.native_core,
+        config.report,
         &replay_range_inputs,
         range_witness,
         super_range_elf.clone(),
@@ -239,18 +257,22 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         synthesized.current_super_root,
         config.end_timestamp,
     )?;
-    let (consolidation_witness, native_consolidation_outputs) = collect_consolidation_witness(
+    let consolidation = collect_consolidation_witness(
         consolidation_host,
         &synthesized.consolidation_inputs,
         &preloaded_preimages,
         Some(&configs),
+        &[],
     )
     .await?;
+    let native_consolidation_outputs = consolidation.outputs;
 
     let replayed_consolidation_outputs = match replay_consolidation(
         config.native_core,
+        config.report,
         &synthesized.consolidation_inputs,
-        consolidation_witness,
+        consolidation.witness,
+        &LogCommitmentInputs::default(),
         super_range_elf,
         Some(&configs),
     )
@@ -491,12 +513,78 @@ pub fn build_super_range_stdin(
     build_super_interop_stdin(SuperInteropInputs::Range(inputs.clone()), witness)
 }
 
-/// Encodes consolidation-mode SP1 stdin as typed inputs followed by rkyv witness bytes.
+/// Compressed batch proofs of the `log-commitment` program, with its verifying key.
+#[derive(Clone)]
+pub struct LogCommitmentProofs {
+    /// The `log-commitment` program's verifying key.
+    pub vk: SP1VerifyingKey,
+    /// The batch proofs, in the order of the batches they commit.
+    pub proofs: Vec<SP1ProofWithPublicValues>,
+}
+
+impl Debug for LogCommitmentProofs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LogCommitmentProofs").field("proofs", &self.proofs.len()).finish()
+    }
+}
+
+impl LogCommitmentProofs {
+    /// The public values of each proof: the batches of [`LogCommitmentInputs`].
+    pub fn batches(&self) -> Vec<Vec<u8>> {
+        self.proofs.iter().map(|proof| proof.public_values.to_vec()).collect()
+    }
+}
+
+/// Encodes consolidation-mode SP1 stdin: typed inputs, rkyv witness bytes, and the encoded
+/// `log_commitments`. `proofs` go to the proof stream; each must be compressed and commit the
+/// batch at its position. Without `proofs`, only execution with the deferred-proof check off can
+/// use batches.
 pub fn build_super_consolidation_stdin(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
+    proofs: Option<&LogCommitmentProofs>,
 ) -> Result<SP1Stdin> {
-    build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)
+    log_commitments.validate()?;
+    let mut stdin =
+        build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)?;
+    stdin.write_vec(log_commitments.encode());
+    if let Some(LogCommitmentProofs { vk, proofs }) = proofs {
+        ensure!(
+            proofs.len() == log_commitments.batches.len(),
+            "{} log-commitment proofs for {} batches",
+            proofs.len(),
+            log_commitments.batches.len(),
+        );
+        for (index, (proof, batch)) in proofs.iter().zip(&log_commitments.batches).enumerate() {
+            ensure!(
+                proof.public_values.as_slice() == batch.as_slice(),
+                "log-commitment proof {index} does not commit its batch",
+            );
+            let SP1Proof::Compressed(recursion_proof) = &proof.proof else {
+                bail!("log-commitment proof {index} is not compressed");
+            };
+            stdin.write_proof((**recursion_proof).clone(), vk.vk.clone());
+        }
+    }
+    Ok(stdin)
+}
+
+/// Encodes log-commitment SP1 stdin for `blocks`. Fails if receipts do not hash to their root.
+pub fn build_log_commitment_stdin_from_receipts(blocks: &[BlockReceipts]) -> Result<SP1Stdin> {
+    let receipts_roots: Vec<B256> = blocks.iter().map(|block| block.receipts_root).collect();
+    build_log_commitment_stdin(&receipts_roots, log_commitment_witness(blocks)?)
+}
+
+/// Encodes log-commitment SP1 stdin as the receipts roots followed by rkyv witness bytes.
+pub fn build_log_commitment_stdin(
+    receipts_roots: &[B256],
+    witness: DefaultWitnessData,
+) -> Result<SP1Stdin> {
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&receipts_roots);
+    stdin.write_slice(&rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?);
+    Ok(stdin)
 }
 
 fn build_super_interop_stdin(
@@ -536,32 +624,59 @@ pub fn decode_super_consolidation_public_values(
     }
 }
 
+async fn execute_sp1(
+    mode: &str,
+    stdin: SP1Stdin,
+    super_range_elf: Arc<[u8]>,
+    report: bool,
+) -> Result<SP1PublicValues> {
+    let stdin_bytes: usize = stdin.buffer.iter().map(Vec::len).sum();
+    let client = ProverClient::builder().cpu().build().await;
+    let (public_values, execution_report) =
+        client.execute(Elf::Dynamic(super_range_elf), stdin).calculate_gas(true).await?;
+    if report {
+        let pgu = execution_report.gas().expect("calculate_gas(true) reports PGU");
+        println!(
+            "{mode}: pgu={pgu} instructions={} stdin_bytes={stdin_bytes}",
+            execution_report.total_instruction_count(),
+        );
+        // SP1 fills the cycle trackers only when built with `sp1-sdk/profiling`.
+        let trackers: BTreeMap<_, _> = execution_report.cycle_tracker.iter().collect();
+        for (label, cycles) in trackers {
+            let invocations =
+                execution_report.invocation_tracker.get(label).copied().unwrap_or_default();
+            println!("{mode} {label}: cycles={cycles} invocations={invocations}");
+        }
+    }
+    Ok(public_values)
+}
+
 async fn execute_sp1_range(
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Arc<[u8]>,
+    report: bool,
 ) -> Result<SuperRangeOutputs> {
     let stdin = build_super_range_stdin(inputs, witness)?;
-    let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Dynamic(super_range_elf);
-    let (mut public_values, _report) = client.execute(elf, stdin).await?;
+    let mut public_values = execute_sp1("range", stdin, super_range_elf, report).await?;
     decode_super_range_public_values(&mut public_values)
 }
 
 async fn execute_sp1_consolidation(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
     super_range_elf: Arc<[u8]>,
+    report: bool,
 ) -> Result<SuperConsolidationOutputs> {
-    let stdin = build_super_consolidation_stdin(inputs, witness)?;
-    let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Dynamic(super_range_elf);
-    let (mut public_values, _report) = client.execute(elf, stdin).await?;
+    let stdin = build_super_consolidation_stdin(inputs, witness, log_commitments, None)?;
+    let mut public_values = execute_sp1("consolidation", stdin, super_range_elf, report).await?;
     decode_super_consolidation_public_values(&mut public_values)
 }
 
 async fn replay_range(
     native_core: bool,
+    report: bool,
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Option<Arc<[u8]>>,
@@ -572,6 +687,7 @@ async fn replay_range(
             inputs,
             witness,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
+            report,
         )
         .await;
     }
@@ -581,8 +697,10 @@ async fn replay_range(
 
 async fn replay_consolidation(
     native_core: bool,
+    report: bool,
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
     super_range_elf: Option<Arc<[u8]>>,
     configs: Option<&ChainConfigs>,
 ) -> Result<SuperConsolidationOutputs> {
@@ -590,12 +708,16 @@ async fn replay_consolidation(
         return execute_sp1_consolidation(
             inputs,
             witness,
+            log_commitments,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
+            report,
         )
         .await;
     }
     let (oracle, _) = witness.get_oracle_and_blob_provider().await?;
-    build_consolidation_outputs(inputs.clone(), oracle, configs).await
+    // The guest's source; the native replay has no proof to verify.
+    let log_commitments = VerifiedLogCommitments::new(log_commitments.clone(), &[0; 8], |_, _| {});
+    build_consolidation_outputs(inputs.clone(), oracle, configs, Arc::new(log_commitments)).await
 }
 
 /// Flips a bit in the first claimed transition's optimistic output root.
@@ -683,18 +805,37 @@ pub async fn collect_range_witness(
     .await
 }
 
+/// A consolidation witness with what the native run that collected it computed.
+#[derive(Debug)]
+pub struct CollectedConsolidation {
+    /// The witness.
+    pub witness: DefaultWitnessData,
+    /// The natively computed consolidation outputs.
+    pub outputs: SuperConsolidationOutputs,
+    /// The openings of the logs that the entry table served, for [`LogCommitmentInputs`].
+    pub openings: Vec<LogOpening>,
+    /// The blocks below the local safe heads that had no entry, so the witness holds their
+    /// receipts.
+    pub missing: Vec<MissingLogCommitment>,
+}
+
 /// Collects a consolidation-mode witness and the natively computed consolidation outputs.
+///
+/// `batches` are the public values of the log-commitment batch proofs that the consolidation
+/// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
 pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     configs: Option<&ChainConfigs>,
-) -> Result<(DefaultWitnessData, SuperConsolidationOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, _beacon| {
-        let inputs = inputs.clone();
-        async move { build_consolidation_outputs(inputs, oracle, configs).await }
+    batches: &[Vec<u8>],
+) -> Result<CollectedConsolidation> {
+    let (witness, native) = collect_witness(preloaded_preimages, host, |oracle, _beacon| {
+        run_native_consolidation(oracle, inputs.clone(), configs, batches)
     })
-    .await
+    .await?;
+    let NativeConsolidation { outputs, openings, missing } = native;
+    Ok(CollectedConsolidation { witness, outputs, openings, missing })
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);
@@ -1356,15 +1497,22 @@ mod tests {
             .save_preimage(PreimageKey::new_keccak256(*block_hash), alloy_rlp::encode(&header))
             .unwrap();
         let witness = DefaultWitnessData::from_parts(preimages, BlobData::default());
-        let outputs =
-            replay_range(true, &synthesized.range_inputs, witness.clone(), None, Some(&loaded))
-                .await
-                .unwrap();
+        let outputs = replay_range(
+            true,
+            false,
+            &synthesized.range_inputs,
+            witness.clone(),
+            None,
+            Some(&loaded),
+        )
+        .await
+        .unwrap();
         assert_eq!(outputs.transitions, synthesized.range_inputs.claimed_transitions);
         assert_eq!(outputs.span, synthesized.range_inputs.span);
         assert_eq!(outputs.l1_head, synthesized.range_inputs.l1_head);
-        let err =
-            replay_range(true, &synthesized.range_inputs, witness, None, None).await.unwrap_err();
+        let err = replay_range(true, false, &synthesized.range_inputs, witness, None, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 

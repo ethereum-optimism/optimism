@@ -2,9 +2,12 @@
 
 #![allow(missing_docs, unreachable_pub, unused)]
 
-use crate::{ExecutingMessage, MessageIdentifier, traits::InteropProvider};
+use crate::{
+    BlockWithReceipts, BlocksWithReceipts, ExecutingMessage, MessageIdentifier, RawMessagePayload,
+    traits::{InitiatingLogs, InteropProvider, LogCommitment},
+};
 use alloy_consensus::{Header, Receipt, ReceiptWithBloom, Sealed};
-use alloy_primitives::{Address, B256, Bytes, Log, LogData, U256, map::HashMap};
+use alloy_primitives::{Address, B256, Bytes, Log, LogData, U256, keccak256, map::HashMap};
 use alloy_sol_types::{SolEvent, SolValue};
 use async_trait::async_trait;
 use kona_genesis::{Predeploys, RollupConfig};
@@ -43,30 +46,15 @@ impl InteropProvider for MockInteropProvider {
             .clone())
     }
 
-    async fn receipts_by_number(
+    async fn initiating_logs(
         &self,
         chain_id: u64,
-        number: u64,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        Ok(self.receipts.get(&chain_id).and_then(|receipts| receipts.get(&number)).unwrap().clone())
-    }
-
-    async fn receipts_by_hash(
-        &self,
-        chain_id: u64,
-        block_hash: B256,
-    ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        Ok(self
-            .receipts
-            .get(&chain_id)
-            .and_then(|receipts| {
-                let headers = self.headers.get(&chain_id).unwrap();
-                let number =
-                    headers.values().find(|header| header.hash() == block_hash).unwrap().number;
-                receipts.get(&number)
-            })
-            .unwrap()
-            .clone())
+        header: &Header,
+    ) -> Result<InitiatingLogs, Self::Error> {
+        let receipts = &self.receipts[&chain_id][&header.number];
+        Ok(InitiatingLogs::Receipts(
+            receipts.iter().flat_map(|r| r.logs().iter().cloned()).collect(),
+        ))
     }
 }
 
@@ -85,9 +73,7 @@ impl SuperchainBuilder {
     }
 
     /// Builds the scenario into the format needed for testing
-    pub fn build(
-        self,
-    ) -> (HashMap<u64, Sealed<Header>>, HashMap<u64, RollupConfig>, MockInteropProvider) {
+    pub fn build(self) -> (BlocksWithReceipts, HashMap<u64, RollupConfig>, MockInteropProvider) {
         let mut headers_map = HashMap::default();
         let mut receipts_map = HashMap::default();
         let mut sealed_headers = HashMap::default();
@@ -103,10 +89,13 @@ impl SuperchainBuilder {
             headers_map.insert(chain_id, chain_headers);
 
             let mut chain_receipts = HashMap::default();
-            chain_receipts.insert(sealed_header.number, chain.receipts);
+            chain_receipts.insert(sealed_header.number, chain.receipts.clone());
             receipts_map.insert(chain_id, chain_receipts);
 
-            sealed_headers.insert(chain_id, sealed_header);
+            sealed_headers.insert(
+                chain_id,
+                BlockWithReceipts { header: sealed_header, receipts: chain.receipts },
+            );
             rollup_cfgs.insert(chain_id, chain.rollup_config);
         }
 
@@ -230,5 +219,36 @@ impl ExecutingMessageBuilder {
     pub const fn with_origin_timestamp(mut self, origin_timestamp: u64) -> Self {
         self.origin_timestamp = origin_timestamp;
         self
+    }
+}
+
+/// A [`LogCommitment`] that holds every leaf `keccak256(address ‖ payload hash)` of a block, so it
+/// checks a log without a tree.
+#[derive(Debug)]
+pub struct LeafList(Vec<B256>);
+
+impl LeafList {
+    pub fn new(receipts: &[OpReceiptEnvelope]) -> Self {
+        Self(
+            receipts
+                .iter()
+                .flat_map(OpReceiptEnvelope::logs)
+                .map(|log| leaf(&log.address, &keccak256(RawMessagePayload::from(log).as_ref())))
+                .collect(),
+        )
+    }
+}
+
+fn leaf(origin: &Address, payload_hash: &B256) -> B256 {
+    keccak256([origin.as_slice(), payload_hash.as_slice()].concat())
+}
+
+impl LogCommitment for LeafList {
+    fn log_count(&self) -> u64 {
+        self.0.len() as u64
+    }
+
+    fn log_matches(&self, index: u64, origin: &Address, payload_hash: &B256) -> bool {
+        self.0[index as usize] == leaf(origin, payload_hash)
     }
 }
