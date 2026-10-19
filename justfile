@@ -443,7 +443,7 @@ PROOF_EXEX_GO_FLAGS := env("PROOF_EXEX_GO_FLAGS", "-parallel 2 -timeout 60m")
 test-proof-exex:
   set -euo pipefail
   echo "Rust: proofs-history ExEx crates"
-  (cd rust && cargo nextest run -p reth-optimism-trie -p reth-optimism-exex -p reth-optimism-rpc -p reth-optimism-cli --all-features)
+  (cd rust && cargo nextest run --no-fail-fast -p reth-optimism-trie -p reth-optimism-exex -p reth-optimism-rpc -p reth-optimism-cli --all-features)
   echo "Acceptance: proofs-history packages ({{PROOF_EXEX_GO_FLAGS}})"
   (cd op-acceptance-tests && just test {{PROOF_EXEX_GO_FLAGS}} \
     ./op-acceptance-tests/tests/proofs_history_match/ \
