@@ -314,8 +314,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Initializer. A zero `_bridgeHook` keeps the current hook, so a re-initialization
     ///         during an upgrade cannot wipe it. A nonzero `_bridgeHook` replaces the hook and
     ///         emits BridgeHookSet on every run. This is the only way to set a hook, and only the
-    ///         ProxyAdmin or its owner can call it. Items held under a replaced hook can then only
-    ///         be completed by the new one, and the replaced hook is no longer an unsafe target.
+    ///         ProxyAdmin or its owner can call it. A replaced hook is no longer an unsafe target.
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
