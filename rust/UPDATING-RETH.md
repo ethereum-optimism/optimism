@@ -68,9 +68,8 @@ main's CI actually validated.
    If patches must survive, build a new `op-*` branch in the
    `ethereum-optimism/reth` fork as described in
    [The reth fork](#the-reth-fork), tag its tip and pin it with
-   `tag = "op-<base>-<n>"`. A fork PR developed alongside the monorepo PR can be
-   pinned by its head commit with `rev = "<sha>"` meanwhile; switch to the tag
-   once the fork PR merges, before the monorepo PR merges. Verify every reth
+   `tag = "op-<base>-<n>"` (or a temporary `rev`, see
+   [Pinning a fork change](#pinning-a-fork-change)). Verify every reth
    workspace dependency uses the same repository and ref; the mirror checker
    rejects split pins.
 
@@ -296,6 +295,15 @@ Tags are immutable, so a tag pin is as reproducible as a rev pin.
 **Maintain** the branch until the next update: later backports to the same base
 are PRs into it, tagged when the monorepo pins them. Keep old branches as a
 historical record.
+
+### Pinning a fork change
+
+This applies to any monorepo PR that needs a fork change, in a reth update or
+not. Prefer merging the fork PR first, tagging the result, and pinning the tag
+from the start. When the two PRs have to be developed together, pin the fork
+PR's head commit with `rev = "<sha>"` meanwhile. Once the fork PR merges, tag
+its merged commit and switch the monorepo PR to the tag before it merges, so
+a fork pin on `develop` is always a tag.
 
 ## After the monorepo PR merges
 
