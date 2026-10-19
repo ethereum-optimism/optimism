@@ -1,7 +1,7 @@
 //! Optimism payload builder implementation.
 use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
-    error::OpPayloadBuilderError, payload::OpBuiltPayload,
+    error::OpPayloadBuilderError, payload::OpBuiltPayload, sdm_metrics,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
@@ -886,8 +886,12 @@ where
         };
         error!(
             target: "payload_builder",
+            reason = sdm_metrics::AUTO_DISABLE_REASON_REFUND_POLICY_REVERT,
             %revert_error,
             "refund policy cannot undo a candidate transaction, disabling SDM"
+        );
+        sdm_metrics::record_operator_opt_in_auto_disabled(
+            sdm_metrics::AUTO_DISABLE_REASON_REFUND_POLICY_REVERT,
         );
         self.builder_config.operator_sdm_opt_in.set(false);
     }
