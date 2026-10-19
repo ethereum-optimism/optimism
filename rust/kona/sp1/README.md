@@ -320,7 +320,9 @@ proposer loses the ability to defend, resolve, and claim those games.
 Proving progress is process-local. Retries with unchanged inputs reuse submitted
 request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
 `Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
-purchase replacements. Progress is cleared when a game becomes terminal, is
+purchase replacements. A request that SPN also reports `UNEXECUTABLE` (how it
+reports gas, cycle, and memory breaches) is treated as `Unexecutable`, not
+`Unfulfillable`. Progress is cleared when a game becomes terminal, is
 evicted, fails a definitive pre-submit check, or is proven successfully.
 
 A restart loses all progress and re-detects games that still need proofs. A
