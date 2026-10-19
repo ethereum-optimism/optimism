@@ -17,29 +17,27 @@ pub(in crate::task_queue) enum BuildAndSealError {
     Seal(#[from] SealTaskError),
 }
 
-/// Builds and seals a payload in sequence.
+/// Builds and seals a block for derived attributes in sequence.
 ///
 /// This is a utility function that:
 /// 1. Creates and executes a [`BuildTask`] to initiate block building
 /// 2. Creates and executes a [`SealTask`] to seal the block, referencing the initiated payload
 ///
-/// This pattern is commonly used for Holocene deposits-only fallback and other scenarios
-/// where a build-then-seal workflow is needed.
+/// The consolidate task uses it for derived attributes that it cannot consolidate, and for their
+/// deposits-only replacement.
 ///
 /// # Arguments
 ///
 /// * `state` - Mutable reference to the engine state
 /// * `engine` - The engine client
 /// * `cfg` - The rollup configuration
-/// * `attributes` - The payload attributes to build
-/// * `is_attributes_derived` - Whether the attributes were derived or created by the sequencer
+/// * `attributes` - The derived payload attributes to build
 /// * `block_sink` - Where to hand the built block once the engine has canonicalized it
 pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     state: &mut EngineState,
     engine: Arc<EngineClient_>,
     cfg: Arc<RollupConfig>,
     attributes: OpAttributesWithParent,
-    is_attributes_derived: bool,
     block_sink: Arc<dyn ImportedBlockSink>,
 ) -> Result<(), BuildAndSealError> {
     // Execute the build task
@@ -58,7 +56,7 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
         cfg,
         payload_id,
         attributes,
-        is_attributes_derived,
+        true,
         BuildSealCoupling::Atomic,
         None,
         block_sink,
@@ -69,23 +67,40 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
     Ok(())
 }
 
-/// Replaces a derived block the engine rejected with the deposits-only block of the same
-/// `attributes`, as Holocene requires.
+/// Handles `attributes` that the engine rejected, at forkchoiceUpdated or at newPayload, by the
+/// rules of op-node's `onBuildInvalid`. op-node applies these rules at forkchoiceUpdated; at
+/// newPayload it applies only the derived and Holocene rule, while kona-node also keeps rejected
+/// deposits-only attributes critical there.
 ///
-/// Returns the error that ends the task: [`SealTaskError::HoloceneInvalidFlush`] once the
-/// replacement is sealed, which flushes the rest of the channel, or
-/// [`SealTaskError::DepositOnlyPayloadReattemptFailed`] if the replacement fails.
-pub(in crate::task_queue) async fn replace_with_deposits_only<EngineClient_: EngineClient>(
+/// - Rejected deposits-only attributes are critical: [`SealTaskError::DepositOnlyPayloadFailed`].
+/// - Rejected derived attributes are replaced with their deposits-only block under Holocene. The
+///   task then ends with [`SealTaskError::HoloceneInvalidFlush`], which flushes the rest of the
+///   channel, or with [`SealTaskError::DepositOnlyPayloadReattemptFailed`] if the replacement
+///   fails.
+/// - Nothing replaces other attributes, so this returns `None` and the task keeps its own error. A
+///   sequencer drops its payload and builds the next one.
+pub(in crate::task_queue) async fn handle_rejected_attributes<EngineClient_: EngineClient>(
     state: &mut EngineState,
     engine: Arc<EngineClient_>,
     cfg: Arc<RollupConfig>,
     attributes: &OpAttributesWithParent,
     is_attributes_derived: bool,
     block_sink: Arc<dyn ImportedBlockSink>,
-) -> SealTaskError {
-    let deposits_only = attributes.as_deposits_only();
-    match build_and_seal(state, engine, cfg, deposits_only, is_attributes_derived, block_sink).await
+) -> Option<SealTaskError> {
+    let parent = attributes.parent.block_info.id();
+    if attributes.is_deposits_only() {
+        error!(target: "engine", ?parent, "Critical: the engine rejected deposits-only attributes");
+        return Some(SealTaskError::DepositOnlyPayloadFailed);
+    }
+    if !is_attributes_derived ||
+        !cfg.is_holocene_active(attributes.attributes().payload_attributes.timestamp)
     {
+        return None;
+    }
+
+    warn!(target: "engine", ?parent, "Replacing rejected derived attributes with deposits only");
+    let deposits_only = attributes.as_deposits_only();
+    Some(match build_and_seal(state, engine, cfg, deposits_only, block_sink).await {
         Ok(()) => {
             info!(target: "engine", "Successfully imported deposits-only payload");
             SealTaskError::HoloceneInvalidFlush
@@ -94,5 +109,5 @@ pub(in crate::task_queue) async fn replace_with_deposits_only<EngineClient_: Eng
             error!(target: "engine", %err, "Critical: deposits-only replacement failed");
             SealTaskError::DepositOnlyPayloadReattemptFailed
         }
-    }
+    })
 }
