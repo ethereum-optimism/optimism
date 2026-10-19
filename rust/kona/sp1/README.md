@@ -408,7 +408,7 @@ replacement proofs. `op_zk_proposer_proving_timeout_error` means polling
 timed out; the next attempt can reuse the request.
 `op_zk_proposer_game_unprovable` counts games the proposer cannot prove.
 `op_zk_proposer_log_batch_error` counts failed log-commitment batch proofs; each
-fails its game attempt.
+fails its game attempt. A batch that the proposer splits (see below) is not counted.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
@@ -543,7 +543,11 @@ blocks evenly into the fewest batches that fit 80% of `LOG_GAS_LIMIT` by estimat
 Each consolidation request then waits for and carries the batch proofs of the blocks
 that it reads.
 Every range, consolidation, and batch stdin must stay under `MAX_STDIN_BYTES`. A
-failed batch proof fails the game attempt; it does not bisect a chunk.
+batch of several blocks whose stdin is over it, or that SPN reports `UNEXECUTABLE`, is
+split into halves that are proved in its place; a chunk whose consolidation was
+collected against the split batch collects it again. One block over the limit makes the
+game unprovable. Any other failed batch proof, or an `UNEXECUTABLE` batch of one block,
+fails the game attempt; it does not bisect a chunk.
 
 Transaction signing requires exactly one of these configurations:
 

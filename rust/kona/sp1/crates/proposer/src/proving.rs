@@ -32,14 +32,14 @@ use kona_sp1_client_utils::{
         SuperRangeOutputs, TimestampSpan,
     },
 };
+use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    HostInputs, LogCommitmentProofs, ScannedTimestampCost, SuperRootAtTimestampResponse,
-    SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
-    build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
-    decode_super_consolidation_public_values, decode_super_range_public_values,
-    deployment_chain_configs, estimate_consolidation_pgu, is_witness_too_large,
-    proof_from_super_v1, synthesize_execution, write_log_commitment_proofs,
+    HostInputs, ScannedTimestampCost, SuperRootAtTimestampResponse, SynthesizedExecution,
+    build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
+    collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
+    decode_super_range_public_values, deployment_chain_configs, estimate_consolidation_pgu,
+    is_witness_too_large, proof_from_super_v1, synthesize_execution, write_log_commitment_proofs,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -378,8 +378,45 @@ enum RequestOwner<'a> {
 
 /// A log-commitment batch of a game and its proof request.
 struct LogBatchProgress {
-    batch: LogBatch,
+    batch: Arc<LogBatch>,
     request: Mutex<RequestState>,
+    /// The halves proved instead of this batch once it exceeded a size or execution limit.
+    split: Halves<Self>,
+}
+
+impl LogBatchProgress {
+    fn new(batch: LogBatch) -> Self {
+        Self { batch: Arc::new(batch), request: Mutex::default(), split: Halves::default() }
+    }
+
+    /// Visits the live batches under this one, in batch order: once it is split, its halves'.
+    fn visit_leaves(&self, visit: &mut dyn FnMut(&Self)) {
+        match self.split.get() {
+            Some(halves) => halves.iter().for_each(|half| half.visit_leaves(visit)),
+            None => visit(self),
+        }
+    }
+
+    /// The halves to prove instead of this batch after `err`, recorded on it, when `err` is over
+    /// a size limit or SPN cannot execute the batch (see [`limit_outcome`]). A batch of one block
+    /// cannot be split.
+    fn split_after(&self, err: anyhow::Error) -> Result<Arc<[Self; 2]>> {
+        let exceeds = is_too_large(&err) || is_unexecutable(&err);
+        match limit_outcome(&err, exceeds, self.batch.blocks.len() > 1) {
+            LimitOutcome::Fail => return Err(err),
+            LimitOutcome::TooLarge => return Err(too_large_to_prove(&self.batch, &err)),
+            LimitOutcome::Split => {}
+        }
+        let halves = self.batch.halves()?;
+        tracing::warn!(
+            batch = %self.batch,
+            first_half = %halves[0],
+            second_half = %halves[1],
+            error = %format!("{err:#}"),
+            "Log batch exceeds proving limits; splitting"
+        );
+        Ok(self.split.record(|| halves.map(Self::new)))
+    }
 }
 
 struct GameProgress {
@@ -424,7 +461,9 @@ impl GameProgress {
         visit(RequestOwner::Game, "aggregation", &self.aggregation_request);
         if let Some(stage) = self.log_stage() {
             for progress in &stage.batches {
-                visit(RequestOwner::Batch(&progress.batch), "log", &progress.request);
+                progress.visit_leaves(&mut |leaf| {
+                    visit(RequestOwner::Batch(&leaf.batch), "log", &leaf.request);
+                });
             }
         }
     }
@@ -607,6 +646,7 @@ async fn ensure_submitted(
             }
         }
     }
+    let _reset = ResetSubmitting(state);
     match submit().await {
         Ok(proof_id) => {
             *state.lock() = RequestState::Submitted(proof_id);
@@ -615,6 +655,19 @@ async fn ensure_submitted(
         Err(err) => {
             *state.lock() = RequestState::Missing;
             Err(err)
+        }
+    }
+}
+
+/// Resets a slot that is still `Submitting` when its submission ends without a result, as when
+/// the submitting future is dropped.
+struct ResetSubmitting<'a>(&'a Mutex<RequestState>);
+
+impl Drop for ResetSubmitting<'_> {
+    fn drop(&mut self) {
+        let mut state = self.0.lock();
+        if matches!(*state, RequestState::Submitting) {
+            *state = RequestState::Missing;
         }
     }
 }
@@ -660,39 +713,96 @@ async fn submit_log_batch(prover: &dyn LogBatchProver, batch: &LogBatch) -> Resu
     Ok(proof_id)
 }
 
-/// Submits every batch request that is not submitted yet, before any wait.
+/// Submits every live batch request that is not submitted yet, before any wait.
 async fn submit_log_batches(
     prover: &dyn LogBatchProver,
     batches: &[LogBatchProgress],
 ) -> Result<()> {
     for progress in batches {
-        let batch = &progress.batch;
-        ensure_submitted(&progress.request, async || submit_log_batch(prover, batch).await)
-            .await
-            .with_context(|| format!("failed to submit {batch}"))?;
+        submit_log_batch_tree(prover, progress).await?;
     }
     Ok(())
 }
 
-/// Waits for every batch proof, in batch order. A batch that fails ends the wait.
+/// Submits the live batch requests under `node` that are not submitted yet. A batch whose stdin
+/// is over a size limit is split, and its halves submitted instead.
+fn submit_log_batch_tree<'s>(
+    prover: &'s dyn LogBatchProver,
+    node: &'s LogBatchProgress,
+) -> BoxFuture<'s, Result<()>> {
+    async move {
+        let halves = match node.split.get() {
+            Some(halves) => halves,
+            None => {
+                let batch = &node.batch;
+                match ensure_submitted(&node.request, async || {
+                    submit_log_batch(prover, batch).await
+                })
+                .await
+                {
+                    Ok(_) => return Ok(()),
+                    Err(err) if is_too_large(&err) => node.split_after(err)?,
+                    Err(err) => return Err(err.context(format!("failed to submit {batch}"))),
+                }
+            }
+        };
+        for half in halves.iter() {
+            submit_log_batch_tree(prover, half).await?;
+        }
+        Ok(())
+    }
+    .boxed()
+}
+
+/// Waits for every live batch proof, in batch order. A batch that fails ends the wait.
 async fn wait_for_log_batches(
     prover: &dyn LogBatchProver,
     batches: &[LogBatchProgress],
-) -> Result<BatchProofs> {
-    let proofs = futures::future::try_join_all(batches.iter().map(|progress| async move {
-        let batch = &progress.batch;
-        complete_request(
-            &progress.request,
-            async || submit_log_batch(prover, batch).await,
-            async |proof_id| prover.poll(batch, proof_id).await,
-            |proof| prover.verify(batch, proof),
-        )
-        .await
-        .inspect_err(|_| ProposerGauge::LogBatchError.increment(1.0))
-        .with_context(|| format!("{batch} failed"))
-    }))
+) -> Result<ProvenBatches> {
+    let proven = futures::future::try_join_all(
+        batches.iter().map(|node| wait_for_log_batch_tree(prover, node)),
+    )
     .await?;
-    Ok(proofs.into())
+    Ok(proven.into_iter().flatten().collect())
+}
+
+/// Waits for the proofs of the live batches under `node`, in batch order. A batch over a size
+/// limit, or that SPN cannot execute, is split (see [`LogBatchProgress::split_after`]), and its
+/// halves proved instead. A split is not a batch error.
+fn wait_for_log_batch_tree<'s>(
+    prover: &'s dyn LogBatchProver,
+    node: &'s LogBatchProgress,
+) -> BoxFuture<'s, Result<Vec<ProvenBatch>>> {
+    async move {
+        let halves = match node.split.get() {
+            Some(halves) => halves,
+            None => {
+                let batch = &node.batch;
+                let proof = complete_request(
+                    &node.request,
+                    async || submit_log_batch(prover, batch).await,
+                    async |proof_id| prover.poll(batch, proof_id).await,
+                    |proof| prover.verify(batch, proof),
+                )
+                .await;
+                match proof {
+                    Ok(proof) => return Ok(vec![ProvenBatch { batch: Arc::clone(batch), proof }]),
+                    Err(err) => node
+                        .split_after(err)
+                        .inspect_err(|_| ProposerGauge::LogBatchError.increment(1.0))
+                        .with_context(|| format!("{batch} failed"))?,
+                }
+            }
+        };
+        let [first, second] = &*halves;
+        let (first, second) = futures::future::try_join(
+            wait_for_log_batch_tree(prover, first),
+            wait_for_log_batch_tree(prover, second),
+        )
+        .await?;
+        Ok(first.into_iter().chain(second).collect())
+    }
+    .boxed()
 }
 
 /// Terminal requests are rejected by the preflight in `plan_game_attempt`.
@@ -956,13 +1066,22 @@ trait SpanProver: Sync {
 
 /// A span's range and consolidation requests, collected and checked.
 struct CheckedSpan {
+    span: ChunkSpan,
+    /// Kept to collect the consolidation again if a batch it carries is split.
+    synthesized: SynthesizedExecution,
+    configs: ChainConfigs,
     range_stdin: SP1Stdin,
     range_outputs: SuperRangeOutputs,
-    /// Without the batch proofs, which the network provider adds after the range proof.
-    consolidation_stdin: SP1Stdin,
-    consolidation_outputs: SuperConsolidationOutputs,
-    /// The indices of the stage's batches that the consolidation carries.
-    covering: Vec<usize>,
+    consolidation: CheckedConsolidation,
+}
+
+/// A consolidation request collected against a list of batches, and checked without their
+/// proofs, which the network provider adds after the range proof.
+struct CheckedConsolidation {
+    stdin: SP1Stdin,
+    outputs: SuperConsolidationOutputs,
+    /// The batches that the consolidation carries.
+    covering: Vec<Arc<LogBatch>>,
 }
 
 impl SpanProver for GameAttempt<'_, '_> {
@@ -978,7 +1097,7 @@ impl SpanProver for GameAttempt<'_, '_> {
                 Some(synthesized) => synthesized,
                 None => synthesize_chunk(self.game, self.responses, span)?,
             };
-            check_span(self, span, &synthesized).await
+            check_span(self, span, synthesized).await
         }
         .boxed()
     }
@@ -992,27 +1111,23 @@ impl SpanProver for GameAttempt<'_, '_> {
     }
 }
 
-/// Collects the range witness and the consolidation witness of `span`, and checks both requests
-/// against the stdin limit and the consolidation against its budget. The collection takes the
-/// batches' entries from the stage, since each batch proof is verified to commit exactly them.
+/// Collects the range witness of `span` and checks its stdin, then collects and checks the
+/// consolidation against the stage's live batches.
 async fn check_span(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
-    synthesized: &SynthesizedExecution,
+    synthesized: SynthesizedExecution,
 ) -> Result<CheckedSpan> {
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     check_log_batches(&logs.proofs)?;
     let timestamps = synthesized.range_inputs.span;
-    let host = || {
-        build_interop_host(
-            host_inputs,
-            game.l1_head,
-            &synthesized.previous_super_root_proof_bytes,
-            synthesized.current_super_root,
-            timestamps.end,
-        )
-    };
-    let range_host = host()?;
+    let range_host = build_interop_host(
+        host_inputs,
+        game.l1_head,
+        &synthesized.previous_super_root_proof_bytes,
+        synthesized.current_super_root,
+        timestamps.end,
+    )?;
     let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
@@ -1024,22 +1139,47 @@ async fn check_span(
     .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
     let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
     let range_stdin_bytes = ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
+    tracing::info!(range_stdin_bytes, "Checked the range request");
+    let consolidation =
+        check_consolidation(attempt, span, &synthesized, &configs, &logs.stage.leaf_batches())
+            .await?;
+    Ok(CheckedSpan { span, synthesized, configs, range_stdin, range_outputs, consolidation })
+}
 
-    let stage = &logs.stage;
-    let batches: Vec<&LogBatch> = stage.batches.iter().map(|progress| &progress.batch).collect();
+/// Collects the consolidation of `span` against `batches`, estimates it, and checks it against
+/// its budget and, without the batch proofs, against the stdin limit. The collection takes the
+/// batches' entries, since each batch proof is verified to commit exactly them.
+async fn check_consolidation(
+    attempt: &GameAttempt<'_, '_>,
+    span: ChunkSpan,
+    synthesized: &SynthesizedExecution,
+    configs: &ChainConfigs,
+    batches: &[Arc<LogBatch>],
+) -> Result<CheckedConsolidation> {
+    let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
+    let timestamps = synthesized.range_inputs.span;
+    let host = build_interop_host(
+        host_inputs,
+        game.l1_head,
+        &synthesized.previous_super_root_proof_bytes,
+        synthesized.current_super_root,
+        timestamps.end,
+    )?;
     let entries: Vec<Vec<u8>> = batches.iter().map(|batch| batch.expected.clone()).collect();
     let collected = collect_consolidation_witness(
-        host()?,
+        host,
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
-        Some(&configs),
+        Some(configs),
         &entries,
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {timestamps:?}"))?;
 
-    let covering = cover(&batches, &collected.served)?;
-    let carried: Vec<&LogBatch> = covering.iter().map(|&index| batches[index]).collect();
+    let stage = &logs.stage;
+    let batch_refs: Vec<&LogBatch> = batches.iter().map(|batch| &**batch).collect();
+    let covering = cover(&batch_refs, &collected.served)?;
+    let carried: Vec<&LogBatch> = covering.iter().map(|&index| batch_refs[index]).collect();
     let estimate = estimate_consolidation_pgu(&consolidation_cost(
         stage.span_costs(game, span)?,
         &collected,
@@ -1053,14 +1193,14 @@ async fn check_span(
         span: timestamps,
         missing: &collected.missing,
         estimate,
-        batch_proofs: covering.len(),
+        batch_proofs: carried.len(),
     };
     check_collected(stage.table, &request, settings.range_gas_limit, span.is_splittable())?;
     let log_commitments = LogCommitmentInputs {
         batches: covering.iter().map(|&index| entries[index].clone()).collect(),
         openings: collected.openings,
     };
-    let consolidation_stdin = build_super_consolidation_stdin(
+    let stdin = build_super_consolidation_stdin(
         &synthesized.consolidation_inputs,
         collected.witness,
         &log_commitments,
@@ -1070,24 +1210,21 @@ async fn check_span(
         let bytes = ensure_stdin_fits("consolidation", &stdin, settings.max_stdin_bytes)?;
         Ok((stdin, bytes))
     });
-    let (consolidation_stdin, consolidation_stdin_bytes) = consolidation_stdin
-        .map_err(|err| receipts_path_fallback(stage, settings.path, span, err))?;
+    let (stdin, consolidation_stdin_bytes) =
+        stdin.map_err(|err| receipts_path_fallback(stage, settings.path, span, err))?;
     tracing::info!(
         estimate,
         budget = request_budget(settings.range_gas_limit),
-        batch_proofs = covering.len(),
+        batch_proofs = carried.len(),
         receipts_path_blocks = collected.missing.len(),
         read_bytes = collected.read_bytes,
-        range_stdin_bytes,
         consolidation_stdin_bytes,
         "Checked the consolidation request"
     );
-    Ok(CheckedSpan {
-        range_stdin,
-        range_outputs,
-        consolidation_stdin,
-        consolidation_outputs: collected.outputs,
-        covering,
+    Ok(CheckedConsolidation {
+        stdin,
+        outputs: collected.outputs,
+        covering: covering.iter().map(|&index| Arc::clone(&batches[index])).collect(),
     })
 }
 
@@ -1112,24 +1249,55 @@ fn receipts_path_fallback(
     )
 }
 
+/// The proofs of `covering`, from `proven`; `None` when a batch of `covering` was split after the
+/// consolidation was collected, so it has no proof.
+fn covering_proofs(
+    covering: &[Arc<LogBatch>],
+    proven: &[ProvenBatch],
+) -> Option<Vec<Arc<SP1ProofWithPublicValues>>> {
+    let proofs: HashMap<B256, &Arc<SP1ProofWithPublicValues>> =
+        proven.iter().map(|proven| (proven.batch.id, &proven.proof)).collect();
+    covering.iter().map(|batch| proofs.get(&batch.id).map(|proof| Arc::clone(proof))).collect()
+}
+
+/// `consolidation` with the proofs of the batches it carries, from `proven`. A consolidation that
+/// carries a batch split since its collection is dropped and collected again, by `recollect`,
+/// against the proven batches.
+async fn with_batch_proofs(
+    consolidation: CheckedConsolidation,
+    proven: &[ProvenBatch],
+    recollect: impl AsyncFnOnce(Vec<Arc<LogBatch>>) -> Result<CheckedConsolidation>,
+) -> Result<(CheckedConsolidation, Vec<Arc<SP1ProofWithPublicValues>>)> {
+    if let Some(proofs) = covering_proofs(&consolidation.covering, proven) {
+        return Ok((consolidation, proofs));
+    }
+    tracing::info!("A carried log batch was split; collecting the consolidation again");
+    drop(consolidation);
+    let leaves = proven.iter().map(|proven| Arc::clone(&proven.batch)).collect();
+    let consolidation = recollect(leaves).await?;
+    let proofs = covering_proofs(&consolidation.covering, proven)
+        .context("a carried log batch has no proof")?;
+    Ok((consolidation, proofs))
+}
+
 /// In network mode, proves the range, then adds the covering batch proofs to the consolidation
-/// stdin, checks it again, and proves the consolidation. The mock provider requests nothing.
+/// stdin (see [`with_batch_proofs`]), checks it again, and proves the consolidation. The mock
+/// provider requests nothing.
 async fn prove_checked_span(
     attempt: &GameAttempt<'_, '_>,
     checked: CheckedSpan,
     node: &ChunkProgress,
 ) -> Result<SpanResult> {
     let GameAttempt { provider, keys, logs, settings, .. } = *attempt;
-    let CheckedSpan {
-        range_stdin,
-        range_outputs,
-        mut consolidation_stdin,
-        consolidation_outputs,
-        covering,
-    } = checked;
+    let CheckedSpan { span, synthesized, configs, range_stdin, range_outputs, mut consolidation } =
+        checked;
     let keys = match (provider, keys) {
         (ProofProvider::Mock(_), _) => {
-            return Ok(SpanResult { range_outputs, consolidation_outputs, proofs: None });
+            return Ok(SpanResult {
+                range_outputs,
+                consolidation_outputs: consolidation.outputs,
+                proofs: None,
+            });
         }
         (_, Some(keys)) => keys,
         (_, None) => bail!("network proving requires prestate proving keys"),
@@ -1137,30 +1305,27 @@ async fn prove_checked_span(
     let range =
         prove_range_request(provider, keys, range_stdin, &range_outputs, &node.range_request)
             .await?;
-    if !covering.is_empty() {
-        let batch_proofs = logs.proofs.clone().await.map_err(|err| batch_failure(&err))?;
-        let batches = &logs.stage.batches;
-        let entries: Vec<Vec<u8>> =
-            covering.iter().map(|&index| batches[index].batch.expected.clone()).collect();
-        let proofs = LogCommitmentProofs {
-            vk: (*keys.log_vk).clone(),
-            proofs: covering.iter().map(|&index| (*batch_proofs[index]).clone()).collect(),
-        };
-        write_log_commitment_proofs(&mut consolidation_stdin, &entries, &proofs)?;
-        ensure_stdin_fits("consolidation", &consolidation_stdin, settings.max_stdin_bytes)?;
+    if !consolidation.covering.is_empty() {
+        let proven = logs.proofs.clone().await.map_err(|err| batch_failure(&err))?;
+        let (proven_consolidation, proofs) =
+            with_batch_proofs(consolidation, &proven, async |leaves| {
+                check_consolidation(attempt, span, &synthesized, &configs, &leaves).await
+            })
+            .await?;
+        consolidation = proven_consolidation;
+        let entries: Vec<&[u8]> =
+            consolidation.covering.iter().map(|batch| batch.expected.as_slice()).collect();
+        write_log_commitment_proofs(&mut consolidation.stdin, &keys.log_vk, &entries, &proofs)?;
+        ensure_stdin_fits("consolidation", &consolidation.stdin, settings.max_stdin_bytes)?;
     }
-    let consolidation = prove_consolidation_request(
-        provider,
-        keys,
-        consolidation_stdin,
-        &consolidation_outputs,
-        &node.consolidation_request,
-    )
-    .await?;
+    let CheckedConsolidation { stdin, outputs, .. } = consolidation;
+    let proof =
+        prove_consolidation_request(provider, keys, stdin, &outputs, &node.consolidation_request)
+            .await?;
     Ok(SpanResult {
         range_outputs,
-        consolidation_outputs,
-        proofs: Some(ChildProofs { range, consolidation }),
+        consolidation_outputs: outputs,
+        proofs: Some(ChildProofs { range, consolidation: proof }),
     })
 }
 
@@ -1185,6 +1350,16 @@ fn is_too_large(err: &anyhow::Error) -> bool {
     is_witness_too_large(err) || err.chain().any(|cause| cause.is::<StdinTooLarge>())
 }
 
+/// True when `err` shows a request that SPN cannot execute.
+fn is_unexecutable(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        matches!(
+            cause.downcast_ref::<ProofWaitError>(),
+            Some(ProofWaitError::Terminal { state: ProofTerminalState::Unexecutable, .. })
+        )
+    })
+}
+
 /// True when `err` shows that a span is too large for one range + consolidation pair: a request
 /// over a size limit, an estimate over the budget, or one of the span's own requests that SPN
 /// cannot execute. A batch failure reaches a span flattened ([`batch_failure`]), so it never
@@ -1195,13 +1370,8 @@ fn is_too_large(err: &anyhow::Error) -> bool {
 /// down to a single timestamp, at most log2(span length) extra requests.
 fn exceeds_limits(err: &anyhow::Error) -> bool {
     is_too_large(err) ||
-        err.chain().any(|cause| {
-            cause.is::<EstimateOverBudget>() ||
-                matches!(
-                    cause.downcast_ref::<ProofWaitError>(),
-                    Some(ProofWaitError::Terminal { state: ProofTerminalState::Unexecutable, .. })
-                )
-        })
+        is_unexecutable(err) ||
+        err.chain().any(|cause| cause.is::<EstimateOverBudget>())
 }
 
 /// Proves `span` as one range + consolidation pair or, once it exceeds a limit, as two halves
@@ -1313,11 +1483,18 @@ async fn prove_chunk(
     .await
 }
 
-/// The batch proofs of a game, in batch order.
-type BatchProofs = Arc<[Arc<SP1ProofWithPublicValues>]>;
+/// A live batch of a game with its verified proof.
+#[derive(Clone, Debug)]
+struct ProvenBatch {
+    batch: Arc<LogBatch>,
+    proof: Arc<SP1ProofWithPublicValues>,
+}
 
-/// The proofs of a game's batches, in batch order, shared by its chunk tasks.
-type LogBatchProofs<'a> = Shared<BoxFuture<'a, Result<BatchProofs, Arc<anyhow::Error>>>>;
+/// The live batches of a game with their proofs, in batch order.
+type ProvenBatches = Arc<[ProvenBatch]>;
+
+/// The proven batches of a game, shared by its chunk tasks.
+type LogBatchProofs<'a> = Shared<BoxFuture<'a, Result<ProvenBatches, Arc<anyhow::Error>>>>;
 
 /// The log-commitment stage of a game: its path and, on the table path, its batches. It serves
 /// later attempts until a collection reads a block without an entry.
@@ -1354,6 +1531,15 @@ impl LogStage {
         self.needs_table.load(Ordering::Relaxed)
     }
 
+    /// The live batches, in batch order.
+    fn leaf_batches(&self) -> Vec<Arc<LogBatch>> {
+        let mut leaves = Vec::new();
+        for progress in &self.batches {
+            progress.visit_leaves(&mut |leaf| leaves.push(Arc::clone(&leaf.batch)));
+        }
+        leaves
+    }
+
     /// The receipts-path costs of the transitions of `span`.
     fn span_costs(
         &self,
@@ -1369,13 +1555,13 @@ impl LogStage {
 /// The log-commitment stage of one game attempt.
 struct GameLogs<'a> {
     stage: Arc<LogStage>,
-    /// Chunk tasks await these before their consolidation collection.
+    /// Chunk tasks await these before they add batch proofs to a consolidation.
     proofs: LogBatchProofs<'a>,
 }
 
 impl GameLogs<'_> {
     fn without_batches(stage: Arc<LogStage>) -> Self {
-        Self { stage, proofs: futures::future::ready(Ok(BatchProofs::from([]))).boxed().shared() }
+        Self { stage, proofs: futures::future::ready(Ok(ProvenBatches::from([]))).boxed().shared() }
     }
 }
 
@@ -1483,18 +1669,25 @@ async fn scan_log_stage(
     })
 }
 
-/// The progress of `batches`. A batch of `previous` with the same ID keeps its request.
+/// The progress of `batches`. A batch of `previous` with the same ID keeps its request and its
+/// split.
 fn batch_progress(batches: Vec<LogBatch>, previous: Option<&LogStage>) -> Vec<LogBatchProgress> {
-    let mut requests: HashMap<B256, RequestState> = previous
+    let mut carried: HashMap<B256, &LogBatchProgress> = previous
         .iter()
         .flat_map(|previous| &previous.batches)
-        .map(|progress| (progress.batch.id, progress.request.lock().clone()))
+        .map(|progress| (progress.batch.id, progress))
         .collect();
     batches
         .into_iter()
         .map(|batch| {
-            let request = requests.remove(&batch.id).unwrap_or_default();
-            LogBatchProgress { batch, request: Mutex::new(request) }
+            carried.remove(&batch.id).map_or_else(
+                || LogBatchProgress::new(batch),
+                |previous| LogBatchProgress {
+                    batch: Arc::clone(&previous.batch),
+                    request: Mutex::new(previous.request.lock().clone()),
+                    split: Halves(Mutex::new(previous.split.get())),
+                },
+            )
         })
         .collect()
 }
@@ -2952,19 +3145,25 @@ mod tests {
     }
 
     /// A batch prover that records each submit and poll, fails a batch's poll once with a
-    /// retryable terminal state when the batch is in `cancel_once`, and fails the verification of
-    /// a batch in `fail_verify`.
+    /// retryable terminal state when the batch is in `cancel_once`, fails the verification of a
+    /// batch in `fail_verify`, the submission of a batch in `too_large` with [`StdinTooLarge`], and
+    /// every poll of a batch in `unexecutable` with `Unexecutable`.
     #[derive(Default)]
     struct ScriptedLogProver {
         events: StdMutex<Vec<String>>,
         cancel_once: StdMutex<std::collections::HashSet<B256>>,
         fail_verify: StdMutex<std::collections::HashSet<B256>>,
+        too_large: StdMutex<std::collections::HashSet<B256>>,
+        unexecutable: StdMutex<std::collections::HashSet<B256>>,
     }
 
     #[async_trait::async_trait]
     impl LogBatchProver for ScriptedLogProver {
         async fn submit(&self, batch: &LogBatch) -> Result<ProofId> {
             self.events.lock().unwrap().push(format!("submit {}", batch.blocks[0].number));
+            if self.too_large.lock().unwrap().contains(&batch.id) {
+                return Err(StdinTooLarge { kind: "log", bytes: 2, limit: 1 }.into());
+            }
             Ok(batch.id)
         }
 
@@ -2978,6 +3177,14 @@ mod tests {
                 return Err(ProofWaitError::Terminal {
                     proof_id,
                     state: ProofTerminalState::Cancelled,
+                    fulfillment_status: 0,
+                    execution_status: 0,
+                });
+            }
+            if self.unexecutable.lock().unwrap().contains(&batch.id) {
+                return Err(ProofWaitError::Terminal {
+                    proof_id,
+                    state: ProofTerminalState::Unexecutable,
                     fulfillment_status: 0,
                     execution_status: 0,
                 });
@@ -2998,20 +3205,30 @@ mod tests {
         }
     }
 
-    fn log_batch(number: u64) -> LogBatch {
-        let block = kona_sp1_super_range_executor::LogBatchBlock {
+    fn log_block(number: u64) -> kona_sp1_super_range_executor::LogBatchBlock {
+        kona_sp1_super_range_executor::LogBatchBlock {
             chain_id: 1,
             number,
             hash: B256::repeat_byte(number as u8),
             receipts_root: B256::repeat_byte(number as u8),
             pgu: 1,
             witness_bytes: 1,
-        };
+        }
+    }
+
+    fn log_batch(number: u64) -> LogBatch {
         LogBatch {
             id: B256::repeat_byte(number as u8),
-            blocks: vec![block],
+            blocks: vec![log_block(number)],
             expected: vec![number as u8; 72],
         }
+    }
+
+    /// A batch of the blocks `numbers`, with one entry per block.
+    fn multi_block_batch(numbers: std::ops::RangeInclusive<u64>) -> LogBatch {
+        let blocks: Vec<_> = numbers.map(log_block).collect();
+        let expected = blocks.iter().flat_map(|block| vec![block.number as u8; 72]).collect();
+        LogBatch::new(blocks, expected)
     }
 
     fn game_identity() -> AttemptIdentity {
@@ -3035,7 +3252,8 @@ mod tests {
         assert_eq!(*prover.events.lock().unwrap(), ["submit 1", "submit 2", "submit 3"]);
         let proofs = proofs.await.unwrap();
         assert_eq!(prover.events.lock().unwrap().len(), 6);
-        let committed: Vec<_> = proofs.iter().map(|proof| proof.public_values.to_vec()).collect();
+        let committed: Vec<_> =
+            proofs.iter().map(|proven| proven.proof.public_values.to_vec()).collect();
         let expected: Vec<_> = stage.batches.iter().map(|b| b.batch.expected.clone()).collect();
         assert_eq!(committed, expected);
     }
@@ -3117,6 +3335,174 @@ mod tests {
         assert_eq!(cache.request_counts().get(&("log", "terminal")), Some(&1));
         assert_eq!(cache.retry_terminal_requests(game_address), 1);
         progress.check_terminal_requests().unwrap();
+    }
+
+    /// Pins an unexecutable batch proved as its halves, and a consolidation that carries the split
+    /// batch collected again against them, while one that carries a proven half is not.
+    #[tokio::test]
+    async fn unexecutable_log_batch_splits_and_consolidation_uses_leaves() {
+        let parent = multi_block_batch(1..=4);
+        let stage = Arc::new(table_stage([parent.clone()]));
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.unexecutable.lock().unwrap().insert(parent.id);
+
+        let proven =
+            start_log_batches(prover.clone(), Arc::clone(&stage)).await.unwrap().await.unwrap();
+
+        let halves = parent.halves().unwrap();
+        let ids =
+            |batches: &[Arc<LogBatch>]| batches.iter().map(|batch| batch.id).collect::<Vec<_>>();
+        let half_ids: Vec<_> = halves.iter().map(|half| half.id).collect();
+        let proven_batches: Vec<_> =
+            proven.iter().map(|proven| Arc::clone(&proven.batch)).collect();
+        assert_eq!(ids(&proven_batches), half_ids);
+        assert_eq!(ids(&stage.leaf_batches()), half_ids);
+        assert_eq!([halves[0].blocks.len(), halves[1].blocks.len()], [2, 2]);
+        assert_eq!(
+            [halves[0].expected.clone(), halves[1].expected.clone()].concat(),
+            parent.expected
+        );
+        assert!(matches!(
+            *stage.batches[0].request.lock(),
+            RequestState::Terminal(ProofTerminalState::Unexecutable)
+        ));
+
+        let consolidation = |covering| CheckedConsolidation {
+            stdin: SP1Stdin::new(),
+            outputs: valid_aggregation_inputs().consolidation_outputs[0].clone(),
+            covering,
+        };
+        let (current, proofs) =
+            with_batch_proofs(consolidation(proven_batches[1..].to_vec()), &proven, async |_| {
+                Err(anyhow!("a consolidation of proven batches is collected again"))
+            })
+            .await
+            .unwrap();
+        assert_eq!(ids(&current.covering), half_ids[1..]);
+        assert_eq!(proofs[0].public_values.as_slice(), halves[1].expected);
+
+        let recollected = AtomicUsize::new(0);
+        let (current, proofs) =
+            with_batch_proofs(consolidation(vec![Arc::new(parent)]), &proven, async |leaves| {
+                recollected.fetch_add(1, Ordering::SeqCst);
+                assert_eq!(ids(&leaves), half_ids);
+                Ok(consolidation(leaves[1..].to_vec()))
+            })
+            .await
+            .unwrap();
+        assert_eq!(recollected.load(Ordering::SeqCst), 1);
+        assert_eq!(ids(&current.covering), half_ids[1..]);
+        assert_eq!(proofs[0].public_values.as_slice(), halves[1].expected);
+    }
+
+    /// Pins a slot whose submission is dropped mid-flight left missing, so a later attempt can
+    /// submit it.
+    #[tokio::test]
+    async fn dropped_submission_can_be_submitted_again() {
+        let state = Mutex::new(RequestState::Missing);
+        let pending = ensure_submitted(&state, async || futures::future::pending().await);
+        assert!(futures::poll!(Box::pin(pending)).is_pending());
+        assert!(matches!(*state.lock(), RequestState::Missing));
+
+        let proof_id = B256::repeat_byte(0x5a);
+        ensure_submitted(&state, async || Ok(proof_id)).await.unwrap();
+        assert!(matches!(*state.lock(), RequestState::Submitted(id) if id == proof_id));
+    }
+
+    /// Pins a batch whose stdin is over the limit split before any wait.
+    #[tokio::test]
+    async fn oversized_batch_stdin_splits_at_submit() {
+        let parent = multi_block_batch(1..=4);
+        let stage = Arc::new(table_stage([parent.clone()]));
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.too_large.lock().unwrap().insert(parent.id);
+
+        let proofs = start_log_batches(prover.clone(), Arc::clone(&stage)).await.unwrap();
+
+        assert_eq!(*prover.events.lock().unwrap(), ["submit 1", "submit 1", "submit 3"]);
+        assert!(matches!(*stage.batches[0].request.lock(), RequestState::Missing));
+        assert_eq!(proofs.await.unwrap().len(), 2);
+    }
+
+    /// Pins a retry that reuses a split batch's proven halves and does not submit it again.
+    #[tokio::test]
+    async fn split_parent_is_not_resubmitted() {
+        let progress = GameProgress::new(game_identity());
+        let parent = multi_block_batch(1..=4);
+        let stage = progress.store_log_stage(table_stage([parent.clone()]));
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.unexecutable.lock().unwrap().insert(parent.id);
+        start_log_batches(prover.clone(), Arc::clone(&stage)).await.unwrap().await.unwrap();
+        progress.check_terminal_requests().unwrap();
+
+        prover.events.lock().unwrap().clear();
+        let proven = start_log_batches(prover.clone(), stage).await.unwrap().await.unwrap();
+
+        assert!(prover.events.lock().unwrap().is_empty());
+        assert_eq!(proven.len(), 2);
+    }
+
+    /// Pins a one-block batch that SPN cannot execute as a terminal log request.
+    #[tokio::test]
+    async fn single_block_unexecutable_batch_is_sticky() {
+        let progress = GameProgress::new(game_identity());
+        let stage = progress.store_log_stage(table_stage([log_batch(1)]));
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.unexecutable.lock().unwrap().insert(stage.batches[0].batch.id);
+
+        let err = start_log_batches(prover, Arc::clone(&stage)).await.unwrap().await.unwrap_err();
+
+        assert!(!is_unprovable(&err), "{err:#}");
+        assert!(stage.batches[0].split.get().is_none());
+        assert!(progress.check_terminal_requests().is_err());
+    }
+
+    /// Pins a one-block batch over the size limit as unprovable.
+    #[tokio::test]
+    async fn single_oversized_block_is_unprovable() {
+        let stage = Arc::new(table_stage([log_batch(1)]));
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.too_large.lock().unwrap().insert(stage.batches[0].batch.id);
+
+        let err = start_log_batches(prover, stage).await.err().unwrap();
+
+        assert!(is_unprovable(&err), "{err:#}");
+    }
+
+    /// Pins a rescan that keeps a split batch's halves with their requests.
+    #[test]
+    fn rescan_carries_split_batch_by_id() {
+        let parent = multi_block_batch(1..=4);
+        let previous = table_stage([parent.clone()]);
+        let halves = previous.batches[0].split_after(stdin_too_large()).unwrap();
+        *halves[0].request.lock() = RequestState::Submitted(B256::repeat_byte(9));
+
+        let batches = batch_progress(vec![parent, log_batch(9)], Some(&previous));
+
+        let carried = batches[0].split.get().unwrap();
+        assert!(
+            matches!(*carried[0].request.lock(), RequestState::Submitted(id) if id == B256::repeat_byte(9))
+        );
+        assert!(batches[1].split.get().is_none());
+    }
+
+    /// Pins a split that leaves the batch error counter unset, and a failed batch that sets it.
+    #[tokio::test]
+    async fn split_does_not_count_as_log_batch_error() {
+        let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+        let _guard = metrics::set_default_local_recorder(&recorder);
+        let parent = multi_block_batch(1..=4);
+        let prover = Arc::new(ScriptedLogProver::default());
+        prover.unexecutable.lock().unwrap().insert(parent.id);
+        let stage = Arc::new(table_stage([parent]));
+        start_log_batches(prover.clone(), stage).await.unwrap().await.unwrap();
+        assert!(!recorder.handle().render().contains("op_zk_proposer_log_batch_error"));
+
+        let single = log_batch(9);
+        prover.unexecutable.lock().unwrap().insert(single.id);
+        let stage = Arc::new(table_stage([single]));
+        start_log_batches(prover, stage).await.unwrap().await.unwrap_err();
+        assert!(recorder.handle().render().contains("op_zk_proposer_log_batch_error 1"));
     }
 
     /// An L2 source whose every block has no receipts.

@@ -15,12 +15,15 @@ use std::{
 use alloy_primitives::B256;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use async_trait::async_trait;
-use kona_sp1_client_utils::{log_commitment::BlockReceipts, super_root::TimestampSpan};
+use kona_sp1_client_utils::{
+    log_commitment::{BlockReceipts, LOG_COMMITMENT_ENTRY_LEN},
+    super_root::TimestampSpan,
+};
 use kona_sp1_super_range_executor::{
     CollectedConsolidation, ConsolidationCost, LogBatchBlock, MissingLogCommitment,
     ScannedTimestampCost, batch_log_blocks, bound_receipts_path_pgu,
     bound_receipts_path_witness_bytes, build_log_commitment_stdin_from_receipts,
-    estimate_log_block_pgu, expected_batch_public_values, receipts_trie_bytes,
+    estimate_log_block_pgu, expected_batch_public_values, receipts_trie_bytes, split_log_batches,
 };
 use sha2::{Digest, Sha256};
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin};
@@ -94,6 +97,32 @@ pub(crate) struct LogBatch {
     pub(crate) expected: Vec<u8>,
 }
 
+impl LogBatch {
+    /// The batch of `blocks` whose proof must commit `expected`.
+    pub(crate) fn new(blocks: Vec<LogBatchBlock>, expected: Vec<u8>) -> Self {
+        Self { id: B256::from(<[u8; 32]>::from(Sha256::digest(&expected))), blocks, expected }
+    }
+
+    /// The two batches that prove this batch's blocks, cut by [`split_log_batches`]. Each takes its
+    /// blocks' entries from this batch, one entry per block, so no receipts are read.
+    pub(crate) fn halves(&self) -> Result<[Self; 2]> {
+        ensure!(self.blocks.len() >= 2, "{self} cannot be split");
+        ensure!(
+            self.expected.len() == self.blocks.len() * LOG_COMMITMENT_ENTRY_LEN,
+            "{self} commits {} bytes, not one entry per block",
+            self.expected.len()
+        );
+        let groups = split_log_batches(&self.blocks, 2);
+        let [first, second]: [Vec<LogBatchBlock>; 2] =
+            groups.try_into().map_err(|groups: Vec<_>| {
+                anyhow!("{self} split into {} groups, not 2", groups.len())
+            })?;
+        let (first_entries, second_entries) =
+            self.expected.split_at(first.len() * LOG_COMMITMENT_ENTRY_LEN);
+        Ok([Self::new(first, first_entries.to_vec()), Self::new(second, second_entries.to_vec())])
+    }
+}
+
 impl std::fmt::Display for LogBatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (first, last) = (self.blocks.first(), self.blocks.last());
@@ -145,11 +174,7 @@ pub(crate) async fn make_log_batches(
         .map(|blocks| {
             let expected: Vec<u8> =
                 blocks.iter().flat_map(|block| entries[&block.receipts_root].clone()).collect();
-            LogBatch {
-                id: B256::from(<[u8; 32]>::from(Sha256::digest(&expected))),
-                blocks,
-                expected,
-            }
+            LogBatch::new(blocks, expected)
         })
         .collect())
 }
