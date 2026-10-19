@@ -341,7 +341,8 @@ enum LimitOutcome {
     /// It cannot be split and is over a size limit.
     TooLarge,
     /// It fails with the error. A request that SPN cannot execute stays terminal, and SIGUSR1
-    /// can retry it.
+    /// can retry it; a consolidation on a receipts path that `auto` chose moves its game to the
+    /// table path instead (see [`receipts_path_fallback`]).
     Fail,
 }
 
@@ -970,6 +971,11 @@ pub(crate) struct StdinTooLarge {
     pub(crate) limit: u64,
 }
 
+/// Encoded stdin bytes that one carried log-batch proof adds to a consolidation, counted before
+/// the proofs exist: a compressed SP1 proof with its verifying key measured 1,272,646 bytes on
+/// mainnet SPN proofs; 1.5 MiB leaves margin.
+const LOG_BATCH_PROOF_STDIN_BYTES: u64 = 1_572_864;
+
 /// Bytes of `stdin` as the SP1 SDK uploads it, before compression: bincode 1 of the input
 /// buffers, the read pointer, and every embedded proof with its verifying key.
 ///
@@ -988,7 +994,23 @@ pub(crate) fn ensure_stdin_fits(
     stdin: &SP1Stdin,
     limit: StdinByteLimit,
 ) -> Result<u64> {
-    let bytes = stdin_encoded_len(stdin)?;
+    ensure_bytes_fit(kind, stdin_encoded_len(stdin)?, limit)
+}
+
+/// The encoded bytes of a consolidation `stdin` once it carries `batch_proofs` batch proofs, at
+/// [`LOG_BATCH_PROOF_STDIN_BYTES`] each. Fails with [`StdinTooLarge`] when they are more than
+/// `limit`.
+fn ensure_consolidation_fits(
+    stdin: &SP1Stdin,
+    batch_proofs: usize,
+    limit: StdinByteLimit,
+) -> Result<u64> {
+    let proofs = batch_proofs as u64 * LOG_BATCH_PROOF_STDIN_BYTES;
+    ensure_bytes_fit("consolidation", stdin_encoded_len(stdin)? + proofs, limit)
+}
+
+/// `bytes`, or [`StdinTooLarge`] when they are more than `limit`.
+fn ensure_bytes_fit(kind: &'static str, bytes: u64, limit: StdinByteLimit) -> Result<u64> {
     if bytes > limit.get() {
         return Err(StdinTooLarge { kind, bytes, limit: limit.get() }.into());
     }
@@ -1163,8 +1185,9 @@ async fn check_span(
 }
 
 /// Collects the consolidation of `span` against `batches`, estimates it, and checks it against
-/// its budget and, without the batch proofs, against the stdin limit. The collection takes the
-/// batches' entries, since each batch proof is verified to commit exactly them.
+/// its budget and, with [`LOG_BATCH_PROOF_STDIN_BYTES`] for each batch proof it will carry,
+/// against the stdin limit. The collection takes the batches' entries, since each batch proof is
+/// verified to commit exactly them.
 async fn check_consolidation(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
@@ -1223,11 +1246,11 @@ async fn check_consolidation(
         None,
     )
     .and_then(|stdin| {
-        let bytes = ensure_stdin_fits("consolidation", &stdin, settings.max_stdin_bytes)?;
+        let bytes = ensure_consolidation_fits(&stdin, carried.len(), settings.max_stdin_bytes)?;
         Ok((stdin, bytes))
     });
     let (stdin, consolidation_stdin_bytes) =
-        stdin.map_err(|err| receipts_path_fallback(stage, settings.path, span, err))?;
+        stdin.map_err(|err| receipts_path_fallback(stage, settings.path, span, None, err))?;
     tracing::info!(
         estimate,
         budget = request_budget(settings.range_gas_limit),
@@ -1244,23 +1267,32 @@ async fn check_consolidation(
     })
 }
 
-/// The error of a consolidation that `err` says is too large. On a receipts-path game whose path
-/// is chosen automatically, a single timestamp's consolidation over a size limit has outgrown the
-/// path's bound: the stage is marked for the table path, and the error neither splits the span
-/// nor makes the game unprovable.
+/// The error of a consolidation that `err` says is over a size limit or that SPN cannot execute.
+/// On a receipts-path game whose path is chosen automatically, such a single-timestamp
+/// consolidation has outgrown the path's bounds: the stage is marked for the table path,
+/// `request`, the consolidation's slot, is reset so the table-path consolidation gets requested,
+/// and the error neither splits the span nor makes the game unprovable.
 fn receipts_path_fallback(
     stage: &LogStage,
     setting: LogPath,
     span: ChunkSpan,
+    request: Option<&Mutex<RequestState>>,
     err: anyhow::Error,
 ) -> anyhow::Error {
-    if stage.table || setting != LogPath::Auto || span.is_splittable() || !is_too_large(&err) {
+    if stage.table ||
+        setting != LogPath::Auto ||
+        span.is_splittable() ||
+        !(is_too_large(&err) || is_unexecutable(&err))
+    {
         return err;
     }
     stage.require_table();
+    if let Some(request) = request {
+        *request.lock() = RequestState::Missing;
+    }
     anyhow!(
-        "the consolidation of timestamp {} is over the proposer's size limits on the receipts \
-         path, so the next attempt takes the table path: {err:#}",
+        "the consolidation of timestamp {} cannot be proven on the receipts path, so the next \
+         attempt takes the table path: {err:#}",
         span.claimed
     )
 }
@@ -1337,7 +1369,16 @@ async fn prove_checked_span(
     let CheckedConsolidation { stdin, outputs, .. } = consolidation;
     let proof =
         prove_consolidation_request(provider, keys, stdin, &outputs, &node.consolidation_request)
-            .await?;
+            .await
+            .map_err(|err| {
+                receipts_path_fallback(
+                    &logs.stage,
+                    settings.path,
+                    span,
+                    Some(&node.consolidation_request),
+                    err,
+                )
+            })?;
     Ok(SpanResult {
         range_outputs,
         consolidation_outputs: outputs,
@@ -1396,7 +1437,9 @@ fn exceeds_limits(err: &anyhow::Error) -> bool {
 /// The halves stay on `node` across scheduler retries, so a span over a limit is not collected
 /// again, and each half caches its own result. The caller caches `node`'s result. A single
 /// timestamp over a size limit is unprovable; one over its estimate is requested anyway (see
-/// [`check_collected`]); and one that SPN cannot execute stays terminal.
+/// [`check_collected`]); and one that SPN cannot execute stays terminal, except a consolidation
+/// on a receipts path that `auto` chose, whose game moves to the table path (see
+/// [`receipts_path_fallback`]).
 fn prove_span<'s, P: SpanProver>(
     prover: &'s P,
     index: usize,
@@ -1530,7 +1573,8 @@ struct LogStage {
     batches: Vec<LogBatchProgress>,
     /// Set when the next attempt must scan the span again.
     stale: AtomicBool,
-    /// Set when the next attempt must take the table path.
+    /// Set once the game's automatic receipts path has failed; every later scan of the game takes
+    /// the table path.
     needs_table: AtomicBool,
 }
 
@@ -1543,7 +1587,8 @@ impl LogStage {
         self.stale.load(Ordering::Relaxed)
     }
 
-    /// Marks the stage stale, for a next attempt on the table path.
+    /// Marks the stage stale, for a next attempt on the table path, and every later scan of the
+    /// game on the table path.
     fn require_table(&self) {
         self.needs_table.store(true, Ordering::Relaxed);
         self.mark_stale();
@@ -1660,8 +1705,8 @@ async fn scan_log_stage(
     let bounds: Vec<RequestBound> =
         plans.iter().map(|plan| RequestBound::of(&costs[plan.first..plan.last])).collect();
     let settings = request.log;
-    let setting =
-        if previous.is_some_and(LogStage::needs_table) { LogPath::Table } else { settings.path };
+    let forced_table = previous.is_some_and(LogStage::needs_table);
+    let setting = if forced_table { LogPath::Table } else { settings.path };
     let choice =
         choose_log_path(setting, &bounds, settings.range_gas_limit, settings.max_stdin_bytes);
     tracing::info!(
@@ -1687,7 +1732,7 @@ async fn scan_log_stage(
         costs,
         batches,
         stale: AtomicBool::new(false),
-        needs_table: AtomicBool::new(false),
+        needs_table: AtomicBool::new(forced_table),
     })
 }
 
@@ -2148,6 +2193,27 @@ mod tests {
         );
     }
 
+    /// Pins the consolidation pre-check counting each batch proof it will carry.
+    #[test]
+    fn consolidation_check_counts_each_batch_proof() {
+        let mut stdin = SP1Stdin::new();
+        stdin.write_slice(&[0; 100]);
+        let bytes = stdin_encoded_len(&stdin).unwrap();
+        let limit = bytes + LOG_BATCH_PROOF_STDIN_BYTES;
+        let cap = StdinByteLimit::new(limit).unwrap();
+
+        assert_eq!(ensure_consolidation_fits(&stdin, 1, cap).unwrap(), limit);
+        let err = ensure_consolidation_fits(&stdin, 2, cap).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<StdinTooLarge>(),
+            Some(&StdinTooLarge {
+                kind: "consolidation",
+                bytes: bytes + 2 * LOG_BATCH_PROOF_STDIN_BYTES,
+                limit,
+            })
+        );
+    }
+
     /// Builds a self-consistent supernode response trusted by default.
     fn response_at(
         timestamp: u64,
@@ -2482,7 +2548,7 @@ mod tests {
     fn oversized_receipts_path_timestamp_retries_on_the_table_path() {
         let single = ChunkSpan { agreed: 100, claimed: 101 };
         let receipts = LogStage::default();
-        let err = receipts_path_fallback(&receipts, LogPath::Auto, single, stdin_too_large());
+        let err = receipts_path_fallback(&receipts, LogPath::Auto, single, None, stdin_too_large());
         assert!(!is_too_large(&err) && !is_unprovable(&err), "{err:#}");
         assert!(receipts.needs_table() && receipts.is_stale());
 
@@ -2491,9 +2557,45 @@ mod tests {
             (LogStage::default(), LogPath::Receipts, single),
             (LogStage::default(), LogPath::Auto, SPAN),
         ] {
-            let err = receipts_path_fallback(&stage, setting, span, stdin_too_large());
+            let err = receipts_path_fallback(&stage, setting, span, None, stdin_too_large());
             assert!(is_too_large(&err), "{err:#}");
             assert!(!stage.needs_table());
+        }
+    }
+
+    /// Pins a single timestamp's consolidation that SPN cannot execute on an automatic receipts
+    /// path sent to the table path with its slot reset, and the same failure left as is anywhere
+    /// else.
+    #[test]
+    fn unexecutable_receipts_path_consolidation_retries_on_the_table_path() {
+        let single = ChunkSpan { agreed: 100, claimed: 101 };
+        let slot = || Mutex::new(RequestState::Terminal(ProofTerminalState::Unexecutable));
+        let receipts = LogStage::default();
+        let request = slot();
+        let err = receipts_path_fallback(
+            &receipts,
+            LogPath::Auto,
+            single,
+            Some(&request),
+            unexecutable(),
+        );
+        assert!(!exceeds_limits(&err) && !is_unprovable(&err), "{err:#}");
+        assert!(receipts.needs_table() && receipts.is_stale());
+        assert!(matches!(*request.lock(), RequestState::Missing));
+
+        for (stage, setting, span) in [
+            (table_stage([]), LogPath::Auto, single),
+            (LogStage::default(), LogPath::Receipts, single),
+            (LogStage::default(), LogPath::Auto, SPAN),
+        ] {
+            let request = slot();
+            let err = receipts_path_fallback(&stage, setting, span, Some(&request), unexecutable());
+            assert!(is_unexecutable(&err), "{err:#}");
+            assert!(!stage.needs_table());
+            assert!(matches!(
+                *request.lock(),
+                RequestState::Terminal(ProofTerminalState::Unexecutable)
+            ));
         }
     }
 

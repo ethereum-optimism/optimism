@@ -172,8 +172,9 @@ pub struct ProposerConfig {
     /// The L1 beacon API URL serving blob sidecars for derivation witnesses.
     pub l1_beacon_rpc: Url,
 
-    /// L2 execution-layer RPC URLs, one per chain in the dependency set.
-    /// Order is irrelevant: hosts are keyed by their reported chain id.
+    /// L2 execution-layer RPC URLs, one per chain in the dependency set; each must serve a
+    /// different chain. The proposer reads every chain ID at startup and exits on a duplicate
+    /// chain or a node that does not answer.
     pub l2_rpcs: Vec<Url>,
 
     /// Optional rollup config files, one per chain (comma-separated env).
