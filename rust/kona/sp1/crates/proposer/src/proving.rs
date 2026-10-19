@@ -38,8 +38,8 @@ use kona_sp1_super_range_executor::{
     SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
     build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
     decode_super_consolidation_public_values, decode_super_range_public_values,
-    deployment_chain_configs, estimate_consolidation_pgu, proof_from_super_v1,
-    synthesize_execution,
+    deployment_chain_configs, estimate_consolidation_pgu, is_witness_too_large,
+    proof_from_super_v1, synthesize_execution, write_log_commitment_proofs,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -51,9 +51,10 @@ pub use crate::ports::GameProofInputs;
 use crate::{
     config::{LogPath, RangeSplitCount, StdinByteLimit},
     log_proofs::{
-        CollectedRequest, LogBatch, LogBatchProver, MockLogProver, NetworkLogProver, RequestBound,
-        check_collected, choose_log_path, consolidation_cost, cover, log_batch_poll_interval,
-        make_log_batches, receipts_path_costs, request_budget, scan::scan_span,
+        CollectedRequest, EstimateOverBudget, LogBatch, LogBatchProver, MockLogProver,
+        NetworkLogProver, RequestBound, check_collected, choose_log_path, consolidation_cost,
+        cover, log_batch_poll_interval, make_log_batches, receipts_path_costs, request_budget,
+        scan::scan_span,
     },
     metrics::ProposerGauge,
     ports::{L2BlockSource, SuperRootSource},
@@ -260,7 +261,7 @@ enum RequestState {
     Terminal(ProofTerminalState),
 }
 
-/// SPN request kinds of one game proof, as named by [`GameProgress::requests`].
+/// SPN request kinds of one game proof, as named by [`GameProgress::visit_requests`].
 pub(crate) const PROOF_REQUEST_KINDS: [&str; 4] = ["range", "consolidation", "aggregation", "log"];
 /// Request states reported by [`InMemoryProofProgress::request_counts`].
 pub(crate) const PROOF_REQUEST_STATES: [&str; 4] =
@@ -293,6 +294,86 @@ struct ChunkProgress {
     completed: Mutex<Option<Arc<ChunkResult>>>,
     range_request: Mutex<RequestState>,
     consolidation_request: Mutex<RequestState>,
+    /// The halves proved instead of this span once it exceeded a size or execution limit.
+    split: Halves<Self>,
+}
+
+impl ChunkProgress {
+    /// Visits the live request slots of this span in timestamp order: once the span is split,
+    /// only its halves' slots.
+    fn visit_requests(&self, visit: &mut dyn FnMut(&'static str, &Mutex<RequestState>)) {
+        if let Some(halves) = self.split.get() {
+            for half in halves.iter() {
+                half.visit_requests(visit);
+            }
+            return;
+        }
+        visit("range", &self.range_request);
+        visit("consolidation", &self.consolidation_request);
+    }
+}
+
+/// The two halves proved instead of a node once it exceeded a size or execution limit.
+struct Halves<T>(Mutex<Option<Arc<[T; 2]>>>);
+
+impl<T> Default for Halves<T> {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
+
+impl<T> Halves<T> {
+    fn get(&self) -> Option<Arc<[T; 2]>> {
+        self.0.lock().clone()
+    }
+
+    /// The recorded halves, recording the ones that `make` returns if there are none.
+    fn record(&self, make: impl FnOnce() -> [T; 2]) -> Arc<[T; 2]> {
+        Arc::clone(self.0.lock().get_or_insert_with(|| Arc::new(make())))
+    }
+}
+
+/// What a span or log batch does after a failure.
+#[derive(Debug, PartialEq, Eq)]
+enum LimitOutcome {
+    /// It is proved as two halves instead.
+    Split,
+    /// It cannot be split and is over a size limit.
+    TooLarge,
+    /// It fails with the error. A request that SPN cannot execute stays terminal, and SIGUSR1
+    /// can retry it.
+    Fail,
+}
+
+/// The outcome of a failure with `err` for a node that `splittable` says can be halved, where
+/// `exceeds` says whether `err` is over one of the node's limits.
+fn limit_outcome(err: &anyhow::Error, exceeds: bool, splittable: bool) -> LimitOutcome {
+    if !exceeds {
+        LimitOutcome::Fail
+    } else if splittable {
+        LimitOutcome::Split
+    } else if is_too_large(err) {
+        LimitOutcome::TooLarge
+    } else {
+        LimitOutcome::Fail
+    }
+}
+
+/// The [`GameUnprovable`] error of `what`, which cannot be split and is over a size limit.
+fn too_large_to_prove(what: impl std::fmt::Display, err: &anyhow::Error) -> anyhow::Error {
+    GameUnprovable(format!("{what} needs a request over the proposer's size limits: {err:#}"))
+        .into()
+}
+
+/// The proof that a request slot is part of.
+#[derive(Clone, Copy)]
+enum RequestOwner<'a> {
+    /// A top-level chunk, by index. The halves of a bisected chunk are part of it too.
+    Chunk(usize),
+    /// The game's aggregation.
+    Game,
+    /// A log-commitment batch.
+    Batch(&'a LogBatch),
 }
 
 /// A log-commitment batch of a game and its proof request.
@@ -329,58 +410,41 @@ impl GameProgress {
         stage
     }
 
-    /// Visits every request slot with its chunk index and kind, including the log stage's.
+    /// Visits every live request slot with its owner and kind: each top-level chunk's, the
+    /// aggregation's, then each log batch's.
     fn visit_requests(
         &self,
-        mut visit: impl FnMut(Option<usize>, &'static str, &Mutex<RequestState>),
+        mut visit: impl FnMut(RequestOwner<'_>, &'static str, &Mutex<RequestState>),
     ) {
-        for (chunk_index, kind, request) in self.requests() {
-            visit(chunk_index, kind, request);
+        for (index, chunk) in self.chunks.iter().enumerate() {
+            chunk.visit_requests(&mut |kind, request| {
+                visit(RequestOwner::Chunk(index), kind, request);
+            });
         }
-        for progress in self.log_stage.lock().iter().flat_map(|stage| stage.batches.iter()) {
-            visit(None, "log", &progress.request);
+        visit(RequestOwner::Game, "aggregation", &self.aggregation_request);
+        if let Some(stage) = self.log_stage() {
+            for progress in &stage.batches {
+                visit(RequestOwner::Batch(&progress.batch), "log", &progress.request);
+            }
         }
-    }
-
-    fn requests(
-        &self,
-    ) -> impl Iterator<Item = (Option<usize>, &'static str, &Mutex<RequestState>)> {
-        self.chunks
-            .iter()
-            .enumerate()
-            .flat_map(|(index, chunk)| {
-                [
-                    (Some(index), "range", &chunk.range_request),
-                    (Some(index), "consolidation", &chunk.consolidation_request),
-                ]
-            })
-            .chain(std::iter::once((None, "aggregation", &self.aggregation_request)))
     }
 
     fn check_terminal_requests(&self) -> Result<()> {
-        let stage = self.log_stage();
-        for progress in stage.iter().flat_map(|stage| stage.batches.iter()) {
-            if let RequestState::Terminal(outcome) = &*progress.request.lock() {
-                bail!("{} proof request reached terminal state: {outcome:?}", progress.batch);
+        let mut terminal = None;
+        self.visit_requests(|owner, kind, request| {
+            if terminal.is_none() &&
+                let RequestState::Terminal(outcome) = &*request.lock()
+            {
+                let name = match owner {
+                    RequestOwner::Chunk(index) => format!("chunk {index} {kind}"),
+                    RequestOwner::Game => kind.to_string(),
+                    RequestOwner::Batch(batch) => batch.to_string(),
+                };
+                terminal =
+                    Some(format!("{name} proof request reached terminal state: {outcome:?}"));
             }
-        }
-        for (chunk_index, kind, request) in self.requests() {
-            match &*request.lock() {
-                RequestState::Terminal(outcome) => {
-                    if let Some(index) = chunk_index {
-                        bail!(
-                            "chunk {index} {kind} proof request reached terminal state: {outcome:?}"
-                        );
-                    }
-                    bail!("{kind} proof request reached terminal state: {outcome:?}");
-                }
-                RequestState::Missing |
-                RequestState::Submitting |
-                RequestState::Submitted(_) |
-                RequestState::Fulfilled(_) => {}
-            }
-        }
-        Ok(())
+        });
+        terminal.map_or(Ok(()), |message| Err(anyhow!(message)))
     }
 
     fn request_summary(&self) -> RequestSummary {
@@ -667,13 +731,20 @@ struct ChildProofs {
     consolidation: Arc<SP1ProofWithPublicValues>,
 }
 
-/// One proven (or natively executed) span chunk, tagged with its position.
+/// The outputs and proofs of one range + consolidation pair.
 #[derive(Clone)]
-struct ChunkResult {
-    index: usize,
+struct SpanResult {
     range_outputs: SuperRangeOutputs,
     consolidation_outputs: SuperConsolidationOutputs,
     proofs: Option<ChildProofs>,
+}
+
+/// One proven (or natively executed) top-level chunk, tagged with its position. A bisected chunk
+/// holds several spans, in timestamp order.
+#[derive(Clone)]
+struct ChunkResult {
+    index: usize,
+    spans: Vec<SpanResult>,
 }
 
 /// Runs a range-witness chunk with proof-replay context attached for its full async lifetime.
@@ -785,17 +856,17 @@ fn stdin_encoded_len(stdin: &SP1Stdin) -> Result<u64> {
     Ok(8 + buffers + 8 + proofs)
 }
 
-/// Fails with [`StdinTooLarge`] when `stdin` encodes to more than `limit` bytes.
+/// The encoded bytes of `stdin`. Fails with [`StdinTooLarge`] when they are more than `limit`.
 pub(crate) fn ensure_stdin_fits(
     kind: &'static str,
     stdin: &SP1Stdin,
     limit: StdinByteLimit,
-) -> Result<()> {
+) -> Result<u64> {
     let bytes = stdin_encoded_len(stdin)?;
     if bytes > limit.get() {
         return Err(StdinTooLarge { kind, bytes, limit: limit.get() }.into());
     }
-    Ok(())
+    Ok(bytes)
 }
 
 async fn prove_range_request(
@@ -842,13 +913,360 @@ async fn prove_consolidation_request(
     .await
 }
 
-/// Executes one chunk in three steps:
-/// 1. collect the range and consolidation witnesses and native outputs;
-/// 2. in network mode, submit or resume the two child proof requests in order;
-/// 3. return the outputs and proofs for game-level aggregation.
+/// The timestamps `agreed + 1..=claimed`, proved by one range + consolidation pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ChunkSpan {
+    agreed: u64,
+    claimed: u64,
+}
+
+impl ChunkSpan {
+    /// Whether the span holds more than one timestamp.
+    const fn is_splittable(self) -> bool {
+        self.claimed - self.agreed > 1
+    }
+
+    /// The two halves, split at the timestamp midpoint.
+    const fn halves(self) -> [Self; 2] {
+        let mid = self.agreed + (self.claimed - self.agreed) / 2;
+        [Self { agreed: self.agreed, claimed: mid }, Self { agreed: mid, claimed: self.claimed }]
+    }
+}
+
+/// Proves one span as a single range + consolidation pair, in two steps, so that a span over a
+/// limit is found before any request is bought.
+trait SpanProver: Sync {
+    /// A span whose requests are collected and checked, and not submitted.
+    type Checked: Send;
+
+    /// Collects and checks the span's requests. Takes no request slot, so it cannot submit.
+    fn check_leaf(
+        &self,
+        span: ChunkSpan,
+        synthesized: Option<SynthesizedExecution>,
+    ) -> BoxFuture<'_, Result<Self::Checked>>;
+
+    /// Submits or resumes the requests of a checked span, in `node`'s slots.
+    fn prove_leaf<'s>(
+        &'s self,
+        checked: Self::Checked,
+        node: &'s ChunkProgress,
+    ) -> BoxFuture<'s, Result<SpanResult>>;
+}
+
+/// A span's range and consolidation requests, collected and checked.
+struct CheckedSpan {
+    range_stdin: SP1Stdin,
+    range_outputs: SuperRangeOutputs,
+    /// Without the batch proofs, which the network provider adds after the range proof.
+    consolidation_stdin: SP1Stdin,
+    consolidation_outputs: SuperConsolidationOutputs,
+    /// The indices of the stage's batches that the consolidation carries.
+    covering: Vec<usize>,
+}
+
+impl SpanProver for GameAttempt<'_, '_> {
+    type Checked = CheckedSpan;
+
+    fn check_leaf(
+        &self,
+        span: ChunkSpan,
+        synthesized: Option<SynthesizedExecution>,
+    ) -> BoxFuture<'_, Result<CheckedSpan>> {
+        async move {
+            let synthesized = match synthesized {
+                Some(synthesized) => synthesized,
+                None => synthesize_chunk(self.game, self.responses, span)?,
+            };
+            check_span(self, span, &synthesized).await
+        }
+        .boxed()
+    }
+
+    fn prove_leaf<'s>(
+        &'s self,
+        checked: CheckedSpan,
+        node: &'s ChunkProgress,
+    ) -> BoxFuture<'s, Result<SpanResult>> {
+        prove_checked_span(self, checked, node).boxed()
+    }
+}
+
+/// Collects the range witness and the consolidation witness of `span`, and checks both requests
+/// against the stdin limit and the consolidation against its budget. The collection takes the
+/// batches' entries from the stage, since each batch proof is verified to commit exactly them.
+async fn check_span(
+    attempt: &GameAttempt<'_, '_>,
+    span: ChunkSpan,
+    synthesized: &SynthesizedExecution,
+) -> Result<CheckedSpan> {
+    let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
+    check_log_batches(&logs.proofs)?;
+    let timestamps = synthesized.range_inputs.span;
+    let host = || {
+        build_interop_host(
+            host_inputs,
+            game.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            timestamps.end,
+        )
+    };
+    let range_host = host()?;
+    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
+    let (range_witness, range_outputs) = collect_range_witness(
+        range_host,
+        &synthesized.range_inputs,
+        &synthesized.preloaded_preimages,
+        Some(&configs),
+    )
+    .await
+    .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
+    let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
+    let range_stdin_bytes = ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
+
+    let stage = &logs.stage;
+    let batches: Vec<&LogBatch> = stage.batches.iter().map(|progress| &progress.batch).collect();
+    let entries: Vec<Vec<u8>> = batches.iter().map(|batch| batch.expected.clone()).collect();
+    let collected = collect_consolidation_witness(
+        host()?,
+        &synthesized.consolidation_inputs,
+        &synthesized.preloaded_preimages,
+        Some(&configs),
+        &entries,
+    )
+    .await
+    .with_context(|| format!("consolidation witness collection failed for span {timestamps:?}"))?;
+
+    let covering = cover(&batches, &collected.served)?;
+    let carried: Vec<&LogBatch> = covering.iter().map(|&index| batches[index]).collect();
+    let estimate = estimate_consolidation_pgu(&consolidation_cost(
+        stage.span_costs(game, span)?,
+        &collected,
+        &carried,
+    ));
+    if stage.table && !collected.missing.is_empty() {
+        // A block read without an entry means the stage's scan is out of date or wrong.
+        stage.mark_stale();
+    }
+    let request = CollectedRequest {
+        span: timestamps,
+        missing: &collected.missing,
+        estimate,
+        batch_proofs: covering.len(),
+    };
+    check_collected(stage.table, &request, settings.range_gas_limit, span.is_splittable())?;
+    let log_commitments = LogCommitmentInputs {
+        batches: covering.iter().map(|&index| entries[index].clone()).collect(),
+        openings: collected.openings,
+    };
+    let consolidation_stdin = build_super_consolidation_stdin(
+        &synthesized.consolidation_inputs,
+        collected.witness,
+        &log_commitments,
+        None,
+    )
+    .and_then(|stdin| {
+        let bytes = ensure_stdin_fits("consolidation", &stdin, settings.max_stdin_bytes)?;
+        Ok((stdin, bytes))
+    });
+    let (consolidation_stdin, consolidation_stdin_bytes) = consolidation_stdin
+        .map_err(|err| receipts_path_fallback(stage, settings.path, span, err))?;
+    tracing::info!(
+        estimate,
+        budget = request_budget(settings.range_gas_limit),
+        batch_proofs = covering.len(),
+        receipts_path_blocks = collected.missing.len(),
+        read_bytes = collected.read_bytes,
+        range_stdin_bytes,
+        consolidation_stdin_bytes,
+        "Checked the consolidation request"
+    );
+    Ok(CheckedSpan {
+        range_stdin,
+        range_outputs,
+        consolidation_stdin,
+        consolidation_outputs: collected.outputs,
+        covering,
+    })
+}
+
+/// The error of a consolidation that `err` says is too large. On a receipts-path game whose path
+/// is chosen automatically, a single timestamp's consolidation over a size limit has outgrown the
+/// path's bound: the stage is marked for the table path, and the error neither splits the span
+/// nor makes the game unprovable.
+fn receipts_path_fallback(
+    stage: &LogStage,
+    setting: LogPath,
+    span: ChunkSpan,
+    err: anyhow::Error,
+) -> anyhow::Error {
+    if stage.table || setting != LogPath::Auto || span.is_splittable() || !is_too_large(&err) {
+        return err;
+    }
+    stage.require_table();
+    anyhow!(
+        "the consolidation of timestamp {} is over the proposer's size limits on the receipts \
+         path, so the next attempt takes the table path: {err:#}",
+        span.claimed
+    )
+}
+
+/// In network mode, proves the range, then adds the covering batch proofs to the consolidation
+/// stdin, checks it again, and proves the consolidation. The mock provider requests nothing.
+async fn prove_checked_span(
+    attempt: &GameAttempt<'_, '_>,
+    checked: CheckedSpan,
+    node: &ChunkProgress,
+) -> Result<SpanResult> {
+    let GameAttempt { provider, keys, logs, settings, .. } = *attempt;
+    let CheckedSpan {
+        range_stdin,
+        range_outputs,
+        mut consolidation_stdin,
+        consolidation_outputs,
+        covering,
+    } = checked;
+    let keys = match (provider, keys) {
+        (ProofProvider::Mock(_), _) => {
+            return Ok(SpanResult { range_outputs, consolidation_outputs, proofs: None });
+        }
+        (_, Some(keys)) => keys,
+        (_, None) => bail!("network proving requires prestate proving keys"),
+    };
+    let range =
+        prove_range_request(provider, keys, range_stdin, &range_outputs, &node.range_request)
+            .await?;
+    if !covering.is_empty() {
+        let batch_proofs = logs.proofs.clone().await.map_err(|err| batch_failure(&err))?;
+        let batches = &logs.stage.batches;
+        let entries: Vec<Vec<u8>> =
+            covering.iter().map(|&index| batches[index].batch.expected.clone()).collect();
+        let proofs = LogCommitmentProofs {
+            vk: (*keys.log_vk).clone(),
+            proofs: covering.iter().map(|&index| (*batch_proofs[index]).clone()).collect(),
+        };
+        write_log_commitment_proofs(&mut consolidation_stdin, &entries, &proofs)?;
+        ensure_stdin_fits("consolidation", &consolidation_stdin, settings.max_stdin_bytes)?;
+    }
+    let consolidation = prove_consolidation_request(
+        provider,
+        keys,
+        consolidation_stdin,
+        &consolidation_outputs,
+        &node.consolidation_request,
+    )
+    .await?;
+    Ok(SpanResult {
+        range_outputs,
+        consolidation_outputs,
+        proofs: Some(ChildProofs { range, consolidation }),
+    })
+}
+
+/// Synthesizes the guest inputs of `span` from the game's verified responses.
+fn synthesize_chunk(
+    game: &GameProofInputs,
+    responses: &[SuperRootAtTimestampResponse],
+    span: ChunkSpan,
+) -> Result<SynthesizedExecution> {
+    let first = (span.agreed - game.starting_ts) as usize;
+    let last = (span.claimed - game.starting_ts) as usize;
+    let timestamps = TimestampSpan::new(span.agreed + 1, span.claimed)
+        .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
+    synthesize_execution(timestamps, game.l1_head, game.l1_head_number, &responses[first..=last])
+        .with_context(|| {
+            format!("failed to synthesize span {}..={}", timestamps.start, timestamps.end)
+        })
+}
+
+/// True when `err` shows a request over a size limit: its witness or its stdin.
+fn is_too_large(err: &anyhow::Error) -> bool {
+    is_witness_too_large(err) || err.chain().any(|cause| cause.is::<StdinTooLarge>())
+}
+
+/// True when `err` shows that a span is too large for one range + consolidation pair: a request
+/// over a size limit, an estimate over the budget, or one of the span's own requests that SPN
+/// cannot execute. A batch failure reaches a span flattened ([`batch_failure`]), so it never
+/// matches.
 ///
-/// Per-stage request state lives in `progress`. The caller caches this function's result only
-/// after both child proofs complete.
+/// Any `Unexecutable` counts, whatever SPN's execute-failure cause: SP1 execution is
+/// deterministic, so the same span cannot succeed on resubmission. A guest failure is bisected
+/// down to a single timestamp, at most log2(span length) extra requests.
+fn exceeds_limits(err: &anyhow::Error) -> bool {
+    is_too_large(err) ||
+        err.chain().any(|cause| {
+            cause.is::<EstimateOverBudget>() ||
+                matches!(
+                    cause.downcast_ref::<ProofWaitError>(),
+                    Some(ProofWaitError::Terminal { state: ProofTerminalState::Unexecutable, .. })
+                )
+        })
+}
+
+/// Proves `span` as one range + consolidation pair or, once it exceeds a limit, as two halves
+/// recorded on `node` and proved in timestamp order.
+///
+/// The halves stay on `node` across scheduler retries, so a span over a limit is not collected
+/// again, and each half caches its own result. The caller caches `node`'s result. A single
+/// timestamp over a size limit is unprovable; one over its estimate is requested anyway (see
+/// [`check_collected`]); and one that SPN cannot execute stays terminal.
+fn prove_span<'s, P: SpanProver>(
+    prover: &'s P,
+    index: usize,
+    span: ChunkSpan,
+    synthesized: Option<SynthesizedExecution>,
+    node: &'s ChunkProgress,
+) -> BoxFuture<'s, Result<ChunkResult>> {
+    async move {
+        let halves = match node.split.get() {
+            Some(halves) => halves,
+            None => {
+                let leaf = async {
+                    let checked = prover.check_leaf(span, synthesized).await?;
+                    prover.prove_leaf(checked, node).await
+                };
+                let err = match leaf.await {
+                    Ok(result) => return Ok(ChunkResult { index, spans: vec![result] }),
+                    Err(err) => err,
+                };
+                match limit_outcome(&err, exceeds_limits(&err), span.is_splittable()) {
+                    LimitOutcome::Fail => return Err(err),
+                    LimitOutcome::TooLarge => {
+                        return Err(too_large_to_prove(
+                            format_args!("timestamp {}", span.claimed),
+                            &err,
+                        ));
+                    }
+                    LimitOutcome::Split => {}
+                }
+                tracing::warn!(
+                    chunk_index = index,
+                    agreed_timestamp = span.agreed,
+                    claimed_timestamp = span.claimed,
+                    split_timestamp = span.halves()[0].claimed,
+                    error = %format!("{err:#}"),
+                    "Span exceeds proving limits; bisecting"
+                );
+                node.split.record(Default::default)
+            }
+        };
+        let mut spans = Vec::new();
+        for (half, span) in halves.iter().zip(span.halves()) {
+            let result =
+                run_chunk_with_progress(half, prove_span(prover, index, span, None, half)).await?;
+            spans.extend(result.spans.iter().cloned());
+        }
+        Ok(ChunkResult { index, spans })
+    }
+    .boxed()
+}
+
+/// Proves one top-level chunk, bisecting it as needed, and returns its spans for game-level
+/// aggregation.
+///
+/// Per-span request state lives in `progress`. The caller caches this function's result only
+/// after every child proof completes.
 async fn prove_chunk(
     attempt: &GameAttempt<'_, '_>,
     plan: ChunkPlan,
@@ -864,12 +1282,24 @@ async fn prove_chunk(
         agreed_timestamp,
         claimed_timestamp,
         async move {
-            let result = prove_chunk_inner(attempt, plan, progress).await;
+            let span = ChunkSpan { agreed: agreed_timestamp, claimed: claimed_timestamp };
+            let result =
+                prove_span(attempt, index, span, Some(plan.synthesized), &progress.chunks[index])
+                    .await;
             match &result {
                 Ok(chunk) => tracing::info!(
-                    range_transition_count = chunk.range_outputs.transitions.len(),
-                    consolidation_transition_count = chunk.consolidation_outputs.transitions.len(),
-                    proofs_generated = chunk.proofs.is_some(),
+                    span_count = chunk.spans.len(),
+                    range_transition_count = chunk
+                        .spans
+                        .iter()
+                        .map(|span| span.range_outputs.transitions.len())
+                        .sum::<usize>(),
+                    consolidation_transition_count = chunk
+                        .spans
+                        .iter()
+                        .map(|span| span.consolidation_outputs.transitions.len())
+                        .sum::<usize>(),
+                    proofs_generated = chunk.spans.iter().all(|span| span.proofs.is_some()),
                     "Proof replay chunk completed after validating range output-root/block bindings and consolidated super-root claims"
                 ),
                 Err(error) => tracing::error!(
@@ -883,132 +1313,6 @@ async fn prove_chunk(
     .await
 }
 
-async fn prove_chunk_inner(
-    attempt: &GameAttempt<'_, '_>,
-    plan: ChunkPlan,
-    progress: Arc<GameProgress>,
-) -> Result<ChunkResult> {
-    let GameAttempt { provider, keys, host_inputs, game, logs, settings } = *attempt;
-    check_log_batches(&logs.proofs)?;
-    let index = plan.index;
-    let chunk_progress = &progress.chunks[index];
-    let synthesized = &plan.synthesized;
-    let span = synthesized.range_inputs.span;
-    let host = || {
-        build_interop_host(
-            host_inputs,
-            game.l1_head,
-            &synthesized.previous_super_root_proof_bytes,
-            synthesized.current_super_root,
-            span.end,
-        )
-    };
-    let range_host = host()?;
-    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
-    let (range_witness, range_outputs) = collect_range_witness(
-        range_host,
-        &synthesized.range_inputs,
-        &synthesized.preloaded_preimages,
-        Some(&configs),
-    )
-    .await
-    .with_context(|| format!("range witness collection failed for span {span:?}"))?;
-
-    let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
-    ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
-    let range_proof = match (provider, keys) {
-        (ProofProvider::Mock(_), _) => None,
-        (provider, Some(keys)) => Some(
-            prove_range_request(
-                provider,
-                keys,
-                range_stdin,
-                &range_outputs,
-                &chunk_progress.range_request,
-            )
-            .await?,
-        ),
-        (_, None) => bail!("network proving requires prestate proving keys"),
-    };
-
-    let batch_proofs = logs.proofs.clone().await.map_err(|err| anyhow!("{err:#}"))?;
-    let batch_public_values: Vec<Vec<u8>> =
-        batch_proofs.iter().map(|proof| proof.public_values.to_vec()).collect();
-    let collected = collect_consolidation_witness(
-        host()?,
-        &synthesized.consolidation_inputs,
-        &synthesized.preloaded_preimages,
-        Some(&configs),
-        &batch_public_values,
-    )
-    .await
-    .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;
-
-    let stage = &logs.stage;
-    let batches: Vec<&LogBatch> = stage.batches.iter().map(|progress| &progress.batch).collect();
-    let covering = cover(&batches, &collected.served)?;
-    let carried: Vec<&LogBatch> = covering.iter().map(|&index| batches[index]).collect();
-    let estimate =
-        estimate_consolidation_pgu(&consolidation_cost(&stage.costs[index], &collected, &carried));
-    if stage.table && !collected.missing.is_empty() {
-        // A block read without an entry means the stage's scan is out of date or wrong.
-        stage.mark_stale();
-    }
-    let log_commitments = LogCommitmentInputs {
-        batches: covering.iter().map(|&index| batch_public_values[index].clone()).collect(),
-        openings: collected.openings,
-    };
-    let request = CollectedRequest {
-        span,
-        missing: &collected.missing,
-        estimate,
-        batch_proofs: covering.len(),
-    };
-    check_collected(stage.table, &request, settings.range_gas_limit)?;
-    // The mock provider's batch proofs are placeholders, so its stdin carries none.
-    let carried_proofs = match (provider, keys) {
-        (ProofProvider::Mock(_), _) => None,
-        (_, Some(keys)) => Some(LogCommitmentProofs {
-            vk: (*keys.log_vk).clone(),
-            proofs: covering.iter().map(|&index| (*batch_proofs[index]).clone()).collect(),
-        }),
-        (_, None) => bail!("network proving requires prestate proving keys"),
-    };
-    let stdin = build_super_consolidation_stdin(
-        &synthesized.consolidation_inputs,
-        collected.witness,
-        &log_commitments,
-        carried_proofs.as_ref(),
-    )?;
-    ensure_stdin_fits("consolidation", &stdin, settings.max_stdin_bytes)?;
-    tracing::info!(
-        estimate,
-        budget = request_budget(settings.range_gas_limit),
-        batch_proofs = covering.len(),
-        receipts_path_blocks = collected.missing.len(),
-        read_bytes = collected.read_bytes,
-        "Checked the consolidation request"
-    );
-
-    let proofs = match (provider, keys, range_proof) {
-        (ProofProvider::Mock(_), _, _) => None,
-        (provider, Some(keys), Some(range)) => {
-            let consolidation = prove_consolidation_request(
-                provider,
-                keys,
-                stdin,
-                &collected.outputs,
-                &chunk_progress.consolidation_request,
-            )
-            .await?;
-            Some(ChildProofs { range, consolidation })
-        }
-        _ => bail!("network proving requires prestate proving keys"),
-    };
-
-    Ok(ChunkResult { index, range_outputs, consolidation_outputs: collected.outputs, proofs })
-}
-
 /// The batch proofs of a game, in batch order.
 type BatchProofs = Arc<[Arc<SP1ProofWithPublicValues>]>;
 
@@ -1020,12 +1324,15 @@ type LogBatchProofs<'a> = Shared<BoxFuture<'a, Result<BatchProofs, Arc<anyhow::E
 #[derive(Default)]
 struct LogStage {
     table: bool,
-    /// The receipts-path costs of each chunk's transitions, by chunk index.
-    costs: Vec<Vec<ScannedTimestampCost>>,
+    /// The receipts-path costs of the game's transitions, by timestamp (see
+    /// [`LogStage::span_costs`]).
+    costs: Vec<ScannedTimestampCost>,
     /// The table path's batches; empty on the receipts path.
     batches: Vec<LogBatchProgress>,
     /// Set when the next attempt must scan the span again.
     stale: AtomicBool,
+    /// Set when the next attempt must take the table path.
+    needs_table: AtomicBool,
 }
 
 impl LogStage {
@@ -1035,6 +1342,27 @@ impl LogStage {
 
     fn is_stale(&self) -> bool {
         self.stale.load(Ordering::Relaxed)
+    }
+
+    /// Marks the stage stale, for a next attempt on the table path.
+    fn require_table(&self) {
+        self.needs_table.store(true, Ordering::Relaxed);
+        self.mark_stale();
+    }
+
+    fn needs_table(&self) -> bool {
+        self.needs_table.load(Ordering::Relaxed)
+    }
+
+    /// The receipts-path costs of the transitions of `span`.
+    fn span_costs(
+        &self,
+        game: &GameProofInputs,
+        span: ChunkSpan,
+    ) -> Result<&[ScannedTimestampCost]> {
+        let first = (span.agreed - game.starting_ts) as usize;
+        let last = (span.claimed - game.starting_ts) as usize;
+        self.costs.get(first..last).context("the log stage has no costs for the span")
     }
 }
 
@@ -1058,6 +1386,8 @@ struct GameAttempt<'a, 'b> {
     keys: Option<&'a ProofKeys>,
     host_inputs: &'a HostInputs,
     game: &'a GameProofInputs,
+    /// The verified responses of the game's span, for the inputs of a bisected span's halves.
+    responses: &'a [SuperRootAtTimestampResponse],
     logs: &'b GameLogs<'a>,
     settings: &'a LogProofSettings,
 }
@@ -1117,15 +1447,18 @@ async fn scan_log_stage(
     let scan = scan_span(request.l2, request.responses, &configs)
         .await
         .context("failed to scan the span's executing messages")?;
-    let costs: Vec<_> =
-        plans.iter().map(|plan| receipts_path_costs(&scan, plan.first, plan.last)).collect();
-    let bounds: Vec<RequestBound> = costs.iter().map(|costs| RequestBound::of(costs)).collect();
+    let last = plans.last().context("game proof has no chunks")?.last;
+    let costs = receipts_path_costs(&scan, 0, last);
+    let bounds: Vec<RequestBound> =
+        plans.iter().map(|plan| RequestBound::of(&costs[plan.first..plan.last])).collect();
     let settings = request.log;
+    let setting =
+        if previous.is_some_and(LogStage::needs_table) { LogPath::Table } else { settings.path };
     let choice =
-        choose_log_path(settings.path, &bounds, settings.range_gas_limit, settings.max_stdin_bytes);
+        choose_log_path(setting, &bounds, settings.range_gas_limit, settings.max_stdin_bytes);
     tracing::info!(
         table = choice.table,
-        setting = ?settings.path,
+        setting = ?setting,
         largest_receipts_path_bound = choice.largest_bound,
         budget = request_budget(settings.range_gas_limit),
         referenced_blocks = scan.blocks.len(),
@@ -1141,7 +1474,13 @@ async fn scan_log_stage(
     } else {
         Vec::new()
     };
-    Ok(LogStage { table: choice.table, costs, batches, stale: AtomicBool::new(false) })
+    Ok(LogStage {
+        table: choice.table,
+        costs,
+        batches,
+        stale: AtomicBool::new(false),
+        needs_table: AtomicBool::new(false),
+    })
 }
 
 /// The progress of `batches`. A batch of `previous` with the same ID keeps its request.
@@ -1172,17 +1511,25 @@ async fn start_log_batches<'a>(
         .shared())
 }
 
+/// A batch failure as a chunk sees it: flattened, so it never reads as a limit of the chunk's own
+/// requests (see [`exceeds_limits`]), but still unprovable if the batch is.
+fn batch_failure(err: &anyhow::Error) -> anyhow::Error {
+    err.chain()
+        .find_map(|cause| cause.downcast_ref::<GameUnprovable>())
+        .map_or_else(|| anyhow!("{err:#}"), |unprovable| unprovable.clone().into())
+}
+
 /// Fails once the batch proofs failed, so a chunk admitted after a batch failure does no work.
 fn check_log_batches(proofs: &LogBatchProofs<'_>) -> Result<()> {
     if let Some(Err(err)) = proofs.peek() {
-        bail!("{err:#}");
+        return Err(batch_failure(err));
     }
     Ok(())
 }
 
 /// Runs `chunks` while it polls the batch proofs, so batch requests progress during the first
 /// range proofs. After a batch failure, the admitted chunks run to their end and the attempt
-/// returns the batch error.
+/// returns the batch error, unless a chunk found the game unprovable.
 async fn run_with_log_batches<T>(
     chunks: impl Future<Output = Result<T>>,
     mut proofs: LogBatchProofs<'_>,
@@ -1199,7 +1546,11 @@ async fn run_with_log_batches<T>(
             }
         }
     };
-    batch_error.map_or(result, |err| Err(anyhow!("{err:#}")))
+    match (result, batch_error) {
+        (Err(err), _) if is_unprovable(&err) => Err(err),
+        (result, None) => result,
+        (_, Some(err)) => Err(batch_failure(&err)),
+    }
 }
 
 /// Selects cached progress and rejects terminal attempts before returning executable chunks.
@@ -1215,13 +1566,11 @@ fn plan_game_attempt(
     for (index, (agreed_ts, claimed_ts)) in chunks.into_iter().enumerate() {
         let first = (agreed_ts - game.starting_ts) as usize;
         let last = (claimed_ts - game.starting_ts) as usize;
-        let span = TimestampSpan::new(agreed_ts + 1, claimed_ts)
-            .map_err(|err| anyhow!("invalid chunk span: {err:?}"))?;
-        let synthesized =
-            synthesize_execution(span, game.l1_head, game.l1_head_number, &responses[first..=last])
-                .with_context(|| {
-                    format!("failed to synthesize span {}..={}", span.start, span.end)
-                })?;
+        let synthesized = synthesize_chunk(
+            game,
+            responses,
+            ChunkSpan { agreed: agreed_ts, claimed: claimed_ts },
+        )?;
         chunk_identities.push(ChunkIdentity {
             index: u8::try_from(index).context("chunk index exceeds u8")?,
             agreed_ts,
@@ -1316,7 +1665,8 @@ pub(crate) async fn prove_game_inner(
     } else {
         start_game_logs(provider, keys, host_inputs, &request, &plans, &progress).await?
     };
-    let attempt = GameAttempt { provider, keys, host_inputs, game, logs: &logs, settings: log };
+    let attempt =
+        GameAttempt { provider, keys, host_inputs, game, responses, logs: &logs, settings: log };
     let attempts = plans
         .into_iter()
         .map(|plan| {
@@ -1326,22 +1676,20 @@ pub(crate) async fn prove_game_inner(
         .collect();
 
     let max_concurrent = max_concurrent.get().min(chunk_count);
-    let results = run_with_log_batches(
+    let mut results = run_with_log_batches(
         run_chunk_attempts_with_progress(attempts, Arc::clone(&progress), max_concurrent),
         logs.proofs.clone(),
     )
     .await?;
-
-    let mut range_outputs = vec![None; chunk_count];
-    let mut consolidation_outputs = vec![None; chunk_count];
-    let mut proofs = vec![None; chunk_count];
-    for result in results {
-        range_outputs[result.index] = Some(result.range_outputs.clone());
-        consolidation_outputs[result.index] = Some(result.consolidation_outputs.clone());
-        proofs[result.index] = result.proofs.clone();
-    }
-    let range_outputs = collect_indexed(range_outputs, "range outputs")?;
-    let consolidation_outputs = collect_indexed(consolidation_outputs, "consolidation outputs")?;
+    results.sort_unstable_by_key(|chunk| chunk.index);
+    ensure!(
+        results.iter().map(|chunk| chunk.index).eq(0..chunk_count),
+        "chunk results do not cover the game's chunks"
+    );
+    let spans: Vec<&SpanResult> = results.iter().flat_map(|chunk| &chunk.spans).collect();
+    let range_outputs = spans.iter().map(|span| span.range_outputs.clone()).collect();
+    let consolidation_outputs =
+        spans.iter().map(|span| span.consolidation_outputs.clone()).collect();
 
     let starting_data = responses
         .first()
@@ -1375,13 +1723,15 @@ pub(crate) async fn prove_game_inner(
         ProofProvider::Network(_) => {
             let keys = keys.context("network proving requires prestate proving keys")?;
             let mut stdin = SP1Stdin::new();
-            let (range_proofs, consolidation_proofs): (Vec<_>, Vec<_>) = proofs
-                .into_iter()
+            let (range_proofs, consolidation_proofs): (Vec<_>, Vec<_>) = spans
+                .iter()
                 .enumerate()
-                .map(|(index, proofs)| {
-                    let proofs =
-                        proofs.ok_or_else(|| anyhow!("missing proofs for chunk {index}"))?;
-                    Ok((proofs.range, proofs.consolidation))
+                .map(|(position, span)| {
+                    let proofs = span
+                        .proofs
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("missing proofs for span {position}"))?;
+                    Ok((Arc::clone(&proofs.range), Arc::clone(&proofs.consolidation)))
                 })
                 .collect::<Result<Vec<_>>>()?
                 .into_iter()
@@ -1412,15 +1762,6 @@ pub(crate) async fn prove_game_inner(
             Ok(aggregation.bytes())
         }
     }
-}
-
-/// Unwraps a fully populated index-placed vector, erroring on gaps.
-fn collect_indexed<T>(items: Vec<Option<T>>, what: &str) -> Result<Vec<T>> {
-    items
-        .into_iter()
-        .enumerate()
-        .map(|(index, item)| item.ok_or_else(|| anyhow!("missing {what} for chunk {index}")))
-        .collect()
 }
 
 #[cfg(test)]
@@ -1693,9 +2034,251 @@ mod tests {
         let inputs = valid_aggregation_inputs();
         ChunkResult {
             index,
-            range_outputs: inputs.range_outputs[index].clone(),
-            consolidation_outputs: inputs.consolidation_outputs[index].clone(),
-            proofs: None,
+            spans: vec![SpanResult {
+                range_outputs: inputs.range_outputs[index].clone(),
+                consolidation_outputs: inputs.consolidation_outputs[index].clone(),
+                proofs: None,
+            }],
+        }
+    }
+
+    /// Records each span it checks and proves, and fails a step where its script fails.
+    struct ScriptedSpanProver<C, P> {
+        calls: Mutex<Vec<(&'static str, u64, u64)>>,
+        check: C,
+        prove: P,
+    }
+
+    impl<C, P> ScriptedSpanProver<C, P>
+    where
+        C: Fn(ChunkSpan) -> Result<()> + Sync,
+        P: Fn(ChunkSpan, &ChunkProgress) -> Result<()> + Sync,
+    {
+        fn new(check: C, prove: P) -> Self {
+            Self { calls: Mutex::default(), check, prove }
+        }
+
+        fn calls(&self) -> Vec<(&'static str, u64, u64)> {
+            self.calls.lock().clone()
+        }
+    }
+
+    impl<C, P> SpanProver for ScriptedSpanProver<C, P>
+    where
+        C: Fn(ChunkSpan) -> Result<()> + Sync,
+        P: Fn(ChunkSpan, &ChunkProgress) -> Result<()> + Sync,
+    {
+        type Checked = ChunkSpan;
+
+        fn check_leaf(
+            &self,
+            span: ChunkSpan,
+            _synthesized: Option<SynthesizedExecution>,
+        ) -> BoxFuture<'_, Result<ChunkSpan>> {
+            self.calls.lock().push(("check", span.agreed, span.claimed));
+            let outcome = (self.check)(span).map(|()| span);
+            async move { outcome }.boxed()
+        }
+
+        fn prove_leaf<'s>(
+            &'s self,
+            span: ChunkSpan,
+            node: &'s ChunkProgress,
+        ) -> BoxFuture<'s, Result<SpanResult>> {
+            self.calls.lock().push(("prove", span.agreed, span.claimed));
+            let outcome = (self.prove)(span, node).map(|()| span_result(span));
+            async move { outcome }.boxed()
+        }
+    }
+
+    const fn checks(_: ChunkSpan) -> Result<()> {
+        Ok(())
+    }
+
+    const fn proves(_: ChunkSpan, _: &ChunkProgress) -> Result<()> {
+        Ok(())
+    }
+
+    fn span_result(span: ChunkSpan) -> SpanResult {
+        let inputs = valid_aggregation_inputs();
+        let timestamps = TimestampSpan::new(span.agreed + 1, span.claimed).unwrap();
+        let mut range_outputs = inputs.range_outputs[0].clone();
+        range_outputs.span = timestamps;
+        let mut consolidation_outputs = inputs.consolidation_outputs[0].clone();
+        consolidation_outputs.span = timestamps;
+        SpanResult { range_outputs, consolidation_outputs, proofs: None }
+    }
+
+    /// The `(agreed, claimed)` pairs of a result's spans, in order.
+    fn result_spans(result: &ChunkResult) -> Vec<(u64, u64)> {
+        result
+            .spans
+            .iter()
+            .map(|span| (span.range_outputs.span.start - 1, span.range_outputs.span.end))
+            .collect()
+    }
+
+    fn stdin_too_large() -> anyhow::Error {
+        StdinTooLarge { kind: "consolidation", bytes: 2, limit: 1 }.into()
+    }
+
+    fn unexecutable() -> anyhow::Error {
+        ProofWaitError::Terminal {
+            proof_id: B256::ZERO,
+            state: ProofTerminalState::Unexecutable,
+            fulfillment_status: 0,
+            execution_status: 0,
+        }
+        .into()
+    }
+
+    const SPAN: ChunkSpan = ChunkSpan { agreed: 100, claimed: 104 };
+
+    /// Pins halving at each stdin refusal, down to a single timestamp, which is unprovable.
+    #[tokio::test]
+    async fn oversized_stdin_bisects_then_single_timestamp_is_unprovable() {
+        let prover = ScriptedSpanProver::new(
+            |span| if span.agreed == 100 { Err(stdin_too_large()) } else { Ok(()) },
+            proves,
+        );
+        let node = ChunkProgress::default();
+
+        let err = prove_span(&prover, 0, SPAN, None, &node).await.err().unwrap();
+
+        assert!(is_unprovable(&err), "{err:#}");
+        assert_eq!(prover.calls(), [("check", 100, 104), ("check", 100, 102), ("check", 100, 101)]);
+        let halves = node.split.get().unwrap();
+        let quarters = halves[0].split.get().unwrap();
+        assert!(quarters[0].split.get().is_none());
+    }
+
+    /// Pins a span over its estimate split before either of its requests is submitted.
+    #[tokio::test]
+    async fn over_budget_estimate_bisects_before_any_range_request() {
+        let prover = ScriptedSpanProver::new(
+            |span| {
+                if span != SPAN {
+                    return Ok(());
+                }
+                Err(EstimateOverBudget {
+                    span: TimestampSpan::new(101, 104).unwrap(),
+                    estimate: 2,
+                    budget: 1,
+                    batch_proofs: 0,
+                    receipts_path_blocks: 0,
+                }
+                .into())
+            },
+            proves,
+        );
+
+        let result = prove_span(&prover, 0, SPAN, None, &ChunkProgress::default()).await.unwrap();
+
+        assert_eq!(result_spans(&result), [(100, 102), (102, 104)]);
+        assert_eq!(
+            prover.calls(),
+            [
+                ("check", 100, 104),
+                ("check", 100, 102),
+                ("prove", 100, 102),
+                ("check", 102, 104),
+                ("prove", 102, 104)
+            ]
+        );
+    }
+
+    /// Pins a retry that proves only the half that failed, without checking the parent again.
+    #[tokio::test]
+    async fn bisected_retry_reuses_halves_and_completed_leaves() {
+        let node = ChunkProgress::default();
+        let failing = ScriptedSpanProver::new(
+            |span| if span == SPAN { Err(stdin_too_large()) } else { Ok(()) },
+            |span, _| if span.agreed == 102 { Err(anyhow!("transient")) } else { Ok(()) },
+        );
+        let err = prove_span(&failing, 0, SPAN, None, &node).await.err().unwrap();
+        assert!(err.to_string().contains("transient"), "{err:#}");
+
+        let retry = ScriptedSpanProver::new(checks, proves);
+        let result = prove_span(&retry, 0, SPAN, None, &node).await.unwrap();
+
+        assert_eq!(retry.calls(), [("check", 102, 104), ("prove", 102, 104)]);
+        assert_eq!(result_spans(&result), [(100, 102), (102, 104)]);
+    }
+
+    /// Pins an unexecutable span split, the superseded slot ignored by preflight and metrics, and
+    /// an unexecutable single timestamp kept terminal until a retry signal.
+    #[tokio::test]
+    async fn unexecutable_span_bisects_then_single_timestamp_is_sticky() {
+        let cache = InMemoryProofProgress::default();
+        let game_address = Address::repeat_byte(0x49);
+        let progress = cache.load_or_create(game_address, game_identity());
+        let prover = ScriptedSpanProver::new(checks, |span, node| {
+            if span.agreed != 100 {
+                return Ok(());
+            }
+            *node.range_request.lock() = RequestState::Terminal(ProofTerminalState::Unexecutable);
+            Err(unexecutable())
+        });
+        let span = ChunkSpan { agreed: 100, claimed: 102 };
+
+        let err = prove_span(&prover, 0, span, None, &progress.chunks[0]).await.err().unwrap();
+
+        assert!(err.downcast_ref::<ProofWaitError>().is_some(), "{err:#}");
+        assert!(!is_unprovable(&err));
+        assert_eq!(
+            prover.calls(),
+            [("check", 100, 102), ("prove", 100, 102), ("check", 100, 101), ("prove", 100, 101)]
+        );
+        let halves = progress.chunks[0].split.get().unwrap();
+        assert!(halves[0].split.get().is_none());
+        let err = progress.check_terminal_requests().unwrap_err();
+        assert!(err.to_string().contains("chunk 0 range"), "{err}");
+        assert_eq!(cache.request_counts().get(&("range", "terminal")), Some(&1));
+        assert_eq!(cache.retry_terminal_requests(game_address), 1);
+        progress.check_terminal_requests().unwrap();
+    }
+
+    /// Pins a batch failure, even an unexecutable one, failing the span without splitting it.
+    #[tokio::test]
+    async fn batch_failure_does_not_bisect_the_span() {
+        let prover = ScriptedSpanProver::new(checks, |_, _| Err(batch_failure(&unexecutable())));
+        let node = ChunkProgress::default();
+
+        let err = prove_span(&prover, 0, SPAN, None, &node).await.err().unwrap();
+
+        assert!(err.to_string().contains("Unexecutable"), "{err:#}");
+        assert_eq!(prover.calls(), [("check", 100, 104), ("prove", 100, 104)]);
+        assert!(node.split.get().is_none());
+    }
+
+    /// Pins a batch failure that keeps an unprovable batch's marker, and only that.
+    #[test]
+    fn batch_failure_keeps_the_unprovable_marker() {
+        let unprovable = anyhow::Error::new(GameUnprovable("log batch".into())).context("failed");
+        assert!(is_unprovable(&batch_failure(&unprovable)));
+        let unexecutable = batch_failure(&unexecutable());
+        assert!(!is_unprovable(&unexecutable));
+        assert!(!exceeds_limits(&unexecutable));
+    }
+
+    /// Pins a single timestamp's consolidation over the stdin limit on an automatic receipts path
+    /// sent to the table path, and the same failure left as is anywhere else.
+    #[test]
+    fn oversized_receipts_path_timestamp_retries_on_the_table_path() {
+        let single = ChunkSpan { agreed: 100, claimed: 101 };
+        let receipts = LogStage::default();
+        let err = receipts_path_fallback(&receipts, LogPath::Auto, single, stdin_too_large());
+        assert!(!is_too_large(&err) && !is_unprovable(&err), "{err:#}");
+        assert!(receipts.needs_table() && receipts.is_stale());
+
+        for (stage, setting, span) in [
+            (table_stage([]), LogPath::Auto, single),
+            (LogStage::default(), LogPath::Receipts, single),
+            (LogStage::default(), LogPath::Auto, SPAN),
+        ] {
+            let err = receipts_path_fallback(&stage, setting, span, stdin_too_large());
+            assert!(is_too_large(&err), "{err:#}");
+            assert!(!stage.needs_table());
         }
     }
 
@@ -1801,8 +2384,13 @@ mod tests {
                 log: &log_settings(),
             };
             let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
-            let (_, _, request_state) = progress.requests().nth(slot).unwrap();
-            *request_state.lock() = RequestState::Terminal(state);
+            let mut visited = 0;
+            progress.visit_requests(|_, _, request| {
+                if visited == slot {
+                    *request.lock() = RequestState::Terminal(state);
+                }
+                visited += 1;
+            });
             let error = plan_game_attempt(&provider, None, &request)
                 .err()
                 .expect("terminal attempts must not return executable chunk plans");
@@ -2237,20 +2825,6 @@ mod tests {
         assert_eq!(&encoded[140..160], inputs.prover.as_slice());
     }
 
-    #[test]
-    fn chunk_ordering_preserved_under_unordered_completion() {
-        // collect_indexed restores chunk order regardless of completion
-        // order, and errors on gaps instead of silently reordering.
-        let mut slots = vec![None, None, None];
-        for index in [2usize, 0, 1] {
-            slots[index] = Some(index * 10);
-        }
-        assert_eq!(collect_indexed(slots, "chunks").unwrap(), vec![0, 10, 20]);
-
-        let err = collect_indexed(vec![Some(1), None::<u64>], "chunks").unwrap_err();
-        assert!(err.to_string().contains("missing chunks for chunk 1"));
-    }
-
     #[tokio::test(flavor = "current_thread")]
     async fn proof_replay_chunk_span_survives_unordered_execution() {
         let capture = Arc::new(StdMutex::new(TraceCapture::default()));
@@ -2667,10 +3241,8 @@ mod tests {
         assert_eq!(active.load(Ordering::SeqCst), 0);
         assert_eq!(max_active.load(Ordering::SeqCst), 2);
 
-        let mut slots = vec![None; 4];
-        for (index, value) in results {
-            slots[index] = Some(value);
-        }
-        assert_eq!(collect_indexed(slots, "chunks").unwrap(), vec![0, 10, 20, 30]);
+        let values: Vec<_> =
+            results.into_iter().collect::<BTreeMap<_, _>>().into_values().collect();
+        assert_eq!(values, vec![0, 10, 20, 30]);
     }
 }
