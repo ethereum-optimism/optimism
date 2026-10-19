@@ -455,7 +455,8 @@ pub struct ProofProviderConfig {
     pub log_proof_strategy: FulfillmentStrategy,
     /// Cycle limit for log-commitment batch proof requests.
     pub log_cycle_limit: u64,
-    /// Gas limit for log-commitment batch proof requests. Batches fill to 80% of it by estimate.
+    /// Gas limit for log-commitment batch proof requests. A batch stays within 80% of it by
+    /// estimate, unless it holds one block.
     pub log_gas_limit: u64,
     /// Optional maximum price per proving gas unit.
     pub max_price_per_pgu: Option<NonZeroU64>,
