@@ -24,10 +24,10 @@ where
     use serde::de::Error;
     match Value::deserialize(deserializer)? {
         Value::String(s) => T::Ruint::from_str(&s)
-            .map_err(|_| D::Error::custom("failed to deserialize str"))
+            .map_err(|_| D::Error::custom("failed to deserialize quantity string"))
             .map(T::from_ruint),
         Value::Number(num) => T::Ruint::from_str(&num.to_string())
-            .map_err(|_| de::Error::custom("failed to deserialize number"))
+            .map_err(|_| de::Error::custom("failed to deserialize quantity number"))
             .map(T::from_ruint),
         _ => Err(de::Error::custom("only string and number types are supported")),
     }
@@ -79,5 +79,35 @@ mod private {
         u32  = alloy_primitives::U32,
         u64  = alloy_primitives::U64,
         u128 = alloy_primitives::U128,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::string::ToString;
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    struct Quantity {
+        #[serde(deserialize_with = "super::deserialize")]
+        value: u64,
+    }
+
+    #[test]
+    fn accepts_hex_and_numeric_quantities() {
+        for input in [r#"{"value":"0x2a"}"#, r#"{"value":42}"#] {
+            assert_eq!(serde_json::from_str::<Quantity>(input).unwrap().value, 42);
+        }
+    }
+
+    #[test]
+    fn identifies_invalid_quantity_representation() {
+        for (input, expected) in [
+            (r#"{"value":"not-a-number"}"#, "failed to deserialize quantity string"),
+            (r#"{"value":-1}"#, "failed to deserialize quantity number"),
+        ] {
+            let error = serde_json::from_str::<Quantity>(input).unwrap_err();
+            assert!(error.to_string().contains(expected), "{error}");
+        }
     }
 }
