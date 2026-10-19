@@ -126,6 +126,13 @@ refuses a request whose estimate is not under the budget, whose witness or stdin
 or, on the table path, whose run read a block below a head without an entry.
 `OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
 
+The estimators are coarse on purpose: a batch is priced by its blocks, logs, and receipts-trie
+bytes, and a consolidation by its chains, message checks, read bytes, opening siblings, batch
+entries, deferred proofs, and replacement gas. Witness bytes and keccak blocks fold into the read
+and witness-byte prices, log checks into the sibling price, and proof verification and recursion
+into the base and per-proof prices. With SP1 6.8.1, each calibration shape's estimate is 1.3× to
+40× its measured PGU.
+
 Each estimate must be at or above the measured PGU, and each bound at or above the estimate.
 ELF-gated tests in `kona-sp1-super-range-executor` pin this:
 

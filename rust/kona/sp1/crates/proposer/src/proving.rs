@@ -939,7 +939,6 @@ async fn prove_chunk_inner(
         receipts_path_blocks = collected.missing.len(),
         witness_bytes = collected.witness_bytes,
         read_bytes = collected.read_bytes,
-        log_checks = collected.log_checks,
         "Checked the consolidation request"
     );
 
