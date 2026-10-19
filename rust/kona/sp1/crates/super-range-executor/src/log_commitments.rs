@@ -56,7 +56,6 @@ pub(crate) struct NativeConsolidation {
     pub(crate) openings: Vec<LogOpening>,
     pub(crate) missing: Vec<MissingLogCommitment>,
     pub(crate) served: Vec<B256>,
-    pub(crate) witness_bytes: u64,
     pub(crate) read_bytes: u64,
     pub(crate) log_check_siblings: u64,
 }
@@ -78,7 +77,6 @@ where
     let record = Arc::new(LogCommitmentRecord::default());
     let source =
         NativeLogCommitments::new(batches, collector.preimage_oracle.clone(), record.clone())?;
-    let witness = collector.preimage_witness_store.clone();
     let read_bytes = Arc::new(AtomicU64::new(0));
     let oracle = Arc::new(CountingOracle { inner: collector, bytes: read_bytes.clone() });
     let run = build_consolidation_outputs(inputs, oracle, configs, Arc::new(source));
@@ -90,14 +88,11 @@ where
     // Check the record first: after a host failure, `outputs` is `None` or holds bogus verdicts.
     let Recorded { openings, missing, served, log_check_siblings } = record.finish()?;
     let outputs = outputs.context("the consolidation run stopped without a host failure")??;
-    let witness_bytes =
-        witness.lock().map_err(|_| anyhow!("witness lock poisoned"))?.preimage_bytes() as u64;
     Ok(NativeConsolidation {
         outputs,
         openings,
         missing,
         served,
-        witness_bytes,
         read_bytes: read_bytes.load(Ordering::Relaxed),
         log_check_siblings,
     })

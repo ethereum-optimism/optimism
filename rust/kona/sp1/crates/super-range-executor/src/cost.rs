@@ -70,15 +70,10 @@ mod bound_bytes {
     pub(super) const BLOCKHASH_WALK: u64 = 32_640 * 768;
 }
 
-/// The most witness bytes of one request: under the 2 GiB rkyv limit of the stdin encoding, with
-/// room for its per-entry overhead.
-pub const MAX_WITNESS_BYTES: u64 = 3 << 29;
-
-/// Stdin bytes of one compressed batch proof: 1.27 MB measured with SP1 6.8.1, with margin.
-pub const BATCH_PROOF_BYTES: u64 = 1_400_000;
-
-/// The most stdin bytes of one request, with its batch proofs: under the 5 GB upload limit.
-pub const MAX_STDIN_BYTES: u64 = 4 << 30;
+/// The default limit on the encoded stdin of one request (1.5 GiB): under the witness of an
+/// estimated 1.8 GiB at which SPN's 24 GiB executor runs out of memory, and under rkyv's 2 GiB
+/// archive limit.
+pub const DEFAULT_MAX_STDIN_BYTES: u64 = 3 << 29;
 
 /// The most entries in one batch, so the consolidation's decode of a batch stays small.
 pub const MAX_ENTRIES_PER_BATCH: usize = 4_096;

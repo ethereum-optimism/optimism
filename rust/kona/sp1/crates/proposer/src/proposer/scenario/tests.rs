@@ -383,6 +383,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         l1_config_path: None,
         dependency_set_path: None,
         range_split_count: RangeSplitCount::one(),
+        max_stdin_bytes: Default::default(),
         max_concurrent_range_proofs: NonZeroUsize::MIN,
         max_concurrent_defense_tasks: NonZeroU64::new(8).unwrap(),
         fast_finality_mode: false,

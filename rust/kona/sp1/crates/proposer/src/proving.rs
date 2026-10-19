@@ -29,9 +29,8 @@ use kona_sp1_client_utils::{
     log_commitment::LogCommitmentInputs,
     super_root::{
         SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationOutputs,
-        SuperRangeInputs, SuperRangeOutputs, TimestampSpan,
+        SuperRangeOutputs, TimestampSpan,
     },
-    witness::DefaultWitnessData,
 };
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
@@ -50,7 +49,7 @@ use tracing::Instrument;
 pub use crate::ports::GameProofInputs;
 
 use crate::{
-    config::{LogPath, RangeSplitCount},
+    config::{LogPath, RangeSplitCount, StdinByteLimit},
     log_proofs::{
         CollectedRequest, LogBatch, LogBatchProver, MockLogProver, NetworkLogProver, RequestBound,
         check_collected, choose_log_path, consolidation_cost, cover, log_batch_poll_interval,
@@ -762,15 +761,50 @@ where
     run_chunk_tasks_until_error(tasks, max_concurrent).await
 }
 
+/// A proof request's stdin exceeds `OP_ZK_PROPOSER_MAX_STDIN_BYTES`.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{kind} stdin is {bytes} encoded bytes, above the {limit}-byte stdin limit")]
+pub(crate) struct StdinTooLarge {
+    /// Request kind: `range`, `consolidation`, or `log`.
+    pub(crate) kind: &'static str,
+    /// Encoded stdin bytes.
+    pub(crate) bytes: u64,
+    /// The configured limit.
+    pub(crate) limit: u64,
+}
+
+/// Bytes of `stdin` as the SP1 SDK uploads it, before compression: bincode 1 of the input
+/// buffers, the read pointer, and every embedded proof with its verifying key.
+///
+/// The buffers are counted arithmetically instead of encoded, since the witness buffer can be
+/// gigabytes: a `u64` length prefix for the buffer list and for each buffer, then its bytes.
+fn stdin_encoded_len(stdin: &SP1Stdin) -> Result<u64> {
+    let buffers: u64 = stdin.buffer.iter().map(|buffer| 8 + buffer.len() as u64).sum();
+    let proofs =
+        bincode1::serialized_size(&stdin.proofs).context("failed to measure embedded proofs")?;
+    Ok(8 + buffers + 8 + proofs)
+}
+
+/// Fails with [`StdinTooLarge`] when `stdin` encodes to more than `limit` bytes.
+pub(crate) fn ensure_stdin_fits(
+    kind: &'static str,
+    stdin: &SP1Stdin,
+    limit: StdinByteLimit,
+) -> Result<()> {
+    let bytes = stdin_encoded_len(stdin)?;
+    if bytes > limit.get() {
+        return Err(StdinTooLarge { kind, bytes, limit: limit.get() }.into());
+    }
+    Ok(())
+}
+
 async fn prove_range_request(
     provider: &ProofProvider,
     keys: &ProofKeys,
-    inputs: &SuperRangeInputs,
-    witness: DefaultWitnessData,
+    stdin: SP1Stdin,
     expected: &SuperRangeOutputs,
     state: &Mutex<RequestState>,
 ) -> Result<Arc<SP1ProofWithPublicValues>> {
-    let stdin = build_super_range_stdin(inputs, witness)?;
     complete_request(
         state,
         async move || provider.request_range_proof(keys, stdin).await,
@@ -880,14 +914,15 @@ async fn prove_chunk_inner(
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
 
+    let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
+    ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
     let range_proof = match (provider, keys) {
         (ProofProvider::Mock(_), _) => None,
         (provider, Some(keys)) => Some(
             prove_range_request(
                 provider,
                 keys,
-                &synthesized.range_inputs,
-                range_witness,
+                range_stdin,
                 &range_outputs,
                 &chunk_progress.range_request,
             )
@@ -927,17 +962,30 @@ async fn prove_chunk_inner(
         span,
         missing: &collected.missing,
         estimate,
-        witness_bytes: collected.witness_bytes,
         batch_proofs: covering.len(),
-        log_commitment_bytes: log_commitments.encode().len() as u64,
     };
     check_collected(stage.table, &request, settings.range_gas_limit)?;
+    // The mock provider's batch proofs are placeholders, so its stdin carries none.
+    let carried_proofs = match (provider, keys) {
+        (ProofProvider::Mock(_), _) => None,
+        (_, Some(keys)) => Some(LogCommitmentProofs {
+            vk: (*keys.log_vk).clone(),
+            proofs: covering.iter().map(|&index| (*batch_proofs[index]).clone()).collect(),
+        }),
+        (_, None) => bail!("network proving requires prestate proving keys"),
+    };
+    let stdin = build_super_consolidation_stdin(
+        &synthesized.consolidation_inputs,
+        collected.witness,
+        &log_commitments,
+        carried_proofs.as_ref(),
+    )?;
+    ensure_stdin_fits("consolidation", &stdin, settings.max_stdin_bytes)?;
     tracing::info!(
         estimate,
         budget = request_budget(settings.range_gas_limit),
         batch_proofs = covering.len(),
         receipts_path_blocks = collected.missing.len(),
-        witness_bytes = collected.witness_bytes,
         read_bytes = collected.read_bytes,
         "Checked the consolidation request"
     );
@@ -945,16 +993,6 @@ async fn prove_chunk_inner(
     let proofs = match (provider, keys, range_proof) {
         (ProofProvider::Mock(_), _, _) => None,
         (provider, Some(keys), Some(range)) => {
-            let carried_proofs = LogCommitmentProofs {
-                vk: (*keys.log_vk).clone(),
-                proofs: covering.iter().map(|&index| (*batch_proofs[index]).clone()).collect(),
-            };
-            let stdin = build_super_consolidation_stdin(
-                &synthesized.consolidation_inputs,
-                collected.witness,
-                &log_commitments,
-                Some(&carried_proofs),
-            )?;
             let consolidation = prove_consolidation_request(
                 provider,
                 keys,
@@ -1043,12 +1081,14 @@ async fn start_game_logs<'a>(
     if !stage.table {
         return Ok(GameLogs::without_batches(stage));
     }
+    let max_stdin_bytes = request.log.max_stdin_bytes;
     let prover: Arc<dyn LogBatchProver + 'a> = match (provider, keys) {
-        (ProofProvider::Mock(_), _) => Arc::new(MockLogProver),
+        (ProofProvider::Mock(_), _) => Arc::new(MockLogProver { l2: request.l2, max_stdin_bytes }),
         (provider, Some(keys)) => Arc::new(NetworkLogProver {
             provider,
             keys,
             l2: request.l2,
+            max_stdin_bytes,
             poll_interval: log_batch_poll_interval(stage.batches.len()),
         }),
         (_, None) => bail!("network proving requires prestate proving keys"),
@@ -1081,7 +1121,8 @@ async fn scan_log_stage(
         plans.iter().map(|plan| receipts_path_costs(&scan, plan.first, plan.last)).collect();
     let bounds: Vec<RequestBound> = costs.iter().map(|costs| RequestBound::of(costs)).collect();
     let settings = request.log;
-    let choice = choose_log_path(settings.path, &bounds, settings.range_gas_limit);
+    let choice =
+        choose_log_path(settings.path, &bounds, settings.range_gas_limit, settings.max_stdin_bytes);
     tracing::info!(
         table = choice.table,
         setting = ?settings.path,
@@ -1093,7 +1134,9 @@ async fn scan_log_stage(
     let batches = if choice.table {
         // TODO(proofs-team#31): reuse the batches of earlier games from a persistent cache keyed
         // by receipts root and log vkey.
-        let batches = make_log_batches(request.l2, &scan, settings.log_gas_limit).await?;
+        let batches =
+            make_log_batches(request.l2, &scan, settings.log_gas_limit, settings.max_stdin_bytes)
+                .await?;
         batch_progress(batches, previous)
     } else {
         Vec::new()
@@ -1205,13 +1248,15 @@ fn plan_game_attempt(
     Ok((plans, progress))
 }
 
-/// Log-commitment settings of game proofs.
+/// Log-commitment and stdin settings of game proofs.
 #[derive(Debug, Clone)]
 pub(crate) struct LogProofSettings {
     pub(crate) path: LogPath,
     /// The range and consolidation request gas limit.
     pub(crate) range_gas_limit: u64,
     pub(crate) log_gas_limit: u64,
+    /// The encoded stdin limit of each range, consolidation, and log-commitment request.
+    pub(crate) max_stdin_bytes: StdinByteLimit,
 }
 
 /// Inputs for one in-process game-proving attempt.
@@ -1508,7 +1553,43 @@ mod tests {
     }
 
     fn log_settings() -> LogProofSettings {
-        LogProofSettings { path: LogPath::Auto, range_gas_limit: 1, log_gas_limit: 1 }
+        LogProofSettings {
+            path: LogPath::Auto,
+            range_gas_limit: 1,
+            log_gas_limit: 1,
+            max_stdin_bytes: StdinByteLimit::default(),
+        }
+    }
+
+    /// Pins the arithmetic buffer count to the SDK's bincode 1 encoding of the whole stdin.
+    #[test]
+    fn stdin_encoded_len_matches_full_encoding() {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&0x0102_0304_u64);
+        stdin.write_slice(&[7u8; 1000]);
+        stdin.write(&vec![1u32, 2, 3]);
+        stdin.write_slice(&[]);
+
+        let full = bincode1::serialize(&stdin).unwrap();
+
+        assert_eq!(stdin_encoded_len(&stdin).unwrap(), full.len() as u64);
+        assert_eq!(stdin_encoded_len(&SP1Stdin::new()).unwrap(), 24);
+    }
+
+    /// Pins a stdin at the limit accepted and one byte over it refused.
+    #[test]
+    fn stdin_at_the_limit_fits() {
+        let mut stdin = SP1Stdin::new();
+        stdin.write_slice(&[0; 100]);
+        let bytes = stdin_encoded_len(&stdin).unwrap();
+        let limit = |bytes| StdinByteLimit::new(bytes).unwrap();
+
+        ensure_stdin_fits("range", &stdin, limit(bytes)).unwrap();
+        let err = ensure_stdin_fits("range", &stdin, limit(bytes - 1)).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<StdinTooLarge>(),
+            Some(&StdinTooLarge { kind: "range", bytes, limit: bytes - 1 })
+        );
     }
 
     /// Builds a self-consistent supernode response trusted by default.
@@ -2541,6 +2622,7 @@ mod tests {
                 provider: &provider,
                 keys,
                 l2: &EmptyReceiptsL2,
+                max_stdin_bytes: StdinByteLimit::default(),
                 poll_interval: std::time::Duration::ZERO,
             });
             start_log_batches(prover, stage).await.unwrap().await.unwrap();

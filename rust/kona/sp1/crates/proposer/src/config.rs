@@ -22,6 +22,7 @@ use kona_sp1_host_utils::{
     metrics::MetricsListen,
     network::{determine_network_mode, parse_fulfillment_strategy},
 };
+use kona_sp1_super_range_executor::DEFAULT_MAX_STDIN_BYTES;
 use sp1_sdk::network::{FulfillmentStrategy, NetworkMode};
 
 use crate::{env_var, proposer::MAX_GAME_DEADLINE_LAG};
@@ -189,6 +190,9 @@ pub struct ProposerConfig {
 
     /// Number of proof chunks per defended timestamp span.
     pub range_split_count: RangeSplitCount,
+
+    /// Encoded stdin bytes that one range, consolidation, or log-commitment request may upload.
+    pub max_stdin_bytes: StdinByteLimit,
 
     /// Maximum concurrent child (range/consolidation) proofs within one
     /// game's defense.
@@ -374,6 +378,7 @@ impl ProposerConfig {
             l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
             range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
+            max_stdin_bytes: parsed_env_or("MAX_STDIN_BYTES", StdinByteLimit::default())?,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -624,6 +629,49 @@ impl FromStr for RangeSplitCount {
         Self::new(count)
     }
 }
+
+/// Encoded stdin bytes that one range, consolidation, or log-commitment request may upload: its
+/// input buffers and embedded proofs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StdinByteLimit(NonZeroU64);
+
+impl StdinByteLimit {
+    /// Default: [`DEFAULT_MAX_STDIN_BYTES`] (1.5 GiB).
+    pub const DEFAULT: u64 = DEFAULT_MAX_STDIN_BYTES;
+    /// 2 GiB: a witness archive must stay under rkyv's 32-bit offsets anyway.
+    pub const MAX: u64 = 1 << 31;
+
+    /// Creates a limit, accepting 1 to [`Self::MAX`] bytes.
+    pub fn new(bytes: u64) -> Result<Self> {
+        match NonZeroU64::new(bytes) {
+            Some(bytes) if bytes.get() <= Self::MAX => Ok(Self(bytes)),
+            _ => bail!("max stdin bytes must be between 1 and {}, got {bytes}", Self::MAX),
+        }
+    }
+
+    /// Returns the limit in bytes.
+    pub const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+impl Default for StdinByteLimit {
+    fn default() -> Self {
+        Self::new(Self::DEFAULT).expect("default is a valid stdin byte limit")
+    }
+}
+
+impl FromStr for StdinByteLimit {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let bytes = value
+            .parse::<u64>()
+            .map_err(|err| anyhow!("invalid max stdin bytes {value}: {err}"))?;
+        Self::new(bytes)
+    }
+}
+
 /// Artifact suffix for the super-aggregation program ELF.
 pub const AGGREGATION_ARTIFACT_SUFFIX: &str = ".agg.bin.gz";
 /// Artifact suffix for the super-range program ELF (whose vkey the
@@ -1035,6 +1083,18 @@ mod tests {
             set_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS", "2419200");
             assert_eq!(ProposerConfig::from_env(None).unwrap().max_game_deadline_lag, 2_419_200);
             remove_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS");
+            assert_eq!(config.max_stdin_bytes.get(), 1_610_612_736);
+            set_proposer_env("MAX_STDIN_BYTES", "2147483648");
+            assert_eq!(ProposerConfig::from_env(None).unwrap().max_stdin_bytes.get(), 1 << 31);
+            for invalid in ["0", "2147483649"] {
+                set_proposer_env("MAX_STDIN_BYTES", invalid);
+                let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+                assert!(
+                    err.contains("max stdin bytes must be between 1 and 2147483648"),
+                    "unexpected: {err}"
+                );
+            }
+            remove_proposer_env("MAX_STDIN_BYTES");
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
             assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
