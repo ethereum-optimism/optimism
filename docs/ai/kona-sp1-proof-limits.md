@@ -36,7 +36,7 @@ it as a performance note.
 
 | Limit | Value | Source | Effect when exceeded |
 |---|---|---|---|
-| Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`. The host encodes the witness in `build_super_interop_stdin` (`kona-sp1-super-range-executor`). | The host panics in `rkyv::to_bytes`: "out of range integral type conversion attempted." The request gets no stdin and no proof. |
+| Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`, and panics in `rkyv::to_bytes` ("out of range integral type conversion attempted") when one overflows. The host encodes every witness through `archive_witness` (`kona-sp1-super-range-executor`), which first bounds the archive size from the preimage and blob sizes and refuses a witness over `MAX_ARCHIVED_WITNESS_BYTES` (`i32::MAX`). | The host returns `WitnessTooLarge` without calling rkyv. The request gets no stdin and no proof. |
 | Guest input region | 16 GiB | `INPUT_REGION_SIZE` default (`1 << 34`), `sp1-zkvm` build script | `read_vec_raw` panics: "Input region overflowed." All stdin uses this region. The witness-encoding limit applies to the witness first. |
 | Guest heap | Up to 112 GiB: `MAX_MEMORY` (`1 << 37`) minus the input region. The memory limit below applies first. | `sp1-zkvm` build script and embedded allocator | The allocator fails. Decoded copies of the witness use the heap. |
 | Executor and prover memory | 24 GiB RSS of the executor child process that SP1 starts. The guest memory, the stdin, and the child's own buffers share it, so the guest gets less than 24 GiB. | `DEFAULT_MEMORY_LIMIT` in `sp1-core-executor` (`SP1CoreOpts::memory_limit`, env `MEMORY_LIMIT`). The `zkvm-canary` default is the same value. The prover network applies the same limit on its side. The SDK does not send it. | SP1 stops the child. Local execution and the canary fail, and a network request gives no proof. |
@@ -51,8 +51,8 @@ The SP1 values are the SP1 6.8.1 defaults: `sp1-zkvm` in `rust/kona/sp1/programs
 `SP1_ZKVM_INPUT_REGION_SIZE` or `SP1_ZKVM_MAX_MEMORY`. Check the values again after an SP1 upgrade.
 Both workspaces use rkyv 0.8.17 with the same features. To check, run
 `cargo tree --offline --locked --workspace -e features -i rkyv` in `rust/` and in
-`rust/kona/sp1/programs`. Check the witness-encoding limit again after an rkyv upgrade or a feature
-change.
+`rust/kona/sp1/programs`. Check the witness-encoding limit, and the per-entry overhead behind
+`witness_archive_bound`, again after an rkyv upgrade or a feature change.
 
 Only SP1's native executor applies the memory limit to the process RSS. SP1 uses it on x86-64
 Linux when the `profiling` feature is off. SP1's portable executor counts only guest memory. It
@@ -104,7 +104,7 @@ input"). To measure, do these steps in `rust/kona/sp1`:
 With `--report`, it prints the PGU, the instruction count, and the stdin bytes of the range run and
 of the consolidation run. A `profiling` build also prints the cycles and calls of each
 `cycle-tracker-report` label in the guest. SP1 gives PGU only for the whole run, not for each
-label. A witness above the witness-encoding limit panics before the guest runs.
+label. A witness above the witness-encoding limit fails with `WitnessTooLarge` before the guest runs.
 
 ## Log commitments and the proposer's estimates
 

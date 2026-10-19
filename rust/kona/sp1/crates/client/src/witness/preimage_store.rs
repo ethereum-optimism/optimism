@@ -149,6 +149,15 @@ impl FlushableCache for WitnessOracle {
     fn flush(&self) {}
 }
 
+// Host-only: compiled out of the guest.
+#[cfg(not(target_os = "zkvm"))]
+impl PreimageStore {
+    /// The number of stored preimages.
+    pub fn preimage_count(&self) -> usize {
+        self.preimage_map.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
