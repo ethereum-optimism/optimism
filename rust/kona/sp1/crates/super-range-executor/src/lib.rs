@@ -970,9 +970,7 @@ pub struct CollectedConsolidation {
     pub witness_bytes: u64,
     /// The bytes that the run read from the oracle, with repeats.
     pub read_bytes: u64,
-    /// The log checks against an entry; each verifies an opening.
-    pub log_checks: u64,
-    /// The siblings of the openings that those checks verify.
+    /// The siblings of the openings that the run's log checks verify.
     pub log_check_siblings: u64,
 }
 
@@ -998,7 +996,6 @@ pub async fn collect_consolidation_witness(
         served,
         witness_bytes,
         read_bytes,
-        log_checks,
         log_check_siblings,
     } = native;
     Ok(CollectedConsolidation {
@@ -1009,7 +1006,6 @@ pub async fn collect_consolidation_witness(
         served,
         witness_bytes,
         read_bytes,
-        log_checks,
         log_check_siblings,
     })
 }

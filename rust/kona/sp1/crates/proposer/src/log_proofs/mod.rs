@@ -391,9 +391,7 @@ pub(crate) fn consolidation_cost(
     ConsolidationCost {
         chain_timestamps: costs.iter().map(|cost| cost.chains).sum(),
         message_checks: costs.iter().map(|cost| (cost.replaced_chains + 1) * cost.messages).sum(),
-        witness_bytes: collected.witness_bytes,
         read_bytes: collected.read_bytes,
-        log_checks: collected.log_checks,
         log_check_siblings: collected.log_check_siblings,
         batch_proofs: batches.len() as u64,
         batch_entries: batches.iter().map(|batch| batch.blocks.len() as u64).sum(),

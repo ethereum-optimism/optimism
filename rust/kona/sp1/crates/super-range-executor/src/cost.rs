@@ -16,38 +16,32 @@ mod log_pgu {
     pub(super) const BATCH: u64 = 2_000_000;
     /// One block: its root lookup and entry.
     pub(super) const BLOCK: u64 = 200_000;
-    /// One receipts-trie witness byte: preimage check, walk, and receipt decode.
+    /// One receipts-trie witness byte: preimage check, walk, receipt decode, and the keccak of
+    /// the log topics and data it holds.
     pub(super) const WITNESS_BYTE: u64 = 50;
-    /// One log: its leaf and tree-node hashes.
-    pub(super) const LOG: u64 = 7_800;
-    /// One 136-byte keccak block of a log's topics and data.
-    pub(super) const KECCAK_BLOCK: u64 = 2_200;
+    /// One log: its leaf and tree-node hashes, and its first keccak block.
+    pub(super) const LOG: u64 = 10_000;
 }
 
 /// Unit costs of the super-range program in consolidation mode.
 mod consolidation_pgu {
-    /// One request: stdin decode and the output commit.
-    pub(super) const BASE: u64 = 20_000_000;
+    /// One request: stdin decode, the output commit, and the first `verify_sp1_proof` call.
+    pub(super) const BASE: u64 = 22_000_000;
     /// One chain at one timestamp: its headers, output roots, and super-root hashing.
     pub(super) const CHAIN_TIMESTAMP: u64 = 5_000_000;
     /// One check of one executing message, in one round.
     pub(super) const MESSAGE_CHECK: u64 = 20_000;
-    /// One witness byte: preimage check and decode at load.
-    pub(super) const WITNESS_BYTE: u64 = 25;
-    /// One byte read from the oracle: trie walks and header lookups, with repeats.
-    pub(super) const READ_BYTE: u64 = 50;
-    /// One log check against an entry, without its siblings.
-    pub(super) const LOG_CHECK: u64 = 15_000;
-    /// One sibling of an opening that a log check verifies.
-    pub(super) const SIBLING: u64 = 3_500;
+    /// One byte read from the oracle, with repeats: trie walks and header lookups, and the
+    /// preimage check and decode of the witness byte at load. Assumes each witness byte is read
+    /// at least once; the 32-byte keys are not counted.
+    pub(super) const READ_BYTE: u64 = 75;
+    /// One sibling of an opening that a log check verifies, with the check's own share at 10 or
+    /// more siblings. A shallower check is covered by `MESSAGE_CHECK`.
+    pub(super) const SIBLING: u64 = 5_000;
     /// One entry of a batch in the stdin.
     pub(super) const ENTRY: u64 = 5_000;
-    /// One `verify_sp1_proof` call.
-    pub(super) const VERIFY_CALL: u64 = 84_000;
-    /// The first `verify_sp1_proof` call, once.
-    pub(super) const FIRST_VERIFY: u64 = 1_100_000;
-    /// The recursion of one deferred proof, in PGU-equivalent.
-    pub(super) const RECURSION: u64 = 1_200_000;
+    /// One deferred proof: its `verify_sp1_proof` call and its recursion, in PGU-equivalent.
+    pub(super) const PROOF: u64 = 1_300_000;
     /// One gas of a deposit-only block that the consolidation executes.
     pub(super) const REPLACEMENT_GAS: u64 = 11_000;
 }
@@ -103,15 +97,8 @@ pub fn receipts_trie_bytes(receipts: &[OpReceiptEnvelope]) -> u64 {
 
 /// An upper bound of the PGU that one block adds to a `log-commitment` batch.
 pub fn estimate_log_block_pgu(receipts: &[OpReceiptEnvelope]) -> u64 {
-    let logs: u64 = receipts
-        .iter()
-        .flat_map(OpReceiptEnvelope::logs)
-        .map(|log| {
-            let payload = 32 * log.topics().len() + log.data.data.len();
-            log_pgu::LOG + log_pgu::KECCAK_BLOCK * (payload as u64 + 1).div_ceil(136)
-        })
-        .sum();
-    log_pgu::BLOCK + log_pgu::WITNESS_BYTE * receipts_trie_bytes(receipts) + logs
+    let logs = receipts.iter().map(|receipt| receipt.logs().len() as u64).sum::<u64>();
+    log_pgu::BLOCK + log_pgu::WITNESS_BYTE * receipts_trie_bytes(receipts) + log_pgu::LOG * logs
 }
 
 /// An upper bound of the PGU of a `log-commitment` batch whose blocks cost `block_pgu` each.
@@ -210,13 +197,9 @@ pub struct ConsolidationCost {
     pub chain_timestamps: u64,
     /// Executing messages of the heads times the rounds that check them, at most.
     pub message_checks: u64,
-    /// Witness preimage bytes.
-    pub witness_bytes: u64,
     /// Bytes that the run read from the oracle, with repeats.
     pub read_bytes: u64,
-    /// Log checks against an entry; each verifies an opening.
-    pub log_checks: u64,
-    /// Siblings of the openings that those checks verify.
+    /// Siblings of the openings that the run's log checks verify.
     pub log_check_siblings: u64,
     /// Batch proofs in the stdin.
     pub batch_proofs: u64,
@@ -230,21 +213,14 @@ pub struct ConsolidationCost {
 /// its deferred proofs.
 pub fn estimate_consolidation_pgu(cost: &ConsolidationCost) -> u64 {
     use consolidation_pgu::*;
-    let deferred = if cost.batch_proofs == 0 {
-        0
-    } else {
-        FIRST_VERIFY + (VERIFY_CALL + RECURSION) * cost.batch_proofs
-    };
     [
         BASE,
         CHAIN_TIMESTAMP * cost.chain_timestamps,
         MESSAGE_CHECK * cost.message_checks,
-        WITNESS_BYTE * cost.witness_bytes,
         READ_BYTE * cost.read_bytes,
-        LOG_CHECK * cost.log_checks,
         SIBLING * cost.log_check_siblings,
         ENTRY * cost.batch_entries,
-        deferred,
+        PROOF * cost.batch_proofs,
         REPLACEMENT_GAS * cost.replaced_gas,
     ]
     .into_iter()
@@ -275,19 +251,22 @@ pub struct ScannedTimestampCost {
 /// its collection.
 pub fn bound_receipts_path_pgu(timestamps: &[ScannedTimestampCost]) -> u64 {
     use consolidation_pgu::*;
-    let per_byte = WITNESS_BYTE + READ_BYTE;
     timestamps.iter().fold(BASE, |total, timestamp| {
         let rounds = timestamp.replaced_chains + 1;
-        let lookups = rounds.saturating_mul(timestamp_lookup_bytes(timestamp));
-        let referenced = rounds.saturating_mul(timestamp_referenced_bytes(timestamp));
+        let read_per_round = [
+            timestamp.head_receipts_bytes,
+            timestamp_lookup_bytes(timestamp),
+            timestamp_referenced_bytes(timestamp),
+        ]
+        .into_iter()
+        .fold(0, u64::saturating_add);
+        let read =
+            rounds.saturating_mul(read_per_round).saturating_add(timestamp_chain_bytes(timestamp));
         [
             CHAIN_TIMESTAMP * timestamp.chains,
             MESSAGE_CHECK * rounds * timestamp.messages,
-            (WITNESS_BYTE + READ_BYTE * rounds) * timestamp.head_receipts_bytes,
-            per_byte * timestamp_chain_bytes(timestamp),
             REPLACEMENT_GAS * timestamp.replaced_deposit_gas,
-            per_byte.saturating_mul(lookups),
-            per_byte.saturating_mul(referenced),
+            READ_BYTE.saturating_mul(read),
         ]
         .into_iter()
         .fold(total, u64::saturating_add)
@@ -457,8 +436,7 @@ mod tests {
         let base = estimate_consolidation_pgu(&consolidation);
         for larger in [
             ConsolidationCost { read_bytes: 2, ..consolidation },
-            ConsolidationCost { witness_bytes: 1, ..consolidation },
-            ConsolidationCost { log_checks: 1, ..consolidation },
+            ConsolidationCost { log_check_siblings: 1, ..consolidation },
             ConsolidationCost { batch_proofs: 1, ..consolidation },
             ConsolidationCost { replaced_gas: 1, ..consolidation },
         ] {

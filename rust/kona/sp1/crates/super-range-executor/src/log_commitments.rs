@@ -58,7 +58,6 @@ pub(crate) struct NativeConsolidation {
     pub(crate) served: Vec<B256>,
     pub(crate) witness_bytes: u64,
     pub(crate) read_bytes: u64,
-    pub(crate) log_checks: u64,
     pub(crate) log_check_siblings: u64,
 }
 
@@ -89,7 +88,7 @@ where
         outputs = run => Some(outputs),
     };
     // Check the record first: after a host failure, `outputs` is `None` or holds bogus verdicts.
-    let Recorded { openings, missing, served, log_checks, log_check_siblings } = record.finish()?;
+    let Recorded { openings, missing, served, log_check_siblings } = record.finish()?;
     let outputs = outputs.context("the consolidation run stopped without a host failure")??;
     let witness_bytes =
         witness.lock().map_err(|_| anyhow!("witness lock poisoned"))?.preimage_bytes() as u64;
@@ -100,7 +99,6 @@ where
         served,
         witness_bytes,
         read_bytes: read_bytes.load(Ordering::Relaxed),
-        log_checks,
         log_check_siblings,
     })
 }
@@ -161,8 +159,7 @@ struct RecordState {
     openings: BTreeMap<(B256, u64), LogOpening>,
     missing: BTreeMap<B256, MissingLogCommitment>,
     served: BTreeSet<B256>,
-    /// Log checks against an entry, each verifying an opening, and their siblings.
-    log_checks: u64,
+    /// Siblings of the openings that the log checks against an entry verify.
     log_check_siblings: u64,
     trees: TreeCache,
     /// The first host failure; later log checks answer without host work.
@@ -175,7 +172,6 @@ struct Recorded {
     openings: Vec<LogOpening>,
     missing: Vec<MissingLogCommitment>,
     served: Vec<B256>,
-    log_checks: u64,
     log_check_siblings: u64,
 }
 
@@ -199,7 +195,6 @@ impl LogCommitmentRecord {
             openings: std::mem::take(&mut state.openings).into_values().collect(),
             missing: std::mem::take(&mut state.missing).into_values().collect(),
             served: std::mem::take(&mut state.served).into_iter().collect(),
-            log_checks: state.log_checks,
             log_check_siblings: state.log_check_siblings,
         })
     }
@@ -336,10 +331,7 @@ where
         }
         match self.opening(index) {
             Ok(opening) => {
-                let mut state = self.record.state();
-                state.log_checks += 1;
-                state.log_check_siblings += opening.siblings.len() as u64;
-                drop(state);
+                self.record.state().log_check_siblings += opening.siblings.len() as u64;
                 opened_log_matches(&self.entry, &opening, origin, payload_hash)
             }
             Err(error) => {
@@ -524,10 +516,10 @@ mod tests {
                 .unwrap(),
         );
         assert!(chains.resolve(chains.withheld.clone(), native, 2));
-        let Recorded { openings, missing, log_checks, log_check_siblings, .. } =
-            record.finish().unwrap();
-        // Each round checks one log of block 1 (three logs) and one of block 2 (one log).
-        assert_eq!((log_checks, log_check_siblings), (4, 4));
+        let Recorded { openings, missing, log_check_siblings, .. } = record.finish().unwrap();
+        // Each round checks one log of block 1 (three logs: two siblings) and one of block 2 (one
+        // log: none).
+        assert_eq!(log_check_siblings, 4);
         assert!(missing.is_empty());
         let keys: Vec<_> =
             openings.iter().map(|opening| (opening.receipts_root, opening.index)).collect();

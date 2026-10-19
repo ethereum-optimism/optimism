@@ -859,9 +859,7 @@ async fn measure_against_estimate(
     let cost = ConsolidationCost {
         chain_timestamps: fixture.chains,
         message_checks: fixture.messages,
-        witness_bytes: witness.preimage_bytes() as u64,
         read_bytes: native.read_bytes + config_bytes,
-        log_checks: native.log_checks,
         log_check_siblings: native.log_check_siblings,
         batch_proofs: batches.len() as u64,
         batch_entries: batches
