@@ -5,6 +5,7 @@
 package expiry
 
 import (
+	"math/big"
 	"slices"
 	"testing"
 	"time"
@@ -20,6 +21,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -59,6 +62,7 @@ const productionExpiryPeriod = 8 * 24 * 60 * 60
 var (
 	failedRelayedMessageTopic = crypto.Keccak256Hash([]byte("FailedRelayedMessage(bytes32)"))
 	messageExpiredTopic       = crypto.Keccak256Hash([]byte("MessageExpired(bytes32,uint256)"))
+	refundETHTopic            = crypto.Keccak256Hash([]byte("RefundETH(address,uint256,bytes32)"))
 )
 
 // shortClocks shrinks the L1 dispute windows and game clocks until they can be waited out in
@@ -87,7 +91,8 @@ func TestShortGameClocksReachDeployedGames(gt *testing.T) {
 // TestUnrelayedMessageCannotExpireBeforeExpiryPeriod runs every leg of the expiry path: A sends
 // ETH that B never relays; B's exporter, forced in as a deposit, tells A's L1CrossDomainMessenger
 // through a withdrawal; A's L1CrossDomainMessenger deposits the word into A. The 8-day expiry
-// period cannot pass in this system, so A must reject the word.
+// period cannot pass in this system, so A must reject the word, and the send must not be
+// refundable.
 func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks())
@@ -120,13 +125,17 @@ func TestUnrelayedMessageCannotExpireBeforeExpiryPeriod(gt *testing.T) {
 	require.Equal(send.BlockTime, bigs.Uint64Strict(contract.Read(messengerA.SentMessageTimestamps(send.Message.Hash))),
 		"A must have recorded the message at its send time")
 	require.False(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must not expire early")
+	_, err := contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(sender.Address()))
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "an unexpired send must not be refundable")
+	require.False(send.Refunded(), "an unexpired send must not be marked refunded")
 }
 
-// TestUnrelayedMessageExpires runs the expiry path to its end: A sends ETH that B never relays;
-// once B is past the expiry period, B's exporter, forced in as a deposit, tells A through L1, and
-// A marks the message expired. The system deploys the messenger with a short expiry period so it
-// can pass within the test.
-func TestUnrelayedMessageExpires(gt *testing.T) {
+// TestUnrelayedMessageExpiresAndIsRefunded runs the expiry path to a refund: A sends ETH that B
+// never relays; once B is past the expiry period, B's exporter, forced in as a deposit, tells A
+// through L1; A marks the message expired, and the sender can then claim its ETH back, once.
+// The system deploys the messenger with a short expiry period so it can pass within the test.
+func TestUnrelayedMessageExpiresAndIsRefunded(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, shortClocks(),
 		presets.WithMessageExpiryWindow(testMessageExpiryWindow),
@@ -154,6 +163,26 @@ func TestUnrelayedMessageExpires(gt *testing.T) {
 			l.Topics[0] == messageExpiredTopic && l.Topics[1] == send.Message.Hash
 	}), "A's messenger must emit MessageExpired for the message")
 	require.True(contract.Read(messengerA.ExpiredMessages(send.Message.Hash)), "the message must be expired on A")
+
+	// Only the sender can claim the refund; the ETH goes back to it out of A's ETHLiquidity, once.
+	_, err := contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(recipient.Address()))
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_MessageNotExpired()")), "only the sender may claim the refund")
+	require.False(send.Refunded(), "the send must not be marked refunded before the refund")
+	refund := send.Refund(sender)
+	require.True(slices.ContainsFunc(refund.Logs, func(l *types.Log) bool {
+		return l.Address == predeploys.SuperchainETHBridgeAddr && len(l.Topics) == 3 &&
+			l.Topics[0] == refundETHTopic && l.Topics[1] == common.BytesToHash(sender.Address().Bytes()) &&
+			l.Topics[2] == send.Message.Hash && eth.WeiBig(new(big.Int).SetBytes(l.Data)) == eth.HalfEther
+	}), "the bridge must emit RefundETH returning the sent amount to the sender")
+	require.True(send.Refunded(), "the send must be marked refunded")
+	refundBlock := bigs.Uint64Strict(refund.BlockNumber)
+	require.Equal(balanceAt(t, sys.L2ELA, predeploys.ETHLiquidityAddr, refundBlock-1).Sub(eth.HalfEther),
+		balanceAt(t, sys.L2ELA, predeploys.ETHLiquidityAddr, refundBlock),
+		"the refund must pay the sent amount out of A's ETHLiquidity")
+	_, err = contractio.Read(send.RefundCall(), t.Ctx(), txplan.WithSender(sender.Address()))
+	require.ErrorContains(errutil.TryAddRevertReason(err),
+		hexutil.Encode(dsl.ErrorSelector("SuperchainETHBridge_AlreadyRefunded()")), "a send must be refunded only once")
 }
 
 // TestRelayedMessageCannotBeExportedAsUndelivered checks that a destination's exporter refuses to
@@ -192,4 +221,11 @@ func finalizeExport(sys *presets.SimpleInterop, l1User *dsl.EOA, exportRcpt *typ
 	withdrawal := sys.StandardBridge(sys.L2ChainB).WithdrawalFromReceipt(exportRcpt)
 	withdrawal.ProveAndFinalize(l1User, faultGameMaxClockDuration*time.Second)
 	return sys.L2ELA.WaitForDeposit(sys.L2ChainA.DepositContractAddr(), withdrawal.FinalizeReceipt())
+}
+
+// balanceAt returns the balance of addr on el at block number.
+func balanceAt(t devtest.T, el *dsl.L2ELNode, addr common.Address, number uint64) eth.ETH {
+	balance, err := el.EthClient().BalanceAt(t.Ctx(), addr, new(big.Int).SetUint64(number))
+	t.Require().NoError(err, "failed to read the balance of %s at block %d", addr, number)
+	return eth.WeiBig(balance)
 }

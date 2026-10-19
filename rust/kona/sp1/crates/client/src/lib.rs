@@ -3,6 +3,8 @@
 mod oracle;
 pub use oracle::BlobStore;
 
+pub mod log_commitment;
+
 pub mod precompiles;
 
 pub mod super_root;

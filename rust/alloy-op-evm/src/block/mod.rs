@@ -910,14 +910,6 @@ fn validate_block_gas(
     Ok(())
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::block::EthBlockExecutor`
-///
-/// Mirrors upstream's `BlockExecutor` impl, reusing its `EthTxResult` for the inner result
-/// but reimplementing every method. Known divergences to re-confirm on each bump: upstream
-/// tracks regular and state block gas separately and returns `GasOutput::with_state_gas`,
-/// this tracks `gas_used`/`evm_gas_used` and returns `GasOutput::new`; upstream's admission
-/// check clamps the transaction gas limit by `cfg.tx_gas_limit_cap`, `validate_block_gas`
-/// does not.
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
 where
     E: PostExecEvm,
@@ -937,6 +929,15 @@ where
     }
 }
 
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::block::EthBlockExecutor`
+///
+/// Mirrors upstream's `BlockExecutor` impl, reusing its `EthTxResult` for the inner result
+/// but reimplementing every method. Known divergences to re-confirm on each bump: upstream
+/// tracks regular and state block gas separately and returns `GasOutput::with_state_gas`,
+/// this tracks `gas_used`/`evm_gas_used` and returns `GasOutput::new`; upstream's admission
+/// check clamps the transaction gas limit by `cfg.tx_gas_limit_cap`, `validate_block_gas`
+/// does not. Upstream's Amsterdam state-gas capacity check is inapplicable until an OP fork maps
+/// to Amsterdam semantics.
 impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
 where
     E: PostExecEvm<

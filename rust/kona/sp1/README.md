@@ -14,6 +14,9 @@ The SP1 integration provides zkVM-based fault proofs for the OP Stack, allowing 
 
 zkVM programs that execute inside the SP1 prover:
 
+- **`log-commitment`**: Commits to the logs under each input receipts root as
+  `receipts_root ‖ log_count ‖ log_root` (72 bytes per root), so that interop message checks can
+  open a log without loading the block's receipts.
 - **`super-range`**: Unified super-root program for one or more chains, with modes for
   proving ranges and span-shaped consolidation.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
@@ -32,6 +35,8 @@ Supporting libraries for the SP1 fault proof system:
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
 - **`host`**: Host-side logging, metrics, prover-network configuration, and witness-generation utilities
+- **`log-commitment-vkey`**: Compile-time `log-commitment` guest verification key, embedded from
+  generated `elf/vkeys.toml` and used by `super-range` to verify log-commitment batch proofs
 - **`range-vkeys`**: Compile-time `super-range` guest verification key, embedded from generated
   `elf/vkeys.toml` and used by `super-aggregation`. The crate retains its historical name because
   it authenticates the shipping super-range child program.
@@ -75,13 +80,16 @@ supports the existing synthetic deployments without rebuilding for each deployme
 
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
+- **`log-commitment-elf`**: Compiled per-block log-commitment program
 - **`super-aggregation-elf`**: Compiled super-root aggregation program
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
 ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
-on linux/amd64 with `just build-elfs`; it builds the `super-range` leaf first, generates its vkey,
-and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`. Use
+on linux/amd64 with `just build-elfs`; it builds `log-commitment` and generates its vkey, then
+builds `super-range` with that vkey embedded through `kona-sp1-log-commitment-vkey`, generates its
+vkey, and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`.
+So the `super-range` and `super-aggregation` vkeys depend on the `log-commitment` ELF. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
 because paths and other environment details are embedded. The daily reproducibility job
@@ -114,7 +122,7 @@ aggregator must come from the same commit, not merely the same code. The marker 
 not attested: it records what an honest build embedded and proves nothing against a rewritten
 artifact.
 
-`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so both
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so all
 guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
 `KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
 describe. Builds outside the justfile record `unknown`.
@@ -134,7 +142,7 @@ custom configs produce different ELFs and verification-key hashes.
 
 ## Releases
 
-The two guest programs (`super-range` and `super-aggregation`) are released as ELFs under the
+The `super-range` and `super-aggregation` guest programs are released as ELFs under the
 `kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
 candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
 guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
@@ -151,7 +159,7 @@ family, with `op-zk-proposer/vX.Y.Z-rc.N` for release candidates. It is to
   programs execute. Tag both on the same commit; a proposer-only release with no program change is
   fine.
 - **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
-- **Every new commit rotates the vkeys**: both production guests embed the commit they were built
+- **Every new commit rotates the vkeys**: both released guests embed the commit they were built
   from (see [Build provenance](#build-provenance)), so a release tagged on a different commit from
   the previous one always has new vkeys, even if no guest code changed, and every consumer must
   repin. Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
@@ -370,6 +378,7 @@ Names below use the `op_zk_proposer_` prefix.
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
 | `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
 | `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
+| `tx_sends_total` | Counter | L1 sends by `outcome`: `confirmed`, `reverted` (mined with status 0) or `failed` (no receipt: send timeout, nonce-too-low abort, or an error before publishing such as a gas-estimation revert). |
 
 Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
@@ -393,6 +402,16 @@ timed out; the next attempt can reuse the request.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
+
+L1 send diagnostics: `op_zk_proposer_tx_publish_errors_total` counts publishes that
+returned an error or no answer, by `reason` (`underpriced`, `nonce_too_low`,
+`rejected`, `no_response`); a `no_response` publish may still have reached the pool.
+Its `bump_failed` reason counts fee bumps that failed, for example when
+`OP_ZK_PROPOSER_MAX_FEE_PER_GAS` blocks the replacement.
+`op_zk_proposer_tx_fee_bumps_total` counts fee-bumped replacements sent to the node.
+`op_zk_proposer_tx_send_duration_seconds` is the duration of the latest send that
+got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
+`gas_used * effective_gas_price` over those sends, in whole gwei.
 
 ### Environment
 

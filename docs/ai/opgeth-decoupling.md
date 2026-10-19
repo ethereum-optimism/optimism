@@ -276,7 +276,7 @@ gaps ride #20270.
 
 ---
 
-## 8. `consensus/misc/eip1559` – Holocene/Jovian helpers — op-node **DONE** (#20268), helpers missing for §13/§14
+## 8. `consensus/misc/eip1559` – Holocene/Jovian helpers — op-node **DONE** (#20268), helpers missing for §13
 
 `op-core/eip1559` landed and op-node is fully switched (no op-node production code imports geth's
 eip1559; one test file still does — a fork-comparison import that goes away at cutover).
@@ -284,8 +284,7 @@ Signatures operate on `[]byte`/`uint64` only.
 
 Still absent from `op-core/eip1559`: only `EncodeOptimismExtraData` and `DecodeHoloceneExtraData`
 (the Holocene/Jovian encode helpers are already present) — add them when §13 migrates the op-e2e
-helpers. The geth-eip1559 imports remaining in genesis (§14) are pure import swaps onto the
-existing op-core helpers.
+helpers.
 
 ---
 
@@ -416,21 +415,30 @@ upstream-stable APIs.
 
 ---
 
-## 14. Genesis tooling — op-geth as a *library*, not an engine — open (#21281)
+## 14. Genesis tooling — op-geth as a *library*, not an engine — **DONE** (#21281)
 
 Removing op-geth has two parts: op-geth as the execution *engine* (in-process ELs — deleted or
 replaced by op-reth; §17, #21196) and op-geth as a *library* in offline tooling. The genuine
 in-scope library consumer is **`op-chain-ops/genesis`** (`BuildL2Genesis`: genesis state-root +
 `genesis.json`). `op-simulate`/`op-run-block` were deleted instead (#21282, closed — no importers).
 
-The only op-geth *diff* the genesis path relies on: for Isthmus+ chains the genesis block's
-`WithdrawalsHash` is the storage root of the `L2ToL1MessagePasser` predeploy (via the upstream
-`GetStorageRoot` primitive) instead of the empty hash. Migration (#21281): genesis builds an
-`opparams.ChainConfig` and serialises *that* into `genesis.json` (it carries the OP fields;
-upstream's config cannot); the block/state-root is computed against upstream via
-`GethChainConfig()`; the ~15-line Isthmus withdrawals-root rule is ported on top of upstream
-`state`/`triedb` + `op-core/predeploys`. This is why `GethChainConfig()` is a real bridge rather
-than throwaway.
+`op-chain-ops/genesis` builds an `op-core/genesis.Genesis` around an `opparams.ChainConfig`. That
+type is the one L2 genesis JSON encoding: the `core.Genesis` envelope (header fields, alloc) with
+a `config` object in `opparams.ChainConfig`'s own JSON encoding; op-geth's `stateHash` genesis key
+is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ethereum: the block
+`core.Genesis.ToBlock()` builds for `GethGenesis()`, with the one OP rule op-geth's genesis path
+adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
+`L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
+`GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
+the in-process op-geth ELs of op-e2e and op-devstack (§17) and op-e2e's action-test
+`SetupData.L2Cfg`. op-devstack's `L2Network.ChainConfig()` still returns the go-ethereum config
+`GethChainConfig()` derives (§13).
+
+`opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
+embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
+same-named embedded one, so the OP fields win over op-geth's duplicates and need no change once
+upstream's config has none. The Ethereum fork keys of a decoded config are not kept (they are
+re-derived on encoding, and decoding rejects one that contradicts the derivation).
 
 ---
 
@@ -757,7 +765,7 @@ monorepo has to fix on their behalf.
 | op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work; cannon test support rides #23405 |
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth, fork-symbol swaps (§13) | `apis.EthClient` + header-only variants + op-core | open (#20265 + subs, incl. #23405) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
-| Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
+| Genesis tooling (§14) | `op-core/genesis` on upstream geth + `opparams` | **done** (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash + fork-config swaps | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |

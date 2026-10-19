@@ -73,7 +73,6 @@ interface IOPContractsManagerStandardValidator {
     function preimageOracleVersion() external pure returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfigImpl() external view returns (address);
-    function withdrawalDelaySeconds() external view returns (uint256);
     function standardValidatorUtils() external view returns (IStandardValidatorUtils);
     function migrationValidator() external view returns (IOPContractsManagerMigrationValidator);
 
@@ -123,7 +122,6 @@ interface IOPContractsManagerStandardValidator {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,
-        uint256 _withdrawalDelaySeconds,
         bytes32 _devFeatureBitmap
     )
         external;

@@ -9,13 +9,13 @@
 extern crate alloc;
 
 mod graph;
-pub use graph::MessageGraph;
+pub use graph::{BlockWithReceipts, BlocksWithReceipts, MessageGraph};
 
 mod rules;
 pub use rules::MessageRules;
 
 mod traits;
-pub use traits::InteropProvider;
+pub use traits::{InitiatingLogs, InteropProvider, LogCommitment};
 
 mod safety;
 
@@ -50,6 +50,6 @@ pub use constants::{MESSAGE_EXPIRY_WINDOW, SUPER_ROOT_VERSION};
 mod test_util;
 #[cfg(any(test, feature = "test-utils"))]
 pub use test_util::{
-    ChainBuilder, ExecutingMessageBuilder, InteropProviderError, MockInteropProvider,
+    ChainBuilder, ExecutingMessageBuilder, InteropProviderError, LeafList, MockInteropProvider,
     SuperchainBuilder,
 };

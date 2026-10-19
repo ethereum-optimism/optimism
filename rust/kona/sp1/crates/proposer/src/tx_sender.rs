@@ -17,6 +17,8 @@
 //! - Aborts on "nonce too low" with txmgr's rules: at once if nothing was published, after 3
 //!   otherwise, never while a version is mined.
 //! - Bounds every RPC and signer call by 10s and the whole send by the caller's timeout.
+//! - Records each send's outcome, duration and fees, plus publish errors and fee bumps, in the
+//!   `op_zk_proposer_tx_*` metrics.
 //!
 //! Not supported from txmgr, to keep the sender limited to what the proposer needs:
 //! - Configurable fee-limit multiplier and threshold; txmgr's defaults are fixed.
@@ -29,7 +31,9 @@
 //! - Blob transactions.
 //! - Concurrent sends (`SendAsync`, `Queue`, cached nonces); callers serialize through
 //!   `SignerLock`.
-//! - Waiting for a mined transaction on shutdown, runtime reconfiguration and metrics.
+//! - Waiting for a mined transaction on shutdown, and runtime reconfiguration.
+//! - txmgr's other metrics: base fee and tip gauges, RPC error, pending transaction and nonce
+//!   counts (the proposer exports signer nonces itself), transaction type and fee histogram.
 
 use std::{collections::HashSet, future::IntoFuture, time::Duration};
 
@@ -43,7 +47,7 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use parking_lot::Mutex;
 use tokio::time::{Instant, MissedTickBehavior, interval_at, timeout};
 
-use crate::signer::Signer;
+use crate::{metrics, signer::Signer};
 
 /// Number of L1 confirmations required before a transaction is considered included.
 pub const NUM_CONFIRMATIONS: u64 = 3;
@@ -203,9 +207,13 @@ pub(crate) async fn send_transaction<P: Provider>(
     send_timeout: Duration,
     caps: FeeCaps,
 ) -> Result<TransactionReceipt> {
-    timeout(send_timeout, send(provider, signer, request, caps))
+    let start = Instant::now();
+    let result = timeout(send_timeout, send(provider, signer, request, caps))
         .await
-        .map_err(|_| anyhow!("transaction not confirmed within {}s", send_timeout.as_secs()))?
+        .map_err(|_| anyhow!("transaction not confirmed within {}s", send_timeout.as_secs()))
+        .flatten();
+    metrics::record_tx_send(&result, start.elapsed());
+    result
 }
 
 async fn send<P: Provider>(
@@ -275,12 +283,48 @@ async fn poll_receipts<P: Provider>(
     }
 }
 
-/// Why a publish did not return a hash.
+/// Why a publish did not return a hash, parsed once from the node's answer.
 enum PublishError {
-    /// The node answered with an error, so it did not accept this version.
+    /// The pool already holds this version.
+    AlreadyKnown,
+    /// The pool wants a higher price for this version.
+    Underpriced(String),
+    /// Another transaction already used the nonce.
+    NonceTooLow(String),
+    /// Any other error answer: the node did not accept this version.
     Rejected(String),
     /// No answer from the node (timeout or transport failure); it may have accepted this version.
     Unknown(String),
+}
+
+/// Every `reason` label of the publish-error metric, so its series start at 0.
+pub(crate) const PUBLISH_ERROR_REASONS: [&str; 5] =
+    ["underpriced", "nonce_too_low", "rejected", "no_response", "bump_failed"];
+
+impl PublishError {
+    /// Classifies an error answer by the geth messages txmgr matches.
+    fn from_error_answer(message: String) -> Self {
+        if message.contains("already known") {
+            Self::AlreadyKnown
+        } else if message.contains("transaction underpriced") {
+            Self::Underpriced(message)
+        } else if message.contains("nonce too low") {
+            Self::NonceTooLow(message)
+        } else {
+            Self::Rejected(message)
+        }
+    }
+
+    /// Metrics label; `None` for "already known", which is not an error.
+    const fn reason(&self) -> Option<&'static str> {
+        match self {
+            Self::AlreadyKnown => None,
+            Self::Underpriced(_) => Some("underpriced"),
+            Self::NonceTooLow(_) => Some("nonce_too_low"),
+            Self::Rejected(_) => Some("rejected"),
+            Self::Unknown(_) => Some("no_response"),
+        }
+    }
 }
 
 /// The unsigned request and its latest signed version.
@@ -303,20 +347,23 @@ impl<P: Provider> Publisher<'_, P> {
             if bump {
                 match self.bump_fees().await {
                     Ok(()) if state.lock().is_waiting_for_confirmation() => return,
-                    Ok(()) => {}
+                    Ok(()) => metrics::record_tx_fee_bump(),
                     Err(error) => {
                         tracing::warn!(
                             error = format!("{error:#}"),
                             "Unable to bump fees, republishing the current transaction"
                         );
+                        metrics::record_tx_publish_error("bump_failed");
                         bump_failed = true;
                     }
                 }
             }
-            match self.send_raw().await {
-                Err(PublishError::Rejected(error))
-                    if !bump_failed && error.contains("transaction underpriced") =>
-                {
+            let result = self.send_raw().await;
+            if let Some(reason) = result.as_ref().err().and_then(PublishError::reason) {
+                metrics::record_tx_publish_error(reason);
+            }
+            match result {
+                Err(PublishError::Underpriced(error)) if !bump_failed => {
                     tracing::warn!(error, "Transaction underpriced, bumping fees");
                     bump = true;
                 }
@@ -330,7 +377,7 @@ impl<P: Provider> Publisher<'_, P> {
         match timeout(NETWORK_TIMEOUT, self.provider.send_raw_transaction(&raw)).await {
             Ok(Ok(_)) => Ok(()),
             Ok(Err(error)) if error.as_error_resp().is_some() => {
-                Err(PublishError::Rejected(error.to_string()))
+                Err(PublishError::from_error_answer(error.to_string()))
             }
             Ok(Err(error)) => Err(PublishError::Unknown(error.to_string())),
             Err(_) => Err(PublishError::Unknown(format!(
@@ -358,16 +405,18 @@ impl<P: Provider> Publisher<'_, P> {
                 fee_cap = self.fees.fee_cap,
                 "Published transaction"
             ),
-            Err(PublishError::Rejected(error)) if error.contains("already known") => {
+            Err(PublishError::AlreadyKnown) => {
                 tracing::debug!(%hash, nonce, "Transaction already in the pool");
             }
             Err(PublishError::Unknown(error)) => {
                 tracing::warn!(%hash, nonce, error, "Publish outcome unknown, polling the transaction");
             }
-            Err(PublishError::Rejected(error)) => {
-                if error.contains("nonce too low") {
-                    state.nonce_too_low += 1;
-                }
+            Err(PublishError::NonceTooLow(error)) => {
+                state.nonce_too_low += 1;
+                tracing::warn!(%hash, nonce, error, "Unable to publish transaction");
+                return;
+            }
+            Err(PublishError::Underpriced(error) | PublishError::Rejected(error)) => {
                 tracing::warn!(%hash, nonce, error, "Unable to publish transaction");
                 return;
             }

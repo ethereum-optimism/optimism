@@ -13,6 +13,7 @@ import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
@@ -51,6 +52,12 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
     GameType internal respectedGameType;
+
+    /// @notice The configured proof maturity delay. Read once in setUp so tests can pass it back to
+    ///         initialize() without an external call consuming a pending prank.
+    uint256 internal portalProofMaturityDelay;
+
+    event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
@@ -101,6 +108,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         }
 
         depositor = makeAddr("depositor");
+        portalProofMaturityDelay = optimismPortal2.proofMaturityDelaySeconds();
 
         setupFaultDisputeGame(Claim.wrap(_outputRoot));
 
@@ -234,6 +242,28 @@ contract OptimismPortal2_Constructor_Test is OptimismPortal2_TestInit {
         assertEq(opImpl.l2Sender(), address(0));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.ethLockbox()), address(0));
+        // The delay lives in proxy storage; only its bounds are set on the implementation.
+        assertEq(opImpl.proofMaturityDelaySeconds(), 0);
+        assertEq(opImpl.minProofMaturityDelaySeconds(), deploy.cfg().minProofMaturityDelaySeconds());
+        assertEq(opImpl.maxProofMaturityDelaySeconds(), deploy.cfg().maxProofMaturityDelaySeconds());
+    }
+
+    /// @notice Tests that the constructor rejects a zero lower bound.
+    function test_constructor_zeroMinBound_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "OptimismPortal2",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, (0, 1)))
+        });
+    }
+
+    /// @notice Tests that the constructor rejects inverted bounds.
+    function test_constructor_invertedBounds_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "OptimismPortal2",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, (2, 1)))
+        });
     }
 }
 
@@ -309,7 +339,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry, ethLockbox);
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, ethLockbox, portalProofMaturityDelay);
     }
 
     /// @notice Tests that the initialize function reverts when lockbox state is invalid.
@@ -337,7 +367,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function
         vm.prank(address(proxyAdmin));
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)), portalProofMaturityDelay);
     }
 
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
@@ -359,7 +389,37 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)), portalProofMaturityDelay);
+    }
+
+    /// @notice Tests that the initializer stores the proof maturity delay and emits the event.
+    function test_initialize_setsProofMaturityDelay_succeeds() external {
+        uint256 newDelay = optimismPortal2.minProofMaturityDelaySeconds();
+
+        // Reset the initialized slot so initialize() can run again.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Passing a zero lockbox keeps the current one, so this works in every feature mode.
+        vm.expectEmit(address(optimismPortal2));
+        emit ProofMaturityDelaySecondsSet(newDelay);
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)), newDelay);
+
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), newDelay);
+    }
+
+    /// @notice Tests that the initializer rejects a proof maturity delay outside the bounds.
+    function test_initialize_proofMaturityDelayOutOfBounds_reverts() external {
+        uint256 tooHigh = optimismPortal2.maxProofMaturityDelaySeconds() + 1;
+
+        // Reset the initialized slot so initialize() can run again.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelay.selector);
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)), tooHigh);
     }
 }
 
@@ -402,9 +462,146 @@ contract OptimismPortal2_Paused_Test is OptimismPortal2_TestInit {
 /// @title OptimismPortal2_ProofMaturityDelaySeconds_Test
 /// @notice Test contract for OptimismPortal2 `proofMaturityDelaySeconds` function.
 contract OptimismPortal2_ProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
-    /// @notice Tests that `proofMaturityDelaySeconds` returns the correct delay.
+    /// @notice Tests that `proofMaturityDelaySeconds` returns a delay within the configured bounds.
     function test_proofMaturityDelaySeconds_succeeds() external view {
-        assertTrue(optimismPortal2.proofMaturityDelaySeconds() > 0);
+        uint256 delay = optimismPortal2.proofMaturityDelaySeconds();
+        assertTrue(delay > 0);
+        assertGe(delay, optimismPortal2.minProofMaturityDelaySeconds());
+        assertLe(delay, optimismPortal2.maxProofMaturityDelaySeconds());
+    }
+}
+
+/// @title OptimismPortal2_MinProofMaturityDelaySeconds_Test
+/// @notice Test contract for OptimismPortal2 `minProofMaturityDelaySeconds` function.
+contract OptimismPortal2_MinProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
+    /// @notice Tests that `minProofMaturityDelaySeconds` returns the configured lower bound.
+    function test_minProofMaturityDelaySeconds_succeeds() external view {
+        assertEq(optimismPortal2.minProofMaturityDelaySeconds(), deploy.cfg().minProofMaturityDelaySeconds());
+    }
+}
+
+/// @title OptimismPortal2_MaxProofMaturityDelaySeconds_Test
+/// @notice Test contract for OptimismPortal2 `maxProofMaturityDelaySeconds` function.
+contract OptimismPortal2_MaxProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
+    /// @notice Tests that `maxProofMaturityDelaySeconds` returns the configured upper bound.
+    function test_maxProofMaturityDelaySeconds_succeeds() external view {
+        assertEq(optimismPortal2.maxProofMaturityDelaySeconds(), deploy.cfg().maxProofMaturityDelaySeconds());
+    }
+}
+
+/// @title OptimismPortal2_SetProofMaturityDelaySeconds_Test
+/// @notice Test contract for OptimismPortal2 `setProofMaturityDelaySeconds` function.
+contract OptimismPortal2_SetProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
+    /// @notice Tests that the ProxyAdmin owner can set any in-range delay and the event is emitted.
+    /// @param _delay The new proof maturity delay.
+    function testFuzz_setProofMaturityDelaySeconds_succeeds(uint256 _delay) external {
+        _delay = bound(
+            _delay, optimismPortal2.minProofMaturityDelaySeconds(), optimismPortal2.maxProofMaturityDelaySeconds()
+        );
+
+        vm.expectEmit(address(optimismPortal2));
+        emit ProofMaturityDelaySecondsSet(_delay);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(_delay);
+
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), _delay);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can set the delay.
+    /// @param _caller The address attempting the call.
+    function testFuzz_setProofMaturityDelaySeconds_notProxyAdminOwner_reverts(address _caller) external {
+        vm.assume(_caller != proxyAdminOwner);
+        uint256 delay = optimismPortal2.minProofMaturityDelaySeconds();
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        optimismPortal2.setProofMaturityDelaySeconds(delay);
+    }
+
+    /// @notice Tests that a delay below the lower bound is rejected.
+    function test_setProofMaturityDelaySeconds_belowMin_reverts() external {
+        uint256 tooLow = optimismPortal2.minProofMaturityDelaySeconds() - 1;
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(tooLow);
+    }
+
+    /// @notice Tests that a delay above the upper bound is rejected.
+    function test_setProofMaturityDelaySeconds_aboveMax_reverts() external {
+        uint256 tooHigh = optimismPortal2.maxProofMaturityDelaySeconds() + 1;
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(tooHigh);
+    }
+
+    /// @notice Tests that lowering the delay applies to withdrawals that were already proven: a
+    ///         withdrawal blocked under the old delay becomes finalizable as soon as the delay drops.
+    function test_setProofMaturityDelaySeconds_lowerAppliesToProvenWithdrawal_succeeds() external {
+        uint256 oldDelay = optimismPortal2.proofMaturityDelaySeconds();
+        uint256 newDelay = optimismPortal2.minProofMaturityDelaySeconds();
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 waitTime = newDelay > finalityDelay ? newDelay : finalityDelay;
+        // The scenario needs room between the new delay (plus finality) and the old delay.
+        assertLt(waitTime, oldDelay);
+
+        // Prove the withdrawal.
+        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        uint256 provenAt = block.timestamp;
+
+        // Treat the game as resolved for the defender at creation so only the delays gate finalization.
+        vm.mockCall(address(game), abi.encodeCall(game.resolvedAt, ()), abi.encode(game.createdAt()));
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Past the new delay and the finality delay, but not the old delay: still blocked.
+        vm.warp(provenAt + waitTime + 1);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Lower the delay; the already-proven withdrawal is finalizable immediately.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(newDelay);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that raising the delay applies to withdrawals that were already proven: a
+    ///         withdrawal that was finalizable under the old delay is blocked until the new one.
+    function test_setProofMaturityDelaySeconds_raiseAppliesToProvenWithdrawal_succeeds() external {
+        uint256 lowDelay = optimismPortal2.minProofMaturityDelaySeconds();
+        uint256 highDelay = optimismPortal2.maxProofMaturityDelaySeconds();
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 waitTime = lowDelay > finalityDelay ? lowDelay : finalityDelay;
+        // The scenario needs room between the low delay (plus finality) and the high delay.
+        assertLt(waitTime, highDelay);
+
+        // Start from the low delay.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(lowDelay);
+
+        // Prove the withdrawal.
+        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        uint256 provenAt = block.timestamp;
+
+        // Treat the game as resolved for the defender at creation so only the delays gate finalization.
+        vm.mockCall(address(game), abi.encodeCall(game.resolvedAt, ()), abi.encode(game.createdAt()));
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Finalizable under the low delay.
+        vm.warp(provenAt + waitTime + 1);
+        optimismPortal2.checkWithdrawal(_withdrawalHash, address(this));
+
+        // Raise the delay; the same withdrawal is blocked again.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(highDelay);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Once the new delay has passed it finalizes.
+        vm.warp(provenAt + highDelay + 1);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
 }
 
@@ -785,13 +982,16 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         Proposal memory startingAnchorRoot =
             Proposal({ root: Hash.wrap(keccak256("starting-anchor-root")), l2SequenceNumber: 1 });
 
+        // Read before the prank so the external call does not consume it.
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+
         vm.prank(proxyAdminAddr);
         Proxy(payable(newProxy))
             .upgradeToAndCall(
                 impl,
                 abi.encodeCall(
                     IAnchorStateRegistry.initialize,
-                    (_ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
+                    (_ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED, finalityDelay)
                 )
             );
 

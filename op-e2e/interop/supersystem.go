@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core"
@@ -87,7 +88,7 @@ type SuperSystem interface {
 	ChainID(network string) *big.Int
 	RollupConfig(network string) *rollup.Config
 	L1Genesis() *core.Genesis
-	L2Genesis(network string) *core.Genesis
+	L2Genesis(network string) *opgenesis.Genesis
 	UserKey(network, username string) ecdsa.PrivateKey
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
@@ -277,7 +278,7 @@ func (s *interopE2ESystem) RollupConfig(network string) *rollup.Config {
 	return s.l2s[network].l2Out.RollupCfg
 }
 
-func (s *interopE2ESystem) L2Genesis(network string) *core.Genesis {
+func (s *interopE2ESystem) L2Genesis(network string) *opgenesis.Genesis {
 	return s.l2s[network].l2Out.Genesis
 }
 

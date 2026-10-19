@@ -327,7 +327,7 @@ jobs:
             if [ -n "<< parameters.features >>" ]; then
               EXPECTED="${EXPECTED}-test"
             fi
-            for ELF in super-range-elf super-aggregation-elf; do
+            for ELF in log-commitment-elf super-range-elf super-aggregation-elf; do
               PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
               set +e
               FOUND=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "${PATH_TO_ELF}" | sort -u)
@@ -366,11 +366,11 @@ jobs:
             RUSTFLAGS: -Dwarnings
           command: just lint-sp1-guest
       - run:
-          name: Check + test the range-vkeys crate
+          name: Check + test the vkey crates
           working_directory: rust
           environment:
             RUSTFLAGS: -Dwarnings
-          command: just check-range-vkeys
+          command: just check-vkey-crates
       - rust-save-build-cache: *sp1-guest-checks-cache-args
 
   sp1-super-range-elf-smoke:
@@ -442,6 +442,12 @@ jobs:
               -timeout=30m \
               -run '^TestDeploymentUsesSuperAggregationVKey$' \
               ./op-acceptance-tests/tests/proofs/zk
+      - run:
+          name: Test log-commitment and consolidation ELFs against native output
+          working_directory: rust
+          command: |
+            KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
+              cargo nextest run --package kona-sp1-super-range-executor --lib --test log_commitment
       - go-save-cache:
           namespace: sp1-super-range-elf-smoke
       - store_test_results:
