@@ -8,7 +8,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::B256;
-use anyhow::{Result, ensure};
 use op_alloy_consensus::OpReceiptEnvelope;
 
 /// Unit costs of the `log-commitment` program.
@@ -90,9 +89,6 @@ pub const MAX_STDIN_BYTES: u64 = 4 << 30;
 /// The most entries in one batch, so the consolidation's decode of a batch stays small.
 pub const MAX_ENTRIES_PER_BATCH: usize = 4_096;
 
-/// Batches fill to this share of the log gas limit, by estimate.
-const BATCH_FILL_PERCENT: u64 = 80;
-
 /// The witness bytes of the receipts trie of `receipts`: its nodes and their keys.
 pub fn receipts_trie_bytes(receipts: &[OpReceiptEnvelope]) -> u64 {
     let mut trie =
@@ -140,49 +136,71 @@ pub struct LogBatchBlock {
     pub witness_bytes: u64,
 }
 
-/// Packs `blocks` into batches for a log gas limit of `gas_limit`.
+/// Groups `blocks` into log-commitment batches of at most `budget` PGU by estimate, at most
+/// [`MAX_ENTRIES_PER_BATCH`] entries, and at most `witness_limit` witness bytes.
 ///
-/// Keeps one block per receipts root, orders blocks by `(chain_id, number)`, and fills each batch
-/// while its estimate stays within 80% of `gas_limit`, its witness within [`MAX_WITNESS_BYTES`],
-/// and it holds at most [`MAX_ENTRIES_PER_BATCH`] entries. Fails if one block alone is over a
-/// budget.
-pub fn pack_log_commitment_batches(
+/// Keeps one block per receipts root and orders blocks by `(chain_id, number)`. Cuts them with
+/// [`split_log_batches`] into the fewest groups that the totals allow, then halves any group still
+/// over a cap until it fits or holds one block. A one-block group may stay over a cap.
+pub fn batch_log_blocks(
     mut blocks: Vec<LogBatchBlock>,
-    gas_limit: u64,
-) -> Result<Vec<Vec<LogBatchBlock>>> {
-    let budget = gas_limit / 100 * BATCH_FILL_PERCENT;
+    budget: u64,
+    witness_limit: u64,
+) -> Vec<Vec<LogBatchBlock>> {
     blocks.sort_by_key(|block| (block.chain_id, block.number));
     let mut roots = BTreeSet::new();
     blocks.retain(|block| roots.insert(block.receipts_root));
-    let mut batches: Vec<Vec<LogBatchBlock>> = Vec::new();
-    let (mut batch_pgu, mut batch_bytes): (u64, u64) = (0, 0);
-    for block in blocks {
-        let alone = estimate_log_commitment_pgu([block.pgu]);
-        ensure!(
-            alone <= budget && block.witness_bytes <= MAX_WITNESS_BYTES,
-            "block {} of chain {} is estimated at {alone} PGU and {} witness bytes in a batch of \
-             its own, over the budget {budget} (80% of the log gas limit) or {MAX_WITNESS_BYTES}",
-            block.number,
-            block.chain_id,
-            block.witness_bytes,
-        );
-        match batches.last_mut() {
-            Some(batch)
-                if batch.len() < MAX_ENTRIES_PER_BATCH &&
-                    batch_pgu.saturating_add(block.pgu) <= budget &&
-                    batch_bytes + block.witness_bytes <= MAX_WITNESS_BYTES =>
-            {
-                batch_pgu += block.pgu;
-                batch_bytes += block.witness_bytes;
-                batch.push(block);
-            }
-            _ => {
-                (batch_pgu, batch_bytes) = (alone, block.witness_bytes);
-                batches.push(vec![block]);
-            }
+    let fits = |group: &[LogBatchBlock]| {
+        group.len() <= MAX_ENTRIES_PER_BATCH &&
+            estimate_log_commitment_pgu(group.iter().map(|block| block.pgu)) <= budget &&
+            group.iter().map(|block| block.witness_bytes).sum::<u64>() <= witness_limit
+    };
+    let parts = log_batch_parts(&blocks, budget, witness_limit);
+    let mut pending = split_log_batches(&blocks, parts);
+    pending.reverse();
+    let mut batches = Vec::with_capacity(pending.len());
+    while let Some(group) = pending.pop() {
+        if group.len() > 1 && !fits(&group) {
+            pending.extend(split_log_batches(&group, 2).into_iter().rev());
+        } else {
+            batches.push(group);
         }
     }
-    Ok(batches)
+    batches
+}
+
+/// The fewest batches that can hold `blocks` within `budget` PGU, [`MAX_ENTRIES_PER_BATCH`]
+/// entries, and `witness_limit` witness bytes each, if the blocks split evenly.
+fn log_batch_parts(blocks: &[LogBatchBlock], budget: u64, witness_limit: u64) -> usize {
+    let pgu: u64 = blocks.iter().map(|block| block.pgu).fold(0, u64::saturating_add);
+    let witness_bytes: u64 = blocks.iter().map(|block| block.witness_bytes).sum();
+    let by_pgu = pgu.div_ceil(budget.saturating_sub(log_pgu::BATCH).max(1));
+    let by_witness = witness_bytes.div_ceil(witness_limit.max(1));
+    let by_entries = blocks.len().div_ceil(MAX_ENTRIES_PER_BATCH) as u64;
+    by_pgu.max(by_witness).max(by_entries).max(1) as usize
+}
+
+/// Cuts `blocks` into at most `parts` contiguous, non-empty groups of about equal estimated PGU:
+/// a block goes to the group whose share of the total cost holds its midpoint. With two or more
+/// blocks and `parts >= 2`, there are at least two groups.
+pub fn split_log_batches(blocks: &[LogBatchBlock], parts: usize) -> Vec<Vec<LogBatchBlock>> {
+    // Every block weighs at least 1, so blocks without an estimate still spread out.
+    let weight = |block: &LogBatchBlock| u128::from(block.pgu.max(1));
+    let total: u128 = blocks.iter().map(weight).sum();
+    let parts = parts.clamp(1, blocks.len().max(1)) as u128;
+    let mut groups: Vec<Vec<LogBatchBlock>> = Vec::new();
+    let mut last_group = None;
+    let mut before = 0;
+    for block in blocks {
+        let group = (2 * before + weight(block)) * parts / (2 * total);
+        before += weight(block);
+        if last_group != Some(group) {
+            groups.push(Vec::new());
+            last_group = Some(group);
+        }
+        groups.last_mut().expect("a group was just pushed").push(*block);
+    }
+    groups
 }
 
 /// What drives the PGU of one consolidation request, from its collection and the message scan.
@@ -356,42 +374,71 @@ mod tests {
         })
     }
 
-    /// Pins the 80% budget, the witness and entry caps, the order, and one block per root.
-    #[test]
-    fn batch_packer_respects_budget_and_entry_cap() {
-        let gas_limit = 1_000 * log_pgu::BATCH;
-        let budget = gas_limit / 100 * BATCH_FILL_PERCENT;
-        let mut blocks: Vec<_> =
-            (1..=10).rev().map(|number| block(1, number, budget / 4)).collect();
-        blocks.push(block(1, 3, budget / 4));
-        let batches = pack_log_commitment_batches(blocks, gas_limit).unwrap();
-        let numbers: Vec<Vec<u64>> =
-            batches.iter().map(|batch| batch.iter().map(|block| block.number).collect()).collect();
-        assert_eq!(numbers, [vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![10]]);
-        for batch in &batches {
-            assert!(estimate_log_commitment_pgu(batch.iter().map(|block| block.pgu)) <= budget);
-        }
-
-        let cheap: Vec<_> = (0..MAX_ENTRIES_PER_BATCH as u64 + 1).map(|n| block(2, n, 1)).collect();
-        let sizes: Vec<_> =
-            pack_log_commitment_batches(cheap, gas_limit).unwrap().iter().map(Vec::len).collect();
-        assert_eq!(sizes, [MAX_ENTRIES_PER_BATCH, 1]);
-
-        let large: Vec<_> = (0..3)
-            .map(|n| LogBatchBlock { witness_bytes: MAX_WITNESS_BYTES / 2, ..block(3, n, 1) })
-            .collect();
-        let sizes: Vec<_> =
-            pack_log_commitment_batches(large, gas_limit).unwrap().iter().map(Vec::len).collect();
-        assert_eq!(sizes, [2, 1]);
+    fn numbers(groups: &[Vec<LogBatchBlock>]) -> Vec<Vec<u64>> {
+        groups.iter().map(|group| group.iter().map(|block| block.number).collect()).collect()
     }
 
-    /// Pins an error that names a block over the budget in a batch of its own.
+    /// Pins the part count as the largest of the PGU, witness, and entry terms.
     #[test]
-    fn over_budget_block_errors() {
-        let gas_limit = 1_000 * log_pgu::BATCH;
-        let err =
-            pack_log_commitment_batches(vec![block(7, 42, gas_limit)], gas_limit).unwrap_err();
-        assert!(err.to_string().contains("block 42 of chain 7"), "{err}");
+    fn log_batch_parts_takes_the_largest_term() {
+        let budget = 11 * log_pgu::BATCH;
+        let blocks: Vec<_> = (0..10).map(|n| block(1, n, log_pgu::BATCH)).collect();
+        assert_eq!(log_batch_parts(&blocks, budget, u64::MAX), 1);
+        assert_eq!(log_batch_parts(&blocks, 6 * log_pgu::BATCH, u64::MAX), 2);
+        assert_eq!(log_batch_parts(&blocks, budget, 3), 4);
+        let cheap: Vec<_> =
+            (0..2 * MAX_ENTRIES_PER_BATCH as u64 + 1).map(|n| block(2, n, 0)).collect();
+        assert_eq!(log_batch_parts(&cheap, budget, u64::MAX), 3);
+        assert_eq!(log_batch_parts(&[], budget, u64::MAX), 1);
+    }
+
+    /// Pins contiguous groups that hold every block once, in order, with costs within one block
+    /// of an even share.
+    #[test]
+    fn split_log_batches_is_contiguous_and_balanced() {
+        let blocks: Vec<_> = (0..20).map(|n| block(1, n, 1 + n % 7)).collect();
+        let total: u64 = blocks.iter().map(|block| block.pgu).sum();
+        let largest = blocks.iter().map(|block| block.pgu).max().unwrap();
+        for parts in 1..=6 {
+            let groups = split_log_batches(&blocks, parts);
+            assert_eq!(groups.len(), parts);
+            assert_eq!(groups.concat(), blocks);
+            for group in &groups {
+                let cost: u64 = group.iter().map(|block| block.pgu).sum();
+                assert!(cost.abs_diff(total / parts as u64) <= largest, "{parts}: {cost}");
+            }
+        }
+        let heavy = [block(1, 0, 1), block(1, 1, 1_000), block(1, 2, 1)];
+        assert_eq!(numbers(&split_log_batches(&heavy, 2)), [vec![0], vec![1, 2]]);
+        assert_eq!(split_log_batches(&blocks[..1], 2).len(), 1);
+    }
+
+    /// Pins the order, one block per root, and halving of a group over a cap until it fits or is
+    /// one block.
+    #[test]
+    fn oversized_group_is_resplit_until_it_fits_or_is_one_block() {
+        let budget = 10 * log_pgu::BATCH;
+        let mut blocks: Vec<_> = (1..=6).rev().map(|n| block(1, n, log_pgu::BATCH)).collect();
+        blocks.push(block(1, 3, log_pgu::BATCH));
+        let groups = batch_log_blocks(blocks, budget, u64::MAX);
+        assert_eq!(numbers(&groups), [vec![1, 2, 3, 4, 5, 6]]);
+
+        let uneven = vec![
+            block(1, 1, log_pgu::BATCH),
+            block(1, 2, 7 * log_pgu::BATCH),
+            block(1, 3, log_pgu::BATCH),
+            block(1, 4, 20 * log_pgu::BATCH),
+        ];
+        let groups = batch_log_blocks(uneven, budget, u64::MAX);
+        assert_eq!(numbers(&groups), [vec![1, 2], vec![3], vec![4]]);
+        for group in &groups[..2] {
+            assert!(estimate_log_commitment_pgu(group.iter().map(|block| block.pgu)) <= budget);
+        }
+
+        let wide: Vec<_> =
+            (0..4).map(|n| LogBatchBlock { witness_bytes: 10, ..block(3, n, 1) }).collect();
+        let groups = batch_log_blocks(wide, budget, 25);
+        assert_eq!(numbers(&groups), [vec![0, 1], vec![2, 3]]);
     }
 
     /// Pins an estimate that never drops with more logs, topics, data, or receipts.

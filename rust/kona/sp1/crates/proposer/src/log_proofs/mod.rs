@@ -18,10 +18,10 @@ use async_trait::async_trait;
 use kona_sp1_client_utils::{log_commitment::BlockReceipts, super_root::TimestampSpan};
 use kona_sp1_super_range_executor::{
     BATCH_PROOF_BYTES, CollectedConsolidation, ConsolidationCost, LogBatchBlock, MAX_STDIN_BYTES,
-    MAX_WITNESS_BYTES, MissingLogCommitment, ScannedTimestampCost, bound_receipts_path_pgu,
-    bound_receipts_path_witness_bytes, build_log_commitment_stdin_from_receipts,
-    estimate_consolidation_pgu, estimate_log_block_pgu, expected_batch_public_values,
-    pack_log_commitment_batches, receipts_trie_bytes,
+    MAX_WITNESS_BYTES, MissingLogCommitment, ScannedTimestampCost, batch_log_blocks,
+    bound_receipts_path_pgu, bound_receipts_path_witness_bytes,
+    build_log_commitment_stdin_from_receipts, estimate_log_block_pgu, expected_batch_public_values,
+    receipts_trie_bytes,
 };
 use sha2::{Digest, Sha256};
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin};
@@ -138,7 +138,7 @@ pub(crate) async fn make_log_batches(
             witness_bytes,
         });
     }
-    Ok(pack_log_commitment_batches(blocks, log_gas_limit)?
+    Ok(batch_log_blocks(blocks, request_budget(log_gas_limit), MAX_WITNESS_BYTES)
         .into_iter()
         .map(|blocks| {
             let expected: Vec<u8> =
@@ -351,17 +351,6 @@ pub(crate) fn check_collected(
     Ok(())
 }
 
-/// The receipts roots that the transition timestamps `first..last` (indices into
-/// `scan.timestamps`) reference, once each.
-pub(crate) fn referenced_roots(scan: &ScannedSpan, first: usize, last: usize) -> Vec<B256> {
-    let roots: BTreeSet<B256> = scan.timestamps[first..last]
-        .iter()
-        .flat_map(|timestamp| &timestamp.references)
-        .map(|reference| scan.blocks[reference].receipts_root)
-        .collect();
-    roots.into_iter().collect()
-}
-
 /// The receipts-path costs of the transition timestamps `first..last` (indices into
 /// `scan.timestamps`).
 pub(crate) fn receipts_path_costs(
@@ -400,57 +389,20 @@ pub(crate) fn consolidation_cost(
     batches: &[&LogBatch],
 ) -> ConsolidationCost {
     ConsolidationCost {
+        chain_timestamps: costs.iter().map(|cost| cost.chains).sum(),
+        message_checks: costs.iter().map(|cost| (cost.replaced_chains + 1) * cost.messages).sum(),
         witness_bytes: collected.witness_bytes,
         read_bytes: collected.read_bytes,
         log_checks: collected.log_checks,
         log_check_siblings: collected.log_check_siblings,
-        ..fixed_cost(costs, batches)
-    }
-}
-
-/// The terms of a request's cost that its scan costs and carried batches set, before collection.
-fn fixed_cost(costs: &[ScannedTimestampCost], batches: &[&LogBatch]) -> ConsolidationCost {
-    ConsolidationCost {
-        chain_timestamps: costs.iter().map(|cost| cost.chains).sum(),
-        message_checks: costs.iter().map(|cost| (cost.replaced_chains + 1) * cost.messages).sum(),
         batch_proofs: batches.len() as u64,
         batch_entries: batches.iter().map(|batch| batch.blocks.len() as u64).sum(),
         replaced_gas: costs.iter().map(|cost| cost.replaced_deposit_gas).sum(),
-        ..Default::default()
     }
-}
-
-/// Checks a chunk's table-path request before any batch request.
-///
-/// It applies [`check_collected`] to the terms that the chunk's scan costs and the [`cover`] of its
-/// referenced roots set. When the run serves a root of each covering batch, a request that fails
-/// here also fails the final checks; the run skips the references of a head that a same-timestamp
-/// cycle replaces.
-pub(crate) fn check_table_path_fits(
-    span: TimestampSpan,
-    costs: &[ScannedTimestampCost],
-    referenced_roots: &[B256],
-    batches: &[LogBatch],
-    gas_limit: u64,
-) -> Result<()> {
-    let batches: Vec<&LogBatch> = batches.iter().collect();
-    let covering: Vec<&LogBatch> =
-        cover(&batches, referenced_roots)?.into_iter().map(|index| batches[index]).collect();
-    let request = CollectedRequest {
-        span,
-        missing: &[],
-        estimate: estimate_consolidation_pgu(&fixed_cost(costs, &covering)),
-        witness_bytes: 0,
-        batch_proofs: covering.len(),
-        log_commitment_bytes: covering.iter().map(|batch| batch.expected.len() as u64).sum(),
-    };
-    check_collected(true, &request, gas_limit)
 }
 
 #[cfg(test)]
 mod tests {
-    use kona_sp1_client_utils::log_commitment::LOG_COMMITMENT_ENTRY_LEN;
-
     use super::{
         scan::{ReferencedBlock, ScannedTimestamp},
         *,
@@ -587,78 +539,6 @@ mod tests {
         assert_eq!(log_batch_poll_interval(1), PROOF_STATUS_POLL_INTERVAL);
         assert_eq!(log_batch_poll_interval(16), PROOF_STATUS_POLL_INTERVAL);
         assert_eq!(log_batch_poll_interval(1_140), Duration::from_millis(142_500));
-    }
-
-    /// One-block batches with distinct receipts roots, each committing one entry.
-    fn entry_batches(count: u64) -> Vec<LogBatch> {
-        (0..count)
-            .map(|number| {
-                let root = B256::left_padding_from(&number.to_be_bytes());
-                LogBatch {
-                    id: root,
-                    blocks: vec![LogBatchBlock { receipts_root: root, ..block(7, number) }],
-                    expected: vec![0; LOG_COMMITMENT_ENTRY_LEN],
-                }
-            })
-            .collect()
-    }
-
-    /// Pins a pre-check that counts only covering batches and refuses a chunk over the stdin cap.
-    #[test]
-    fn table_path_precheck_counts_covering_batches_against_stdin_cap() {
-        let gas_limit = 200_000_000_000;
-        let fit = MAX_STDIN_BYTES / (BATCH_PROOF_BYTES + LOG_COMMITMENT_ENTRY_LEN as u64);
-        let batches = entry_batches(fit + 2);
-        let roots = |count: u64| -> Vec<B256> {
-            batches[..count as usize].iter().map(|batch| batch.blocks[0].receipts_root).collect()
-        };
-        check_table_path_fits(span(), &[], &roots(fit), &batches, gas_limit).unwrap();
-        let err =
-            check_table_path_fits(span(), &[], &roots(fit + 1), &batches, gas_limit).unwrap_err();
-        assert!(err.to_string().contains("stdin bytes"), "{err}");
-    }
-
-    /// Pins a pre-check at the budget for a chunk whose scan costs alone set the estimate.
-    #[test]
-    fn table_path_precheck_refuses_scan_costs_at_the_budget() {
-        let costs =
-            [ScannedTimestampCost { replaced_deposit_gas: 1_000_000, ..Default::default() }];
-        let estimate = estimate_consolidation_pgu(&ConsolidationCost {
-            replaced_gas: 1_000_000,
-            ..Default::default()
-        });
-        let fits = (estimate / REQUEST_FILL_PERCENT + 1) * 100;
-        check_table_path_fits(span(), &costs, &[], &[], fits).unwrap();
-        let refused = estimate / REQUEST_FILL_PERCENT * 100;
-        let err = check_table_path_fits(span(), &costs, &[], &[], refused).unwrap_err();
-        assert!(err.to_string().contains("estimated at"), "{err}");
-    }
-
-    /// Pins the roots of only the chunk's timestamps, once each.
-    #[test]
-    fn referenced_roots_take_the_chunk_timestamps_once_each() {
-        let referenced = |number: u64| {
-            let receipts_root = B256::left_padding_from(&number.to_be_bytes());
-            let block = ReferencedBlock {
-                chain_id: 7,
-                number,
-                hash: B256::ZERO,
-                receipts_root,
-                gas_used: 0,
-            };
-            ((7, number), block)
-        };
-        let scan = ScannedSpan {
-            timestamps: vec![
-                ScannedTimestamp { references: [(7, 1)].into(), ..Default::default() },
-                ScannedTimestamp { references: [(7, 2), (7, 3)].into(), ..Default::default() },
-                ScannedTimestamp { references: [(7, 3)].into(), ..Default::default() },
-                ScannedTimestamp { references: [(7, 4)].into(), ..Default::default() },
-            ],
-            blocks: (1..=4).map(referenced).collect(),
-        };
-        let root = |number: u64| B256::left_padding_from(&number.to_be_bytes());
-        assert_eq!(referenced_roots(&scan, 1, 3), [root(2), root(3)]);
     }
 
     /// Pins a refused request whose batch proofs and witness exceed the stdin cap.

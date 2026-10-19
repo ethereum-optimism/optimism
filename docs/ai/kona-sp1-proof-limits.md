@@ -44,7 +44,7 @@ it as a performance note.
 | Aggregation request | 10⁹ PGU, 10¹² cycles | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. |
 | Log-commitment batch request | 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_LOG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable`, and the game attempt fails. |
 | Stdin upload | 5 GB of compressed stdin, with every compressed proof, in one upload | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). zstd makes proofs only a little smaller. The proposer refuses a consolidation request whose stdin is over `MAX_STDIN_BYTES` (4 GiB): the witness, the encoded log commitments, and `BATCH_PROOF_BYTES` (1.4 MB) for each batch proof. | The upload fails. The request gives no proof. |
-| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`) and `MAX_WITNESS_BYTES` of witness, and fills to 80% of `LOG_GAS_LIMIT` by estimate. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `pack_log_commitment_batches` | The proposer cannot split the work of one timestamp. |
+| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `MAX_WITNESS_BYTES` of witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks` | The proposer cannot split the work of one timestamp. |
 
 The SP1 values are the SP1 6.8.1 defaults: `sp1-zkvm` in `rust/kona/sp1/programs/Cargo.lock`,
 `sp1-core-executor` in `rust/Cargo.lock`. Nothing in this repository sets
@@ -119,13 +119,12 @@ The proposer chooses one path for each game, before any witness collection. It s
 executing messages and computes `bound_receipts_path_pgu` and `bound_receipts_path_witness_bytes`
 for each consolidation request. It keeps the receipts path when each bound is under 80% of the
 range gas limit and under `MAX_WITNESS_BYTES`. Otherwise it proves each referenced block once in
-batches, packed by `estimate_log_block_pgu`. Before each consolidation request, it computes
-`estimate_consolidation_pgu` from the collection. It refuses a request whose estimate is not under
-the budget, whose witness or stdin is over its cap, or, on the table path, whose run read a block
-below a head without an entry. On the table path, it first applies these checks to the terms that
-the scan and the batches set (`check_table_path_fits`), so it requests no batch for a game that these
-terms alone put over a limit. The scan does not detect cycles, so it also counts the references of a
-head that a same-timestamp cycle replaces, which the run does not serve. `OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
+batches: `batch_log_blocks` cuts the blocks, ordered by chain and number, into the fewest even
+groups by `estimate_log_block_pgu` (`split_log_batches`), and halves any group still over a cap.
+Before each consolidation request, it computes `estimate_consolidation_pgu` from the collection. It
+refuses a request whose estimate is not under the budget, whose witness or stdin is over its cap,
+or, on the table path, whose run read a block below a head without an entry.
+`OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
 
 Each estimate must be at or above the measured PGU, and each bound at or above the estimate.
 ELF-gated tests in `kona-sp1-super-range-executor` pin this:
