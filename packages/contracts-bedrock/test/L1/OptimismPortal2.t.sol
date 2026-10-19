@@ -3349,6 +3349,9 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     /// @notice Tests that the feature cannot be disabled while a hook is configured.
     function test_setFeature_disableWithHookSet_reverts() external {
         _setHook(hook);
+        // The feature must be on, so the revert comes from the hook guard and not from the
+        // already-disabled check, which uses the same error.
+        assertTrue(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK));
 
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(proxyAdminOwner);
@@ -3407,21 +3410,38 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
-    /// @notice Tests that address(0) is not an unsafe target while no hook is set.
+    /// @notice Tests that address(0) is not an unsafe target while no hook is set, by proving a
+    ///         withdrawal that targets it.
     function test_proveWithdrawalTransaction_zeroTargetWithNoHook_succeeds() external {
+        skipIfForkTest("Skipping on forked tests because of the L2ToL1MessagePasser call below");
         assertEq(address(optimismPortal2.bridgeHook()), address(0));
 
-        _defaultTx.target = address(0);
-        // Any revert here would be about the proof, not the target, so assert the target check
-        // specifically does not fire.
-        try optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        }) { }
-        catch (bytes memory err) {
-            assertTrue(bytes4(err) != IOptimismPortal.OptimismPortal_BadTarget.selector);
-        }
+        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
+            nonce: l2ToL1MessagePasser.messageNonce(),
+            sender: alice,
+            target: address(0),
+            value: 0,
+            gasLimit: 100_000,
+            data: hex""
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes[] memory withdrawalProof
+        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            messagePasserStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+
+        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
+
+        (IDisputeGame provenGame,) = optimismPortal2.provenWithdrawals(withdrawalHash, address(this));
+        assertEq(address(provenGame), address(game));
     }
 }

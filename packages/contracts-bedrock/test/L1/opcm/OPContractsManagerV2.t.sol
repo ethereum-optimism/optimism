@@ -1036,6 +1036,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
+        assertTrue(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK), "bridge hook feature disabled");
     }
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.

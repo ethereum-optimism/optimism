@@ -38,8 +38,8 @@ library Features {
     bytes32 internal constant CUSTOM_GAS_TOKEN = "CUSTOM_GAS_TOKEN";
 
     /// @notice The BRIDGE_HOOK feature determines whether the OptimismPortal offers deposits and
-    ///         withdrawals to a bridge hook before any value reaches its recipient.
-    /// @dev    SystemConfig refuses to disable it while the OptimismPortal has a hook set; call
+    ///         withdrawals to a bridge hook before any value reaches its recipient. SystemConfig
+    ///         refuses to disable it while the OptimismPortal has a hook set; call
     ///         OptimismPortal2.removeHook() first.
     bytes32 internal constant BRIDGE_HOOK = "BRIDGE_HOOK";
 
