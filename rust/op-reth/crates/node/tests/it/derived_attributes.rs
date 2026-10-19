@@ -17,16 +17,23 @@ use op_alloy_consensus::{
 };
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4};
 use reth_chainspec::{BaseFeeParams, EthChainSpec};
+use reth_db_common::init::init_genesis;
 use reth_e2e_test_utils::{Adapter, TmpDB};
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_node_builder::{FullNode, FullNodeTypesAdapter, Node, NodeBuilder, NodeConfig};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
+use reth_optimism_evm::OpEvmConfig;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
 use reth_optimism_payload_builder::{OpPayloadAttrs, OpPayloadBuilder, OpPayloadBuilderAttributes};
 use reth_optimism_primitives::OpTransactionSigned;
-use reth_provider::{HeaderProvider, providers::BlockchainProvider};
+use reth_optimism_txpool::OpPooledTransaction;
+use reth_provider::{
+    HeaderProvider, providers::BlockchainProvider,
+    test_utils::create_test_provider_factory_with_node_types,
+};
 use reth_tasks::Runtime;
+use reth_transaction_pool::noop::NoopTransactionPool;
 use std::{sync::Arc, time::Duration};
 
 const INVALID_PAYLOAD_ATTRIBUTES: i32 = -38003;
@@ -288,21 +295,28 @@ async fn invalid_derived_transactions_are_rejected_at_fcu_before_holocene() -> e
 
 /// `debug_executePayload` still gives the fault proof program a witness for a derived block with
 /// an invalid transaction, which no longer builds.
-#[tokio::test(flavor = "multi_thread")]
-async fn witness_covers_a_derived_block_up_to_its_invalid_transaction() -> eyre::Result<()> {
+///
+/// The witness needs no engine, so the test does not launch a node. A node's engine thread
+/// can still close the database when a test this short returns, and the process then aborts in the
+/// database's teardown. The provider here is dropped, and its database closed, before the test
+/// returns.
+#[test]
+fn witness_covers_a_derived_block_up_to_its_invalid_transaction() -> eyre::Result<()> {
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_sepolia().ecotone_activated().build());
     let Txs { deposit, nonce_too_high, .. } = Txs::new(chain_spec.chain_id())?;
-    let node = launch(chain_spec.clone()).await?;
+    let factory = create_test_provider_factory_with_node_types::<OpNode>(chain_spec.clone());
+    init_genesis(&factory)?;
+    let provider = BlockchainProvider::new(factory)?;
 
-    let parent = node.provider.sealed_header_by_hash(chain_spec.genesis_hash())?.unwrap();
+    let parent = provider.sealed_header_by_hash(chain_spec.genesis_hash())?.unwrap();
     let mut attrs = optimism_payload_attributes(parent.timestamp + 2);
     attrs.0.no_tx_pool = Some(true);
     attrs.0.transactions = Some(vec![deposit, nonce_too_high]);
     let builder =
         OpPayloadBuilder::<_, _, _, (), OpPayloadBuilderAttributes<OpTransactionSigned>>::new(
-            node.pool.clone(),
-            node.provider.clone(),
-            node.evm_config,
+            NoopTransactionPool::<OpPooledTransaction>::new(),
+            provider,
+            OpEvmConfig::optimism(chain_spec),
         );
 
     let witness = builder.payload_witness(parent, attrs.0)?;
