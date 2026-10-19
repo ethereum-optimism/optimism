@@ -1,9 +1,10 @@
 # Updating the reth dependency
 
 The Rust workspace pins ~70 `reth-*` crates to a single git ref, from upstream
-`paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml) — `tag = "vX.Y.Z"` when tracking a
-release (the normal case; self-documenting), or `rev = "<sha>"` when pinning a
-non-release or fork commit. This guide describes how to bump that pin safely and keep
+`paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml): `tag = "vX.Y.Z"`
+for an upstream release, `tag = "op-<base>-<n>"` for a fork commit (see
+[The reth fork](#the-reth-fork)), or `rev = "<sha>"` for a commit without a
+tag yet. This guide describes how to bump that pin safely and keep
 the shared `revm`/`alloy` versions in sync with it.
 
 ## When to update
@@ -66,9 +67,12 @@ main's CI actually validated.
 
    If patches must survive, build a new `op-*` branch in the
    `ethereum-optimism/reth` fork as described in
-   [The reth fork](#the-reth-fork) and pin its tip with `rev = "<sha>"`. Verify
-   every reth workspace dependency uses the same repository and ref; the mirror
-   checker rejects split pins.
+   [The reth fork](#the-reth-fork), tag its tip and pin it with
+   `tag = "op-<base>-<n>"`. A fork PR developed alongside the monorepo PR can be
+   pinned by its head commit with `rev = "<sha>"` meanwhile; switch to the tag
+   once the fork PR merges, before the monorepo PR merges. Verify every reth
+   workspace dependency uses the same repository and ref; the mirror checker
+   rejects split pins.
 
    Merging a fix into upstream `main` does not establish that a patch release
    contains it. Check the selected tag's ancestry or patch equivalence before
@@ -275,27 +279,28 @@ fork's CI.
 ruleset forbids force-pushes and deletion and requires a reviewed PR with
 passing fork CI.
 
+**Tag** each branch commit the monorepo pins as `<branch>-<n>`, counting from
+0 on each branch: `op-v2.6.0-0`, `op-v2.6.0-1`, and so on. Tag a commit once it
+is on the branch and fork CI passed on it; a PR's head commit is not, since
+merging squashes it into a new one. Commits the monorepo does not pin, such as
+CI-only fixes, get no tag. Annotate the tag with what changed since the
+previous one:
+
+```bash
+git tag -a op-v<version>-<n> <reth-sha> -m "..."
+git push git@github.com:ethereum-optimism/reth.git op-v<version>-<n>
+```
+
+Tags are immutable, so a tag pin is as reproducible as a rev pin.
+
 **Maintain** the branch until the next update: later backports to the same base
-are PRs into it, and each fork commit the monorepo pins gets its own tag after
-that monorepo PR merges. Keep old branches as a historical record.
+are PRs into it, tagged when the monorepo pins them. Keep old branches as a
+historical record.
 
 ## After the monorepo PR merges
 
-1. If the pin is a fork commit, tag it `<branch>-<merge-sha>`, where
-   `<merge-sha>` is `git rev-parse --short=12` of the update PR's merge commit on
-   `develop`. Annotate the tag with the reth commit, the monorepo merge commit,
-   and the PR:
-
-   ```bash
-   git tag -a op-v<version>-<merge-sha> <reth-sha> -m "..."
-   git push git@github.com:ethereum-optimism/reth.git op-v<version>-<merge-sha>
-   ```
-
-   The tag records which fork commit `develop` built against. Tags are
-   immutable.
-
-2. Repin the premium PR's monorepo dependency to the merge commit on `develop`
-   and mark it ready for review.
+Repin the premium PR's monorepo dependency to the merge commit on `develop`
+and mark it ready for review.
 
 ## Expect upstream churn beyond your target change
 

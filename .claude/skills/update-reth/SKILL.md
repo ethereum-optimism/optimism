@@ -36,8 +36,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 
 3. **Execute the guide's procedure**, including the current-pin audit and
    `cd rust && just mirrors stale` before verification. If fork patches
-   survive the audit, the pin moves to a new `op-*` fork branch (the guide's
-   "The reth fork"). Work every stale mirror
+   survive the audit, the pin moves to a tag on a new `op-*` fork branch (the
+   guide's "The reth fork"). Work every stale mirror
    and iterate the compile loop to green; don't ask the user to confirm each
    adaptation.
 
@@ -63,7 +63,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 7. **Ship.** Use one commit (`rust: update reth to <version>`) describing the pin
    move, shared-dependency sync, and API adaptations. Push only the verified
    reviewed head, then open the PR to `develop` with verification results.
-   Open the companion optimism-premium PR in draft (guide step 10).
+   Open the companion optimism-premium PR in draft (guide step 10). A fork
+   pin must be a tag, not a `rev`, before the PR merges.
 
-8. **After merge.** Tag the pinned fork commit and repin the premium PR to the
-   merge commit (the guide's "After the monorepo PR merges").
+8. **After merge.** Repin the premium PR to the merge commit (the guide's
+   "After the monorepo PR merges").

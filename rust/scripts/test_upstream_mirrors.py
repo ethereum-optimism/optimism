@@ -46,10 +46,28 @@ class SemVerTests(unittest.TestCase):
         self.assertLess(mirrors.parse_semver("41.0.0-alpha.2"), mirrors.parse_semver("41.0.0"))
 
     def test_validates_reth_tokens(self) -> None:
-        for value in ("rev:aef8d3e", "v2.4.0", "pre-24284"):
+        for value in (
+            "rev:aef8d3e",
+            "v2.4.0",
+            "pre-24284",
+            "op-v2.6.0-0",
+            "op-v2.7.0-rc.1-12",
+            "op-1a2b3c4d5e6f-3",
+        ):
             with self.subTest(value=value):
                 mirrors.parse_reth_token(value)
-        for value in ("rev:aef8d", "v2.4", "pre-main", "pre-1٢", "garbage"):
+        for value in (
+            "rev:aef8d",
+            "v2.4",
+            "pre-main",
+            "pre-1٢",
+            "garbage",
+            "op-v2.6.0",
+            "op-v2.6.0-x",
+            "op-v2.6-0",
+            "op-1a2b3c-0",
+            "op-main-0",
+        ):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 mirrors.parse_reth_token(value)
 
@@ -108,10 +126,23 @@ class WorkspaceParsingTests(unittest.TestCase):
             with self.assertRaises(mirrors.ConfigError):
                 mirrors.reth_pin(manifest)
 
-    def test_reth_manifest_tag_requires_release_semver(self) -> None:
+    def test_reth_manifest_tag_accepts_release_and_fork_tags(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             manifest = Path(temp) / "Cargo.toml"
-            for value in ("pre-123", "main"):
+            for value in ("v2.5.0", "op-v2.6.0-0", "op-1a2b3c4d5e6f-2"):
+                with self.subTest(value=value):
+                    manifest.write_text(textwrap.dedent(f"""
+                        [workspace.dependencies]
+                        reth = {{ git = "https://github.com/ethereum-optimism/reth", tag = "{value}" }}
+                    """))
+                    self.assertEqual(
+                        mirrors.reth_pin(manifest), (value, "ethereum-optimism/reth")
+                    )
+
+    def test_reth_manifest_tag_requires_release_or_fork_tag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            manifest = Path(temp) / "Cargo.toml"
+            for value in ("pre-123", "main", "op-v2.6.0"):
                 with self.subTest(value=value):
                     manifest.write_text(textwrap.dedent(f"""
                         [workspace.dependencies]
@@ -310,6 +341,26 @@ class ClassificationTests(unittest.TestCase):
             reth_info=("v2.4.0+op.2", "op-rs/reth"),
         )
         self.assertEqual(mirror.status, "stale")
+
+    def test_reth_fork_tag_statuses(self) -> None:
+        for pin, verified, expected in (
+            ("op-v2.6.0-1", "op-v2.6.0-1", "current"),
+            ("op-v2.6.0-1", "op-v2.6.0-0", "stale"),
+            ("op-v2.6.0-1", "op-v2.6.0-2", "ahead"),
+            ("op-v2.6.0-1", "op-v2.5.2-4", "stale"),
+            ("op-v2.6.0-1", "op-v2.7.0-0", "ahead"),
+            ("op-v2.6.0-1", "v2.6.0", "stale"),
+            ("op-v2.6.0-1", "rev:aef8d3e", "stale"),
+            ("op-1a2b3c4d5e6f-1", "op-1a2b3c4d5e6f-0", "stale"),
+            ("op-1a2b3c4d5e6f-1", "op-1a2b3c4d5e6f-2", "ahead"),
+            ("op-1a2b3c4d5e6f-1", "op-9f8e7d6c5b4a-5", "stale"),
+            ("op-1a2b3c4d5e6f-1", "op-v2.6.0-0", "stale"),
+            ("op-v2.6.0-1", "op-1a2b3c4d5e6f-0", "stale"),
+        ):
+            with self.subTest(pin=pin, verified=verified):
+                mirror = self.mirror(verified, crate="reth")
+                mirrors.classify([mirror], locked={}, reth_info=(pin, "ethereum-optimism/reth"))
+                self.assertEqual(mirror.status, expected)
 
     def test_port_statuses_for_cratesio_and_reth(self) -> None:
         crates_current = self.mirror("41.0.0", kind="port")

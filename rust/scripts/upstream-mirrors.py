@@ -11,7 +11,8 @@ Tag grammar, in the doc comment of the mirroring item:
 
   <kind>     override | copy | delegate | set | port   (see docs/ai/reth-upstream-mirrors.md)
   <crate>    crates.io package name, or `reth` for the git-pinned family
-  <version>  exact semver for crates.io; `rev:<sha7>`, `v<semver>` or `pre-<pr>` for reth
+  <version>  exact semver for crates.io; `rev:<sha7>`, `v<semver>`, `op-<base>-<n>` or
+             `pre-<pr>` for reth
   <symbol>   full upstream path, used to locate the item in upstream sources
 
 Usage:
@@ -117,7 +118,39 @@ def parse_semver(value: str) -> SemVer:
     )
 
 
-def parse_reth_token(value: str) -> tuple[str, SemVer | str]:
+@dataclass(frozen=True)
+class ForkTag:
+    """A reth fork tag `op-<base>-<n>`: the `n`th pinned commit of the fork branch built on
+    upstream `<base>`, a release (`v<semver>`) or a commit (short sha)."""
+
+    base: SemVer | str
+    n: int
+
+
+def parse_fork_tag(value: str) -> ForkTag:
+    # The counter is the last `-<n>`: a release base may carry a prerelease (`v2.7.0-rc.1`).
+    match = re.fullmatch(r"op-(?P<base>.+)-(?P<n>0|[1-9][0-9]*)", value)
+    if match is None:
+        raise ValueError(f"invalid reth fork tag {value!r}")
+    base = match.group("base")
+    if base.startswith("v"):
+        return ForkTag(parse_semver(base[1:]), int(match.group("n")))
+    if re.fullmatch(r"[0-9a-f]{7,40}", base):
+        return ForkTag(base, int(match.group("n")))
+    raise ValueError(f"invalid reth fork tag base {base!r}")
+
+
+def fork_tag_order(verified: ForkTag, pinned: ForkTag) -> int | None:
+    """Sign of `verified - pinned`, or `None` when commit bases leave them unordered."""
+    if verified.base == pinned.base:
+        return (verified.n > pinned.n) - (verified.n < pinned.n)
+    if isinstance(verified.base, SemVer) and isinstance(pinned.base, SemVer):
+        a, b = verified.base.precedence_key(), pinned.base.precedence_key()
+        return (a > b) - (a < b)
+    return None
+
+
+def parse_reth_token(value: str) -> tuple[str, SemVer | ForkTag | str]:
     """Validate and classify a reth-family pin token."""
     if re.fullmatch(r"rev:[0-9a-f]{7}", value):
         return "rev", value[4:]
@@ -125,6 +158,8 @@ def parse_reth_token(value: str) -> tuple[str, SemVer | str]:
         return "pre", value[4:]
     if value.startswith("v"):
         return "tag", parse_semver(value[1:])
+    if value.startswith("op-"):
+        return "fork", parse_fork_tag(value)
     raise ValueError(f"invalid reth pin token {value!r}")
 
 
@@ -243,8 +278,8 @@ def reth_pin(manifest_path: Path | None = None) -> tuple[str, str]:
         try:
             if ref == "tag":
                 kind, _ = parse_reth_token(value)
-                if kind != "tag":
-                    raise ValueError("manifest tag must be v<semver>")
+                if kind not in ("tag", "fork"):
+                    raise ValueError("manifest tag must be v<semver> or op-<base>-<n>")
             elif re.fullmatch(r"[0-9a-f]{7,40}", value) is None:
                 raise ValueError(f"invalid reth revision {value!r}")
         except ValueError as error:
@@ -362,9 +397,17 @@ def classify(
                 else:
                     mirror.status = Status.STALE
                     mirror.note = "version differs only by build metadata"
+            elif (
+                verified_kind == pinned_kind == "fork"
+                and (order := fork_tag_order(verified, pinned)) is not None
+                and order > 0
+            ):
+                mirror.status = Status.AHEAD
+                mirror.note = "verified version is newer than the pin"
             else:
-                # Git revisions and deleted pre-PR sources have no total ordering in the
-                # manifest. A differing valid token is review work, never silently current.
+                # Git revisions, deleted pre-PR sources and tokens of different kinds have
+                # no total ordering. A differing valid token is review work, never silently
+                # current; an older fork tag lands here too.
                 mirror.status = Status.STALE
             freeze_port(mirror)
             continue
