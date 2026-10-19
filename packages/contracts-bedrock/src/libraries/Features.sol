@@ -39,8 +39,8 @@ library Features {
 
     /// @notice The BRIDGE_HOOK feature determines whether the OptimismPortal offers deposits and
     ///         withdrawals to a bridge hook before any value reaches its recipient.
-    /// @dev    SystemConfig refuses to disable it while the OptimismPortal has a hook set, you must
-    ///         unset the hook first.
+    /// @dev    SystemConfig refuses to disable it while the OptimismPortal has a hook set; call
+    ///         OptimismPortal2.removeHook() first.
     bytes32 internal constant BRIDGE_HOOK = "BRIDGE_HOOK";
 
     /// @notice The INTEROP feature determines if the system is configured to use interop.

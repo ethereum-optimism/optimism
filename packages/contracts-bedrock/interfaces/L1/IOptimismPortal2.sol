@@ -54,6 +54,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event ETHMigrated(address indexed lockbox, uint256 balance);
     event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
     event BridgeHookSet(IBridgeHook indexed bridgeHook);
+    event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,
@@ -98,7 +99,8 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox,
-        uint256 _proofMaturityDelaySeconds
+        uint256 _proofMaturityDelaySeconds,
+        IBridgeHook _bridgeHook
     )
         external;
     function initVersion() external view returns (uint8);
@@ -127,7 +129,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
     function bridgeHook() external view returns (IBridgeHook);
-    function setBridgeHook(IBridgeHook _hook) external;
+    function removeHook() external;
     function heldDeposits(bytes32) external view returns (bool);
     function heldWithdrawals(bytes32) external view returns (bool);
     function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable;

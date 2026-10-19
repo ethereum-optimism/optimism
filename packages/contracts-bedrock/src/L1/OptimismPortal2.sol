@@ -142,7 +142,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     uint256 public proofMaturityDelaySeconds;
 
     /// @notice Hook that screens deposits and withdrawal finalizations. While this is the zero
-    ///         address the Portal behaves as on a default OP Stack chain.
+    ///         address the Portal behaves as on a default OP Stack chain. Set only by initialize
+    ///         and cleared only by removeHook.
     /// @custom:network-specific
     IBridgeHook public bridgeHook;
 
@@ -168,8 +169,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     event ETHMigrated(address indexed lockbox, uint256 balance);
 
     /// @notice Emitted when the bridge hook is set.
-    /// @param bridgeHook The new bridge hook, or the zero address if it was unset.
+    /// @param bridgeHook The new bridge hook.
     event BridgeHookSet(IBridgeHook indexed bridgeHook);
+
+    /// @notice Emitted when the bridge hook is removed.
+    /// @param bridgeHook The removed bridge hook.
+    event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
 
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
@@ -290,9 +295,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.2.0
+    /// @custom:semver 7.0.0
     function version() public pure virtual returns (string memory) {
-        return "6.2.0";
+        return "7.0.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -306,16 +311,22 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _disableInitializers();
     }
 
-    /// @notice Initializer.
+    /// @notice Initializer. A zero `_bridgeHook` keeps the current hook, so a re-initialization
+    ///         during an upgrade cannot wipe it. A nonzero `_bridgeHook` replaces the hook and
+    ///         emits BridgeHookSet on every run. This is the only way to set a hook, and only the
+    ///         ProxyAdmin or its owner can call it.
+    ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Address of the ETHLockbox.
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
+    /// @param _bridgeHook Bridge hook to set, or the zero address to keep the current one.
     function initialize(
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox,
-        uint256 _proofMaturityDelaySeconds
+        uint256 _proofMaturityDelaySeconds,
+        IBridgeHook _bridgeHook
     )
         external
         reinitializer(initVersion())
@@ -328,6 +339,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         anchorStateRegistry = _anchorStateRegistry;
         if (address(_ethLockbox) != address(0)) {
             ethLockbox = _ethLockbox;
+        }
+        if (address(_bridgeHook) != address(0)) {
+            bridgeHook = _bridgeHook;
+            emit BridgeHookSet(_bridgeHook);
         }
 
         _assertValidInteropState();
@@ -842,16 +857,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Sets the bridge hook. Only callable by the ProxyAdmin owner.
-    ///         A nonzero hook requires the BRIDGE_HOOK feature.
-    /// @dev    Unsetting the hook stops screening for new items but strands every item it is
-    ///         already holding, since completion is only callable by the hook.
-    /// @param _hook Bridge hook, or the zero address to unset it.
-    function setBridgeHook(IBridgeHook _hook) external {
+    /// @notice Removes the bridge hook. Only callable by the ProxyAdmin owner. A hook can only be
+    ///         set again by re-initializing the Portal. Removal stops screening for new items but
+    ///         strands every item the hook is holding, since completion is only callable by it.
+    function removeHook() external {
         _assertOnlyProxyAdminOwner();
-        bridgeHook = _hook;
-        _assertValidBridgeHookState();
-        emit BridgeHookSet(_hook);
+
+        IBridgeHook hook = bridgeHook;
+        if (address(hook) == address(0)) revert OptimismPortal_InvalidBridgeHookState();
+
+        bridgeHook = IBridgeHook(address(0));
+        emit BridgeHookRemoved(hook);
     }
 
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.

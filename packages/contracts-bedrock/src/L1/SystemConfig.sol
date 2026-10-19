@@ -561,7 +561,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         }
 
         // BRIDGE_HOOK cannot be disabled while the OptimismPortal still has a hook configured.
-        // This prevents leaving held items stranded indefinitely. Unset the hook first, then disable the feature.
+        // This prevents leaving held items stranded indefinitely. Call OptimismPortal2.removeHook()
+        // first, then disable the feature.
         if (_feature == Features.BRIDGE_HOOK && !_enabled) {
             if (address(IOptimismPortal2(payable(optimismPortal())).bridgeHook()) != address(0)) {
                 revert SystemConfig_InvalidFeatureState();

@@ -518,6 +518,11 @@
         "internalType": "uint256",
         "name": "_proofMaturityDelaySeconds",
         "type": "uint256"
+      },
+      {
+        "internalType": "contract IBridgeHook",
+        "name": "_bridgeHook",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -839,6 +844,13 @@
   },
   {
     "inputs": [],
+    "name": "removeHook",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "respectedGameType",
     "outputs": [
       {
@@ -861,19 +873,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract IBridgeHook",
-        "name": "_hook",
-        "type": "address"
-      }
-    ],
-    "name": "setBridgeHook",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -927,6 +926,19 @@
     ],
     "stateMutability": "pure",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract IBridgeHook",
+        "name": "bridgeHook",
+        "type": "address"
+      }
+    ],
+    "name": "BridgeHookRemoved",
+    "type": "event"
   },
   {
     "anonymous": false,
