@@ -144,25 +144,12 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
   # API triggers: dispatch flags select workflows (routing.yml api_dispatch).
   dispatch)
     run release
-    # main_dispatch only fires for genuine API dispatches, not github-event triggers.
-    if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
-      run_group api_dispatch main_dispatch
-    fi
-    # Simple dispatch flags: each enables its workflows when the flag is set.
-    # main_dispatch and labeled_pr have bespoke conditions, handled separately.
+    # Each dispatch flag enables its workflows when the flag is set.
     for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
-      # Keep this skip-list in sync with bespoke api_dispatch conditions.
-      case "${flag}" in
-        main_dispatch | labeled_pr) continue ;;
-      esac
       if is_true "${flag}"; then
         run_group api_dispatch "${flag}"
       fi
     done
-    # GitHub "pull_request labeled" event triggers issue-close automation.
-    if [[ "$(param github-event-type)" == "pull_request" && "$(param github-event-action)" == "labeled" ]]; then
-      run_group api_dispatch labeled_pr
-    fi
     ;;
   *)
     echo "ERROR: unsupported CI_EVENT '${CI_EVENT}'; expected push, schedule, or dispatch" >&2

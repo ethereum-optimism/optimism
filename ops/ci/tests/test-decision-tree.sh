@@ -129,13 +129,13 @@ run_scenario \
 run_scenario \
   "Full NUT reporting option preserves normal API routing" \
   dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":true,"c-nut_provenance_full_effective":true,"c-github-event-type":"__not_set__"}' \
+  '{"c-main_dispatch":true,"c-nut_provenance_full_effective":true}' \
   main release contracts_feature_tests
 
 run_scenario \
   "Retired replay options do not create isolated workflows" \
   dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true,"c-selector_upload_replay_effective":true,"c-flaky_report_replay_effective":true,"c-github-event-type":"__not_set__"}' \
+  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true,"c-selector_upload_replay_effective":true,"c-flaky_report_replay_effective":true}' \
   release
 
 run_scenario \
@@ -245,7 +245,7 @@ REPO="ethereum-optimism/other" run_scenario \
 REPO="ethereum-optimism/other" run_scenario \
   "Publication dispatch outside the public repository" \
   "dispatch" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release \
   --not publish_contract_artifacts
 
@@ -275,34 +275,46 @@ run_scenario \
   scheduled_rust_nightly_bump
 
 run_scenario \
-  "API: main_dispatch (no github event)" \
+  "API: main_dispatch" \
   "dispatch" "" "" "" \
-  '{"c-main_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": true}' \
   release main contracts_feature_tests
 
 run_scenario \
   "API: rust_ci_dispatch" \
   "dispatch" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_ci_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-rust_ci_dispatch": true}' \
   release rust_ci
 
 run_scenario \
   "API: rust_nightly_bump_dispatch" \
   "dispatch" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true}' \
   release scheduled_rust_nightly_bump
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \
   "dispatch" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release publish_contract_artifacts
 
 run_scenario \
-  "API: github event labeled PR" \
+  "API: retired labeled-PR metadata is ignored" \
   "dispatch" "" "" "" \
   '{"c-main_dispatch": false, "c-github-event-type": "pull_request", "c-github-event-action": "labeled"}' \
-  release close_issue
+  release
+
+run_scenario \
+  "API: retired event metadata does not suppress main dispatch" \
+  "dispatch" "" "" "" \
+  '{"c-main_dispatch": true, "c-github-event-type": "pull_request", "c-github-event-action": "labeled", "c-github-event-base64": "retired-fixture"}' \
+  release main contracts_feature_tests
+if jq -e 'has("c-github-event-base64") | not' "${OUTPUT}" >/dev/null; then
+  PASS=$((PASS + 1))
+else
+  echo 'FAIL: retired event payload reached continuation parameters'
+  FAIL=$((FAIL + 1))
+fi
 
 # Exercise actual changed path lists through the shared collector, rather than
 # hand-seeding change booleans. The CircleCI collector must produce the same JSON.

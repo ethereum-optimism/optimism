@@ -338,9 +338,11 @@ jobs:
       - run:
           name: Test log-commitment and consolidation ELFs against native output
           working_directory: rust
+          # Each ELF test runs its own SP1 executor; in parallel they exceed the runner's memory.
           command: |
             KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
-              cargo nextest run --package kona-sp1-super-range-executor --lib --test log_commitment
+              cargo nextest run --package kona-sp1-super-range-executor --lib --test log_commitment \
+              --test-threads 1
       - go-save-cache:
           namespace: sp1-super-range-elf-smoke
       - store_test_results:
