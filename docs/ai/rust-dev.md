@@ -1,6 +1,6 @@
 # Rust Development
 
-Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions, PR workflow, and other cross-language guidance.
+Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for shared code simplicity principles, tool versions, and PR workflow.
 
 ## Workspace Layout
 
@@ -28,6 +28,24 @@ Most of the OP Stack Rust code here was **officially migrated** into the monorep
 These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
 
 **Known exception:** `op-alloy-flz` has not been migrated yet and is still an external dependency, tracked by [#21087](https://github.com/ethereum-optimism/optimism/issues/21087).
+
+## Code Design
+
+Apply the [shared code simplicity principles](dev-workflow.md#code-simplicity-and-design) with
+these Rust-specific conventions:
+
+- **Prefer concrete types.** Avoid `Box<dyn ...>`, broad generics and single-implementation traits
+  unless a real boundary requires them. Each trait and type parameter should justify its existence
+  through a meaningful boundary or invariant. Use an enum for a genuinely closed set of alternatives.
+- **Keep meaningful absence.** Keep `Option` where absence has domain meaning; eliminate it where
+  `None` represents incomplete construction or an unsupported combination. Replacing an unnecessary
+  `Option` with an equivalent enum preserves the same problem.
+- **Let modules provide naming context.** Prefer `derivation::Trusted` over
+  `derivation::TrustedDerivation`.
+- **Propagate typed errors.** Return `Result` from fallible operations and use `?` to propagate errors
+  to the component that owns recovery policy. Preserve the distinction between a terminal task
+  failure, a retryable condition and intentional shutdown; see the shared guidance for service
+  lifecycle behavior.
 
 ## Build System
 

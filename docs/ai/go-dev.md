@@ -1,6 +1,6 @@
 # Go Service Development
 
-Guidance for AI agents working with Go code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions, PR workflow, and other cross-language guidance.
+Guidance for AI agents working with Go code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for shared code simplicity principles, tool versions, and PR workflow.
 
 ## Build System
 
@@ -67,6 +67,14 @@ cd <service> && just generate-mocks
 
 ## Conventions
 
+Apply the [shared code simplicity principles](dev-workflow.md#code-simplicity-and-design) with
+these Go-specific conventions:
+
+- **Prefer concrete dependencies.** Introduce an interface when a real boundary requires it, rather
+  than wrapping a single implementation only to forward its methods. Keep `nil` where absence has
+  domain meaning; supply required dependencies at construction.
+- **Let packages provide naming context.** Prefer `derivation.Trusted` over
+  `derivation.TrustedDerivation`.
 - **OP type encodings**: a change to an OP type's wire format, hash rule, or codec accept-set has to agree with `rust/op-alloy` (the types op-reth and kona consume), not just op-geth — see [Cross-implementation parity](opgeth-decoupling.md#cross-implementation-parity).
 - **Pointers to values**: use `ptr.New(v)` from `github.com/ethereum-optimism/optimism/op-service/ptr` to take the address of a literal or expression — common for optional `*uint64` config fields like fork-activation times (`cfg.SomeTime = ptr.New(uint64(123))`). Don't define a local `ptr`/`ptrTo` helper; the shared one avoids per-package duplicates, and a local `func ptr` collides with importing the `ptr` package in the same package.
 
