@@ -123,8 +123,12 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
         self.committed
     }
 
-    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
         self.committed = checkpoint;
+        Ok(())
     }
 }
 
@@ -366,7 +370,7 @@ fn op_evm_factory_uses_configured_refund_policy_and_checkpoint() {
     evm.transact_raw(legacy_op_tx(0, caller, target, 100_000)).expect("tx executes");
     assert_eq!(evm.take_last_post_exec_tx_result().refund_total, 7);
     assert_eq!(evm.refund_checkpoint(), 1);
-    evm.revert_refund_checkpoint(before_tx);
+    evm.revert_refund_checkpoint(before_tx).expect("the policy issued the checkpoint");
     assert_eq!(evm.refund_checkpoint(), before_tx);
 }
 

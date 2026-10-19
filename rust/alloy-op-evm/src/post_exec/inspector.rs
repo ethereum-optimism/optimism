@@ -131,8 +131,11 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
     }
 
     /// Roll the refund policy's block-scoped state back to `checkpoint`.
-    pub fn revert_refund_checkpoint(&mut self, checkpoint: R::Checkpoint) {
-        self.post_exec.revert_to_checkpoint(checkpoint);
+    pub fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: R::Checkpoint,
+    ) -> Result<(), super::RevertToCheckpointError> {
+        self.post_exec.revert_to_checkpoint(checkpoint)
     }
 
     /// Notes an account touch that happened outside opcode stepping.

@@ -4,6 +4,7 @@ use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
         PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+        RevertToCheckpointError,
     },
 };
 use alloy_primitives::{Bytes, address};
@@ -157,12 +158,15 @@ fn test_setup_custom_precompiles() {
             evm.refund_checkpoint()
         }
 
-        fn revert_refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>, checkpoint: Self::Checkpoint)
+        fn revert_refund_checkpoint<DB, I>(
+            evm: &mut Self::Evm<DB, I>,
+            checkpoint: Self::Checkpoint,
+        ) -> Result<(), RevertToCheckpointError>
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,
         {
-            evm.revert_refund_checkpoint(checkpoint);
+            evm.revert_refund_checkpoint(checkpoint)
         }
     }
 

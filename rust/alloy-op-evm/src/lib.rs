@@ -242,8 +242,11 @@ where
     }
 
     /// Roll the refund policy's block-scoped state back to `checkpoint`.
-    pub fn revert_refund_checkpoint(&mut self, checkpoint: R::Checkpoint) {
-        self.inner.0.inspector.revert_refund_checkpoint(checkpoint);
+    pub fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: R::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
+        self.inner.0.inspector.revert_refund_checkpoint(checkpoint)
     }
 }
 
@@ -266,8 +269,11 @@ where
         Self::refund_checkpoint(self)
     }
 
-    fn revert_refund_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
-        Self::revert_refund_checkpoint(self, checkpoint);
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
+        Self::revert_refund_checkpoint(self, checkpoint)
     }
 }
 
@@ -304,12 +310,15 @@ where
         evm.refund_checkpoint()
     }
 
-    fn revert_refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>, checkpoint: Self::Checkpoint)
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.revert_refund_checkpoint(checkpoint);
+        evm.revert_refund_checkpoint(checkpoint)
     }
 }
 

@@ -3,6 +3,7 @@
 use alloy_primitives::{Address, U256};
 use reth_optimism_evm::{
     PostExecExecutedTx, PostExecRefundInspector, PostExecRefundPolicyFactory, PostExecTxContext,
+    RevertToCheckpointError,
 };
 use revm::{
     context_interface::ContextTr,
@@ -111,7 +112,12 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn checkpoint(&self) -> Self::Checkpoint {}
 
-    fn revert_to_checkpoint(&mut self, _checkpoint: Self::Checkpoint) {}
+    fn revert_to_checkpoint(
+        &mut self,
+        _checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

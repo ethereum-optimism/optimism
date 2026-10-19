@@ -5,7 +5,7 @@ mod null;
 mod refund;
 
 pub use null::NullRefundPolicy;
-pub use refund::{PostExecRefundInspector, PostExecRefundPolicyFactory};
+pub use refund::{PostExecRefundInspector, PostExecRefundPolicyFactory, RevertToCheckpointError};
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, block::BlockExecutionError};
@@ -64,7 +64,10 @@ pub trait PostExecEvm: alloy_evm::Evm {
     fn refund_checkpoint(&self) -> Self::Checkpoint;
 
     /// Roll the refund policy's block-scoped state back to `checkpoint`.
-    fn revert_refund_checkpoint(&mut self, checkpoint: Self::Checkpoint);
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>;
 }
 
 /// Extension trait for EVM factories whose produced EVMs support post-exec tracking.
@@ -94,7 +97,10 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
         I: Inspector<Self::Context<DB>>;
 
     /// Roll the refund policy's block-scoped state back to `checkpoint`.
-    fn revert_refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>, checkpoint: Self::Checkpoint)
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -213,8 +219,11 @@ where
         F::refund_checkpoint(&self.inner)
     }
 
-    fn revert_refund_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
-        F::revert_refund_checkpoint(&mut self.inner, checkpoint);
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        F::revert_refund_checkpoint(&mut self.inner, checkpoint)
     }
 }
 

@@ -4,6 +4,8 @@
 //! [`PostExecExecutedTx::refund_total`]; refund events are optional diagnostics. Verification,
 //! settlement, and the `0x7D` consensus type never run a refund inspector.
 
+use alloc::string::String;
+use alloy_evm::block::BlockExecutionError;
 use alloy_primitives::{Address, U256};
 use revm::{
     context_interface::ContextTr,
@@ -12,6 +14,35 @@ use revm::{
 };
 
 use super::{PostExecExecutedTx, PostExecTxContext};
+
+/// A refund policy could not undo the block-scoped changes made since a checkpoint, so its
+/// block-scoped state is unspecified from then on.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("refund policy cannot revert to its checkpoint: {reason}")]
+pub struct RevertToCheckpointError {
+    reason: String,
+}
+
+impl RevertToCheckpointError {
+    /// Creates the error with the policy's explanation.
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self { reason: reason.into() }
+    }
+
+    /// The policy's explanation.
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+
+    /// Finds this error behind the internal block-execution error the OP block executor surfaces
+    /// a failed revert through.
+    pub fn from_block_execution_error(err: &BlockExecutionError) -> Option<&Self> {
+        match err {
+            BlockExecutionError::Internal(internal) => internal.as_other()?.downcast_ref(),
+            BlockExecutionError::Validation(_) => None,
+        }
+    }
+}
 
 /// Creates fresh post-exec refund policies for new EVM instances.
 ///
@@ -127,5 +158,12 @@ pub trait PostExecRefundInspector {
     fn checkpoint(&self) -> Self::Checkpoint;
 
     /// Undo every block-scoped change made since `checkpoint` was taken.
-    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint);
+    ///
+    /// Fails when the policy cannot, such as for a checkpoint it did not issue or one an earlier
+    /// revert already discarded. The producer then stops using the policy, so the implementation
+    /// need not leave its state consistent.
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>;
 }

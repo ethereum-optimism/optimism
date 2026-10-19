@@ -918,6 +918,25 @@ fn validate_block_gas(
 /// this tracks `gas_used`/`evm_gas_used` and returns `GasOutput::new`; upstream's admission
 /// check clamps the transaction gas limit by `cfg.tx_gas_limit_cap`, `validate_block_gas`
 /// does not.
+impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
+where
+    E: PostExecEvm,
+    R: OpReceiptBuilder,
+{
+    /// Rolls the refund policy back to the checkpoint taken before a candidate, if one was taken.
+    ///
+    /// A failed revert outranks whatever made the candidate fail: the policy's block-scoped state
+    /// is unspecified from then on, so a caller must not skip the candidate and carry on.
+    fn revert_refund_checkpoint(
+        &mut self,
+        refund_checkpoint: Option<E::Checkpoint>,
+    ) -> Result<(), BlockExecutionError> {
+        refund_checkpoint.map_or(Ok(()), |checkpoint| {
+            self.evm.revert_refund_checkpoint(checkpoint).map_err(BlockExecutionError::other)
+        })
+    }
+}
+
 impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
 where
     E: PostExecEvm<
@@ -978,17 +997,13 @@ where
         let output = match self.execute_transaction_without_commit(tx) {
             Ok(output) => output,
             Err(err) => {
-                if let Some(checkpoint) = refund_checkpoint {
-                    self.evm.revert_refund_checkpoint(checkpoint);
-                }
+                self.revert_refund_checkpoint(refund_checkpoint)?;
                 return Err(err);
             }
         };
 
         if !f(&output).should_commit() {
-            if let Some(checkpoint) = refund_checkpoint {
-                self.evm.revert_refund_checkpoint(checkpoint);
-            }
+            self.revert_refund_checkpoint(refund_checkpoint)?;
             return Ok(None);
         }
 

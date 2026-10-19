@@ -28,7 +28,9 @@ use revm::{
 
 use crate::{
     OpEvm,
-    post_exec::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext},
+    post_exec::{
+        PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext, RevertToCheckpointError,
+    },
 };
 
 use super::*;
@@ -750,8 +752,12 @@ impl PostExecRefundInspector for HookObservingPolicy {
         self.observed_hooks
     }
 
-    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
         self.observed_hooks = checkpoint;
+        Ok(())
     }
 }
 
@@ -772,12 +778,14 @@ fn post_exec_composite_dispatches_every_observer_hook() {
     );
 }
 
+/// Claims one unit of refund per transaction and counts the candidates it saw. With
+/// `REVERTS = false` it refuses every revert, like a policy handed a checkpoint it did not issue.
 #[derive(Debug, Clone, Default)]
-struct ScriptedRefundPolicy {
+struct ScriptedRefundPolicy<const REVERTS: bool = true> {
     executed_candidates: u64,
 }
 
-impl PostExecRefundInspector for ScriptedRefundPolicy {
+impl<const REVERTS: bool> PostExecRefundInspector for ScriptedRefundPolicy<REVERTS> {
     type Checkpoint = u64;
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
@@ -833,8 +841,15 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
         self.executed_candidates
     }
 
-    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        if !REVERTS {
+            return Err(RevertToCheckpointError::new("scripted to refuse every revert"));
+        }
         self.executed_candidates = checkpoint;
+        Ok(())
     }
 }
 
@@ -857,6 +872,70 @@ fn declined_candidate_reverts_refund_policy_checkpoint() {
         executor.post_exec_entries(),
         &[op_alloy::consensus::SDMGasEntry { index: 0, gas_refund: 1 }],
         "a declined candidate must not leak policy state into the committed transaction"
+    );
+}
+
+fn assert_refund_policy_revert_error(err: &BlockExecutionError) {
+    let revert_error = RevertToCheckpointError::from_block_execution_error(err)
+        .unwrap_or_else(|| panic!("expected the policy's revert error, got {err}"));
+    assert_eq!(revert_error.reason(), "scripted to refuse every revert");
+}
+
+#[test]
+fn declined_candidate_fails_when_refund_policy_cannot_revert() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy<false>>(&mut db, &receipt_builder, &hardforks);
+
+    let err = executor
+        .execute_transaction_with_commit_condition(&observer_test_tx(), |_| CommitChanges::No)
+        .expect_err("a policy that cannot undo the declined candidate fails the call");
+    assert_refund_policy_revert_error(&err);
+}
+
+// The policy's revert error outranks the candidate's own execution error: a caller that saw only
+// the invalid transaction would skip it and keep building on unspecified policy state.
+#[test]
+fn failed_candidate_reports_refund_policy_revert_error_over_its_own() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy<false>>(&mut db, &receipt_builder, &hardforks);
+    let nonce_too_high = recovered_legacy(TxLegacy {
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        gas_limit: 200_000,
+        nonce: 7,
+        ..Default::default()
+    });
+
+    let err = executor
+        .execute_transaction(&nonce_too_high)
+        .expect_err("an invalid transaction whose rollback also fails errors");
+    assert_refund_policy_revert_error(&err);
+}
+
+#[test]
+fn failed_candidate_reports_its_own_error_when_refund_policy_reverts() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+    let nonce_too_high = recovered_legacy(TxLegacy {
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        gas_limit: 200_000,
+        nonce: 7,
+        ..Default::default()
+    });
+
+    let err =
+        executor.execute_transaction(&nonce_too_high).expect_err("an invalid transaction errors");
+    assert!(
+        matches!(err, BlockExecutionError::Validation(BlockValidationError::InvalidTx { .. })),
+        "expected the transaction's own validation error, got {err}"
     );
 }
 

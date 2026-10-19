@@ -9,6 +9,7 @@ use revm::{
 
 use super::{
     PostExecExecutedTx, PostExecRefundInspector, PostExecRefundPolicyFactory, PostExecTxContext,
+    RevertToCheckpointError,
 };
 
 /// The public production post-exec refund policy.
@@ -72,7 +73,12 @@ impl PostExecRefundInspector for NullRefundPolicy {
 
     fn checkpoint(&self) -> Self::Checkpoint {}
 
-    fn revert_to_checkpoint(&mut self, _checkpoint: Self::Checkpoint) {}
+    fn revert_to_checkpoint(
+        &mut self,
+        _checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        Ok(())
+    }
 }
 
 impl PostExecRefundPolicyFactory for NullRefundPolicy {
@@ -95,7 +101,7 @@ mod tests {
             policy.begin_tx(PostExecTxContext { tx_index: 1, kind });
             policy.note_account_touch(Address::ZERO);
             assert_eq!(policy.finish_tx(), PostExecExecutedTx::default());
-            policy.revert_to_checkpoint(());
+            policy.revert_to_checkpoint(()).expect("the null policy reverts");
         }
     }
 }

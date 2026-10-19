@@ -1,5 +1,5 @@
 use super::*;
-use crate::post_exec::NullRefundPolicy;
+use crate::post_exec::{NullRefundPolicy, RevertToCheckpointError};
 
 fn recovered_post_exec(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
@@ -137,7 +137,12 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn checkpoint(&self) -> Self::Checkpoint {}
 
-    fn revert_to_checkpoint(&mut self, _checkpoint: Self::Checkpoint) {}
+    fn revert_to_checkpoint(
+        &mut self,
+        _checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        Ok(())
+    }
 }
 
 #[test]
@@ -483,8 +488,12 @@ impl PostExecRefundInspector for FaultyRefundPolicy {
         (self.block_state, self.kind)
     }
 
-    fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
         (self.block_state, self.kind) = checkpoint;
+        Ok(())
     }
 }
 
@@ -1577,8 +1586,12 @@ mod warm_set_leak {
             self.touched.clone()
         }
 
-        fn revert_to_checkpoint(&mut self, checkpoint: Self::Checkpoint) {
+        fn revert_to_checkpoint(
+            &mut self,
+            checkpoint: Self::Checkpoint,
+        ) -> Result<(), RevertToCheckpointError> {
             self.touched = checkpoint;
+            Ok(())
         }
     }
 

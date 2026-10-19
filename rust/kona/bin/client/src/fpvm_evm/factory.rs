@@ -4,7 +4,9 @@ use super::{precompiles::OpFpvmPrecompiles, tx::FpvmOpTx};
 use alloy_evm::{Database, EvmEnv, EvmFactory};
 use alloy_op_evm::{
     OpEvm, OpEvmContext, OpTx, OpTxError,
-    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext},
+    post_exec::{
+        PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext, RevertToCheckpointError,
+    },
 };
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
@@ -75,12 +77,15 @@ where
         evm.refund_checkpoint()
     }
 
-    fn revert_refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>, checkpoint: Self::Checkpoint)
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.revert_refund_checkpoint(checkpoint);
+        evm.revert_refund_checkpoint(checkpoint)
     }
 }
 
