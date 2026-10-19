@@ -242,8 +242,13 @@ where
         core::mem::take(&mut self.last_tx_post_exec_result)
     }
 
+    /// Returns the refund policy.
+    pub const fn refund_policy(&self) -> &R {
+        self.inner.0.inspector.refund_policy()
+    }
+
     /// Mark the refund policy's block-scoped state before a candidate transaction.
-    pub fn refund_checkpoint(&self) -> R::Checkpoint {
+    pub fn refund_checkpoint(&mut self) -> R::Checkpoint {
         self.inner.0.inspector.refund_checkpoint()
     }
 
@@ -271,7 +276,7 @@ where
         Self::take_last_post_exec_tx_result(self)
     }
 
-    fn refund_checkpoint(&self) -> Self::Checkpoint {
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint {
         Self::refund_checkpoint(self)
     }
 
@@ -308,7 +313,7 @@ where
         evm.take_last_post_exec_tx_result()
     }
 
-    fn refund_checkpoint<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Checkpoint
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,

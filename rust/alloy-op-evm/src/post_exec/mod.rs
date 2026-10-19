@@ -61,7 +61,7 @@ pub trait PostExecEvm: alloy_evm::Evm {
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
 
     /// Mark the refund policy's block-scoped state before a candidate transaction.
-    fn refund_checkpoint(&self) -> Self::Checkpoint;
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint;
 
     /// Roll the refund policy's block-scoped state back to `checkpoint`.
     fn revert_refund_checkpoint(
@@ -91,7 +91,7 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
         I: Inspector<Self::Context<DB>>;
 
     /// Mark the refund policy's block-scoped state before a candidate transaction.
-    fn refund_checkpoint<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Checkpoint
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -215,8 +215,8 @@ where
         F::take_last_post_exec_tx_result(&mut self.inner)
     }
 
-    fn refund_checkpoint(&self) -> Self::Checkpoint {
-        F::refund_checkpoint(&self.inner)
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint {
+        F::refund_checkpoint(&mut self.inner)
     }
 
     fn revert_refund_checkpoint(

@@ -125,8 +125,13 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
         self.post_exec.begin_tx(ctx);
     }
 
+    /// Returns the refund policy.
+    pub const fn refund_policy(&self) -> &R {
+        &self.post_exec
+    }
+
     /// Mark the refund policy's block-scoped state before a candidate transaction.
-    pub fn refund_checkpoint(&self) -> R::Checkpoint {
+    pub fn refund_checkpoint(&mut self) -> R::Checkpoint {
         self.post_exec.checkpoint()
     }
 

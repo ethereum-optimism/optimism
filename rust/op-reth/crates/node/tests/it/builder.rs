@@ -150,7 +150,7 @@ fn test_setup_custom_precompiles() {
             evm.take_last_post_exec_tx_result()
         }
 
-        fn refund_checkpoint<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Checkpoint
+        fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,

@@ -110,7 +110,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn checkpoint(&self) -> Self::Checkpoint {}
+    fn checkpoint(&mut self) -> Self::Checkpoint {}
 
     fn revert_to_checkpoint(
         &mut self,

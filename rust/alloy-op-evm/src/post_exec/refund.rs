@@ -84,18 +84,20 @@ pub trait PostExecRefundPolicyFactory {
 ///   [`checkpoint`](Self::checkpoint)/[`revert_to_checkpoint`](Self::revert_to_checkpoint) only
 ///   cover block-scoped state, so a failed or declined candidate relies on the next `begin_tx` for
 ///   per-tx cleanup.
-/// - The producer takes a [`checkpoint`](Self::checkpoint) before every candidate transaction, so
-///   it must be O(1), and a revert must cost no more than undoing the block-scoped changes made
-///   since its checkpoint. Neither may copy or walk the block-scoped state accumulated so far: that
-///   state grows with every transaction in the block, so a per-candidate cost proportional to it
-///   makes block building quadratic in the block's transaction count.
+/// - The producer takes a [`checkpoint`](Self::checkpoint) before every candidate transaction and
+///   either reverts to it or drops it before taking the next, so taking a checkpoint invalidates
+///   every earlier one and a policy may discard the undo information of everything before the
+///   latest checkpoint. A checkpoint must be O(1), and a revert must cost no more than undoing the
+///   block-scoped changes made since it. Neither may copy or walk the block-scoped state
+///   accumulated so far: that state grows with every transaction in the block, so a per-candidate
+///   cost proportional to it makes block building quadratic in the block's transaction count.
 /// - The observer hooks must never synthesize call/create outcomes and must not mutate EVM state.
 ///   Every implementation must define every hook explicitly so a downstream observing policy cannot
 ///   compile after an API migration while silently inheriting no-op behavior.
 pub trait PostExecRefundInspector {
     /// Opaque marker of the block-scoped state, used to roll back a candidate transaction the
-    /// producer does not commit. Only valid on the policy that issued it, and only until that
-    /// policy reverts to an earlier checkpoint.
+    /// producer does not commit. Only the most recent checkpoint is valid, and only on the policy
+    /// that issued it.
     type Checkpoint;
 
     /// Begin observing the next transaction.
@@ -154,13 +156,13 @@ pub trait PostExecRefundInspector {
     /// Observe a self-destruct while post-exec tracking is active.
     fn inspect_selfdestruct(&mut self, contract: Address, target: Address, value: U256);
 
-    /// Mark the current block-scoped state. Must be O(1).
-    fn checkpoint(&self) -> Self::Checkpoint;
+    /// Mark the current block-scoped state and invalidate every earlier checkpoint. Must be O(1).
+    fn checkpoint(&mut self) -> Self::Checkpoint;
 
     /// Undo every block-scoped change made since `checkpoint` was taken.
     ///
-    /// Fails when the policy cannot, such as for a checkpoint it did not issue or one an earlier
-    /// revert already discarded. The producer then stops using the policy, so the implementation
+    /// Fails when the policy cannot, such as for a checkpoint it did not issue or one a later
+    /// checkpoint invalidated. The producer then stops using the policy, so the implementation
     /// need not leave its state consistent.
     fn revert_to_checkpoint(
         &mut self,

@@ -748,7 +748,7 @@ impl PostExecRefundInspector for HookObservingPolicy {
         self.observed_hooks |= 8;
     }
 
-    fn checkpoint(&self) -> Self::Checkpoint {
+    fn checkpoint(&mut self) -> Self::Checkpoint {
         self.observed_hooks
     }
 
@@ -837,7 +837,7 @@ impl<const REVERTS: bool> PostExecRefundInspector for ScriptedRefundPolicy<REVER
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn checkpoint(&self) -> Self::Checkpoint {
+    fn checkpoint(&mut self) -> Self::Checkpoint {
         self.executed_candidates
     }
 
