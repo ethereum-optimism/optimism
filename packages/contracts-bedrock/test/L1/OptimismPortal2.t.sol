@@ -614,9 +614,9 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         _value = bound(_value, 1, type(uint128).max);
-        vm.deal(alice, _value);
+        vm.deal(depositor, _value);
 
-        vm.prank(alice);
+        vm.prank(depositor, depositor);
         vm.expectRevert(IOptimismPortal.OptimismPortal_NotAllowedOnCGTMode.selector);
         (bool revertsAsExpected,) = address(optimismPortal2).call{ value: _value }(hex"");
         assertTrue(revertsAsExpected, "expectRevert: call did not revert");
@@ -2407,8 +2407,8 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         _value = bound(_value, 1, type(uint256).max - address(optimismPortal2).balance);
         uint64 gasLimit = optimismPortal2.minimumGasLimit(uint64(_data.length));
 
-        vm.deal(alice, _value);
-        vm.prank(alice);
+        vm.deal(depositor, _value);
+        vm.prank(depositor, depositor);
         vm.expectRevert(IOptimismPortal.OptimismPortal_NotAllowedOnCGTMode.selector);
         optimismPortal2.depositTransaction{ value: _value }({
             _to: address(0x40),

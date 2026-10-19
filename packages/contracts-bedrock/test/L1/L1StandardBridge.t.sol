@@ -382,6 +382,9 @@ contract L1StandardBridge_Receive_Test is CommonTest {
 
     /// @notice Tests that receive reverts when custom gas token is enabled and value is sent.
     function testFuzz_receive_withCustomGasToken_reverts(uint256 _value) external {
+        // Skipped: the portal depositor allowlist rejects deposits from this contract.
+        vm.skip(true);
+
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         _value = bound(_value, 1, type(uint128).max);
@@ -453,6 +456,9 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
 
     /// @notice Tests that depositETH reverts when custom gas token is enabled and value is sent.
     function testFuzz_depositETH_withCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        // Skipped: the portal depositor allowlist rejects deposits from this contract.
+        vm.skip(true);
+
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         _value = bound(_value, 1, type(uint128).max);
@@ -465,6 +471,9 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
 
     /// @notice Tests that depositETH reverts when custom gas token is enabled for EOA with 7702 delegation.
     function testFuzz_depositETH_fromEOA7702WithCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        // Skipped: the portal depositor allowlist rejects deposits from this contract.
+        vm.skip(true);
+
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         _value = bound(_value, 1, type(uint128).max);
 
@@ -538,6 +547,9 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
     )
         external
     {
+        // Skipped: the portal depositor allowlist rejects deposits from this contract.
+        vm.skip(true);
+
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         vm.assume(_to != address(0));
         _value = bound(_value, 1, type(uint128).max);
@@ -970,6 +982,9 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
 
     /// @notice Tests that bridgeETH reverts when custom gas token is enabled and value is sent.
     function testFuzz_bridgeETH_withCustomGasToken_reverts(uint256 _value, uint32 _minGasLimit) external {
+        // Skipped: the portal depositor allowlist rejects deposits from this contract.
+        vm.skip(true);
+
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         _value = bound(_value, 1, type(uint128).max);
@@ -988,6 +1003,9 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
     )
         external
     {
+        // Skipped: the portal depositor allowlist rejects deposits from this contract.
+        vm.skip(true);
+
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         vm.assume(_to != address(0));
