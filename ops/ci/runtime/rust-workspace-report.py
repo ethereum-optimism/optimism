@@ -31,6 +31,8 @@ def inputs(job=None):
         # Bind every workspace manifest as well as the shared commands. Source
         # identity is the Git SHA; these hashes make settings drift explicit.
         paths += ['rust/Cargo.toml', 'ops/ci/runtime/rust-workspace.sh', 'ops/ci/runtime/rust-workspace-report.py']
+        if job in ('wasm-unknown', 'wasm-wasi'):
+            paths += ['ops/ci/runtime/rwx-materialize-linker.py']
         paths += sorted(command('git', 'ls-files', 'rust/**/Cargo.toml').splitlines())
     if job == 'zepter':
         paths += ['rust/.config/zepter.yaml']
@@ -424,7 +426,8 @@ def merge_tests(directory, unit, compiler):
 
 def finish(directory, status, merged=False):
     errors = []
-    job = json.loads((directory / 'settings.json').read_text())['job']
+    settings = json.loads((directory / 'settings.json').read_text())
+    job = settings['job']
     reports = []
     if merged:
         for label in ('unit', 'compiler'):
@@ -483,7 +486,8 @@ def finish(directory, status, merged=False):
         'registry': ['registry-clean', 'registry', 'registry-diff'],
         'interop': ['superchain-go', 'interop']}
     if status == 0:
-        for name in ['workspace'] + ([] if merged else required[job]):
+        preparation = ['host-linker'] if job in WASM and settings.get('provider') == 'rwx' else []
+        for name in ['workspace'] + preparation + ([] if merged else required[job]):
             if stages.get(name, {}).get('exit_code') != 0:
                 errors.append(f'Missing or unsuccessful stage: {name}')
     if job in extra_jobs:

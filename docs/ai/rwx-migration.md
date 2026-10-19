@@ -37,6 +37,16 @@ consumers. Both stages use 4 CPUs and 8 GB; preparation and filesystem transfer
 must be included in benchmark wall time and cost. A cold producer is additional
 work, so warm results must be reported separately from warm-up.
 
+RWX WASM checks also link native Cargo build scripts. Restored GCC/glibc inputs
+have intermittently returned `ETIMEDOUT` from file opens (`crti.o`,
+`crtbeginS.o`, `libgcc.a`). Before these checks compile, `rwx-materialize-linker.py`
+copies the image's host linker inputs into fresh local inodes, preserving their
+bytes, ownership, mode and timestamps. It retries only timed-out input reads,
+at most three times, and fails on exhaustion or any other error. The sealed
+`host-linker` stage retains hashes, inode changes, timing and timeout counts.
+Compilation and verdicts are never retried by this helper. This is a local
+mitigation; the provider-side cause of the original reads remains unconfirmed.
+
 Develop refresh on October 19, 2026 adds required `rust-deny` and
 `opgeth-ratchet` checks, bringing the current inventory to 88 PR occurrences.
 The historical 86-occurrence parity snapshot remains dated evidence. SP1 now

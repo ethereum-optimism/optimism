@@ -95,6 +95,7 @@ tasks:
     use: [code, tools]
     run: |
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_materialize_linker.py'
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_rust_workspace.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_extra.py'

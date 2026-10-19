@@ -300,6 +300,30 @@ class InteropScriptTests(unittest.TestCase):
         self.assertEqual((self.root / 'report/interop-rust.exit').read_text(), '9\n')
 
 
+class HostLinkerReportTests(unittest.TestCase):
+    def test_rwx_wasm_requires_successful_preparation_and_seals_its_original_log(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            REPORT.write(directory / 'settings.json', {'job': 'wasm-unknown', 'provider': 'rwx'})
+            for name in ('workspace', 'wasm-target', 'wasm-list', 'wasm'):
+                REPORT.write(directory / (name + '.stage.json'), {'exit_code': 0})
+            with patch.object(REPORT, 'wasm_report', return_value=['fixture']), \
+                    patch.object(REPORT, 'check_junit'):
+                self.assertNotEqual(REPORT.finish(directory, 0), 0)
+                REPORT.write(directory / 'host-linker.stage.json', {'exit_code': 7})
+                self.assertNotEqual(REPORT.finish(directory, 0), 0)
+                (directory / 'host-linker.log').write_text('original materialization evidence\n')
+                REPORT.write(directory / 'host-linker.stage.json', {'exit_code': 0})
+                self.assertEqual(REPORT.finish(directory, 0), 0)
+                final = json.loads((directory / 'final.json').read_text())
+                self.assertEqual(final['original_sha256']['host-linker.log'],
+                                 REPORT.digest(directory / 'host-linker.log'))
+                # Circle's command contract does not acquire an RWX-only stage.
+                REPORT.write(directory / 'settings.json', {'job': 'wasm-unknown', 'provider': 'circleci'})
+                (directory / 'host-linker.stage.json').unlink()
+                self.assertEqual(REPORT.finish(directory, 0), 0)
+
+
 class StageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

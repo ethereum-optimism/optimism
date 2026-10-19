@@ -44,6 +44,25 @@ def package_manifest(metadata):
     return result
 
 
+def host_linker_report(directory):
+    report = read(directory / 'host-linker.log')
+    files = report.get('files', [])
+    if report.get('schema') != 1 or report.get('success') is not True or not files:
+        raise ValueError('Unsuccessful host linker preparation')
+    paths = [row['path'] for row in files]
+    if len(paths) != len(set(paths)) or not {'crti.o', 'crtbeginS.o', 'libgcc.a'} <= {Path(p).name for p in paths}:
+        raise ValueError('Incomplete host linker inputs')
+    for row in files:
+        path = Path(row['path'])
+        if (not path.is_absolute() or '..' in path.parts or not path.is_relative_to('/usr/lib')
+                or row.get('detached') is not True or row['original_inode'] == row['local_inode']
+                or not re.fullmatch('[0-9a-f]{64}', row['sha256']) or row['bytes'] <= 0
+                or not 1 <= row['read_attempts'] <= 3
+                or row['read_timeouts'] != row['read_attempts'] - 1 or row['seconds'] < 0):
+            raise ValueError('Invalid host linker materialization evidence')
+    return report
+
+
 def compare(root, sha):
     if not re.fullmatch('[0-9a-f]{40}', sha):
         raise ValueError('Expected a full source SHA')
@@ -63,6 +82,8 @@ def compare(root, sha):
             hashes = final['original_sha256']
             required = {'settings.json', 'workspace.json', 'checks.junit.xml'}
             stages = ('workspace',) + STAGES[job]
+            if provider == 'rwx' and job.startswith('wasm-'):
+                stages += ('host-linker',)
             required.update(name + suffix for name in stages for suffix in ('.log', '.stage.json'))
             if job.startswith('wasm-'):
                 required.update({'wasm-coverage.json', 'wasm-artifacts.json'})
@@ -103,8 +124,8 @@ def compare(root, sha):
             raise ValueError(f'{job}: complete workspace manifests differ')
         stages_a, stages_b = read(a / 'final.json')['stages'], read(b / 'final.json')['stages']
         projection = lambda stages: {name: {k: s[k] for k in ('argv', 'cwd', 'exit_code')}
-                                     for name, s in stages.items()}
-        if projection(stages_a) != projection(stages_b) or any(s['exit_code'] != 0 for s in stages_a.values()):
+                                     for name, s in stages.items() if name in ('workspace',) + STAGES[job]}
+        if projection(stages_a) != projection(stages_b) or any(s['exit_code'] != 0 for s in [*stages_a.values(), *stages_b.values()]):
             raise ValueError(f'{job}: original commands, working directories or outcomes differ')
         info = {'packages': len(packages), 'stages': projection(stages_a), 'outcome': 'pass', 'retries': 0}
         filename = {'wasm-unknown': 'wasm-coverage.json', 'wasm-wasi': 'wasm-coverage.json',
@@ -115,6 +136,13 @@ def compare(root, sha):
                 raise ValueError(f'{job}: full coverage differs')
             info['coverage'] = coverage
         if job.startswith('wasm-'):
+            preparation = stages_b['host-linker']
+            argv = preparation['argv']
+            if (len(argv) != 3 or argv[:2] != ['sudo', 'python3'] or
+                    not argv[2].endswith('/ops/ci/runtime/rwx-materialize-linker.py') or preparation['cwd'] != '.'):
+                raise ValueError('Unexpected host linker preparation command')
+            info['rwx_preparation'] = {'stage': preparation, 'evidence': host_linker_report(b),
+                'comparison': 'RWX-only local materialization of unchanged host linker inputs; original Cargo commands remain identical.'}
             artifacts_a, artifacts_b = read(a / 'wasm-artifacts.json'), read(b / 'wasm-artifacts.json')
             for key in ('source_sha', 'target', 'rustc'):
                 if artifacts_a[key] != artifacts_b[key]:

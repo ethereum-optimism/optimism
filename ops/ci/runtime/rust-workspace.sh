@@ -182,6 +182,11 @@ case "$job" in
   no-std) stage no-std just check-no-std ;;
   udeps) stage udeps just check-udeps ;;
   wasm-unknown|wasm-wasi)
+    if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+      # Native build scripts must not lazily reopen restored GCC/glibc inputs
+      # while Cargo links them concurrently. Preserve byte/inode/read evidence.
+      stage_at . host-linker sudo python3 "$HELPERS/rwx-materialize-linker.py"
+    fi
     target=wasm32-wasip1
     packages=(-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm)
     if [[ "$job" == wasm-unknown ]]; then

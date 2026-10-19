@@ -33,6 +33,15 @@ class ComparisonTests(unittest.TestCase):
                     self.write(d / (name + '.stage.json'), stages[name])
                     (d / (name + '.log')).write_text('original\n')
                 if job.startswith('wasm-'):
+                    if provider == 'rwx':
+                        stages['host-linker'] = {'argv': ['sudo', 'python3', '/workspace/ops/ci/runtime/rwx-materialize-linker.py'],
+                                                 'cwd': '.', 'exit_code': 0}
+                        self.write(d / 'host-linker.stage.json', stages['host-linker'])
+                        self.write(d / 'host-linker.log', {'schema': 1, 'success': True, 'files': [
+                            {'path': '/usr/lib/' + name, 'sha256': 'e' * 64, 'bytes': 100,
+                             'original_inode': 10, 'local_inode': 11, 'detached': True,
+                             'read_attempts': 1, 'read_timeouts': 0, 'seconds': 0.01}
+                            for name in ('crti.o', 'crtbeginS.o', 'libgcc.a')]})
                     self.write(d / 'wasm-coverage.json', {'selected': ['crate'], 'executed': ['crate']})
                     self.write(d / 'wasm-artifacts.json', {'source_sha': SHA, 'target': job, 'rustc': 'pinned',
                                                          'artifacts': {'libcrate.rlib': {'sha256': 'd' * 64}}})
@@ -63,7 +72,41 @@ class ComparisonTests(unittest.TestCase):
             self.write(d / 'final.json', final)
 
     def test_complete_reports_compare(self):
-        self.assertTrue(COMPARE.compare(self.root, SHA)['verified_parity'])
+        result = COMPARE.compare(self.root, SHA)
+        self.assertTrue(result['verified_parity'])
+        self.assertTrue(result['jobs']['wasm-unknown']['rwx_preparation']['evidence']['success'])
+
+    def test_missing_or_corrupt_host_preparation_is_rejected(self):
+        path = self.root / 'rwx/wasm-unknown/host-linker.log'
+        original = path.read_bytes()
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, 'missing original'):
+            COMPARE.compare(self.root, SHA)
+        path.write_bytes(original + b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'corrupt original'):
+            COMPARE.compare(self.root, SHA)
+        path.write_bytes(original)
+        self.update('rwx', 'wasm-unknown', 'final.json', lambda f: f['stages'].pop('host-linker'))
+        with self.assertRaisesRegex(ValueError, 'incomplete original manifest'):
+            COMPARE.compare(self.root, SHA)
+
+    def test_failed_preparation_cannot_compare_as_a_pass(self):
+        self.update('rwx', 'wasm-unknown', 'final.json', lambda f: f['stages']['host-linker'].update(exit_code=7))
+        self.update('rwx', 'wasm-unknown', 'host-linker.stage.json', lambda s: s.update(exit_code=7))
+        with self.assertRaisesRegex(ValueError, 'outcomes differ'):
+            COMPARE.compare(self.root, SHA)
+
+    def test_materialization_evidence_must_prove_success_and_detachment(self):
+        path = self.root / 'rwx/wasm-unknown/host-linker.log'
+        original = json.loads(path.read_text())
+        for edit in (lambda r: r.update(success=False),
+                     lambda r: r['files'][0].update(local_inode=10),
+                     lambda r: r['files'][0].update(read_attempts=4),
+                     lambda r: r['files'].pop()):
+            self.write(path, original)
+            self.update('rwx', 'wasm-unknown', 'host-linker.log', edit)
+            with self.assertRaises(ValueError):
+                COMPARE.compare(self.root, SHA)
 
     def test_corrupt_or_missing_nonempty_original_rejected(self):
         path = self.root / 'rwx/interop/interop-go.stderr'
