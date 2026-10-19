@@ -52,11 +52,6 @@ impl PreimageStore {
 
         Ok(())
     }
-
-    /// The total length of the stored keys and preimages.
-    pub fn preimage_bytes(&self) -> usize {
-        self.preimage_map.values().map(|value| size_of::<PreimageKey>() + value.len()).sum()
-    }
 }
 
 /// Check that the preimage matches the expected hash.
@@ -155,6 +150,11 @@ impl PreimageStore {
     /// The number of stored preimages.
     pub fn preimage_count(&self) -> usize {
         self.preimage_map.len()
+    }
+
+    /// The total length of the stored keys and preimages.
+    pub fn preimage_bytes(&self) -> usize {
+        self.preimage_map.values().map(|value| size_of::<PreimageKey>() + value.len()).sum()
     }
 }
 
