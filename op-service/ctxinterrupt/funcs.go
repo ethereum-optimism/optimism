@@ -36,8 +36,8 @@ func WithSignalWaiterMain(ctx context.Context) context.Context {
 }
 
 // WithCancelOnInterrupt returns a Context that is cancelled when Wait returns on the waiter in ctx.
-// If there's no waiter, the default interrupt signals are used: In this case the signal hooking is
-// not stopped until the original ctx is cancelled.
+// If there's no waiter, the default interrupt signals are used. The signal handler is stopped
+// after an interrupt is received or the original ctx is cancelled.
 func WithCancelOnInterrupt(ctx context.Context) context.Context {
 	interruptWaiter := contextInterruptWaiter(ctx)
 	ctx, cancel := context.WithCancelCause(ctx)

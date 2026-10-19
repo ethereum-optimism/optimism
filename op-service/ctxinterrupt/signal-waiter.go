@@ -34,8 +34,9 @@ func (me signalWaiter) Stop() {
 	signal.Stop(me.incoming)
 }
 
-// Block blocks until either an interrupt signal is received, or the context is cancelled.
-// No error is returned on interrupt.
+// waitForInterrupt blocks until either an interrupt signal is received, or the context is cancelled.
+// Interrupt signals are reported in waitResult.Interrupt, while context cancellation
+// is reported in waitResult.CtxError.
 func (me signalWaiter) waitForInterrupt(ctx context.Context) waitResult {
 	select {
 	case signalValue, ok := <-me.incoming:
