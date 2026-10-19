@@ -5,8 +5,8 @@
 //! database operation errors.
 
 use alloc::string::String;
-use alloy_evm::block::{BlockExecutionError, BlockValidationError, InternalBlockExecutionError};
-use alloy_op_evm::block::OpBlockExecutionError;
+use alloy_evm::block::BlockExecutionError;
+use alloy_op_evm::block::is_invalid_payload_error;
 use kona_mpt::TrieNodeError;
 use op_alloy_consensus::EIP1559ParamError;
 use revm::context::DBErrorMarker;
@@ -211,43 +211,7 @@ impl ExecutorError {
             Self::Recovery(_) |
             Self::UnsupportedTransactionType(_) |
             Self::RLPError(_) => true,
-            Self::ExecutionError(error) => match error {
-                BlockExecutionError::Validation(validation) => match validation {
-                    BlockValidationError::InvalidTx { .. } |
-                    BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
-                        ..
-                    } |
-                    BlockValidationError::BlockGasExceeded => true,
-                    BlockValidationError::Other(error) => {
-                        // `OpBlockExecutionError` is the only type boxed into `Other` on the proof
-                        // path. Any other type is unclassified and propagates.
-                        error.downcast_ref::<OpBlockExecutionError>().is_some_and(|error| {
-                            match error {
-                                OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
-                                OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
-                                OpBlockExecutionError::InvalidPostExecPayload(_) |
-                                OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
-                                OpBlockExecutionError::LoadCacheAccount |
-                                OpBlockExecutionError::GetJovianDaFootprintScalar(_) => false,
-                            }
-                        })
-                    }
-                    BlockValidationError::EVM { .. } |
-                    BlockValidationError::IncrementBalanceFailed |
-                    BlockValidationError::MissingParentBeaconBlockRoot |
-                    BlockValidationError::CancunGenesisParentBeaconBlockRootNotZero { .. } |
-                    BlockValidationError::BeaconRootContractCall { .. } |
-                    BlockValidationError::BlockHashContractCall { .. } |
-                    BlockValidationError::WithdrawalRequestsContractCall { .. } |
-                    BlockValidationError::ConsolidationRequestsContractCall { .. } |
-                    BlockValidationError::BuilderDepositRequestsContractCall { .. } |
-                    BlockValidationError::BuilderExitRequestsContractCall { .. } |
-                    BlockValidationError::DepositRequestDecode(_) => false,
-                },
-                BlockExecutionError::Internal(
-                    InternalBlockExecutionError::EVM { .. } | InternalBlockExecutionError::Other(_),
-                ) => false,
-            },
+            Self::ExecutionError(error) => is_invalid_payload_error(error),
             Self::MissingGasLimit |
             Self::MissingTransactions |
             Self::MissingEIP1559Params |
@@ -263,6 +227,8 @@ impl ExecutorError {
 mod classification_tests {
     use super::*;
     use alloc::boxed::Box;
+    use alloy_evm::block::{BlockValidationError, InternalBlockExecutionError};
+    use alloy_op_evm::block::OpBlockExecutionError;
 
     #[test]
     fn only_invalid_payload_errors_allow_deposit_only_replacement() {

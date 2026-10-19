@@ -8,8 +8,8 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, StateDB, SystemCaller,
-        TxResult, state_changes::post_block_balance_increments,
+        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, InternalBlockExecutionError,
+        StateDB, SystemCaller, TxResult, state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
@@ -595,17 +595,55 @@ where
     }
 }
 
+/// Returns whether `err` shows that the block's transactions are invalid, rather than a failure of
+/// the node that executes it.
+///
+/// A derived block that fails with such an error is replaced with its deposits-only block. The
+/// fault proof program and op-reth's payload builder both decide with this function, so that they
+/// replace the same blocks. A node-local failure classified as invalid would derive a wrong
+/// deposits-only block, so every other error is not.
+pub fn is_invalid_payload_error(err: &BlockExecutionError) -> bool {
+    // Exhaustive, so a new variant must be classified: one that defaults to node-local would stall
+    // derivation on every node.
+    match err {
+        BlockExecutionError::Validation(validation) => match validation {
+            BlockValidationError::InvalidTx { .. } |
+            BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
+            BlockValidationError::BlockGasExceeded => true,
+            // The OP executor boxes only `OpBlockExecutionError` into `Other`. Any other type is
+            // unclassified and so node-local.
+            BlockValidationError::Other(err) => {
+                err.downcast_ref::<OpBlockExecutionError>().is_some_and(|err| match err {
+                    OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
+                    OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
+                    OpBlockExecutionError::InvalidPostExecPayload(_) |
+                    OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
+                })
+            }
+            BlockValidationError::EVM { .. } |
+            BlockValidationError::IncrementBalanceFailed |
+            BlockValidationError::MissingParentBeaconBlockRoot |
+            BlockValidationError::CancunGenesisParentBeaconBlockRootNotZero { .. } |
+            BlockValidationError::BeaconRootContractCall { .. } |
+            BlockValidationError::BlockHashContractCall { .. } |
+            BlockValidationError::WithdrawalRequestsContractCall { .. } |
+            BlockValidationError::ConsolidationRequestsContractCall { .. } |
+            BlockValidationError::BuilderDepositRequestsContractCall { .. } |
+            BlockValidationError::BuilderExitRequestsContractCall { .. } |
+            BlockValidationError::DepositRequestDecode(_) => false,
+        },
+        BlockExecutionError::Internal(
+            InternalBlockExecutionError::EVM { .. } | InternalBlockExecutionError::Other(_),
+        ) => false,
+    }
+}
+
 /// Custom errors that can occur during OP block execution.
+///
+/// Each variant is caused by the block's transactions (see [`is_invalid_payload_error`]). A failure
+/// of the node, such as a database read, must use [`BlockExecutionError::other`] instead.
 #[derive(Debug, thiserror::Error)]
 pub enum OpBlockExecutionError {
-    /// Failed to load cache account.
-    #[error("failed to load cache account")]
-    LoadCacheAccount,
-
-    /// Failed to get Jovian da footprint gas scalar from database.
-    #[error("failed to get da footprint gas scalar from database: {_0}")]
-    GetJovianDaFootprintScalar(Box<dyn core::error::Error + Send + Sync + 'static>),
-
     /// Transaction DA footprint exceeds available block DA footprint.
     #[error(
         "transaction DA footprint exceeds available block DA footprint. transaction_da_footprint: {transaction_da_footprint}, available_block_da_footprint: {available_block_da_footprint}"
