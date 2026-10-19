@@ -334,7 +334,10 @@ re-detects unproven, signer-created games after restart.
 `Unexecutable` and local `ValidationFailed` requests are sticky. For unchanged
 attempt inputs, the proposer rejects the attempt before collecting witnesses
 or submitting another SPN request. Scheduler tasks may still run and check
-inputs. A change to the full attempt identity permits a new attempt.
+inputs. A change to the full attempt identity permits a new attempt. An
+`Unexecutable` range or consolidation request of a span with more than one
+timestamp is not sticky: the proposer bisects the span (see below), and only
+the halves' requests count from then on.
 
 SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
 the proposer to retry terminal proof requests without restarting it. This
@@ -462,7 +465,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
-| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, then refuses an oversized request before submitting it, in mock mode too. The aggregation request is not checked |
+| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, so it holds an oversized one in memory before it refuses it, then checks the stdin before submitting it, in mock mode too. A proving task holds its range and consolidation stdin together until the range request is uploaded, and its consolidation stdin until the consolidation request is, so plan memory for twice this limit per concurrent chunk. A span over the limit is bisected; a single timestamp over it makes the game unprovable, except that an automatic receipts path then retries the game on the table path. The aggregation request is not checked |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
@@ -512,6 +515,16 @@ large chunk can require a range proof and a consolidation proof before the final
 PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies independently to each
 proof request, not to the complete defense.
 
+A chunk is bisected at its timestamp midpoint, and each half proved in turn, when one
+of its requests is over `MAX_STDIN_BYTES`, its consolidation estimate is not under
+80% of `RANGE_GAS_LIMIT`, or SPN reports its range or consolidation request
+`UNEXECUTABLE`. The proposer collects both witnesses and checks both requests before it
+submits the range request, so a size or estimate split buys no proof. The log line
+`Span exceeds proving limits; bisecting` names the span. Halves persist across
+attempts until the game's progress is cleared. A single timestamp over a size limit
+makes the game unprovable; one over its estimate is submitted anyway; one that SPN
+cannot execute stays terminal.
+
 At the default one-hour interval, an OP Mainnet span contains about 1,800
 two-second blocks. The default 16 chunks average 112.5 blocks each; configuring
 18 targets 100 blocks per chunk. Higher counts reduce per-request work but
@@ -523,13 +536,14 @@ An executing message can reference a block below its chain's local safe head. Wi
 `LOG_PATH=auto`, the proposer scans the span's messages and keeps the receipts path
 when every consolidation request's estimate is under 80% of `RANGE_GAS_LIMIT` and its
 witness bound is under `MAX_STDIN_BYTES`. Otherwise the whole game takes the table
-path. The proposer proves each referenced block once in `log-commitment` batch
-requests, under `LOG_GAS_LIMIT`, before any consolidation collection. It cuts the
+path. The proposer submits `log-commitment` batch requests that prove each referenced
+block once, under `LOG_GAS_LIMIT`, before any consolidation collection. It cuts the
 blocks evenly into the fewest batches that fit 80% of `LOG_GAS_LIMIT` by estimate,
 4,096 entries, and `MAX_STDIN_BYTES` of witness, and halves any batch still over one.
-Each consolidation request then carries the batch proofs of the blocks that it reads.
+Each consolidation request then waits for and carries the batch proofs of the blocks
+that it reads.
 Every range, consolidation, and batch stdin must stay under `MAX_STDIN_BYTES`. A
-failed batch proof fails the game attempt.
+failed batch proof fails the game attempt; it does not bisect a chunk.
 
 Transaction signing requires exactly one of these configurations:
 

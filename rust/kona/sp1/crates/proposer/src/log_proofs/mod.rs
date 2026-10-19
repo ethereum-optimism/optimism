@@ -314,12 +314,14 @@ pub(crate) struct EstimateOverBudget {
 }
 
 /// Checks a collected consolidation before its request: on the table path, every block below a
-/// head must have had an entry; on either path, the estimate must be under the budget of
-/// `gas_limit` ([`EstimateOverBudget`]).
+/// head must have had an entry; when the request's span can be split, the estimate must be under
+/// the budget of `gas_limit` ([`EstimateOverBudget`]). A span that cannot be split is requested
+/// whatever its estimate.
 pub(crate) fn check_collected(
     table: bool,
     request: &CollectedRequest<'_>,
     gas_limit: u64,
+    splittable: bool,
 ) -> Result<()> {
     let CollectedRequest { span, missing, estimate, batch_proofs } = *request;
     if table && !missing.is_empty() {
@@ -341,7 +343,7 @@ pub(crate) fn check_collected(
         );
     }
     let budget = request_budget(gas_limit);
-    if estimate >= budget {
+    if splittable && estimate >= budget {
         return Err(EstimateOverBudget {
             span,
             estimate,
@@ -445,7 +447,7 @@ mod tests {
         batch_proofs: usize,
     ) -> Result<()> {
         let request = CollectedRequest { span: span(), missing, estimate, batch_proofs };
-        check_collected(table, &request, LIMIT)
+        check_collected(table, &request, LIMIT, true)
     }
 
     fn stdin_limit(bytes: u64) -> StdinByteLimit {
@@ -538,6 +540,18 @@ mod tests {
                 receipts_path_blocks: 1,
             })
         );
+    }
+
+    /// Pins a span that cannot be split requested over its estimate, but not without an entry.
+    #[test]
+    fn check_collected_skips_the_budget_when_not_splittable() {
+        let request =
+            CollectedRequest { span: span(), missing: &[], estimate: 5_000, batch_proofs: 0 };
+        check_collected(true, &request, LIMIT, false).unwrap();
+        let missing = [missing(3)];
+        let request = CollectedRequest { missing: &missing, ..request };
+        check_collected(true, &request, LIMIT, false).unwrap_err();
+        check_collected(false, &request, LIMIT, false).unwrap();
     }
 
     /// Pins the 2 s poll interval for few batches and at most 8 polls per second for many.

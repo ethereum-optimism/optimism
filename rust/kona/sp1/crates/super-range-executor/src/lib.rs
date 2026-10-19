@@ -664,9 +664,8 @@ impl LogCommitmentProofs {
 }
 
 /// Encodes consolidation-mode SP1 stdin: typed inputs, rkyv witness bytes, and the encoded
-/// `log_commitments`. `proofs` go to the proof stream; each must be compressed and commit the
-/// batch at its position. Without `proofs`, only execution with the deferred-proof check off can
-/// use batches.
+/// `log_commitments`. `proofs` go to the proof stream (see [`write_log_commitment_proofs`]).
+/// Without `proofs`, only execution with the deferred-proof check off can use batches.
 pub fn build_super_consolidation_stdin(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
@@ -677,25 +676,37 @@ pub fn build_super_consolidation_stdin(
     let mut stdin =
         build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)?;
     stdin.write_vec(log_commitments.encode());
-    if let Some(LogCommitmentProofs { vk, proofs }) = proofs {
-        ensure!(
-            proofs.len() == log_commitments.batches.len(),
-            "{} log-commitment proofs for {} batches",
-            proofs.len(),
-            log_commitments.batches.len(),
-        );
-        for (index, (proof, batch)) in proofs.iter().zip(&log_commitments.batches).enumerate() {
-            ensure!(
-                proof.public_values.as_slice() == batch.as_slice(),
-                "log-commitment proof {index} does not commit its batch",
-            );
-            let SP1Proof::Compressed(recursion_proof) = &proof.proof else {
-                bail!("log-commitment proof {index} is not compressed");
-            };
-            stdin.write_proof((**recursion_proof).clone(), vk.vk.clone());
-        }
+    if let Some(proofs) = proofs {
+        write_log_commitment_proofs(&mut stdin, &log_commitments.batches, proofs)?;
     }
     Ok(stdin)
+}
+
+/// Adds `proofs` to the proof stream of a consolidation `stdin` that carries `batches`. Each proof
+/// must be compressed and commit the batch at its position.
+pub fn write_log_commitment_proofs(
+    stdin: &mut SP1Stdin,
+    batches: &[Vec<u8>],
+    proofs: &LogCommitmentProofs,
+) -> Result<()> {
+    let LogCommitmentProofs { vk, proofs } = proofs;
+    ensure!(
+        proofs.len() == batches.len(),
+        "{} log-commitment proofs for {} batches",
+        proofs.len(),
+        batches.len(),
+    );
+    for (index, (proof, batch)) in proofs.iter().zip(batches).enumerate() {
+        ensure!(
+            proof.public_values.as_slice() == batch.as_slice(),
+            "log-commitment proof {index} does not commit its batch",
+        );
+        let SP1Proof::Compressed(recursion_proof) = &proof.proof else {
+            bail!("log-commitment proof {index} is not compressed");
+        };
+        stdin.write_proof((**recursion_proof).clone(), vk.vk.clone());
+    }
+    Ok(())
 }
 
 /// Encodes log-commitment SP1 stdin for `blocks`. Fails if receipts do not hash to their root.

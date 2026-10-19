@@ -36,15 +36,15 @@ it as a performance note.
 
 | Limit | Value | Source | Effect when exceeded |
 |---|---|---|---|
-| Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`, and panics in `rkyv::to_bytes` ("out of range integral type conversion attempted") when one overflows. The host encodes every witness through `archive_witness` (`kona-sp1-super-range-executor`), which first bounds the archive size from the preimage and blob sizes and refuses a witness over `MAX_ARCHIVED_WITNESS_BYTES` (`i32::MAX`). | The host returns `WitnessTooLarge` without calling rkyv. The request gets no stdin and no proof. |
+| Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`, and panics in `rkyv::to_bytes` ("out of range integral type conversion attempted") when one overflows. The host encodes every witness through `archive_witness` (`kona-sp1-super-range-executor`), which first bounds the archive size from the preimage and blob sizes and refuses a witness over `MAX_ARCHIVED_WITNESS_BYTES` (`i32::MAX`). | The host returns `WitnessTooLarge` without calling rkyv. The request gets no stdin and no proof. The proposer bisects the span; a single timestamp is `GameUnprovable`. |
 | Guest input region | 16 GiB | `INPUT_REGION_SIZE` default (`1 << 34`), `sp1-zkvm` build script | `read_vec_raw` panics: "Input region overflowed." All stdin uses this region. The witness-encoding limit applies to the witness first. |
 | Guest heap | Up to 112 GiB: `MAX_MEMORY` (`1 << 37`) minus the input region. The memory limit below applies first. | `sp1-zkvm` build script and embedded allocator | The allocator fails. Decoded copies of the witness use the heap. |
 | Executor and prover memory | 24 GiB RSS of the executor child process that SP1 starts. The guest memory, the stdin, and the child's own buffers share it, so the guest gets less than 24 GiB. | `DEFAULT_MEMORY_LIMIT` in `sp1-core-executor` (`SP1CoreOpts::memory_limit`, env `MEMORY_LIMIT`). The `zkvm-canary` default is the same value. The prover network applies the same limit on its side. The SDK does not send it. | SP1 stops the child. Local execution and the canary fail, and a network request gives no proof. |
-| Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. |
+| Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. It bisects a span of more than one timestamp; a single timestamp's request stays terminal until SIGUSR1. |
 | Aggregation request | 10⁹ PGU, 10¹² cycles | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. |
 | Log-commitment batch request | 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_LOG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable`, and the game attempt fails. |
-| Request stdin | 5 GB of compressed stdin, with every compressed proof, in one upload (SP1 SDK). The proposer's own limit is lower: 1.5 GiB of encoded stdin by default, at most 2 GiB. One embedded compressed batch proof with its verifying key encodes to 1,272,646 bytes (measured on mainnet SPN proofs). | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). Proposer `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (`StdinByteLimit`, default `DEFAULT_MAX_STDIN_BYTES`), checked on the exact bincode 1 length of each range, consolidation, and log-commitment request's stdin, in mock mode too. The aggregation request is not checked: it carries no witness. | The proposer refuses the request with `StdinTooLarge` before it submits it. |
-| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `OP_ZK_PROPOSER_MAX_STDIN_BYTES` of receipts-trie witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks` | The proposer cannot split the work of one timestamp. |
+| Request stdin | 5 GB of compressed stdin, with every compressed proof, in one upload (SP1 SDK). The proposer's own limit is lower: 1.5 GiB of encoded stdin by default, at most 2 GiB. One embedded compressed batch proof with its verifying key encodes to 1,272,646 bytes (measured on mainnet SPN proofs). | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). Proposer `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (`StdinByteLimit`, default `DEFAULT_MAX_STDIN_BYTES`), checked on the exact bincode 1 length of each range, consolidation, and log-commitment request's stdin, in mock mode too. The aggregation request is not checked: it carries no witness. | The proposer refuses the request with `StdinTooLarge` before it submits it, and bisects the span; a single timestamp is `GameUnprovable`. |
+| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request, until it is bisected. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `OP_ZK_PROPOSER_MAX_STDIN_BYTES` of receipts-trie witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks`. A span over a size limit, over its estimate, or `Unexecutable` is halved at its timestamp midpoint (`prove_span` in `proving.rs`), and the halves are recorded on its `ChunkProgress`. | The proposer cannot split the work of one timestamp. |
 
 The SP1 values are the SP1 6.8.1 defaults: `sp1-zkvm` in `rust/kona/sp1/programs/Cargo.lock`,
 `sp1-core-executor` in `rust/Cargo.lock`. Nothing in this repository sets
@@ -117,14 +117,18 @@ chain's local safe head in one of two ways:
 
 The proposer chooses one path for each game, before any witness collection. It scans the span's
 executing messages and computes `bound_receipts_path_pgu` and `bound_receipts_path_witness_bytes`
-for each consolidation request. It keeps the receipts path when each PGU bound is under 80% of the
+for each top-level chunk. It keeps the receipts path when each PGU bound is under 80% of the
 range gas limit and each witness bound is under `OP_ZK_PROPOSER_MAX_STDIN_BYTES`. Otherwise it
 proves each referenced block once in batches: `batch_log_blocks` cuts the blocks, ordered by chain
 and number, into the fewest even groups by `estimate_log_block_pgu` (`split_log_batches`), and
 halves any group still over a cap. Before each consolidation request, it computes
-`estimate_consolidation_pgu` from the collection. It refuses a request whose estimate is not under
-the budget (`EstimateOverBudget`), whose stdin is over the stdin limit (`StdinTooLarge`), or, on
-the table path, whose run read a block below a head without an entry.
+`estimate_consolidation_pgu` from the collection. It bisects a span whose estimate is not under
+the budget (`EstimateOverBudget`) or whose stdin is over the stdin limit (`StdinTooLarge`), and it
+does both checks before it submits the span's range request. A single timestamp is submitted
+whatever its estimate. A single timestamp over the stdin limit on a receipts path that `auto` chose
+marks the stage for the table path (`receipts_path_fallback`): the witness bound does not count the
+archive's overhead, so it can miss. On the table path, a run that read a block below a head without
+an entry fails the attempt, and the next attempt scans the span again.
 `OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
 
 The estimators are coarse on purpose: a batch is priced by its blocks, logs, and receipts-trie
@@ -165,7 +169,9 @@ consolidation with one below-head message on the table path measured 7.1M PGU in
 The memory of a request at the limit is not yet measured with SP1's native executor. SP1 gives only
 the stdin buffers to the executor child: the witness and the log-commitment section. It verifies
 the batch proofs in the parent process, so the proof share of the stdin limit only bounds the
-upload. The `#[ignore]` test `measure_consolidation_memory_at_stdin_cap` builds a receipts-path
+upload. The proposer holds a span's range and consolidation stdin together until it uploads the
+range request, so a proving task can hold twice the stdin limit. The `#[ignore]` test
+`measure_consolidation_memory_at_stdin_cap` builds a receipts-path
 stdin of about `DEFAULT_MAX_STDIN_BYTES` (1.5 GiB), nearly all of it witness. Run it on x86-64
 Linux without `profiling` before you rely on the default: SP1 stops the child above 24 GiB, and
 the test then fails. For the margin, read the child's `VmHWM` from `/proc/<pid>/status`, or run
