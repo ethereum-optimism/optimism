@@ -43,8 +43,8 @@ it as a performance note.
 | Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. |
 | Aggregation request | 10⁹ PGU, 10¹² cycles | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. |
 | Log-commitment batch request | 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_LOG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable`, and the game attempt fails. |
-| Stdin upload | 5 GB of compressed stdin, with every compressed proof, in one upload | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). zstd makes proofs only a little smaller. The proposer refuses a consolidation request whose stdin is over `MAX_STDIN_BYTES` (4 GiB): the witness, the encoded log commitments, and `BATCH_PROOF_BYTES` (1.4 MB) for each batch proof. | The upload fails. The request gives no proof. |
-| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `MAX_WITNESS_BYTES` of witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks` | The proposer cannot split the work of one timestamp. |
+| Request stdin | 5 GB of compressed stdin, with every compressed proof, in one upload (SP1 SDK). The proposer's own limit is lower: 1.5 GiB of encoded stdin by default, at most 2 GiB. One embedded compressed batch proof with its verifying key encodes to 1,272,646 bytes (measured on mainnet SPN proofs). | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). Proposer `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (`StdinByteLimit`, default `DEFAULT_MAX_STDIN_BYTES`), checked on the exact bincode 1 length of each range, consolidation, and log-commitment request's stdin, in mock mode too. The aggregation request is not checked: it carries no witness. | The proposer refuses the request with `StdinTooLarge` before it submits it. |
+| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `OP_ZK_PROPOSER_MAX_STDIN_BYTES` of receipts-trie witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks` | The proposer cannot split the work of one timestamp. |
 
 The SP1 values are the SP1 6.8.1 defaults: `sp1-zkvm` in `rust/kona/sp1/programs/Cargo.lock`,
 `sp1-core-executor` in `rust/Cargo.lock`. Nothing in this repository sets
@@ -117,13 +117,14 @@ chain's local safe head in one of two ways:
 
 The proposer chooses one path for each game, before any witness collection. It scans the span's
 executing messages and computes `bound_receipts_path_pgu` and `bound_receipts_path_witness_bytes`
-for each consolidation request. It keeps the receipts path when each bound is under 80% of the
-range gas limit and under `MAX_WITNESS_BYTES`. Otherwise it proves each referenced block once in
-batches: `batch_log_blocks` cuts the blocks, ordered by chain and number, into the fewest even
-groups by `estimate_log_block_pgu` (`split_log_batches`), and halves any group still over a cap.
-Before each consolidation request, it computes `estimate_consolidation_pgu` from the collection. It
-refuses a request whose estimate is not under the budget, whose witness or stdin is over its cap,
-or, on the table path, whose run read a block below a head without an entry.
+for each consolidation request. It keeps the receipts path when each PGU bound is under 80% of the
+range gas limit and each witness bound is under `OP_ZK_PROPOSER_MAX_STDIN_BYTES`. Otherwise it
+proves each referenced block once in batches: `batch_log_blocks` cuts the blocks, ordered by chain
+and number, into the fewest even groups by `estimate_log_block_pgu` (`split_log_batches`), and
+halves any group still over a cap. Before each consolidation request, it computes
+`estimate_consolidation_pgu` from the collection. It refuses a request whose estimate is not under
+the budget (`EstimateOverBudget`), whose stdin is over the stdin limit (`StdinTooLarge`), or, on
+the table path, whose run read a block below a head without an entry.
 `OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
 
 The estimators are coarse on purpose: a batch is priced by its blocks, logs, and receipts-trie
@@ -161,19 +162,16 @@ Measure these on a devnet with `--report`. On the acceptance devnet (Isthmus, tw
 consolidation with one below-head message on the table path measured 7.1M PGU in total. Its
 `--report` stdin was 11.3 KB, which does not count the batch proof (about 1.27 MB).
 
-The memory of a request at the caps is not yet measured with SP1's native executor. SP1 gives only
+The memory of a request at the limit is not yet measured with SP1's native executor. SP1 gives only
 the stdin buffers to the executor child: the witness and the log-commitment section. It verifies
-the batch proofs in the parent process. Thus the proof share of `MAX_STDIN_BYTES` is an upload
-limit, and only `MAX_STDIN_BYTES` limits the log-commitment section. The `#[ignore]` test
-`measure_consolidation_memory_at_stdin_cap` builds a stdin with a 1.5 GiB witness and 1,917 batch
-proofs. On macOS (portable executor, in the test process), the whole process peaked at 33.6 GB;
-with local edits, a small stdin peaked at 8.0 GB, which is mostly test setup. These numbers are not
-the child RSS that the limit applies to. Run the test on x86-64 Linux without `profiling` before
-you rely on `MAX_WITNESS_BYTES` (1.5 GiB): SP1 stops the child above 24 GiB, and the test then
-fails. For the margin, read the child's `VmHWM` from `/proc/<pid>/status`, or run again with a
-lower `MEMORY_LIMIT`. Also measure three shapes that the test does not build: a witness of small
-preimages (300–600 B) at `MAX_WITNESS_BYTES`, the largest log-commitment section that the PGU
-budget allows next to that witness, and a `log-commitment` batch with about 1.5 GiB of witness.
+the batch proofs in the parent process, so the proof share of the stdin limit only bounds the
+upload. The `#[ignore]` test `measure_consolidation_memory_at_stdin_cap` builds a receipts-path
+stdin of about `DEFAULT_MAX_STDIN_BYTES` (1.5 GiB), nearly all of it witness. Run it on x86-64
+Linux without `profiling` before you rely on the default: SP1 stops the child above 24 GiB, and
+the test then fails. For the margin, read the child's `VmHWM` from `/proc/<pid>/status`, or run
+again with a lower `MEMORY_LIMIT`. Also measure two shapes that the test does not build: a witness
+of small preimages (300–600 B) at the limit, and a `log-commitment` batch with about 1.5 GiB of
+witness.
 
 ## Untrusted input
 

@@ -51,8 +51,8 @@ use sp1_sdk::{
 
 mod cost;
 pub use cost::{
-    BATCH_PROOF_BYTES, ConsolidationCost, LogBatchBlock, MAX_ENTRIES_PER_BATCH, MAX_STDIN_BYTES,
-    MAX_WITNESS_BYTES, ScannedTimestampCost, batch_log_blocks, bound_receipts_path_pgu,
+    ConsolidationCost, DEFAULT_MAX_STDIN_BYTES, LogBatchBlock, MAX_ENTRIES_PER_BATCH,
+    ScannedTimestampCost, batch_log_blocks, bound_receipts_path_pgu,
     bound_receipts_path_witness_bytes, estimate_consolidation_pgu, estimate_log_block_pgu,
     estimate_log_commitment_pgu, receipts_trie_bytes, split_log_batches,
 };
@@ -966,8 +966,6 @@ pub struct CollectedConsolidation {
     pub missing: Vec<MissingLogCommitment>,
     /// The receipts roots whose entries the run read, so the stdin must carry their batches.
     pub served: Vec<B256>,
-    /// The total length of the witness keys and preimages.
-    pub witness_bytes: u64,
     /// The bytes that the run read from the oracle, with repeats.
     pub read_bytes: u64,
     /// The siblings of the openings that the run's log checks verify.
@@ -989,22 +987,14 @@ pub async fn collect_consolidation_witness(
         run_native_consolidation(oracle, inputs.clone(), configs, batches)
     })
     .await?;
-    let NativeConsolidation {
-        outputs,
-        openings,
-        missing,
-        served,
-        witness_bytes,
-        read_bytes,
-        log_check_siblings,
-    } = native;
+    let NativeConsolidation { outputs, openings, missing, served, read_bytes, log_check_siblings } =
+        native;
     Ok(CollectedConsolidation {
         witness,
         outputs,
         openings,
         missing,
         served,
-        witness_bytes,
         read_bytes,
         log_check_siblings,
     })

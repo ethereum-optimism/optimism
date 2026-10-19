@@ -573,6 +573,8 @@ ark-serialize-0-6 = { package = "ark-serialize", version = "0.6.0", default-feat
 
 # ==================== SERIALIZATION ====================
 bincode = { version = "2.0.1", features = ["serde"] }
+# The SP1 SDK encodes uploaded stdin with bincode 1.
+bincode1 = { package = "bincode", version = "1.3.3" }
 ethereum_ssz = "0.10"
 ethereum_ssz_derive = "0.10"
 rkyv = "0.8.15"

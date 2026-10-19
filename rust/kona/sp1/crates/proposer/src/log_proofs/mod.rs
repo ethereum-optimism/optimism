@@ -17,19 +17,19 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use async_trait::async_trait;
 use kona_sp1_client_utils::{log_commitment::BlockReceipts, super_root::TimestampSpan};
 use kona_sp1_super_range_executor::{
-    BATCH_PROOF_BYTES, CollectedConsolidation, ConsolidationCost, LogBatchBlock, MAX_STDIN_BYTES,
-    MAX_WITNESS_BYTES, MissingLogCommitment, ScannedTimestampCost, batch_log_blocks,
-    bound_receipts_path_pgu, bound_receipts_path_witness_bytes,
-    build_log_commitment_stdin_from_receipts, estimate_log_block_pgu, expected_batch_public_values,
-    receipts_trie_bytes,
+    CollectedConsolidation, ConsolidationCost, LogBatchBlock, MissingLogCommitment,
+    ScannedTimestampCost, batch_log_blocks, bound_receipts_path_pgu,
+    bound_receipts_path_witness_bytes, build_log_commitment_stdin_from_receipts,
+    estimate_log_block_pgu, expected_batch_public_values, receipts_trie_bytes,
 };
 use sha2::{Digest, Sha256};
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin};
 
 use crate::{
-    config::LogPath,
+    config::{LogPath, StdinByteLimit},
     ports::L2BlockSource,
     prover::{PROOF_STATUS_POLL_INTERVAL, ProofId, ProofKeys, ProofProvider, ProofWaitError},
+    proving::ensure_stdin_fits,
 };
 use scan::ScannedSpan;
 
@@ -65,15 +65,16 @@ pub(crate) struct PathChoice {
 }
 
 /// Chooses the table path when `setting` forces it, or when a request's receipts-path bound is
-/// not under the budget of `gas_limit` or its witness bound is over [`MAX_WITNESS_BYTES`].
+/// not under the budget of `gas_limit` or its witness bound is over `stdin_limit`.
 pub(crate) fn choose_log_path(
     setting: LogPath,
     bounds: &[RequestBound],
     gas_limit: u64,
+    stdin_limit: StdinByteLimit,
 ) -> PathChoice {
     let largest_bound = bounds.iter().map(|bound| bound.pgu).max().unwrap_or_default();
     let over = bounds.iter().any(|bound| {
-        bound.pgu >= request_budget(gas_limit) || bound.witness_bytes > MAX_WITNESS_BYTES
+        bound.pgu >= request_budget(gas_limit) || bound.witness_bytes > stdin_limit.get()
     });
     let table = match setting {
         LogPath::Receipts => false,
@@ -114,6 +115,7 @@ pub(crate) async fn make_log_batches(
     l2: &dyn L2BlockSource,
     scan: &ScannedSpan,
     log_gas_limit: u64,
+    stdin_limit: StdinByteLimit,
 ) -> Result<Vec<LogBatch>> {
     let mut entries = BTreeMap::new();
     let mut blocks = Vec::with_capacity(scan.blocks.len());
@@ -138,7 +140,7 @@ pub(crate) async fn make_log_batches(
             witness_bytes,
         });
     }
-    Ok(batch_log_blocks(blocks, request_budget(log_gas_limit), MAX_WITNESS_BYTES)
+    Ok(batch_log_blocks(blocks, request_budget(log_gas_limit), stdin_limit.get())
         .into_iter()
         .map(|blocks| {
             let expected: Vec<u8> =
@@ -152,14 +154,20 @@ pub(crate) async fn make_log_batches(
         .collect())
 }
 
-/// The stdin of `batch`, from its blocks' receipts.
-pub(crate) async fn batch_stdin(l2: &dyn L2BlockSource, batch: &LogBatch) -> Result<SP1Stdin> {
+/// The stdin of `batch`, from its blocks' receipts, checked against `limit`.
+pub(crate) async fn batch_stdin(
+    l2: &dyn L2BlockSource,
+    batch: &LogBatch,
+    limit: StdinByteLimit,
+) -> Result<SP1Stdin> {
     let mut blocks = Vec::with_capacity(batch.blocks.len());
     for block in &batch.blocks {
         let receipts = l2.receipts(block.chain_id, block.hash, block.receipts_root).await?;
         blocks.push(BlockReceipts { receipts_root: block.receipts_root, receipts });
     }
-    build_log_commitment_stdin_from_receipts(&blocks)
+    let stdin = build_log_commitment_stdin_from_receipts(&blocks)?;
+    ensure_stdin_fits("log", &stdin, limit)?;
+    Ok(stdin)
 }
 
 /// The indices of the batches that hold a root of `served`, in batch order. Batches hold disjoint
@@ -211,6 +219,7 @@ pub(crate) struct NetworkLogProver<'a> {
     pub(crate) provider: &'a ProofProvider,
     pub(crate) keys: &'a ProofKeys,
     pub(crate) l2: &'a dyn L2BlockSource,
+    pub(crate) max_stdin_bytes: StdinByteLimit,
     /// See [`log_batch_poll_interval`].
     pub(crate) poll_interval: Duration,
 }
@@ -218,7 +227,7 @@ pub(crate) struct NetworkLogProver<'a> {
 #[async_trait]
 impl LogBatchProver for NetworkLogProver<'_> {
     async fn submit(&self, batch: &LogBatch) -> Result<ProofId> {
-        let stdin = batch_stdin(self.l2, batch).await?;
+        let stdin = batch_stdin(self.l2, batch, self.max_stdin_bytes).await?;
         self.provider.request_log_proof(self.keys, stdin).await
     }
 
@@ -241,13 +250,16 @@ impl LogBatchProver for NetworkLogProver<'_> {
 }
 
 /// The mock provider's batches: no SP1 request; a batch's proof is empty and commits its expected
-/// public values.
-#[derive(Debug)]
-pub(crate) struct MockLogProver;
+/// public values. Submission still builds and checks the batch's stdin.
+pub(crate) struct MockLogProver<'a> {
+    pub(crate) l2: &'a dyn L2BlockSource,
+    pub(crate) max_stdin_bytes: StdinByteLimit,
+}
 
 #[async_trait]
-impl LogBatchProver for MockLogProver {
+impl LogBatchProver for MockLogProver<'_> {
     async fn submit(&self, batch: &LogBatch) -> Result<ProofId> {
+        batch_stdin(self.l2, batch, self.max_stdin_bytes).await?;
         Ok(batch.id)
     }
 
@@ -281,29 +293,35 @@ pub(crate) struct CollectedRequest<'a> {
     pub(crate) span: TimestampSpan,
     pub(crate) missing: &'a [MissingLogCommitment],
     pub(crate) estimate: u64,
-    pub(crate) witness_bytes: u64,
     pub(crate) batch_proofs: usize,
-    /// The encoded batches and openings of the stdin.
-    pub(crate) log_commitment_bytes: u64,
+}
+
+/// A consolidation request's estimate is not under its budget.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "the consolidation of timestamps {}..={} is estimated at {estimate} PGU with {batch_proofs} \
+     batch proofs and {receipts_path_blocks} blocks read through their receipts, not under \
+     {budget} ({REQUEST_FILL_PERCENT}% of the range gas limit)",
+    span.start,
+    span.end
+)]
+pub(crate) struct EstimateOverBudget {
+    pub(crate) span: TimestampSpan,
+    pub(crate) estimate: u64,
+    pub(crate) budget: u64,
+    pub(crate) batch_proofs: usize,
+    pub(crate) receipts_path_blocks: usize,
 }
 
 /// Checks a collected consolidation before its request: on the table path, every block below a
 /// head must have had an entry; on either path, the estimate must be under the budget of
-/// `gas_limit`, the witness within [`MAX_WITNESS_BYTES`], and the stdin within
-/// [`MAX_STDIN_BYTES`].
+/// `gas_limit` ([`EstimateOverBudget`]).
 pub(crate) fn check_collected(
     table: bool,
     request: &CollectedRequest<'_>,
     gas_limit: u64,
 ) -> Result<()> {
-    let CollectedRequest {
-        span,
-        missing,
-        estimate,
-        witness_bytes,
-        batch_proofs,
-        log_commitment_bytes,
-    } = *request;
+    let CollectedRequest { span, missing, estimate, batch_proofs } = *request;
     if table && !missing.is_empty() {
         let blocks: Vec<_> = missing
             .iter()
@@ -322,32 +340,17 @@ pub(crate) fn check_collected(
             blocks.join(", "),
         );
     }
-    ensure!(
-        witness_bytes <= MAX_WITNESS_BYTES,
-        "the consolidation of timestamps {}..={} has {witness_bytes} witness bytes, over \
-         {MAX_WITNESS_BYTES}",
-        span.start,
-        span.end,
-    );
-    let stdin_bytes =
-        witness_bytes + log_commitment_bytes + batch_proofs as u64 * BATCH_PROOF_BYTES;
-    ensure!(
-        stdin_bytes <= MAX_STDIN_BYTES,
-        "the consolidation of timestamps {}..={} has about {stdin_bytes} stdin bytes with \
-         {batch_proofs} batch proofs, over {MAX_STDIN_BYTES}",
-        span.start,
-        span.end,
-    );
     let budget = request_budget(gas_limit);
-    ensure!(
-        estimate < budget,
-        "the consolidation of timestamps {}..={} is estimated at {estimate} PGU with {batch_proofs} \
-         batch proofs and {} blocks read through their receipts, not under {budget} \
-         ({REQUEST_FILL_PERCENT}% of the range gas limit)",
-        span.start,
-        span.end,
-        missing.len(),
-    );
+    if estimate >= budget {
+        return Err(EstimateOverBudget {
+            span,
+            estimate,
+            budget,
+            batch_proofs,
+            receipts_path_blocks: missing.len(),
+        }
+        .into());
+    }
     Ok(())
 }
 
@@ -439,18 +442,14 @@ mod tests {
         table: bool,
         missing: &[MissingLogCommitment],
         estimate: u64,
-        witness_bytes: u64,
         batch_proofs: usize,
     ) -> Result<()> {
-        let request = CollectedRequest {
-            span: span(),
-            missing,
-            estimate,
-            witness_bytes,
-            batch_proofs,
-            log_commitment_bytes: 0,
-        };
+        let request = CollectedRequest { span: span(), missing, estimate, batch_proofs };
         check_collected(table, &request, LIMIT)
+    }
+
+    fn stdin_limit(bytes: u64) -> StdinByteLimit {
+        StdinByteLimit::new(bytes).unwrap()
     }
 
     fn span() -> TimestampSpan {
@@ -460,25 +459,28 @@ mod tests {
     /// Pins the receipts path when every request's bound is under 80% of the limit.
     #[test]
     fn path_is_receipts_when_every_request_fits() {
-        let choice = choose_log_path(LogPath::Auto, &[bound(100), bound(799)], LIMIT);
+        let choice =
+            choose_log_path(LogPath::Auto, &[bound(100), bound(799)], LIMIT, stdin_limit(1));
         assert_eq!(choice, PathChoice { table: false, largest_bound: 799 });
     }
 
-    /// Pins the table path when a request's bound reaches 80% of the limit or the witness cap.
+    /// Pins the table path when a request's bound reaches 80% of the limit or the stdin limit.
     #[test]
     fn path_is_table_when_any_request_is_over() {
-        let choice = choose_log_path(LogPath::Auto, &[bound(100), bound(800)], LIMIT);
+        let choice =
+            choose_log_path(LogPath::Auto, &[bound(100), bound(800)], LIMIT, stdin_limit(1));
         assert_eq!(choice, PathChoice { table: true, largest_bound: 800 });
-        let wide = RequestBound { pgu: 1, witness_bytes: MAX_WITNESS_BYTES + 1 };
-        assert!(choose_log_path(LogPath::Auto, &[wide], LIMIT).table);
+        let wide = RequestBound { pgu: 1, witness_bytes: 11 };
+        assert!(!choose_log_path(LogPath::Auto, &[wide], LIMIT, stdin_limit(11)).table);
+        assert!(choose_log_path(LogPath::Auto, &[wide], LIMIT, stdin_limit(10)).table);
     }
 
     /// Pins the forced path on either side of the limit.
     #[test]
     fn log_path_setting_forces_the_path() {
         for bounds in [[bound(10)], [bound(10_000)]] {
-            assert!(!choose_log_path(LogPath::Receipts, &bounds, LIMIT).table);
-            assert!(choose_log_path(LogPath::Table, &bounds, LIMIT).table);
+            assert!(!choose_log_path(LogPath::Receipts, &bounds, LIMIT, stdin_limit(1)).table);
+            assert!(choose_log_path(LogPath::Table, &bounds, LIMIT, stdin_limit(1)).table);
         }
     }
 
@@ -513,22 +515,29 @@ mod tests {
     /// Pins an error that names each block the table path read without an entry.
     #[test]
     fn table_path_missing_block_fails_with_named_block() {
-        let err = check(true, &[missing(3), missing(4)], 1, 0, 2).unwrap_err();
+        let err = check(true, &[missing(3), missing(4)], 1, 2).unwrap_err();
         let err = err.to_string();
         for number in [3u8, 4] {
             assert!(err.contains(&B256::repeat_byte(number).to_string()), "{err}");
         }
-        check(false, &[missing(3)], 1, 0, 0).unwrap();
+        check(false, &[missing(3)], 1, 0).unwrap();
     }
 
-    /// Pins a refused request on the receipts path at 80% of the limit.
+    /// Pins a typed refusal on the receipts path at 80% of the limit.
     #[test]
     fn receipts_path_over_limit_fails() {
-        check(false, &[missing(3)], 799, 0, 0).unwrap();
-        let err = check(false, &[missing(3)], 800, 0, 0).unwrap_err();
-        assert!(err.to_string().contains("estimated at 800 PGU"), "{err}");
-        let err = check(false, &[], 1, MAX_WITNESS_BYTES + 1, 0).unwrap_err();
-        assert!(err.to_string().contains("witness bytes"), "{err}");
+        check(false, &[missing(3)], 799, 0).unwrap();
+        let err = check(false, &[missing(3)], 800, 0).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<EstimateOverBudget>(),
+            Some(&EstimateOverBudget {
+                span: span(),
+                estimate: 800,
+                budget: 800,
+                batch_proofs: 0,
+                receipts_path_blocks: 1,
+            })
+        );
     }
 
     /// Pins the 2 s poll interval for few batches and at most 8 polls per second for many.
@@ -539,19 +548,10 @@ mod tests {
         assert_eq!(log_batch_poll_interval(1_140), Duration::from_millis(142_500));
     }
 
-    /// Pins a refused request whose batch proofs and witness exceed the stdin cap.
-    #[test]
-    fn stdin_over_cap_fails() {
-        let proofs = ((MAX_STDIN_BYTES - MAX_WITNESS_BYTES) / BATCH_PROOF_BYTES) as usize;
-        check(true, &[], 1, MAX_WITNESS_BYTES, proofs).unwrap();
-        let err = check(true, &[], 1, MAX_WITNESS_BYTES, proofs + 1).unwrap_err();
-        assert!(err.to_string().contains("stdin bytes"), "{err}");
-    }
-
     /// Pins a refused request on the table path when its batch proofs push it over the limit.
     #[test]
     fn over_limit_part_with_empty_missing_fails() {
-        let err = check(true, &[], 900, 0, 300).unwrap_err();
+        let err = check(true, &[], 900, 300).unwrap_err();
         assert!(err.to_string().contains("300 batch proofs"), "{err}");
     }
 

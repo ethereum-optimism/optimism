@@ -462,6 +462,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
+| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, then refuses an oversized request before submitting it, in mock mode too. The aggregation request is not checked |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
@@ -521,13 +522,14 @@ total work of the defense.
 An executing message can reference a block below its chain's local safe head. With
 `LOG_PATH=auto`, the proposer scans the span's messages and keeps the receipts path
 when every consolidation request's estimate is under 80% of `RANGE_GAS_LIMIT` and its
-witness bound is under the witness cap. Otherwise the whole game takes the table
+witness bound is under `MAX_STDIN_BYTES`. Otherwise the whole game takes the table
 path. The proposer proves each referenced block once in `log-commitment` batch
 requests, under `LOG_GAS_LIMIT`, before any consolidation collection. It cuts the
 blocks evenly into the fewest batches that fit 80% of `LOG_GAS_LIMIT` by estimate,
-4,096 entries, and the witness cap, and halves any batch still over one. Each
-consolidation request then carries the batch proofs of the blocks that it reads,
-and its stdin must stay under 4 GiB. A failed batch proof fails the game attempt.
+4,096 entries, and `MAX_STDIN_BYTES` of witness, and halves any batch still over one.
+Each consolidation request then carries the batch proofs of the blocks that it reads.
+Every range, consolidation, and batch stdin must stay under `MAX_STDIN_BYTES`. A
+failed batch proof fails the game attempt.
 
 Transaction signing requires exactly one of these configurations:
 

@@ -41,8 +41,8 @@ use kona_sp1_ethereum_client_utils::{
 use kona_sp1_host_utils::witness_generation::PreimageWitnessCollector;
 use op_alloy_consensus::OpReceiptEnvelope;
 use sp1_sdk::{
-    Elf, ExecutionReport, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey, SP1Proof,
-    SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin,
+    Elf, ExecutionReport, HashableKey, ProveRequest, Prover, ProverClient, ProvingKey,
+    SP1PublicValues, SP1Stdin,
 };
 
 #[allow(dead_code)]
@@ -50,11 +50,10 @@ use sp1_sdk::{
 mod vkey_codec;
 
 use crate::{
-    BATCH_PROOF_BYTES, ConsolidationCost, LogCommitmentProofs, MAX_ENTRIES_PER_BATCH,
-    MAX_STDIN_BYTES, MAX_WITNESS_BYTES, ScannedTimestampCost, bound_receipts_path_pgu,
-    build_log_commitment_stdin_from_receipts, build_super_consolidation_stdin,
-    decode_super_consolidation_public_values, estimate_consolidation_pgu,
-    log_commitments::run_native_consolidation, receipts_trie_bytes,
+    ConsolidationCost, DEFAULT_MAX_STDIN_BYTES, LogCommitmentProofs, MAX_ENTRIES_PER_BATCH,
+    ScannedTimestampCost, bound_receipts_path_pgu, build_log_commitment_stdin_from_receipts,
+    build_super_consolidation_stdin, decode_super_consolidation_public_values,
+    estimate_consolidation_pgu, log_commitments::run_native_consolidation, receipts_trie_bytes,
 };
 
 const INITIATING: u64 = u64::MAX - 1;
@@ -443,7 +442,6 @@ async fn collected_witness_omits_served_receipts() {
     let native = native.unwrap();
     assert!(native.missing.is_empty());
     assert_eq!(native.openings, fixture.openings());
-    assert_eq!(native.witness_bytes, witness.preimage_bytes() as u64);
     for block in &fixture.below_head {
         let mut trie = kona_mpt::ordered_trie_with_encoder(&block.receipts, |receipt, out| {
             receipt.encode_2718(out)
@@ -982,54 +980,28 @@ async fn receipts_path_bound_bounds_measured_pgu() {
     }
 }
 
-/// Measures `client.execute()` of a consolidation at the proposer's stdin caps.
-///
-/// The stdin has 6 chains, a [`MAX_WITNESS_BYTES`] witness, and as many batch proofs as fit in
-/// [`MAX_STDIN_BYTES`]. The first run proves a batch and saves it at `BATCH_PROOF`; a later run
-/// executes, which fails on x86-64 Linux when the executor child exceeds SP1's memory limit.
+/// Measures `client.execute()` of a consolidation whose stdin is about
+/// [`DEFAULT_MAX_STDIN_BYTES`], nearly all of it witness, on the receipts path. It fails on x86-64
+/// Linux when the executor child exceeds SP1's memory limit.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "manual SP1 memory measurement"]
 async fn measure_consolidation_memory_at_stdin_cap() {
     let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
-    let path = PathBuf::from(std::env::var("BATCH_PROOF").expect("set BATCH_PROOF to a file"));
-    if !path.exists() {
-        prove_batch(&dir, &small_fixture()).await.proofs[0].save(&path).unwrap();
-        println!("RESULT saved a batch proof at {}; run again to measure", path.display());
-        return;
-    }
-    let proof = SP1ProofWithPublicValues::load(&path).unwrap();
-    let SP1Proof::Compressed(batch_proof) = &proof.proof else { panic!("not a compressed proof") };
-    let vk = {
-        let elf = Arc::<[u8]>::from(load_elf_from(&dir, "log-commitment-elf").unwrap());
-        let client = ProverClient::builder().cpu().build().await;
-        client.setup(Elf::Dynamic(elf)).await.unwrap().verifying_key().vk.clone()
-    };
-
-    let count = (MAX_STDIN_BYTES - MAX_WITNESS_BYTES) / BATCH_PROOF_BYTES;
-    let blocks = (0..count).map(|block| vec![eip1559(logs(block, 1, 1, 32))]).collect();
-    let fixture = Fixture::with_idle_chains(blocks, &[(1, 0), (count, 0)], 4);
-    let mut witness = fixture.withheld.clone();
+    let fixture = small_fixture();
+    let mut witness = fixture.full_witness();
     let filler = 1 << 16;
-    let fillers = (MAX_WITNESS_BYTES - witness.preimage_bytes() as u64) / (filler + 32);
+    let fillers = (DEFAULT_MAX_STDIN_BYTES - witness.preimage_bytes() as u64) / (filler + 32);
     for nonce in 0..fillers {
         let mut preimage = vec![0; filler as usize];
         preimage[..8].copy_from_slice(&nonce.to_le_bytes());
         save(&mut witness, preimage);
     }
     let witness_bytes = witness.preimage_bytes();
-    let log_commitments = LogCommitmentInputs {
-        batches: split_batch(&fixture.native_batch(), count as usize),
-        openings: fixture.openings(),
-    };
-    let mut stdin = fixture.stdin(witness, &log_commitments);
-    for _ in 0..count {
-        stdin.write_proof((**batch_proof).clone(), vk.clone());
-    }
+    let stdin = fixture.stdin(witness, &LogCommitmentInputs::default());
     let buffer_bytes: usize = stdin.buffer.iter().map(Vec::len).sum();
     let (_, report) = execute_consolidation(&dir, stdin, false).await;
     println!(
-        "RESULT batch_proofs={count} witness_bytes={witness_bytes} buffer_bytes={buffer_bytes} \
-         pgu={:?}",
+        "RESULT witness_bytes={witness_bytes} buffer_bytes={buffer_bytes} pgu={:?}",
         report.gas()
     );
 }

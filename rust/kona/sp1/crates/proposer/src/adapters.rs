@@ -928,7 +928,12 @@ mod tests {
             RangeSplitCount::one(),
             NonZeroUsize::MIN,
             Arc::new(ProductionL2BlockSource::new(vec!["http://127.0.0.1:1".parse().unwrap()])),
-            LogProofSettings { path: LogPath::Auto, range_gas_limit: 1, log_gas_limit: 1 },
+            LogProofSettings {
+                path: LogPath::Auto,
+                range_gas_limit: 1,
+                log_gas_limit: 1,
+                max_stdin_bytes: Default::default(),
+            },
         );
 
         let error =
