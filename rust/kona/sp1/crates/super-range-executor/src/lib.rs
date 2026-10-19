@@ -72,6 +72,76 @@ pub const EXIT_INVALID: u8 = 1;
 /// Exit code signalling an infrastructure failure before a verdict was reached.
 pub const EXIT_INFRA: u8 = 2;
 
+/// Largest witness archive rkyv can write. rkyv 0.8 without `pointer_width_64` stores each
+/// relative pointer as an `i32` and panics, rather than erroring, when one overflows. No offset
+/// within an archive this size can overflow.
+pub const MAX_ARCHIVED_WITNESS_BYTES: u64 = i32::MAX as u64;
+
+/// Archive bytes per preimage beyond the key and value that
+/// [`PreimageStore::preimage_bytes`] counts. rkyv's hash map stores each entry as the archived
+/// key and an 8-byte vector header in a table of at most `len * 8 / 7 + 1` slots, with one
+/// control byte per slot: under 16 bytes per entry, so 64 leaves a 4× margin.
+const WITNESS_ENTRY_OVERHEAD_BYTES: u64 = 64;
+
+/// Archive bytes independent of the witness size: the root, vector headers, the hash table's
+/// slot rounding and control-byte tail, and alignment padding.
+const WITNESS_ARCHIVE_FIXED_BYTES: u64 = 4_096;
+
+/// A witness whose rkyv archive could exceed [`MAX_ARCHIVED_WITNESS_BYTES`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitnessTooLarge {
+    /// Upper bound on the witness's archive size.
+    pub bound: u64,
+    /// The archive limit.
+    pub limit: u64,
+}
+
+impl fmt::Display for WitnessTooLarge {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "witness archive may reach {} bytes, above the {}-byte rkyv limit",
+            self.bound, self.limit
+        )
+    }
+}
+
+impl std::error::Error for WitnessTooLarge {}
+
+/// Returns true when `err`'s chain contains a [`WitnessTooLarge`].
+pub fn is_witness_too_large(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| cause.is::<WitnessTooLarge>())
+}
+
+/// An upper bound on the size of `witness`'s rkyv archive, computed without archiving it.
+fn witness_archive_bound(witness: &DefaultWitnessData) -> u64 {
+    let preimages = witness.preimage_store();
+    let blobs = witness.blob_data();
+    preimages.preimage_bytes() as u64 +
+        preimages.preimage_count() as u64 * WITNESS_ENTRY_OVERHEAD_BYTES +
+        size_of_val(blobs.blobs.as_slice()) as u64 +
+        size_of_val(blobs.commitments.as_slice()) as u64 +
+        size_of_val(blobs.proofs.as_slice()) as u64 +
+        WITNESS_ARCHIVE_FIXED_BYTES
+}
+
+/// Archives `witness` with rkyv, or returns [`WitnessTooLarge`] without calling rkyv when its
+/// archive could exceed [`MAX_ARCHIVED_WITNESS_BYTES`].
+fn archive_witness(witness: &DefaultWitnessData) -> Result<rkyv::util::AlignedVec> {
+    archive_witness_within(witness, MAX_ARCHIVED_WITNESS_BYTES)
+}
+
+fn archive_witness_within(
+    witness: &DefaultWitnessData,
+    limit: u64,
+) -> Result<rkyv::util::AlignedVec> {
+    let bound = witness_archive_bound(witness);
+    if bound > limit {
+        return Err(WitnessTooLarge { bound, limit }.into());
+    }
+    rkyv::to_bytes::<rkyv::rancor::Error>(witness).context("rkyv failed to archive the witness")
+}
+
 /// CLI/runtime configuration for one super-range execution.
 #[derive(Clone, Debug)]
 pub struct RunConfig {
@@ -641,7 +711,7 @@ pub fn build_log_commitment_stdin(
 ) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
     stdin.write(&receipts_roots);
-    stdin.write_slice(&rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?);
+    stdin.write_slice(&archive_witness(&witness)?);
     Ok(stdin)
 }
 
@@ -658,8 +728,7 @@ fn build_super_interop_stdin(
 ) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
     stdin.write(&inputs);
-    let witness_bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?;
-    stdin.write_slice(&witness_bytes);
+    stdin.write_slice(&archive_witness(&witness)?);
     Ok(stdin)
 }
 
@@ -2034,5 +2103,60 @@ mod tests {
 
     impl FlushableCache for FailingOracle {
         fn flush(&self) {}
+    }
+
+    fn sized_witness(entries: u64, value_len: usize, blobs: usize) -> DefaultWitnessData {
+        let mut store = PreimageStore::default();
+        for index in 0..entries {
+            let mut key = [0; 32];
+            key[..8].copy_from_slice(&index.to_le_bytes());
+            let key = PreimageKey::new(key, kona_preimage::PreimageKeyType::GlobalGeneric);
+            store.save_preimage(key, vec![0xab; value_len]).unwrap();
+        }
+        let blob_data = BlobData {
+            blobs: vec![kzg_rs::Blob([0; kzg_rs::BYTES_PER_BLOB]); blobs],
+            commitments: vec![kzg_rs::Bytes48([0; 48]); blobs],
+            proofs: vec![kzg_rs::Bytes48([0; 48]); blobs],
+        };
+        DefaultWitnessData::from_parts(store, blob_data)
+    }
+
+    #[test]
+    fn witness_archive_bound_covers_the_real_archive() {
+        for entries in [0, 1, 16, 17, 1_024, 1_025, 65_536, 65_537] {
+            for value_len in [0, 1, 33, 4_096] {
+                if entries > 1_025 && value_len > 33 {
+                    continue;
+                }
+                for blobs in [0, 2] {
+                    let witness = sized_witness(entries, value_len, blobs);
+                    let archived = rkyv::to_bytes::<rkyv::rancor::Error>(&witness).unwrap();
+                    assert!(
+                        archived.len() as u64 <= witness_archive_bound(&witness),
+                        "{entries} entries of {value_len} bytes and {blobs} blobs archive to {} \
+                         bytes, above the bound {}",
+                        archived.len(),
+                        witness_archive_bound(&witness),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn archive_witness_refuses_a_bound_over_the_limit() {
+        let witness = sized_witness(17, 33, 2);
+        let bound = witness_archive_bound(&witness);
+
+        let err = archive_witness_within(&witness, bound - 1).unwrap_err();
+        assert!(is_witness_too_large(&err));
+        assert_eq!(
+            err.downcast_ref::<WitnessTooLarge>(),
+            Some(&WitnessTooLarge { bound, limit: bound - 1 }),
+        );
+
+        let archived = archive_witness_within(&witness, bound).unwrap();
+        let expected = rkyv::to_bytes::<rkyv::rancor::Error>(&witness).unwrap();
+        assert_eq!(archived.as_slice(), expected.as_slice());
     }
 }
