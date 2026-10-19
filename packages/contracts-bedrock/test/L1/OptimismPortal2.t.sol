@@ -3216,6 +3216,14 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         _initialize(_hook);
     }
 
+    /// @notice Marks an item as held by writing its bit directly.
+    /// @param _mapping Either "heldDeposits" or "heldWithdrawals".
+    /// @param _key The item ID or withdrawal hash.
+    function _mockHeld(string memory _mapping, bytes32 _key) internal {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", _mapping);
+        vm.store(address(optimismPortal2), keccak256(abi.encode(_key, slot.slot)), bytes32(uint256(1)));
+    }
+
     /// @notice Tests that no hook is configured by default.
     function test_bridgeHook_unsetByDefault_succeeds() external view {
         assertEq(address(optimismPortal2.bridgeHook()), address(0));
@@ -3236,12 +3244,10 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     /// @notice Tests that initializing with a zero hook keeps the hook and its held items.
     function test_initialize_zeroBridgeHookKeepsCurrent_succeeds() external {
         _setHook(hook);
-
-        // Write a held item directly.
-        bytes32 id = keccak256("item");
-        StorageSlot memory heldSlot = ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits");
-        vm.store(address(optimismPortal2), keccak256(abi.encode(id, heldSlot.slot)), bytes32(uint256(1)));
-        assertTrue(optimismPortal2.heldDeposits(id));
+        bytes32 depositId = keccak256("deposit");
+        bytes32 withdrawalHash = keccak256("withdrawal");
+        _mockHeld("heldDeposits", depositId);
+        _mockHeld("heldWithdrawals", withdrawalHash);
 
         _allowReinitialize();
         vm.recordLogs();
@@ -3254,12 +3260,18 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
             }
         }
         assertEq(address(optimismPortal2.bridgeHook()), hook);
-        assertTrue(optimismPortal2.heldDeposits(id));
+        assertTrue(optimismPortal2.heldDeposits(depositId));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalHash));
     }
 
-    /// @notice Tests that initializing with another nonzero hook replaces the current one.
+    /// @notice Tests that initializing with another nonzero hook replaces the current one and
+    ///         leaves held items untouched.
     function test_initialize_replacesBridgeHook_succeeds() external {
         _setHook(hook);
+        bytes32 depositId = keccak256("deposit");
+        bytes32 withdrawalHash = keccak256("withdrawal");
+        _mockHeld("heldDeposits", depositId);
+        _mockHeld("heldWithdrawals", withdrawalHash);
         address newHook = makeAddr("newBridgeHook");
         _allowReinitialize();
 
@@ -3268,6 +3280,8 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         _initialize(newHook);
 
         assertEq(address(optimismPortal2.bridgeHook()), newHook);
+        assertTrue(optimismPortal2.heldDeposits(depositId));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalHash));
     }
 
     /// @notice Tests that initialize rejects a nonzero hook while the feature is disabled.
@@ -3294,6 +3308,22 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.prank(proxyAdminOwner);
         systemConfig.setFeature(Features.BRIDGE_HOOK, false);
         assertFalse(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK));
+    }
+
+    /// @notice Tests that removing the hook while items are held succeeds.
+    function test_removeHook_withHeldItems_succeeds() external {
+        _setHook(hook);
+        bytes32 depositId = keccak256("deposit");
+        bytes32 withdrawalHash = keccak256("withdrawal");
+        _mockHeld("heldDeposits", depositId);
+        _mockHeld("heldWithdrawals", withdrawalHash);
+
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+        assertTrue(optimismPortal2.heldDeposits(depositId));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalHash));
     }
 
     /// @notice Tests that only the ProxyAdmin owner can remove the hook.
