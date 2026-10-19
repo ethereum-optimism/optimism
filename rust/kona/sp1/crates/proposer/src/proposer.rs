@@ -961,12 +961,13 @@ impl Proposer {
         let proposer_address = signer.address();
         let superroot_source =
             Arc::new(ProductionSuperRootSource::new(SuperrootClient::new(&config.superroot_rpcs)?));
+        let l2 = Arc::new(ProductionL2BlockSource::connect(&config.l2_rpcs).await?);
         let proof_engine = Arc::new(ProductionProofEngine::new(
             proof_provider,
             host_inputs,
             config.range_split_count,
             config.max_concurrent_range_proofs,
-            Arc::new(ProductionL2BlockSource::new(config.l2_rpcs.clone())),
+            l2,
             LogProofSettings {
                 path: config.log_path,
                 range_gas_limit: config.proof_provider_config.range_gas_limit,
@@ -5543,7 +5544,7 @@ mod tests {
             max_priority_fee_per_gas: None,
             proof_provider: ProofProviderKind::Mock,
             l1_beacon_rpc: "http://127.0.0.1:1".parse().unwrap(),
-            l2_rpcs: vec!["http://127.0.0.1:1".parse().unwrap()],
+            l2_rpcs: Vec::new(),
             rollup_config_paths: None,
             l1_config_path: None,
             dependency_set_path: None,

@@ -337,7 +337,10 @@ or submitting another SPN request. Scheduler tasks may still run and check
 inputs. A change to the full attempt identity permits a new attempt. An
 `Unexecutable` range or consolidation request of a span with more than one
 timestamp is not sticky: the proposer bisects the span (see below), and only
-the halves' requests count from then on.
+the halves' requests count from then on. Neither is an `Unexecutable`
+single-timestamp consolidation on a receipts path that `auto` chose: the
+proposer moves the game to the table path, which it keeps for that game, and
+requests the consolidation again.
 
 SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
 the proposer to retry terminal proof requests without restarting it. This
@@ -446,7 +449,7 @@ Required core configuration:
 | `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`) |
 | `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
 | `OP_ZK_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
-| `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
+| `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain, in any order; each must serve a different chain. The proposer reads every chain ID at startup and exits on a duplicate chain or a node that does not answer |
 
 Optional core and operational configuration:
 

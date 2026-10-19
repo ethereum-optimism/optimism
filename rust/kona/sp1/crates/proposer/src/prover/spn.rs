@@ -625,10 +625,10 @@ enum ProofStatus {
     Pending,
 }
 
-/// A fulfilled proof wins. Otherwise a terminal execution status wins over a terminal
-/// fulfillment status: SPN marks a request that breaks its gas or cycle limit UNFULFILLABLE and
-/// UNEXECUTABLE together, and only the execution status says resubmitting the same input cannot
-/// succeed.
+/// A fulfilled proof wins. `UNEXECUTABLE` comes next: SPN marks a request that breaks its gas or
+/// cycle limit UNFULFILLABLE and UNEXECUTABLE together, and only the execution status says
+/// resubmitting the same input cannot succeed. The terminal fulfillment statuses follow, then
+/// `VALIDATION_FAILED`. This is the order of the SP1 SDK's own status handling.
 fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
     let fulfillment_status = FulfillmentStatus::try_from(fulfillment_status).ok();
     let execution_status = ExecutionStatus::try_from(execution_status).ok();
@@ -636,23 +636,25 @@ fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
     if fulfillment_status == Some(FulfillmentStatus::Fulfilled) {
         return ProofStatus::Ready;
     }
-    match execution_status {
-        Some(ExecutionStatus::Unexecutable) => {
-            return ProofStatus::Failed(ProofTerminalState::Unexecutable);
-        }
-        Some(ExecutionStatus::ValidationFailed) => {
-            return ProofStatus::Failed(ProofTerminalState::ValidationFailed);
-        }
-        _ => {}
+    if execution_status == Some(ExecutionStatus::Unexecutable) {
+        return ProofStatus::Failed(ProofTerminalState::Unexecutable);
     }
     match fulfillment_status {
         Some(FulfillmentStatus::Unfulfillable) => {
-            ProofStatus::Failed(ProofTerminalState::Unfulfillable)
+            return ProofStatus::Failed(ProofTerminalState::Unfulfillable);
         }
-        Some(FulfillmentStatus::Reverted) => ProofStatus::Failed(ProofTerminalState::Reverted),
-        Some(FulfillmentStatus::Expired) => ProofStatus::Failed(ProofTerminalState::Expired),
-        _ => ProofStatus::Pending,
+        Some(FulfillmentStatus::Reverted) => {
+            return ProofStatus::Failed(ProofTerminalState::Reverted);
+        }
+        Some(FulfillmentStatus::Expired) => {
+            return ProofStatus::Failed(ProofTerminalState::Expired);
+        }
+        _ => {}
     }
+    if execution_status == Some(ExecutionStatus::ValidationFailed) {
+        return ProofStatus::Failed(ProofTerminalState::ValidationFailed);
+    }
+    ProofStatus::Pending
 }
 /// A scripted SP1 network API for tests.
 #[cfg(test)]
@@ -985,7 +987,12 @@ mod tests {
             (
                 FulfillmentStatus::Unfulfillable as i32,
                 ExecutionStatus::ValidationFailed as i32,
-                ProofStatus::Failed(ProofTerminalState::ValidationFailed),
+                ProofStatus::Failed(ProofTerminalState::Unfulfillable),
+            ),
+            (
+                FulfillmentStatus::Expired as i32,
+                ExecutionStatus::ValidationFailed as i32,
+                ProofStatus::Failed(ProofTerminalState::Expired),
             ),
             (
                 FulfillmentStatus::Requested as i32,

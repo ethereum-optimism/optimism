@@ -232,6 +232,16 @@ pub struct SynthesizedExecution {
     pub previous_super_root_proof_bytes: Vec<u8>,
 }
 
+/// The verdict of a `mode` replay that failed with `err`. A witness over the archive limit is the
+/// executor's limit, not a rejected claim, so it is returned as an error (exit 2).
+fn replay_failure(mode: &str, err: anyhow::Error) -> Result<Verdict> {
+    if is_witness_too_large(&err) {
+        return Err(err);
+    }
+    tracing::info!("super-range {mode} replay failed (claim rejected): {err}");
+    Ok(Verdict::Invalid)
+}
+
 /// Runs the full two-pass super-range executor.
 pub async fn run(config: RunConfig) -> Result<Verdict> {
     let super_range_elf = if config.native_core {
@@ -304,10 +314,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     .await
     {
         Ok(outputs) => outputs,
-        Err(err) => {
-            tracing::info!("super-range range replay failed (claim rejected): {err}");
-            return Ok(Verdict::Invalid);
-        }
+        Err(err) => return replay_failure("range", err),
     };
 
     if replayed_range_outputs != native_range_outputs {
@@ -377,10 +384,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     .await
     {
         Ok(outputs) => outputs,
-        Err(err) => {
-            tracing::info!("super-range consolidation replay failed (claim rejected): {err}");
-            return Ok(Verdict::Invalid);
-        }
+        Err(err) => return replay_failure("consolidation", err),
     };
 
     if replayed_consolidation_outputs != native_consolidation_outputs {
@@ -1504,6 +1508,17 @@ struct RpcBlock {
 mod tests {
     use super::*;
     use kona_preimage::errors::PreimageOracleError;
+
+    #[test]
+    fn replay_witness_over_the_limit_is_not_a_rejected_claim() {
+        let too_large =
+            anyhow::Error::new(WitnessTooLarge { bound: 2, limit: 1 }).context("replay");
+        let err = replay_failure("range", too_large).expect_err("an oversized witness is an error");
+        assert!(is_witness_too_large(&err));
+
+        let verdict = replay_failure("range", anyhow!("guest panicked")).expect("a verdict");
+        assert_eq!(verdict, Verdict::Invalid);
+    }
 
     fn b256(fill: u8) -> B256 {
         B256::from([fill; 32])

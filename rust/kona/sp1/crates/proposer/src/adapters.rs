@@ -494,38 +494,34 @@ impl SuperRootSource for ProductionSuperRootSource {
 }
 
 /// Production L2 block reads over the configured L2 execution nodes, keyed by the chain ID that
-/// each reports on first use.
+/// each reports at startup.
 pub(crate) struct ProductionL2BlockSource {
-    urls: Vec<Url>,
-    clients: tokio::sync::OnceCell<BTreeMap<u64, L2BlockClient>>,
+    clients: BTreeMap<u64, L2BlockClient>,
 }
 
 impl ProductionL2BlockSource {
-    pub(crate) fn new(urls: Vec<Url>) -> Self {
-        Self { urls, clients: tokio::sync::OnceCell::new() }
+    /// Connects to each of `urls` and reads its chain ID. Fails when a node does not answer or two
+    /// nodes serve one chain.
+    pub(crate) async fn connect(urls: &[Url]) -> Result<Self> {
+        let mut clients = BTreeMap::new();
+        for url in urls {
+            let client = L2BlockClient::connect(url.as_str()).await?;
+            let chain_id = client
+                .chain_id()
+                .await
+                .with_context(|| format!("failed to read the chain ID of {}", redacted_url(url)))?;
+            ensure!(
+                clients.insert(chain_id, client).is_none(),
+                "two {} entries serve chain {chain_id}; the second is {}",
+                env_var("L2_RPCS"),
+                redacted_url(url),
+            );
+        }
+        Ok(Self { clients })
     }
 
-    async fn client(&self, chain_id: u64) -> Result<&L2BlockClient> {
-        let clients = self
-            .clients
-            .get_or_try_init(|| async {
-                let mut clients = BTreeMap::new();
-                for url in &self.urls {
-                    let client = L2BlockClient::connect(url.as_str()).await?;
-                    let chain_id = client.chain_id().await.with_context(|| {
-                        format!("failed to read the chain ID of {}", redacted_url(url))
-                    })?;
-                    ensure!(
-                        clients.insert(chain_id, client).is_none(),
-                        "two {} entries serve chain {chain_id}; the second is {}",
-                        env_var("L2_RPCS"),
-                        redacted_url(url),
-                    );
-                }
-                anyhow::Ok(clients)
-            })
-            .await?;
-        clients
+    fn client(&self, chain_id: u64) -> Result<&L2BlockClient> {
+        self.clients
             .get(&chain_id)
             .with_context(|| format!("no {} entry serves chain {chain_id}", env_var("L2_RPCS")))
     }
@@ -534,11 +530,11 @@ impl ProductionL2BlockSource {
 #[async_trait]
 impl L2BlockSource for ProductionL2BlockSource {
     async fn header_by_hash(&self, chain_id: u64, hash: B256) -> Result<Header> {
-        self.client(chain_id).await?.header_by_hash(hash).await
+        self.client(chain_id)?.header_by_hash(hash).await
     }
 
     async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Sealed<Header>> {
-        self.client(chain_id).await?.header_by_number(number).await
+        self.client(chain_id)?.header_by_number(number).await
     }
 
     async fn receipts(
@@ -547,7 +543,7 @@ impl L2BlockSource for ProductionL2BlockSource {
         hash: B256,
         receipts_root: B256,
     ) -> Result<Vec<OpReceiptEnvelope>> {
-        self.client(chain_id).await?.receipts(hash, receipts_root).await
+        self.client(chain_id)?.receipts(hash, receipts_root).await
     }
 }
 
@@ -927,7 +923,7 @@ mod tests {
             }),
             RangeSplitCount::one(),
             NonZeroUsize::MIN,
-            Arc::new(ProductionL2BlockSource::new(vec!["http://127.0.0.1:1".parse().unwrap()])),
+            Arc::new(ProductionL2BlockSource::connect(&[]).await.unwrap()),
             LogProofSettings {
                 path: LogPath::Auto,
                 range_gas_limit: 1,
@@ -1152,8 +1148,12 @@ mod tests {
                 .await;
             servers.push(server);
         }
-        let urls = servers.iter().map(|server| server.url("/").parse().unwrap()).collect();
-        let err = ProductionL2BlockSource::new(urls).client(7).await.unwrap_err();
+        let urls: Vec<Url> =
+            servers.iter().map(|server| server.url("/").parse().unwrap()).collect();
+        let err = ProductionL2BlockSource::connect(&urls)
+            .await
+            .err()
+            .expect("two nodes of one chain must be rejected");
         assert!(err.to_string().contains("serve chain 7"), "{err}");
     }
 }
