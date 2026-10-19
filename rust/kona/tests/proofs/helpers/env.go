@@ -177,7 +177,10 @@ func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
 
 // WithCorruptClaim instructs the SP1 super-range executor to corrupt the claim the guest sees,
 // after witness collection has run on the honest one, so the guest rejects it. Used for the
-// invalid-claim (soundness) test path. Has no effect on the native fault-proof program.
+// invalid-claim (soundness) test path. Has no effect on the native fault-proof program. Not
+// supported with WithSP1NativeCore: the native replay panics on the corrupted root's missing
+// preimage (exit 101), which the harness would report as a test failure, so runProgram rejects
+// the combination. Keep invalid-claim tests on the SP1 execute path.
 func WithCorruptClaim() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.CorruptClaim = true
@@ -187,7 +190,8 @@ func WithCorruptClaim() FixtureInputParam {
 // WithSP1NativeCore instructs the SP1 super-range executor to collect the witnesses and then
 // replay them through the shared native cores instead of executing the SP1 ELF. This is useful for
 // broad, faster kona-sp1 coverage; keep at least one default SP1 execute test for ELF/IO smoke
-// coverage. Has no effect on the native fault-proof program.
+// coverage. Like the guest, the native replay panics on a preimage missing from the witness. Has no
+// effect on the native fault-proof program.
 func WithSP1NativeCore() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.SP1NativeCore = true

@@ -20,3 +20,6 @@ pub use request::{
 
 mod rpc_actor;
 pub use rpc_actor::EngineRpcActor;
+
+#[cfg(test)]
+mod tests;

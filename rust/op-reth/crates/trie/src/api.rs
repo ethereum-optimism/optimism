@@ -400,13 +400,13 @@ pub struct InitialStateAnchor {
     pub block: Option<BlockNumHash>,
     /// Whether initialization is still running or completed.
     pub status: InitialStateStatus,
-    /// The latest key stored for `AccountTrieHistory`.
+    /// The latest account trie key stored during initialization.
     pub latest_account_trie_key: Option<StoredNibbles>,
-    /// The latest key stored for `StorageTrieHistory`.
+    /// The latest storage trie key stored during initialization.
     pub latest_storage_trie_key: Option<StorageTrieKey>,
-    /// The latest key stored for `HashedAccountHistory`.
+    /// The latest hashed account key stored during initialization.
     pub latest_hashed_account_key: Option<B256>,
-    /// The latest key stored for `HashedStorageHistory`.
+    /// The latest hashed storage key stored during initialization.
     pub latest_hashed_storage_key: Option<HashedStorageKey>,
 }
 

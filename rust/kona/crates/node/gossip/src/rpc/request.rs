@@ -4,14 +4,11 @@ use std::{net::IpAddr, num::TryFromIntError, sync::Arc};
 
 use crate::{GossipDriver, GossipScores};
 use alloy_primitives::map::{HashMap, HashSet};
-use discv5::{
-    enr::{NodeId, k256::ecdsa},
-    multiaddr::Protocol,
-};
+use enr::{NodeId, k256::ecdsa};
 use ipnet::IpNet;
 use kona_disc::Discv5Handler;
 use kona_peers::OpStackEnr;
-use libp2p::{Multiaddr, PeerId, gossipsub::TopicHash};
+use libp2p::{Multiaddr, PeerId, gossipsub::TopicHash, multiaddr::Protocol};
 use tokio::sync::oneshot::Sender;
 
 use super::{

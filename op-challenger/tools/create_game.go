@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -22,8 +23,8 @@ func NewGameCreator(contract *contracts.DisputeGameFactoryContract, txMgr txmgr.
 	}
 }
 
-func (g *GameCreator) CreateGame(ctx context.Context, outputRoot common.Hash, gameType uint64, l2BlockNum uint64, l2ChainID uint64) (common.Address, error) {
-	txCandidate, err := g.contract.CreateTx(ctx, uint32(gameType), outputRoot, l2BlockNum, l2ChainID)
+func (g *GameCreator) CreateGame(ctx context.Context, outputRoot common.Hash, gameType gameTypes.GameType, l2BlockNum uint64, l2ChainID uint64, parentIndex uint32) (common.Address, error) {
+	txCandidate, err := g.contract.CreateTx(ctx, uint32(gameType), outputRoot, l2BlockNum, l2ChainID, parentIndex)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to create tx: %w", err)
 	}

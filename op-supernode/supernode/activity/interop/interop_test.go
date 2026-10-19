@@ -1614,6 +1614,91 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
 
+func TestInterop_RewindPastBackfill(t *testing.T) {
+	t.Run("halts instead of clearing backfill when the first verified timestamp is reorged out", func(t *testing.T) {
+		h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+						WithActivation(100).
+						WithLogBackfillDepth(time.Hour).
+						WithChain(10, func(m *mockChainContainer) {
+				m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+			}).
+			Build()
+
+		mock := h.Mock(10)
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+		}
+		h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{}, nil
+		}
+
+		// The harness starts verification one past activation, so the node holds
+		// backfill below its first verified timestamp.
+		made, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+		require.True(t, made)
+		first, ok := h.interop.verifiedDB.FirstTimestamp()
+		require.True(t, ok)
+		require.Greater(t, first, h.interop.activationTimestamp)
+
+		trackingDB := &mockLogsDBWithState{
+			latestBlock: eth.BlockID{Number: 500, Hash: common.HexToHash("0xL2")},
+			hasBlocks:   true,
+		}
+		h.interop.logsDBs[mock.id] = trackingDB
+		h.interop.l1Checker = inconsistentL1Checker{}
+
+		_, err = h.interop.progress()
+		require.ErrorIs(t, err, ErrRewindPastBackfill)
+
+		last, ok := h.interop.verifiedDB.LastTimestamp()
+		require.True(t, ok)
+		require.Equal(t, first, last, "first verified entry is kept")
+		pending, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, pending, "halt happens before the rewind is written to the WAL")
+		require.Zero(t, trackingDB.clearCalled, "backfill is not cleared")
+		require.False(t, trackingDB.rewindCalled)
+	})
+
+	// Without backfill below the first verified timestamp, the full rewind keeps clearing.
+	for _, tc := range []struct {
+		name          string
+		backfillDepth time.Duration
+		firstOffset   uint64 // first verified timestamp minus activation
+	}{
+		{name: "clears logsDBs when verification started at activation", backfillDepth: time.Hour, firstOffset: 0},
+		{name: "clears logsDBs when backfill is disabled", backfillDepth: 0, firstOffset: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t).
+				WithLogBackfillDepth(tc.backfillDepth).
+				WithChain(10, nil).
+				Build()
+
+			mock := h.Mock(10)
+			first := h.interop.activationTimestamp + tc.firstOffset
+			require.NoError(t, h.commitVerified(VerifiedResult{
+				Timestamp:   first,
+				L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+				L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0x1")}},
+			}))
+			trackingDB := &mockLogsDBWithState{
+				latestBlock: eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")},
+				hasBlocks:   true,
+			}
+			h.interop.logsDBs[mock.id] = trackingDB
+
+			plan, err := h.interop.buildRewindPlan(first)
+			require.NoError(t, err)
+			require.Nil(t, plan.TargetHeads)
+			require.NoError(t, h.interop.applyRewindPlan(plan))
+			require.Equal(t, 1, trackingDB.clearCalled)
+		})
+	}
+}
+
 func TestInterop_ProgressAndRecord_StaleFrontierL1Waits(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithActivation(100).

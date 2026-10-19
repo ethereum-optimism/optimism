@@ -14,15 +14,15 @@ This guide covers **how** to write (voice, tone, formatting, and structure). For
 
 * For docs-related questions, comments, or support, create an issue in the [Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).
 
-## Table of Contents
+## Table of contents
 
-* [Files, Folders, and Naming Conventions](#files-folders-and-naming-conventions)
-* [Writing Style](#writing-style)
+* [Files, folders, and naming conventions](#files-folders-and-naming-conventions)
+* [Writing style](#writing-style)
 * [Accessibility](#accessibility)
-* [Content Organization](#content-organization)
+* [Content organization](#content-organization)
 * [Links](#links)
-* [Content Types](#content-types)
-* [General Formatting](#general-formatting)
+* [Content types](#content-types)
+* [General formatting](#general-formatting)
 
 ## Files, folders, and naming conventions
 
@@ -66,17 +66,23 @@ Write in a friendly, yet professional tone. We are upbeat, knowledgeable, and **
 
 ### Capitalization
 
-See below for when to use title or sentence case.
+Use sentence case throughout the docs: page titles, headings, body content, and link text.
 
 * Avoid using all caps as it slows down reading comprehension.
 
 * Capitalize proper nouns in sentences.
   **Example**: I use Visual Studio on my local machine.
 
-* Use title case for all headers (H1, H2, H3) and when referring to buttons, tab names, page names, and links within the documentation. Note: The actual text on buttons, links, pages, or tabs need not be in title case—only the references within the docs.
+* Use sentence case for page titles and all headings (H1, H2, H3). Capitalize only the first word and any proper nouns, such as OP Stack, OP Mainnet, Ethereum, or the Standard Bridge. Keep component names such as op-node lowercase, even at the start of a heading.
 
-  > **Examples of Title Case:**
-  > * Domains For the Development Environment (header)
+  > **Examples of sentence case headings:**
+  > * Configure the batcher
+  > * How L1 reorgs propagate to L2
+  > * OP Stack finality
+
+* When referring to buttons, tab names, or other interface elements, match the capitalization shown in the interface and format the name in bold.
+
+  > **Examples:**
   > * Select **Make Owner**.
   > * Click **Clear Caches**.
   > * Select the **Settings** tab.
@@ -148,7 +154,7 @@ We aim to use consistent organization that is also user-centered and accessible.
 * Every page must have an H1 heading, in addition to the page title being defined in the SEO meta tags.
 * H1 heading is reserved for page titles, so avoid using H1 in any other place on the page.
 * For tutorials and quick starts, use task-based page titles starting with gerunds (verb ending in "ing").
-  **Examples**: `Creating Your Own L2 Rollup` or `Running a Node`
+  **Examples**: `Creating your own L2 rollup` or `Running a node`
 
 ### Headings and TOC
 
@@ -157,9 +163,9 @@ We aim to use consistent organization that is also user-centered and accessible.
 * Outline the page content according to main topics first. Those will be your headings (tagged as H2). If there are subtopics that belong under a category, display those as subheaders (tagged as H3).
 
   > **Example:**
-  > * (H1) Supporting OP Mainnet in Your Wallet (H1 page title uses "ing" verb ending)
+  > * (H1) Supporting OP Mainnet in your wallet (H1 page title uses "ing" verb ending)
   > * (H2) Connect to OP Mainnet (H2 does not use "ing" verb ending)
-  > * (H2) Locate Canonical Token Addresses (second H2 does not use "ing" verb ending)
+  > * (H2) Locate canonical token addresses (second H2 does not use "ing" verb ending)
 
 * Use headings in a logical manner, and the site will automatically generate anchor links for H2 and H3 tags and place them in a Table of Contents (TOC) in the right column.
 
@@ -169,12 +175,12 @@ We aim to use consistent organization that is also user-centered and accessible.
 
 ### Listing prerequisites (before you begin)
 
-* Add a "Before You Begin" section at the top of the document if there are tasks a user needs to complete before continuing with the current task, e.g. installing a module, downloading a software update, etc.
-* Use the title "Before You Begin" and format as H2. It should follow the page overview/intro section or table of contents.
+* Add a "Before you begin" section at the top of the document if there are tasks a user needs to complete before continuing with the current task, e.g. installing a module, downloading a software update, etc.
+* Use the title "Before you begin" and format as H2. It should follow the page overview/intro section or table of contents.
 * Include all the tasks the user needs to complete, including links to aid in usability. Use a bulleted list for more than 2 prerequisite items.
 
   > **Example:**
-  > (H2) Before You Begin
+  > (H2) Before you begin
   > You'll need to enable the ApacheSolr module. Visit the [ApacheSolr](https://drupal.org/project/apachesolr) page on [Drupal.org](http://drupal.org/) for more information.
 
 ### Callouts
@@ -265,7 +271,7 @@ Developers trust that we will lead them to sites or pages related to their readi
 * Use absolute or relative links when linking across pages in the site. Absolute links are cleaner and easier to work with when pages are nested, so they are the recommended option.
   **Examples**: absolute link `(/op-stack/protocol/bridging/deposit-flow)` versus relative link `(../../protocol/deposit-flow)`
 
-* Use the exact title of the page when linking to it in a sentence, whenever possible, and display it in title case. The link should use default styling with no other formatting (bold, italics, quotations).
+* Use the exact title of the page when linking to it in a sentence, whenever possible, written in sentence case even if the page's own title is not yet. The link should use default styling with no other formatting (bold, italics, quotations).
   **Example**: Be sure to check out [The OP Stack](https://docs.optimism.io/op-stack/introduction/op-stack) to get up to speed.
 
 * Use sentence case when linking to an article without using the exact article title. This causes minimal disruption to the flow of the sentence. The link should use default styling.
@@ -292,7 +298,7 @@ This section defines how each content type is structured. For which source is ca
 | Troubleshooting         | List common troubleshooting scenarios and solutions                                                                | [Troubleshooting: Run a Node](https://docs.optimism.io/operators/node-operators/management/troubleshooting) |
 | Reference               | Provide deep, theoretical knowledge of the internal workings of a system, such as API endpoints and specifications | [Node and RPC Providers](https://docs.optimism.io/app-developers/tools/connect/rpc-providers) |
 
-### Overviews (or Explainers)
+### Overviews (or explainers)
 
 Overviews or explainers provide a general introduction to a product or service and a happy path for readers on how to navigate a particular set of docs or related features. When done well, overviews and explainers accomplish two essential tasks for users:
 
@@ -336,9 +342,9 @@ To maintain consistency, tutorials should include all of these items:
 When writing tutorials or quick starts, steps should be written in parallel style, as sentences with imperative verbs and not gerunds (ending in "ing").
 
 > **Example:**
-> * Step 1: **Create** Your Site
-> * Step 2: **Choose** Your Framework
-> * Step 3: **Visit** the Dev Environment
+> * Step 1: **Create** your site
+> * Step 2: **Choose** your framework
+> * Step 3: **Visit** the dev environment
 
 ### FAQs
 
@@ -356,7 +362,7 @@ The heading level for FAQs will vary based on if it's an FAQ-only doc or if FAQs
 
 **Example of a simple FAQ**
 
-> **Does Optimism Support ERC-721?**
+> **Does Optimism support ERC-721?**
 > Yes. We have complete and total support for ERC-721 standard.
 
 **Example of an instructional FAQ**

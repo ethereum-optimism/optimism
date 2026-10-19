@@ -856,6 +856,15 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
         );
         assertEq("PORTAL-90", _validate(true));
     }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal proof maturity delay is outside the standard range.
+    function test_validate_optimismPortalDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1)
+        );
+        assertEq("PORTAL-100", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_ETHLockbox_Test
@@ -1146,9 +1155,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(delayedWeth.delay()));
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(expectedETHLockboxFor(sysCfg)));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
 
@@ -1294,6 +1301,17 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is OPContr
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry finality delay is outside the standard range.
+    function test_validate_anchorStateRegistryDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(1)
+        );
+        assertEq("PDDG-ANCHORP-80,CKDG-ANCHORP-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         AnchorStateRegistry ETHLockbox is invalid.
     function test_validate_anchorStateRegistryInvalidETHLockbox_succeeds() public {
         vm.mockCall(
@@ -1384,7 +1402,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         DelayedWETH delay is invalid.
+    ///         DelayedWETH delay is outside the standard range.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
         assertEq("PDDG-DWETH-40,CKDG-DWETH-40", _validate(true));
@@ -1545,9 +1563,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(delayedWeth.delay()));
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(expectedETHLockboxFor(sysCfg)));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
     }
@@ -1909,6 +1925,33 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         );
         assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70", _validate(true));
     }
+
+    /// @notice Tests that the validate function returns PORTAL-100 when the portal's proof maturity
+    ///         delay is outside the standard range.
+    function test_validate_optimismPortalDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1)
+        );
+        assertEq("PORTAL-100", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SPDG-ANCHORP-80 and SCKDG-ANCHORP-80 when
+    ///         the registry's finality delay is outside the standard range.
+    function test_validate_anchorStateRegistryDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(1)
+        );
+        assertEq("SPDG-ANCHORP-80,SCKDG-ANCHORP-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SCKDG-DWETH-40 when the DelayedWETH delay is
+    ///         outside the standard range. Only the permissionless super game carries a DelayedWETH.
+    function test_validate_delayedWETHDelayOutOfRange_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1));
+        assertEq("SCKDG-DWETH-40", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_SuperRootDisputeGames_Test
@@ -2050,6 +2093,11 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         );
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
 
         assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20,SPDG-ANCHORP-70", _validate(true));
     }
@@ -2547,6 +2595,156 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
             address(dgf), abi.encodeCall(IDisputeGameFactory.initBonds, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
         );
         assertEq("ZKDG-160", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-DWETH-40 when the DelayedWETH delay is outside the standard range. The ZK
+    ///         game shares the DelayedWETH with the active permissionless super game, so that game
+    ///         reports the same code.
+    function test_validate_zkDisputeGameDelayedWETHDelayOutOfRange_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1));
+        assertEq("SCKDG-DWETH-40,ZKDG-DWETH-40", _validate(true));
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_ValidateInterop_Test
+/// @notice Tests ordinary validation of members with distinct chain admins and shared interop contracts.
+contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice Both members must validate immediately after migration, including the non-first member.
+    function test_validate_interopMembersAfterMigration_succeeds() public view {
+        assertNotEq(address(chainContracts1.proxyAdmin), address(chainContracts2.proxyAdmin));
+        assertEq(chainContracts1.proxyAdmin.owner(), chainContracts2.proxyAdmin.owner());
+        assertEq(sharedProxyAdmin, address(chainContracts1.proxyAdmin));
+        _assertMembersValidated();
+    }
+
+    /// @notice An upgrade through either member must leave both members valid.
+    function test_validate_interopMembersAfterUpgrade_succeeds() public {
+        _upgradeMember(chainContracts2.systemConfig);
+        _assertMembersValidated();
+        _upgradeMember(chainContracts1.systemConfig);
+        _assertMembersValidated();
+    }
+
+    /// @notice A wrong shared SUPER_CANNON_KONA prestate must be rejected from either member.
+    function test_validate_interopMembersWrongSuperCannonKonaPrestate_succeeds() public {
+        _assertMembersValidated();
+        assertNotEq(cannonPrestate.raw(), cannonKonaPrestate.raw());
+        _upgradeMember(chainContracts2.systemConfig, cannonPrestate);
+
+        IOPContractsManagerStandardValidator.ValidationInputDev memory input =
+            _validationInput(chainContracts2.systemConfig);
+        string memory errors = standardValidator.validate(input, true);
+        assertEq(errors, "SCKDG-40");
+        assertEq(standardValidator.validate(_validationInput(chainContracts1.systemConfig), true), errors);
+        vm.expectRevert(bytes("OPContractsManagerStandardValidator: SCKDG-40"));
+        standardValidator.validate(input, false);
+    }
+
+    /// @notice Discovering the shared admin must still check its expected PAO owner.
+    function test_validate_sharedProxyAdminWrongOwner_succeeds() public {
+        vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(makeAddr("wrongSharedOwner")));
+        // The shared DelayedWETH reads its owner through the same ProxyAdmin, so its owner check
+        // fails too.
+        string memory expected = "SHARED-PROXYA-10,SCKDG-DWETH-30";
+        IOPContractsManagerStandardValidator.ValidationInputDev memory input =
+            _validationInput(chainContracts2.systemConfig);
+        assertEq(standardValidator.validate(input, true), expected);
+        vm.expectRevert(bytes(string.concat("OPContractsManagerStandardValidator: ", expected)));
+        standardValidator.validate(input, false);
+    }
+
+    /// @notice The shared ProxyAdmin owner check must use the L1 PAO multisig override.
+    function test_validateWithOverrides_l1PAOMultisigMismatch_succeeds() public {
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: makeAddr("wrongMultisig"), challenger: address(0)
+            });
+        // No owner matches the override, so the member's ProxyAdmin, the shared ProxyAdmin, the
+        // factory and the shared DelayedWETH all fail their owner checks.
+        assertEq(
+            standardValidator.validateWithOverrides(_validationInput(chainContracts2.systemConfig), true, overrides),
+            "OVERRIDES-L1PAOMULTISIG,PROXYA-10,SHARED-PROXYA-10,DF-30,SCKDG-DWETH-30"
+        );
+    }
+
+    /// @notice Shared implementation checks must still reject a non-standard implementation.
+    function test_validate_sharedFactoryWrongImplementation_succeeds() public {
+        vm.mockCall(
+            sharedProxyAdmin,
+            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(sharedDGF))),
+            abi.encode(address(0xbad))
+        );
+        assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), "DF-20");
+    }
+
+    /// @notice Each shared contract must report the factory's ProxyAdmin. The mocks change only the
+    ///         reported admin: a contract that another ProxyAdmin really administers reverts at
+    ///         its implementation check before these comparisons run.
+    function test_validate_sharedContractsWrongAdmin_succeeds() public {
+        bytes memory memberAdmin = abi.encode(address(chainContracts2.proxyAdmin));
+        vm.mockCall(address(sharedLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), memberAdmin);
+        vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), memberAdmin);
+        vm.mockCall(sharedASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), memberAdmin);
+        assertEq(
+            standardValidator.validate(_validationInput(chainContracts2.systemConfig), true),
+            "SPDG-ANCHORP-50,SCKDG-DWETH-60,SCKDG-ANCHORP-50,LOCKBOX-30"
+        );
+    }
+
+    /// @notice Checks ordinary validation and the allowFailure/override path used by upgrade tasks.
+    function _assertMembersValidated() internal view {
+        ISystemConfig[2] memory members = [chainContracts1.systemConfig, chainContracts2.systemConfig];
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: standardValidator.l1PAOMultisig(), challenger: address(0)
+            });
+        for (uint256 i; i < members.length; i++) {
+            IOPContractsManagerStandardValidator.ValidationInputDev memory input = _validationInput(members[i]);
+            assertEq(standardValidator.validate(input, false), "");
+            assertEq(standardValidator.validateWithOverrides(input, true, overrides), "OVERRIDES-L1PAOMULTISIG");
+        }
+    }
+
+    /// @notice Builds ordinary validation input from the migrated chain and migration game parameters.
+    function _validationInput(ISystemConfig _sysCfg)
+        internal
+        view
+        returns (IOPContractsManagerStandardValidator.ValidationInputDev memory)
+    {
+        return IOPContractsManagerStandardValidator.ValidationInputDev({
+            sysCfg: _sysCfg,
+            cannonPrestate: cannonPrestate.raw(),
+            cannonKonaPrestate: cannonKonaPrestate.raw(),
+            l2ChainID: _sysCfg.l2ChainId(),
+            proposer: proposer
+        });
+    }
+
+    /// @notice Re-applies both super games through a member's ordinary OPCM upgrade path.
+    function _upgradeMember(ISystemConfig _sysCfg) internal {
+        _upgradeMember(_sysCfg, cannonKonaPrestate);
+    }
+
+    /// @notice Re-applies both super games with the supplied SUPER_CANNON_KONA prestate.
+    function _upgradeMember(ISystemConfig _sysCfg, Claim _cannonKonaPrestate) internal {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        configs[0].gameType = GameTypes.CANNON;
+        configs[1].gameType = GameTypes.PERMISSIONED_CANNON;
+        configs[2].gameType = GameTypes.CANNON_KONA;
+        IOPContractsManagerUtils.DisputeGameConfig[] memory migratedGames = _getDefaultMigrateInput().disputeGameConfigs;
+        configs[3] = migratedGames[0];
+        configs[4] = migratedGames[1];
+        configs[4].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _cannonKonaPrestate }));
+        configs[5].gameType = GameTypes.ZK_DISPUTE_GAME;
+
+        IOPContractsManagerV2.UpgradeInput memory input;
+        input.systemConfig = _sysCfg;
+        input.disputeGameConfigs = configs;
+        prankDelegateCall(_sysCfg.proxyAdmin().owner());
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertTrue(success, "interop member upgrade failed");
     }
 }
 

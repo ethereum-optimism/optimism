@@ -139,7 +139,7 @@ func ProveWithdrawalParametersFaultProofs(ctx context.Context, proofCl ProofClie
 	switch respectedGame {
 	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 		minSequence = new(big.Int).Set(receipt.BlockNumber)
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType, gameTypes.ZKDisputeGameType:
 		minSequence = new(big.Int).SetUint64(withdrawalHeader.Time)
 		l2ChainID, err = chainID(ctx, l2ReceiptCl, l2HeaderCl)
 		if err != nil {
@@ -192,7 +192,7 @@ func l2HeaderForGame(ctx context.Context, l2HeaderCl HeaderClient, gameType game
 			return nil, fmt.Errorf("l2 header %v was nil", sequence)
 		}
 		return header, nil
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType, gameTypes.ZKDisputeGameType:
 		if !sequence.IsUint64() {
 			return nil, fmt.Errorf("l2 sequence number does not fit in uint64: %v", sequence)
 		}
@@ -255,6 +255,12 @@ func gameSequenceAndOutputRoot(game bindings.IDisputeGameFactoryGameSearchResult
 	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		sequence, root, ok, err := superRootChainOutput(game.ExtraData, l2ChainID)
 		return sequence, root, ok, err
+	case gameTypes.ZKDisputeGameType:
+		// ZK games prefix the super root with a 4-byte parent game index.
+		if len(game.ExtraData) < 4 {
+			return nil, common.Hash{}, false, fmt.Errorf("ZK game extra data is %d bytes, need at least 4-byte parent index", len(game.ExtraData))
+		}
+		return superRootChainOutput(game.ExtraData[4:], l2ChainID)
 	default:
 		return nil, common.Hash{}, false, fmt.Errorf("unsupported game type: %v", gameType)
 	}

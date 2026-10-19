@@ -3,13 +3,17 @@
 use std::{collections::BTreeMap, num::NonZeroU64};
 
 use anyhow::{Context, Result, bail, ensure};
-use kona_sp1_client_utils::super_root::{
-    SuperConsolidationInputs, SuperConsolidationOutputs, SuperInteropOutputs, SuperRangeInputs,
-    SuperRangeOutputs, hash_super_root_proof,
+use kona_sp1_client_utils::{
+    log_commitment::LogCommitmentInputs,
+    super_root::{
+        SuperConsolidationInputs, SuperConsolidationOutputs, SuperInteropOutputs, SuperRangeInputs,
+        SuperRangeOutputs, hash_super_root_proof,
+    },
 };
 use kona_sp1_super_range_executor::{
     HostInputs, SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
     build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
+    deployment_chain_configs,
 };
 use sp1_core_executor::{ExecutionError, SP1CoreOpts};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues};
@@ -289,12 +293,23 @@ pub(crate) async fn execute_snapshot(
             );
         }
     };
+    let configs = match deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids) {
+        Ok(configs) => configs,
+        Err(error) => {
+            return infrastructure_result(
+                ExecutionMode::Range,
+                range_witness_started.elapsed().as_secs_f64(),
+                error,
+            );
+        }
+    };
     let range_witness = tokio::time::timeout_at(
         deadline,
         collect_range_witness(
             range_host,
             &synthesized.range_inputs,
             &synthesized.preloaded_preimages,
+            Some(&configs),
         ),
     )
     .await;
@@ -389,11 +404,13 @@ pub(crate) async fn execute_snapshot(
             consolidation_host,
             &synthesized.consolidation_inputs,
             &synthesized.preloaded_preimages,
+            Some(&configs),
+            &[],
         ),
     )
     .await;
     let (consolidation_witness, native_consolidation) = match consolidation_witness {
-        Ok(Ok(result)) => result,
+        Ok(Ok(collected)) => (collected.witness, collected.outputs),
         Ok(Err(error)) => {
             return finish_with_consolidation_failure(
                 range,
@@ -413,6 +430,8 @@ pub(crate) async fn execute_snapshot(
     let consolidation = match build_super_consolidation_stdin(
         &synthesized.consolidation_inputs,
         consolidation_witness,
+        &LogCommitmentInputs::default(),
+        None,
     ) {
         Ok(stdin) => {
             let execution = {

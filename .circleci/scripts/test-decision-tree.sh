@@ -48,9 +48,12 @@ run_scenario() {
     fi
   done
 
-  # Seed the JSON and run the routing policy as the pipeline would.
+  # Seed the JSON and run the routing policy as the pipeline would. REPO is
+  # pinned so the result doesn't depend on which project runs the test.
+  local repo="${REPO:-ethereum-optimism/optimism}"
   echo "${json_seed}" > "${OUTPUT}"
   TRIGGER_SOURCE="${trigger}" BRANCH="${branch}" TAG="${tag}" SCHEDULE_NAME="${schedule}" \
+    CIRCLE_PROJECT_USERNAME="${repo%%/*}" CIRCLE_PROJECT_REPONAME="${repo#*/}" \
     bash "${ROUTING_SCRIPT}" >/dev/null || true
 
   local _json
@@ -179,6 +182,29 @@ run_scenario \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
   --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
+# Other repos sharing this config run the same post-merge set minus the
+# routing.yml public_repo_only workflows.
+REPO="ethereum-optimism/other" run_scenario \
+  "After merge (develop), outside the public repo" \
+  "webhook" "develop" "" "" \
+  '{}' \
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci \
+  --not publish_contract_artifacts kona_publish_prestates circleci_schedule_trigger_check
+
+REPO="ethereum-optimism/other" run_scenario \
+  "PR (feature branch), CircleCI changed, outside the public repo" \
+  "webhook" "feat/my-thing" "" "" \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
+  main release contracts_feature_tests rust_ci rust_e2e_ci \
+  --not circleci_schedule_trigger_check
+
+REPO="ethereum-optimism/other" run_scenario \
+  "API: publish_contract_artifacts_dispatch, outside the public repo" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  release \
+  --not publish_contract_artifacts
+
 run_scenario \
   "Scheduled: build_four_hours" \
   "scheduled_pipeline" "" "" "build_four_hours" \
@@ -190,6 +216,13 @@ run_scenario \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke circleci_schedule_trigger_check
+
+REPO="ethereum-optimism/other" run_scenario \
+  "Scheduled: build_daily, outside the public repo" \
+  "scheduled_pipeline" "" "" "build_daily" \
+  '{}' \
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke \
+  --not circleci_schedule_trigger_check
 
 run_scenario \
   "Scheduled: build_weekly" \

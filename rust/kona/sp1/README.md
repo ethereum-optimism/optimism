@@ -14,20 +14,29 @@ The SP1 integration provides zkVM-based fault proofs for the OP Stack, allowing 
 
 zkVM programs that execute inside the SP1 prover:
 
+- **`log-commitment`**: Commits to the logs under each input receipts root as
+  `receipts_root ‖ log_count ‖ log_root` (72 bytes per root), so that interop message checks can
+  open a log without loading the block's receipts.
 - **`super-range`**: Unified super-root program for one or more chains, with modes for
   proving ranges and span-shaped consolidation.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
   commits the public values consumed by `ZKDisputeGame`.
+- **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
+  operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
 
 ### Crates (`crates/`)
 
 Supporting libraries for the SP1 fault proof system:
 
-- **`build-info`**: Compile-time build marker embedding the monorepo commit into both guests
+- **`bls12-381-check`** (test-only): EIP-2537 reference oracle, case corpus, host differential
+  tests, and the zkVM check runner (`just check-bls12-381-zkvm`)
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
 - **`host`**: Host-side logging, metrics, prover-network configuration, and witness-generation utilities
+- **`log-commitment-vkey`**: Compile-time `log-commitment` guest verification key, embedded from
+  generated `elf/vkeys.toml` and used by `super-range` to verify log-commitment batch proofs
 - **`range-vkeys`**: Compile-time `super-range` guest verification key, embedded from generated
   `elf/vkeys.toml` and used by `super-aggregation`. The crate retains its historical name because
   it authenticates the shipping super-range child program.
@@ -40,17 +49,47 @@ Supporting libraries for the SP1 fault proof system:
 - **`zkvm-canary`**: The `kona-zkvm-canary` service, which continuously executes both
   `super-range` modes against finalized live-network snapshots without producing proofs
 
+### Chain configuration
+
+The super-range guest reads chain configurations only from its compiled registry. Both range
+and consolidation reject chains without an embedded rollup config, L1 config, or matching
+dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+Custom registry inputs currently support only Mainnet, Sepolia, and Holesky as L1s;
+embedding other L1 configurations requires additional registry support.
+
+The shared range and consolidation functions accept an optional `ChainConfigs` bundle.
+`None` selects the compiled registry. The native executor, proposer, and canary resolve deployment
+config files once and pass an explicit bundle to native witness collection, with embedded registry
+values for omitted files. The executor reuses that bundle for native replay. SP1 guest execution
+enforces the guest's compiled registry independently of host config files. Native acceptance tests
+require neither a guest ELF nor a Cargo feature, and do not read configs from Local preimage keys.
+
+The opt-in `test-config-fallback` feature belongs only to the `kona-sp1-super-range` guest.
+It allows that guest's test entrypoint to decode unverified Local-key configs and supply an
+explicit bundle to the shared functions. It is disabled by default;
+`ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it and
+artifacts carrying a `-test` build marker.
+Test-feature ELFs also contain a dedicated unsafe-config marker that production
+prestate checks reject.
+For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
+`build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
+The full-ELF executor seeds the resolved config bundle into its test witness, so one test ELF
+supports the existing synthetic deployments without rebuilding for each deployment.
+
 ### ELF Binaries (`elf/`)
 
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
+- **`log-commitment-elf`**: Compiled per-block log-commitment program
 - **`super-aggregation-elf`**: Compiled super-root aggregation program
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
 ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
-on linux/amd64 with `just build-elfs`; it builds the `super-range` leaf first, generates its vkey,
-and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`. Use
+on linux/amd64 with `just build-elfs`; it builds `log-commitment` and generates its vkey, then
+builds `super-range` with that vkey embedded through `kona-sp1-log-commitment-vkey`, generates its
+vkey, and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`.
+So the `super-range` and `super-aggregation` vkeys depend on the `log-commitment` ELF. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
 because paths and other environment details are embedded. The daily reproducibility job
@@ -64,7 +103,7 @@ infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop a
 
 #### Build provenance
 
-Both guests embed the commit they were built from, so a guest ELF identifies its own source
+Every guest embeds the commit it was built from, so a guest ELF identifies its own source
 without a manifest, a lookup table, or executing it:
 
 ```bash
@@ -83,7 +122,7 @@ aggregator must come from the same commit, not merely the same code. The marker 
 not attested: it records what an honest build embedded and proves nothing against a rewritten
 artifact.
 
-`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so both
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so all
 guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
 `KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
 describe. Builds outside the justfile record `unknown`.
@@ -103,7 +142,7 @@ custom configs produce different ELFs and verification-key hashes.
 
 ## Releases
 
-The two guest programs (`super-range` and `super-aggregation`) are released as ELFs under the
+The `super-range` and `super-aggregation` guest programs are released as ELFs under the
 `kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
 candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
 guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
@@ -120,10 +159,10 @@ family, with `op-zk-proposer/vX.Y.Z-rc.N` for release candidates. It is to
   programs execute. Tag both on the same commit; a proposer-only release with no program change is
   fine.
 - **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
-- **Every new commit rotates the vkeys**: both guests embed the commit they were built from (see
-  [Build provenance](#build-provenance)), so a release tagged on a different commit from the
-  previous one always has new vkeys, even if no guest code changed, and every consumer must repin.
-  Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
+- **Every new commit rotates the vkeys**: both released guests embed the commit they were built
+  from (see [Build provenance](#build-provenance)), so a release tagged on a different commit from
+  the previous one always has new vkeys, even if no guest code changed, and every consumer must
+  repin. Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
 
 CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
 configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
@@ -173,7 +212,7 @@ RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
   ./op-acceptance-tests/tests/interop/proofs/serial \
   ./op-acceptance-tests/tests/interop/proofs-singlechain
 
-cd rust/kona/sp1 && just build-elfs-native && just build-super-range-executor && cd ../../..
+cd rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor && cd ../../..
 KONA_SP1_ELF_DIR="$PWD/rust/kona/sp1/elf" \
 KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/rust/target/release/kona-sp1-super-range-executor" \
 RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
@@ -185,7 +224,7 @@ remain network-proving concerns rather than deterministic acceptance-test covera
 
 ## Guest Precompile Patches
 
-Both guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
+All guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
 own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
 `crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
 generated ELFs get zkVM precompile-accelerated crypto without changing the host
@@ -193,8 +232,10 @@ generated ELFs get zkVM precompile-accelerated crypto without changing the host
 
 The EVM-executing super-range guest also enables `revm`'s `bn` feature
 in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
-backend for EIP-196/197 bn128 precompiles. EIP-2537 BLS pairing still uses
-arkworks and is not SP1 accelerated.
+backend for EIP-196/197 bn128 precompiles. The EIP-2537 BLS12-381 precompiles run
+through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field, G1 point, and
+bigint syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
+against revm's arkworks backend and prints per-operation cycle counts.
 
 ## Usage
 
@@ -337,6 +378,7 @@ Names below use the `op_zk_proposer_` prefix.
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
 | `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
 | `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
+| `tx_sends_total` | Counter | L1 sends by `outcome`: `confirmed`, `reverted` (mined with status 0) or `failed` (no receipt: send timeout, nonce-too-low abort, or an error before publishing such as a gas-estimation revert). |
 
 Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
@@ -360,6 +402,16 @@ timed out; the next attempt can reuse the request.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
+
+L1 send diagnostics: `op_zk_proposer_tx_publish_errors_total` counts publishes that
+returned an error or no answer, by `reason` (`underpriced`, `nonce_too_low`,
+`rejected`, `no_response`); a `no_response` publish may still have reached the pool.
+Its `bump_failed` reason counts fee bumps that failed, for example when
+`OP_ZK_PROPOSER_MAX_FEE_PER_GAS` blocks the replacement.
+`op_zk_proposer_tx_fee_bumps_total` counts fee-bumped replacements sent to the node.
+`op_zk_proposer_tx_send_duration_seconds` is the duration of the latest send that
+got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
+`gas_used * effective_gas_price` over those sends, in whole gwei.
 
 ### Environment
 
@@ -399,9 +451,9 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
 | `OP_ZK_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
 | `OP_ZK_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
-| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
-| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
-| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
+| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | limit in seconds for one L1 transaction send, including fee bumps, until 3 confirmations (default `180`) |
+| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
+| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
@@ -513,10 +565,12 @@ L1-pinned live-network view. One process owns one network and one artifact URL.
 It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
 and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
 (`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
-pin is an input error. Finalized supernode responses are assumed immutable for a timestamp. An
-identical successful fingerprint is not re-executed; a correctness failure receives one
-confirmation attempt. The next selection is scheduled only after the prior attempt and its
-cadence plus bounded jitter have completed.
+pin is an input error. The pin and required L1 block identities are checked against the L1 RPC's
+canonical blocks. `CurrentL1` is used by number to bound the pin and verify processing progress;
+its hash is not independently validated. Finalized supernode responses are assumed immutable for
+a timestamp. An identical successful fingerprint is not re-executed; a correctness failure
+receives one confirmation attempt. The next selection is scheduled only after the prior attempt
+and its cadence plus bounded jitter have completed.
 
 The canary always uses SP1 CPU `execute` mode. This runs the real RISC-V ELF and returns an
 `ExecutionReport`, but it never invokes a proving API, submits work to the Succinct Prover Network,
@@ -695,12 +749,13 @@ with:
 cd rust/kona/tests && just action-tests-sp1
 ```
 
-That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds the
+That recipe builds test guest ELFs (`just build-elfs test-config-fallback`, Dockerized SP1 toolchain), builds the
 `super-range-executor` binary, and runs the test with `KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH`
 and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
 is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
-tests.
+tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
+tests in its `kona-sp1-action-tests` job.
 
 Because the executor is a separate process that resolves the transition itself, the action-test
 harness serves op-node's superroot API over a loopback HTTP listener
@@ -713,25 +768,35 @@ instead of executing the SP1 ELF. Use the default SP1 execute path for a small s
 the ELF, SP1 stdin, and public-values boundary; use `--native-core` when broad action-test
 coverage would otherwise multiply SP1 emulator cost.
 
+Native-core replay reads the witness exactly as the guest does, so a preimage missing from the
+witness **panics** instead of returning an error. The panic is deliberate: shared kona code turns
+some oracle errors into protocol outcomes (an interop message judged invalid, a span batch
+skipped), so a prover that could make a read fail would choose those outcomes. Anything that runs
+the guest code outside the zkVM with an incomplete witness therefore crashes (exit `101` from
+the executor) rather than reporting the claim invalid.
+
 The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
 driven by **corrupting the claim the guest sees**, not by feeding the executor a wrong claim:
 the executor synthesizes the agreed pre-state and the claim from the supernode and collects
 witnesses against them, so there is nothing to pass a junk value to, and a witness collected
 against a bad claim would fail host-side before the guest ran (a confusing infra error, exit
 2). So an invalid-claim test sets `--corrupt-claimed-root` (via `WithCorruptClaim()` in the Go
-harness), which flips a bit in the claimed optimistic output root *after* witness collection,
-so the guest re-derives the real root, finds the mismatch, and aborts (exit 1) — a soundness
-smoke test that a false transition cannot be executed (and thus could not be proven). If the
-guest instead runs the tampered claim to completion and agrees with the honest outputs, the
-executor exits `2` rather than reporting the claim valid. Do **not** write an SP1 negative test
-by passing a junk `WithL2Claim(...)`.
+harness), which flips a bit in the claimed optimistic output root *after* witness collection.
+The witness has no preimage for the corrupted root, so the guest aborts when it reads it
+(exit 1) — a soundness smoke test that a false transition cannot be executed (and thus could
+not be proven). If the guest instead runs the tampered claim to completion and agrees with the
+honest outputs, the executor exits `2` rather than reporting the claim valid. Do **not** write
+an SP1 negative test by passing a junk `WithL2Claim(...)`. Combining `--corrupt-claimed-root`
+with `--native-core` is unsupported: the native replay panics on the missing preimage (exit
+`101`), which the Go harness reports as a test failure, so the harness rejects that combination.
+Keep invalid-claim tests on the SP1 execute path.
+
 ## Dependencies
 
 This integration depends on:
 - SP1 SDK and zkVM runtime
 - Core Kona libraries (`kona-proof`, `kona-derive`, `kona-executor`, etc.)
 - Alloy and OP-Alloy for Ethereum types
-- RocksDB for witness data storage
 
 ## License and Attribution
 

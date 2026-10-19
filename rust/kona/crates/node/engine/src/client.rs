@@ -5,14 +5,14 @@ use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_network::{Ethereum, Network};
 use alloy_primitives::{Address, B256, BlockHash, Bytes, StorageKey};
 use alloy_provider::{EthGetBlock, Provider, RootProvider, RpcWithBlock, ext::EngineApi};
-use alloy_rpc_client::RpcClient;
+use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadInputV2,
     ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtSecret,
     PayloadId, PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
-use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
+use alloy_transport::{RpcError, TransportErrorKind, TransportFut, TransportResult};
 use alloy_transport_http::{
     AuthLayer, AuthService, Http, HyperClient,
     hyper_util::{
@@ -31,10 +31,33 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use std::{future::Future, sync::Arc, time::Instant};
+use std::{
+    future::Future,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
-use tower::ServiceBuilder;
+use tower::{ServiceBuilder, util::MapFutureLayer};
 use url::Url;
+
+/// Deadline for each request the engine client sends, to the Engine API or to L1.
+///
+/// It bounds one request, never an operation made of many requests, such as the block traversal
+/// of a reset, so a long but healthy operation is not cut off.
+const RPC_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Bounds one request on an alloy transport by [`RPC_TIMEOUT`].
+///
+/// This wraps the transport's future rather than the HTTP client below it, because the HTTP
+/// client's future completes when the response headers arrive and the transport reads the body
+/// after that.
+fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
+    Box::pin(async move {
+        tokio::time::timeout(RPC_TIMEOUT, request)
+            .await
+            .map_err(|_| TransportErrorKind::custom_str("RPC request timed out"))?
+    })
+}
 
 /// An error that occurred in the [`EngineClient`].
 #[derive(Error, Debug)]
@@ -149,14 +172,16 @@ where
     L1Provider: Provider,
     L2Provider: Provider<Optimism>,
 {
-    /// Creates a new RPC client for the given address and JWT secret.
+    /// Creates a new RPC client for the given address and JWT secret. Each request has a deadline.
     pub fn rpc_client<N: Network>(addr: Url, jwt: JwtSecret) -> RootProvider<N> {
         let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
         let auth_layer = AuthLayer::new(jwt);
         let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
         let layer_transport = HyperClient::with_service(service);
         let http_hyper = Http::with_client(layer_transport, addr);
-        let rpc_client = RpcClient::new(http_hyper, false);
+        let rpc_client = ClientBuilder::default()
+            .layer(MapFutureLayer::new(with_deadline))
+            .transport(http_hyper, false);
         RootProvider::<N>::new(rpc_client)
     }
 }
@@ -178,14 +203,17 @@ impl EngineClientBuilder {
     /// Creates a new [`OpEngineClient`] with authenticated HTTP connections.
     ///
     /// Sets up a JWT-authenticated connection to the L2 Engine API endpoint
-    /// along with an unauthenticated connection to the L1 chain.
+    /// along with an unauthenticated connection to the L1 chain. Each request on either
+    /// connection has a deadline.
     pub fn build(self) -> OpEngineClient<RootProvider, RootProvider<Optimism>> {
         let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
             self.l2,
             self.l2_jwt,
         );
 
-        let l1_provider = RootProvider::new_http(self.l1_rpc);
+        let l1_provider = RootProvider::new(
+            ClientBuilder::default().layer(MapFutureLayer::new(with_deadline)).http(self.l1_rpc),
+        );
 
         OpEngineClient { engine, l1_provider, cfg: self.cfg }
     }
@@ -218,7 +246,7 @@ where
     }
 
     async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
-        self.engine.new_payload_v1(payload).await
+        record_call_time(self.engine.new_payload_v1(payload), Metrics::NEW_PAYLOAD_METHOD).await
     }
 
     async fn l2_block_by_label(
@@ -418,4 +446,88 @@ async fn record_call_time<T, Err>(
         duration.as_secs_f64()
     );
     Ok(result)
+}
+
+#[cfg(test)]
+mod deadline_tests {
+    use super::*;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        sync::mpsc,
+        time::{self, Duration},
+    };
+
+    /// Reads each request, writes `response`, signals `answered`, then holds the connection open
+    /// without finishing the response.
+    async fn stalled_endpoint(response: &'static [u8], answered: mpsc::UnboundedSender<()>) -> Url {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let answered = answered.clone();
+                tokio::spawn(async move {
+                    let mut request = [0; 4096];
+                    let _ = stream.read(&mut request).await;
+                    stream.write_all(response).await.unwrap();
+                    answered.send(()).unwrap();
+                    std::future::pending::<()>().await
+                });
+            }
+        });
+        url
+    }
+
+    /// Runs `call` in real time until the endpoint has answered, so whatever it sent is already in
+    /// the socket buffer, then pauses the clock and expects `call` to fail at its deadline.
+    async fn fails_at_deadline(
+        call: impl Future<Output = bool> + Send + 'static,
+        answered: &mut mpsc::UnboundedReceiver<()>,
+    ) {
+        let call = tokio::spawn(call);
+        answered.recv().await.unwrap();
+        time::pause();
+        let paused_at = time::Instant::now();
+        let failed = time::timeout(RPC_TIMEOUT * 2, call).await.expect("request has no deadline");
+        assert!(failed.unwrap());
+        // The deadline started before the clock was paused, and only the clock moved since. Timers
+        // round up to the next millisecond.
+        let waited = paused_at.elapsed();
+        assert!(waited > RPC_TIMEOUT - Duration::from_secs(1));
+        assert!(waited <= RPC_TIMEOUT + Duration::from_millis(1));
+        time::resume();
+    }
+
+    #[rstest::rstest]
+    #[case::no_response(b"")]
+    #[case::stalled_body(
+        b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"
+    )]
+    #[tokio::test]
+    async fn stalled_engine_and_l1_requests_have_a_deadline(#[case] response: &'static [u8]) {
+        let (answered_tx, mut answered) = mpsc::unbounded_channel();
+        let client = Arc::new(
+            EngineClientBuilder {
+                l2: stalled_endpoint(response, answered_tx.clone()).await,
+                l2_jwt: JwtSecret::random(),
+                l1_rpc: stalled_endpoint(response, answered_tx).await,
+                cfg: Arc::new(RollupConfig::default()),
+            }
+            .build(),
+        );
+
+        let engine = client.clone();
+        fails_at_deadline(
+            async move {
+                EngineClient::l2_block_by_label(&*engine, BlockNumberOrTag::Latest).await.is_err()
+            },
+            &mut answered,
+        )
+        .await;
+        fails_at_deadline(
+            async move { EngineClient::get_l1_block(&*client, BlockId::latest()).await.is_err() },
+            &mut answered,
+        )
+        .await;
+    }
 }

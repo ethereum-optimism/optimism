@@ -1,14 +1,14 @@
 //! Shared test fixtures for OP-reth proofs storage tests.
 //!
 //! Builds real reth-side chains (genesis + EVM-executed blocks) and
-//! initializes a V2 MDBX proofs storage on top, so downstream tests
+//! initializes an MDBX proofs storage on top, so downstream tests
 //! (backfill, snapshot, …) can exercise end-to-end pipelines without
 //! duplicating the chain-construction boilerplate.
 //!
 //! Gated on `#[cfg(test)]` and re-exported via `pub(crate)`; not part of the
 //! crate's public surface.
 
-use crate::{MdbxProofsStorageV2, RethTrieStorageLayout, initialize::InitializationJob};
+use crate::{MdbxProofsStorage, RethTrieStorageLayout, initialize::InitializationJob};
 use alloy_consensus::{Header, TxEip2930, constants::ETH_TO_WEI};
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
@@ -30,10 +30,10 @@ use secp256k1::{Keypair, Secp256k1, SecretKey};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-/// Create a fresh V2 MDBX proofs storage backed by a temporary directory.
-pub(crate) fn create_storage() -> Arc<MdbxProofsStorageV2> {
+/// Create a fresh MDBX proofs storage backed by a temporary directory.
+pub(crate) fn create_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap();
-    Arc::new(MdbxProofsStorageV2::new(path.path()).unwrap())
+    Arc::new(MdbxProofsStorage::new(path.path()).unwrap())
 }
 
 pub(crate) fn public_key_to_address(pubkey: secp256k1::PublicKey) -> Address {
@@ -242,14 +242,14 @@ fn build_storage_call_block(
 }
 
 /// Build a chain of `num_blocks` simple transfer blocks on top of a freshly
-/// initialized genesis, then initialize the v2 proofs storage at the latest
+/// initialized genesis, then initialize the proofs storage at the latest
 /// block. Returns the provider factory, the storage, and the latest
 /// (number, hash) pair.
 pub(crate) fn build_chain_and_initialize_storage(
     num_blocks: u64,
 ) -> (
     ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>,
-    Arc<MdbxProofsStorageV2>,
+    Arc<MdbxProofsStorage>,
     u64,
     B256,
 ) {
@@ -294,7 +294,7 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     num_blocks: u64,
 ) -> (
     ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>,
-    Arc<MdbxProofsStorageV2>,
+    Arc<MdbxProofsStorage>,
     u64,
     B256,
 ) {
@@ -329,6 +329,73 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     }
 
     (provider_factory, storage, last_number, last_hash)
+}
+
+/// Slot of [`STORAGE_CONTRACT`] that each storage-call block sets to its block number.
+pub(crate) fn storage_contract_slot0() -> (B256, B256) {
+    (keccak256(STORAGE_CONTRACT), keccak256(B256::ZERO))
+}
+
+/// Builds `num_blocks` storage-writing blocks and persists them with reth's
+/// [`save_blocks`](reth_provider::DatabaseProvider::save_blocks) in one cycle that advances the
+/// database tip to `num_blocks` but the hashed-state/trie frontier only to `partial_state_trie`,
+/// as the engine does with state masking enabled. The on-disk result is what an unclean
+/// shutdown leaves behind; `partial_state_trie == num_blocks` is a full flush.
+///
+/// Trie data for each block is computed against a second, fully persisted factory, mirroring the
+/// engine's in-memory overlay.
+pub(crate) fn build_chain_with_partial_state_trie(
+    num_blocks: u64,
+    partial_state_trie: u64,
+) -> (ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>, u64, B256) {
+    use reth_chain_state::ExecutedBlock;
+    use reth_provider::SaveBlocksInput;
+    use reth_trie::ComputedTrieData;
+
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+
+    let shadow = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&shadow).unwrap();
+    let target = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&target).unwrap();
+
+    let mut blocks = Vec::new();
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=num_blocks {
+        let mut block = build_storage_call_block(n, last_hash, &chain_spec, key_pair, n - 1);
+        let exec = execute_block(&mut block, &shadow, &chain_spec);
+        let (hashed_state, trie_updates) = {
+            let provider = shadow.provider().unwrap();
+            let state = LatestStateProviderRef::new(&provider);
+            let hashed_state = state.hashed_post_state(&exec.state).unwrap();
+            let (root, trie_updates) = state.state_root_with_updates(hashed_state.clone()).unwrap();
+            assert_eq!(root, block.state_root());
+            (hashed_state.into_sorted(), trie_updates.into_sorted())
+        };
+        last_hash = block.hash();
+        let executed = ExecutedBlock::new(
+            Arc::new(block),
+            Arc::new(exec),
+            ComputedTrieData::new(Arc::new(hashed_state), Arc::new(trie_updates)),
+        );
+
+        let provider_rw = shadow.provider_rw().unwrap();
+        provider_rw
+            .save_blocks(&SaveBlocksInput::new(vec![executed.clone()], n - 1, n - 1, n, n))
+            .unwrap();
+        provider_rw.commit().unwrap();
+        blocks.push(executed);
+    }
+
+    let provider_rw = target.provider_rw().unwrap();
+    provider_rw
+        .save_blocks(&SaveBlocksInput::new(blocks, 0, 0, num_blocks, partial_state_trie))
+        .unwrap();
+    provider_rw.commit().unwrap();
+
+    (target, num_blocks, last_hash)
 }
 
 /// Fixtures for `HashedPostStateProvider` tests over the proofs storage: persisted storage
@@ -437,15 +504,14 @@ pub(crate) mod destroyed_accounts {
         BundleAccount::new(None, None, Default::default(), AccountStatus::Destroyed)
     }
 
-    /// Storage key carried by [`injected_error`].
-    const INJECTED_KEY: B256 = B256::repeat_byte(0xEE);
+    /// Block number carried by [`injected_error`].
+    const INJECTED_BLOCK: u64 = 0xEEEE_EEEE;
 
     /// Error with which [`FailingStorageProvider`] fails hashed storage reads.
     pub(crate) const fn injected_error() -> OpProofsStorageError {
-        OpProofsStorageError::MissingHashedStorageHistory {
-            hashed_address: B256::ZERO,
-            hashed_storage_key: INJECTED_KEY,
-            block_number: 0,
+        OpProofsStorageError::UnwindBeyondEarliest {
+            unwind_block_number: INJECTED_BLOCK,
+            earliest_block_number: INJECTED_BLOCK,
         }
     }
 
@@ -456,8 +522,10 @@ pub(crate) mod destroyed_accounts {
         assert!(
             matches!(
                 OpProofsStorageError::from(err.clone()),
-                OpProofsStorageError::MissingHashedStorageHistory { hashed_storage_key, .. }
-                    if hashed_storage_key == INJECTED_KEY
+                OpProofsStorageError::UnwindBeyondEarliest {
+                    unwind_block_number: INJECTED_BLOCK,
+                    earliest_block_number: INJECTED_BLOCK,
+                }
             ),
             "unexpected error: {err:?}"
         );

@@ -43,11 +43,11 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
 /// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
-/// before and after an upgrade.
+/// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 4.0.0
-    string public constant version = "4.0.0";
+    /// @custom:semver 5.0.0
+    string public constant version = "5.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -57,9 +57,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice The challenger address for permissioned dispute games.
     address public challenger;
-
-    /// @notice The withdrawal delay in seconds for the DelayedWETH contract.
-    uint256 public withdrawalDelaySeconds;
 
     // Implementation addresses as state variables
 
@@ -175,13 +172,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,
-        uint256 _withdrawalDelaySeconds,
         bytes32 _devFeatureBitmap
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
         challenger = _challenger;
-        withdrawalDelaySeconds = _withdrawalDelaySeconds;
         devFeatureBitmap = _devFeatureBitmap;
         standardValidatorUtils = _standardValidatorUtils;
         migrationValidator = _migrationValidator;
@@ -770,9 +765,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (DisputeGameConfig memory)
     {
-        return DisputeGameConfig({
-            l1PAOMultisig: expectedL1PAOMultisig(_overrides), withdrawalDelaySeconds: withdrawalDelaySeconds
-        });
+        return DisputeGameConfig({ l1PAOMultisig: expectedL1PAOMultisig(_overrides) });
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.
@@ -853,9 +846,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Builds the SharedConfig struct from this validator's state.
     function _buildSharedConfig() private view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
-            l1PAOMultisig: l1PAOMultisig,
-            withdrawalDelaySeconds: withdrawalDelaySeconds,
-            superchainConfig: superchainConfig
+            l1PAOMultisig: l1PAOMultisig, superchainConfig: superchainConfig
         });
     }
 
@@ -940,7 +931,20 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
-        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
+
+        // Migrated interop chains retain their own ProxyAdmins, while the shared contracts use
+        // the first member's ProxyAdmin. Use the factory's admin for the shared contract checks,
+        // preserving both their common admin and the expected PAO owner.
+        IProxyAdmin _sharedProxyAdmin = _proxyAdmin;
+        if (_input.sysCfg.isFeatureEnabled(Features.INTEROP)) {
+            _sharedProxyAdmin = getProxyAdmin(_input.sysCfg.disputeGameFactory());
+            _errors = internalRequire(
+                _sharedProxyAdmin.owner() == expectedL1PAOMultisig(_overrides), "SHARED-PROXYA-10", _errors
+            );
+        }
+        // Under INTEROP, DF-40 compares the factory's admin with itself. SHARED-PROXYA-10
+        // checks its PAO owner; the ASR, WETH and lockbox checks enforce the same shared admin.
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
 
         GameType rgt =
             IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry().respectedGameType();
@@ -957,7 +961,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.SUPER_PERMISSIONED,
                 _input.cannonPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _input.proposer,
                 _overrides,
                 "SPDG"
@@ -968,7 +972,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.SUPER_CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _overrides,
                 "SCKDG"
             );
@@ -981,7 +985,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.PERMISSIONED_CANNON,
                 _input.cannonPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _input.proposer,
                 _overrides,
                 "PDDG"
@@ -992,7 +996,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _overrides,
                 "CKDG"
             );
@@ -1000,7 +1004,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         // ZK dispute game validation: gated on the ZK_DISPUTE_GAME dev feature flag.
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _proxyAdmin, _overrides);
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
         } else {
             // ZK game type must not be registered when the ZK feature is not enabled.
             _errors = internalRequire(
@@ -1011,7 +1015,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             );
         }
 
-        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _sharedProxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
         string memory finalErrors = _errors;
@@ -1119,7 +1123,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             _admin,
             expectedL1PAOMultisig(_overrides),
             delayedWETHImpl,
-            withdrawalDelaySeconds,
             _errorPrefix
         );
         _errors = standardValidatorUtils.assertValidAnchorStateRegistry(

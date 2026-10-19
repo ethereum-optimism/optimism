@@ -11,10 +11,13 @@
 #
 # Inputs (set by the config.yml step environment):
 #   BRANCH, TRIGGER_SOURCE, TAG, SCHEDULE_NAME
+# Built-in CircleCI inputs:
+#   CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME
 #
 # Helpers (workflow-helpers.sh):
 #   run <wf...>            enable workflows by literal name
 #   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
+#   skip_group <sec>       disable the workflows listed under routing.yml sec
 #   is_true <x>            true if c-x is true in the JSON
 #   param <x>              raw value of c-x from the JSON
 #   finalize               strip intermediate params, keep c-run_* + passthrough
@@ -153,5 +156,9 @@ case "${TRIGGER_SOURCE}" in
     fi
     ;;
 esac
+
+if [[ "${CIRCLE_PROJECT_USERNAME:-}/${CIRCLE_PROJECT_REPONAME:-}" != "ethereum-optimism/optimism" ]]; then
+  skip_group public_repo_only
+fi
 
 finalize

@@ -231,6 +231,7 @@ func verifyContinuationDeployment(
 	}
 	verifier.verifySystemConfig()
 	verifier.verifySuperchainConfig()
+	verifier.verifyDelays()
 	// Only verify using the validator on permissionless mode.
 	// The validator expects the permissionless game to exist,
 	// so it would always fail on a permissioned chain.
@@ -757,6 +758,32 @@ func (v *continuationVerifier) verifySuperchainConfig() {
 	})
 }
 
+func (v *continuationVerifier) verifyDelays() {
+	delays := []struct {
+		check    string
+		source   string
+		contract common.Address
+		method   *w3.Func
+		expected *big.Int
+	}{
+		{"OptimismPortal proof maturity delay", "frozen DeployOPChainInput.ProofMaturityDelaySeconds", v.expected.OptimismPortalProxy, continuationProofMaturityDelayMethod, v.dci.ProofMaturityDelaySeconds},
+		{"AnchorStateRegistry dispute game finality delay", "frozen DeployOPChainInput.DisputeGameFinalityDelaySeconds", v.expected.AnchorStateRegistryProxy, continuationFinalityDelayMethod, v.dci.DisputeGameFinalityDelaySeconds},
+		{"DelayedWETH permissioned withdrawal delay", "frozen DeployOPChainInput.WithdrawalDelaySeconds", v.expected.DelayedWethPermissionedGameProxy, continuationWithdrawalDelayMethod, v.dci.WithdrawalDelaySeconds},
+		{"DelayedWETH permissionless withdrawal delay", "frozen DeployOPChainInput.WithdrawalDelaySeconds", v.expected.DelayedWethPermissionlessGameProxy, continuationWithdrawalDelayMethod, v.dci.WithdrawalDelaySeconds},
+	}
+	for _, delay := range delays {
+		if delay.contract == (common.Address{}) {
+			continue
+		}
+		observed, err := readContinuation[*big.Int](v.ctx, v.backend, delay.contract, delay.method)
+		if err != nil {
+			v.addReadError(delay.check, delay.source, delay.expected, err)
+		} else if delay.expected == nil || observed.Cmp(delay.expected) != 0 {
+			v.addMismatch(delay.check, delay.source, delay.expected, observed)
+		}
+	}
+}
+
 func (v *continuationVerifier) verifyStandardValidator() {
 	validator, err := readContinuation[common.Address](
 		v.ctx,
@@ -917,6 +944,9 @@ var (
 	continuationGuardianMethod            = w3.MustNewFunc("guardian()", "address")
 	continuationStandardValidatorMethod   = w3.MustNewFunc("opcmStandardValidator()", "address")
 	continuationStartingAnchorRootMethod  = w3.MustNewFunc("getStartingAnchorRoot()", "(bytes32 root,uint256 l2SequenceNumber)")
+	continuationProofMaturityDelayMethod  = w3.MustNewFunc("proofMaturityDelaySeconds()", "uint256")
+	continuationFinalityDelayMethod       = w3.MustNewFunc("disputeGameFinalityDelaySeconds()", "uint256")
+	continuationWithdrawalDelayMethod     = w3.MustNewFunc("delay()", "uint256")
 )
 
 func readContinuation[T any](

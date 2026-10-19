@@ -21,8 +21,8 @@ fn main() {
 
     assert!(
         sha::is_valid(&sha),
-        "KONA_SP1_GIT_SHA (or --cfg kona_sp1_git_sha=\"...\") must be a 40-character lowercase \
-         hex sha, optionally suffixed `-dirty` and `-custom`; got {sha:?}"
+        "KONA_SP1_GIT_SHA (or --cfg kona_sp1_git_sha=\"...\") must be `unknown` or a 40-character \
+         lowercase hex sha, optionally suffixed `-dirty`, `-custom`, and `-test` in that order; got {sha:?}"
     );
 
     println!("cargo:rustc-env=KONA_SP1_GIT_SHA={sha}");

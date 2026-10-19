@@ -129,7 +129,7 @@ fn run_extends_window_backward_with_storage_writes() {
     // tests:
     //   - `V2HashedStorageChangeSets` / `V2HashedStoragesHistory` writes during `prepend_block`
     //     (the slot value changes every block).
-    //   - Storage-side reconstruction via `V2StorageCursor` at each historical block during the
+    //   - Storage-side reconstruction via `MdbxStorageCursor` at each historical block during the
     //     in-job `StateRoot::overlay_root` validation.
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_with_storage_writes_and_initialize_storage(5);

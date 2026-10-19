@@ -38,6 +38,12 @@ pub fn test_engine_client_builder() -> MockEngineClientBuilder {
 /// which specific version was called and return different responses per version.
 #[derive(Debug, Clone, Default)]
 pub struct MockEngineStorage {
+    /// Injected transport failure for L1 reads.
+    pub l1_read_error: Option<String>,
+    /// Injected transport failure for L2 reads.
+    pub l2_read_error: Option<String>,
+    /// Delay for each successful L2 read, used to exercise long reset traversals.
+    pub l2_read_delay: std::time::Duration,
     /// Storage for block responses by tag.
     pub l2_blocks_by_label: HashMap<BlockNumberOrTag, Block<OpTransaction>>,
 
@@ -405,6 +411,9 @@ impl EngineClient for MockEngineClient {
 
                 ProviderCall::BoxedFuture(Box::pin(async move {
                     let storage_guard = storage.read().await;
+                    if let Some(error) = &storage_guard.l1_read_error {
+                        return Err(alloy_transport::TransportErrorKind::custom_str(error));
+                    }
                     Ok(storage_guard.l1_blocks_by_id.get(&block_key).cloned())
                 }))
             }),
@@ -423,6 +432,10 @@ impl EngineClient for MockEngineClient {
 
                 ProviderCall::BoxedFuture(Box::pin(async move {
                     let storage_guard = storage.read().await;
+                    if let Some(error) = &storage_guard.l2_read_error {
+                        return Err(alloy_transport::TransportErrorKind::custom_str(error));
+                    }
+                    tokio::time::sleep(storage_guard.l2_read_delay).await;
                     Ok(storage_guard.l2_blocks_by_id.get(&block_key).cloned())
                 }))
             }),

@@ -4,6 +4,8 @@ description: Learn how to deploy global singletons and implementation contracts 
 diataxis: reference
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 <Info>
 If you are joining an existing OP Stack deployment, you can skip to the [`init`](/chain-operators/tools/op-deployer/usage/init) and [`apply`](/chain-operators/tools/op-deployer/usage/apply) commands to create your L2 chain(s).
 </Info>
@@ -59,6 +61,16 @@ op-deployer bootstrap implementations \
   --challenger="<role address for the superchain's challenger>" \
   --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
+
+<Unreleased component="op-deployer" />
+
+The implementations fix the bounds each chain's withdrawal delays must fall within. To deploy with non-standard bounds, pass these flags:
+
+| Flags | Contract | Delay | Default bounds |
+| ----- | -------- | ----- | -------------- |
+| `--min-proof-maturity-delay-seconds`, `--max-proof-maturity-delay-seconds` | `OptimismPortal2` | Time between proving a withdrawal and finalizing it | 1 day to 7 days |
+| `--min-dispute-game-finality-delay-seconds`, `--max-dispute-game-finality-delay-seconds` | `AnchorStateRegistry` | Time after a game resolves before its result is final | 12 hours to 3.5 days |
+| `--min-withdrawal-delay-seconds`, `--max-withdrawal-delay-seconds` | `DelayedWETH` | Time between unlocking a bond and withdrawing it | 12 hours to 7 days |
 
 ### Output
 

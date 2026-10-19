@@ -2,7 +2,6 @@
 
 use std::{str::FromStr, time::Duration};
 
-use alloy_primitives::Address;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use kona_gossip::{P2pRpcRequest, PeerDump, PeerInfo};
@@ -17,8 +16,6 @@ use tokio::{
 pub(crate) mod builder;
 
 pub(crate) struct TestNetwork {
-    #[allow(dead_code)]
-    pub(super) signer_tx: mpsc::Sender<Address>,
     pub(super) p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
     #[allow(dead_code)]
     pub(super) admin_rpc_tx: mpsc::Sender<NetworkAdminQuery>,

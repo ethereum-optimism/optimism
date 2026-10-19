@@ -32,6 +32,9 @@ mod tests {
         assert!(sha::is_valid(&format!("{hex}-dirty")));
         assert!(sha::is_valid(&format!("{hex}-custom")));
         assert!(sha::is_valid(&format!("{hex}-dirty-custom")));
+        for suffix in ["-test", "-dirty-test", "-custom-test", "-dirty-custom-test"] {
+            assert!(sha::is_valid(&format!("{hex}{suffix}")), "rejected build suffix {suffix}");
+        }
     }
 
     #[test]
@@ -42,5 +45,18 @@ mod tests {
         assert!(!sha::is_valid(&"0".repeat(41)));
         assert!(!sha::is_valid(&"A".repeat(40)));
         assert!(!sha::is_valid(&format!("{}-custom-dirty", "0".repeat(40))));
+        for suffix in [
+            "-test-dirty",
+            "-test-custom",
+            "-dirty-test-custom",
+            "-custom-dirty-test",
+            "-test-test",
+        ] {
+            assert!(
+                !sha::is_valid(&format!("{}{suffix}", "0".repeat(40))),
+                "accepted invalid suffix order {suffix}"
+            );
+        }
+        assert!(!sha::is_valid("unknown-test"));
     }
 }

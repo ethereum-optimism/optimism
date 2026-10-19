@@ -2,7 +2,8 @@
 
 use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
-use discv5::{Config, Discv5, Enr, enr::NodeId};
+use discv5::{Config, Discv5, Enr};
+use enr::NodeId;
 use kona_peers::{BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, enr_to_multiaddr};
 use tokio::{
     sync::mpsc::channel,
@@ -212,7 +213,7 @@ impl Discv5Driver {
                         match msg {
                             Some(msg) => match msg {
                                 HandlerRequest::Metrics(tx) => {
-                                    let metrics = self.disc.metrics();
+                                    let metrics = Discv5::metrics();
                                     if let Err(e) = tx.send(metrics) {
                                         warn!(target: "discovery", "Failed to send metrics: {:?}", e);
                                     }
@@ -369,11 +370,8 @@ impl Discv5Driver {
 mod tests {
     use super::*;
     use crate::LocalNode;
-    use discv5::{
-        ConfigBuilder,
-        enr::{CombinedKey, CombinedPublicKey},
-        handler::NodeContact,
-    };
+    use discv5::{ConfigBuilder, NodeContact};
+    use enr::{CombinedKey, CombinedPublicKey};
     use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
     use tempfile::tempdir;
 

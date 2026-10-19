@@ -112,9 +112,8 @@ jobs:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      # No cache save: downloads no crates (index/advisory DB only).
-      # rust-deny only runs on develop (see workflow filter); on failure, ping
-      # @protocol-oncall in Slack since it gates post-merge, not the PR.
+      # No cache save: downloads no crates (index only).
+      # Ping @protocol-oncall if it fails on develop.
       - notify-failures-on-develop:
           mentions: "@protocol-oncall"
 
@@ -825,6 +824,16 @@ jobs:
             [ -s "${VKEYS}" ] || { echo "${VKEYS} is missing or empty" >&2; exit 1; }
             cat "${VKEYS}"
 
+            RC=0
+            grep -aqF 'KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}' elf/super-range-elf || RC=$?
+            if [ "${RC}" -eq 0 ]; then
+              echo "super-range ELF enables test-config-fallback; production prestates must not be published" >&2
+              exit 1
+            elif [ "${RC}" -ne 1 ]; then
+              echo "could not scan super-range ELF for test-config-fallback" >&2
+              exit 1
+            fi
+
             # Value of a top-level string key. Zero or duplicate matches give an
             # empty or multi-line value, which the checks below reject.
             toml_string() {
@@ -973,11 +982,9 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
-          # cargo-deny (advisory/license/ban audit) only gates develop, not
-          # PRs/branches. It is intentionally not part of required-rust-ci.
-          filters:
-            branches:
-              only: develop
+          # cargo-deny audits licenses, bans, and sources only (advisories are tracked
+          # via image scanning), so it can only fail on a repo change and gates PRs
+          # through required-rust-ci.
 
       - rust-ci-typos:
           name: rust-typos
@@ -1099,6 +1106,7 @@ workflows:
           requires:
             - rust-fmt: terminal
             - rust-clippy: terminal
+            - rust-deny: terminal
             - rust-typos: terminal
             - rust-zepter: terminal
             - rust-tests: terminal

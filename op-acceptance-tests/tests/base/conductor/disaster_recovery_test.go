@@ -18,7 +18,7 @@ import (
 // on a surviving node and force it to resume sequencing.
 func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node conductor support is tracked by #21906")
+	sysgo.SkipOnKonaNode(t, "kona-node admin_startSequencer does not check conductor leadership, tracked by #23323")
 
 	sys := presets.NewMinimalWithConductors(t)
 

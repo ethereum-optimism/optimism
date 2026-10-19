@@ -72,20 +72,18 @@ impl NetCommand {
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (signer_tx, signer_rx) = mpsc::channel(16);
         let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        // signer_tx, admin_rpc_tx, gossip_payload_tx are not used by this single-purpose binary —
-        // they exist solely to satisfy NetworkActor::new and are held to keep the channels open.
-        let _unused_senders = (signer_tx, admin_rpc_tx, gossip_payload_tx);
+        // admin_rpc_tx and gossip_payload_tx are not used by this single-purpose binary — they
+        // exist solely to satisfy NetworkActor::new and are held to keep the channels open.
+        let _unused_senders = (admin_rpc_tx, gossip_payload_tx);
 
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
             handler,
-            signer_rx,
             p2p_rpc_rx,
             admin_rpc_rx,
             gossip_payload_rx,

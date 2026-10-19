@@ -191,8 +191,6 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
-    # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
-    # so no name-based exclusion is needed here.
     go test -list '{{test_name}}' . \
         | {{SOURCE}}/../../../ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
 
@@ -236,7 +234,7 @@ action-tests-sp1 test_name='TestSP1.*':
   set -euo pipefail
 
   echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
-  ( cd {{SOURCE}}/../sp1 && just build-elfs )
+  ( cd {{SOURCE}}/../sp1 && just build-elfs test-config-fallback )
   export KONA_SP1_ELF_DIR="{{SOURCE}}/../sp1/elf"
   echo "KONA_SP1_ELF_DIR: $KONA_SP1_ELF_DIR"
 

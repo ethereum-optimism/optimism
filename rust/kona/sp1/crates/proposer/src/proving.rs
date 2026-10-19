@@ -19,6 +19,7 @@ use alloy_sol_types::SolValue;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use futures::stream::{FuturesUnordered, StreamExt};
 use kona_sp1_client_utils::{
+    log_commitment::LogCommitmentInputs,
     super_root::{
         SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationInputs,
         SuperConsolidationOutputs, SuperRangeInputs, SuperRangeOutputs, TimestampSpan,
@@ -27,10 +28,11 @@ use kona_sp1_client_utils::{
 };
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    HostInputs, SuperRootAtTimestampResponse, SynthesizedExecution, build_interop_host,
-    build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
-    collect_range_witness, decode_super_consolidation_public_values,
-    decode_super_range_public_values, proof_from_super_v1, synthesize_execution,
+    CollectedConsolidation, HostInputs, SuperRootAtTimestampResponse, SynthesizedExecution,
+    build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
+    collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
+    decode_super_range_public_values, deployment_chain_configs, proof_from_super_v1,
+    synthesize_execution,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -682,7 +684,8 @@ async fn prove_consolidation_request(
     expected: &SuperConsolidationOutputs,
     state: &Mutex<RequestState>,
 ) -> Result<Arc<SP1ProofWithPublicValues>> {
-    let stdin = build_super_consolidation_stdin(inputs, witness)?;
+    let stdin =
+        build_super_consolidation_stdin(inputs, witness, &LogCommitmentInputs::default(), None)?;
     complete_request(
         state,
         async move || provider.request_range_proof(keys, stdin).await,
@@ -762,10 +765,12 @@ async fn prove_chunk_inner(
         synthesized.current_super_root,
         span.end,
     )?;
+    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
         &synthesized.preloaded_preimages,
+        Some(&configs),
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
@@ -777,10 +782,16 @@ async fn prove_chunk_inner(
         synthesized.current_super_root,
         span.end,
     )?;
-    let (consolidation_witness, consolidation_outputs) = collect_consolidation_witness(
+    let CollectedConsolidation {
+        witness: consolidation_witness,
+        outputs: consolidation_outputs,
+        ..
+    } = collect_consolidation_witness(
         consolidation_host,
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
+        Some(&configs),
+        &[],
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;

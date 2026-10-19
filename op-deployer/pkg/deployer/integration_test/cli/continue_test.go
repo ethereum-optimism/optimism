@@ -137,25 +137,28 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	require.NoError(t, err)
 
 	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
-		L1RPCUrl:                        l1RPC,
-		PrivateKey:                      privateKey,
-		ArtifactsLocator:                loc,
-		MIPSVersion:                     int(standard.MIPSVersion),
-		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-		SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
-		L1ProxyAdminOwner:               intent.Chains[0].Roles.L1ProxyAdminOwner,
-		SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
-		CacheDir:                        setupCacheDir,
-		Logger:                          lgr,
-		Challenger:                      intent.Chains[0].Roles.Challenger,
-		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-		FaultGameSplitDepth:             standard.DisputeSplitDepth,
-		FaultGameClockExtension:         standard.DisputeClockExtension,
-		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+		L1RPCUrl:                           l1RPC,
+		PrivateKey:                         privateKey,
+		ArtifactsLocator:                   loc,
+		MIPSVersion:                        int(standard.MIPSVersion),
+		MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+		MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+		MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+		MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+		MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+		MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+		MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+		SuperchainConfigProxy:              bstrap.SuperchainConfigProxy,
+		L1ProxyAdminOwner:                  intent.Chains[0].Roles.L1ProxyAdminOwner,
+		SuperchainProxyAdmin:               bstrap.SuperchainProxyAdmin,
+		CacheDir:                           setupCacheDir,
+		Logger:                             lgr,
+		Challenger:                         intent.Chains[0].Roles.Challenger,
+		FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:                standard.DisputeSplitDepth,
+		FaultGameClockExtension:            standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 	})
 	require.NoError(t, err)
 
@@ -167,12 +170,11 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	require.NoError(t, intent.WriteToFile(filepath.Join(preparedWorkdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(preparedWorkdir, st))
 	require.NoError(t, deployer.Prepare(ctx, deployer.PrepareConfig{
-		Workdir:           preparedWorkdir,
-		Logger:            lgr,
-		PrivateKey:        privateKey,
-		L1RPCUrl:          l1RPC,
-		CacheDir:          setupCacheDir,
-		GenesisTimeOffset: standard.MinGenesisTimeOffsetSeconds,
+		Workdir:    preparedWorkdir,
+		Logger:     lgr,
+		PrivateKey: privateKey,
+		L1RPCUrl:   l1RPC,
+		CacheDir:   setupCacheDir,
 	}))
 
 	prepared, err := pipeline.ReadState(preparedWorkdir)

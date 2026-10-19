@@ -84,12 +84,21 @@ case "$1" in
         [[ "$TEST_SCENARIO" != "stale" || "$count" -eq 1 ]] || exit 0
         [[ -d elf && -f elf/.gitignore ]] || { echo 'missing tracked ELF directory' >&2; exit 1; }
         printf 'elf' > elf/super-aggregation-elf
+        printf '\177ELF\000fixture' > elf/super-range-elf
+        [[ "$TEST_SCENARIO" != "test-elf-marker" ]] || printf '\000KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}\000' >> elf/super-range-elf
         hash="$TEST_HASH"
         [[ "$TEST_SCENARIO" != "malformed-vkey" ]] || hash=0x1234
         [[ "$TEST_SCENARIO" != "uppercase-vkey" ]] || hash=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
         [[ "$TEST_SCENARIO" != "zero-vkey" ]] || hash=0x0000000000000000000000000000000000000000000000000000000000000000
         printf 'super-aggregation = "%s"\n' "$hash" > elf/vkeys.toml
+        [[ "$TEST_SCENARIO" != "test-build-marker" ]] || printf 'git_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test"\n' >> elf/vkeys.toml
         [[ "$TEST_SCENARIO" != "duplicate-vkey" ]] || printf 'super-aggregation = "%s"\n' "$hash" >> elf/vkeys.toml ;;
+      "cargo metadata")
+        [[ "$TEST_SCENARIO" != "failed-metadata" ]] || exit 1
+        [[ "$TEST_SCENARIO" != "invalid-metadata" ]] || { printf 'invalid metadata'; exit 0; }
+        features='[]'
+        [[ "$TEST_SCENARIO" != "test-config-fallback" ]] || features='["test-config-fallback"]'
+        printf '{"packages":[{"id":"guest","name":"kona-sp1-super-range"}],"resolve":{"nodes":[{"id":"guest","features":%s}]}}\n' "$features" ;;
       "cargo prove")
         hash="$TEST_HASH"
         [[ "$TEST_SCENARIO" != "vkey-mismatch" ]] || hash="$TEST_OTHER"
@@ -128,6 +137,12 @@ STUB
   if [[ "$scenario" == "sudo-fails" ]]; then
     grep -Fq 'worktree remove' "$root/git.calls" || { echo 'worktree cleanup was skipped' >&2; exit 1; }
     grep -Fq -- '-n rm -rf' "$root/sudo.calls" || { echo 'sudo fallback was skipped' >&2; exit 1; }
+  elif [[ "$scenario" == "test-config-fallback" ]]; then
+    grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
+    [[ ! -f "$root/count" ]] || { echo 'unsafe guest build was started' >&2; exit 1; }
+  elif [[ "$scenario" == "test-build-marker" || "$scenario" == "test-elf-marker" ]]; then
+    grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
+    [[ "$(cat "$root/count")" -eq 1 ]] || { echo 'expected one SP1 build before marker rejection' >&2; exit 1; }
   elif [[ "$scenario" == "symlink-parent" ]]; then
     [[ -f "$root/outside/docker/marker" ]] || { echo 'cleanup followed a symlink outside the worktree' >&2; exit 1; }
   fi
@@ -139,7 +154,7 @@ run_case zero zero
 run_case sudo-fails success
 run_case symlink-parent success
 run_case stdin-consumer two
-for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale; do
+for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker; do
   run_case "$scenario" failure
 done
 echo "Kona SP1 build driver fixtures passed"

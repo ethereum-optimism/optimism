@@ -72,7 +72,8 @@ pub(super) enum JwtValidationError {
 ///           --l1-eth-rpc http://localhost:8545 \
 ///           --l1-beacon http://localhost:5052 \
 ///           --l2-engine-rpc http://localhost:8551 \
-///           --l2-engine-jwt-secret /path/to/jwt.hex
+///           --l2-engine-jwt-secret /path/to/jwt.hex \
+///           --p2p.sequencer.key.path /path/to/p2p-sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]

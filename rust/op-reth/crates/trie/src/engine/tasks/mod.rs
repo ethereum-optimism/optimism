@@ -9,6 +9,7 @@ mod execute_block;
 mod flush;
 mod index_block;
 mod reorg;
+mod reth_auxiliary;
 mod sync_to;
 mod unwind;
 

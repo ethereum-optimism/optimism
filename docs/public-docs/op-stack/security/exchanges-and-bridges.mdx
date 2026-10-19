@@ -1,0 +1,232 @@
+---
+title: Security guidance for exchanges and bridges
+lang: en-US
+description: Learn which blocks to trust before acting off-chain and how to respond when withdrawals from an OP Stack chain are paused.
+diataxis: how-to
+---
+
+This guide is for teams that move value off an OP Stack chain based on what happened on it, such as centralized exchanges, third-party bridges, liquidity networks, and custodians.
+It covers two requirements that the protocol cannot enforce for you:
+
+*   Only take off-chain actions, such as crediting a user's incoming transfer or filling a bridge order, once the transaction is in a **safe** block, and wait for a **finalized** block for high-value actions.
+*   Monitor the chain's withdrawal pause on Layer 1 (L1), and stop taking those off-chain actions like crediting a user's account while the L2's withdrawals are paused.
+
+This guide uses "incoming transfers" for funds your users send to you on the OP Stack chain, and "outgoing transfers" for funds you send to the chain.
+In OP Stack protocol terms, a deposit moves from L1 to Layer 2 (L2), and a withdrawal moves from L2 to L1.
+
+## Before you begin
+
+You need the following to use the examples in this guide:
+
+*   An OP Stack node that you operate, for each chain you support.
+    For detailed instructions, see [Running a node with Docker](/node-operators/tutorials/node-from-docker) or [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source).
+*   An L1 remote procedure call (RPC) endpoint from a node you operate or a provider you trust.
+*   Foundry's [`cast`](https://getfoundry.sh/cast/overview) and [`jq`](https://jqlang.org/) installed locally.
+
+## Wait for safe blocks before acting off-chain
+
+Crediting an exchange balance, filling a bridge order, or releasing funds on another chain are hard to undo.
+If the transaction you acted on is later removed from the chain because of a chain reorg, you may incur a loss.
+Depending on your risk tolerance and how high-value the action is, wait until that transaction is in a safe or finalized block before you act.
+These confirmation levels describe the risk of a transaction being reordered or removed from the chain.
+Safe blocks can still be affected by L1 reorgs.
+Neither level establishes that the assets are legitimate or the chain is free of security issues.
+
+### Understand the risk of unsafe blocks
+
+An unsafe block is the Sequencer's claim about the chain.
+The canonical chain is whatever OP Stack nodes [derive](https://specs.optimism.io/protocol/derivation.html) from the batch data that the chain's batcher posts to L1.
+Anyone who controls the batcher key can post batch data that omits or reorders transactions the Sequencer already shared as unsafe blocks.
+
+When a node derives a batch that does not match its unsafe chain, it reorgs the unsafe chain to match within minutes of the batch landing on L1.
+The standard 12-hour sequencing window is only the upper bound for batch data to appear, not a grace period before a reorg.
+If the data does not appear within the window, nodes derive the chain without those transactions, and they are dropped.
+
+If you act on an unsafe block, an attacker holding the compromised batcher key can make a real transfer to you, get paid out, and then remove the transfer from the canonical chain.
+You have no way to recover the funds through the protocol.
+For more information, see [Transaction finality](/op-stack/transactions/transaction-finality).
+
+### Choose a confirmation level
+
+The following table lists the minimum block tag to wait for, by type of action.
+
+| Action                                                                     | Minimum block tag | What you are trusting                                                   |
+| -------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
+| Filling a bridge order or crediting a low-value incoming transfer          | `safe`            | Ethereum's ordering. The L1 block can still reorg until it is finalized |
+| Crediting a high-value incoming transfer or releasing high-value liquidity | `finalized`       | Ethereum's consensus and finality guarantees                            |
+
+Where you draw the line between low and high value is a business decision.
+A reasonable starting point is the threshold you already use to decide how many confirmations to require on Ethereum itself, since `safe` carries the same L1 reorg risk as an unfinalized Ethereum block.
+
+On OP Mainnet, transactions typically reach `safe` within a few minutes and `finalized` within about 15 to 30 minutes.
+Chains that post batches less often take longer to reach `safe`.
+
+<Warning>
+  If you act on unsafe blocks to offer faster service, you are fully trusting the chain operator's Sequencer and batcher key for that value.
+  Cap the total value you have outstanding against unsafe blocks at an amount you can afford to lose.
+</Warning>
+
+### Check that a transaction is safe
+
+Use the `safe` or `finalized` block tag with standard JSON-RPC methods.
+A transaction is safe when it succeeded, its block number is at or below the safe head, and its block is still the canonical block at that height.
+The following script checks all three conditions.
+Save it as `check-safe.sh`, fill in the placeholders, and run it with `bash check-safe.sh`:
+
+```bash
+#!/usr/bin/env bash
+L2_RPC=<your-l2-rpc>
+TX=<your-transaction-hash>
+TAG=safe # or finalized
+
+head_number() {
+  cast block $TAG --json --rpc-url $L2_RPC | jq -r .number | xargs cast to-dec
+}
+
+RECEIPT=$(cast receipt $TX --async --json --rpc-url $L2_RPC) || { echo "not found"; exit 1; }
+TX_STATUS=$(echo "$RECEIPT" | jq -r .status)
+TX_BLOCK=$(cast to-dec $(echo "$RECEIPT" | jq -r .blockNumber))
+TX_BLOCK_HASH=$(echo "$RECEIPT" | jq -r .blockHash)
+
+if [ "$TX_STATUS" != "0x1" ]; then
+  echo "failed"
+  exit 1
+fi
+
+# Read the head before and after the canonical hash, so a head that moves
+# backward during the check is caught.
+HEAD_BEFORE=$(head_number)
+CANONICAL_HASH=$(cast block $TX_BLOCK --json --rpc-url $L2_RPC | jq -r .hash)
+HEAD_AFTER=$(head_number)
+
+if [ "$TX_BLOCK_HASH" = "$CANONICAL_HASH" ] && [ "$TX_BLOCK" -le "$HEAD_BEFORE" ] && [ "$TX_BLOCK" -le "$HEAD_AFTER" ]; then
+  echo "$TAG"
+else
+  echo "not yet $TAG"
+  exit 1
+fi
+```
+
+Set `TAG=finalized` for the stricter check.
+The script exits with status `0` only when the transaction is safe (or finalized), so callers can gate on the exit code.
+It reads the node several times, and an L1 reorg can move the safe head backward between reads while the transaction's block stays canonical.
+Reading the head on both sides of the canonical hash check means that case returns `not yet safe` instead of `safe`.
+The result is still a point-in-time answer: a later L1 reorg can undo a `safe` result until the block is finalized.
+
+A safe status only tells you that L1 has fixed the transaction's position on the chain.
+You still need your usual checks on what the transaction did, such as decoding Ethereum Request for Comments 20 (ERC-20) `Transfer` logs.
+
+Query a node you operate.
+The node's consensus client computes the `safe` and `finalized` heads from L1 data, so they are only as trustworthy as the node reporting them and the L1 RPC it reads from.
+A public or third-party RPC endpoint, including the chain operator's own, asks you to trust whoever runs it.
+
+Alert when the safe head stops advancing.
+If batches stop landing on L1, the safe head stalls and incoming transfers queue up without being credited.
+That is the correct behavior, but your team should know when it happens.
+
+## Monitor the withdrawal pause
+
+Every standard OP Stack chain has a [Guardian](/op-stack/protocol/privileged-roles#guardian) that can pause withdrawals from the chain to L1.
+The pause is recorded in the `SuperchainConfig` contract on L1, so its status is public and anyone can read it.
+It can apply to one chain, to a group of chains that share an `ETHLockbox`, or to every chain that shares the same `SuperchainConfig`.
+For more information, see [Pausing the bridge](/op-stack/security/pause).
+
+### Understand what a pause means for you
+
+A pause means the Guardian has stopped withdrawals through the canonical bridge because of a suspected or confirmed security issue.
+A pause can be precautionary, and it does not always mean funds are at risk.
+
+The pause does not stop the L2 chain.
+Blocks keep being produced, transactions keep executing, and deposits from L1 keep arriving.
+If an attacker has found a way to mint or steal assets on L2, the canonical bridge is closed to them, so your exchange or bridge becomes their way out.
+
+### Respond to a pause
+
+Take the following steps when a chain you support is paused:
+
+1.  **Stop moving assets to and from the chain.**
+    Exchanges should hold incoming transfers from the chain without crediting them, and stop processing outgoing transfers to it.
+    Bridges should stop filling orders that originate on the chain and stop sending funds to it.
+2.  **Get more information.**
+    Check the chain's status page, such as the [OP Mainnet status page](https://status.optimism.io/).
+3.  **Resume deliberately.**
+    Treat resuming as a decision your team makes, not an automatic switch.
+    Confirm that `OptimismPortal.paused()` returns `false`, and check the chain's status page for guidance before you credit the transfers you held.
+    Do not rely on an `Unpaused` event alone: a pause that expires emits no event, and lifting a chain-specific pause does not lift an active global pause.
+
+You do not need to wait to be contacted before acting.
+The pause status is the signal.
+It is visible on L1 the moment the pause transaction lands, potentially before a public announcement is made.
+
+### Check the pause status
+
+Call `paused()` on the chain's `OptimismPortal` proxy on L1.
+It returns `true` when either the chain-specific pause or the global pause is active.
+The following command checks one chain:
+
+```bash
+L1_RPC=<your-l1-rpc>
+OPTIMISM_PORTAL=<optimism-portal-proxy-address>
+
+cast call $OPTIMISM_PORTAL "paused()(bool)" --rpc-url $L1_RPC
+```
+
+For OP Mainnet, use the `OptimismPortal` proxy address listed in [OP Mainnet contract addresses](/op-mainnet/network-information/op-addresses).
+For other chains, use the `OptimismPortalProxy` value from the chain's configuration in the [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry/tree/main/superchain/configs/mainnet).
+
+Check every chain you support against the `latest` L1 block, at least once per L1 block (every 12 seconds).
+Use `latest` rather than `safe` or `finalized` for this check.
+You'll want the earliest possible signal.
+Read L1 from a node you operate or an L1 RPC provider you trust, for the same reason as on L2, because an RPC endpoint that lags or misreports can hide a pause from you.
+
+<Warning>
+  Do not call `paused()` with no arguments on the `SuperchainConfig` contract.
+  That function only reports the global pause and misses a pause that targets a single chain.
+  `OptimismPortal.paused()` resolves the chain's pause identifier for you.
+</Warning>
+
+### Subscribe to pause events
+
+To react faster than polling, watch the `SuperchainConfig` contract for the following events:
+
+```solidity
+event Paused(address identifier);
+event Unpaused(address identifier);
+```
+
+The `identifier` parameter is not indexed, so you cannot filter on it as a log topic.
+Filter on the event signature instead, and decode `identifier` from the log data.
+The identifier tells you which chains the event applies to:
+
+*   `address(0)` is the global pause and affects every chain that uses this `SuperchainConfig`.
+*   A chain's own identifier depends on its contract version and configuration.
+    In contract releases v4.1.0 through v8.0.0, the identifier is the chain's `ETHLockbox` address if the `ETH_LOCKBOX` feature is enabled on its `SystemConfig`, and its `OptimismPortal` address if it is not.
+    A nonzero `ethLockbox()` on the `OptimismPortal` does not by itself mean the feature is enabled.
+    Check the feature with `isFeatureEnabled(bytes32)` on the `SystemConfig`, passing `ETH_LOCKBOX` encoded with `cast format-bytes32-string ETH_LOCKBOX`.
+
+Whichever identifier a chain uses, `OptimismPortal.paused()` resolves it for you and remains the check to rely on.
+
+Read the `SuperchainConfig` address with `superchainConfig()` on the `OptimismPortal`.
+The contract also emits `Paused` when the Guardian extends an existing pause.
+
+Use events as a trigger to re-check, and keep polling `OptimismPortal.paused()` as the source of truth.
+Polling is required because a pause expires automatically about three months after it starts unless the Guardian extends it, and **expiry does not emit an event**.
+`paused()` accounts for expiry, so do not compute it yourself.
+
+## Check your integration
+
+Confirm that your integration meets each of the following conditions:
+
+*   Off-chain actions wait for `safe`, and high-value actions wait for `finalized`.
+*   Safe and finalized status comes from a node you operate, backed by an L1 RPC endpoint you trust.
+*   Any value you release on unsafe blocks has a cap.
+*   An alert fires when the safe head stops advancing.
+*   `OptimismPortal.paused()` is polled for every supported chain on every L1 block.
+*   When a chain is paused, your systems automatically stop incoming and outgoing transfers for that chain and alert your on-call team.
+*   Resuming after a pause is a manual decision.
+
+## Next steps
+
+*   For more information on what a pause blocks and how the Guardian manages it, see [Pausing the bridge](/op-stack/security/pause).
+*   For more information on the finality stages, see [Transaction finality](/op-stack/transactions/transaction-finality).
+*   For the normative definition of the pause, see the [Pause Mechanism specification](https://specs.optimism.io/protocol/stage-1.html#pause-mechanism).

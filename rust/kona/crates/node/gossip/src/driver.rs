@@ -69,7 +69,7 @@ where
     G: ConnectionGate,
 {
     /// Returns the [`GossipDriverBuilder`] that can be used to construct the [`GossipDriver`].
-    pub const fn builder(
+    pub fn builder(
         rollup_config: RollupConfig,
         signer: Address,
         gossip_addr: Multiaddr,

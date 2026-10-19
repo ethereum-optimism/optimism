@@ -1,11 +1,16 @@
 use alloy_primitives::Address;
 use alloy_transport_http::reqwest::header::HeaderMap;
+use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 
 use crate::{
     ClientCert, ReloadingRpcClient, ReloadingRpcClientError, RemoteSignerHandler, TlsPaths,
 };
+
+/// Deadline for each request to the remote signer, including reading its response. It also
+/// bounds the `health_status` check made when the signer starts.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Configuration for the remote signer client
 ///
@@ -55,6 +60,7 @@ impl RemoteSigner {
             self.endpoint,
             TlsPaths { ca_cert: self.ca_cert, client_cert: self.client_cert },
             self.headers,
+            Some(REQUEST_TIMEOUT),
         )?;
 
         // Try to ping the signer to check if it's reachable

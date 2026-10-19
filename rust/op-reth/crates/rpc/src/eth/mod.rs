@@ -14,7 +14,7 @@ use crate::{
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
 use alloy_consensus::Header;
-use alloy_primitives::U256;
+use alloy_primitives::{Bloom, U256};
 use alloy_rpc_types_eth::Filter;
 use eyre::WrapErr;
 use futures::StreamExt;
@@ -24,11 +24,11 @@ use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
 use reth_chainspec::{EthereumHardforks, Hardforks};
-use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_flashblocks::{
-    FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
+    FlashBlock, FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
     FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
@@ -43,7 +43,8 @@ use reth_rpc_eth_api::{
     },
 };
 use reth_rpc_eth_types::{
-    EthStateCache, FeeHistoryCache, GasPriceOracle, logs_utils::matching_block_logs_with_tx_hashes,
+    EthApiSettings, EthStateCache, FeeHistoryCache, GasPriceOracle,
+    logs_utils::matching_block_logs_with_tx_hashes,
 };
 use reth_storage_api::ProviderHeader;
 use reth_tasks::{
@@ -62,6 +63,45 @@ use tracing::{info, warn};
 
 /// Maximum duration to wait for a fresh flashblock when one is being built.
 const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
+
+/// Returns the logs in `fb`'s receipts that match `filter`, attributed to block `block_number`.
+fn flashblock_logs<C>(
+    converter: &C,
+    filter: &Filter,
+    block_number: u64,
+    timestamp: u64,
+    fb: &FlashBlock,
+) -> Vec<RpcLog<C::Network>>
+where
+    C: RpcConvert<Primitives: NodePrimitives<BlockHeader = Header, Receipt = OpReceipt>>,
+{
+    let receipts = fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
+
+    // A flashblock is a payload, not a sealed block: only the number, hash and timestamp the log
+    // fields need are known here, so the header handed to the converter carries exactly those.
+    // `matching_block_logs_with_tx_hashes` skips blocks whose logs bloom does not match the
+    // filter, so the bloom is set to all ones: the receipts are scanned right after, so a real
+    // bloom would save nothing and only cost hashing every log. Everything else is zeroed and
+    // must not be read.
+    let header = SealedHeader::new(
+        Header {
+            number: block_number,
+            timestamp,
+            logs_bloom: Bloom::repeat_byte(0xff),
+            ..Default::default()
+        },
+        fb.diff.block_hash,
+    );
+
+    match matching_block_logs_with_tx_hashes(converter, filter, &header, receipts, false) {
+        Ok(logs) => logs,
+        // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
+        Err(err) => {
+            warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
+            Vec::new()
+        }
+    }
+}
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -168,34 +208,13 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
                             return futures::future::ready(Some(Vec::new()));
                         };
 
-                        let receipts =
-                            fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
-
-                        // A flashblock is a payload, not a sealed block: only the number,
-                        // hash and timestamp the log fields need are known here, so the header
-                        // handed to the converter carries exactly those. Everything else is
-                        // zeroed and must not be read.
-                        let header = SealedHeader::new(
-                            Header { number: block_number, timestamp, ..Default::default() },
-                            fb.diff.block_hash,
-                        );
-
-                        let all_logs = match matching_block_logs_with_tx_hashes(
+                        futures::future::ready(Some(flashblock_logs(
                             &converter,
                             &filter,
-                            &header,
-                            receipts,
-                            false,
-                        ) {
-                            Ok(logs) => logs,
-                            // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
-                            Err(err) => {
-                                warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
-                                Vec::new()
-                            }
-                        };
-
-                        futures::future::ready(Some(all_logs))
+                            block_number,
+                            timestamp,
+                            &fb,
+                        )))
                     },
                 )
                 .flat_map(futures::stream::iter)
@@ -262,6 +281,10 @@ where
     type Error = OpEthApiError;
     type NetworkTypes = Rpc::Network;
     type RpcConvert = Rpc;
+
+    fn eth_api_settings(&self) -> &EthApiSettings {
+        self.inner.eth_api.eth_api_settings()
+    }
 
     fn converter(&self) -> &Self::RpcConvert {
         self.inner.eth_api.converter()
@@ -417,6 +440,8 @@ where
 {
 }
 
+// Upstream's `FullEthApi` requires this helper trait even when its RPC methods are not served.
+// op-reth explicitly removes the untested BAL endpoints in `op-reth/crates/node/src/node.rs`.
 impl<N, Rpc> GetBlockAccessList for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
@@ -582,7 +607,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
     N: FullNodeComponents<
-            Evm: ConfigureEvm<
+            Evm: ConfigurePostExecEvm<
                 NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>
                                      + From<OpFlashblockPayloadBase>
                                      + Unpin,
@@ -677,5 +702,56 @@ where
             flashblocks,
             retain_forwarded_txs,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_consensus::Receipt;
+    use alloy_primitives::{Address, B256, Log, LogData};
+    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_evm::{OpEvmConfig, tx::OpTxEnvConverter};
+    use reth_optimism_primitives::OpPrimitives;
+    use reth_storage_api::noop::NoopProvider;
+
+    const ADDRESS: Address = Address::repeat_byte(0xaa);
+    const TOPIC: B256 = B256::repeat_byte(0xbb);
+
+    fn flashblock() -> FlashBlock {
+        let receipt = OpReceipt::Eip1559(Receipt {
+            status: true.into(),
+            cumulative_gas_used: 21_000,
+            logs: vec![Log {
+                address: ADDRESS,
+                data: LogData::new_unchecked(vec![TOPIC], Default::default()),
+            }],
+        });
+        let mut fb = FlashBlock::default();
+        fb.diff.block_hash = B256::repeat_byte(0x01);
+        fb.metadata.receipts.insert(B256::repeat_byte(0x02), receipt);
+        fb
+    }
+
+    #[test]
+    fn flashblock_logs_match_address_and_topic_filters() {
+        let provider = NoopProvider::<_, OpPrimitives>::new(OP_MAINNET.clone());
+        let converter = RpcConverter::<Optimism, OpEvmConfig, _>::new(OpReceiptConverter::new(
+            provider.clone(),
+        ))
+        .with_mapper(OpTxInfoMapper::new(provider))
+        .with_tx_env_converter(OpTxEnvConverter);
+        let fb = flashblock();
+
+        for filter in
+            [Filter::new(), Filter::new().address(ADDRESS), Filter::new().event_signature(TOPIC)]
+        {
+            let logs = flashblock_logs(&converter, &filter, 1, 2, &fb);
+            assert_eq!(logs.len(), 1, "filter {filter:?}");
+            assert_eq!(logs[0].address(), ADDRESS);
+        }
+
+        let unrelated = Filter::new().address(Address::repeat_byte(0xcc));
+        assert!(flashblock_logs(&converter, &unrelated, 1, 2, &fb).is_empty());
     }
 }

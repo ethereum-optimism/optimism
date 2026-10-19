@@ -2,7 +2,7 @@
 
 use crate::{
     OpEngineApiBuilder, OpEngineTypes,
-    args::{ProofsStorageVersion, RollupArgs},
+    args::RollupArgs,
     engine::OpEngineValidator,
     payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
@@ -26,8 +26,8 @@ use reth_node_api::{
     NodePrimitives, PayloadAttributesBuilder, PayloadTypes, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
-    BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeBuilderWithComponents,
-    NodeComponentsBuilder, RethFullAdapter, WithLaunchContext,
+    BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder,
+    WithLaunchContext,
     components::{
         ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
         PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
@@ -39,6 +39,7 @@ use reth_node_builder::{
         RethRpcMiddleware, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
 };
+use reth_node_core::args::RpcStateCacheArgs;
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
@@ -63,10 +64,7 @@ use reth_optimism_rpc::{
     witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
-use reth_optimism_trie::{
-    OpProofsStorage, OpProofsStore,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
-};
+use reth_optimism_trie::{OpProofsStorage, db::MdbxProofsStorage};
 use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
@@ -398,50 +396,92 @@ impl OpNode {
     }
 }
 
-type ConfiguredOpNodeBuilder = WithLaunchContext<
-    NodeBuilderWithComponents<
-        RethFullAdapter<DatabaseEnv, OpNode>,
-        <OpNode as Node<RethFullAdapter<DatabaseEnv, OpNode>>>::ComponentsBuilder,
-        <OpNode as Node<RethFullAdapter<DatabaseEnv, OpNode>>>::AddOns,
-    >,
->;
-
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
+///
+/// Fails if the engine config enables state masking, which op-reth does not support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
 ) -> eyre::Result<(), ErrReport> {
-    let args = &node.args;
-    let proof_history = args.proofs_history.then(|| {
-        (
-            // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
-            // [`ProofsHistoryStorageArgs::resolve_storage_path`].
-            args.history.resolve_storage_path(builder.config().datadir().as_ref()),
-            args.history.storage_version,
-            args.proofs_history_window.window,
-            args.proofs_history_verification_interval,
-        )
-    });
+    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
+    // callers that build a `NodeConfig` without that CLI.
+    eyre::ensure!(
+        builder.config().engine.num_state_masking_blocks() == 0,
+        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
+    );
 
-    let builder = builder.node(node);
-    let builder = match proof_history {
-        None => builder,
-        Some((path, ProofsStorageVersion::V1, window, verification_interval)) => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
-            let mdbx = Arc::new(
-                MdbxProofsStorage::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+    let builder = if node.args.proofs_history {
+        // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+        // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+        let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
+        let window = node.args.proofs_history_window.window;
+        let verification_interval = node.args.proofs_history_verification_interval;
+
+        info!(target: "reth::cli", "Using on-disk storage for proofs history");
+        let mdbx = Arc::new(
+            MdbxProofsStorage::new(&path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+        );
+        if mdbx.holds_only_legacy_v1_data()? {
+            eyre::bail!(
+                "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
+                 directory (or use a fresh --proofs-history.storage-path), then run \
+                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                path.display()
             );
-            configure_proof_history(builder, mdbx, window, verification_interval)
         }
-        Some((path, ProofsStorageVersion::V2, window, verification_interval)) => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
-            let mdbx = Arc::new(
-                MdbxProofsStorageV2::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
-            );
-            configure_proof_history(builder, mdbx, window, verification_interval)
-        }
+        let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = mdbx.clone().into();
+        let storage_exec = storage.clone();
+
+        builder
+            .node(node)
+            .on_node_started(move |node| {
+                let metrics_report_interval = node.config.metrics.push_gateway_interval;
+                node.task_executor.spawn_critical_task(
+                    "op-proofs-storage-metrics",
+                    async move {
+                        info!(
+                            target: "reth::cli",
+                            ?metrics_report_interval,
+                            "Starting op-proofs-storage metrics task"
+                        );
+
+                        loop {
+                            sleep(metrics_report_interval).await;
+                            mdbx.report_metrics();
+                        }
+                    },
+                );
+                Ok(())
+            })
+            .install_exex("proofs-history", async move |exex_context| {
+                Ok(OpProofsExEx::builder(exex_context, storage_exec)
+                    .with_proofs_history_window(window)
+                    .with_verification_interval(verification_interval)
+                    .build()
+                    .run()
+                    .boxed())
+            })
+            .extend_rpc_modules(move |ctx| {
+                info!(target: "reth::cli", "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)");
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let debug_ext = DebugApiExt::new(
+                    ctx.node().provider().clone(),
+                    ctx.registry.eth_api().clone(),
+                    storage,
+                    ctx.node().task_executor().clone(),
+                    ctx.node().evm_config().clone(),
+                );
+                let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+                let auth_eth_replaced =
+                    ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
+                let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                info!(target: "reth::cli", eth_replaced, auth_eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
+                Ok(())
+            })
+    } else {
+        builder.node(node)
     };
 
     let handle = builder.launch_with_debug_capabilities().await?;
@@ -449,7 +489,7 @@ pub async fn launch_node(
         Ok(provider) if !provider.cached_storage_settings().is_v2() => {
             warn!(
                 target: "reth::cli",
-                "Storage V1 is deprecated and will be removed on 2027-01-04. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+                "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
             );
         }
         Ok(_) => {}
@@ -458,66 +498,6 @@ pub async fn launch_node(
         }
     }
     handle.node_exit_future.await
-}
-
-/// Installs the ExEx, RPC overrides, and metrics hook for proof history.
-fn configure_proof_history<S>(
-    builder: ConfiguredOpNodeBuilder,
-    mdbx: Arc<S>,
-    proofs_history_window: u64,
-    proofs_history_verification_interval: u64,
-) -> ConfiguredOpNodeBuilder
-where
-    S: OpProofsStore + DatabaseMetrics + Send + Sync + 'static,
-{
-    let storage: OpProofsStorage<Arc<S>> = mdbx.clone().into();
-    let storage_exec = storage.clone();
-
-    builder
-        .on_node_started(move |node| {
-            let metrics_report_interval = node.config.metrics.push_gateway_interval;
-            node.task_executor.spawn_critical_task(
-                "op-proofs-storage-metrics",
-                async move {
-                    info!(
-                        target: "reth::cli",
-                        ?metrics_report_interval,
-                        "Starting op-proofs-storage metrics task"
-                    );
-
-                    loop {
-                        sleep(metrics_report_interval).await;
-                        mdbx.report_metrics();
-                    }
-                },
-            );
-            Ok(())
-        })
-        .install_exex("proofs-history", async move |exex_context| {
-            Ok(OpProofsExEx::builder(exex_context, storage_exec)
-                .with_proofs_history_window(proofs_history_window)
-                .with_verification_interval(proofs_history_verification_interval)
-                .build()
-                .run()
-                .boxed())
-        })
-        .extend_rpc_modules(move |ctx| {
-            info!(target: "reth::cli", "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)");
-            let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-            let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-            let debug_ext = DebugApiExt::new(
-                ctx.node().provider().clone(),
-                ctx.registry.eth_api().clone(),
-                storage,
-                ctx.node().task_executor().clone(),
-                ctx.node().evm_config().clone(),
-            );
-            let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
-            let auth_eth_replaced = ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
-            let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
-            info!(target: "reth::cli", eth_replaced, auth_eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
-            Ok(())
-        })
 }
 
 impl<N> Node<N> for OpNode
@@ -814,10 +794,54 @@ where
 
 /// RPC methods an OP node does not serve, on any transport.
 ///
-/// Upstream installs `eth_getMultiProof` by default, no OP user has asked for it, and a
-/// proofs-history node could not answer it consistently from its pruned state window. Drop an
-/// entry from this list once there is a user for the method.
-const UNSERVED_RPC_METHODS: &[&str] = &["eth_getMultiProof"];
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_eth_api::EthApi`
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::DebugApi`
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::EngineEthApi`
+///
+/// Upstream installs these methods as part of the full `eth` and `debug` APIs, and the auth-port
+/// `eth` namespace.
+/// `eth_getMultiProof` has no OP users and a proofs-history node could not answer it consistently
+/// from its pruned state window. The block access list methods are explicitly disabled because OP
+/// execution data does not carry EIP-7928 BALs and reconstruction has not been tested against
+/// OP-specific state transitions. Do not expose them until that behavior is tested; re-check this
+/// list whenever upstream changes the `EthApi`, `DebugApi` or `EngineEthApi` method set.
+const UNSERVED_RPC_METHODS: &[&str] = &[
+    "eth_getMultiProof",
+    "eth_getBlockAccessListByBlockHash",
+    "eth_getBlockAccessListByBlockNumber",
+    "eth_getBlockAccessList",
+    "eth_getBlockAccessListRaw",
+    "debug_getRawBlockAccessList",
+];
+
+/// Rejects the RPC cache options that compute EIP-7928 block access lists by re-executing blocks.
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_node_core::args::RpcStateCacheArgs`
+///
+/// Upstream replays every new canonical block to compute its BAL with `--rpc-cache.prewarm-bals`
+/// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
+/// tracing positions its replay state from computed BALs cached with
+/// `--rpc-cache.cache-computed-bals`. Both rely on the BAL reconstruction that
+/// [`UNSERVED_RPC_METHODS`] withholds, so an OP node refuses to start with either. The other
+/// block access list options only tune BAL handling that OP blocks never trigger.
+///
+/// op-reth's CLI already rejects every block access list option (`DENIED_ARGS` in
+/// `reth-optimism-cli`), and these two have no environment variable, so this check only fires for
+/// code that builds a `NodeConfig` without that CLI. Add new upstream BAL flags to `DENIED_ARGS`,
+/// and here too if they re-execute blocks or feed tracing.
+fn ensure_no_computed_bals(cache: &RpcStateCacheArgs) -> eyre::Result<()> {
+    eyre::ensure!(
+        cache.prewarm_bals.is_none(),
+        "--rpc-cache.prewarm-bals is not supported on OP chains: OP blocks carry no EIP-7928 block access lists"
+    );
+    eyre::ensure!(
+        !cache.cache_computed_bals,
+        "--rpc-cache.cache-computed-bals is not supported on OP chains: OP blocks carry no EIP-7928 block access lists"
+    );
+    Ok(())
+}
 
 /// Removes [`UNSERVED_RPC_METHODS`] from the http/ws/ipc modules and from the auth module.
 fn remove_unserved_rpc_methods(modules: &mut TransportRpcModules, auth_module: &mut AuthRpcModule) {
@@ -858,6 +882,8 @@ where
         self,
         ctx: reth_node_api::AddOnsContext<'_, N>,
     ) -> eyre::Result<Self::Handle> {
+        ensure_no_computed_bals(&ctx.config.rpc.rpc_state_cache)?;
+
         let Self {
             rpc_add_ons,
             da_config,
@@ -1936,6 +1962,33 @@ mod tests {
     #[test]
     fn eth_get_multi_proof_is_unserved() {
         assert!(UNSERVED_RPC_METHODS.contains(&"eth_getMultiProof"));
+    }
+
+    #[test]
+    fn block_access_list_methods_are_unserved() {
+        for method in [
+            "eth_getBlockAccessListByBlockHash",
+            "eth_getBlockAccessListByBlockNumber",
+            "eth_getBlockAccessList",
+            "eth_getBlockAccessListRaw",
+            "debug_getRawBlockAccessList",
+        ] {
+            assert!(UNSERVED_RPC_METHODS.contains(&method), "{method} is served");
+        }
+    }
+
+    #[test]
+    fn computed_bal_cache_options_are_rejected() {
+        ensure_no_computed_bals(&RpcStateCacheArgs::default()).unwrap();
+
+        for prewarm_bals in [0, 64] {
+            let cache =
+                RpcStateCacheArgs { prewarm_bals: Some(prewarm_bals), ..Default::default() };
+            assert!(ensure_no_computed_bals(&cache).is_err(), "prewarm {prewarm_bals} accepted");
+        }
+
+        let cache = RpcStateCacheArgs { cache_computed_bals: true, ..Default::default() };
+        assert!(ensure_no_computed_bals(&cache).is_err());
     }
 
     #[test]
