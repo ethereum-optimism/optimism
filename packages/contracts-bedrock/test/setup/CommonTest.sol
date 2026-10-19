@@ -86,6 +86,7 @@ abstract contract CommonTest is Test, Setup, Events {
         }
 
         if (useInteropOverride) {
+            skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
             console.log("CommonTest: enabling interop");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
             deploy.cfg().setUseInterop(true);

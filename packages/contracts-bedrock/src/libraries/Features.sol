@@ -37,6 +37,9 @@ library Features {
     ///         deposits and withdrawals of native ETH are disabled.
     bytes32 internal constant CUSTOM_GAS_TOKEN = "CUSTOM_GAS_TOKEN";
 
+    /// @notice The BRIDGE_HOOK feature permits configuring a bridge hook on OptimismPortal2.
+    bytes32 internal constant BRIDGE_HOOK = "BRIDGE_HOOK";
+
     /// @notice The INTEROP feature determines if the system is configured to use interop.
     bytes32 internal constant INTEROP = "INTEROP";
 }
