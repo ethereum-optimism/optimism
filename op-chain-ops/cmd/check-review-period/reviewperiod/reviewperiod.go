@@ -24,6 +24,9 @@ var (
 	proofMaturityDelayFn  = w3.MustNewFunc("proofMaturityDelaySeconds()", "uint256")
 	disputeGameFinalityFn = w3.MustNewFunc("disputeGameFinalityDelaySeconds()", "uint256")
 	withdrawalDelayFn     = w3.MustNewFunc("delay()", "uint256")
+	l2ChainIDFn           = w3.MustNewFunc("l2ChainId()", "uint256")
+	lastUsedOPCMFn        = w3.MustNewFunc("lastUsedOPCM()", "address")
+	lastUsedOPCMVersionFn = w3.MustNewFunc("lastUsedOPCMVersion()", "string")
 )
 
 // Caller makes read-only calls against L1.
@@ -33,19 +36,34 @@ type Caller interface {
 
 // ChainDelays holds the review period delays of one chain and the contracts they were read from.
 type ChainDelays struct {
-	SystemConfig                    common.Address `json:"systemConfig"`
-	OptimismPortal                  common.Address `json:"optimismPortal"`
-	AnchorStateRegistry             common.Address `json:"anchorStateRegistry"`
-	DelayedWETH                     common.Address `json:"delayedWETH"`
-	ProofMaturityDelaySeconds       uint64         `json:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64         `json:"disputeGameFinalityDelaySeconds"`
-	WithdrawalDelaySeconds          uint64         `json:"withdrawalDelaySeconds"`
+	SystemConfig                    common.Address
+	L2ChainID                       uint64
+	OptimismPortal                  common.Address
+	AnchorStateRegistry             common.Address
+	DelayedWETH                     common.Address
+	ProofMaturityDelaySeconds       uint64
+	DisputeGameFinalityDelaySeconds uint64
+	WithdrawalDelaySeconds          uint64
+	// OPCMTracked is false when the SystemConfig predates lastUsedOPCM(), so the two fields below are unset.
+	OPCMTracked         bool
+	LastUsedOPCM        common.Address
+	LastUsedOPCMVersion string
 }
 
 // ReadChainDelays resolves the chain's contracts from its SystemConfig and reads the three delays at block.
 func ReadChainDelays(ctx context.Context, l1 Caller, systemConfig common.Address, block rpc.BlockNumber) (ChainDelays, error) {
 	out := ChainDelays{SystemConfig: systemConfig}
 	var err error
+	if out.L2ChainID, err = callUint64(ctx, l1, systemConfig, l2ChainIDFn, block); err != nil {
+		return out, fmt.Errorf("SystemConfig %s: l2ChainId(): %w", systemConfig, err)
+	}
+	// lastUsedOPCM() only exists on SystemConfigs from #18547 onwards, so a failed read means it is not tracked.
+	if err := call(ctx, l1, systemConfig, lastUsedOPCMFn, block, &out.LastUsedOPCM); err == nil {
+		if err := call(ctx, l1, systemConfig, lastUsedOPCMVersionFn, block, &out.LastUsedOPCMVersion); err != nil {
+			return out, fmt.Errorf("SystemConfig %s: lastUsedOPCMVersion(): %w", systemConfig, err)
+		}
+		out.OPCMTracked = true
+	}
 	if out.OptimismPortal, err = callAddress(ctx, l1, systemConfig, optimismPortalFn, block); err != nil {
 		return out, fmt.Errorf("SystemConfig %s: optimismPortal(): %w", systemConfig, err)
 	}

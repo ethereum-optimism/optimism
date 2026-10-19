@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -12,11 +11,13 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -27,41 +28,34 @@ var (
 	prefix     = "CHECK_REVIEW_PERIOD"
 	EndpointL1 = &cli.StringFlag{
 		Name:     "l1",
-		Usage:    "L1 execution RPC endpoint",
+		Usage:    "L1 execution RPC endpoint. It must serve state at the block before the upgrade.",
 		EnvVars:  op_service.PrefixEnvVar(prefix, "L1"),
 		Required: true,
 	}
 	SystemConfigs = &cli.StringSliceFlag{
 		Name:     "system-config",
-		Usage:    "SystemConfig proxy address of a chain to snapshot (repeatable)",
+		Usage:    "SystemConfig proxy address of a chain to check (repeatable)",
 		EnvVars:  op_service.PrefixEnvVar(prefix, "SYSTEM_CONFIG"),
 		Required: true,
 	}
-	OutFile = &cli.StringFlag{
-		Name:     "out",
-		Usage:    "Path to write the snapshot to",
-		EnvVars:  op_service.PrefixEnvVar(prefix, "OUT"),
-		Required: true,
+	UpgradeTx = &cli.StringFlag{
+		Name:    "upgrade-tx",
+		Usage:   "Hash of the upgrade transaction. The delays are compared at the block before it and the latest block.",
+		EnvVars: op_service.PrefixEnvVar(prefix, "UPGRADE_TX"),
 	}
-	SnapshotFile = &cli.StringFlag{
-		Name:     "snapshot",
-		Usage:    "Path to a snapshot written by the snapshot command",
-		EnvVars:  op_service.PrefixEnvVar(prefix, "SNAPSHOT"),
-		Required: true,
+	BeforeBlock = &cli.Uint64Flag{
+		Name:    "before-block",
+		Usage:   "L1 block before the upgrade, used instead of --upgrade-tx",
+		EnvVars: op_service.PrefixEnvVar(prefix, "BEFORE_BLOCK"),
 	}
 )
-
-type snapshot struct {
-	L1Block uint64                     `json:"l1Block"`
-	Chains  []reviewperiod.ChainDelays `json:"chains"`
-}
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "check-review-period"
 	app.Usage = "Check that an upgrade leaves the review period delays unchanged."
-	app.Description = "Snapshot the proof maturity, dispute game finality and DelayedWETH withdrawal delays " +
-		"before an upgrade, then compare them after."
+	app.Description = "Compare the proof maturity, dispute game finality and DelayedWETH withdrawal delays " +
+		"before and after an upgrade."
 	app.Action = func(c *cli.Context) error {
 		return errors.New("see sub-commands")
 	}
@@ -69,15 +63,9 @@ func main() {
 	app.ErrWriter = os.Stderr
 	app.Commands = []*cli.Command{
 		{
-			Name:   "snapshot",
-			Usage:  "Record the delays of each chain",
-			Flags:  cliapp.ProtectFlags(append([]cli.Flag{EndpointL1, SystemConfigs, OutFile}, logcli.CLIFlags(prefix)...)),
-			Action: snapshotAction,
-		},
-		{
 			Name:   "check",
-			Usage:  "Compare the delays of each chain against a snapshot",
-			Flags:  cliapp.ProtectFlags(append([]cli.Flag{EndpointL1, SnapshotFile}, logcli.CLIFlags(prefix)...)),
+			Usage:  "Compare the delays of each chain before and after an upgrade",
+			Flags:  cliapp.ProtectFlags(append([]cli.Flag{EndpointL1, SystemConfigs, UpgradeTx, BeforeBlock}, logcli.CLIFlags(prefix)...)),
 			Action: checkAction,
 		},
 	}
@@ -98,111 +86,113 @@ func (c l1Caller) Call(ctx context.Context, msg ethereum.CallMsg, block rpc.Bloc
 	return c.CallContract(ctx, msg, big.NewInt(block.Int64()))
 }
 
-func setup(c *cli.Context) (log.Logger, l1Caller, error) {
+func checkAction(c *cli.Context) error {
 	logger := logcli.NewLogger(c.App.Writer, logcli.ReadCLIConfig(c))
 	c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
-	l1, err := ethclient.DialContext(c.Context, c.String(EndpointL1.Name))
+	client, err := ethclient.DialContext(c.Context, c.String(EndpointL1.Name))
 	if err != nil {
-		return nil, l1Caller{}, fmt.Errorf("failed to dial L1 RPC: %w", err)
+		return fmt.Errorf("failed to dial L1 RPC: %w", err)
 	}
-	return logger, l1Caller{l1}, nil
-}
+	defer client.Close()
+	l1 := l1Caller{client}
 
-func snapshotAction(c *cli.Context) error {
-	logger, l1, err := setup(c)
+	before, err := beforeBlock(c, l1)
 	if err != nil {
 		return err
 	}
-	defer l1.Close()
-
-	block, err := l1.BlockNumber(c.Context)
+	after, err := l1.BlockNumber(c.Context)
 	if err != nil {
 		return fmt.Errorf("failed to get L1 block number: %w", err)
 	}
-	snap := snapshot{L1Block: block}
+	if after <= before {
+		return fmt.Errorf("latest L1 block %d is not after the before block %d", after, before)
+	}
+	logger.Info("Comparing review period delays", "beforeBlock", before, "afterBlock", after)
+
+	failures := 0
 	for _, addr := range c.StringSlice(SystemConfigs.Name) {
 		if !common.IsHexAddress(addr) {
 			return fmt.Errorf("invalid SystemConfig address %q", addr)
 		}
-		delays, err := reviewperiod.ReadChainDelays(c.Context, l1, common.HexToAddress(addr), rpc.BlockNumber(block))
+		systemConfig := common.HexToAddress(addr)
+		pre, err := reviewperiod.ReadChainDelays(c.Context, l1, systemConfig, rpc.BlockNumber(before))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read the delays at block %d (the RPC must serve state at that block): %w", before, err)
 		}
-		logger.Info("Recorded delays", "systemConfig", delays.SystemConfig,
-			"proofMaturityDelaySeconds", delays.ProofMaturityDelaySeconds,
-			"disputeGameFinalityDelaySeconds", delays.DisputeGameFinalityDelaySeconds,
-			"withdrawalDelaySeconds", delays.WithdrawalDelaySeconds)
-		snap.Chains = append(snap.Chains, delays)
+		post, err := reviewperiod.ReadChainDelays(c.Context, l1, systemConfig, rpc.BlockNumber(after))
+		if err != nil {
+			return fmt.Errorf("failed to read the delays at block %d: %w", after, err)
+		}
+		failures += compare(logger, pre, post)
 	}
-
-	data, err := json.MarshalIndent(snap, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to encode snapshot: %w", err)
+	if failures > 0 {
+		return fmt.Errorf("%d check(s) failed between L1 blocks %d and %d", failures, before, after)
 	}
-	if err := os.WriteFile(c.String(OutFile.Name), data, 0o644); err != nil {
-		return fmt.Errorf("failed to write snapshot: %w", err)
-	}
-	logger.Info("Wrote snapshot", "path", c.String(OutFile.Name), "l1Block", block, "chains", len(snap.Chains))
+	logger.Info("All delays unchanged", "chains", len(c.StringSlice(SystemConfigs.Name)))
 	return nil
 }
 
-func checkAction(c *cli.Context) error {
-	logger, l1, err := setup(c)
-	if err != nil {
-		return err
+// beforeBlock returns the block before the upgrade, from --before-block or the block of --upgrade-tx.
+func beforeBlock(c *cli.Context, l1 l1Caller) (uint64, error) {
+	hasTx, hasBlock := c.IsSet(UpgradeTx.Name), c.IsSet(BeforeBlock.Name)
+	if hasTx == hasBlock {
+		return 0, errors.New("set exactly one of --upgrade-tx and --before-block")
 	}
-	defer l1.Close()
+	if hasBlock {
+		return c.Uint64(BeforeBlock.Name), nil
+	}
+	receipt, err := l1.TransactionReceipt(c.Context, common.HexToHash(c.String(UpgradeTx.Name)))
+	if err != nil {
+		return 0, fmt.Errorf("failed to get the upgrade transaction receipt: %w", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return 0, fmt.Errorf("upgrade transaction %s failed", receipt.TxHash)
+	}
+	return bigs.Uint64Strict(receipt.BlockNumber) - 1, nil
+}
 
-	data, err := os.ReadFile(c.String(SnapshotFile.Name))
-	if err != nil {
-		return fmt.Errorf("failed to read snapshot: %w", err)
-	}
-	var snap snapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
-		return fmt.Errorf("failed to decode snapshot: %w", err)
+// compare logs the result for one chain and returns the number of failed checks.
+func compare(logger log.Logger, pre, post reviewperiod.ChainDelays) int {
+	l := logger.New("chainID", post.L2ChainID, "systemConfig", post.SystemConfig)
+	failures := 0
+
+	switch {
+	case !post.OPCMTracked:
+		l.Warn("SystemConfig does not track the last used OPCM, so the upgrade cannot be confirmed")
+	case pre.OPCMTracked && pre.LastUsedOPCM == post.LastUsedOPCM && pre.LastUsedOPCMVersion == post.LastUsedOPCMVersion:
+		failures++
+		l.Error("No OPCM upgrade between the two blocks", "lastUsedOPCM", post.LastUsedOPCM, "version", post.LastUsedOPCMVersion)
+	default:
+		l.Info("Upgraded", "fromVersion", pre.LastUsedOPCMVersion, "toVersion", post.LastUsedOPCMVersion, "opcm", post.LastUsedOPCM)
 	}
 
-	block, err := l1.BlockNumber(c.Context)
-	if err != nil {
-		return fmt.Errorf("failed to get L1 block number: %w", err)
-	}
-	mismatches := 0
-	for _, before := range snap.Chains {
-		after, err := reviewperiod.ReadChainDelays(c.Context, l1, before.SystemConfig, rpc.BlockNumber(block))
-		if err != nil {
-			return err
-		}
-		for _, d := range []struct {
-			name          string
-			before, after uint64
-		}{
-			{"proofMaturityDelaySeconds", before.ProofMaturityDelaySeconds, after.ProofMaturityDelaySeconds},
-			{"disputeGameFinalityDelaySeconds", before.DisputeGameFinalityDelaySeconds, after.DisputeGameFinalityDelaySeconds},
-			{"withdrawalDelaySeconds", before.WithdrawalDelaySeconds, after.WithdrawalDelaySeconds},
-		} {
-			if d.before != d.after {
-				mismatches++
-				logger.Error("Delay changed", "systemConfig", before.SystemConfig, "delay", d.name, "before", d.before, "after", d.after)
-			} else {
-				logger.Info("Delay unchanged", "systemConfig", before.SystemConfig, "delay", d.name, "value", d.after)
-			}
-		}
-		for _, a := range []struct {
-			name          string
-			before, after common.Address
-		}{
-			{"optimismPortal", before.OptimismPortal, after.OptimismPortal},
-			{"anchorStateRegistry", before.AnchorStateRegistry, after.AnchorStateRegistry},
-			{"delayedWETH", before.DelayedWETH, after.DelayedWETH},
-		} {
-			if a.before != a.after {
-				logger.Warn("Contract address changed", "systemConfig", before.SystemConfig, "contract", a.name, "before", a.before, "after", a.after)
-			}
+	for _, d := range []struct {
+		name      string
+		pre, post uint64
+	}{
+		{"proofMaturityDelaySeconds", pre.ProofMaturityDelaySeconds, post.ProofMaturityDelaySeconds},
+		{"disputeGameFinalityDelaySeconds", pre.DisputeGameFinalityDelaySeconds, post.DisputeGameFinalityDelaySeconds},
+		{"withdrawalDelaySeconds", pre.WithdrawalDelaySeconds, post.WithdrawalDelaySeconds},
+	} {
+		if d.pre != d.post {
+			failures++
+			l.Error("Delay changed", "delay", d.name, "before", d.pre, "after", d.post)
+		} else {
+			l.Info("Delay unchanged", "delay", d.name, "value", d.post)
 		}
 	}
-	if mismatches > 0 {
-		return fmt.Errorf("%d delay(s) changed since the snapshot at L1 block %d", mismatches, snap.L1Block)
+
+	for _, a := range []struct {
+		name      string
+		pre, post common.Address
+	}{
+		{"optimismPortal", pre.OptimismPortal, post.OptimismPortal},
+		{"anchorStateRegistry", pre.AnchorStateRegistry, post.AnchorStateRegistry},
+		{"delayedWETH", pre.DelayedWETH, post.DelayedWETH},
+	} {
+		if a.pre != a.post {
+			l.Warn("Contract address changed", "contract", a.name, "before", a.pre, "after", a.post)
+		}
 	}
-	logger.Info("All delays unchanged", "chains", len(snap.Chains), "snapshotL1Block", snap.L1Block, "l1Block", block)
-	return nil
+	return failures
 }

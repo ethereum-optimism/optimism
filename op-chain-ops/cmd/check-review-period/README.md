@@ -15,29 +15,30 @@ and the portal's `anchorStateRegistry()`.
 
 ## Usage
 
-Run `snapshot` before the upgrade and `check` after it:
+Run `check` after the upgrade, with either the upgrade transaction or the last block before it:
 
 ```bash
-# 1. Before the upgrade
-go run ./op-chain-ops/cmd/check-review-period snapshot \
+go run ./op-chain-ops/cmd/check-review-period check \
   --l1 <L1_RPC> \
   --system-config <SYSTEM_CONFIG_A> \
   --system-config <SYSTEM_CONFIG_B> \
-  --out before.json
+  --upgrade-tx <UPGRADE_TX_HASH>
 
-# 2. Run the upgrade
-
-# 3. After the upgrade
 go run ./op-chain-ops/cmd/check-review-period check \
   --l1 <L1_RPC> \
-  --snapshot before.json
+  --system-config <SYSTEM_CONFIG_A> \
+  --before-block <BLOCK_BEFORE_THE_UPGRADE>
 ```
 
-`check` reads the chains listed in the snapshot again, logs each delay, and exits non-zero if any delay changed. A
-changed contract address is logged as a warning but does not fail the check.
+For each chain, `check` reads the delays at the block before the upgrade and at the latest block, logs each delay, and
+exits non-zero if any delay changed. It also compares the SystemConfig's `lastUsedOPCM()` and `lastUsedOPCMVersion()`
+at both blocks and fails if no OPCM upgrade happened in between. A changed contract address is logged as a warning but
+does not fail the check.
+
+The L1 RPC must serve state at the block before the upgrade, so older upgrades need an archive node.
 
 Flags can also be set through environment variables: `CHECK_REVIEW_PERIOD_L1`, `CHECK_REVIEW_PERIOD_SYSTEM_CONFIG`,
-`CHECK_REVIEW_PERIOD_OUT` and `CHECK_REVIEW_PERIOD_SNAPSHOT`.
+`CHECK_REVIEW_PERIOD_UPGRADE_TX` and `CHECK_REVIEW_PERIOD_BEFORE_BLOCK`.
 
 ## Build
 
