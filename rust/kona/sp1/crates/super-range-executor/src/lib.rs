@@ -677,19 +677,25 @@ pub fn build_super_consolidation_stdin(
         build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)?;
     stdin.write_vec(log_commitments.encode());
     if let Some(proofs) = proofs {
-        write_log_commitment_proofs(&mut stdin, &log_commitments.batches, proofs)?;
+        write_log_commitment_proofs(
+            &mut stdin,
+            &proofs.vk,
+            &log_commitments.batches,
+            &proofs.proofs,
+        )?;
     }
     Ok(stdin)
 }
 
-/// Adds `proofs` to the proof stream of a consolidation `stdin` that carries `batches`. Each proof
-/// must be compressed and commit the batch at its position.
+/// Adds `proofs` to the proof stream of a consolidation `stdin` that carries `batches`, with the
+/// `log-commitment` program's `vk`. Each proof must be compressed and commit the batch at its
+/// position.
 pub fn write_log_commitment_proofs(
     stdin: &mut SP1Stdin,
-    batches: &[Vec<u8>],
-    proofs: &LogCommitmentProofs,
+    vk: &SP1VerifyingKey,
+    batches: &[impl AsRef<[u8]>],
+    proofs: &[impl std::borrow::Borrow<SP1ProofWithPublicValues>],
 ) -> Result<()> {
-    let LogCommitmentProofs { vk, proofs } = proofs;
     ensure!(
         proofs.len() == batches.len(),
         "{} log-commitment proofs for {} batches",
@@ -697,8 +703,9 @@ pub fn write_log_commitment_proofs(
         batches.len(),
     );
     for (index, (proof, batch)) in proofs.iter().zip(batches).enumerate() {
+        let proof = proof.borrow();
         ensure!(
-            proof.public_values.as_slice() == batch.as_slice(),
+            proof.public_values.as_slice() == batch.as_ref(),
             "log-commitment proof {index} does not commit its batch",
         );
         let SP1Proof::Compressed(recursion_proof) = &proof.proof else {
