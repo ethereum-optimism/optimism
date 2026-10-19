@@ -221,8 +221,7 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
     /// TODO: this same test needs to be done with the legacy message type
     ///       by setting the message version to 0
     function test_sendMessage_succeeds() external {
-        // Skipped: the portal depositor allowlist rejects deposits from this contract.
-        vm.skip(true);
+        vm.skip(true, "Skipping: the portal depositor allowlist rejects deposits from this contract");
 
         // deposit transaction on the optimism portal should be called
         vm.expectCall(
@@ -276,8 +275,7 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
     )
         external
     {
-        // Skipped: the portal depositor allowlist rejects deposits from this contract.
-        vm.skip(true);
+        vm.skip(true, "Skipping: the portal depositor allowlist rejects deposits from this contract");
 
         // Bound gas limit to reasonable range to avoid OutOfGas errors
         _gasLimit = uint32(bound(uint256(_gasLimit), 21000, 1_000_000));
@@ -296,8 +294,7 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
 
     /// @notice Tests that the sendMessage function is able to send the same message twice.
     function test_sendMessage_twice_succeeds() external {
-        // Skipped: the portal depositor allowlist rejects deposits from this contract.
-        vm.skip(true);
+        vm.skip(true, "Skipping: the portal depositor allowlist rejects deposits from this contract");
 
         uint256 nonce = l1CrossDomainMessenger.messageNonce();
         l1CrossDomainMessenger.sendMessage(recipient, hex"aa", uint32(500_000));
@@ -308,8 +305,7 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
 
     /// @notice Tests sendMessage with zero gas limit.
     function test_sendMessage_zeroGasLimit_succeeds() external {
-        // Skipped: the portal depositor allowlist rejects deposits from this contract.
-        vm.skip(true);
+        vm.skip(true, "Skipping: the portal depositor allowlist rejects deposits from this contract");
 
         uint256 nonce = l1CrossDomainMessenger.messageNonce();
 
@@ -326,8 +322,7 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
 
     /// @notice Tests sendMessage with high gas limit that causes OutOfGas.
     function test_sendMessage_highGasLimit_reverts() external {
-        // Skipped: the portal depositor allowlist rejects deposits from this contract.
-        vm.skip(true);
+        vm.skip(true, "Skipping: the portal depositor allowlist rejects deposits from this contract");
 
         // Very high gas limit causes OutOfGas error in portal deposit
         uint32 highGasLimit = 30_000_000;
