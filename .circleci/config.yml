@@ -135,7 +135,7 @@ jobs:
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
-      # (e.g., a new docker image, event payload, or cache version).
+      # (e.g., a new docker image or cache version).
       - run:
           name: Store string pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh str
