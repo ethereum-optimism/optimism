@@ -6,7 +6,7 @@ use crate::{
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_evm::Evm as AlloyEvm;
-use alloy_op_evm::block::OpBlockExecutionError;
+use alloy_op_evm::block::is_invalid_payload_error;
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
@@ -20,8 +20,7 @@ use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     ConfigureEvm, Database,
     execute::{
-        BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor,
-        BlockValidationError, InternalBlockExecutionError,
+        BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
 };
 use reth_execution_types::BlockExecutionOutput;
@@ -660,35 +659,7 @@ pub fn is_invalid_derived_payload_error(err: &PayloadBuilderError) -> bool {
     }
 }
 
-// Exhaustive for the same reason as `is_invalid_op_payload_error`.
-fn is_invalid_payload_error(err: &BlockExecutionError) -> bool {
-    match err {
-        BlockExecutionError::Validation(validation) => match validation {
-            BlockValidationError::InvalidTx { .. } |
-            BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
-            BlockValidationError::BlockGasExceeded => true,
-            BlockValidationError::Other(e) => {
-                e.downcast_ref::<OpBlockExecutionError>().is_some_and(is_invalid_op_execution_error)
-            }
-            BlockValidationError::EVM { .. } |
-            BlockValidationError::IncrementBalanceFailed |
-            BlockValidationError::MissingParentBeaconBlockRoot |
-            BlockValidationError::CancunGenesisParentBeaconBlockRootNotZero { .. } |
-            BlockValidationError::BeaconRootContractCall { .. } |
-            BlockValidationError::BlockHashContractCall { .. } |
-            BlockValidationError::WithdrawalRequestsContractCall { .. } |
-            BlockValidationError::ConsolidationRequestsContractCall { .. } |
-            BlockValidationError::BuilderDepositRequestsContractCall { .. } |
-            BlockValidationError::BuilderExitRequestsContractCall { .. } |
-            BlockValidationError::DepositRequestDecode(_) => false,
-        },
-        BlockExecutionError::Internal(
-            InternalBlockExecutionError::EVM { .. } | InternalBlockExecutionError::Other(_),
-        ) => false,
-    }
-}
-
-// Exhaustive, like `is_invalid_op_execution_error`, so a new variant must be classified: one that
+// Exhaustive, like `is_invalid_payload_error`, so a new variant must be classified: one that
 // defaults to node-local would stall derivation on every node.
 const fn is_invalid_op_payload_error(err: &OpPayloadBuilderError) -> bool {
     match err {
@@ -697,17 +668,6 @@ const fn is_invalid_op_payload_error(err: &OpPayloadBuilderError) -> bool {
         OpPayloadBuilderError::L1BlockInfoParseFailed |
         OpPayloadBuilderError::AccountLoadFailed(_) |
         OpPayloadBuilderError::ForceCreate2DeployerFail => false,
-    }
-}
-
-const fn is_invalid_op_execution_error(err: &OpBlockExecutionError) -> bool {
-    match err {
-        OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
-        OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
-        OpBlockExecutionError::InvalidPostExecPayload(_) |
-        OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
-        OpBlockExecutionError::LoadCacheAccount |
-        OpBlockExecutionError::GetJovianDaFootprintScalar(_) => false,
     }
 }
 

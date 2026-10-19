@@ -1091,8 +1091,6 @@ fn derived_payload_error_classification() {
             }),
             true,
         ),
-        (op_execution(OpBlockExecutionError::LoadCacheAccount), false),
-        (op_execution(OpBlockExecutionError::GetJovianDaFootprintScalar("x".into())), false),
         (PayloadBuilderError::other(alloy_rlp::Error::UnexpectedLength), true),
         (
             PayloadBuilderError::other(PostExecPayloadValidationError::UnexpectedPostExecTx {
