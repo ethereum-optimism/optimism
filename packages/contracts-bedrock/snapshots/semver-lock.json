@@ -124,12 +124,12 @@
     "sourceCodeHash": "0xedbd3c04490cb22616e5c4d04fe1a8c2cba9d7f2c636a58690a09e249ac6f766"
   },
   "src/L2/OptimismMintableERC721.sol:OptimismMintableERC721": {
-    "initCodeHash": "0x316c6d716358f5b5284cd5457ea9fca4b5ad4a37835d4b4b300413dafbfa2159",
-    "sourceCodeHash": "0xd93a8d5de6fd89ebf503976511065f0c2414814affdb908f26a867ffdd0f9fbe"
+    "initCodeHash": "0x5931526c4c400daaad91c0087688de75288f0b0368254bfe020b9526c0b9249d",
+    "sourceCodeHash": "0xfe17313d4cd6c7a61c15dbd83f1c6efaa1ba0ba6b0296e718cf281c3deb01deb"
   },
   "src/L2/OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory": {
-    "initCodeHash": "0x50452b7514964a4c9cb75963ad5439d08d7b4e7908a41d555c9d380e17c85d55",
-    "sourceCodeHash": "0x934698844664ca01b0898fc4fafd74d9685977dd141e71823c9ef7501cee505e"
+    "initCodeHash": "0x4395ca78406646f28e6ea258287d296e443d84a3af8e3c7671f669f8c7ffaaee",
+    "sourceCodeHash": "0xc66b381d18edc905318bd3372c42b5f31fb87f2c1fcde22ca285a651e5ed39a0"
   },
   "src/L2/SequencerFeeVault.sol:SequencerFeeVault": {
     "initCodeHash": "0xf51c910e8b09a8884aa793a9ed1cf5828f007140eb50e38c02028f51333b8e4f",
