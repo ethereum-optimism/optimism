@@ -141,6 +141,10 @@ objects and Rust targets. Immutable parent compiler seeds retain Go build-cache
 objects for fresh current-source compilation, without PR tool-cache writes.
 Compiler logs record actual compiler/linker commands for cache verification.
 Preparation time and cost must be reported separately from warm PR measurements.
+Circle prefers its own branch cache before broader fallbacks: warm the benchmark
+branch at the parent source, then measure the new edit, and retain the actual
+restored cache key plus compilation evidence. Another branch warming successfully
+does not prove the measured branch will select that cache.
 
 Both providers use the same full-suite plan on the existing 12 workers. Static
 Go AST discovery lists the CLI package's registered top-level tests, examples and

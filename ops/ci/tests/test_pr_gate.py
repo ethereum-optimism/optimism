@@ -244,6 +244,22 @@ class GateTests(unittest.TestCase):
             self.assertEqual(G.read(output/'groups'/group/'states.json'),
                              G.read(Path(env['GROUP_'+group.upper().replace('-','_')+'_REPORT'])/'states.json'))
 
+    def test_receipts_accept_authoritative_source_last_and_reject_changed_inputs(self):
+        path = self.root / '.rwx/go-tests.yml'
+        original = path.read_text()
+        for order in ('[code, tools]', '[tools, code]'):
+            changed = original.replace('  - key: main-gate-receipt\n    use: [tools, code]',
+                                       '  - key: main-gate-receipt\n    use: ' + order)
+            path.write_text(changed)
+            G.configuration('ci-gate')
+        for order in ('[tools]', '[code]', '[tools, code, code]', '[source, tools]'):
+            changed = original.replace('  - key: main-gate-receipt\n    use: [tools, code]',
+                                       '  - key: main-gate-receipt\n    use: ' + order)
+            path.write_text(changed)
+            with self.assertRaisesRegex(ValueError, 'source or authoritative routing'):
+                G.configuration('ci-gate')
+        path.write_text(original)
+
     def test_main_mode_and_freshness_cannot_hide_partial_or_reused_verdicts(self):
         path=self.root/self.selection['native_config'];source=path.read_text()
         for old,new in [('shard-total: "12"','shard-total: "24"'),

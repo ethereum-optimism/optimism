@@ -130,7 +130,7 @@ def configuration(gate=None):
             if receipt[0].get('if')!=definition.get('receipt_if') or receipt[0]['run']!=expected_run:
                 raise ValueError('Native gate receipt changes the authoritative workload mode')
             env=receipt[0]['env']
-            if (receipt[0]['use']!=['code','tools']
+            if (receipt[0]['use'] not in (['code','tools'], ['tools','code'])
                     or env.get('CI_COMMIT_SHA')!='${{ init.commit-sha }}'
                     or env.get('CI_BRANCH')!='${{ init.branch }}'
                     or env.get('GROUP_SELECTED')!='${{ tasks.route.values.'+definition['route']+' }}'):
