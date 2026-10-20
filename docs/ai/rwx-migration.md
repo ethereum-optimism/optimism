@@ -299,9 +299,9 @@ handoff to the execution-only worker.
 
 Compiler preparation uses a source ancestor selected by the last change to build
 inputs: manifests, lockfile, toolchain, Cargo/Just configuration and CI helpers.
-Its checkout and compiler outputs are immutable cached tasks, reusable across
+Its checkout, dependency fetch and compiler outputs are immutable cached tasks, reusable across
 source-only PR edits without shared-cache writer permission. Current-source
-workers overlay HEAD and always invoke Cargo; source fingerprint preparation
+workers reset/clean the Rust checkout to HEAD and always invoke Cargo; source fingerprint preparation
 restores unchanged timestamps and refreshes edited inputs. Feature partitions use
 the Cargo.lock digest on both services, keeping assignments stable across source
 edits. Both providers default to `CARGO_INCREMENTAL=0` so sccache can cache local
