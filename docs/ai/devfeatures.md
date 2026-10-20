@@ -18,7 +18,7 @@ Active flags:
 | `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
-| `BridgeHook` | Bridge hook configuration on OptimismPortal2 |
+| `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 
