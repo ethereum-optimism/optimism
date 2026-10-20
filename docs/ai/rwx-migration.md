@@ -103,7 +103,7 @@ been retired.
 
 | Workload | Definition / contract |
 | --- | --- |
-| Full Go | `go-tests.yml`: 12 duration-balanced package shards; compile 8 CPU / 16 GiB, verdict 8 CPU / 16 GiB; `-p=4`, `-parallel=8`, `40m` package timeout, three gotestsum retries / 50-failure ceiling |
+| Full Go | `go-tests.yml`: 12 duration-balanced workers, with four top-level test groups for the deployer CLI package; compile 8 CPU / 16 GiB, verdict 8 CPU / 16 GiB; `-p=4`, `-parallel=8`, `40m` package timeout, three gotestsum retries / 50-failure ceiling |
 | Acceptance | `acceptance.yml`: eight shards each for op-node and Kona, Fusaka / op-reth; separate discovery/compilation and fresh verdicts, per-variant memory |
 | Contracts | `contracts.yml`: standard and modified-file matrices for four features; PR standard `liteci`, protected standard `ci`, modified `ciheavy` |
 | Coverage / upgrades / L2 fork | Separate definitions and compile/verdict packages; preserve `cicoverage`, chain/feature matrices, pinned fork inputs and reporting |
@@ -124,6 +124,33 @@ compilers. Use `package.use` for file inputs, and caller leaves such as
 `compile-0.build`. Artifact mount and vault expressions are not package value
 arguments. Output filesystem filters use static family roots: native RWX omitted
 parameterized output paths despite successful lint.
+
+## Go dependency reuse and test splitting
+
+Go helpers use a source ancestor with identical tracked build inputs. The input
+identity includes source trees, submodule pins, toolchain/build configuration,
+Docker inputs and CI helpers. Restoring a different source revision requires an
+ancestor relationship and exact input identity; changed helper inputs force a
+new producer. Binaries retain their actual build revision and consumers record
+the current PR revision separately.
+
+Module sources travel through native filesystem inheritance instead of a full
+module-cache tarball repeated in every runtime artifact. The sealed helper
+archives retain binaries and runtime assets. Runtime filters exclude Go compiler
+objects and Rust targets. Immutable parent compiler seeds retain Go build-cache
+objects for fresh current-source compilation, without PR tool-cache writes.
+Compiler logs record actual compiler/linker commands for cache verification.
+Preparation time and cost must be reported separately from warm PR measurements.
+
+Both providers use the same full-suite plan on the existing 12 workers. Static
+Go AST discovery lists the CLI package's registered top-level tests, examples and
+fuzz targets without running init or TestMain. Four groups retain every discovered
+test once, including newly added tests; subtests stay together. The remaining
+packages run whole. The current-source compiler seals the plan, test binaries and
+prepared CLI helper; missing/corrupt helpers fail before tests. Runtime retries
+cannot escape the assigned group. Ordinary local CLI tests retain their own
+helper build. Splitting repeats package setup, so benchmark the complete affected
+workflow rather than summing individual test durations.
 
 ## Cache, artifacts and credentials
 

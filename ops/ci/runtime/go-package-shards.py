@@ -56,7 +56,7 @@ def read_go_packages(source, prefix):
     return sorted(packages)
 
 
-def create_manifest(packages, prefix, total, durations=None):
+def create_manifest(packages, prefix, total, durations=None, split_tests=None, test_durations=None):
     total = shard_number(total, total=True)
     validate_packages(packages, prefix)
     packages = sorted(packages)
@@ -86,6 +86,38 @@ def create_manifest(packages, prefix, total, durations=None):
             loads[index] += weights[package]
         manifest["durations"] = weights
         manifest["shards"] = [sorted(shard) for shard in shards]
+    if split_tests:
+        if not isinstance(split_tests, dict) or not set(split_tests) <= set(packages):
+            raise ValueError('Split tests must belong to selected packages')
+        test_durations = test_durations or {}
+        units = []
+        for package in packages:
+            names = split_tests.get(package)
+            weight = manifest.get('durations', {}).get(package, 1.0)
+            if names is None:
+                units.append({'package': package, 'tests': None, 'weight': weight})
+                continue
+            if (not isinstance(names, list) or not names or names != sorted(set(names))
+                    or any(not isinstance(n, str) or not re.fullmatch(r'(?:Test|Example|Fuzz)\w*', n) or n == 'TestMain' for n in names)):
+                raise ValueError('Split test inventory must be complete, sorted and unique')
+            timings = test_durations.get(package, {})
+            if not isinstance(timings, dict) or any(type(v) not in (int, float) or not math.isfinite(v) or v < 0 for v in timings.values()):
+                raise ValueError('Invalid split test timings')
+            fallback = max(weight / len(names), 0.001)
+            groups, loads = [[] for _ in range(min(4, total, len(names)))], [0.0] * min(4, total, len(names))
+            for name in sorted(names, key=lambda n: (-timings.get(n, fallback), n)):
+                i = min(range(len(groups)), key=lambda i: (loads[i], len(groups[i]), i))
+                groups[i].append(name)
+                loads[i] += timings.get(name, fallback)
+            units.extend({'package': package, 'tests': sorted(group), 'weight': load} for group, load in zip(groups, loads))
+        shares, loads = [[] for _ in range(total)], [0.0] * total
+        for unit in sorted(units, key=lambda u: (-u['weight'], u['package'], u['tests'] or [])):
+            candidates = [i for i in range(total) if not any(u['package'] == unit['package'] for u in shares[i])]
+            i = min(candidates, key=lambda i: (loads[i], len(shares[i]), i))
+            shares[i].append(unit)
+            loads[i] += unit['weight']
+        manifest.update(split_tests=split_tests, test_durations=test_durations, work_shards=shares,
+                        shards=[sorted({u['package'] for u in share}) for share in shares])
     return manifest
 
 
@@ -100,9 +132,9 @@ def select_packages(manifest, prefix, index, total):
         raise ValueError("manifest scope or shard total does not match this task")
     packages = manifest.get("packages")
     validate_packages(packages, prefix)
-    expected = create_manifest(packages, prefix, total, manifest.get("durations"))
+    expected = create_manifest(packages, prefix, total, manifest.get("durations"), manifest.get("split_tests"), manifest.get("test_durations"))
     # Equality checks the exact union, duplicate-free assignment, and stable order.
-    if manifest.get("shards") != expected["shards"] or packages != expected["packages"]:
+    if manifest.get("shards") != expected["shards"] or packages != expected["packages"] or manifest.get("work_shards") != expected.get("work_shards"):
         raise ValueError("shards must partition the complete sorted package manifest exactly once")
     return manifest["shards"][index]
 

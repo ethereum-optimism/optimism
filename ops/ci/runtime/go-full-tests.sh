@@ -5,8 +5,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 export PARALLEL="${PARALLEL:-8}" TEST_TIMEOUT="${TEST_TIMEOUT:-40m}"
 export ENABLE_KURTOSIS=true OP_E2E_CANNON_ENABLED=false OP_E2E_USE_HTTP=true ENABLE_ANVIL=true
 export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
-export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
-export GOCACHE="$PWD/.ci/go-cache/full/${1:-run}"
+export GOMODCACHE="${CI_GO_MODULE_CACHE:-$PWD/.ci/go-cache/full/modules}"
+export GOCACHE="${CI_GO_BUILD_CACHE:-$PWD/.ci/go-cache/full/${1:-run}}"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
 # Unlike `go test`, invoking compiled binaries does not replace mise's GOROOT
 # when GOTOOLCHAIN selects the newer version required by go.mod.
@@ -57,6 +57,9 @@ case "${1:-run}" in
     source ops/scripts/source-ci-archive-rpcs.sh
     (cd cannon && just diff-hello-elf)
     python3 ops/ci/runtime/go-compiled-tests.py verify --suite go-tests
+    cp .ci/go-tests/build/metadata.json tmp/testlogs/compilation.json
+    mkdir -p tmp/testlogs/compilation
+    cp .ci/go-tests/build/*.compile.log tmp/testlogs/compilation/ 2>/dev/null || [[ -z "$(cat tmp/testlogs/packages.txt)" ]]
     # Keep full output in JSON/per-test artifacts without exhausting live-log quotas.
     ./ops/scripts/gotestsum-split.sh --format=pkgname \
       --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" --jsonfile=tmp/testlogs/log.json \

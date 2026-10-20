@@ -17,7 +17,7 @@ case "$job" in
     just cannon
     (cd cannon && just diff-hello-elf)
     python3 ops/ci/runtime/go-artifacts.py pack go \
-      op-core/superchain/superchain-configs.zip cannon/bin cannon/multicannon/embeds cannon/testdata/bin .ci/go-cache/full/modules
+      op-core/superchain/superchain-configs.zip cannon/bin cannon/multicannon/embeds cannon/testdata/bin
     ;;
   contracts|contracts-e2e)
     git submodule update --init --recursive -- packages/contracts-bedrock/lib

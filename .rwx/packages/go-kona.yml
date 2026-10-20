@@ -9,6 +9,7 @@ tasks:
     use: package.use
     run: mise exec -- bash ops/ci/runtime/go-dependencies.sh kona
     env:
+      CI_GO_REUSABLE_DEPENDENCY: "1"
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       BUILD_PROBE: ${{ params.build-probe }}
       TARGET_CACHE_MODE: ${{ params.target-cache-mode }}

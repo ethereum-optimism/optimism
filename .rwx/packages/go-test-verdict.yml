@@ -75,4 +75,4 @@ tasks:
           path: tmp/testlogs/log.json
         - key: test-logs
           path: tmp/testlogs
-    filter: ['!.ci/go-cache', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts']
+    filter: ['!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/go-cache/full/run', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts']
