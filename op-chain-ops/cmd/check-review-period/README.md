@@ -50,5 +50,5 @@ go build ./op-chain-ops/cmd/check-review-period
 
 ## Implementation Details
 
-The reads live in the `reviewperiod` package, which the `op-acceptance-tests` review period tests also use, so CI
-exercises the same code that runs against live networks.
+The reads, the upgrade detection and the comparison live in the `reviewperiod` package, which the
+`op-acceptance-tests` review period tests also use, so CI exercises the same code that runs against live networks.
