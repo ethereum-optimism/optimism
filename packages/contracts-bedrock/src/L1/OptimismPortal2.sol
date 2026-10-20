@@ -271,7 +271,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
-    /// @notice Thrown when the bridge hook is set/unset incorrectly depending on the feature flag.
+    /// @notice Thrown when removing a bridge hook that is not set.
     error OptimismPortal_InvalidBridgeHookState();
 
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
@@ -345,8 +345,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _assertValidInteropState();
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
-        // Assert that the bridge hook state is valid.
-        _assertValidBridgeHookState();
 
         // Set the proof maturity delay and check it against the configured bounds.
         _setProofMaturityDelaySeconds(_proofMaturityDelaySeconds);
@@ -877,10 +875,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _item Held withdrawal.
     function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
 
-    /// @notice Checks if the bridge hook is in use.
-    /// @return bool True if a hook is set and the BRIDGE_HOOK feature is enabled.
+    /// @notice Checks if a bridge hook is set.
+    /// @return bool True if a bridge hook is set.
     function _isUsingBridgeHook() internal view returns (bool) {
-        return address(bridgeHook) != address(0) && systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK);
+        return address(bridgeHook) != address(0);
     }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
@@ -924,13 +922,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
-    /// @notice Asserts that a bridge hook is only set while the BRIDGE_HOOK feature is enabled.
-    function _assertValidBridgeHookState() internal view {
-        if (address(bridgeHook) != address(0) && !_isUsingBridgeHook()) {
-            revert OptimismPortal_InvalidBridgeHookState();
-        }
-    }
-
     /// @notice Asserts that the ETHLockbox is configured.
     function _assertValidLockboxState() internal view {
         if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
@@ -957,7 +948,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         if (_target == address(this) || _target == address(ethLockbox)) return true;
         if (_target == systemConfig.l1StandardBridge()) return true;
-        return address(bridgeHook) != address(0) && _target == address(bridgeHook);
+        return _isUsingBridgeHook() && _target == address(bridgeHook);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.

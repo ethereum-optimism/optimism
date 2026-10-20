@@ -1025,10 +1025,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) vm.skip(true);
 
         // The pre-upgrade portal has no hook getter, so the hook is written straight into its storage slot.
-        if (!systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
-            vm.prank(chainPAO);
-            systemConfig.setFeature(Features.BRIDGE_HOOK, true);
-        }
         address hook = makeAddr("bridgeHook");
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(hook))));
@@ -1036,7 +1032,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
-        assertTrue(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK), "bridge hook feature disabled");
     }
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.

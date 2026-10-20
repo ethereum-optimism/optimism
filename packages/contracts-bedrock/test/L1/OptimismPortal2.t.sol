@@ -37,7 +37,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
@@ -3165,8 +3164,8 @@ contract OptimismPortal2_Params_Test is CommonTest {
 }
 
 /// @title OptimismPortal2_BridgeHook_Test
-/// @notice Test contract for OptimismPortal2 bridge hook configuration, the BRIDGE_HOOK feature
-///         and the guards they share with the withdrawal path.
+/// @notice Test contract for OptimismPortal2 bridge hook configuration and the guards it shares
+///         with the withdrawal path.
 contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     event BridgeHookSet(address indexed bridgeHook);
     event BridgeHookRemoved(address indexed bridgeHook);
@@ -3177,22 +3176,6 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         super.setUp();
         // A bridge hook is not supported alongside a custom gas token.
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-    }
-
-    /// @notice Enables BRIDGE_HOOK, which a nonzero hook requires.
-    function _enableFeature() internal {
-        if (!systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
-            vm.prank(proxyAdminOwner);
-            systemConfig.setFeature(Features.BRIDGE_HOOK, true);
-        }
-    }
-
-    /// @notice Disables BRIDGE_HOOK.
-    function _disableFeature() internal {
-        if (systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK)) {
-            vm.prank(proxyAdminOwner);
-            systemConfig.setFeature(Features.BRIDGE_HOOK, false);
-        }
     }
 
     /// @notice Clears the initialized slot so the Portal can be initialized again.
@@ -3209,9 +3192,8 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         );
     }
 
-    /// @notice Sets the hook through initialize, enabling the feature first.
+    /// @notice Sets the hook through initialize.
     function _setHook(address _hook) internal {
-        _enableFeature();
         _allowReinitialize();
         _initialize(_hook);
     }
@@ -3231,7 +3213,6 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that initialize sets a nonzero hook.
     function test_initialize_setsBridgeHook_succeeds() external {
-        _enableFeature();
         _allowReinitialize();
 
         vm.expectEmit(address(optimismPortal2));
@@ -3284,17 +3265,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
     }
 
-    /// @notice Tests that initialize rejects a nonzero hook while the feature is disabled.
-    function test_initialize_bridgeHookFeatureDisabled_reverts() external {
-        _disableFeature();
-        _allowReinitialize();
-
-        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
-        _initialize(hook);
-    }
-
-    /// @notice Tests that the ProxyAdmin owner can remove the hook, after which the feature can
-    ///         be disabled.
+    /// @notice Tests that the ProxyAdmin owner can remove the hook.
     function test_removeHook_succeeds() external {
         _setHook(hook);
 
@@ -3304,10 +3275,6 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         optimismPortal2.removeHook();
 
         assertEq(address(optimismPortal2.bridgeHook()), address(0));
-
-        vm.prank(proxyAdminOwner);
-        systemConfig.setFeature(Features.BRIDGE_HOOK, false);
-        assertFalse(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK));
     }
 
     /// @notice Tests that removing the hook while items are held succeeds.
@@ -3344,29 +3311,6 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
-    }
-
-    /// @notice Tests that the feature cannot be disabled while a hook is configured.
-    function test_setFeature_disableWithHookSet_reverts() external {
-        _setHook(hook);
-        // The feature must be on, so the revert comes from the hook guard and not from the
-        // already-disabled check, which uses the same error.
-        assertTrue(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK));
-
-        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
-        vm.prank(proxyAdminOwner);
-        systemConfig.setFeature(Features.BRIDGE_HOOK, false);
-    }
-
-    /// @notice Tests that the feature can be disabled once no hook is configured.
-    function test_setFeature_disableWithoutHook_succeeds() external {
-        _enableFeature();
-        assertEq(address(optimismPortal2.bridgeHook()), address(0));
-
-        vm.prank(proxyAdminOwner);
-        systemConfig.setFeature(Features.BRIDGE_HOOK, false);
-
-        assertFalse(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK));
     }
 
     /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.

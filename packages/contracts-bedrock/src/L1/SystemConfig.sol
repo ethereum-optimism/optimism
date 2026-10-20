@@ -175,9 +175,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.4.0
+    /// @custom:semver 4.3.0
     function version() public pure virtual returns (string memory) {
-        return "4.4.0";
+        return "4.3.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -558,15 +558,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         // member of an interop set.
         if (_feature == Features.INTEROP && !_enabled) {
             revert SystemConfig_InvalidFeatureState();
-        }
-
-        // BRIDGE_HOOK cannot be disabled while the OptimismPortal still has a hook configured, so a
-        // configured hook is always in use. Call OptimismPortal2.removeHook() first, then disable
-        // the feature.
-        if (_feature == Features.BRIDGE_HOOK && !_enabled) {
-            if (address(IOptimismPortal2(payable(optimismPortal())).bridgeHook()) != address(0)) {
-                revert SystemConfig_InvalidFeatureState();
-            }
         }
 
         // Set the feature.
