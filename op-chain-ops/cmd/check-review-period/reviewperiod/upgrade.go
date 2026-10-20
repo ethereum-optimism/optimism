@@ -15,8 +15,8 @@ type LogFilterer interface {
 	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error)
 }
 
-// logRangeSize keeps eth_getLogs requests within the block range limits of common RPC providers.
-const logRangeSize = 10_000
+// logRangeSize caps each eth_getLogs call at 600 blocks (about 2 hours of L1), within most public RPCs' range limits.
+const logRangeSize = 600
 
 // UpgradedLogs returns the Upgraded events emitted by the chain's proxies in blocks [from, to].
 func UpgradedLogs(ctx context.Context, l1 LogFilterer, d ChainDelays, from, to uint64) ([]types.Log, error) {
