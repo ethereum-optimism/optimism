@@ -13,16 +13,26 @@ executors:
 
 commands:
   # Shared Go module cache. There is a single Go module in the repo, so the
-  # downloaded module set is identical for every job at a given go.sum. It is
+  # downloaded module set is identified by go.mod/go.sum and the toolchain. It is
   # populated once by the prep-go-modules job and restored read-only everywhere
-  # else, so modules are downloaded a single time per go.sum rather than once
+  # else, so modules are downloaded once per module/toolchain snapshot, not once
   # per job (every download is an opportunity for a proxy.golang.org flake).
   # c-go-cache-version is the global cache-buster for breaking changes.
   restore-go-mod-cache:
     steps:
+      - run:
+          name: Configure shared Go module cache
+          command: |
+            # Machine images use a different GOPATH than the Docker image.
+            # Both must read the directory restored/saved by these helpers.
+            GO_MODULE_CACHE_DIR="$HOME/go/pkg/mod"
+            mkdir -p "$GO_MODULE_CACHE_DIR"
+            printf 'export GOMODCACHE=%q\n' "$GO_MODULE_CACHE_DIR" >> "$BASH_ENV"
+            printf 'Shared Go module cache: %s\n' "$GO_MODULE_CACHE_DIR"
       - restore_cache:
           name: Restore Go module cache (go.sum)
           keys:
+            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}-{{ checksum "go.sum" }}-{{ checksum "mise.toml" }}
             - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
             - go-mod-<<pipeline.parameters.c-go-cache-version>>-
 
@@ -30,7 +40,7 @@ commands:
     steps:
       - save_cache:
           name: Save Go module cache (go.sum)
-          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}-{{ checksum "go.sum" }}-{{ checksum "mise.toml" }}
           paths:
             - ~/go/pkg/mod
 
