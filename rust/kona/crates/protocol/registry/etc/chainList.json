@@ -232,7 +232,7 @@
     "explorers": [
       "https://explorer.metall2.com"
     ],
-    "governedByOptimism": true,
+    "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
@@ -272,7 +272,7 @@
     "explorers": [
       "https://explorer.mode.network"
     ],
-    "governedByOptimism": true,
+    "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
@@ -552,7 +552,7 @@
     "explorers": [
       "https://explorer.zora.energy"
     ],
-    "governedByOptimism": true,
+    "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
@@ -693,7 +693,7 @@
     "explorers": [
       "https://testnet.explorer.metall2.com"
     ],
-    "governedByOptimism": true,
+    "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
@@ -713,7 +713,7 @@
     "explorers": [
       "https://sepolia.explorer.mode.network"
     ],
-    "governedByOptimism": true,
+    "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
@@ -914,7 +914,7 @@
     "explorers": [
       "https://sepolia.explorer.zora.energy"
     ],
-    "governedByOptimism": true,
+    "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
       "type": "L2",
@@ -1064,6 +1064,46 @@
     },
     "faultProofs": {
       "status": "permissionless"
+    }
+  },
+  {
+    "name": "sepolia-devnet-3",
+    "identifier": "sepolia-devnet-3/sepolia-devnet-3",
+    "chainId": 420130018,
+    "rpc": [
+      "https://sepolia-devnet-3.optimism.io/rpc"
+    ],
+    "explorers": [
+      ""
+    ],
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "sepolia-devnet-3"
+    },
+    "faultProofs": {
+      "status": "permissioned"
+    }
+  },
+  {
+    "name": "GIWA Sepolia Testnet",
+    "identifier": "sepolia/giwa",
+    "chainId": 91342,
+    "rpc": [
+      "https://sepolia-rpc.giwa.io"
+    ],
+    "explorers": [
+      "https://sepolia-explorer.giwa.io"
+    ],
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "sepolia"
+    },
+    "faultProofs": {
+      "status": "permissioned"
     }
   }
 ]

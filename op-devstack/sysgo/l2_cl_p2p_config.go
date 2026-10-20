@@ -21,7 +21,6 @@ func newDevstackP2PConfig(
 	logger log.Logger,
 	blockTime uint64,
 	noDiscovery bool,
-	enableReqRespSync bool,
 	sequencerP2PKeyHex string,
 ) (*p2p.Config, p2p.SignerSetup) {
 	require := p.Require()
@@ -52,9 +51,6 @@ func newDevstackP2PConfig(
 	if noDiscovery {
 		require.NoError(fs.Set(opNodeFlags.NoDiscoveryName, "true"))
 	}
-	if enableReqRespSync {
-		require.NoError(fs.Set(opNodeFlags.SyncReqRespName, "true"))
-	}
 
 	cliCtx := cli.NewContext(&cli.App{}, fs, nil)
 
@@ -69,7 +65,6 @@ func newDevstackP2PConfig(
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, blockTime)
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = noDiscovery
-	p2pConfig.EnableReqRespSync = enableReqRespSync
 	// Devstack chain timestamps are synthetic and can lag many minutes behind
 	// wallclock during long tests (e.g. waiting for dispute games), so the
 	// production-default 60s gossip "too old" check rejects otherwise-valid

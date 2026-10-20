@@ -178,7 +178,7 @@ here. Treat items 1–4 as **blocking**.
    `/tmp/merged-config.yml` — so you validate exactly what CI builds; don't
    re-run the `yq` merge by hand. Then validate `/tmp/merged-config.yml`, first
    stubbing the private `ethereum-optimism/circleci-utils` orb (inline orb with
-   `checkout-with-mise`, `ci-gate`, `github-event-handler-setup`, `github-stale`;
+   `checkout-with-mise`, `ci-gate`, `github-stale`;
    `name` is reserved). Also run `bash .circleci/scripts/test-decision-tree.sh`.
    Validation catches schema and missing-`requires:`-target errors, not semantics
    (items 1–6).

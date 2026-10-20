@@ -27,9 +27,6 @@ schedules:
     - scheduled_rust_nightly_bump
 
 # API triggers: dispatch flag -> workflows enabled when that flag is set.
-# Most flags fire on a simple "is the flag true?" check. main_dispatch and
-# labeled_pr have more complex conditions (see compute-workflow-conditions.sh),
-# but the workflows they enable still live here as data.
 api_dispatch:
   main_dispatch:
     - main
@@ -56,8 +53,6 @@ api_dispatch:
     - rust_e2e_ci
   rust_nightly_bump_dispatch:
     - scheduled_rust_nightly_bump
-  labeled_pr:
-    - close_issue
 
 # Workflows that run only in ethereum-optimism/optimism. They publish to OP Labs
 # infrastructure or check this project's CircleCI schedules, so other repos
@@ -92,6 +87,5 @@ passthrough_params:
   - c-default_docker_image
   - c-rust_base_image
   - c-base_image
-  - c-github-event-base64
   - c-go-cache-version
   - c-publish_contract_artifacts_ref

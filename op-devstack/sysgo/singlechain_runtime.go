@@ -110,7 +110,6 @@ func startDefaultSingleChainPrimary(
 			Key:           "sequencer",
 			IsSequencer:   true,
 			NoDiscovery:   true,
-			EnableReqResp: true,
 			DependencySet: world.Interop.DependencySet,
 			L2CLOptions:   l2CLOptions,
 		})
