@@ -3218,7 +3218,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
 
     /// @notice Marks an item as held by writing its bit directly.
     /// @param _mapping Either "heldDeposits" or "heldWithdrawals".
-    /// @param _key The item ID or withdrawal hash.
+    /// @param _key The item ID.
     function _mockHeld(string memory _mapping, bytes32 _key) internal {
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", _mapping);
         vm.store(address(optimismPortal2), keccak256(abi.encode(_key, slot.slot)), bytes32(uint256(1)));
@@ -3245,9 +3245,9 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     function test_initialize_zeroBridgeHookKeepsCurrent_succeeds() external {
         _setHook(hook);
         bytes32 depositId = keccak256("deposit");
-        bytes32 withdrawalHash = keccak256("withdrawal");
+        bytes32 withdrawalId = keccak256("withdrawal");
         _mockHeld("heldDeposits", depositId);
-        _mockHeld("heldWithdrawals", withdrawalHash);
+        _mockHeld("heldWithdrawals", withdrawalId);
 
         _allowReinitialize();
         vm.recordLogs();
@@ -3261,7 +3261,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         }
         assertEq(address(optimismPortal2.bridgeHook()), hook);
         assertTrue(optimismPortal2.heldDeposits(depositId));
-        assertTrue(optimismPortal2.heldWithdrawals(withdrawalHash));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
     }
 
     /// @notice Tests that initializing with another nonzero hook replaces the current one and
@@ -3269,9 +3269,9 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     function test_initialize_replacesBridgeHook_succeeds() external {
         _setHook(hook);
         bytes32 depositId = keccak256("deposit");
-        bytes32 withdrawalHash = keccak256("withdrawal");
+        bytes32 withdrawalId = keccak256("withdrawal");
         _mockHeld("heldDeposits", depositId);
-        _mockHeld("heldWithdrawals", withdrawalHash);
+        _mockHeld("heldWithdrawals", withdrawalId);
         address newHook = makeAddr("newBridgeHook");
         _allowReinitialize();
 
@@ -3281,7 +3281,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
 
         assertEq(address(optimismPortal2.bridgeHook()), newHook);
         assertTrue(optimismPortal2.heldDeposits(depositId));
-        assertTrue(optimismPortal2.heldWithdrawals(withdrawalHash));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
     }
 
     /// @notice Tests that initialize rejects a nonzero hook while the feature is disabled.
@@ -3314,16 +3314,16 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     function test_removeHook_withHeldItems_succeeds() external {
         _setHook(hook);
         bytes32 depositId = keccak256("deposit");
-        bytes32 withdrawalHash = keccak256("withdrawal");
+        bytes32 withdrawalId = keccak256("withdrawal");
         _mockHeld("heldDeposits", depositId);
-        _mockHeld("heldWithdrawals", withdrawalHash);
+        _mockHeld("heldWithdrawals", withdrawalId);
 
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
 
         assertEq(address(optimismPortal2.bridgeHook()), address(0));
         assertTrue(optimismPortal2.heldDeposits(depositId));
-        assertTrue(optimismPortal2.heldWithdrawals(withdrawalHash));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
     }
 
     /// @notice Tests that only the ProxyAdmin owner can remove the hook.

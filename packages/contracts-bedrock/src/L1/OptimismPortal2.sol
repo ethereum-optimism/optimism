@@ -141,16 +141,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:network-specific
     uint256 public proofMaturityDelaySeconds;
 
-    /// @notice Hook that screens deposits and withdrawal finalizations. While this is the zero
-    ///         address the Portal behaves as on a default OP Stack chain. Set only by initialize
-    ///         and cleared only by removeHook.
+    /// @notice Bridge hook that screens deposits and withdrawals, or the zero address if unset.
     /// @custom:network-specific
     IBridgeHook public bridgeHook;
 
     /// @notice Deposits the hook is holding, keyed by item ID.
     mapping(bytes32 => bool) public heldDeposits;
 
-    /// @notice Withdrawals the hook is holding, keyed by withdrawal hash.
+    /// @notice Withdrawals the hook is holding, keyed by item ID.
     mapping(bytes32 => bool) public heldWithdrawals;
 
     /// @notice Emitted when the Portal is migrated.
@@ -311,10 +309,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _disableInitializers();
     }
 
-    /// @notice Initializer. A zero `_bridgeHook` keeps the current hook, so a re-initialization
-    ///         during an upgrade cannot wipe it. A nonzero `_bridgeHook` replaces the hook and
-    ///         emits BridgeHookSet on every run. This is the only way to set a hook, and only the
-    ///         ProxyAdmin or its owner can call it. A replaced hook is no longer an unsafe target.
+    /// @notice Initializer. A nonzero `_bridgeHook` replaces the current hook and emits
+    ///         BridgeHookSet on every run. Value held by a replaced hook stays with it. Upgrades
+    ///         pass the zero address to keep the current hook.
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
@@ -857,11 +854,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Removes the bridge hook. Only callable by the ProxyAdmin owner. A hook can only be
-    ///         set again by re-initializing the Portal. Removal stops screening for new items but
-    ///         strands every item the hook is holding, since completion is only callable by it.
-    ///         The removed hook is no longer an unsafe withdrawal target, so a hook must check
-    ///         that it is still the Portal's hook before trusting a call from the Portal.
+    /// @notice Removes the bridge hook. Only callable by the ProxyAdmin owner. The removed hook
+    ///         keeps the value it holds and stops being an unsafe target. Only initialize can set
+    ///         a hook again.
     function removeHook() external {
         _assertOnlyProxyAdminOwner();
 
@@ -882,9 +877,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _item Held withdrawal.
     function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
 
-    /// @notice Checks if the bridge hook is in use. Gates screening and completion. Disabling the
-    ///         feature therefore strands held items until it is enabled again, which SystemConfig
-    ///         refuses while a hook is set.
+    /// @notice Checks if the bridge hook is in use.
     /// @return bool True if a hook is set and the BRIDGE_HOOK feature is enabled.
     function _isUsingBridgeHook() internal view returns (bool) {
         return address(bridgeHook) != address(0) && systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK);
@@ -958,9 +951,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
-    /// @notice Checks if a target address is unsafe. The L1StandardBridge is unsafe whether or not
-    ///         the chain sets a hook since its holdERC20 and restoreERC20 entry points authorize
-    ///         on the Portal being the caller. The hook is unsafe only while it is set.
+    /// @notice Checks if a target address is unsafe. The L1StandardBridge is always unsafe, and
+    ///         the bridge hook is unsafe while it is set.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         if (_target == address(this) || _target == address(ethLockbox)) return true;
