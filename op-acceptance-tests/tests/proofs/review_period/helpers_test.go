@@ -42,6 +42,7 @@ func readDelaysAcrossLastUpgrade(t devtest.T, l1 *dsl.L1ELNode, systemConfig com
 
 // delaySetters binds the review period delay setters.
 type delaySetters struct {
+	SetProofMaturityDelaySeconds       func(seconds *big.Int) bindings.TypedCall[any] `sol:"setProofMaturityDelaySeconds"`
 	SetDisputeGameFinalityDelaySeconds func(seconds *big.Int) bindings.TypedCall[any] `sol:"setDisputeGameFinalityDelaySeconds"`
 }
 
@@ -69,6 +70,13 @@ func (o *delayOwner) SetFinalityDelay(d reviewperiod.ChainDelays, seconds uint64
 	_, err := contractio.Write(o.setters(d.AnchorStateRegistry).SetDisputeGameFinalityDelaySeconds(new(big.Int).SetUint64(seconds)), o.t.Ctx(), o.Plan())
 	o.t.Require().NoError(err, "failed to set the dispute game finality delay to %d", seconds)
 	o.t.Logf("Set the dispute game finality delay of chain %d to %d", d.L2ChainID, seconds)
+}
+
+// SetProofMaturityDelay sets the proof maturity delay on the chain's OptimismPortal2.
+func (o *delayOwner) SetProofMaturityDelay(d reviewperiod.ChainDelays, seconds uint64) {
+	_, err := contractio.Write(o.setters(d.OptimismPortal).SetProofMaturityDelaySeconds(new(big.Int).SetUint64(seconds)), o.t.Ctx(), o.Plan())
+	o.t.Require().NoError(err, "failed to set the proof maturity delay to %d", seconds)
+	o.t.Logf("Set the proof maturity delay of chain %d to %d", d.L2ChainID, seconds)
 }
 
 // guardianActions binds the guardian's AnchorStateRegistry actions.
