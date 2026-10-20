@@ -134,6 +134,12 @@ ancestor relationship and exact input identity; changed helper inputs force a
 new producer. Binaries retain their actual build revision and consumers record
 the current PR revision separately.
 
+RWX output filters apply to a task's modified layer; inherited parent layers
+remain part of downstream filesystems. Mixing ancestor helper producers with
+HEAD can therefore restore ancestor Git metadata. Discovery, compilation and
+runtime entrypoints reset to their declared current SHA after assembly, then
+verify the actual checkout and clean tracked source before using sealed inputs.
+
 Module sources travel through native filesystem inheritance instead of a full
 module-cache tarball repeated in every runtime artifact. The sealed helper
 archives retain binaries and runtime assets. Runtime filters exclude Go compiler

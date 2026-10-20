@@ -74,6 +74,9 @@ def restore(kind, artifact):
     metadata = json.loads((artifact / 'metadata.json').read_text())
     expected = provenance(kind)
     if 'build_inputs_sha256' in metadata:
+        actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        if actual != os.environ['CI_COMMIT_SHA']:
+            raise ValueError(f"Consumer checkout {actual} differs from requested {os.environ['CI_COMMIT_SHA']}")
         dependency_source().verify(kind, metadata)
         expected.pop('commit_sha')
     if any(metadata.get(key) != value for key, value in expected.items()):

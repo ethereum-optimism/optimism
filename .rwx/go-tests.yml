@@ -711,6 +711,11 @@ tasks:
     use: [go-build-tools, go.build, contracts.build, source]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
+      if ! git cat-file -e "$CI_COMMIT_SHA^{commit}"; then git fetch --no-tags origin "$CI_COMMIT_SHA"; fi
+      git reset --hard "$CI_COMMIT_SHA"
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
       python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
       python3 ops/ci/runtime/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
       mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
