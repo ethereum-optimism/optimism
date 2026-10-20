@@ -70,3 +70,31 @@ func (o *delayOwner) SetFinalityDelay(d reviewperiod.ChainDelays, seconds uint64
 	o.t.Require().NoError(err, "failed to set the dispute game finality delay to %d", seconds)
 	o.t.Logf("Set the dispute game finality delay of chain %d to %d", d.L2ChainID, seconds)
 }
+
+// guardianActions binds the guardian's AnchorStateRegistry actions.
+type guardianActions struct {
+	BlacklistDisputeGame func(game common.Address) bindings.TypedCall[any] `sol:"blacklistDisputeGame"`
+}
+
+// guardian is the Superchain guardian, which can blacklist dispute games.
+type guardian struct {
+	t  devtest.T
+	l1 *dsl.L1ELNode
+	*dsl.EOA
+}
+
+// newGuardian returns the Superchain guardian, funded to send transactions.
+func newGuardian(t devtest.T, l1 *dsl.L1ELNode, l1ChainID eth.ChainID, l2 *dsl.L2Network, funder *dsl.FunderEOA) *guardian {
+	priv := l2.Escape().Keys().Secret(devkeys.SuperchainOperatorKeys(l1ChainID.ToBig())(devkeys.SuperchainConfigGuardianKey))
+	g := dsl.NewKey(t, priv).User(l1)
+	funder.FundAtLeast(g, eth.OneEther)
+	return &guardian{t: t, l1: l1, EOA: g}
+}
+
+// BlacklistGame blacklists a dispute game on the chain's AnchorStateRegistry.
+func (g *guardian) BlacklistGame(d reviewperiod.ChainDelays, game common.Address) {
+	asr := bindings.NewBindings[guardianActions](bindings.WithClient(g.l1.EthClient()), bindings.WithTo(d.AnchorStateRegistry), bindings.WithTest(g.t))
+	_, err := contractio.Write(asr.BlacklistDisputeGame(game), g.t.Ctx(), g.Plan())
+	g.t.Require().NoError(err, "failed to blacklist dispute game %s", game)
+	g.t.Logf("Blacklisted dispute game %s", game)
+}
