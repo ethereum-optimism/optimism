@@ -547,7 +547,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // Attach the portal directly to the shared ETHLockbox before migrating portal-held ETH.
         // NOTE: The portal's proof maturity delay is read here, before the implementation swap,
         // and carried forward unchanged. At the time of the migration, it is assumed that all chains will
-        // have the same proof maturity delay. A zero bridge hook keeps the portal's current hook.
+        // have the same proof maturity delay.
+        // NOTE: Passing a zero address bridge hook keeps the portal's current hook.
         _upgrade(
             _systemConfig.proxyAdmin(),
             address(portal),
