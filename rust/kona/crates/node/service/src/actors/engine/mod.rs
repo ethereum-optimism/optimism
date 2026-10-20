@@ -11,5 +11,7 @@ pub use handle::{
 mod config;
 pub use config::EngineConfig;
 
+mod finalizer;
+
 mod error;
 pub use error::{EngineClientError, EngineClientResult, EngineError};

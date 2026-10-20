@@ -67,9 +67,17 @@ actual safe state and instructs derivation to flush its channel before continuin
 rejected deposits-only block is fatal. `ACCEPTED` and `SYNCING` are temporary responses
 for derived imports and do not trigger replacement.
 
-Finalization carries a recorded L2 hash and, for local derivation, its L1 inclusion source.
-The owner checks the epoch, applied safe bound, canonical L2 hash and canonical L1 source
-before moving finalized forkchoice. Trusted delegation uses an explicit delegated mode.
+The owner records accepted completed-safe blocks and their actual L1 inclusion sources
+before replying to consolidation. It considers records on new safe work and independent
+L1 finality observations, so an idle derivation pipeline cannot strand finality. Before
+moving finalized forkchoice it checks the epoch, completed-safe bound, canonical L2 hash,
+canonical inclusion source and the observed finalized L1 signal itself. Temporary reads
+retry independently; engine epoch invalidation clears the records.
+
+Trusted delegation carries an explicit finalized claim alongside its safe update, without
+local provenance. That claim waits through EL synchronization until the owner is ready.
+Only a `VALID` response publishes proposed finality; `SYNCING` or an ambiguous forkchoice
+response initiates recovery.
 
 ## Queries and observability
 
@@ -77,7 +85,8 @@ RPC handlers read configuration and the owner's accepted state and pending-work 
 directly. Output reads use the L2 provider independently, so a slow proof request cannot
 stall other RPC reads. Before Isthmus, the proof is pinned to the fetched block's canonical
 hash; after Isthmus, its withdrawals root comes from the same header. Pending work includes
-accepted mailbox entries and active attempts, including while an execution RPC is stalled.
+admitted mailbox entries and active attempts, including while an execution RPC is stalled.
+Owner-generated automatic finality has no mailbox admission and does not affect that count.
 
 Existing engine operation metrics retain their wire names and labels. Block-label gauges
 reflect published accepted state, including partial changes made before a later error.

@@ -1,6 +1,8 @@
 //! Hash-pinned finalization with explicit provenance.
 
-use crate::{EngineClient, EngineState, EngineSyncStateUpdate, FinalizeError, synchronize};
+use crate::{
+    EngineClient, EngineState, EngineSyncStateUpdate, FinalizeError, ForkchoiceStatus, synchronize,
+};
 use alloy_eips::{BlockId, BlockNumHash};
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -16,6 +18,7 @@ pub enum FinalizationSource {
 
 /// Finalizes the recorded hash only after checking current canonical L1/L2 data.
 /// The caller validates the reset epoch before entering this operation.
+/// Only a VALID forkchoice publishes the proposed finalized head. SYNCING requires recovery.
 pub async fn finalize(
     client: &impl EngineClient,
     cfg: &RollupConfig,
@@ -53,11 +56,16 @@ pub async fn finalize(
             return Err(FinalizeError::L1Mismatch(source));
         }
     }
-    synchronize(
+    let mut proposed = *state;
+    let accepted = synchronize(
         client,
-        state,
+        &mut proposed,
         EngineSyncStateUpdate { finalized_head: Some(info), ..Default::default() },
     )
     .await?;
+    if accepted == ForkchoiceStatus::Syncing {
+        return Err(FinalizeError::Syncing);
+    }
+    *state = proposed;
     Ok(())
 }

@@ -1,7 +1,6 @@
 use super::{EngineClientError, EngineClientResult};
-use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{Consolidation, EngineState, FinalizationSource};
+use kona_engine::{Consolidation, EngineState};
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -76,8 +75,7 @@ pub(crate) enum Message {
     Seal(BuildToken, Reply<Sealed>),
     Canonicalize(Box<Sealed>, Reply<OpExecutionPayloadEnvelope>),
     Consolidate(EngineContext, OpAttributesWithParent, Reply<Consolidated>),
-    FollowSafe(EngineContext, L2BlockInfo, Reply<Consolidated>),
-    Finalize(u64, BlockNumHash, FinalizationSource, Reply<()>),
+    FollowSafe(EngineContext, L2BlockInfo, L2BlockInfo, Reply<Consolidated>),
 }
 
 /// Bounded unsafe admission did not accept the payload.
@@ -161,26 +159,16 @@ impl EngineHandle {
         rx.await.map_err(|_| EngineClientError::Closed)?
     }
 
-    /// Follows an explicitly trusted derivation delegate's safe head.
+    /// Follows an explicitly trusted delegate's safe head and retains its finalized claim.
+    /// The reply acknowledges safe acceptance; finalized completion is published separately.
     pub async fn follow_safe(
         &self,
         context: EngineContext,
         block: L2BlockInfo,
+        trusted_finalized: L2BlockInfo,
     ) -> EngineClientResult<Consolidated> {
         let (tx, rx) = oneshot::channel();
-        self.send(Message::FollowSafe(context, block, tx)).await?;
-        rx.await.map_err(|_| EngineClientError::Closed)?
-    }
-
-    /// Finalizes a recorded hash after the owner revalidates its epoch and provenance.
-    pub async fn finalize(
-        &self,
-        epoch: u64,
-        block: BlockNumHash,
-        source: FinalizationSource,
-    ) -> EngineClientResult<()> {
-        let (tx, rx) = oneshot::channel();
-        self.send(Message::Finalize(epoch, block, source, tx)).await?;
+        self.send(Message::FollowSafe(context, block, trusted_finalized, tx)).await?;
         rx.await.map_err(|_| EngineClientError::Closed)?
     }
 

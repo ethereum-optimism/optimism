@@ -20,8 +20,6 @@ pub enum DerivationClientError {
 /// Inbound requests that the [`crate::DerivationActor`] can process.
 #[derive(Debug)]
 pub enum DerivationActorRequest {
-    /// A request to process the provided finalized L1 [`BlockInfo`].
-    ProcessFinalizedL1Block(Box<BlockInfo>),
     /// Request to process the provided L1 head block update.
-    ProcessL1HeadUpdateRequest(Box<BlockInfo>),
+    ProcessL1HeadUpdateRequest(BlockInfo),
 }

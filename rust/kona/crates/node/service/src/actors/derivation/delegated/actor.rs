@@ -5,7 +5,7 @@ use crate::{
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use kona_derive::ChainProvider;
-use kona_engine::{EnginePhase, EngineState, FinalizationSource};
+use kona_engine::{EnginePhase, EngineState};
 use kona_protocol::{BlockInfo, SyncStatus};
 use kona_rpc::DerivationStatus;
 use thiserror::Error;
@@ -98,12 +98,8 @@ where
                     );
                     DerivationError::RequestReceiveFailed
                 })?;
-                match request {
-                    DerivationActorRequest::ProcessFinalizedL1Block(_) |
-                    DerivationActorRequest::ProcessL1HeadUpdateRequest(_) => {
-                        trace!(target: "derivation", "Delegation polls upstream state independently of L1 notifications");
-                    }
-                }
+                let DerivationActorRequest::ProcessL1HeadUpdateRequest(_) = request;
+                trace!(target: "derivation", "Delegation polls upstream state independently of L1 notifications");
                 Ok(())
             }
             result = self.engine_state.changed() => {
@@ -231,7 +227,10 @@ where
         });
 
         let context = EngineContext { epoch: state.epoch, parent: state.sync_state.safe_head() };
-        let result = self.engine_client.follow_safe(context, sync_status.safe_l2).await;
+        let result = self
+            .engine_client
+            .follow_safe(context, sync_status.safe_l2, sync_status.finalized_l2)
+            .await;
         match result {
             Ok(_) => {}
             Err(
@@ -241,30 +240,11 @@ where
             ) => return Ok(()),
             Err(error) => return Err(error.into()),
         }
-        // Delegation retains its explicit upstream trust; no local inclusion source is invented.
-        match self
-            .engine_client
-            .finalize(
-                state.epoch,
-                sync_status.finalized_l2.block_info.id(),
-                FinalizationSource::Delegated,
-            )
-            .await
-        {
-            Ok(()) => {}
-            Err(
-                EngineClientError::Temporary(_) |
-                EngineClientError::Stale |
-                EngineClientError::Rejected(_),
-            ) => return Ok(()),
-            Err(error) => return Err(error.into()),
-        }
-
         debug!(
             target: "derivation",
             safe_l2 = ?sync_status.safe_l2,
             finalized_l2 = ?sync_status.finalized_l2,
-            "Processed sync status from delegate"
+            "Accepted delegated safe update and finality claim"
         );
 
         Ok(())
@@ -355,17 +335,81 @@ mod tests {
         for number in [2, 0, 3] {
             let (result, ()) =
                 tokio::join!(actor.fetch_and_apply_delegate_safe_head(state), async {
-                    let Message::FollowSafe(_, safe, reply) = owner.commands.recv().await.unwrap()
+                    let Message::FollowSafe(_, safe, finalized, reply) =
+                        owner.commands.recv().await.unwrap()
                     else {
                         panic!("expected follow safe")
                     };
                     assert_eq!(safe, status(block(number)).safe_l2);
+                    assert_eq!(finalized, status(block(number)).finalized_l2);
                     assert_eq!(progress.borrow().current_l1, Some(block(number)));
                     reply.send(Err(EngineClientError::Temporary("EL unavailable".into()))).unwrap();
                 });
             result.unwrap();
         }
         assert_eq!(owner.state.borrow().sync_state.safe_head(), L2BlockInfo::default());
+    }
+
+    #[tokio::test]
+    async fn unchanged_safe_transports_each_validated_finality_claim_without_waiting_for_finalization()
+     {
+        use crate::Consolidated;
+        use kona_engine::{Consolidation, EngineSyncStateUpdate};
+        let first = L2BlockInfo { block_info: block(0), l1_origin: block(0).id(), seq_num: 0 };
+        let second = L2BlockInfo { block_info: block(1), l1_origin: block(1).id(), seq_num: 0 };
+        let safe = L2BlockInfo { block_info: block(2), l1_origin: block(1).id(), seq_num: 1 };
+        let mut state = EngineState {
+            epoch: 3,
+            phase: EnginePhase::Ready,
+            pending_safe_head: safe,
+            ..Default::default()
+        };
+        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(safe),
+            safe_head: Some(safe),
+            local_safe_head: Some(safe),
+            finalized_head: Some(first),
+        });
+        let (engine, mut owner) = EngineHandle::test_channel(state);
+        let (_l1, requests) = mpsc::channel(1);
+        let provider = Statuses {
+            values: Mutex::new(
+                [first, second]
+                    .map(|finalized_l2| SyncStatus {
+                        safe_l2: safe,
+                        finalized_l2,
+                        ..status(block(3))
+                    })
+                    .into(),
+            ),
+            blocked: None,
+        };
+        let mut actor = DelegateDerivationActor::new(
+            engine,
+            requests,
+            provider,
+            chain(),
+            watch::channel(DerivationStatus::default()).0,
+        );
+        for claim in [first, second] {
+            let (result, ()) =
+                tokio::join!(actor.fetch_and_apply_delegate_safe_head(state), async {
+                    let Message::FollowSafe(context, received_safe, finalized, reply) =
+                        owner.commands.recv().await.unwrap()
+                    else {
+                        panic!("expected trusted safe/finality pair")
+                    };
+                    assert_eq!(context, EngineContext { epoch: 3, parent: safe });
+                    assert_eq!(received_safe, safe);
+                    assert_eq!(finalized, claim);
+                    reply
+                        .send(Ok(Consolidated { state, outcome: Consolidation::Applied }))
+                        .unwrap();
+                });
+            result.unwrap();
+            assert_eq!(owner.state.borrow().sync_state.finalized_head(), first);
+            assert!(owner.commands.try_recv().is_err());
+        }
     }
 
     #[tokio::test]
@@ -382,7 +426,7 @@ mod tests {
         let mut actor =
             DelegateDerivationActor::new(engine, requests, provider, chain(), published);
         let (result, ()) = tokio::join!(actor.fetch_and_apply_delegate_safe_head(state), async {
-            let Message::FollowSafe(_, _, reply) = owner.commands.recv().await.unwrap() else {
+            let Message::FollowSafe(_, _, _, reply) = owner.commands.recv().await.unwrap() else {
                 panic!("expected follow safe")
             };
             reply.send(Err(EngineClientError::Temporary("retry".into()))).unwrap();

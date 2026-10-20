@@ -1,6 +1,7 @@
 use super::{
     BuildToken, Consolidated, EngineClientError, EngineClientResult, EngineContext, EngineError,
     EngineHandle, Sealed,
+    finalizer::L2Finalizer,
     handle::{Message, Reply},
 };
 use crate::NodeActor;
@@ -8,8 +9,8 @@ use alloy_eips::{BlockId, BlockNumHash};
 use async_trait::async_trait;
 use kona_engine::{
     self as engine, BuildError, ConsolidateError, EngineClient, EnginePhase, EngineState,
-    EngineSyncStateUpdate, FinalizeError, ForkchoiceError, ForkchoiceStatus, ImportedBlockSink,
-    InsertError, L2ForkchoiceState, SyncStartError, SyncStartPolicy,
+    EngineSyncStateUpdate, FinalizationSource, FinalizeError, ForkchoiceError, ForkchoiceStatus,
+    ImportedBlockSink, InsertError, L2ForkchoiceState, SyncStartError, SyncStartPolicy,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -51,15 +52,25 @@ pub struct EngineActor<C: EngineClient> {
     retry_at: Instant,
     retry_delay: Duration,
     prefer_command: bool,
+    /// Give admitted work one opportunity between periodic dependency attempts.
+    yield_to_work: bool,
+    /// Alternate due canonicality and finality checks when dependencies are slow.
+    prefer_finality: bool,
     l1: watch::Receiver<L1State>,
     lifecycle: Lifecycle,
     recovery_at: Instant,
     recovery_delay: Duration,
     check_at: Instant,
-    checked_origins: Vec<BlockNumHash>,
+    /// Applied origin identities at the last check attempt; dirty retains an unconfirmed result.
+    origin_check_inputs: Vec<BlockNumHash>,
     origins_dirty: bool,
     /// A real requested target; observing `eth_syncing` alone does not establish one.
     sync_target: Option<L2ForkchoiceState>,
+    /// Actual completed-safe local blocks and their real L1 inclusion sources.
+    finalizer: L2Finalizer,
+    /// A validated delegate's explicit trust claim, independent of local inclusion records.
+    delegated_finalized: Option<L2BlockInfo>,
+    finality_retry_at: Option<Instant>,
 }
 
 impl<C: EngineClient + 'static> EngineActor<C> {
@@ -105,14 +116,19 @@ impl<C: EngineClient + 'static> EngineActor<C> {
                 retry_at: Instant::now(),
                 retry_delay: Duration::from_millis(100),
                 prefer_command: true,
+                yield_to_work: false,
+                prefer_finality: false,
                 l1,
                 lifecycle: Lifecycle::Loading,
                 recovery_at: Instant::now(),
                 recovery_delay: Duration::from_millis(100),
                 check_at: Instant::now(),
-                checked_origins: Vec::new(),
+                origin_check_inputs: Vec::new(),
                 origins_dirty: false,
                 sync_target: None,
+                finalizer: L2Finalizer::default(),
+                delegated_finalized: None,
+                finality_retry_at: None,
             },
             handle,
         )
@@ -137,6 +153,11 @@ impl<C: EngineClient + 'static> EngineActor<C> {
     fn invalidate(&mut self, phase: EnginePhase) {
         self.state.epoch = self.state.epoch.checked_add(1).expect("engine epoch exhausted");
         self.state.phase = phase;
+        self.yield_to_work = false;
+        self.prefer_finality = false;
+        self.finalizer.clear();
+        self.delegated_finalized = None;
+        self.finality_retry_at = None;
         if self.active_unsafe.take().is_some() {
             self.complete();
         }
@@ -271,7 +292,6 @@ impl<C: EngineClient + 'static> EngineActor<C> {
             Message::Consolidate(..) | Message::FollowSafe(..) => {
                 engine::Metrics::CONSOLIDATE_TASK_LABEL
             }
-            Message::Finalize(..) => engine::Metrics::FINALIZE_TASK_LABEL,
         };
         macro_rules! reply {
             ($tx:expr, $result:expr) => {{
@@ -352,6 +372,8 @@ impl<C: EngineClient + 'static> EngineActor<C> {
                 reply!(tx, result)
             }
             Message::Consolidate(context, attrs, tx) => {
+                let previous_safe = self.state.sync_state.safe_head();
+                let inclusion_source = attrs.derived_from;
                 let result = async {
                     self.guard(context, true)?;
                     if attrs.parent != context.parent {
@@ -372,6 +394,14 @@ impl<C: EngineClient + 'static> EngineActor<C> {
                     .map_err(consolidate_failure)
                 }
                 .await;
+                if let (Some(source), Ok(outcome)) = (inclusion_source, &result) &&
+                    *outcome != engine::Consolidation::Dropped &&
+                    self.state.phase == EnginePhase::Ready &&
+                    self.state.sync_state.safe_head().block_info.number >
+                        previous_safe.block_info.number
+                {
+                    self.finalizer.record(self.state.sync_state.safe_head(), source);
+                }
                 let (result, fatal) =
                     self.finish(label, result, prior, trusted_follow, requested_parent);
                 let result = result.map(|outcome| Consolidated { state: self.state, outcome });
@@ -379,9 +409,14 @@ impl<C: EngineClient + 'static> EngineActor<C> {
                 let _ = tx.send(result);
                 fatal
             }
-            Message::FollowSafe(context, block, tx) => {
+            Message::FollowSafe(context, block, trusted_finalized, tx) => {
                 let result = async {
                     self.guard(context, true)?;
+                    if trusted_finalized.block_info.number > block.block_info.number {
+                        return Err(Failure::Rejected(
+                            "delegate finalized head is ahead of its safe head".into(),
+                        ));
+                    }
                     engine::follow_safe(
                         self.client.as_ref(),
                         &self.config,
@@ -395,38 +430,19 @@ impl<C: EngineClient + 'static> EngineActor<C> {
                 .await;
                 let (result, fatal) =
                     self.finish(label, result, prior, trusted_follow, requested_parent);
+                // Following may invalidate the old epoch inside finish. Retain only this
+                // accepted request's claim afterward; stale/unready requests cannot install it.
+                if result.is_ok() {
+                    let finalized = self.state.sync_state.finalized_head().block_info;
+                    self.delegated_finalized = (trusted_finalized.block_info.number >=
+                        finalized.number &&
+                        trusted_finalized.block_info.id() != finalized.id())
+                    .then_some(trusted_finalized);
+                }
                 let result = result.map(|outcome| Consolidated { state: self.state, outcome });
                 self.complete();
                 let _ = tx.send(result);
                 fatal
-            }
-            Message::Finalize(epoch, block, source, tx) => {
-                let result = async {
-                    if epoch != self.state.epoch || self.state.phase != EnginePhase::Ready {
-                        return Err(Failure::Stale);
-                    }
-                    engine::finalize(
-                        self.client.as_ref(),
-                        &self.config,
-                        &mut self.state,
-                        block,
-                        source,
-                    )
-                    .await
-                    .map_err(|error| match error {
-                        FinalizeError::Forkchoice(e) => forkchoice_failure(e),
-                        FinalizeError::L2Mismatch(_) | FinalizeError::L1Mismatch(_) => {
-                            Failure::Reset(error.to_string())
-                        }
-                        FinalizeError::Rpc(_) | FinalizeError::BlockNotFound(_) => {
-                            Failure::Retry(error.to_string())
-                        }
-                        FinalizeError::NotSafe => Failure::Stale,
-                        FinalizeError::BlockInfo(_) => Failure::Fatal(error.to_string()),
-                    })
-                }
-                .await;
-                reply!(tx, result)
             }
         }
     }
@@ -439,7 +455,7 @@ impl<C: EngineClient + 'static> EngineActor<C> {
                 self.lifecycle = Lifecycle::Ready;
                 self.sync_target = None;
                 self.recovery_delay = Duration::from_millis(100);
-                self.checked_origins = self.origins();
+                self.origin_check_inputs = self.origins();
                 self.origins_dirty = false;
                 kona_macros::inc!(counter, engine::Metrics::ENGINE_RESET_COUNT);
                 self.publish();
@@ -637,9 +653,9 @@ impl<C: EngineClient + 'static> EngineActor<C> {
     }
 
     async fn check_origins(&mut self) -> Result<(), EngineError> {
+        self.origin_check_inputs = self.origins();
         match self.origins_are_canonical().await {
             Ok(true) => {
-                self.checked_origins = self.origins();
                 self.origins_dirty = false;
             }
             Ok(false) => self.begin_reset(),
@@ -653,6 +669,86 @@ impl<C: EngineClient + 'static> EngineActor<C> {
             }
         }
         Ok(())
+    }
+
+    fn has_finality_candidate(&self) -> bool {
+        self.delegated_finalized.is_some() ||
+            self.l1
+                .borrow()
+                .finalized
+                .is_some_and(|signal| self.finalizer.candidate(signal.number).is_some())
+    }
+
+    /// Finality is owner-generated work: it has no mailbox admission to decrement.
+    async fn finalize(&mut self) -> Result<(), EngineError> {
+        let signal = self.l1.borrow().finalized;
+        let record = if self.delegated_finalized.is_none() {
+            signal.and_then(|signal| self.finalizer.candidate(signal.number))
+        } else {
+            None
+        };
+        let (block, source) = match (self.delegated_finalized, record) {
+            (Some(block), _) => (block.block_info.id(), FinalizationSource::Delegated),
+            (None, Some(record)) => {
+                (record.block.block_info.id(), FinalizationSource::Local(record.source.id()))
+            }
+            (None, None) => return Ok(()),
+        };
+        let prior = self.checkpoint();
+        let result = async {
+            let finalized = self.state.sync_state.finalized_head().block_info;
+            if block.number < finalized.number || block == finalized.id() {
+                return Ok(());
+            }
+            if block.number > self.state.sync_state.safe_head().block_info.number {
+                return Err(Failure::Reset(
+                    "retained finality candidate is above completed safe".into(),
+                ));
+            }
+            if record.is_some() {
+                let signal =
+                    signal.expect("local candidate requires an observed finalized L1 block");
+                let id: BlockId = signal.number.into();
+                let canonical = self
+                    .client
+                    .get_l1_block(id)
+                    .await
+                    .map_err(|error| Failure::Retry(error.to_string()))?
+                    .ok_or_else(|| {
+                        Failure::Retry(format!("finalized L1 block unavailable: {id}"))
+                    })?;
+                if canonical.header.number != signal.number {
+                    return Err(Failure::Fatal(SyncStartError::InvalidL1Response(id).to_string()));
+                }
+                if canonical.header.hash != signal.hash {
+                    return Err(Failure::Reset(
+                        "observed finalized L1 block is no longer canonical".into(),
+                    ));
+                }
+            }
+            engine::finalize(self.client.as_ref(), &self.config, &mut self.state, block, source)
+                .await
+                .map_err(finalize_failure)
+        }
+        .await;
+        let retry = matches!(result, Err(Failure::Retry(_)));
+        if result.is_ok() {
+            if let Some(record) = record {
+                self.finalizer.acknowledge(record);
+            } else {
+                self.delegated_finalized = None;
+            }
+            self.finality_retry_at = None;
+        }
+        let (result, fatal) =
+            self.finish(engine::Metrics::FINALIZE_TASK_LABEL, result, prior, false, None);
+        if retry && self.lifecycle == Lifecycle::Ready {
+            self.finality_retry_at = Some(Instant::now() + Duration::from_millis(100));
+        }
+        if let Err(error) = result {
+            debug!(target: "engine", ?error, "Finality attempt did not apply");
+        }
+        fatal
     }
 
     async fn unsafe_payload(&mut self) -> Result<(), EngineError> {
@@ -714,16 +810,38 @@ impl<C: EngineClient + 'static> NodeActor for EngineActor<C> {
         if recovering && Instant::now() >= self.recovery_at {
             return self.recover().await;
         }
-        if !recovering && self.origins() != self.checked_origins {
+        let inputs_changed = !recovering && self.origins() != self.origin_check_inputs;
+        if inputs_changed {
             self.origins_dirty = true;
-        }
-        if !recovering && self.origins_dirty && Instant::now() >= self.check_at {
-            return self.check_origins().await;
+            self.check_at = Instant::now();
+            self.yield_to_work = false;
+            self.prefer_finality = false;
         }
         // Bootstrap/SYNCING still accepts unsafe targets, while producer commands require Ready.
         let unsafe_enabled = !matches!(self.lifecycle, Lifecycle::Following { .. }) &&
             (matches!(self.lifecycle, Lifecycle::Loading | Lifecycle::Bootstrap(_)) ||
                 self.state.phase != EnginePhase::Resetting);
+        let unsafe_pending = self.active_unsafe.is_some() || !self.unsafe_payloads.is_empty();
+        let unsafe_ready = unsafe_enabled && Instant::now() >= self.retry_at && unsafe_pending;
+        let yield_to_work = std::mem::take(&mut self.yield_to_work) &&
+            (!self.commands.is_empty() || self.commands.is_closed() || unsafe_ready);
+        let canonicality_due = !recovering && self.origins_dirty && Instant::now() >= self.check_at;
+        let finality_due = !recovering &&
+            self.state.phase == EnginePhase::Ready &&
+            self.has_finality_candidate() &&
+            self.finality_retry_at.is_none_or(|deadline| deadline <= Instant::now());
+        if !yield_to_work && canonicality_due && (!self.prefer_finality || !finality_due) {
+            // New inputs need their first safety check before another producer changes them.
+            // Let due finality run next; stable-input retries still yield to admitted work.
+            self.yield_to_work = !inputs_changed;
+            self.prefer_finality = true;
+            return self.check_origins().await;
+        }
+        if !yield_to_work && finality_due {
+            self.yield_to_work = true;
+            self.prefer_finality = false;
+            return self.finalize().await;
+        }
         if self.prefer_command &&
             let Ok(message) = self.commands.try_recv()
         {
@@ -741,6 +859,8 @@ impl<C: EngineClient + 'static> NodeActor for EngineActor<C> {
             self.prefer_command = false;
             return self.command(message).await;
         }
+        let finality_deadline = self.finality_retry_at;
+        let wait_for_finality = !recovering && self.has_finality_candidate();
         tokio::select! {
             biased;
             waiter = self.resets.recv(), if self.reset_waiters.len() < 32 => {
@@ -756,6 +876,10 @@ impl<C: EngineClient + 'static> NodeActor for EngineActor<C> {
             }
             _ = time::sleep_until(self.recovery_at), if recovering => {}
             _ = time::sleep_until(self.check_at), if !recovering && self.origins_dirty => {}
+            _ = async {
+                if let Some(deadline) = finality_deadline { time::sleep_until(deadline).await; }
+                else { std::future::pending::<()>().await; }
+            }, if wait_for_finality => {}
             message = self.commands.recv() => {
                 self.prefer_command = false;
                 return self.command(message.ok_or(EngineError::ChannelClosed)?).await;
@@ -826,6 +950,20 @@ fn consolidate_failure(error: ConsolidateError) -> Failure {
             Failure::Retry(error.to_string())
         }
         ConsolidateError::DepositsOnlyRejected(_) => Failure::Fatal(error.to_string()),
+    }
+}
+
+fn finalize_failure(error: FinalizeError) -> Failure {
+    match error {
+        FinalizeError::Forkchoice(error) => forkchoice_failure(error),
+        FinalizeError::L2Mismatch(_) |
+        FinalizeError::L1Mismatch(_) |
+        FinalizeError::NotSafe |
+        FinalizeError::Syncing => Failure::Reset(error.to_string()),
+        FinalizeError::Rpc(_) | FinalizeError::BlockNotFound(_) => {
+            Failure::Retry(error.to_string())
+        }
+        FinalizeError::BlockInfo(_) => Failure::Fatal(error.to_string()),
     }
 }
 
