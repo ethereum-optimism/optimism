@@ -127,6 +127,12 @@ seed="$(sha256sum rust/Cargo.lock | cut -d' ' -f1)"
 case "$job" in
   tests-build)
     stage archive mold -run cargo nextest archive --workspace --all-features --locked --archive-file "$report/tests.tar.zst"
+    if [[ "${CI_RUST_BASELINE:-false}" == true ]]; then
+      # A cold chainspec build generates a watched archive after Cargo stamps
+      # its build-script fingerprint. Settle that input before publishing a
+      # reusable compiler seed. This is preparation; HEAD creates its own archive.
+      json_stage compiler-settle cargo nextest list --workspace --all-features --locked --message-format json
+    fi
     # Compile the extra test once; its fresh verdict remains in the runtime task.
     stage beacon-build cargo test --profile fast-build --locked -p kona-providers-alloy \
       test_filtered_beacon_blobs_deserializes_on_small_stack --no-run
