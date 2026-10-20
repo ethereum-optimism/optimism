@@ -6,15 +6,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-super-root/superroot"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // TestSuperRootMigratorMatchesSupernodeAtSuppliedTimestamp verifies that when
-// the SuperRootMigrator script (used by op-deployer during the Interop
-// migration) is given a specific finalized timestamp, it computes the same
+// check-super-root's SuperRootMigrator (used during the Interop migration) is
+// given a specific finalized timestamp, it computes the same
 // super root as the supernode reports for that timestamp.
 func TestSuperRootMigratorMatchesSupernodeAtSuppliedTimestamp(gt *testing.T) {
 	t := devtest.ParallelT(gt)
@@ -23,7 +23,7 @@ func TestSuperRootMigratorMatchesSupernodeAtSuppliedTimestamp(gt *testing.T) {
 	finalizedTimestamp := sys.Supernode.AwaitFinalizationAdvanced()
 	expected := sys.Supernode.SuperRootAt(finalizedTimestamp, sys.L2A.ChainID(), sys.L2B.ChainID())
 
-	migrator, err := script.NewSuperRootMigrator(testlog.Logger(t, log.LevelInfo), sys.L2UserRPCURLs(), &finalizedTimestamp)
+	migrator, err := superroot.NewSuperRootMigrator(testlog.Logger(t, log.LevelInfo), sys.L2UserRPCURLs(), &finalizedTimestamp)
 	require.NoError(t, err)
 	actual, err := migrator.Run(t.Ctx())
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestSuperRootMigratorSelectsLatestFinalizedTimestamp(gt *testing.T) {
 
 	finalizedAtSetup := sys.Supernode.AwaitFinalizationAdvanced()
 
-	migrator, err := script.NewSuperRootMigrator(testlog.Logger(t, log.LevelInfo), sys.L2UserRPCURLs(), nil)
+	migrator, err := superroot.NewSuperRootMigrator(testlog.Logger(t, log.LevelInfo), sys.L2UserRPCURLs(), nil)
 	require.NoError(t, err)
 	actual, err := migrator.Run(t.Ctx())
 	require.NoError(t, err)

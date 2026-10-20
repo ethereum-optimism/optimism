@@ -1,4 +1,5 @@
-package script
+// Package superroot computes the super root of a set of L2 chains from their execution clients.
+package superroot
 
 import (
 	"context"
