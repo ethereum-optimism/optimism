@@ -2142,8 +2142,10 @@ jobs:
           command: |
             ROOT_DIR="$(pwd)"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+      # Each worker must persist its own objects: immutable shared keys retain
+      # only the first finisher, leaving other shards partially cold next run.
       - go-restore-cache:
-          namespace: go-tests
+          namespace: "go-tests-node-{{ .Environment.CIRCLE_NODE_INDEX }}"
       - run:
           name: Run Go tests
           no_output_timeout: <<parameters.no_output_timeout>>
@@ -2158,7 +2160,7 @@ jobs:
           destination: go-junit
           when: always
       - go-save-cache:
-          namespace: go-tests
+          namespace: "go-tests-node-{{ .Environment.CIRCLE_NODE_INDEX }}"
       - store_test_results:
           path: ./tmp/test-results
       - run:
