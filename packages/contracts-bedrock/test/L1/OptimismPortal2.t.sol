@@ -1641,14 +1641,19 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         }
     }
 
-    /// @notice Tests that the L1StandardBridge and a configured hook are refused at finalization.
-    function test_finalizeWithdrawalTransaction_badTargets_reverts() external {
-        address hook = makeAddr("bridgeHook");
-        forceSetBridgeHook(hook);
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
+    function test_finalizeWithdrawalTransaction_standardBridgeTarget_reverts() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
 
         _defaultTx.target = address(l1StandardBridge);
         vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
+    /// @notice Tests that a configured hook is an unsafe withdrawal target.
+    function test_finalizeWithdrawalTransaction_bridgeHookTarget_reverts() external {
+        address hook = makeAddr("bridgeHook");
+        forceSetBridgeHook(hook);
 
         _defaultTx.target = hook;
         vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
