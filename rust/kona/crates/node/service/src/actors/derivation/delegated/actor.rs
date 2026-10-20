@@ -82,8 +82,9 @@ where
     L1Provider: ChainProvider + Send + 'static,
 {
     type Error = DerivationError;
+    type Input = DelegateDerivationActorInput;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
         select! {
             biased;
 
@@ -95,14 +96,32 @@ where
                     );
                     DerivationError::RequestReceiveFailed
                 })?;
-                self.handle_derivation_delegation_actor_request(request).await
+                Ok(DelegateDerivationActorInput::Request(request))
             }
             _ = self.delegated_derivation_ticker.tick(),
             if self.has_engine_sync_completed => {
-                self.fetch_and_apply_delegate_safe_head().await
+                Ok(DelegateDerivationActorInput::Poll)
             }
         }
     }
+
+    async fn handle(&mut self, input: Self::Input) -> Result<(), Self::Error> {
+        match input {
+            DelegateDerivationActorInput::Request(request) => {
+                self.handle_derivation_delegation_actor_request(request).await
+            }
+            DelegateDerivationActorInput::Poll => self.fetch_and_apply_delegate_safe_head().await,
+        }
+    }
+}
+
+/// An input handled by the [`DelegateDerivationActor`].
+#[derive(Debug)]
+pub enum DelegateDerivationActorInput {
+    /// A request from another actor.
+    Request(DerivationActorRequest),
+    /// Time to poll the derivation delegate.
+    Poll,
 }
 
 impl<DerivationEngineClient_, DelegateProvider, L1Provider>

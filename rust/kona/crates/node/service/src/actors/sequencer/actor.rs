@@ -445,20 +445,32 @@ where
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient + Sync + 'static,
 {
     type Error = SequencerActorError;
+    type Input = SequencerActorInput;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
         if !self.started {
-            self.update_metrics();
-            // Reset the engine state prior to beginning block building.
-            self.schedule_initial_reset().await?;
-            self.started = true;
+            return Ok(SequencerActorInput::Start);
         }
 
         select! {
             // We are using a biased select here to ensure that the admin queries are given priority over the block building task.
             // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.
             biased;
-            Some(query) = self.admin_api_rx.recv() => {
+            Some(query) = self.admin_api_rx.recv() => Ok(SequencerActorInput::AdminQuery(query)),
+            // The sequencer must be active to build new blocks.
+            _ = self.build_ticker.tick(), if self.is_active => Ok(SequencerActorInput::BuildTick),
+        }
+    }
+
+    async fn handle(&mut self, input: Self::Input) -> Result<(), Self::Error> {
+        match input {
+            SequencerActorInput::Start => {
+                self.update_metrics();
+                // Reset the engine state prior to beginning block building.
+                self.schedule_initial_reset().await?;
+                self.started = true;
+            }
+            SequencerActorInput::AdminQuery(query) => {
                 let active_before = self.is_active;
 
                 self.handle_admin_query(query).await;
@@ -467,10 +479,8 @@ where
                 if !active_before && self.is_active {
                     self.build_ticker.reset_immediately();
                 }
-                Ok(())
             }
-            // The sequencer must be active to build new blocks.
-            _ = self.build_ticker.tick(), if self.is_active => {
+            SequencerActorInput::BuildTick => {
                 if !self.unsafe_payload_gossip_client.has_capacity() {
                     warn!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
                     return Ok(());
@@ -487,7 +497,9 @@ where
                     Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
                         if is_seal_task_err_fatal(&err) {
                             error!(target: "sequencer", err=?err, "Critical seal task error occurred");
-                            return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
+                            return Err(SequencerActorError::EngineError(
+                                EngineClientError::SealError(err),
+                            ));
                         }
                         self.next_payload_to_seal = None;
                     }
@@ -498,9 +510,15 @@ where
                 }
 
                 if let Some(payload) = self.next_payload_to_seal.as_ref() {
-                    let next_block_seconds = payload.attributes_with_parent.parent().block_info.timestamp.saturating_add(self.rollup_config.block_time);
+                    let next_block_seconds = payload
+                        .attributes_with_parent
+                        .parent()
+                        .block_info
+                        .timestamp
+                        .saturating_add(self.rollup_config.block_time);
                     // next block time is last + block_time - time it takes to seal.
-                    let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) - self.last_seal_duration;
+                    let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) -
+                        self.last_seal_duration;
                     match next_block_time.duration_since(SystemTime::now()) {
                         Ok(duration) => self.build_ticker.reset_after(duration),
                         Err(_) => self.build_ticker.reset_immediately(),
@@ -508,10 +526,21 @@ where
                 } else {
                     self.build_ticker.reset_immediately();
                 }
-                Ok(())
             }
         }
+        Ok(())
     }
+}
+
+/// An input handled by the [`SequencerActor`].
+#[derive(Debug)]
+pub enum SequencerActorInput {
+    /// Reset the engine before building the first block.
+    Start,
+    /// A query from the admin API.
+    AdminQuery(SequencerAdminQuery),
+    /// Time to seal the pending block and start building the next one.
+    BuildTick,
 }
 
 // Determines whether the provided [`SealTaskError`] is fatal for the sequencer.

@@ -54,11 +54,17 @@ impl<Launcher: RpcServerLauncher> Drop for RpcActor<Launcher> {
 #[async_trait]
 impl<Launcher: RpcServerLauncher> NodeActor for RpcActor<Launcher> {
     type Error = RpcActorError;
+    type Input = ();
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    /// Waits for the server to stop.
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
         let handle = self.handle.as_ref().ok_or(RpcActorError::ServerStopped)?;
         handle.stopped().await;
+        Ok(())
+    }
 
+    /// Relaunches the stopped server, if any restarts remain.
+    async fn handle(&mut self, (): Self::Input) -> Result<(), Self::Error> {
         if self.restarts_remaining == 0 {
             return Err(RpcActorError::ServerStopped);
         }

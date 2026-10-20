@@ -69,12 +69,16 @@ where
     EngineRpcClient_: EngineRpcClient + 'static,
 {
     type Error = EngineError;
+    type Input = EngineRpcRequest;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        let query = self.inbound_request_rx.recv().await.ok_or_else(|| {
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
+        self.inbound_request_rx.recv().await.ok_or_else(|| {
             error!(target: "engine", "Engine rpc request receiver closed unexpectedly");
             EngineError::ChannelClosed
-        })?;
+        })
+    }
+
+    async fn handle(&mut self, query: Self::Input) -> Result<(), Self::Error> {
         self.handle_rpc_request(query).await
     }
 }

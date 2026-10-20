@@ -1,5 +1,5 @@
 mod actor;
-pub use actor::DelegateDerivationActor;
+pub use actor::{DelegateDerivationActor, DelegateDerivationActorInput};
 
 mod client;
 pub use client::{

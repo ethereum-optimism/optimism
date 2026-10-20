@@ -80,6 +80,8 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     gossip.expect_schedule_execution_payload_gossip().times(0);
     actor.unsafe_payload_gossip_client = gossip;
 
+    // The first step resets the engine.
+    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     // The build tick finds the queue full and returns instead of waiting for space.
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 
@@ -116,6 +118,8 @@ async fn building_resumes_once_the_gossip_queue_drains() {
     gossip.expect_has_capacity().returning(move || ticks.fetch_add(1, Ordering::SeqCst) > 0);
     actor.unsafe_payload_gossip_client = gossip;
 
-    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
-    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
+    // The first step resets the engine, followed by the two ticks.
+    for _ in 0..3 {
+        time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
+    }
 }

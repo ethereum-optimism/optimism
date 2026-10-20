@@ -248,15 +248,19 @@ where
     PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync + 'static,
 {
     type Error = DerivationError;
+    type Input = DerivationActorRequest;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
+        self.inbound_request_rx.recv().await.ok_or_else(|| {
             error!(
                 target: "derivation",
                 "DerivationActor inbound request receiver closed unexpectedly",
             );
             DerivationError::RequestReceiveFailed
-        })?;
+        })
+    }
+
+    async fn handle(&mut self, request: Self::Input) -> Result<(), Self::Error> {
         self.handle_derivation_actor_request(request).await
     }
 }

@@ -256,45 +256,9 @@ where
 
         Ok(())
     }
-}
 
-#[async_trait]
-impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
-where
-    EngineClient_: EngineClient + 'static,
-    DerivationClient: EngineDerivationClient + 'static,
-{
-    type Error = EngineError;
-
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        if Instant::now() >= self.retry_at {
-            if self.reset_pending {
-                self.attempt_reset().await?;
-            } else {
-                self.drain().await?;
-            }
-        }
-
-        // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
-        }
-
-        // Wait for the next processing request.
-        // Retry without needing a new inbound message, while still accepting requests during
-        // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
-        let request = tokio::select! {
-            request = self.inbound_request_rx.recv(),
-                if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
-                request.ok_or(EngineError::ChannelClosed)?
-            }
-            _ = time::sleep_until(self.retry_at),
-                if self.reset_pending || !self.engine.is_empty() => return Ok(()),
-        };
-
+    /// Enqueues the engine task for a request, or retains a reset request until it succeeds.
+    fn enqueue(&mut self, request: EngineActorRequest) {
         match request {
             EngineActorRequest::Build(build_request) => {
                 let BuildRequest { attributes, result_tx } = *build_request;
@@ -357,7 +321,62 @@ where
                 self.engine.enqueue(task);
             }
         }
+    }
+}
+
+#[async_trait]
+impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
+where
+    EngineClient_: EngineClient + 'static,
+    DerivationClient: EngineDerivationClient + 'static,
+{
+    type Error = EngineError;
+    type Input = EngineActorInput;
+
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
+        // Wait for the next processing request.
+        // Retry without needing a new inbound message, while still accepting requests during
+        // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
+        tokio::select! {
+            request = self.inbound_request_rx.recv(),
+                if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
+                Ok(EngineActorInput::Request(request.ok_or(EngineError::ChannelClosed)?))
+            }
+            _ = time::sleep_until(self.retry_at),
+                if self.reset_pending || !self.engine.is_empty() => Ok(EngineActorInput::Retry),
+        }
+    }
+
+    async fn handle(&mut self, input: Self::Input) -> Result<(), Self::Error> {
+        if let EngineActorInput::Request(request) = input {
+            self.enqueue(request);
+        }
+
+        if Instant::now() >= self.retry_at {
+            if self.reset_pending {
+                self.attempt_reset().await?;
+            } else {
+                self.drain().await?;
+            }
+        }
+
+        // If the unsafe head has updated, propagate it to the outbound channels.
+        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
+            unsafe_head_tx.send_if_modified(|val| {
+                let new_head = self.engine.state().sync_state.unsafe_head();
+                (*val != new_head).then(|| *val = new_head).is_some()
+            });
+        }
 
         Ok(())
     }
+}
+
+/// An input handled by the [`EngineActor`].
+#[derive(Debug)]
+pub enum EngineActorInput {
+    /// A request from another actor.
+    Request(EngineActorRequest),
+    /// The retry backoff has elapsed while a reset or queued tasks are pending.
+    Retry,
 }
