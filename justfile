@@ -352,6 +352,21 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
+  if [[ -z "{{go_test_flags}}" && "${CIRCLE_NODE_TOTAL:-1}" == 12 ]]; then
+      export CI_COMMIT_SHA="${CIRCLE_SHA1:-$(git rev-parse HEAD)}"
+      export CI_BRANCH="${CIRCLE_BRANCH:-$(git branch --show-current)}"
+      export CI_SHARD_INDEX="${CIRCLE_NODE_INDEX:-0}" CI_SHARD_TOTAL=12 CI_GO_FRESH_TESTS=true
+      export CI_GO_BUILD_CACHE="$(go env GOCACHE)" CI_GO_MODULE_CACHE="$(go env GOMODCACHE)"
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
+      cp .ci/go-tests/{all-packages.txt,go-list.json} tmp/testlogs/
+      cp tmp/testlogs/go-list.json tmp/testlogs/discovery.json
+      python3 ops/ci/runtime/go-suite.py record-circle --flags="{{go_test_flags}}"
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh run
+      cp tmp/testlogs/packages.txt "tmp/testlogs/packages-${CI_SHARD_INDEX}.txt"
+      cp tmp/testlogs/log.json "tmp/testlogs/log-${CI_SHARD_INDEX}.json"
+      exit 0
+  fi
   ALL_PACKAGES="$(just list-test-packages | tr '\n' ' ')"
   FRESH_FLAGS=()
   case "${CI_GO_FRESH_TESTS:-false}" in

@@ -2,6 +2,7 @@
 """Hash, bind and restore Go runtime dependencies without accepting stale inputs."""
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,13 @@ SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "go-modules": {"verified": T
             "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth"]},
             "prestate": {"recipe": "just reproducible-prestate"},
             "sp1-executor": {"profile": "release", "features": ["all"], "packages": ["kona-sp1-super-range-executor"]}}
+
+def dependency_source():
+    spec = importlib.util.spec_from_file_location('go_dependency_source', ROOT / 'ops/ci/runtime/go-dependency-source.py')
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper
+
 
 def digest(path):
     with path.open('rb') as stream:
@@ -56,12 +64,18 @@ def pack(kind, paths):
                                    for tool in {'go': ['go'], 'go-modules': ['go'], 'contracts': ['go', 'forge'], 'contracts-e2e': ['go', 'forge'], 'contracts-kontrol': ['go', 'forge'],
                                                 'rust-e2e-release': ['rustc', 'cargo'], 'kona': ['rustc', 'cargo'],
                                                 'op-reth': ['rustc', 'cargo'], 'sp1-executor': ['rustc', 'cargo'], 'prestate': ['docker']}[kind]})
+    if os.environ.get('CI_GO_REUSABLE_DEPENDENCY') == '1':
+        metadata['build_inputs_sha256'] = dependency_source().fingerprint(kind)
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
 
 def restore(kind, artifact):
     started = time.monotonic()
     metadata = json.loads((artifact / 'metadata.json').read_text())
-    if any(metadata.get(key) != value for key, value in provenance(kind).items()):
+    expected = provenance(kind)
+    if 'build_inputs_sha256' in metadata:
+        dependency_source().verify(kind, metadata)
+        expected.pop('commit_sha')
+    if any(metadata.get(key) != value for key, value in expected.items()):
         raise ValueError('Dependency revision, toolchain pins or settings mismatch')
     archive = artifact / 'files.tar.gz'
     if metadata.get('archive_sha256') != digest(archive):
@@ -79,7 +93,7 @@ def restore(kind, artifact):
             if member is None: return None
             path = ROOT / member.name
             expected = files.get(member.name)
-            if expected and member.isfile() and path.is_file() and not path.is_symlink() and digest(path) == expected:
+            if expected and member.isfile() and path.is_file() and not path.is_symlink() and digest(path) == expected and path.stat().st_mode & 0o111 == member.mode & 0o111:
                 # Artifact dependencies can arrive with producer files already
                 # materialized. Go module directories are read-only. Reuse
                 # exact bytes, but still validate the archived file itself.
@@ -95,6 +109,7 @@ def restore(kind, artifact):
             raise ValueError('Missing or corrupt dependency file')
     output = ROOT / 'tmp/testlogs/dependencies'
     output.mkdir(parents=True, exist_ok=True)
+    metadata['consumer_commit_sha'] = os.environ['CI_COMMIT_SHA']
     metadata['restore_seconds'] = time.monotonic() - started
     (output / f'{kind}.json').write_text(json.dumps(metadata, indent=2) + '\n')
 

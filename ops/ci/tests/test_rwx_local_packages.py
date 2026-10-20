@@ -44,7 +44,7 @@ class LocalPackageTests(unittest.TestCase):
                              {phase + '-' + str(index) for index in range(12)})
         for index in range(12):
             compile_task = graph['compile-' + str(index)]
-            self.assertEqual(compile_task['use'], ['source', 'go-build-tools', 'discovery'])
+            self.assertEqual(compile_task['use'], ['compiler-seed-' + str(index), 'source', 'go-build-tools', 'discovery'])
             verdict = graph['verdict-' + str(index)]
             self.assertEqual([key for key in verdict['use'] if key.startswith('compile-')],
                              ['compile-' + str(index) + '.build'])
@@ -52,7 +52,7 @@ class LocalPackageTests(unittest.TestCase):
                              'prestate.build', 'discovery', 'source'} <= set(verdict['use']))
         leaf = tasks('packages/go-test-verdict.yml')['run']
         self.assertIs(leaf['cache'], False)
-        self.assertTrue({'!.ci/go-cache', '!.ci/rust-cache', '!rust/target'} <= set(leaf['filter']))
+        self.assertTrue({'!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/rust-cache', '!rust/target'} <= set(leaf['filter']))
         self.assertEqual(leaf['outputs']['filesystem']['filter']['workspace'], ['.ci/go-cache/full/run'])
 
     def test_acceptance_keeps_both_variants_and_excludes_discovery_compiler_state(self):

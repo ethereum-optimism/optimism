@@ -30,7 +30,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          workspace: [.ci/go-tests/build]
           system: []
       artifacts:
         - key: binaries

@@ -147,55 +147,461 @@ tasks:
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
     timeout: 20m
 
+  # Producers build an immutable ancestor with identical tracked build inputs.
+  # Consumers verify that identity against HEAD before restoring any binaries.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
+  - key: go-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.dependency-plan.values.go }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: go-source
+    use: [go-code, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
   - key: go
-    use: [source, go-build-tools]
+    use: go-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-go.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.go }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
+  - key: contracts-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.dependency-plan.values.contracts }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: contracts-source
+    use: [contracts-code, contract-tools, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
   - key: contracts
-    use: [source, contract-tools, go-build-tools]
+    use: contracts-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-contracts.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.contracts }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
+  - key: kona-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.dependency-plan.values.kona }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: kona-source
+    use: [kona-code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
   - key: kona
-    use: [source, rust-tools]
+    use: kona-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-kona.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.kona }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
+  - key: op-reth-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.dependency-plan.values.op-reth }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: op-reth-source
+    use: [op-reth-code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
   - key: op-reth
-    use: [source, rust-tools]
+    use: op-reth-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-op-reth.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.op-reth }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
 
+  - key: prestate-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.dependency-plan.values.prestate }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: prestate-source
+    use: [prestate-code, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
   - key: prestate
-    use: [source, go-build-tools]
+    use: prestate-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/go-prestate.yml
     with:
-      commit-sha: ${{ init.commit-sha }}
+      commit-sha: ${{ tasks.dependency-plan.values.prestate }}
       cache-epoch: ${{ init.cache-epoch }}
       build-probe: ${{ init.build-probe }}
       target-cache-mode: ${{ init.target-cache-mode }}
+
+  # Immutable parent compiler state is reusable by PR readers. Current-source
+  # compilation and every verdict still execute with the current sealed plan.
+  - key: compiler-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.dependency-plan.values.compiler }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: compiler-preparation
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: [compiler-code, go-build-tools, contracts.build]
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      export GOMODCACHE="$PWD/.ci/go-cache/full/modules" GOCACHE="$PWD/.ci/go-cache/full/build"
+      go mod download
+      just sync-superchain-go
+      git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+      just cannon
+      python3 ops/ci/runtime/go-artifacts.py restore contracts .ci/go-tests/dependencies/contracts
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_BRANCH: compiler-base
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 30m
+
+  - key: compiler-seed-0
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '0'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-1
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '1'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-2
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '2'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-3
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '3'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-4
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '4'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-5
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '5'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-6
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '6'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-7
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '7'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-8
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '8'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-9
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '9'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-10
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '10'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
+
+  - key: compiler-seed-11
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    use: compiler-preparation
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ tasks.dependency-plan.values.compiler }}
+      CI_SHARD_INDEX: '11'
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/go-tests/build/metadata.json
 
   - key: discovery
     use: [source, go-build-tools, go.build, contracts.build]
@@ -222,7 +628,7 @@ tasks:
     filter: ['!.ci/go-cache/full/dependencies']
 
   - key: compile-0
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-0, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -246,7 +652,7 @@ tasks:
       cache-key: go-full-runtime-0-${{ init.cache-epoch }}
 
   - key: compile-1
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-1, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -270,7 +676,7 @@ tasks:
       cache-key: go-full-runtime-1-${{ init.cache-epoch }}
 
   - key: compile-2
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-2, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -294,7 +700,7 @@ tasks:
       cache-key: go-full-runtime-2-${{ init.cache-epoch }}
 
   - key: compile-3
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-3, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -318,7 +724,7 @@ tasks:
       cache-key: go-full-runtime-3-${{ init.cache-epoch }}
 
   - key: compile-4
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-4, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -342,7 +748,7 @@ tasks:
       cache-key: go-full-runtime-4-${{ init.cache-epoch }}
 
   - key: compile-5
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-5, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -366,7 +772,7 @@ tasks:
       cache-key: go-full-runtime-5-${{ init.cache-epoch }}
 
   - key: compile-6
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-6, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -390,7 +796,7 @@ tasks:
       cache-key: go-full-runtime-6-${{ init.cache-epoch }}
 
   - key: compile-7
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-7, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -414,7 +820,7 @@ tasks:
       cache-key: go-full-runtime-7-${{ init.cache-epoch }}
 
   - key: compile-8
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-8, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -438,7 +844,7 @@ tasks:
       cache-key: go-full-runtime-8-${{ init.cache-epoch }}
 
   - key: compile-9
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-9, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -462,7 +868,7 @@ tasks:
       cache-key: go-full-runtime-9-${{ init.cache-epoch }}
 
   - key: compile-10
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-10, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:
@@ -486,7 +892,7 @@ tasks:
       cache-key: go-full-runtime-10-${{ init.cache-epoch }}
 
   - key: compile-11
-    use: [source, go-build-tools, discovery]
+    use: [compiler-seed-11, source, go-build-tools, discovery]
     if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     call: ${{ run.dir }}/packages/go-test-compile.yml
     with:

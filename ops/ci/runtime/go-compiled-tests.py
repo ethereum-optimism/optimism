@@ -89,6 +89,7 @@ def build():
     subprocess.run(["go", "build", "-o", str(BUILD / "test2json"), "cmd/test2json"], cwd=ROOT, check=True)
     # go test -c compiles only. TestMain and init functions never run here.
     objects = go_objects()
+    cache_proofs = {}
     if sorted(objects) != manifest["packages"]:
         raise ValueError("Tagged discovery differs from compilation selection")
 
@@ -96,7 +97,22 @@ def build():
         index, package = item
         output = BUILD / f"{index}.test"
         output.unlink(missing_ok=True)
-        subprocess.run(["go", "test", "-c", "-p=4", "-tags=ci", "-o", str(output), package], cwd=ROOT, check=True)
+        command = ["go", "test", "-c", "-p=4", "-tags=ci", "-o", str(output), package]
+        if SUITE == 'go-tests':
+            # -x records actual compiler/linker subprocesses without changing
+            # compilation or freshness. Keep original diagnostics on failure.
+            result = subprocess.run(command[:3] + ['-x'] + command[3:], cwd=ROOT, text=True, capture_output=True)
+            (BUILD / f'{index}.compile.log').write_text(result.stderr)
+            cache_proofs[package] = {
+                'compile_commands': len(re.findall(r'^.*?/compile -o ', result.stderr, re.MULTILINE)),
+                'link_commands': len(re.findall(r'^.*?/link -o ', result.stderr, re.MULTILINE)),
+                'log': f'{index}.compile.log',
+            }
+            if result.returncode:
+                sys.stderr.write(result.stdout + result.stderr)
+                raise subprocess.CalledProcessError(result.returncode, command)
+        else:
+            subprocess.run(command, cwd=ROOT, check=True)
         has_tests = bool(objects[package].get("TestGoFiles") or objects[package].get("XTestGoFiles"))
         if has_tests and not output.is_file():
             raise ValueError(f"Compilation did not produce a test binary: {package}")
@@ -109,11 +125,17 @@ def build():
                 "go_version": subprocess.check_output(["go", "version"], text=True).strip(),
                 "test2json_sha256": digest(BUILD / "test2json"), "packages": binaries}
     if SUITE == "go-tests":
-        metadata.update(suite=SUITE, settings=manifest["settings"],
+        metadata.update(cache_proofs=cache_proofs, suite=SUITE, settings=manifest["settings"],
                         environment=manifest["environment"], go_environment=manifest["go_environment"],
                         shard_index=int(os.environ["CI_SHARD_INDEX"]), shard_total=manifest["total"],
                         manifest_sha256=digest(ROOT / ".ci" / SUITE / "manifest.json"),
                         compile_root=str(ROOT))
+    if SUITE == 'go-tests' and PREFIX + '/op-deployer/pkg/deployer/integration_test/cli' in packages:
+        # CLI TestMain otherwise recompiles the same helper in every execution
+        # group with an empty runtime compiler cache. Handoff only the binary.
+        subprocess.run(['go', 'build', '-o', str(BUILD / 'op-deployer'), './op-deployer/cmd/op-deployer'],
+                       cwd=ROOT, check=True)
+        metadata['cli_helper_sha256'] = digest(BUILD / 'op-deployer')
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if head != metadata["commit_sha"]:
         raise ValueError("Go compilation belongs to a different commit")
@@ -183,6 +205,9 @@ def verify():
                 raise ValueError("Missing test binary or invalid no-test marker")
         if binary["file"] is not None and digest(BUILD / binary["file"]) != binary["sha256"]:
             raise ValueError(f"Go test binary changed: {package}")
+    if SUITE == 'go-tests' and PREFIX + '/op-deployer/pkg/deployer/integration_test/cli' in selected:
+        if not metadata.get('cli_helper_sha256') or digest(BUILD / 'op-deployer') != metadata['cli_helper_sha256']:
+            raise ValueError('CLI runtime helper changed or is missing')
     return metadata, selected
 
 
@@ -250,6 +275,8 @@ def execute_binary(reporter, binary, package, directory, parallel, timeout, run_
 
 def run(args):
     metadata, selected = verify()
+    if metadata.get('cli_helper_sha256'):
+        os.environ['OP_DEPLOYER_TEST_BINARY'] = str(BUILD / 'op-deployer')
     # gotestsum's raw-command reruns append -test.run=<regexp> and a package.
     # Only a rerun may narrow the selection; the initial attempt runs it all.
     run_filter = None
@@ -257,6 +284,10 @@ def run(args):
         if len(args) != 2 or not args[0].startswith("-test.run=") or args[1] not in selected:
             raise ValueError("Unexpected gotestsum rerun arguments")
         run_filter, selected = args[0][len("-test.run="):], [args[1]]
+
+    manifest = json.loads((ROOT / '.ci' / SUITE / 'manifest.json').read_text())
+    units = manifest.get('work_shards', [[]])[int(os.environ['CI_SHARD_INDEX'])] if manifest.get('work_shards') else []
+    assigned_tests = {unit['package']: unit['tests'] for unit in units if unit['tests'] is not None}
 
     def run_package(package):
         binary = metadata["packages"][package]["file"]
@@ -268,8 +299,19 @@ def run(args):
         # go test runs each binary in its package directory. Preserve fixtures,
         # -count=1, -parallel=nproc, -timeout=40m, and at most four packages.
         directory = ROOT / package.removeprefix("github.com/ethereum-optimism/optimism/")
+        package_filter = run_filter
+        names = assigned_tests.get(package)
+        if names is not None:
+            if run_filter is None:
+                package_filter = '^(' + '|'.join(re.escape(name) for name in names) + ')$'
+            else:
+                root_filter = run_filter.split('/')[0]
+                all_names = manifest['split_tests'][package]
+                if (not any(re.search(root_filter, name) for name in names)
+                        or any(re.search(root_filter, name) for name in set(all_names) - set(names))):
+                    raise ValueError('Retry would escape the assigned test group')
         return execute_binary(BUILD / "test2json", BUILD / binary, package, directory,
-                              os.environ["PARALLEL"], os.environ.get("TEST_TIMEOUT", "40m"), run_filter)
+                              os.environ["PARALLEL"], os.environ.get("TEST_TIMEOUT", "40m"), package_filter)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         statuses = list(pool.map(run_package, selected))

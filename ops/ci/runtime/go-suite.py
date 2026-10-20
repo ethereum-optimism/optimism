@@ -58,7 +58,24 @@ def discover(suite, total, timings):
     packages = validate_discovery(selected, source, SUITES[suite])
     (output / "go-list.json").write_text(source)
     durations = json.loads(timings.read_text())["packages"] if timings else None
-    manifest = SHARDS.create_manifest(packages, SUITES[suite], total, durations)
+    split_tests = {}
+    timing_data = json.loads(timings.read_text()) if timings else {}
+    if suite == 'go-tests' and int(total) == 12:
+        decoder, offset = json.JSONDecoder(), 0
+        while offset < len(source):
+            if source[offset].isspace():
+                offset += 1
+                continue
+            item, offset = decoder.raw_decode(source, offset)
+            # This package has serial subprocess-heavy tests. Split top-level
+            # tests; each test retains its full subtest tree and working dir.
+            if item['ImportPath'] == MODULE + '/op-deployer/pkg/deployer/integration_test/cli':
+                paths = [str(Path(item['Dir']) / name) for name in item.get('TestGoFiles', []) + item.get('XTestGoFiles', [])]
+                result = subprocess.check_output(['go', 'run', 'ops/ci/runtime/go-test-names.go'],
+                                                 input=json.dumps(paths), cwd=ROOT, text=True)
+                split_tests[item['ImportPath']] = json.loads(result)
+    manifest = SHARDS.create_manifest(packages, SUITES[suite], total, durations,
+                                     split_tests, timing_data.get('tests'))
     manifest.update(suite=suite, commit_sha=os.environ["CI_COMMIT_SHA"],
                     branch=os.environ.get("CI_BRANCH") or os.environ.get("CIRCLE_BRANCH"), settings=settings(),
                     environment=environment(), go_environment=go_environment(),

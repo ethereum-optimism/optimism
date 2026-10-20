@@ -77,6 +77,14 @@ class GoArtifactsTest(unittest.TestCase):
         self.assertEqual(directory.stat().st_mode & 0o777, 0o555)
         self.assertEqual(binary.read_text(), 'compiled')
 
+    def test_same_bytes_do_not_hide_lost_executable_permissions(self):
+        binary = self.root / 'fixture/binary'
+        binary.chmod(0o755)
+        ART.pack('go', ['fixture'])
+        binary.chmod(0o644)
+        ART.restore('go', self.artifact)
+        self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
+
     def test_matching_destination_cannot_hide_corrupt_archived_bytes(self):
         archive = self.artifact / 'files.tar.gz'; data = b'corrupt'
         with tarfile.open(archive, 'w:gz') as stream:
