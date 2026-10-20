@@ -196,8 +196,22 @@ tasks:
       fetch-full-depth: true
       submodules: false
 
+  # Build the ancestor toolchain from ancestor inputs too. Depending on the
+  # HEAD toolchain would carry changing checkout metadata into the cache key.
+  - key: compiler-tools
+    use: [mise, compiler-code]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: compiler-rust-tools
+    use: [compiler-code, compiler-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: workspace
+
   - key: compiler-source
-    use: [rust-tools, compiler-code]
+    use: [compiler-rust-tools, compiler-code]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
       git reset --hard "$COMPILER_BASE_SHA"

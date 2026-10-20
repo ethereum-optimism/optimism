@@ -423,6 +423,9 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(tasks['tests-cache']['use'], 'compiler-source')
         self.assertEqual(tasks['tests-cache']['env']['CI_COMMIT_SHA'], '${{ tasks.compiler-base.values.sha }}')
         self.assertEqual(tasks['compiler-code']['with']['ref'], '${{ tasks.compiler-base.values.sha }}')
+        self.assertEqual(tasks['compiler-tools']['use'], ['mise', 'compiler-code'])
+        self.assertEqual(tasks['compiler-rust-tools']['use'], ['compiler-code', 'compiler-tools'])
+        self.assertEqual(tasks['compiler-source']['use'], ['compiler-rust-tools', 'compiler-code'])
         for trigger in ('cli', 'cache-rebuild'):
             self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '0')
         coordinator = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(repo / '.rwx/pr-gates.yml')], text=True))
